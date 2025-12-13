@@ -21,6 +21,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-qt>=4.5.0",
 ]
 
 # --- Setuptools explicit package discovery configuration ---
