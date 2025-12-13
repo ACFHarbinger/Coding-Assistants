@@ -6,7 +6,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 # Import our custom tools
-from tools import FileTools
+from tools.file_system import FileTools
 
 # Load environment variables
 load_dotenv()

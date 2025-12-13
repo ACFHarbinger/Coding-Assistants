@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "coding-assistants"
 version = "0.1.0"
@@ -10,3 +14,19 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "rich>=13.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+# --- Pytest Configuration ---
+[tool.pytest.ini_options]
+# Specify the directory where tests are located
+testpaths = [
+    "tests",
+]
+# Specify patterns for test files and functions
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
