@@ -1,19 +1,28 @@
 import sys
 import os
-
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
-    QLabel, QLineEdit, QPushButton, QComboBox, 
-    QFileDialog, QTextEdit, QGroupBox, QFormLayout
+    QApplication, 
+    QWidget, 
+    QVBoxLayout, 
+    QHBoxLayout, 
+    QLabel, 
+    QLineEdit, 
+    QPushButton, 
+    QListWidget, # Ensuring QListWidget is clearly imported
+    QFileDialog, 
+    QTextEdit, 
+    QGroupBox, 
+    QFormLayout,
+    QAbstractItemView
 )
 from PySide6.QtCore import Qt
-
 
 class ConfigGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Multi-LLM Assistant Configuration")
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(800)
         
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -23,6 +32,9 @@ class ConfigGUI(QWidget):
         
         # Developer Config Group
         self.create_developer_group()
+
+        # Reviewer Config Group (NEW)
+        self.create_reviewer_group()
         
         # Workspace Config Group
         self.create_workspace_group()
@@ -33,22 +45,45 @@ class ConfigGUI(QWidget):
         # Action Buttons
         self.create_buttons()
 
+    def create_model_selector(self, models):
+        """Helper to create a multi-select list widget"""
+        list_widget = QListWidget()
+        list_widget.addItems(models)
+        list_widget.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        list_widget.setMaximumHeight(80) # Keep it compact
+        return list_widget
+
+    def get_selected_models(self, list_widget):
+        """Helper to get selected items from the list"""
+        return [item.text() for item in list_widget.selectedItems()]
+
     def create_planner_group(self):
         group = QGroupBox("Planner Agent (Architecture)")
         layout = QFormLayout()
         
-        self.planner_model = QComboBox()
-        self.planner_model.addItems(["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo", "claude-3-opus", "claude-3-sonnet"])
-        self.planner_model.setEditable(True) # Allow custom input
-        
-        self.planner_api_key = QLineEdit()
-        self.planner_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.planner_api_key.setPlaceholderText("sk-...")
+        # --- Model Selection (Multi-Select) ---
+        self.planner_models = self.create_model_selector([
+            "gpt-4o", "gpt-4-turbo", "claude-3-opus", 
+            "gemini-2.5-pro", "gemini-2.5-flash", "gpt-3.5-turbo"
+        ])
+
+        # --- OpenAI Key ---
+        self.planner_openai_key = QLineEdit()
+        self.planner_openai_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.planner_openai_key.setPlaceholderText("sk-...")
         if os.environ.get("OPENAI_API_KEY"):
-            self.planner_api_key.setText(os.environ.get("OPENAI_API_KEY"))
+            self.planner_openai_key.setText(os.environ.get("OPENAI_API_KEY"))
+
+        # --- Gemini Key ---
+        self.planner_gemini_key = QLineEdit()
+        self.planner_gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.planner_gemini_key.setPlaceholderText("AIza...")
+        if os.environ.get("GEMINI_API_KEY"):
+            self.planner_gemini_key.setText(os.environ.get("GEMINI_API_KEY"))
             
-        layout.addRow("Model:", self.planner_model)
-        layout.addRow("API Key:", self.planner_api_key)
+        layout.addRow("Models (Select Multiple):", self.planner_models)
+        layout.addRow("OpenAI Key:", self.planner_openai_key)
+        layout.addRow("Gemini Key:", self.planner_gemini_key)
         group.setLayout(layout)
         self.layout.addWidget(group)
 
@@ -56,21 +91,59 @@ class ConfigGUI(QWidget):
         group = QGroupBox("Developer Agent (Coding - Local/API)")
         layout = QFormLayout()
         
-        self.dev_model = QComboBox()
-        self.dev_model.addItems(["llama3.1", "qwen2.5-coder", "mistral", "deepseek-coder", "gpt-3.5-turbo"])
-        self.dev_model.setEditable(True)
+        # --- Model Selection (Multi-Select) ---
+        self.dev_models = self.create_model_selector([
+            "llama3.1", "qwen2.5-coder", "gemini-2.5-flash", "gpt-3.5-turbo", 
+            "mistral", "deepseek-coder"
+        ])
         
+        # --- Local/Ollama URL ---
         self.dev_url = QLineEdit()
         self.dev_url.setText("http://localhost:11434/v1")
         self.dev_url.setPlaceholderText("http://localhost:11434/v1")
         
+        # --- Local/Ollama API Key (generic) ---
         self.dev_api_key = QLineEdit()
         self.dev_api_key.setText("ollama")
-        self.dev_api_key.setPlaceholderText("API Key (or 'ollama')")
+        self.dev_api_key.setPlaceholderText("API Key (or 'ollama' for local)")
         
-        layout.addRow("Model:", self.dev_model)
-        layout.addRow("Base URL:", self.dev_url)
-        layout.addRow("API Key:", self.dev_api_key)
+        # --- Dedicated Gemini Key for Developer ---
+        self.dev_gemini_key = QLineEdit()
+        self.dev_gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.dev_gemini_key.setPlaceholderText("AIza...")
+        
+        layout.addRow("Models (Select Multiple):", self.dev_models)
+        layout.addRow("Local Base URL:", self.dev_url)
+        layout.addRow("Local/OpenAI Key:", self.dev_api_key) 
+        layout.addRow("Gemini Key:", self.dev_gemini_key) 
+        group.setLayout(layout)
+        self.layout.addWidget(group)
+
+    def create_reviewer_group(self):
+        """Creates the configuration group for the Reviewer role."""
+        group = QGroupBox("Reviewer Agent (Code Review and Quality Assurance)")
+        layout = QFormLayout()
+        
+        # --- Model Selection (Multi-Select) ---
+        # Reviewers often need strong reasoning (like Planners) or specialized coding knowledge
+        self.reviewer_models = self.create_model_selector([
+            "gpt-4o", "gemini-2.5-pro", "llama3.1", "claude-3-opus",
+            "deepseek-coder", "gpt-4-turbo"
+        ])
+        
+        # --- OpenAI Key ---
+        self.reviewer_openai_key = QLineEdit()
+        self.reviewer_openai_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.reviewer_openai_key.setPlaceholderText("sk-...") # Default empty, user can reuse planner key logic if needed
+        
+        # --- Gemini Key ---
+        self.reviewer_gemini_key = QLineEdit()
+        self.reviewer_gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.reviewer_gemini_key.setPlaceholderText("AIza...")
+
+        layout.addRow("Models (Select Multiple):", self.reviewer_models)
+        layout.addRow("OpenAI Key:", self.reviewer_openai_key)
+        layout.addRow("Gemini Key:", self.reviewer_gemini_key)
         group.setLayout(layout)
         self.layout.addWidget(group)
 
@@ -125,25 +198,37 @@ class ConfigGUI(QWidget):
             self.work_dir_input.setText(folder)
 
     def start_app(self):
+        # Collecting all fields
         config = {
-            "planner_model": self.planner_model.currentText(),
-            "planner_key": self.planner_api_key.text(),
-            "dev_model": self.dev_model.currentText(),
-            "dev_url": self.dev_url.text(),
-            "dev_key": self.dev_api_key.text(),
+            # Planner
+            "planner_models": self.get_selected_models(self.planner_models),
+            "planner_openai_key": self.planner_openai_key.text(), 
+            "planner_gemini_key": self.planner_gemini_key.text(), 
+            
+            # Developer
+            "developer_models": self.get_selected_models(self.dev_models),
+            "developer_base_url": self.dev_url.text(),
+            "developer_api_key": self.dev_api_key.text(), 
+            "developer_gemini_key": self.dev_gemini_key.text(), 
+
+            # Reviewer (NEW)
+            "reviewer_models": self.get_selected_models(self.reviewer_models),
+            "reviewer_openai_key": self.reviewer_openai_key.text(),
+            "reviewer_gemini_key": self.reviewer_gemini_key.text(),
+
+            # Workspace/Task
             "work_dir": self.work_dir_input.text(),
             "task": self.task_input.toPlainText()
         }
         
         print("\n--- Starting Configuration ---")
         for k, v in config.items():
-            print(f"{k}: {v}")
+            # Mask keys for console output
+            if 'key' in k.lower() and isinstance(v, str) and v and not v.lower() == 'ollama':
+                print(f"{k}: {'*' * (len(v) - 4)}{v[-4:]}")
+            else:
+                print(f"{k}: {v}")
         print("------------------------------\n")
-        
-        # Here you would typically import your main app logic and run it
-        # For example: 
-        # from app import run_agents
-        # run_agents(config)
         
         self.close()
 

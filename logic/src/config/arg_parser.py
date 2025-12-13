@@ -9,29 +9,54 @@ import os
 # ==============================================================================
 def add_agent_args(parser):
     """
-    Adds arguments for configuring the LLM agents (Planner and Developer).
+    Adds arguments for configuring the LLM agents (Planner, Developer, Reviewer).
+    All model arguments now accept multiple space-separated values.
     """
-    # Planner Configuration (API based)
-    parser.add_argument('--planner_model', type=str, default="gpt-4o", 
-                        help="Model to use for the Planner agent (e.g., gpt-4o, gpt-4-turbo)")
-    parser.add_argument('--planner_api_key', type=str, default=os.environ.get("OPENAI_API_KEY"),
-                        help="API Key for the Planner model (defaults to OPENAI_API_KEY env var)")
+    # --- Planner Configuration (High Reasoning) ---
+    parser.add_argument('--planner_models', nargs='+', type=str, default=["gpt-4o"], 
+                        help="Models to use for the Planner agent (e.g., gpt-4o gemini-2.5-pro)")
+    
+    parser.add_argument('--planner_openai_key', type=str, default=os.environ.get("OPENAI_API_KEY"),
+                        help="OpenAI API Key for the Planner (defaults to OPENAI_API_KEY env var)")
+    parser.add_argument('--planner_gemini_key', type=str, default=os.environ.get("GEMINI_API_KEY"),
+                        help="Gemini API Key for the Planner (defaults to GEMINI_API_KEY env var)")
+
     parser.add_argument('--planner_temp', type=float, default=0.2,
                         help="Temperature setting for the Planner agent")
 
-    # Developer Configuration (Local or API)
-    parser.add_argument('--developer_model', type=str, default="llama3",
-                        help="Model to use for the Developer agent (e.g., llama3, qwen2.5-coder)")
+    # --- Developer Configuration (Coding/Execution) ---
+    parser.add_argument('--developer_models', nargs='+', type=str, default=["llama3"],
+                        help="Models to use for the Developer agent (e.g., llama3 qwen2.5-coder)")
+    
+    parser.add_argument('--developer_openai_key', type=str, default=None,
+                        help="OpenAI API Key for the Developer.")
+    parser.add_argument('--developer_gemini_key', type=str, default=None,
+                        help="Gemini API Key for the Developer.")
+    
+    # Ollama/Local Configuration
     parser.add_argument('--developer_base_url', type=str, default="http://localhost:11434/v1",
-                        help="Base URL for the Developer model API (e.g., local Ollama)")
+                        help="Base URL for local/compatible API (e.g., Ollama, use 'ollama' for api_key)")
     parser.add_argument('--developer_api_key', type=str, default="ollama",
-                        help="API Key for the Developer model (use 'ollama' for local)")
+                        help="API Key for the Developer model (use 'ollama' for local Ollama instances)")
+    
     parser.add_argument('--developer_temp', type=float, default=0.5,
                         help="Temperature setting for the Developer agent")
     parser.add_argument('--developer_timeout', type=int, default=120,
                         help="Timeout in seconds for developer model generation")
-    return parser
 
+    # --- Reviewer Configuration (NEW Role) ---
+    parser.add_argument('--reviewer_models', nargs='+', type=str, default=["gpt-4o"],
+                        help="Models to use for the Reviewer agent (e.g., gpt-4o gemini-2.5-pro)")
+    
+    parser.add_argument('--reviewer_openai_key', type=str, default=None,
+                        help="OpenAI API Key for the Reviewer.")
+    parser.add_argument('--reviewer_gemini_key', type=str, default=None,
+                        help="Gemini API Key for the Reviewer.")
+                        
+    parser.add_argument('--reviewer_temp', type=float, default=0.2,
+                        help="Temperature setting for the Reviewer agent")
+
+    return parser
 
 def add_workspace_args(parser):
     """
@@ -45,17 +70,15 @@ def add_workspace_args(parser):
                         help="Maximum number of chat rounds between agents")
     return parser
 
-
 def add_gui_args(parser):
     """
     Adds arguments specific to the GUI application.
     """
-    parser.add_argument('--app_style', type=str, default="Fusion", choices=['Fusion', 'Windows', 'MacOS'],
+    parser.add_argument('--app_style', type=str, default="Fusion", 
                         help="Visual style for the PySide6 application")
     parser.add_argument('--debug_gui', action='store_true',
                         help="Enable verbose logging for GUI events")
     return parser
-
 
 def get_main_parser():
     """
@@ -76,7 +99,6 @@ def get_main_parser():
     # 2. GUI (Graphical Mode)
     gui_parser = subparsers.add_parser('gui', help='Launch the Graphical User Interface')
     add_gui_args(gui_parser)
-    # The GUI might optionally take defaults for the form from CLI args
     add_agent_args(gui_parser) 
     add_workspace_args(gui_parser)
 
@@ -87,6 +109,7 @@ def get_main_parser():
 # VALIDATION & PARSING
 #
 # ==============================================================================
+
 def validate_run_args(args):
     """
     Validates arguments for the CLI run mode.
@@ -95,8 +118,7 @@ def validate_run_args(args):
     
     # Ensure work directory exists
     if not os.path.exists(args['work_dir']):
-        # Option to create it could be added here, or just raise error
-        print(f"Warning: Work directory '{args['work_dir']}' does not exist. It uses current directory.")
+        print(f"Warning: Work directory '{args['work_dir']}' does not exist. Using current directory.")
         args['work_dir'] = "."
 
     # Normalize URLs
@@ -105,7 +127,6 @@ def validate_run_args(args):
 
     return args
 
-
 def validate_gui_args(args):
     """
     Validates arguments for the GUI mode.
@@ -113,7 +134,6 @@ def validate_gui_args(args):
     args = args.copy()
     # GUI specific validation if needed
     return args
-
 
 def parse_params():
     """
