@@ -1,12 +1,11 @@
 import os
 import autogen
+
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-
-# Import our custom tools
-from tools.file_system import FileTools
+from .tools.file_system import FileTools
 
 # Load environment variables
 load_dotenv()

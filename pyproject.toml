@@ -9,8 +9,10 @@ description = "An environment where multiple LLMs can talk among each other to h
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "autogen>=0.10.2",
     "openai>=1.0.0",
     "pyautogen>=0.2.0",
+    "pyside6>=6.10.1",
     "python-dotenv>=1.0.0",
     "rich>=13.0.0",
 ]
@@ -19,6 +21,12 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
 ]
+
+# --- Setuptools explicit package discovery configuration ---
+[tool.setuptools.packages]
+# Explicitly tell setuptools to find packages starting from the current directory,
+# but exclude the 'tests' directory to prevent accidental bundling.
+find = {where = ["."], exclude = ["tests*"]}
 
 # --- Pytest Configuration ---
 [tool.pytest.ini_options]

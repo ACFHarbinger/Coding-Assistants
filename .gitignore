@@ -419,3 +419,4 @@ FodyWeavers.xsd
 
 # Python Virtual Environment
 .venv
+coding_assistants.egg-info
