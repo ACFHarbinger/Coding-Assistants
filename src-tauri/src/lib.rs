@@ -102,6 +102,11 @@ async fn get_resource_content(work_dir: String, path: String) -> Result<String, 
     std::fs::read_to_string(full_path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn read_file_absolute(path: String) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -115,7 +120,8 @@ pub fn run() {
             run_agent_task,
             cancel_task,
             get_agent_resources,
-            get_resource_content
+            get_resource_content,
+            read_file_absolute
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

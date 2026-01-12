@@ -22,6 +22,7 @@ interface AgentConfig {
   developer: ModelConfig;
   reviewer: ModelConfig;
   work_dir: string;
+  mcp_config: string;
 }
 
 interface AgentResources {
@@ -122,6 +123,24 @@ function App() {
     developer: { provider: "openai", model: "gpt-4o-mini" },
     reviewer: { provider: "openai", model: "gpt-4o" },
     work_dir: "./workspace",
+    mcp_config: `{
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {}
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/pkhunter/Repositories/Coding-Assistants"],
+      "disabledTools": ["read_file"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}`
   });
   const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
   const [task, setTask] = useState("");
@@ -372,6 +391,50 @@ function App() {
                   Browse
                 </button>
               </div>
+            </div>
+
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <label className="label" style={{ margin: 0 }}>MCP Configuration (JSON)</label>
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem' }}
+                  onClick={async () => {
+                    try {
+                      const selected = await open({
+                        multiple: false
+                      });
+                      if (selected) {
+                        const content = await invoke<string>("read_file_absolute", { path: selected as string });
+                        setConfig({ ...config, mcp_config: content });
+                      }
+                    } catch (err) {
+                      console.error("Failed to load config", err);
+                      alert("Failed to load config: " + err);
+                    }
+                  }}
+                >
+                  Load Config...
+                </button>
+              </div>
+              <textarea
+                value={config.mcp_config}
+                onChange={(e) => setConfig({ ...config, mcp_config: e.target.value })}
+                placeholder="Paste mcp_servers.json content here..."
+                style={{
+                  minHeight: '150px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.4',
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  padding: '0.75rem',
+                  width: '100%',
+                  resize: 'vertical'
+                }}
+              />
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 use crate::agents::AgentEvent;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::process::Stdio;
 use tauri::{Emitter, Window};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
@@ -40,6 +41,7 @@ impl LLMClient {
         work_dir: Option<&str>,
         window: &Window,
         source: &str,
+        mcp_config_path: Option<&str>,
     ) -> Result<String, String> {
         let model_str = format!("{}/{}", config.provider, config.model);
 
@@ -54,6 +56,10 @@ impl LLMClient {
 
         if let Some(dir) = work_dir {
             command.current_dir(dir);
+            if let Some(mcp_file) = mcp_config_path {
+                let full_mcp_path = Path::new(dir).join(mcp_file);
+                command.env("MCP_CONFIG_FILE", full_mcp_path);
+            }
         }
 
         let mut child = command

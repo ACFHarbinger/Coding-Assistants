@@ -18,6 +18,7 @@ pub struct AgentConfig {
     pub developer: ModelConfig,
     pub reviewer: ModelConfig,
     pub work_dir: String,
+    pub mcp_config: String,
 }
 
 pub struct AgentSystem {
@@ -54,6 +55,17 @@ impl AgentSystem {
         if token.load(Ordering::SeqCst) {
             return Err("Task cancelled".into());
         }
+
+        // Write MCP Config
+        if !self.config.mcp_config.is_empty() {
+            if let Err(e) = self
+                .file_tools
+                .write_file("mcp.json", &self.config.mcp_config)
+            {
+                eprintln!("Failed to write mcp.json: {}", e);
+            }
+        }
+
         let planner_context = format!("Task: {}", task);
         let planner_prompt = self.construct_prompt(&self.config.planner, &planner_context, "System: You are an expert software architect.\nUser: You are a task planner. Break down the following task.").await?;
 
@@ -74,6 +86,7 @@ impl AgentSystem {
                 Some(&self.config.work_dir),
                 window,
                 "Planner",
+                Some("mcp.json"),
             )
             .await?;
 
@@ -115,6 +128,7 @@ impl AgentSystem {
                 Some(&self.config.work_dir),
                 window,
                 "Developer",
+                Some("mcp.json"),
             )
             .await?;
 
@@ -162,6 +176,7 @@ impl AgentSystem {
                 Some(&self.config.work_dir),
                 window,
                 "Reviewer",
+                Some("mcp.json"),
             )
             .await?;
 
