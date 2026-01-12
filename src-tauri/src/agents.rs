@@ -272,6 +272,116 @@ impl AgentSystem {
                 history.push_str(&user_input);
 
                 // Loop again
+            } else if let Some(pos) = response.find("[[ASK_AGENT:") {
+                let rest = &response[pos + "[[ASK_AGENT:".len()..];
+                if let Some(end_bracket) = rest.find("]]") {
+                    let target_role = &rest[..end_bracket];
+                    let question = rest[end_bracket + 2..].trim(); // +2 for ]]
+                    let question = if question.is_empty() {
+                        "Can you help me with this?"
+                    } else {
+                        question
+                    };
+
+                    let target_config = match target_role.to_lowercase().as_str() {
+                        "planner" => &self.config.planner,
+                        "developer" => &self.config.developer,
+                        "reviewer" => &self.config.reviewer,
+                        _ => {
+                            history.push_str("\n\nSystem: Unknown agent role. Available roles: Planner, Developer, Reviewer.");
+                            continue;
+                        }
+                    };
+
+                    // Authorization Step
+                    let auth_payload = serde_json::json!({
+                        "role": target_role,
+                        "question": question
+                    })
+                    .to_string();
+
+                    window
+                        .emit(
+                            "agent-event",
+                            AgentEvent {
+                                source: "System".into(),
+                                event_type: "authorization".into(),
+                                content: auth_payload,
+                            },
+                        )
+                        .map_err(|e| e.to_string())?;
+
+                    // Wait for authorization
+                    let auth_response = match input_rx.recv().await {
+                        Some(input) => input,
+                        None => return Err("User input channel closed".into()),
+                    };
+
+                    if auth_response != "APPROVED" {
+                        window
+                            .emit(
+                                "agent-event",
+                                AgentEvent {
+                                    source: "System".into(),
+                                    event_type: "thought".into(),
+                                    content: format!(
+                                        "Authorization DENIED for asking {}",
+                                        target_role
+                                    ),
+                                },
+                            )
+                            .map_err(|e| e.to_string())?;
+
+                        history.push_str(&format!(
+                            "\n\nSystem: User DENIED the request to ask {}.",
+                            target_role
+                        ));
+                        continue;
+                    }
+
+                    window
+                        .emit(
+                            "agent-event",
+                            AgentEvent {
+                                source: source.to_string(),
+                                event_type: "thought".into(),
+                                content: format!("Asking {}: {}", target_role, question),
+                            },
+                        )
+                        .map_err(|e| e.to_string())?;
+
+                    let target_context = format!(
+                        "Context from {}:\n{}\n\nQuestion: {}",
+                        source, history, question
+                    );
+                    let target_system = format!(
+                        "System: You are expert {}.\nUser: Answer the question from {}.",
+                        target_role, source
+                    );
+
+                    let target_prompt = format!("{}\n\n{}", target_system, target_context);
+
+                    // Call target agent (non-interactive to avoid infinite loops for now)
+                    let answer = self
+                        .client
+                        .chat_completion(
+                            target_config,
+                            &target_prompt,
+                            Some(&self.config.work_dir),
+                            window,
+                            target_role,
+                            Some("mcp.json"),
+                            Some(token.clone()),
+                        )
+                        .await?;
+
+                    history.push_str("\n\nAgent: ");
+                    history.push_str(&response);
+                    history.push_str(&format!("\n\nAgent {}: ", target_role));
+                    history.push_str(&answer);
+                } else {
+                    history.push_str("\n\nSystem: Malformed ASK_AGENT command.");
+                }
             } else {
                 return Ok(response);
             }
@@ -315,7 +425,8 @@ impl AgentSystem {
             default_system.to_string()
         };
         full_prompt.push_str(&format!("{}\n\n", system_prompt));
-        full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n\n");
+        full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n");
+        full_prompt.push_str("IMPORTANT: If you need to ask another agent (Planner, Developer, Reviewer) a question, output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:Developer]] How do I implement X?`\n\n");
 
         // 4. Context
         full_prompt.push_str(context);

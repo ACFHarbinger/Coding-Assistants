@@ -73,6 +73,7 @@ function App() {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
+  const [authorizationRequest, setAuthorizationRequest] = useState<{ role: string, question: string } | null>(null);
   const [userInput, setUserInput] = useState("");
 
   const fetchPreview = async (type: string, name?: string) => {
@@ -122,6 +123,14 @@ function App() {
         if (event.payload.event_type === "question") {
           setCurrentQuestion(event.payload.content);
         }
+        if (event.payload.event_type === "authorization") {
+          try {
+            const content = JSON.parse(event.payload.content);
+            setAuthorizationRequest(content);
+          } catch (e) {
+            console.error("Failed to parse authorization request", e);
+          }
+        }
         // For standard events (thought, etc.)
         return [...prev, event.payload];
       });
@@ -144,7 +153,6 @@ function App() {
       }
     }
     loadModels();
-    loadModels();
   }, []);
 
   const submitAnswer = async () => {
@@ -156,6 +164,16 @@ function App() {
     } catch (e) {
       console.error("Failed to submit answer:", e);
       alert("Failed to submit answer: " + e);
+    }
+  };
+
+  const respondToAuthorization = async (approved: boolean) => {
+    try {
+      await invoke("submit_user_input", { input: approved ? "APPROVED" : "DENIED" });
+      setAuthorizationRequest(null);
+    } catch (e) {
+      console.error("Failed to submit authorization response:", e);
+      alert("Failed to submit response: " + e);
     }
   };
 
@@ -528,62 +546,110 @@ function App() {
           </div>
         )}
 
-        {currentQuestion && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-            backdropFilter: 'blur(8px)'
-          }}>
+        {
+          authorizationRequest && (
             <div style={{
-              background: 'var(--card-bg)',
-              border: '1px solid var(--primary)',
-              borderRadius: '1rem',
-              padding: '2rem',
-              maxWidth: '600px',
-              width: '90%',
-              boxShadow: '0 0 50px rgba(56, 189, 248, 0.2)'
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.85)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 2000,
+              backdropFilter: 'blur(8px)'
             }}>
-              <h2 style={{ marginTop: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span>❓</span> Agent Needs Input
-              </h2>
-              <p style={{ fontSize: '1.1rem', lineHeight: '1.6', margin: '1.5rem 0' }}>
-                {currentQuestion}
-              </p>
-              <textarea
-                value={userInput}
-                onChange={e => setUserInput(e.target.value)}
-                placeholder="Type your answer here..."
-                rows={4}
-                style={{
-                  width: '100%',
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '0.5rem',
-                  padding: '1rem',
-                  color: 'var(--text-primary)',
-                  marginBottom: '1rem',
-                  resize: 'vertical'
-                }}
-                autoFocus
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button className="btn-primary" onClick={submitAnswer}>
-                  Submit Answer
-                </button>
+              <div style={{
+                background: 'var(--card-bg)',
+                border: '1px solid var(--primary)',
+                borderRadius: '1rem',
+                padding: '2rem',
+                maxWidth: '500px',
+                width: '90%',
+                boxShadow: '0 0 50px rgba(168, 85, 247, 0.2)'
+              }}>
+                <h2 style={{ marginTop: 0, color: 'var(--text-primary)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  🛡️ Authorization Required
+                </h2>
+                <div style={{ margin: '1.5rem 0', fontSize: '1rem', lineHeight: '1.6' }}>
+                  <p>An agent wants to ask a question to the <strong style={{ color: 'var(--primary)' }}>{authorizationRequest.role}</strong>:</p>
+                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', fontStyle: 'italic' }}>
+                    "{authorizationRequest.question}"
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                  <button className="btn-secondary" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={() => respondToAuthorization(false)}>
+                    Deny
+                  </button>
+                  <button className="btn-primary" onClick={() => respondToAuthorization(true)}>
+                    Approve
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
+          )
+        }
+
+        {
+          currentQuestion && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.85)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 2000,
+              backdropFilter: 'blur(8px)'
+            }}>
+              <div style={{
+                background: 'var(--card-bg)',
+                border: '1px solid var(--primary)',
+                borderRadius: '1rem',
+                padding: '2rem',
+                maxWidth: '600px',
+                width: '90%',
+                boxShadow: '0 0 50px rgba(56, 189, 248, 0.2)'
+              }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>❓</span> Agent Needs Input
+                </h2>
+                <p style={{ fontSize: '1.1rem', lineHeight: '1.6', margin: '1.5rem 0' }}>
+                  {currentQuestion}
+                </p>
+                <textarea
+                  value={userInput}
+                  onChange={e => setUserInput(e.target.value)}
+                  placeholder="Type your answer here..."
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '0.5rem',
+                    padding: '1rem',
+                    color: 'var(--text-primary)',
+                    marginBottom: '1rem',
+                    resize: 'vertical'
+                  }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                  <button className="btn-primary" onClick={submitAnswer}>
+                    Submit Answer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }
+      </main >
+    </div >
   );
 }
 
