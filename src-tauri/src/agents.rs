@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{Emitter, Window};
+use tokio::sync::mpsc;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AgentEvent {
@@ -41,8 +42,10 @@ impl AgentSystem {
         task: &str,
         window: &Window,
         token: Arc<AtomicBool>,
+        mut input_rx: mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        self.execute_phases(task, window, token).await
+        self.execute_phases(task, window, token, &mut input_rx)
+            .await
     }
 
     async fn execute_phases(
@@ -50,6 +53,7 @@ impl AgentSystem {
         task: &str,
         window: &Window,
         token: Arc<AtomicBool>,
+        input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
         // 1. Planner
         if token.load(Ordering::SeqCst) {
@@ -79,15 +83,13 @@ impl AgentSystem {
         );
 
         let plan = self
-            .client
-            .chat_completion(
+            .interactive_completion(
                 &self.config.planner,
                 &planner_prompt,
-                Some(&self.config.work_dir),
                 window,
                 "Planner",
-                Some("mcp.json"),
-                Some(token.clone()),
+                token.clone(),
+                input_rx,
             )
             .await?;
 
@@ -122,15 +124,13 @@ impl AgentSystem {
         );
 
         let developer_result = self
-            .client
-            .chat_completion(
+            .interactive_completion(
                 &self.config.developer,
                 &developer_prompt,
-                Some(&self.config.work_dir),
                 window,
                 "Developer",
-                Some("mcp.json"),
-                Some(token.clone()),
+                token.clone(),
+                input_rx,
             )
             .await?;
 
@@ -171,15 +171,13 @@ impl AgentSystem {
         );
 
         let reviewer_result = self
-            .client
-            .chat_completion(
+            .interactive_completion(
                 &self.config.reviewer,
                 &reviewer_prompt,
-                Some(&self.config.work_dir),
                 window,
                 "Reviewer",
-                Some("mcp.json"),
-                Some(token.clone()),
+                token.clone(),
+                input_rx,
             )
             .await?;
 
@@ -201,6 +199,83 @@ impl AgentSystem {
             "## Developer Output\n{}\n\n## Reviewer Output\n{}",
             developer_result, reviewer_result
         ))
+    }
+
+    async fn interactive_completion(
+        &self,
+        config: &ModelConfig,
+        initial_prompt: &str,
+        window: &Window,
+        source: &str,
+        token: Arc<AtomicBool>,
+        input_rx: &mut mpsc::Receiver<String>,
+    ) -> Result<String, String> {
+        let mut history = initial_prompt.to_string();
+
+        loop {
+            // Call LLM
+            let response = self
+                .client
+                .chat_completion(
+                    config,
+                    &history,
+                    Some(&self.config.work_dir),
+                    window,
+                    source,
+                    Some("mcp.json"),
+                    Some(token.clone()),
+                )
+                .await?;
+
+            // Check for [[ASK_USER]]
+            if let Some(pos) = response.find("[[ASK_USER]]") {
+                let question = response[pos + "[[ASK_USER]]".len()..].trim().to_string();
+                let question_text = if question.is_empty() {
+                    "Agent requesting input...".to_string()
+                } else {
+                    question
+                };
+
+                // Emit event to frontend to show prompt
+                window
+                    .emit(
+                        "agent-event",
+                        AgentEvent {
+                            source: source.to_string(),
+                            event_type: "question".into(),
+                            content: question_text.clone(),
+                        },
+                    )
+                    .map_err(|e| e.to_string())?;
+
+                // Wait for input
+                let user_input = match input_rx.recv().await {
+                    Some(input) => input,
+                    None => return Err("User input channel closed".into()),
+                };
+
+                // Emit acknowledgement
+                window
+                    .emit(
+                        "agent-event",
+                        AgentEvent {
+                            source: "User".into(),
+                            event_type: "input".into(),
+                            content: user_input.clone(),
+                        },
+                    )
+                    .map_err(|e| e.to_string())?;
+
+                history.push_str("\n\nAgent: ");
+                history.push_str(&response);
+                history.push_str("\n\nUser: ");
+                history.push_str(&user_input);
+
+                // Loop again
+            } else {
+                return Ok(response);
+            }
+        }
     }
 
     async fn get_file_content(&self, path: &Option<String>) -> Result<String, String> {
@@ -240,6 +315,7 @@ impl AgentSystem {
             default_system.to_string()
         };
         full_prompt.push_str(&format!("{}\n\n", system_prompt));
+        full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n\n");
 
         // 4. Context
         full_prompt.push_str(context);

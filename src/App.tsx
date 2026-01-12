@@ -72,6 +72,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState("");
 
   const fetchPreview = async (type: string, name?: string) => {
     if (!config.work_dir) return;
@@ -117,6 +119,9 @@ function App() {
           // Otherwise, start a new response block
           return [...prev, { ...event.payload, event_type: "response" }];
         }
+        if (event.payload.event_type === "question") {
+          setCurrentQuestion(event.payload.content);
+        }
         // For standard events (thought, etc.)
         return [...prev, event.payload];
       });
@@ -139,7 +144,20 @@ function App() {
       }
     }
     loadModels();
+    loadModels();
   }, []);
+
+  const submitAnswer = async () => {
+    if (!userInput.trim()) return;
+    try {
+      await invoke("submit_user_input", { input: userInput });
+      setCurrentQuestion(null);
+      setUserInput("");
+    } catch (e) {
+      console.error("Failed to submit answer:", e);
+      alert("Failed to submit answer: " + e);
+    }
+  };
 
   const startTask = async () => {
     if (loading) {
@@ -506,6 +524,61 @@ function App() {
               <pre style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '0.5rem' }}>
                 {preview.content}
               </pre>
+            </div>
+          </div>
+        )}
+
+        {currentQuestion && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            backdropFilter: 'blur(8px)'
+          }}>
+            <div style={{
+              background: 'var(--card-bg)',
+              border: '1px solid var(--primary)',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '90%',
+              boxShadow: '0 0 50px rgba(56, 189, 248, 0.2)'
+            }}>
+              <h2 style={{ marginTop: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>❓</span> Agent Needs Input
+              </h2>
+              <p style={{ fontSize: '1.1rem', lineHeight: '1.6', margin: '1.5rem 0' }}>
+                {currentQuestion}
+              </p>
+              <textarea
+                value={userInput}
+                onChange={e => setUserInput(e.target.value)}
+                placeholder="Type your answer here..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  color: 'var(--text-primary)',
+                  marginBottom: '1rem',
+                  resize: 'vertical'
+                }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button className="btn-primary" onClick={submitAnswer}>
+                  Submit Answer
+                </button>
+              </div>
             </div>
           </div>
         )}

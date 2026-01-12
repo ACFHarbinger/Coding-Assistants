@@ -7,10 +7,12 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use tokio::sync::mpsc;
 
 struct AppState {
     agents: Mutex<Option<AgentSystem>>,
     cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
+    user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
 }
 
 #[derive(serde::Serialize)]
@@ -29,19 +31,39 @@ async fn run_agent_task(
 ) -> Result<String, String> {
     let token = Arc::new(AtomicBool::new(false));
 
-    // Store token in state
+    let (input_tx, input_rx) = mpsc::channel(1);
+
+    // Store token and input_tx in state
     {
         let mut cancel_guard = state.cancellation_token.lock().unwrap();
         *cancel_guard = Some(token.clone());
+        let mut input_guard = state.user_input_tx.lock().unwrap();
+        *input_guard = Some(input_tx);
     }
 
     let system = AgentSystem::new(config);
-    let result = system.run_task(&task, &window, token).await?;
+    // run_task will now consume input_rx
+    let result = system.run_task(&task, &window, token, input_rx).await?;
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
 
     Ok(result)
+}
+
+#[tauri::command]
+async fn submit_user_input(state: State<'_, AppState>, input: String) -> Result<(), String> {
+    let tx = {
+        let tx_guard = state.user_input_tx.lock().unwrap();
+        tx_guard.clone()
+    };
+
+    if let Some(tx) = tx {
+        tx.send(input).await.map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("No active agent waiting for input".to_string())
+    }
 }
 
 #[tauri::command]
@@ -146,10 +168,12 @@ pub fn run() {
         .manage(AppState {
             agents: Mutex::new(None),
             cancellation_token: Mutex::new(None),
+            user_input_tx: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             run_agent_task,
             cancel_task,
+            submit_user_input,
             get_agent_resources,
             get_resource_content,
             read_file_absolute,
