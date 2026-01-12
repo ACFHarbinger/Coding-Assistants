@@ -98,23 +98,38 @@ body,
 input,
 select,
 textarea {
-  background: rgba(2, 6, 23, 0.4);
+  background: rgba(15, 23, 42, 0.6);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 0.75rem 1rem;
-  color: white;
+  color: var(--text-main);
   width: 100%;
   margin-top: 0.5rem;
-  font-size: 0.9rem;
-  transition: all 0.2s;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  appearance: none;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--primary);
-  background: rgba(2, 6, 23, 0.6);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  background: rgba(15, 23, 42, 0.8);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+option {
+  background-color: #0f172a;
+  color: white;
 }
 
 .label {

@@ -4,8 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 interface ModelConfig {
   provider: string;
   model: string;
-  api_key?: string;
-  base_url?: string;
 }
 
 interface AgentConfig {
@@ -15,11 +13,97 @@ interface AgentConfig {
   work_dir: string;
 }
 
+const PROVIDERS = {
+  opencode: "OpenCode Zen",
+  google: "Google",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  github_copilot: "GitHub Copilot"
+};
+
+const MODELS: Record<string, string[]> = {
+  opencode: ["big-pickle", "grok-code-fast-1", "minimax-m2.1", "glm-4.7"],
+  google: [
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.5-pro-preview-06-05",
+    "gemini-2.5-pro-preview-tts",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-preview-04-17",
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.5-flash-preview-09-25",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-flash-image",
+    "gemini-2.5-flash-image-preview",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-lite-preview-05-25",
+    "gemini-2.5-flash-lite-preview-06-17",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-live-2.5-flash",
+    "gemini-live-2.5-flash-preview-native-audio",
+    "gemini-embedding-001"
+  ],
+  anthropic: [
+    "claude-sonnet-4.5-latest",
+    "claude-sonnet-4.5",
+    "claude-sonnet-4-latest",
+    "claude-sonnet-4",
+    "claude-sonnet-3.7-latest",
+    "claude-sonnet-3.7",
+    "claude-sonnet-3.5-v2",
+    "claude-sonnet-3.5",
+    "claude-sonnet-3",
+    "claude-opus-4.5-latest",
+    "claude-opus-4.5",
+    "claude-opus-4.1-latest",
+    "claude-opus-4.1",
+    "claude-opus-4-latest",
+    "claude-opus-4",
+    "claude-opus-3",
+    "claude-haiku-4.5-latest",
+    "claude-haiku-4.5",
+    "claude-haiku-3.5-latest",
+    "claude-haiku-3.5",
+    "claude-haiku-3"
+  ],
+  openai: ["gpt-5.1-codex-max", "gpt-5.1-codex-mini", "gpt-5.2-codex", "gpt-5.2"],
+  github_copilot: [
+    "claude-haiku-4.5",
+    "claude-opus-4.1",
+    "claude-opus-4.5",
+    "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "gpt-4.1",
+    "gpt-4o",
+    "gpt-5",
+    "gpt-5-codex",
+    "gpt-5-mini",
+    "gpt-5.1",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-mini",
+    "gpt-5.2",
+    "gemini-2.5-pro",
+    "gemini-3-flash",
+    "gemini-3-pro-preview",
+    "grok-code-fast-1",
+    "raptor-mini-preview"
+  ]
+};
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
-    planner: { provider: "OpenAI", model: "gpt-4o" },
-    developer: { provider: "Ollama", model: "llama3.1", base_url: "http://localhost:11434/v1" },
-    reviewer: { provider: "OpenAI", model: "gpt-4o" },
+    planner: { provider: "openai", model: "gpt-4o" },
+    developer: { provider: "openai", model: "gpt-4o-mini" },
+    reviewer: { provider: "openai", model: "gpt-4o" },
     work_dir: "./workspace",
   });
   const [task, setTask] = useState("");
@@ -38,6 +122,52 @@ function App() {
     }
   };
 
+  const handleProviderChange = (key: 'planner' | 'developer', provider: string) => {
+    setConfig({
+      ...config,
+      [key]: {
+        provider,
+        model: MODELS[provider][0]
+      }
+    });
+  };
+
+  const ModelSelect = ({
+    label,
+    configKey
+  }: {
+    label: string,
+    configKey: 'planner' | 'developer'
+  }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div>
+        <label className="label">{label} Provider</label>
+        <select
+          value={config[configKey].provider}
+          onChange={(e) => handleProviderChange(configKey, e.target.value)}
+        >
+          {Object.entries(PROVIDERS).map(([id, name]) => (
+            <option key={id} value={id}>{name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="label">{label} Model</label>
+        <select
+          value={config[configKey].model}
+          onChange={(e) => setConfig({
+            ...config,
+            [configKey]: { ...config[configKey], model: e.target.value }
+          })}
+        >
+          {MODELS[config[configKey].provider].map(model => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
       <header style={{
@@ -50,9 +180,9 @@ function App() {
         justifyContent: 'space-between'
       }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.025em' }}>
-          Antigravity
+          Coding Assistants
         </h1>
-        <div className="status-badge">System Active</div>
+        <div className="status-badge">Powered by OpenCode</div>
       </header>
 
       <main className="main-content">
@@ -60,32 +190,11 @@ function App() {
           <h2>Configuration</h2>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-            <div>
-              <label className="label">Planner (Architect)</label>
-              <input
-                placeholder="e.g. gpt-4o"
-                value={config.planner.model}
-                onChange={e => setConfig({ ...config, planner: { ...config.planner, model: e.target.value } })}
-              />
+            <ModelSelect label="Planner" configKey="planner" />
+            <ModelSelect label="Developer" configKey="developer" />
 
-              <label className="label" style={{ marginTop: '1.5rem' }}>Planner API Key</label>
-              <input
-                type="password"
-                placeholder="sk-..."
-                value={config.planner.api_key}
-                onChange={e => setConfig({ ...config, planner: { ...config.planner, api_key: e.target.value } })}
-              />
-            </div>
-
-            <div>
-              <label className="label">Developer (Worker)</label>
-              <input
-                placeholder="e.g. llama3.1"
-                value={config.developer.model}
-                onChange={e => setConfig({ ...config, developer: { ...config.developer, model: e.target.value } })}
-              />
-
-              <label className="label" style={{ marginTop: '1.5rem' }}>Workspace Root</label>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="label">Workspace Root</label>
               <input
                 placeholder="./workspace"
                 value={config.work_dir}
@@ -104,7 +213,7 @@ function App() {
             onChange={e => setTask(e.target.value)}
           />
           <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.5rem' }}>
-            {loading && <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>Orchestrating agents...</span>}
+            {loading && <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>Orchestrating agents via OpenCode...</span>}
             <button className="btn-primary" onClick={startTask} disabled={loading || !task}>
               {loading ? "Running..." : "Launch Sequence"}
             </button>
@@ -122,7 +231,7 @@ function App() {
                 Clear
               </button>
             </div>
-            <pre>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>
               {output}
             </pre>
           </div>

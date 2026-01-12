@@ -1,8 +1,5 @@
 use crate::file_tools::FileTools;
 use crate::llm_client::{LLMClient, ModelConfig};
-use async_openai::types::{
-    ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,13 +18,8 @@ pub struct AgentSystem {
 
 impl AgentSystem {
     pub fn new(config: AgentConfig) -> Self {
-        let mut client = LLMClient::new();
-        if let Some(key) = &config.planner.api_key {
-            client.set_openai_key(key.clone());
-        }
-
         Self {
-            client,
+            client: LLMClient::new(),
             file_tools: FileTools::new(config.work_dir.clone()),
             config,
         }
@@ -36,45 +28,24 @@ impl AgentSystem {
     pub async fn run_task(&self, task: &str) -> Result<String, String> {
         // 1. Planner Phase
         let planner_prompt = format!(
-            "You are a task planner. Break down the following task: {}",
+            "System: You are an expert software architect.\nUser: You are a task planner. Break down the following task: {}", 
             task
         );
-        let messages = vec![
-            ChatCompletionRequestSystemMessageArgs::default()
-                .content("You are an expert software architect.")
-                .build()
-                .map_err(|e| e.to_string())?
-                .into(),
-            ChatCompletionRequestUserMessageArgs::default()
-                .content(planner_prompt)
-                .build()
-                .map_err(|e| e.to_string())?
-                .into(),
-        ];
 
         let plan = self
             .client
-            .chat_completion(&self.config.planner, messages)
+            .chat_completion(&self.config.planner, &planner_prompt)
             .await?;
 
-        // 2. Developer Phase (Simplified for now)
-        let developer_prompt = format!("Based on this plan, implement the solution: {}", plan);
-        let messages = vec![
-            ChatCompletionRequestSystemMessageArgs::default()
-                .content("You are a senior software developer.")
-                .build()
-                .map_err(|e| e.to_string())?
-                .into(),
-            ChatCompletionRequestUserMessageArgs::default()
-                .content(developer_prompt)
-                .build()
-                .map_err(|e| e.to_string())?
-                .into(),
-        ];
+        // 2. Developer Phase
+        let developer_prompt = format!(
+            "System: You are a senior software developer.\nUser: Based on this plan, implement the solution: {}", 
+            plan
+        );
 
         let result = self
             .client
-            .chat_completion(&self.config.developer, messages)
+            .chat_completion(&self.config.developer, &developer_prompt)
             .await?;
         Ok(result)
     }
