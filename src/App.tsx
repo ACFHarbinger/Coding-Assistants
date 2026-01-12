@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 interface ModelConfig {
   provider: string;
@@ -122,7 +123,7 @@ function App() {
     }
   };
 
-  const handleProviderChange = (key: 'planner' | 'developer', provider: string) => {
+  const handleProviderChange = (key: 'planner' | 'developer' | 'reviewer', provider: string) => {
     setConfig({
       ...config,
       [key]: {
@@ -137,7 +138,7 @@ function App() {
     configKey
   }: {
     label: string,
-    configKey: 'planner' | 'developer'
+    configKey: 'planner' | 'developer' | 'reviewer'
   }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div>
@@ -192,14 +193,32 @@ function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
             <ModelSelect label="Planner" configKey="planner" />
             <ModelSelect label="Developer" configKey="developer" />
+            <ModelSelect label="Reviewer" configKey="reviewer" />
 
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="label">Workspace Root</label>
-              <input
-                placeholder="./workspace"
-                value={config.work_dir}
-                onChange={e => setConfig({ ...config, work_dir: e.target.value })}
-              />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <input
+                  style={{ flex: 1 }}
+                  placeholder="./workspace"
+                  value={config.work_dir}
+                  onChange={e => setConfig({ ...config, work_dir: e.target.value })}
+                />
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    const selected = await open({
+                      directory: true,
+                      multiple: false,
+                    });
+                    if (selected) {
+                      setConfig({ ...config, work_dir: selected as string });
+                    }
+                  }}
+                >
+                  Browse
+                </button>
+              </div>
             </div>
           </div>
         </div>

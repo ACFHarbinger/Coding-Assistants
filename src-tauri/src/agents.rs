@@ -43,10 +43,27 @@ impl AgentSystem {
             plan
         );
 
-        let result = self
+        let developer_result = self
             .client
             .chat_completion(&self.config.developer, &developer_prompt)
             .await?;
-        Ok(result)
+
+        // 3. Reviewer Phase
+        let reviewer_prompt = format!(
+            "System: You are a QA engineer and code reviewer.\nUser: Review the following implementation for the task '{}':\n\nPlan:\n{}\n\nImplementation:\n{}\n\nProvide a code review and any necessary corrections.", 
+            task, plan, developer_result
+        );
+
+        let reviewer_result = self
+            .client
+            .chat_completion(&self.config.reviewer, &reviewer_prompt)
+            .await?;
+
+        let final_output = format!(
+            "## Developer Output\n{}\n\n## Reviewer Output\n{}",
+            developer_result, reviewer_result
+        );
+
+        Ok(final_output)
     }
 }

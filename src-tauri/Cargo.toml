@@ -27,4 +27,5 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 async-openai = "0.26"
 dotenv = "0.15"
 walkdir = "2"
+tauri-plugin-dialog = "2.5.0"
 
