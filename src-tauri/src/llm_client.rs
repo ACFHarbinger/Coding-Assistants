@@ -5,6 +5,21 @@ use std::process::Command;
 pub struct ModelConfig {
     pub provider: String,
     pub model: String,
+    pub prompt_file: Option<String>,
+    pub rule_file: Option<String>,
+    pub workflow_file: Option<String>,
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        Self {
+            provider: "opencode".to_string(),
+            model: "big-pickle".to_string(),
+            prompt_file: None,
+            rule_file: None,
+            workflow_file: None,
+        }
+    }
 }
 
 pub struct LLMClient;

@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
 interface ModelConfig {
   provider: string;
   model: string;
+  prompt_file?: string;
+  rule_file?: string;
+  workflow_file?: string;
 }
 
 interface AgentConfig {
@@ -12,6 +15,12 @@ interface AgentConfig {
   developer: ModelConfig;
   reviewer: ModelConfig;
   work_dir: string;
+}
+
+interface AgentResources {
+  prompts: string[];
+  rules: string[];
+  workflows: string[];
 }
 
 const PROVIDERS = {
@@ -107,9 +116,42 @@ function App() {
     reviewer: { provider: "openai", model: "gpt-4o" },
     work_dir: "./workspace",
   });
+  const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
   const [task, setTask] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
+
+  const fetchPreview = async (type: string, name?: string) => {
+    if (!config.work_dir) return;
+    if (!name) {
+      alert(`Please select a custom ${type} file to preview it.`);
+      return;
+    }
+    console.log(`Fetching preview for ${type}: ${name}`);
+    try {
+      const path = name; // Name is now the full relative path
+      const content = await invoke<string>("get_resource_content", { workDir: config.work_dir, path });
+      setPreview({ type, name, content });
+    } catch (e) {
+      console.error(`Failed to fetch ${type} preview:`, e);
+      alert(`Failed to load preview: ${e}`);
+    }
+  };
+
+
+  useEffect(() => {
+    async function fetchResources() {
+      if (!config.work_dir) return;
+      try {
+        const resources = await invoke<AgentResources>("get_agent_resources", { workDir: config.work_dir });
+        setResources(resources);
+      } catch (e) {
+        console.error("Failed to fetch resources:", e);
+      }
+    }
+    fetchResources();
+  }, [config.work_dir]);
 
   const startTask = async () => {
     setLoading(true);
@@ -127,6 +169,7 @@ function App() {
     setConfig({
       ...config,
       [key]: {
+        ...config[key],
         provider,
         model: MODELS[provider][0]
       }
@@ -140,9 +183,10 @@ function App() {
     label: string,
     configKey: 'planner' | 'developer' | 'reviewer'
   }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)' }}>
+      <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--primary)' }}>{label}</h3>
       <div>
-        <label className="label">{label} Provider</label>
+        <label className="label">Provider</label>
         <select
           value={config[configKey].provider}
           onChange={(e) => handleProviderChange(configKey, e.target.value)}
@@ -153,7 +197,7 @@ function App() {
         </select>
       </div>
       <div>
-        <label className="label">{label} Model</label>
+        <label className="label">Model</label>
         <select
           value={config[configKey].model}
           onChange={(e) => setConfig({
@@ -165,6 +209,72 @@ function App() {
             <option key={model} value={model}>{model}</option>
           ))}
         </select>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => fetchPreview('prompt', config[configKey].prompt_file)}
+            title="Click to preview selected prompt"
+          >
+            Prompt
+          </label>
+          <select
+            value={config[configKey].prompt_file || ""}
+            onChange={(e) => setConfig({
+              ...config,
+              [configKey]: { ...config[configKey], prompt_file: e.target.value || undefined }
+            })}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">Default</option>
+            {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => fetchPreview('rule', config[configKey].rule_file)}
+            title="Click to preview selected rule"
+          >
+            Rule
+          </label>
+          <select
+            value={config[configKey].rule_file || ""}
+            onChange={(e) => setConfig({
+              ...config,
+              [configKey]: { ...config[configKey], rule_file: e.target.value || undefined }
+            })}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">None</option>
+            {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => fetchPreview('workflow', config[configKey].workflow_file)}
+            title="Click to preview selected workflow"
+          >
+            Workflow
+          </label>
+          <select
+            value={config[configKey].workflow_file || ""}
+            onChange={(e) => setConfig({
+              ...config,
+              [configKey]: { ...config[configKey], workflow_file: e.target.value || undefined }
+            })}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">None</option>
+            {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
       </div>
     </div>
   );
@@ -253,6 +363,45 @@ function App() {
             <pre style={{ whiteSpace: 'pre-wrap' }}>
               {output}
             </pre>
+          </div>
+        )}
+
+        {preview && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(5px)'
+          }} onClick={() => setPreview(null)}>
+            <div
+              style={{
+                background: 'var(--card-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '1rem',
+                padding: '2rem',
+                maxWidth: '800px',
+                width: '90%',
+                maxHeight: '80vh',
+                overflow: 'auto',
+                boxShadow: 'var(--shadow-lg)'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2 style={{ textTransform: 'capitalize' }}>{preview.type} Preview: {preview.name}</h2>
+                <button onClick={() => setPreview(null)} className="btn-secondary">Close</button>
+              </div>
+              <pre style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '0.5rem' }}>
+                {preview.content}
+              </pre>
+            </div>
           </div>
         )}
       </main>
