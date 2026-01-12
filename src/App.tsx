@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+
+interface AgentEvent {
+  source: string;
+  event_type: string;
+  content: string;
+}
 
 interface ModelConfig {
   provider: string;
@@ -120,6 +127,7 @@ function App() {
   const [task, setTask] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
 
   const fetchPreview = async (type: string, name?: string) => {
@@ -153,8 +161,43 @@ function App() {
     fetchResources();
   }, [config.work_dir]);
 
+  useEffect(() => {
+    const unlisten = listen<AgentEvent>("agent-event", (event) => {
+      setEvents((prev) => {
+        const last = prev[prev.length - 1];
+        if (event.payload.event_type === "stream") {
+          // If the last event was a response from the same source, append to it
+          if (last && last.source === event.payload.source && last.event_type === "response") {
+            const newLast = { ...last, content: last.content + event.payload.content };
+            return [...prev.slice(0, -1), newLast];
+          }
+          // Otherwise, start a new response block
+          return [...prev, { ...event.payload, event_type: "response" }];
+        }
+        // For standard events (thought, etc.)
+        return [...prev, event.payload];
+      });
+    });
+    return () => {
+      unlisten.then(f => f());
+    };
+  }, []);
+
   const startTask = async () => {
+    if (loading) {
+      // Cancel logic
+      try {
+        await invoke("cancel_task");
+        setOutput(prev => prev + "\n[Cancelling task...]");
+      } catch (error) {
+        console.error("Failed to cancel task:", error);
+      }
+      return;
+    }
+
     setLoading(true);
+    setEvents([]);
+    setOutput("");
     try {
       const result = await invoke<string>("run_agent_task", { config, task });
       setOutput(result);
@@ -343,16 +386,76 @@ function App() {
           />
           <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.5rem' }}>
             {loading && <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>Orchestrating agents via OpenCode...</span>}
-            <button className="btn-primary" onClick={startTask} disabled={loading || !task}>
-              {loading ? "Running..." : "Launch Sequence"}
+            <button className={loading ? "btn-secondary" : "btn-primary"} onClick={startTask} disabled={!task && !loading}>
+              {loading ? "Cancel" : "Launch Sequence"}
             </button>
           </div>
         </div>
 
+        {events.length > 0 && (
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2>Agent Activity</h2>
+              <button
+                onClick={() => setEvents([])}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Clear Events
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {events.map((ev, i) => (
+                <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: '0.5rem', overflow: 'hidden' }}>
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid var(--border-color)'
+                  }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span className={`badge ${ev.source.toLowerCase()}`} style={{
+                        background: ev.source === 'Planner' ? 'rgba(56, 189, 248, 0.2)' :
+                          ev.source === 'Developer' ? 'rgba(168, 85, 247, 0.2)' :
+                            'rgba(234, 179, 8, 0.2)',
+                        color: ev.source === 'Planner' ? '#38bdf8' :
+                          ev.source === 'Developer' ? '#a855f7' :
+                            '#eab308',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                      }}>
+                        {ev.source}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                        {ev.event_type === "thought" ? "is thinking..." : "responded"}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Event #{i + 1}</span>
+                  </div>
+                  <pre style={{
+                    margin: 0,
+                    padding: '1rem',
+                    whiteSpace: 'pre-wrap',
+                    fontSize: '0.85rem',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    background: 'rgba(0,0,0,0.2)'
+                  }}>
+                    {ev.content}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {output && (
           <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>Console Output</h2>
+              <h2>Final Output</h2>
               <button
                 onClick={() => setOutput("")}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}

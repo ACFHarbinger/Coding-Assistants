@@ -1,6 +1,16 @@
 use crate::file_tools::FileTools;
 use crate::llm_client::{LLMClient, ModelConfig};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{Emitter, Window};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AgentEvent {
+    pub source: String,     // Planner, Developer, Reviewer
+    pub event_type: String, // "thought" (input) or "response" (output)
+    pub content: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -25,40 +35,131 @@ impl AgentSystem {
         }
     }
 
-    pub async fn run_task(&self, task: &str) -> Result<String, String> {
-        self.execute_phases(task).await
+    pub async fn run_task(
+        &self,
+        task: &str,
+        window: &Window,
+        token: Arc<AtomicBool>,
+    ) -> Result<String, String> {
+        self.execute_phases(task, window, token).await
     }
 
-    async fn execute_phases(&self, task: &str) -> Result<String, String> {
+    async fn execute_phases(
+        &self,
+        task: &str,
+        window: &Window,
+        token: Arc<AtomicBool>,
+    ) -> Result<String, String> {
         // 1. Planner
+        if token.load(Ordering::SeqCst) {
+            return Err("Task cancelled".into());
+        }
         let planner_context = format!("Task: {}", task);
         let planner_prompt = self.construct_prompt(&self.config.planner, &planner_context, "System: You are an expert software architect.\nUser: You are a task planner. Break down the following task.").await?;
 
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Planner".into(),
+                event_type: "thought".into(),
+                content: planner_prompt.clone(),
+            },
+        );
+
         let plan = self
             .client
-            .chat_completion(&self.config.planner, &planner_prompt)
+            .chat_completion(
+                &self.config.planner,
+                &planner_prompt,
+                Some(&self.config.work_dir),
+                window,
+                "Planner",
+            )
             .await?;
 
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Planner".into(),
+                event_type: "response".into(),
+                content: plan.clone(),
+            },
+        );
+
         // 2. Developer
+        if token.load(Ordering::SeqCst) {
+            return Err("Task cancelled".into());
+        }
         let developer_context = format!("Plan: {}", plan);
         let developer_prompt = self.construct_prompt(&self.config.developer, &developer_context, "System: You are a senior software developer.\nUser: Based on this plan, implement the solution.").await?;
 
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Developer".into(),
+                event_type: "thought".into(),
+                content: developer_prompt.clone(),
+            },
+        );
+
         let developer_result = self
             .client
-            .chat_completion(&self.config.developer, &developer_prompt)
+            .chat_completion(
+                &self.config.developer,
+                &developer_prompt,
+                Some(&self.config.work_dir),
+                window,
+                "Developer",
+            )
             .await?;
 
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Developer".into(),
+                event_type: "response".into(),
+                content: developer_result.clone(),
+            },
+        );
+
         // 3. Reviewer
+        if token.load(Ordering::SeqCst) {
+            return Err("Task cancelled".into());
+        }
         let reviewer_context = format!(
             "Task: {}\nPlan: {}\nImplementation: {}",
             task, plan, developer_result
         );
         let reviewer_prompt = self.construct_prompt(&self.config.reviewer, &reviewer_context, "System: You are a QA engineer and code reviewer.\nUser: Review the following implementation. Provide a code review and any necessary corrections.").await?;
 
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Reviewer".into(),
+                event_type: "thought".into(),
+                content: reviewer_prompt.clone(),
+            },
+        );
+
         let reviewer_result = self
             .client
-            .chat_completion(&self.config.reviewer, &reviewer_prompt)
+            .chat_completion(
+                &self.config.reviewer,
+                &reviewer_prompt,
+                Some(&self.config.work_dir),
+                window,
+                "Reviewer",
+            )
             .await?;
+
+        let _ = window.emit(
+            "agent-event",
+            AgentEvent {
+                source: "Reviewer".into(),
+                event_type: "response".into(),
+                content: reviewer_result.clone(),
+            },
+        );
 
         Ok(format!(
             "## Developer Output\n{}\n\n## Reviewer Output\n{}",

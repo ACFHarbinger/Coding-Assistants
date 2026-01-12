@@ -1,5 +1,9 @@
+use crate::agents::AgentEvent;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use std::process::Stdio;
+use tauri::{Emitter, Window};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use tokio::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModelConfig {
@@ -33,22 +37,67 @@ impl LLMClient {
         &self,
         config: &ModelConfig,
         prompt: &str,
+        work_dir: Option<&str>,
+        window: &Window,
+        source: &str,
     ) -> Result<String, String> {
         let model_str = format!("{}/{}", config.provider, config.model);
 
-        let output = Command::new("opencode")
+        let mut command = Command::new("opencode");
+        command
             .arg("run")
             .arg(prompt)
             .arg("-m")
             .arg(&model_str)
-            .output()
-            .map_err(|e| format!("Failed to execute opencode: {}", e))?;
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        if let Some(dir) = work_dir {
+            command.current_dir(dir);
+        }
+
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("Failed to spawn opencode: {}", e))?;
+
+        let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
+        let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
+
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        let mut full_output = String::new();
+
+        while reader
+            .read_line(&mut line)
+            .await
+            .map_err(|e| e.to_string())?
+            > 0
+        {
+            let _ = window.emit(
+                "agent-event",
+                AgentEvent {
+                    source: source.to_string(),
+                    event_type: "stream".to_string(),
+                    content: line.clone(),
+                },
+            );
+            full_output.push_str(&line);
+            line.clear();
+        }
+
+        let status = child.wait().await.map_err(|e| e.to_string())?;
+
+        if status.success() {
+            Ok(full_output)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(format!("OpenCode error: {}", error))
+            // Read stderr if failed
+            let mut err_reader = BufReader::new(stderr);
+            let mut err_output = String::new();
+            err_reader
+                .read_to_string(&mut err_output)
+                .await
+                .map_err(|e| e.to_string())?;
+            Err(format!("OpenCode error: {}", err_output))
         }
     }
 }

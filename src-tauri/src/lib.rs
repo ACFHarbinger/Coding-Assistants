@@ -3,11 +3,13 @@ mod file_tools;
 mod llm_client;
 
 use agents::{AgentConfig, AgentSystem};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 struct AppState {
     agents: Mutex<Option<AgentSystem>>,
+    cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 #[derive(serde::Serialize)]
@@ -22,14 +24,32 @@ async fn run_agent_task(
     config: AgentConfig,
     task: String,
     state: State<'_, AppState>,
+    window: tauri::Window,
 ) -> Result<String, String> {
+    let token = Arc::new(AtomicBool::new(false));
+
+    // Store token in state
+    {
+        let mut cancel_guard = state.cancellation_token.lock().unwrap();
+        *cancel_guard = Some(token.clone());
+    }
+
     let system = AgentSystem::new(config);
-    let result = system.run_task(&task).await?;
+    let result = system.run_task(&task, &window, token).await?;
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
 
     Ok(result)
+}
+
+#[tauri::command]
+fn cancel_task(state: State<'_, AppState>) -> Result<(), String> {
+    let token_guard = state.cancellation_token.lock().unwrap();
+    if let Some(token) = token_guard.as_ref() {
+        token.store(true, Ordering::SeqCst);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -89,9 +109,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             agents: Mutex::new(None),
+            cancellation_token: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             run_agent_task,
+            cancel_task,
             get_agent_resources,
             get_resource_content
         ])
