@@ -162,4 +162,22 @@ impl LLMClient {
             ))
         }
     }
+
+    pub async fn list_models(&self) -> Result<Vec<String>, String> {
+        let output = Command::new("opencode")
+            .arg("models")
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute opencode models: {}", e))?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "opencode models failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let content = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+        Ok(content.lines().map(|s| s.to_string()).collect())
+    }
 }

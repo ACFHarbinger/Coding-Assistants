@@ -39,83 +39,7 @@ const PROVIDERS = {
   github_copilot: "GitHub Copilot"
 };
 
-const MODELS: Record<string, string[]> = {
-  opencode: ["big-pickle", "grok-code-fast-1", "minimax-m2.1", "glm-4.7"],
-  google: [
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "gemini-3-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-2.5-pro",
-    "gemini-2.5-pro-preview-05-06",
-    "gemini-2.5-pro-preview-06-05",
-    "gemini-2.5-pro-preview-tts",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-preview-04-17",
-    "gemini-2.5-flash-preview-05-20",
-    "gemini-2.5-flash-preview-09-25",
-    "gemini-2.5-flash-preview-tts",
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-image-preview",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-lite-preview-05-25",
-    "gemini-2.5-flash-lite-preview-06-17",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-live-2.5-flash",
-    "gemini-live-2.5-flash-preview-native-audio",
-    "gemini-embedding-001"
-  ],
-  anthropic: [
-    "claude-sonnet-4.5-latest",
-    "claude-sonnet-4.5",
-    "claude-sonnet-4-latest",
-    "claude-sonnet-4",
-    "claude-sonnet-3.7-latest",
-    "claude-sonnet-3.7",
-    "claude-sonnet-3.5-v2",
-    "claude-sonnet-3.5",
-    "claude-sonnet-3",
-    "claude-opus-4.5-latest",
-    "claude-opus-4.5",
-    "claude-opus-4.1-latest",
-    "claude-opus-4.1",
-    "claude-opus-4-latest",
-    "claude-opus-4",
-    "claude-opus-3",
-    "claude-haiku-4.5-latest",
-    "claude-haiku-4.5",
-    "claude-haiku-3.5-latest",
-    "claude-haiku-3.5",
-    "claude-haiku-3"
-  ],
-  openai: ["gpt-5.1-codex-max", "gpt-5.1-codex-mini", "gpt-5.2-codex", "gpt-5.2"],
-  github_copilot: [
-    "claude-haiku-4.5",
-    "claude-opus-4.1",
-    "claude-opus-4.5",
-    "claude-sonnet-4",
-    "claude-sonnet-4.5",
-    "gpt-4.1",
-    "gpt-4o",
-    "gpt-5",
-    "gpt-5-codex",
-    "gpt-5-mini",
-    "gpt-5.1",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-max",
-    "gpt-5.1-codex-mini",
-    "gpt-5.2",
-    "gemini-2.5-pro",
-    "gemini-3-flash",
-    "gemini-3-pro-preview",
-    "grok-code-fast-1",
-    "raptor-mini-preview"
-  ]
-};
+// MODELS was here, removed.
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
@@ -202,6 +126,21 @@ function App() {
     };
   }, []);
 
+  const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    async function loadModels() {
+      try {
+        const models = await invoke<Record<string, string[]>>("get_available_models");
+        setAvailableModels(models);
+        console.log("Loaded models:", models);
+      } catch (err) {
+        console.error("Failed to load models:", err);
+      }
+    }
+    loadModels();
+  }, []);
+
   const startTask = async () => {
     if (loading) {
       // Cancel logic
@@ -233,7 +172,7 @@ function App() {
       [key]: {
         ...config[key],
         provider,
-        model: MODELS[provider][0]
+        model: (availableModels[provider] || [])[0] || ""
       }
     });
   };
@@ -267,7 +206,7 @@ function App() {
             [configKey]: { ...config[configKey], model: e.target.value }
           })}
         >
-          {MODELS[config[configKey].provider].map(model => (
+          {(availableModels[config[configKey].provider] || []).map(model => (
             <option key={model} value={model}>{model}</option>
           ))}
         </select>

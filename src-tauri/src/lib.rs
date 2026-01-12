@@ -3,6 +3,7 @@ mod file_tools;
 mod llm_client;
 
 use agents::{AgentConfig, AgentSystem};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -107,6 +108,36 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn get_available_models(
+    state: State<'_, AppState>,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    // Determine if we have an active agent system or need to create a temporary one (or just use a temporary LLMClient)
+    // Since LLMClient::new() is cheap, we can just create one.
+    // But list_models is on LLMClient.
+    // Accessing state.agents might be empty if no task ran yet.
+    // Better: LLMClient::new().list_models().await
+
+    let client = crate::llm_client::LLMClient::new();
+    let models_list = client.list_models().await?;
+    let mut models_map: HashMap<String, Vec<String>> = HashMap::new();
+
+    for model_line in models_list {
+        if let Some((provider, model)) = model_line.split_once('/') {
+            models_map
+                .entry(provider.to_string())
+                .or_default()
+                .push(model.to_string());
+        } else {
+            models_map
+                .entry("opencode".to_string())
+                .or_default()
+                .push(model_line);
+        }
+    }
+    Ok(models_map)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -121,7 +152,8 @@ pub fn run() {
             cancel_task,
             get_agent_resources,
             get_resource_content,
-            read_file_absolute
+            read_file_absolute,
+            get_available_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
