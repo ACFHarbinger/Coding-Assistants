@@ -86,6 +86,11 @@ impl AgentSystem {
             },
         );
 
+        // Save Planner Report
+        if let Err(e) = self.file_tools.write_file("plan.md", &plan) {
+            eprintln!("Failed to write plan.md: {}", e);
+        }
+
         // 2. Developer
         if token.load(Ordering::SeqCst) {
             return Err("Task cancelled".into());
@@ -121,6 +126,14 @@ impl AgentSystem {
                 content: developer_result.clone(),
             },
         );
+
+        // Save Developer Report
+        if let Err(e) = self
+            .file_tools
+            .write_file("implementation.md", &developer_result)
+        {
+            eprintln!("Failed to write implementation.md: {}", e);
+        }
 
         // 3. Reviewer
         if token.load(Ordering::SeqCst) {
@@ -160,6 +173,11 @@ impl AgentSystem {
                 content: reviewer_result.clone(),
             },
         );
+
+        // Save Reviewer Report
+        if let Err(e) = self.file_tools.write_file("review.md", &reviewer_result) {
+            eprintln!("Failed to write review.md: {}", e);
+        }
 
         Ok(format!(
             "## Developer Output\n{}\n\n## Reviewer Output\n{}",
