@@ -87,6 +87,7 @@ impl AgentSystem {
                 window,
                 "Planner",
                 Some("mcp.json"),
+                Some(token.clone()),
             )
             .await?;
 
@@ -129,6 +130,7 @@ impl AgentSystem {
                 window,
                 "Developer",
                 Some("mcp.json"),
+                Some(token.clone()),
             )
             .await?;
 
@@ -177,6 +179,7 @@ impl AgentSystem {
                 window,
                 "Reviewer",
                 Some("mcp.json"),
+                Some(token.clone()),
             )
             .await?;
 

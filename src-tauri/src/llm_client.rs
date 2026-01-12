@@ -2,9 +2,13 @@ use crate::agents::AgentEvent;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tauri::{Emitter, Window};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
+use tokio::sync::oneshot;
+use tokio::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModelConfig {
@@ -27,6 +31,14 @@ impl Default for ModelConfig {
     }
 }
 
+struct KillOnDrop(Child);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.start_kill();
+    }
+}
+
 pub struct LLMClient;
 
 impl LLMClient {
@@ -42,6 +54,7 @@ impl LLMClient {
         window: &Window,
         source: &str,
         mcp_config_path: Option<&str>,
+        token: Option<Arc<AtomicBool>>,
     ) -> Result<String, String> {
         let model_str = format!("{}/{}", config.provider, config.model);
 
@@ -58,6 +71,7 @@ impl LLMClient {
             command.current_dir(dir);
             if let Some(mcp_file) = mcp_config_path {
                 let full_mcp_path = Path::new(dir).join(mcp_file);
+                eprintln!("Setting MCP_CONFIG_FILE to {:?}", full_mcp_path);
                 command.env("MCP_CONFIG_FILE", full_mcp_path);
             }
         }
@@ -69,41 +83,83 @@ impl LLMClient {
         let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
 
+        // Ensure child is killed on drop/cancellation
+        let mut child_guard = KillOnDrop(child);
+
+        let window_clone = window.clone();
+        let source_clone = source.to_string();
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+            while let Ok(n) = reader.read_line(&mut line).await {
+                if n == 0 {
+                    break;
+                }
+                let _ = window_clone.emit(
+                    "agent-event",
+                    AgentEvent {
+                        source: source_clone.clone(),
+                        event_type: "log".to_string(),
+                        content: line.clone(),
+                    },
+                );
+                line.clear();
+            }
+        });
+
+        // Cancellation signal setup
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        if let Some(token) = token {
+            tokio::spawn(async move {
+                loop {
+                    if token.load(Ordering::SeqCst) {
+                        let _ = cancel_tx.send(());
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            });
+        }
+
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
         let mut full_output = String::new();
 
-        while reader
-            .read_line(&mut line)
-            .await
-            .map_err(|e| e.to_string())?
-            > 0
-        {
-            let _ = window.emit(
-                "agent-event",
-                AgentEvent {
-                    source: source.to_string(),
-                    event_type: "stream".to_string(),
-                    content: line.clone(),
-                },
-            );
-            full_output.push_str(&line);
-            line.clear();
+        loop {
+            tokio::select! {
+                result = reader.read_line(&mut line) => {
+                     match result {
+                         Ok(0) => break, // EOF
+                         Ok(_) => {
+                            let _ = window.emit(
+                                "agent-event",
+                                AgentEvent {
+                                    source: source.to_string(),
+                                    event_type: "stream".to_string(),
+                                    content: line.clone(),
+                                },
+                            );
+                            full_output.push_str(&line);
+                            line.clear();
+                         }
+                         Err(e) => return Err(e.to_string()),
+                     }
+                }
+                _ = &mut cancel_rx => {
+                     return Err("Task cancelled".to_string());
+                }
+            }
         }
 
-        let status = child.wait().await.map_err(|e| e.to_string())?;
+        let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
 
         if status.success() {
             Ok(full_output)
         } else {
-            // Read stderr if failed
-            let mut err_reader = BufReader::new(stderr);
-            let mut err_output = String::new();
-            err_reader
-                .read_to_string(&mut err_output)
-                .await
-                .map_err(|e| e.to_string())?;
-            Err(format!("OpenCode error: {}", err_output))
+            Err(format!(
+                "Command failed with status: {}. Check logs for details.",
+                status
+            ))
         }
     }
 }
