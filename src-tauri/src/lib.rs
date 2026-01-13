@@ -131,9 +131,7 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn get_available_models(
-    state: State<'_, AppState>,
-) -> Result<HashMap<String, Vec<String>>, String> {
+async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> {
     // Determine if we have an active agent system or need to create a temporary one (or just use a temporary LLMClient)
     // Since LLMClient::new() is cheap, we can just create one.
     // But list_models is on LLMClient.

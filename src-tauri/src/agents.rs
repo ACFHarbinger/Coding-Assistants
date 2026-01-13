@@ -13,11 +13,15 @@ pub struct AgentEvent {
     pub content: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RoleConfig {
+    pub name: String,
+    pub config: ModelConfig,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AgentConfig {
-    pub planner: ModelConfig,
-    pub developer: ModelConfig,
-    pub reviewer: ModelConfig,
+    pub roles: Vec<RoleConfig>,
     pub work_dir: String,
     pub mcp_config: String,
 }
@@ -55,11 +59,6 @@ impl AgentSystem {
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        // 1. Planner
-        if token.load(Ordering::SeqCst) {
-            return Err("Task cancelled".into());
-        }
-
         // Write MCP Config
         if !self.config.mcp_config.is_empty() {
             if let Err(e) = self
@@ -70,135 +69,64 @@ impl AgentSystem {
             }
         }
 
-        let planner_context = format!("Task: {}", task);
-        let planner_prompt = self.construct_prompt(&self.config.planner, &planner_context, "System: You are an expert software architect.\nUser: You are a task planner. Break down the following task.").await?;
+        let mut previous_outputs = format!("Task: {}\n", task);
+        let mut final_result = String::new();
 
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Planner".into(),
-                event_type: "thought".into(),
-                content: planner_prompt.clone(),
-            },
-        );
+        for role_config in &self.config.roles {
+            if token.load(Ordering::SeqCst) {
+                return Err("Task cancelled".into());
+            }
 
-        let plan = self
-            .interactive_completion(
-                &self.config.planner,
-                &planner_prompt,
-                window,
-                "Planner",
-                token.clone(),
-                input_rx,
-            )
-            .await?;
+            let role_name = &role_config.name;
+            let default_system = format!(
+                "System: You are an expert {}.\nUser: Contribue to the task based on previous work.",
+                role_name
+            );
 
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Planner".into(),
-                event_type: "response".into(),
-                content: plan.clone(),
-            },
-        );
+            let prompt = self
+                .construct_prompt(&role_config.config, &previous_outputs, &default_system)
+                .await?;
 
-        // Save Planner Report
-        if let Err(e) = self.file_tools.write_file("plan.md", &plan) {
-            eprintln!("Failed to write plan.md: {}", e);
+            let _ = window.emit(
+                "agent-event",
+                AgentEvent {
+                    source: role_name.clone(),
+                    event_type: "thought".into(),
+                    content: prompt.clone(),
+                },
+            );
+
+            let output = self
+                .interactive_completion(
+                    &role_config.config,
+                    &prompt,
+                    window,
+                    role_name,
+                    token.clone(),
+                    input_rx,
+                )
+                .await?;
+
+            let _ = window.emit(
+                "agent-event",
+                AgentEvent {
+                    source: role_name.clone(),
+                    event_type: "response".into(),
+                    content: output.clone(),
+                },
+            );
+
+            // Save Role Report
+            let filename = format!("{}.md", role_name.to_lowercase().replace(" ", "_"));
+            if let Err(e) = self.file_tools.write_file(&filename, &output) {
+                eprintln!("Failed to write {}: {}", filename, e);
+            }
+
+            previous_outputs.push_str(&format!("\nOutput from {}:\n{}\n", role_name, output));
+            final_result.push_str(&format!("## {} Output\n{}\n\n", role_name, output));
         }
 
-        // 2. Developer
-        if token.load(Ordering::SeqCst) {
-            return Err("Task cancelled".into());
-        }
-        let developer_context = format!("Plan: {}", plan);
-        let developer_prompt = self.construct_prompt(&self.config.developer, &developer_context, "System: You are a senior software developer.\nUser: Based on this plan, implement the solution.").await?;
-
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Developer".into(),
-                event_type: "thought".into(),
-                content: developer_prompt.clone(),
-            },
-        );
-
-        let developer_result = self
-            .interactive_completion(
-                &self.config.developer,
-                &developer_prompt,
-                window,
-                "Developer",
-                token.clone(),
-                input_rx,
-            )
-            .await?;
-
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Developer".into(),
-                event_type: "response".into(),
-                content: developer_result.clone(),
-            },
-        );
-
-        // Save Developer Report
-        if let Err(e) = self
-            .file_tools
-            .write_file("implementation.md", &developer_result)
-        {
-            eprintln!("Failed to write implementation.md: {}", e);
-        }
-
-        // 3. Reviewer
-        if token.load(Ordering::SeqCst) {
-            return Err("Task cancelled".into());
-        }
-        let reviewer_context = format!(
-            "Task: {}\nPlan: {}\nImplementation: {}",
-            task, plan, developer_result
-        );
-        let reviewer_prompt = self.construct_prompt(&self.config.reviewer, &reviewer_context, "System: You are a QA engineer and code reviewer.\nUser: Review the following implementation. Provide a code review and any necessary corrections.").await?;
-
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Reviewer".into(),
-                event_type: "thought".into(),
-                content: reviewer_prompt.clone(),
-            },
-        );
-
-        let reviewer_result = self
-            .interactive_completion(
-                &self.config.reviewer,
-                &reviewer_prompt,
-                window,
-                "Reviewer",
-                token.clone(),
-                input_rx,
-            )
-            .await?;
-
-        let _ = window.emit(
-            "agent-event",
-            AgentEvent {
-                source: "Reviewer".into(),
-                event_type: "response".into(),
-                content: reviewer_result.clone(),
-            },
-        );
-
-        // Save Reviewer Report
-        if let Err(e) = self.file_tools.write_file("review.md", &reviewer_result) {
-            eprintln!("Failed to write review.md: {}", e);
-        }
-
-        Ok(format!(
-            "## Developer Output\n{}\n\n## Reviewer Output\n{}",
-            developer_result, reviewer_result
-        ))
+        Ok(final_result)
     }
 
     async fn interactive_completion(
@@ -275,7 +203,7 @@ impl AgentSystem {
             } else if let Some(pos) = response.find("[[ASK_AGENT:") {
                 let rest = &response[pos + "[[ASK_AGENT:".len()..];
                 if let Some(end_bracket) = rest.find("]]") {
-                    let target_role = &rest[..end_bracket];
+                    let target_role_name = &rest[..end_bracket];
                     let question = rest[end_bracket + 2..].trim(); // +2 for ]]
                     let question = if question.is_empty() {
                         "Can you help me with this?"
@@ -283,19 +211,28 @@ impl AgentSystem {
                         question
                     };
 
-                    let target_config = match target_role.to_lowercase().as_str() {
-                        "planner" => &self.config.planner,
-                        "developer" => &self.config.developer,
-                        "reviewer" => &self.config.reviewer,
-                        _ => {
-                            history.push_str("\n\nSystem: Unknown agent role. Available roles: Planner, Developer, Reviewer.");
+                    let target_role = self
+                        .config
+                        .roles
+                        .iter()
+                        .find(|r| r.name.to_lowercase() == target_role_name.to_lowercase());
+
+                    let target_config = match target_role {
+                        Some(r) => &r.config,
+                        None => {
+                            let roles_list: Vec<String> =
+                                self.config.roles.iter().map(|r| r.name.clone()).collect();
+                            history.push_str(&format!(
+                                "\n\nSystem: Unknown agent role. Available roles: {}.",
+                                roles_list.join(", ")
+                            ));
                             continue;
                         }
                     };
 
                     // Authorization Step
                     let auth_payload = serde_json::json!({
-                        "role": target_role,
+                        "role": target_role_name,
                         "question": question
                     })
                     .to_string();
@@ -326,7 +263,7 @@ impl AgentSystem {
                                     event_type: "thought".into(),
                                     content: format!(
                                         "Authorization DENIED for asking {}",
-                                        target_role
+                                        target_role_name
                                     ),
                                 },
                             )
@@ -334,7 +271,7 @@ impl AgentSystem {
 
                         history.push_str(&format!(
                             "\n\nSystem: User DENIED the request to ask {}.",
-                            target_role
+                            target_role_name
                         ));
                         continue;
                     }
@@ -345,7 +282,7 @@ impl AgentSystem {
                             AgentEvent {
                                 source: source.to_string(),
                                 event_type: "thought".into(),
-                                content: format!("Asking {}: {}", target_role, question),
+                                content: format!("Asking {}: {}", target_role_name, question),
                             },
                         )
                         .map_err(|e| e.to_string())?;
@@ -356,7 +293,7 @@ impl AgentSystem {
                     );
                     let target_system = format!(
                         "System: You are expert {}.\nUser: Answer the question from {}.",
-                        target_role, source
+                        target_role_name, source
                     );
 
                     let target_prompt = format!("{}\n\n{}", target_system, target_context);
@@ -369,7 +306,7 @@ impl AgentSystem {
                             &target_prompt,
                             Some(&self.config.work_dir),
                             window,
-                            target_role,
+                            target_role_name,
                             Some("mcp.json"),
                             Some(token.clone()),
                         )
@@ -377,7 +314,7 @@ impl AgentSystem {
 
                     history.push_str("\n\nAgent: ");
                     history.push_str(&response);
-                    history.push_str(&format!("\n\nAgent {}: ", target_role));
+                    history.push_str(&format!("\n\nAgent {}: ", target_role_name));
                     history.push_str(&answer);
                 } else {
                     history.push_str("\n\nSystem: Malformed ASK_AGENT command.");
@@ -426,7 +363,13 @@ impl AgentSystem {
         };
         full_prompt.push_str(&format!("{}\n\n", system_prompt));
         full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n");
-        full_prompt.push_str("IMPORTANT: If you need to ask another agent (Planner, Developer, Reviewer) a question, output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:Developer]] How do I implement X?`\n\n");
+
+        let roles_list: Vec<String> = self.config.roles.iter().map(|r| r.name.clone()).collect();
+        full_prompt.push_str(&format!(
+            "IMPORTANT: If you need to ask another agent ({}) a question, output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:{}]]. How do I implement X?`\n\n",
+            roles_list.join(", "),
+            roles_list.first().unwrap_or(&"Developer".to_string())
+        ));
 
         // 4. Context
         full_prompt.push_str(context);

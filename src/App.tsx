@@ -17,10 +17,13 @@ interface ModelConfig {
   workflow_file?: string;
 }
 
+interface RoleConfig {
+  name: string;
+  config: ModelConfig;
+}
+
 interface AgentConfig {
-  planner: ModelConfig;
-  developer: ModelConfig;
-  reviewer: ModelConfig;
+  roles: RoleConfig[];
   work_dir: string;
   mcp_config: string;
 }
@@ -43,9 +46,11 @@ const PROVIDERS = {
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
-    planner: { provider: "openai", model: "gpt-4o" },
-    developer: { provider: "openai", model: "gpt-4o-mini" },
-    reviewer: { provider: "openai", model: "gpt-4o" },
+    roles: [
+      { name: "Planner", config: { provider: "openai", model: "gpt-4o" } },
+      { name: "Developer", config: { provider: "openai", model: "gpt-4o-mini" } },
+      { name: "Reviewer", config: { provider: "openai", model: "gpt-4o" } },
+    ],
     work_dir: "./workspace",
     mcp_config: `{
   "mcpServers": {
@@ -202,119 +207,180 @@ function App() {
     }
   };
 
-  const handleProviderChange = (key: 'planner' | 'developer' | 'reviewer', provider: string) => {
+  const handleProviderChange = (index: number, provider: string) => {
+    const newRoles = [...config.roles];
+    newRoles[index].config = {
+      ...newRoles[index].config,
+      provider,
+      model: (availableModels[provider] || [])[0] || ""
+    };
+    setConfig({ ...config, roles: newRoles });
+  };
+
+  const addRole = () => {
     setConfig({
       ...config,
-      [key]: {
-        ...config[key],
-        provider,
-        model: (availableModels[provider] || [])[0] || ""
-      }
+      roles: [...config.roles, {
+        name: `New Role ${config.roles.length + 1}`,
+        config: { provider: "openai", model: "gpt-4o-mini" }
+      }]
     });
   };
 
-  const ModelSelect = ({
-    label,
-    configKey
-  }: {
-    label: string,
-    configKey: 'planner' | 'developer' | 'reviewer'
-  }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)' }}>
-      <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--primary)' }}>{label}</h3>
-      <div>
-        <label className="label">Provider</label>
-        <select
-          value={config[configKey].provider}
-          onChange={(e) => handleProviderChange(configKey, e.target.value)}
-        >
-          {Object.entries(PROVIDERS).map(([id, name]) => (
-            <option key={id} value={id}>{name}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="label">Model</label>
-        <select
-          value={config[configKey].model}
-          onChange={(e) => setConfig({
-            ...config,
-            [configKey]: { ...config[configKey], model: e.target.value }
-          })}
-        >
-          {(availableModels[config[configKey].provider] || []).map(model => (
-            <option key={model} value={model}>{model}</option>
-          ))}
-        </select>
-      </div>
+  const removeRole = (index: number) => {
+    const newRoles = config.roles.filter((_, i) => i !== index);
+    setConfig({ ...config, roles: newRoles });
+  };
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+  const updateRoleName = (index: number, name: string) => {
+    const newRoles = [...config.roles];
+    newRoles[index].name = name;
+    setConfig({ ...config, roles: newRoles });
+  };
+
+  const ModelSelect = ({
+    index
+  }: {
+    index: number
+  }) => {
+    const role = config.roles[index];
+    const roleConfig = role.config;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <input
+            value={role.name}
+            onChange={(e) => updateRoleName(index, e.target.value)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderBottom: '1px solid transparent',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--primary)',
+              padding: '2px 0',
+              outline: 'none',
+              width: 'auto',
+              minWidth: '100px'
+            }}
+            onFocus={(e) => e.target.style.borderBottom = '1px solid var(--primary)'}
+            onBlur={(e) => e.target.style.borderBottom = '1px solid transparent'}
+          />
+          <button
+            onClick={() => removeRole(index)}
+            style={{
+              padding: '0.25rem 0.5rem',
+              fontSize: '0.8rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '0.25rem',
+              cursor: 'pointer'
+            }}
+          >
+            Remove
+          </button>
+        </div>
+
         <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => fetchPreview('prompt', config[configKey].prompt_file)}
-            title="Click to preview selected prompt"
-          >
-            Prompt
-          </label>
+          <label className="label">Provider</label>
           <select
-            value={config[configKey].prompt_file || ""}
-            onChange={(e) => setConfig({
-              ...config,
-              [configKey]: { ...config[configKey], prompt_file: e.target.value || undefined }
-            })}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+            value={roleConfig.provider}
+            onChange={(e) => handleProviderChange(index, e.target.value)}
           >
-            <option value="">Default</option>
-            {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+            {Object.entries(PROVIDERS).map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
           </select>
         </div>
         <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => fetchPreview('rule', config[configKey].rule_file)}
-            title="Click to preview selected rule"
-          >
-            Rule
-          </label>
+          <label className="label">Model</label>
           <select
-            value={config[configKey].rule_file || ""}
-            onChange={(e) => setConfig({
-              ...config,
-              [configKey]: { ...config[configKey], rule_file: e.target.value || undefined }
-            })}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+            value={roleConfig.model}
+            onChange={(e) => {
+              const newRoles = [...config.roles];
+              newRoles[index].config = { ...newRoles[index].config, model: e.target.value };
+              setConfig({ ...config, roles: newRoles });
+            }}
           >
-            <option value="">None</option>
-            {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+            {(availableModels[roleConfig.provider] || []).map(model => (
+              <option key={model} value={model}>{model}</option>
+            ))}
           </select>
         </div>
-        <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => fetchPreview('workflow', config[configKey].workflow_file)}
-            title="Click to preview selected workflow"
-          >
-            Workflow
-          </label>
-          <select
-            value={config[configKey].workflow_file || ""}
-            onChange={(e) => setConfig({
-              ...config,
-              [configKey]: { ...config[configKey], workflow_file: e.target.value || undefined }
-            })}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-          >
-            <option value="">None</option>
-            {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-          </select>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+          <div>
+            <label
+              className="label"
+              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => fetchPreview('prompt', roleConfig.prompt_file)}
+              title="Click to preview selected prompt"
+            >
+              Prompt
+            </label>
+            <select
+              value={roleConfig.prompt_file || ""}
+              onChange={(e) => {
+                const newRoles = [...config.roles];
+                newRoles[index].config = { ...newRoles[index].config, prompt_file: e.target.value || undefined };
+                setConfig({ ...config, roles: newRoles });
+              }}
+              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+            >
+              <option value="">Default</option>
+              {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+            </select>
+          </div>
+          <div>
+            <label
+              className="label"
+              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => fetchPreview('rule', roleConfig.rule_file)}
+              title="Click to preview selected rule"
+            >
+              Rule
+            </label>
+            <select
+              value={roleConfig.rule_file || ""}
+              onChange={(e) => {
+                const newRoles = [...config.roles];
+                newRoles[index].config = { ...newRoles[index].config, rule_file: e.target.value || undefined };
+                setConfig({ ...config, roles: newRoles });
+              }}
+              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+            >
+              <option value="">None</option>
+              {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+            </select>
+          </div>
+          <div>
+            <label
+              className="label"
+              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => fetchPreview('workflow', roleConfig.workflow_file)}
+              title="Click to preview selected workflow"
+            >
+              Workflow
+            </label>
+            <select
+              value={roleConfig.workflow_file || ""}
+              onChange={(e) => {
+                const newRoles = [...config.roles];
+                newRoles[index].config = { ...newRoles[index].config, workflow_file: e.target.value || undefined };
+                setConfig({ ...config, roles: newRoles });
+              }}
+              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+            >
+              <option value="">None</option>
+              {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+            </select>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
@@ -337,10 +403,38 @@ function App() {
         <div className="glass-card">
           <h2>Configuration</h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-            <ModelSelect label="Planner" configKey="planner" />
-            <ModelSelect label="Developer" configKey="developer" />
-            <ModelSelect label="Reviewer" configKey="reviewer" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem' }}>
+            {config.roles.map((_, index) => (
+              <ModelSelect key={index} index={index} />
+            ))}
+            <div
+              onClick={addRole}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '1rem',
+                padding: '2rem',
+                border: '2px dashed var(--border-color)',
+                borderRadius: '0.5rem',
+                background: 'rgba(255, 255, 255, 0.02)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                minHeight: '200px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--primary)';
+                e.currentTarget.style.background = 'rgba(168, 85, 247, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+              }}
+            >
+              <span style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>+</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Add New Role</span>
+            </div>
 
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="label">Workspace Root</label>
@@ -453,20 +547,28 @@ function App() {
                     borderBottom: '1px solid var(--border-color)'
                   }}>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <span className={`badge ${ev.source.toLowerCase()}`} style={{
-                        background: ev.source === 'Planner' ? 'rgba(56, 189, 248, 0.2)' :
-                          ev.source === 'Developer' ? 'rgba(168, 85, 247, 0.2)' :
-                            'rgba(234, 179, 8, 0.2)',
-                        color: ev.source === 'Planner' ? '#38bdf8' :
-                          ev.source === 'Developer' ? '#a855f7' :
-                            '#eab308',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600
-                      }}>
-                        {ev.source}
-                      </span>
+                      {(() => {
+                        const colors = {
+                          Planner: { bg: 'rgba(56, 189, 248, 0.2)', text: '#38bdf8' },
+                          Developer: { bg: 'rgba(168, 85, 247, 0.2)', text: '#a855f7' },
+                          Reviewer: { bg: 'rgba(234, 179, 8, 0.2)', text: '#eab308' },
+                          System: { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-muted)' },
+                          User: { bg: 'rgba(34, 197, 94, 0.2)', text: '#22c55e' },
+                        }[ev.source] || { bg: 'rgba(168, 85, 247, 0.15)', text: 'var(--primary)' };
+
+                        return (
+                          <span className={`badge ${ev.source.toLowerCase()}`} style={{
+                            background: colors.bg,
+                            color: colors.text,
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '0.25rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 600
+                          }}>
+                            {ev.source}
+                          </span>
+                        );
+                      })()}
                       <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                         {ev.event_type === "thought" ? "is thinking..." : "responded"}
                       </span>
