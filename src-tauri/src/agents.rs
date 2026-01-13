@@ -3,7 +3,7 @@ use crate::llm_client::{LLMClient, ModelConfig};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{Emitter, Window};
+use tauri::Emitter;
 use tokio::sync::mpsc;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -44,18 +44,17 @@ impl AgentSystem {
     pub async fn run_task(
         &self,
         task: &str,
-        window: &Window,
+        app: &tauri::AppHandle,
         token: Arc<AtomicBool>,
         mut input_rx: mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        self.execute_phases(task, window, token, &mut input_rx)
-            .await
+        self.execute_phases(task, app, token, &mut input_rx).await
     }
 
     async fn execute_phases(
         &self,
         task: &str,
-        window: &Window,
+        app: &tauri::AppHandle,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
@@ -79,7 +78,9 @@ impl AgentSystem {
 
             let role_name = &role_config.name;
             let default_system = format!(
-                "System: You are an expert {}.\nUser: Contribue to the task based on previous work.",
+                "You are an expert {}. Work with your team to complete the task. \n\
+                 Review the previous outputs and contribute your expertise. \n\
+                 Focus on quality and follow best practices for the technology stack.",
                 role_name
             );
 
@@ -87,7 +88,7 @@ impl AgentSystem {
                 .construct_prompt(&role_config.config, &previous_outputs, &default_system)
                 .await?;
 
-            let _ = window.emit(
+            let _ = app.emit(
                 "agent-event",
                 AgentEvent {
                     source: role_name.clone(),
@@ -100,21 +101,12 @@ impl AgentSystem {
                 .interactive_completion(
                     &role_config.config,
                     &prompt,
-                    window,
+                    app,
                     role_name,
                     token.clone(),
                     input_rx,
                 )
                 .await?;
-
-            let _ = window.emit(
-                "agent-event",
-                AgentEvent {
-                    source: role_name.clone(),
-                    event_type: "response".into(),
-                    content: output.clone(),
-                },
-            );
 
             // Save Role Report
             let filename = format!("{}.md", role_name.to_lowercase().replace(" ", "_"));
@@ -133,7 +125,7 @@ impl AgentSystem {
         &self,
         config: &ModelConfig,
         initial_prompt: &str,
-        window: &Window,
+        app: &tauri::AppHandle,
         source: &str,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
@@ -148,7 +140,7 @@ impl AgentSystem {
                     config,
                     &history,
                     Some(&self.config.work_dir),
-                    window,
+                    app,
                     source,
                     Some("mcp.json"),
                     Some(token.clone()),
@@ -165,16 +157,14 @@ impl AgentSystem {
                 };
 
                 // Emit event to frontend to show prompt
-                window
-                    .emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: source.to_string(),
-                            event_type: "question".into(),
-                            content: question_text.clone(),
-                        },
-                    )
-                    .map_err(|e| e.to_string())?;
+                let _ = app.emit(
+                    "agent-event",
+                    AgentEvent {
+                        source: source.to_string(),
+                        event_type: "question".into(),
+                        content: question_text.clone(),
+                    },
+                );
 
                 // Wait for input
                 let user_input = match input_rx.recv().await {
@@ -183,16 +173,14 @@ impl AgentSystem {
                 };
 
                 // Emit acknowledgement
-                window
-                    .emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: "User".into(),
-                            event_type: "input".into(),
-                            content: user_input.clone(),
-                        },
-                    )
-                    .map_err(|e| e.to_string())?;
+                let _ = app.emit(
+                    "agent-event",
+                    AgentEvent {
+                        source: "User".into(),
+                        event_type: "input".into(),
+                        content: user_input.clone(),
+                    },
+                );
 
                 history.push_str("\n\nAgent: ");
                 history.push_str(&response);
@@ -237,16 +225,14 @@ impl AgentSystem {
                     })
                     .to_string();
 
-                    window
-                        .emit(
-                            "agent-event",
-                            AgentEvent {
-                                source: "System".into(),
-                                event_type: "authorization".into(),
-                                content: auth_payload,
-                            },
-                        )
-                        .map_err(|e| e.to_string())?;
+                    let _ = app.emit(
+                        "agent-event",
+                        AgentEvent {
+                            source: "System".into(),
+                            event_type: "authorization".into(),
+                            content: auth_payload,
+                        },
+                    );
 
                     // Wait for authorization
                     let auth_response = match input_rx.recv().await {
@@ -255,19 +241,17 @@ impl AgentSystem {
                     };
 
                     if auth_response != "APPROVED" {
-                        window
-                            .emit(
-                                "agent-event",
-                                AgentEvent {
-                                    source: "System".into(),
-                                    event_type: "thought".into(),
-                                    content: format!(
-                                        "Authorization DENIED for asking {}",
-                                        target_role_name
-                                    ),
-                                },
-                            )
-                            .map_err(|e| e.to_string())?;
+                        let _ = app.emit(
+                            "agent-event",
+                            AgentEvent {
+                                source: "System".into(),
+                                event_type: "thought".into(),
+                                content: format!(
+                                    "Authorization DENIED for asking {}",
+                                    target_role_name
+                                ),
+                            },
+                        );
 
                         history.push_str(&format!(
                             "\n\nSystem: User DENIED the request to ask {}.",
@@ -276,16 +260,14 @@ impl AgentSystem {
                         continue;
                     }
 
-                    window
-                        .emit(
-                            "agent-event",
-                            AgentEvent {
-                                source: source.to_string(),
-                                event_type: "thought".into(),
-                                content: format!("Asking {}: {}", target_role_name, question),
-                            },
-                        )
-                        .map_err(|e| e.to_string())?;
+                    let _ = app.emit(
+                        "agent-event",
+                        AgentEvent {
+                            source: source.to_string(),
+                            event_type: "thought".into(),
+                            content: format!("Asking {}: {}", target_role_name, question),
+                        },
+                    );
 
                     let target_context = format!(
                         "Context from {}:\n{}\n\nQuestion: {}",
@@ -305,7 +287,7 @@ impl AgentSystem {
                             target_config,
                             &target_prompt,
                             Some(&self.config.work_dir),
-                            window,
+                            app,
                             target_role_name,
                             Some("mcp.json"),
                             Some(token.clone()),

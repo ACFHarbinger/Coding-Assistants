@@ -44,6 +44,151 @@ const PROVIDERS = {
 
 // MODELS was here, removed.
 
+const ModelSelect = ({
+  index,
+  role,
+  availableModels,
+  onProviderChange,
+  onConfigChange,
+  onNameChange,
+  onRemove,
+  onPreview,
+  resources,
+  PROVIDERS
+}: {
+  index: number;
+  role: RoleConfig;
+  availableModels: Record<string, string[]>;
+  onProviderChange: (index: number, provider: string) => void;
+  onConfigChange: (index: number, field: keyof ModelConfig, value: any) => void;
+  onNameChange: (index: number, name: string) => void;
+  onRemove: (index: number) => void;
+  onPreview: (type: string, name?: string) => Promise<void>;
+  resources: AgentResources;
+  PROVIDERS: Record<string, string>;
+}) => {
+  const roleConfig = role.config;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <input
+          value={role.name}
+          onChange={(e) => onNameChange(index, e.target.value)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            borderBottom: '1px solid transparent',
+            fontSize: '1rem',
+            fontWeight: 600,
+            color: 'var(--primary)',
+            padding: '2px 0',
+            outline: 'none',
+            width: 'auto',
+            minWidth: '100px'
+          }}
+          onFocus={(e) => e.target.style.borderBottom = '1px solid var(--primary)'}
+          onBlur={(e) => e.target.style.borderBottom = '1px solid transparent'}
+        />
+        <button
+          onClick={() => onRemove(index)}
+          style={{
+            padding: '0.25rem 0.5rem',
+            fontSize: '0.8rem',
+            background: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            borderRadius: '0.25rem',
+            cursor: 'pointer'
+          }}
+        >
+          Remove
+        </button>
+      </div>
+
+      <div>
+        <label className="label">Provider</label>
+        <select
+          value={roleConfig.provider}
+          onChange={(e) => onProviderChange(index, e.target.value)}
+        >
+          {Object.entries(PROVIDERS).map(([id, name]) => (
+            <option key={id} value={id}>{name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="label">Model</label>
+        <select
+          value={roleConfig.model}
+          onChange={(e) => onConfigChange(index, 'model', e.target.value)}
+        >
+          {(availableModels[roleConfig.provider] || []).map(model => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => onPreview('prompt', roleConfig.prompt_file)}
+            title="Click to preview selected prompt"
+          >
+            Prompt
+          </label>
+          <select
+            value={roleConfig.prompt_file || ""}
+            onChange={(e) => onConfigChange(index, 'prompt_file', e.target.value)}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">Default</option>
+            {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => onPreview('rule', roleConfig.rule_file)}
+            title="Click to preview selected rule"
+          >
+            Rule
+          </label>
+          <select
+            value={roleConfig.rule_file || ""}
+            onChange={(e) => onConfigChange(index, 'rule_file', e.target.value)}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">None</option>
+            {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => onPreview('workflow', roleConfig.workflow_file)}
+            title="Click to preview selected workflow"
+          >
+            Workflow
+          </label>
+          <select
+            value={roleConfig.workflow_file || ""}
+            onChange={(e) => onConfigChange(index, 'workflow_file', e.target.value)}
+            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
+          >
+            <option value="">None</option>
+            {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
     roles: [
@@ -80,6 +225,40 @@ function App() {
   const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
   const [authorizationRequest, setAuthorizationRequest] = useState<{ role: string, question: string } | null>(null);
   const [userInput, setUserInput] = useState("");
+  const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
+  const [serverIP, setServerIP] = useState<string>("");
+  const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
+
+  const startRemoteServer = async () => {
+    try {
+      setRemoteStatus("Starting server...");
+      const address = await invoke<string>("start_tcp_server");
+      setServerIP(address);
+      setRemoteStatus(`Server listening on ${address}`);
+    } catch (e) {
+      setRemoteStatus(`Error: ${e}`);
+    }
+  };
+
+  const stopRemoteServer = async () => {
+    try {
+      setRemoteStatus("Stopping server...");
+      await invoke("stop_tcp_server");
+      setRemoteStatus("Server stopped");
+      setServerIP("");
+    } catch (e) {
+      setRemoteStatus(`Error stopping server: ${e}`);
+    }
+  };
+
+  useEffect(() => {
+    const unlisten = listen<string>("remote-status", (event) => {
+      setRemoteLogs(prev => [event.payload, ...prev].slice(0, 10));
+    });
+    return () => {
+      unlisten.then(f => f());
+    };
+  }, []);
 
   const fetchPreview = async (type: string, name?: string) => {
     if (!config.work_dir) return;
@@ -145,6 +324,33 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const unlistenTask = listen<{ config: AgentConfig, task: string }>("android-task-request", (event) => {
+      console.log("Received remote task request:", event.payload);
+      setConfig(event.payload.config);
+      setTask(event.payload.task);
+      startTaskRemote(event.payload.config, event.payload.task);
+    });
+
+    const unlistenCancel = listen("android-cancel-request", () => {
+      console.log("Received remote cancel request");
+      invoke("cancel_task").catch(err => console.error("Remote cancel failed:", err));
+    });
+
+    const unlistenInput = listen<string>("android-input-submit", (event) => {
+      console.log("Received remote input submit:", event.payload);
+      setUserInput(event.payload);
+      invoke("submit_user_input", { input: event.payload }).catch(err => console.error("Remote input submittal failed:", err));
+      setCurrentQuestion(null);
+    });
+
+    return () => {
+      unlistenTask.then(f => f());
+      unlistenCancel.then(f => f());
+      unlistenInput.then(f => f());
+    };
+  }, []);
+
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
@@ -207,179 +413,70 @@ function App() {
     }
   };
 
-  const handleProviderChange = (index: number, provider: string) => {
-    const newRoles = [...config.roles];
-    newRoles[index].config = {
-      ...newRoles[index].config,
-      provider,
-      model: (availableModels[provider] || [])[0] || ""
-    };
-    setConfig({ ...config, roles: newRoles });
+  const startTaskRemote = async (remoteConfig: AgentConfig, remoteTask: string) => {
+    setLoading(true);
+    setEvents([]);
+    setOutput("");
+    try {
+      const result = await invoke<string>("run_agent_task", { config: remoteConfig, task: remoteTask });
+      setOutput(result);
+    } catch (error) {
+      setOutput(`Error: ${error}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addRole = () => {
-    setConfig({
-      ...config,
-      roles: [...config.roles, {
-        name: `New Role ${config.roles.length + 1}`,
-        config: { provider: "openai", model: "gpt-4o-mini" }
-      }]
+  const handleProviderChange = (index: number, provider: string) => {
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      const models = availableModels[provider] || [];
+      newRoles[index] = {
+        ...newRoles[index],
+        config: {
+          ...newRoles[index].config,
+          provider,
+          model: models[0] || ""
+        }
+      };
+      return { ...prev, roles: newRoles };
     });
   };
 
+  const addRole = () => {
+    setConfig(prev => ({
+      ...prev,
+      roles: [...prev.roles, {
+        name: `New Role ${prev.roles.length + 1}`,
+        config: { provider: "openai", model: "gpt-4o-mini" }
+      }]
+    }));
+  };
+
   const removeRole = (index: number) => {
-    const newRoles = config.roles.filter((_, i) => i !== index);
-    setConfig({ ...config, roles: newRoles });
+    setConfig(prev => ({
+      ...prev,
+      roles: prev.roles.filter((_, i) => i !== index)
+    }));
   };
 
   const updateRoleName = (index: number, name: string) => {
-    const newRoles = [...config.roles];
-    newRoles[index].name = name;
-    setConfig({ ...config, roles: newRoles });
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      newRoles[index] = { ...newRoles[index], name };
+      return { ...prev, roles: newRoles };
+    });
   };
 
-  const ModelSelect = ({
-    index
-  }: {
-    index: number
-  }) => {
-    const role = config.roles[index];
-    const roleConfig = role.config;
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)', position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <input
-            value={role.name}
-            onChange={(e) => updateRoleName(index, e.target.value)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: '1px solid transparent',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--primary)',
-              padding: '2px 0',
-              outline: 'none',
-              width: 'auto',
-              minWidth: '100px'
-            }}
-            onFocus={(e) => e.target.style.borderBottom = '1px solid var(--primary)'}
-            onBlur={(e) => e.target.style.borderBottom = '1px solid transparent'}
-          />
-          <button
-            onClick={() => removeRole(index)}
-            style={{
-              padding: '0.25rem 0.5rem',
-              fontSize: '0.8rem',
-              background: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              borderRadius: '0.25rem',
-              cursor: 'pointer'
-            }}
-          >
-            Remove
-          </button>
-        </div>
-
-        <div>
-          <label className="label">Provider</label>
-          <select
-            value={roleConfig.provider}
-            onChange={(e) => handleProviderChange(index, e.target.value)}
-          >
-            {Object.entries(PROVIDERS).map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">Model</label>
-          <select
-            value={roleConfig.model}
-            onChange={(e) => {
-              const newRoles = [...config.roles];
-              newRoles[index].config = { ...newRoles[index].config, model: e.target.value };
-              setConfig({ ...config, roles: newRoles });
-            }}
-          >
-            {(availableModels[roleConfig.provider] || []).map(model => (
-              <option key={model} value={model}>{model}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-          <div>
-            <label
-              className="label"
-              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-              onClick={() => fetchPreview('prompt', roleConfig.prompt_file)}
-              title="Click to preview selected prompt"
-            >
-              Prompt
-            </label>
-            <select
-              value={roleConfig.prompt_file || ""}
-              onChange={(e) => {
-                const newRoles = [...config.roles];
-                newRoles[index].config = { ...newRoles[index].config, prompt_file: e.target.value || undefined };
-                setConfig({ ...config, roles: newRoles });
-              }}
-              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-            >
-              <option value="">Default</option>
-              {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-            </select>
-          </div>
-          <div>
-            <label
-              className="label"
-              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-              onClick={() => fetchPreview('rule', roleConfig.rule_file)}
-              title="Click to preview selected rule"
-            >
-              Rule
-            </label>
-            <select
-              value={roleConfig.rule_file || ""}
-              onChange={(e) => {
-                const newRoles = [...config.roles];
-                newRoles[index].config = { ...newRoles[index].config, rule_file: e.target.value || undefined };
-                setConfig({ ...config, roles: newRoles });
-              }}
-              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-            >
-              <option value="">None</option>
-              {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-            </select>
-          </div>
-          <div>
-            <label
-              className="label"
-              style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-              onClick={() => fetchPreview('workflow', roleConfig.workflow_file)}
-              title="Click to preview selected workflow"
-            >
-              Workflow
-            </label>
-            <select
-              value={roleConfig.workflow_file || ""}
-              onChange={(e) => {
-                const newRoles = [...config.roles];
-                newRoles[index].config = { ...newRoles[index].config, workflow_file: e.target.value || undefined };
-                setConfig({ ...config, roles: newRoles });
-              }}
-              style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-            >
-              <option value="">None</option>
-              {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-    );
+  const updateRoleConfig = (index: number, field: keyof ModelConfig, value: any) => {
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      newRoles[index] = {
+        ...newRoles[index],
+        config: { ...newRoles[index].config, [field]: value || undefined }
+      };
+      return { ...prev, roles: newRoles };
+    });
   };
 
   return (
@@ -404,8 +501,20 @@ function App() {
           <h2>Configuration</h2>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem' }}>
-            {config.roles.map((_, index) => (
-              <ModelSelect key={index} index={index} />
+            {config.roles.map((role, index) => (
+              <ModelSelect
+                key={index}
+                index={index}
+                role={role}
+                availableModels={availableModels}
+                onProviderChange={handleProviderChange}
+                onConfigChange={updateRoleConfig}
+                onNameChange={updateRoleName}
+                onRemove={removeRole}
+                onPreview={fetchPreview}
+                resources={resources}
+                PROVIDERS={PROVIDERS}
+              />
             ))}
             <div
               onClick={addRole}
@@ -522,6 +631,36 @@ function App() {
               {loading ? "Cancel" : "Launch Sequence"}
             </button>
           </div>
+        </div>
+
+        <div className="glass-card">
+          <h2>Remote Control</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 600 }}>Status: <span style={{ color: remoteStatus.includes("listening") ? "#22c55e" : "var(--text-muted)" }}>{remoteStatus}</span></p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Control from Android app via WiFi</p>
+              {serverIP && (
+                <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', fontWeight: 600, color: 'var(--primary)' }}>
+                  Connect to: <span style={{ fontFamily: 'monospace', background: 'rgba(168, 85, 247, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>{serverIP}</span>
+                </p>
+              )}
+            </div>
+            <button
+              className="btn-secondary"
+              onClick={remoteStatus.includes("listening") ? stopRemoteServer : startRemoteServer}
+              style={remoteStatus.includes("listening") ? { borderColor: '#ef4444', color: '#ef4444' } : {}}
+            >
+              {remoteStatus.includes("listening") ? "Stop Server" : "Start Server"}
+            </button>
+          </div>
+          {remoteLogs.length > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '0.5rem' }}>
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Remote Logs:</p>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem' }}>
+                {remoteLogs.map((log, i) => <li key={i}>{log}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
 
         {events.length > 0 && (

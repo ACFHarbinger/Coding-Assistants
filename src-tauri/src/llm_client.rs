@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{Emitter, Window};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot;
@@ -51,7 +51,7 @@ impl LLMClient {
         config: &ModelConfig,
         prompt: &str,
         work_dir: Option<&str>,
-        window: &Window,
+        app: &AppHandle,
         source: &str,
         mcp_config_path: Option<&str>,
         token: Option<Arc<AtomicBool>>,
@@ -86,7 +86,7 @@ impl LLMClient {
         // Ensure child is killed on drop/cancellation
         let mut child_guard = KillOnDrop(child);
 
-        let window_clone = window.clone();
+        let app_clone = app.clone();
         let source_clone = source.to_string();
         tokio::spawn(async move {
             let mut reader = BufReader::new(stderr);
@@ -95,7 +95,7 @@ impl LLMClient {
                 if n == 0 {
                     break;
                 }
-                let _ = window_clone.emit(
+                let _ = app_clone.emit(
                     "agent-event",
                     AgentEvent {
                         source: source_clone.clone(),
@@ -131,7 +131,7 @@ impl LLMClient {
                      match result {
                          Ok(0) => break, // EOF
                          Ok(_) => {
-                            let _ = window.emit(
+                            let _ = app.emit(
                                 "agent-event",
                                 AgentEvent {
                                     source: source.to_string(),

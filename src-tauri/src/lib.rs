@@ -1,18 +1,23 @@
 mod agents;
 mod file_tools;
 mod llm_client;
+mod tcp_server;
 
 use agents::{AgentConfig, AgentSystem};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::{Emitter, Manager, State};
+use tcp_server::TcpServer;
 use tokio::sync::mpsc;
 
 struct AppState {
     agents: Mutex<Option<AgentSystem>>,
     cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
     user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
+    tcp_server: Mutex<Option<TcpServer>>,
 }
 
 #[derive(serde::Serialize)]
@@ -27,7 +32,7 @@ async fn run_agent_task(
     config: AgentConfig,
     task: String,
     state: State<'_, AppState>,
-    window: tauri::Window,
+    app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     let token = Arc::new(AtomicBool::new(false));
 
@@ -43,7 +48,7 @@ async fn run_agent_task(
 
     let system = AgentSystem::new(config);
     // run_task will now consume input_rx
-    let result = system.run_task(&task, &window, token, input_rx).await?;
+    let result = system.run_task(&task, &app_handle, token, input_rx).await?;
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
@@ -145,7 +150,7 @@ async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> 
     for model_line in models_list {
         if let Some((provider, model)) = model_line.split_once('/') {
             models_map
-                .entry(provider.to_string())
+                .entry(provider.to_lowercase())
                 .or_default()
                 .push(model.to_string());
         } else {
@@ -158,6 +163,76 @@ async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> 
     Ok(models_map)
 }
 
+#[tauri::command]
+async fn start_tcp_server(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let mut server = TcpServer::new(app_handle.clone(), 5555);
+    let address = server.start().await?;
+
+    // Start accepting connections in background
+    server.accept_connections().await?;
+
+    // Store server instance in state
+    {
+        let mut server_guard = state.tcp_server.lock().unwrap();
+        *server_guard = Some(server);
+    }
+
+    Ok(address)
+}
+
+#[tauri::command]
+async fn stop_tcp_server(state: State<'_, AppState>) -> Result<(), String> {
+    let mut server_guard = state.tcp_server.lock().unwrap();
+    if let Some(mut server) = server_guard.take() {
+        server.stop();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_server_ip() -> Result<String, String> {
+    use std::net::UdpSocket;
+
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    socket.connect("8.8.8.8:80").map_err(|e| e.to_string())?;
+    let local_addr = socket.local_addr().map_err(|e| e.to_string())?;
+    Ok(local_addr.ip().to_string())
+}
+
+// Legacy function - keeping for backward compatibility
+#[tauri::command]
+async fn start_remote_server(window: tauri::Window) -> Result<(), String> {
+    use std::process::Command;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::TcpListener;
+
+    tokio::spawn(async move {
+        let listener = TcpListener::bind("0.0.0.0:5555").await.unwrap();
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0; 1024];
+            if let Ok(n) = socket.read(&mut buf).await {
+                let msg = String::from_utf8_lossy(&buf[..n]);
+                if msg.trim() == "launch" {
+                    let output =
+                        Command::new("/home/pkhunter/Repositories/Coding-Assistants/app/task.sh")
+                            .output();
+
+                    let status = match output {
+                        Ok(o) => format!("Task executed: {}", String::from_utf8_lossy(&o.stdout)),
+                        Err(e) => format!("Error: {}", e),
+                    };
+                    let _ = window.emit("remote-status", status);
+                }
+            }
+        }
+    });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -167,6 +242,47 @@ pub fn run() {
             agents: Mutex::new(None),
             cancellation_token: Mutex::new(None),
             user_input_tx: Mutex::new(None),
+            tcp_server: Mutex::new(None),
+        })
+        .setup(|app| {
+            let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+            let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let menu = MenuBuilder::new(app).item(&show_i).item(&quit_i).build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                window.hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             run_agent_task,
@@ -175,7 +291,11 @@ pub fn run() {
             get_agent_resources,
             get_resource_content,
             read_file_absolute,
-            get_available_models
+            get_available_models,
+            start_remote_server,
+            start_tcp_server,
+            stop_tcp_server,
+            get_server_ip
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
