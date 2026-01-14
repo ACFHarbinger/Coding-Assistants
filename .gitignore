@@ -25,3 +25,8 @@ dist-ssr
 
 # MCP
 mcp.json
+
+# Build
+target
+__pycache__
+coding_assistants.egg-info
