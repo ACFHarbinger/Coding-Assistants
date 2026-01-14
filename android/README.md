@@ -119,10 +119,15 @@ The app uses a JSON-based TCP protocol on port 5555. Messages are newline-delimi
 android/
 ├── app/
 │   ├── src/main/kotlin/com/example/remotelauncher/
-│   │   ├── MainActivity.kt           # Main activity with Compose UI
-│   │   ├── MainViewModel.kt          # App state management
-│   │   ├── TcpClient.kt             # TCP network client
-│   │   └── Models.kt                # Data classes and protocols
+│   │   ├── MainActivity.kt           # Main activity
+│   │   ├── network/                  # Network layer
+│   │   │   └── TcpClient.kt          # TCP network client & Protocol definitions
+│   │   ├── ui/                       # UI Components (Jetpack Compose)
+│   │   │   ├── ConnectionScreen.kt
+│   │   │   ├── ModelSelectionScreen.kt
+│   │   │   └── TaskExecutionScreen.kt
+│   │   └── viewmodel/                # App state management
+│   │       └── MainViewModel.kt
 │   └── src/main/res/
 │       └── layout/
 │           └── activity_main.xml
@@ -135,7 +140,7 @@ android/
 - **Kotlin** - Programming language
 - **Jetpack Compose** - Modern UI toolkit
 - **Material 3** - UI components
-- **Ktor** - Networking library for TCP
+- **Java Sockets** - TCP networking
 - **Kotlinx Serialization** - JSON serialization
 - **Coroutines & Flow** - Async programming
 

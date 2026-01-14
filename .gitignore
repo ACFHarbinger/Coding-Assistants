@@ -28,5 +28,6 @@ mcp.json
 
 # Build
 target
+/**/build
 __pycache__
 coding_assistants.egg-info

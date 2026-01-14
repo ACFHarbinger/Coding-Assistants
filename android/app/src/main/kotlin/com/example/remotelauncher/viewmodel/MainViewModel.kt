@@ -60,20 +60,19 @@ class MainViewModel : ViewModel() {
                 val connectResult = tcpClient?.connect()
                 
                 if (connectResult?.isSuccess == true) {
-                    // Fetch available models
-                    val modelsResult = tcpClient?.getModels()
+                    _state.value = _state.value.copy(
+                        isConnected = true
+                    )
                     
-                    if (modelsResult?.isSuccess == true) {
-                        _state.value = _state.value.copy(
-                            isConnected = true,
-                            currentScreen = Screen.ModelSelection,
-                            availableModels = modelsResult.getOrDefault(emptyMap())
-                        )
-                    } else {
-                        _state.value = _state.value.copy(
-                            errorMessage = "Connected but failed to fetch models: ${modelsResult?.exceptionOrNull()?.message}"
-                        )
+                    // Start listening to messages
+                    launch {
+                        tcpClient?.messages?.collect { response ->
+                            handleResponse(response)
+                        }
                     }
+                    
+                    // Fetch available models
+                    tcpClient?.getModels()
                 } else {
                     _state.value = _state.value.copy(
                         errorMessage = "Connection failed: ${connectResult?.exceptionOrNull()?.message}"
@@ -83,6 +82,48 @@ class MainViewModel : ViewModel() {
                 _state.value = _state.value.copy(
                     errorMessage = "Error: ${e.message}"
                 )
+            }
+        }
+    }
+    
+    private fun handleResponse(response: ServerResponse) {
+        when (response) {
+            is ServerResponse.ModelsList -> {
+                _state.value = _state.value.copy(
+                    currentScreen = Screen.ModelSelection,
+                    availableModels = response.models
+                )
+            }
+            is ServerResponse.TaskStarted -> {
+                 _state.value = _state.value.copy(
+                    taskResult = "Task Started...\n",
+                    isExecutingTask = true
+                )
+            }
+            is ServerResponse.TaskEvent -> {
+                 val newResult = _state.value.taskResult + "\n[${response.source}] ${response.event_type}: ${response.content}"
+                 _state.value = _state.value.copy(
+                    taskResult = newResult
+                )
+            }
+            is ServerResponse.TaskComplete -> {
+                 val newResult = _state.value.taskResult + "\n\nTask Complete: ${response.result}"
+                 _state.value = _state.value.copy(
+                    taskResult = newResult,
+                    isExecutingTask = false
+                )
+            }
+            is ServerResponse.Error -> {
+                _state.value = _state.value.copy(
+                    errorMessage = "Server Error: ${response.message}"
+                )
+            }
+            is ServerResponse.Status -> {
+                 if (response.running) {
+                     // Maybe update something?
+                 } else {
+                     // Maybe task cancelled?
+                 }
             }
         }
     }
@@ -152,14 +193,9 @@ class MainViewModel : ViewModel() {
                 
                 val result = tcpClient?.startTask(config, _state.value.task)
                 
-                if (result?.isSuccess == true) {
-                    _state.value = _state.value.copy(
-                        taskResult = "Task started successfully! Check PC app for progress.",
-                        isExecutingTask = false
-                    )
-                } else {
-                    _state.value = _state.value.copy(
-                        errorMessage = "Failed to start task: ${result?.exceptionOrNull()?.message}",
+                if (result?.isFailure == true) {
+                     _state.value = _state.value.copy(
+                        errorMessage = "Failed to start task: ${result.exceptionOrNull()?.message}",
                         isExecutingTask = false
                     )
                 }
@@ -178,7 +214,7 @@ class MainViewModel : ViewModel() {
                 tcpClient?.cancelTask()
                 _state.value = _state.value.copy(
                     isExecutingTask = false,
-                    taskResult = "Task cancelled"
+                    taskResult = _state.value.taskResult + "\nCancelled by user."
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(

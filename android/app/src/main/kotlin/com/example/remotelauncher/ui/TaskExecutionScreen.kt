@@ -1,5 +1,7 @@
 package com.example.remotelauncher.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -98,32 +100,19 @@ fun TaskExecutionScreen(
                 enabled = false
             )
             
-            Spacer(Modifier.weight(1f))
-            
-            // Error message
-            state.errorMessage?.let { error ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Text(
-                        text = error,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-            
             // Result message
             if (state.taskResult.isNotEmpty()) {
                 Card(
+                    modifier = Modifier.weight(1f),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -139,6 +128,23 @@ fun TaskExecutionScreen(
                             )
                         }
                     }
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            
+            // Error message
+            state.errorMessage?.let { error ->
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = error,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
                 }
             }
             
