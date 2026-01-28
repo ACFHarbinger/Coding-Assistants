@@ -29,5 +29,6 @@ mcp.json
 # Build
 target
 /**/build
+/**/.gradle
 __pycache__
 coding_assistants.egg-info

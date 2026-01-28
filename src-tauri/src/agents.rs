@@ -71,7 +71,9 @@ impl AgentSystem {
         let mut previous_outputs = format!("Task: {}\n", task);
         let mut final_result = String::new();
 
-        for role_config in &self.config.roles {
+        let mut file_vector = Vec::<String>::new();
+        let total_roles = self.config.roles.len();
+        for (idx, role_config) in self.config.roles.iter().enumerate() {
             if token.load(Ordering::SeqCst) {
                 return Err("Task cancelled".into());
             }
@@ -113,11 +115,47 @@ impl AgentSystem {
             if let Err(e) = self.file_tools.write_file(&filename, &output) {
                 eprintln!("Failed to write {}: {}", filename, e);
             }
+            file_vector.push(filename);
 
             previous_outputs.push_str(&format!("\nOutput from {}:\n{}\n", role_name, output));
             final_result.push_str(&format!("## {} Output\n{}\n\n", role_name, output));
-        }
+            if idx == total_roles - 1 {
+                let mut all_contents = String::new();
+                for file_path in &file_vector {
+                    if let Ok(content) = self.file_tools.read_file(file_path) {
+                        all_contents.push_str(&format!("\n--- {} ---\n{}\n", file_path, content));
+                    }
+                }
 
+                let summary_prompt = format!(
+                    "You are a project manager. Summarize the progress made in this session based on the following outputs. \
+                     Focus on key decisions, implementations, and next steps. \
+                     Save this as a concise project memory for future reference.\n\n\
+                     Outputs:\n{}",
+                    all_contents
+                );
+
+                let summary = self
+                    .client
+                    .chat_completion(
+                        &role_config.config,
+                        &summary_prompt,
+                        Some(&self.config.work_dir),
+                        app,
+                        "System",
+                        Some("mcp.json"),
+                        Some(token.clone()),
+                    )
+                    .await?;
+
+                if let Err(e) = self
+                    .file_tools
+                    .write_file(".agent/project_memory.md", &summary)
+                {
+                    eprintln!("Failed to write project memory: {}", e);
+                }
+            }
+        }
         Ok(final_result)
     }
 
@@ -335,6 +373,16 @@ impl AgentSystem {
         if let Some(rule_path) = &config.rule_file {
             let rule = self.get_file_content(&Some(rule_path.clone())).await?;
             full_prompt.push_str(&format!("Rules:\n{}\n\n", rule));
+        }
+
+        let memory_file = ".agent/project_memory.md";
+        if let Ok(memory) = self.get_file_content(&Some(memory_file.to_string())).await {
+            if !memory.is_empty() {
+                full_prompt.push_str(&format!(
+                    "Project Memory (Past Tasks and Context):\n{}\n\n",
+                    memory
+                ));
+            }
         }
 
         // 3. System Prompt (File or Default)

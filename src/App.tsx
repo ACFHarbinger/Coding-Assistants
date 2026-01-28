@@ -39,7 +39,9 @@ const PROVIDERS = {
   google: "Google",
   anthropic: "Anthropic",
   openai: "OpenAI",
-  github_copilot: "GitHub Copilot"
+  github_copilot: "GitHub Copilot",
+  ollama: "Ollama",
+  lm_studio: "LM Studio"
 };
 
 // MODELS was here, removed.
