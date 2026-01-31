@@ -173,7 +173,12 @@ impl LLMClient {
             if let Some(dir) = work_dir {
                 command.current_dir(dir);
                 if let Some(mcp_file) = mcp_config_path {
-                    let full_mcp_path = Path::new(dir).join(mcp_file);
+                    let mcp_path = Path::new(mcp_file);
+                    let full_mcp_path = if mcp_path.is_absolute() {
+                        mcp_path.to_path_buf()
+                    } else {
+                        Path::new(dir).join(mcp_file)
+                    };
                     command.env("MCP_CONFIG_FILE", full_mcp_path);
                 }
             }

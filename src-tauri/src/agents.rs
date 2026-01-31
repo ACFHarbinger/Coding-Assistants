@@ -58,13 +58,19 @@ impl AgentSystem {
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        // Write MCP Config
+        // Write MCP Config to ~/.coding-assistants/mcp.json
+        let mut mcp_abs_path = None;
         if !self.config.mcp_config.is_empty() {
-            if let Err(e) = self
-                .file_tools
-                .write_file("mcp.json", &self.config.mcp_config)
-            {
-                eprintln!("Failed to write mcp.json: {}", e);
+            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            let config_dir = std::path::Path::new(&home_dir).join(".coding-assistants");
+            let mcp_config_file = config_dir.join("mcp.json");
+
+            if let Err(e) = std::fs::create_dir_all(&config_dir) {
+                eprintln!("Failed to create config directory {:?}: {}", config_dir, e);
+            } else if let Err(e) = std::fs::write(&mcp_config_file, &self.config.mcp_config) {
+                eprintln!("Failed to write mcp.json to {:?}: {}", mcp_config_file, e);
+            } else {
+                mcp_abs_path = Some(mcp_config_file.to_string_lossy().to_string());
             }
         }
 
@@ -107,6 +113,7 @@ impl AgentSystem {
                     role_name,
                     token.clone(),
                     input_rx,
+                    mcp_abs_path.as_deref(),
                 )
                 .await?;
 
@@ -143,7 +150,7 @@ impl AgentSystem {
                         Some(&self.config.work_dir),
                         app,
                         "System",
-                        Some("mcp.json"),
+                        mcp_abs_path.as_deref(),
                         Some(token.clone()),
                     )
                     .await?;
@@ -167,6 +174,7 @@ impl AgentSystem {
         source: &str,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
+        mcp_config_path: Option<&str>,
     ) -> Result<String, String> {
         let mut history = initial_prompt.to_string();
 
@@ -180,7 +188,7 @@ impl AgentSystem {
                     Some(&self.config.work_dir),
                     app,
                     source,
-                    Some("mcp.json"),
+                    mcp_config_path,
                     Some(token.clone()),
                 )
                 .await?;
@@ -327,7 +335,7 @@ impl AgentSystem {
                             Some(&self.config.work_dir),
                             app,
                             target_role_name,
-                            Some("mcp.json"),
+                            mcp_config_path,
                             Some(token.clone()),
                         )
                         .await?;
