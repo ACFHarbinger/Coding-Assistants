@@ -28,4 +28,5 @@ async-openai = "0.26"
 dotenv = "0.15"
 walkdir = "2"
 tauri-plugin-dialog = "2.5.0"
+governor = "0.10.4"
 

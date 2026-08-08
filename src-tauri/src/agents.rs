@@ -65,9 +65,10 @@ impl AgentSystem {
             let config_dir = std::path::Path::new(&home_dir).join(".coding-assistants");
             let mcp_config_file = config_dir.join("mcp.json");
 
-            if let Err(e) = std::fs::create_dir_all(&config_dir) {
+            if let Err(e) = tokio::fs::create_dir_all(&config_dir).await {
                 eprintln!("Failed to create config directory {:?}: {}", config_dir, e);
-            } else if let Err(e) = std::fs::write(&mcp_config_file, &self.config.mcp_config) {
+            } else if let Err(e) = tokio::fs::write(&mcp_config_file, &self.config.mcp_config).await
+            {
                 eprintln!("Failed to write mcp.json to {:?}: {}", mcp_config_file, e);
             } else {
                 mcp_abs_path = Some(mcp_config_file.to_string_lossy().to_string());
@@ -119,7 +120,7 @@ impl AgentSystem {
 
             // Save Role Report
             let filename = format!("{}.md", role_name.to_lowercase().replace(" ", "_"));
-            if let Err(e) = self.file_tools.write_file(&filename, &output) {
+            if let Err(e) = self.file_tools.write_file(&filename, &output).await {
                 eprintln!("Failed to write {}: {}", filename, e);
             }
             file_vector.push(filename);
@@ -129,7 +130,7 @@ impl AgentSystem {
             if idx == total_roles - 1 {
                 let mut all_contents = String::new();
                 for file_path in &file_vector {
-                    if let Ok(content) = self.file_tools.read_file(file_path) {
+                    if let Ok(content) = self.file_tools.read_file(file_path).await {
                         all_contents.push_str(&format!("\n--- {} ---\n{}\n", file_path, content));
                     }
                 }
@@ -158,6 +159,7 @@ impl AgentSystem {
                 if let Err(e) = self
                     .file_tools
                     .write_file(".agent/project_memory.md", &summary)
+                    .await
                 {
                     eprintln!("Failed to write project memory: {}", e);
                 }
@@ -166,6 +168,9 @@ impl AgentSystem {
         Ok(final_result)
     }
 
+    // TODO(RD2): this argument list should collapse once request state moves
+    // into a dedicated struct as part of the actor-model daemon migration.
+    #[allow(clippy::too_many_arguments)]
     async fn interactive_completion(
         &self,
         config: &ModelConfig,
@@ -358,6 +363,7 @@ impl AgentSystem {
             Some(p) => self
                 .file_tools
                 .read_file(p)
+                .await
                 .map_err(|e| format!("Failed to read file {}: {}", p, e)),
             None => Ok(String::new()),
         }

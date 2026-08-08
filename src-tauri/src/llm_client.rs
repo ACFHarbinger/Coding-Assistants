@@ -1,14 +1,51 @@
 use crate::agents::AgentEvent;
+use governor::clock::{Clock, DefaultClock};
+use governor::state::keyed::DefaultKeyedStateStore;
+use governor::{Quota, RateLimiter};
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroU32;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
+
+/// Per-provider token-bucket rate limiter for outbound LLM calls.
+///
+/// Prevents a runaway agent retry loop from hammering a provider's API (or a
+/// local CLI's process-spawn overhead) faster than it can reasonably handle.
+/// Burst of 3, sustained 1/sec per provider — generous enough for normal
+/// interactive use, tight enough to catch a tight retry loop.
+type ProviderLimiter = RateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>;
+
+static PROVIDER_LIMITER: OnceLock<ProviderLimiter> = OnceLock::new();
+
+fn provider_limiter() -> &'static ProviderLimiter {
+    PROVIDER_LIMITER.get_or_init(|| {
+        let quota =
+            Quota::per_second(NonZeroU32::new(1).unwrap()).allow_burst(NonZeroU32::new(3).unwrap());
+        RateLimiter::keyed(quota)
+    })
+}
+
+/// Blocks until the given provider is under its rate limit.
+async fn wait_for_rate_limit(provider: &str) {
+    let limiter = provider_limiter();
+    let key = provider.to_string();
+    loop {
+        match limiter.check_key(&key) {
+            Ok(_) => return,
+            Err(not_until) => {
+                let wait = not_until.wait_time_from(DefaultClock::default().now());
+                tokio::time::sleep(wait).await;
+            }
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModelConfig {
@@ -46,6 +83,9 @@ impl LLMClient {
         Self
     }
 
+    // TODO(RD2): this argument list should collapse once request state moves
+    // into a dedicated struct as part of the actor-model daemon migration.
+    #[allow(clippy::too_many_arguments)]
     pub async fn chat_completion(
         &self,
         config: &ModelConfig,
@@ -56,6 +96,8 @@ impl LLMClient {
         mcp_config_path: Option<&str>,
         token: Option<Arc<AtomicBool>>,
     ) -> Result<String, String> {
+        wait_for_rate_limit(&config.provider).await;
+
         if config.provider == "ollama" {
             let mut command = Command::new("ollama");
             command

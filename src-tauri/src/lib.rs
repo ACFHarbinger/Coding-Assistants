@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 use tcp_server::TcpServer;
 use tokio::sync::mpsc;
 
@@ -90,30 +90,34 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
     let rules_dir = base_path.join("rules");
     let workflows_dir = base_path.join("workflows");
 
-    std::fs::create_dir_all(&prompts_dir).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&rules_dir).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&workflows_dir).map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&prompts_dir)
+        .await
+        .map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&rules_dir)
+        .await
+        .map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&workflows_dir)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    let list_files = |dir: &std::path::Path, prefix: &str| -> Vec<String> {
-        std::fs::read_dir(dir)
-            .ok()
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.path().is_file())
-                    .map(|e| {
-                        let filename = e.file_name().to_string_lossy().to_string();
-                        format!("{}/{}", prefix, filename)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
+    async fn list_files(dir: &std::path::Path, prefix: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+            return out;
+        };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            if entry.path().is_file() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                out.push(format!("{}/{}", prefix, filename));
+            }
+        }
+        out
+    }
 
     Ok(AgentResources {
-        prompts: list_files(&prompts_dir, ".agent/prompts"),
-        rules: list_files(&rules_dir, ".agent/rules"),
-        workflows: list_files(&workflows_dir, ".agent/workflows"),
+        prompts: list_files(&prompts_dir, ".agent/prompts").await,
+        rules: list_files(&rules_dir, ".agent/rules").await,
+        workflows: list_files(&workflows_dir, ".agent/workflows").await,
     })
 }
 
@@ -127,12 +131,16 @@ async fn get_resource_content(work_dir: String, path: String) -> Result<String, 
         return Err("Invalid path: must be within .agent directory".to_string());
     }
 
-    std::fs::read_to_string(full_path).map_err(|e| e.to_string())
+    tokio::fs::read_to_string(full_path)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn read_file_absolute(path: String) -> Result<String, String> {
-    std::fs::read_to_string(path).map_err(|e| e.to_string())
+    tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -202,37 +210,6 @@ async fn get_server_ip() -> Result<String, String> {
     Ok(local_addr.ip().to_string())
 }
 
-// Legacy function - keeping for backward compatibility
-#[tauri::command]
-async fn start_remote_server(window: tauri::Window) -> Result<(), String> {
-    use std::process::Command;
-    use tokio::io::AsyncReadExt;
-    use tokio::net::TcpListener;
-
-    tokio::spawn(async move {
-        let listener = TcpListener::bind("0.0.0.0:5555").await.unwrap();
-        loop {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut buf = [0; 1024];
-            if let Ok(n) = socket.read(&mut buf).await {
-                let msg = String::from_utf8_lossy(&buf[..n]);
-                if msg.trim() == "launch" {
-                    let output =
-                        Command::new("/home/pkhunter/Repositories/Coding-Assistants/app/task.sh")
-                            .output();
-
-                    let status = match output {
-                        Ok(o) => format!("Task executed: {}", String::from_utf8_lossy(&o.stdout)),
-                        Err(e) => format!("Error: {}", e),
-                    };
-                    let _ = window.emit("remote-status", status);
-                }
-            }
-        }
-    });
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -277,12 +254,11 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 window.hide().unwrap();
                 api.prevent_close();
             }
-            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             run_agent_task,
@@ -292,7 +268,6 @@ pub fn run() {
             get_resource_content,
             read_file_absolute,
             get_available_models,
-            start_remote_server,
             start_tcp_server,
             stop_tcp_server,
             get_server_ip
