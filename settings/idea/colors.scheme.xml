@@ -1,0 +1,10 @@
+<!-- settings/idea/colors.scheme.xml -->
+<application>
+  <component name="EditorColorsManagerImpl">
+    <!-- Catppuccin Mocha editor theme settings mapping -->
+    <global_color_scheme name="Catppuccin Mocha" />
+    <option name="USE_ONLY_MONOSPACED_FONTS" value="true" />
+    <option name="CONSOLE_FONT_NAME" value="JetBrains Mono" />
+    <option name="EDITOR_FONT_NAME" value="JetBrains Mono" />
+  </component>
+</application>

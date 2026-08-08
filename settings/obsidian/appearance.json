@@ -1,0 +1,9 @@
+{
+  "theme": "obsidian",
+  "cssTheme": "Catppuccin Mocha",
+  "accentColor": "#6366f1",
+  "baseFontSize": 16,
+  "translucency": true,
+  "interfaceFontFamily": "Outfit, system-ui",
+  "textFontFamily": "Outfit, system-ui"
+}
