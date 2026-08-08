@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SECURITY.md`, `CHANGELOG.md`) into `docs/`.
 - Moved `codecov.yaml`/`CONTRIBUTING.md` from `.github/` into the new `git/`
   directory.
+- Expanded the per-area roadmaps (`docs/moon/roadmaps/{rust,typescript,kotlin}.md`)
+  with target-architecture work items synthesized from
+  `docs/moon/research/Multi-Agent AI App Architecture.md` and
+  `docs/moon/reports/AI Coding Tools Feature Report.md`: a headless Tokio
+  actor-model daemon, a GraphQL-over-WebSockets API, MCP + A2A protocol
+  support, rate limiting + affine-typed budget guardrails, two-tier
+  persistent memory, human-in-the-loop security gates, a 2D telemetry
+  dashboard, 3D force-graph visualization, and a new Ratatui TUI
+  (`docs/moon/roadmaps/tui.md`). Added a "Target Architecture" track to
+  `docs/moon/ROADMAP.md` summarizing and linking these.
 
 ## [0.1.0] — 2026-07-30
 
