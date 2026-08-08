@@ -32,3 +32,6 @@ target
 /**/.gradle
 __pycache__
 coding_assistants.egg-info
+
+# Force include
+!tools/build/

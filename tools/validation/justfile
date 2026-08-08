@@ -1,0 +1,19 @@
+# tools/validation — run linters/formatters across the app.
+
+set shell := ["bash", "-c"]
+
+# Run all linters
+[no-cd]
+all: backend frontend
+
+[no-cd]
+backend:
+    cd src-tauri && cargo fmt -- --check && cargo clippy --all-targets -- -D warnings
+
+[no-cd]
+frontend:
+    npm run lint --if-present
+
+[no-cd]
+android:
+    cd android && ./gradlew ktlintCheck

@@ -1,0 +1,19 @@
+# tools/test — run the app's test suites.
+
+set shell := ["bash", "-c"]
+
+# Run all test suites
+[no-cd]
+all: backend frontend
+
+[no-cd]
+backend:
+    cd src-tauri && cargo test
+
+[no-cd]
+frontend:
+    npm test --if-present
+
+[no-cd]
+android:
+    cd android && ./gradlew test

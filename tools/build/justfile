@@ -1,0 +1,19 @@
+# tools/build — compile the app (frontend + Rust backend + Android companion).
+
+set shell := ["bash", "-c"]
+
+# Build everything
+[no-cd]
+all: frontend backend
+
+[no-cd]
+frontend:
+    npm run build
+
+[no-cd]
+backend:
+    cd src-tauri && cargo build --release
+
+[no-cd]
+android:
+    cd android && ./gradlew assembleDebug

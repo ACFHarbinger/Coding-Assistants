@@ -1,0 +1,31 @@
+# tools/dev — environment setup and maintenance.
+
+set shell := ["bash", "-c"]
+
+# Set up environment for all modules
+[no-cd]
+setup:
+    @echo "Setting up dev environment..."
+    npm ci
+    pip install pre-commit || true
+    pre-commit install --install-hooks || echo "pre-commit not available"
+    @echo "Setup complete. Run 'just test-all' to verify."
+
+# Update all dependencies
+[no-cd]
+update:
+    @echo "Updating dependencies..."
+    npm update
+    cd src-tauri && cargo update
+
+# Run pre-commit hooks manually
+[no-cd]
+pre-commit:
+    pre-commit run --all-files
+
+# Clean build artifacts across the app
+[no-cd]
+clean:
+    rm -rf dist node_modules/.cache
+    rm -rf src-tauri/target
+    rm -rf android/build android/app/build

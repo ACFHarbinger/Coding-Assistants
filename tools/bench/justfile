@@ -1,0 +1,10 @@
+# tools/bench — run benchmarks.
+
+set shell := ["bash", "-c"]
+
+[no-cd]
+all: backend
+
+[no-cd]
+backend:
+    cd src-tauri && cargo bench
