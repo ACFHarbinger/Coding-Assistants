@@ -118,4 +118,4 @@ The application is functional with core multi-agent orchestration, multiple LLM 
 
 ## Contributing to the Roadmap
 
-Have a feature request or idea? Open an issue on GitHub with the `enhancement` label, or see [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes.
+Have a feature request or idea? Open an issue on GitHub with the `enhancement` label, or see [CONTRIBUTING.md](../git/CONTRIBUTING.md) for how to propose changes.

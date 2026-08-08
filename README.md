@@ -96,7 +96,7 @@ The bundled application will be output to `src-tauri/target/release/bundle/`.
 └─────────────────────────────────────────────────-┘
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a detailed breakdown.
 
 ## Supported LLM Providers
 
@@ -119,15 +119,15 @@ The `android/` directory contains a Kotlin/Jetpack Compose app for remote contro
 | Document                                    | Description                              |
 | ------------------------------------------- | ---------------------------------------- |
 | [AGENTS.md](AGENTS.md)                      | Governance and workflow for AI assistants |
-| [ARCHITECTURE.md](ARCHITECTURE.md)          | System design and data flow              |
-| [DEPENDENCIES.md](DEPENDENCIES.md)          | Dependency inventory and rationale       |
-| [DEVELOPMENT.md](DEVELOPMENT.md)            | Developer setup and workflow guide       |
-| [TESTING.md](TESTING.md)                    | Testing strategy and instructions        |
-| [SECURITY.md](SECURITY.md)                  | Security policy and guidelines           |
-| [CONTRIBUTING.md](CONTRIBUTING.md)          | Contribution workflow                    |
-| [TUTORIAL.md](TUTORIAL.md)                  | Step-by-step usage tutorial              |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md)    | Common issues and solutions              |
-| [ROADMAP.md](ROADMAP.md)                    | Project roadmap and planned features     |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md)     | System design and data flow              |
+| [DEPENDENCIES.md](docs/DEPENDENCIES.md)     | Dependency inventory and rationale       |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md)       | Developer setup and workflow guide       |
+| [TESTING.md](docs/TESTING.md)               | Testing strategy and instructions        |
+| [SECURITY.md](docs/SECURITY.md)             | Security policy and guidelines           |
+| [CONTRIBUTING.md](git/CONTRIBUTING.md)      | Contribution workflow                    |
+| [TUTORIAL.md](docs/TUTORIAL.md)             | Step-by-step usage tutorial              |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions            |
+| [ROADMAP.md](docs/ROADMAP.md)               | Project roadmap and planned features     |
 
 ## Recommended IDE Setup
 

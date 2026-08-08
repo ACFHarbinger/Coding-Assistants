@@ -107,14 +107,14 @@ Coding-Assistants/
 - If tests are requested:
   - **Frontend**: Vitest + React Testing Library.
   - **Backend**: `cargo test` in `src-tauri/`.
-- See [TESTING.md](TESTING.md) for detailed testing strategy.
+- See [TESTING.md](docs/TESTING.md) for detailed testing strategy.
 
 ## Security Notes
 
 - Do **not** invoke shells; pass explicit args to `std::process::Command`.
 - Validate file paths and user input before use.
 - Resource file reads are restricted to paths starting with `.agent`.
-- See [SECURITY.md](SECURITY.md) for the full security policy.
+- See [SECURITY.md](docs/SECURITY.md) for the full security policy.
 
 ## Code Style
 
@@ -135,4 +135,4 @@ These markers are parsed by `AgentSystem::interactive_completion` in `agents.rs`
 
 ## Contribution Guidelines
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution workflow.
+See [CONTRIBUTING.md](git/CONTRIBUTING.md) for the full contribution workflow.
