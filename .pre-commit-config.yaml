@@ -1,0 +1,94 @@
+# Pre-commit hooks for this repository.
+#
+# Install once: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+# Update hooks: pre-commit autoupdate
+#
+# Gate philosophy:
+#   - Blocking: eslint, clippy, ktlint, lychee
+#   - Advisory: tsc, cargo audit
+
+repos:
+  # ── General file hygiene ─────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=5000]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ── Python: ruff (git/ automation scripts only) ──────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+        files: ^git/
+      - id: ruff-format
+        types_or: [python, pyi]
+        files: ^git/
+
+  # ── TypeScript: type check ───────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: tsc-check
+        name: TypeScript type check (src/)
+        language: system
+        entry: bash -c 'npx tsc --noEmit 2>&1'
+        files: ^src/.*\.tsx?$
+        pass_filenames: false
+      - id: eslint
+        name: eslint (src/)
+        language: system
+        entry: bash -c 'npm run lint --if-present'
+        files: ^src/.*\.tsx?$
+        pass_filenames: false
+
+  # ── Rust: fmt + clippy ────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt (src-tauri/)
+        language: system
+        entry: bash -c 'cd src-tauri && cargo fmt -- --check'
+        files: ^src-tauri/.*\.rs$
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy (src-tauri/)
+        language: system
+        entry: bash -c 'cd src-tauri && cargo clippy --all-targets -- -D warnings'
+        files: ^src-tauri/.*\.rs$
+        pass_filenames: false
+
+  # ── Kotlin: ktlint ────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: ktlint
+        name: ktlint (android/)
+        language: system
+        entry: bash -c 'cd android && ./gradlew ktlintCheck'
+        files: ^android/.*\.kt$
+        pass_filenames: false
+
+  # ── Markdown: link checker ───────────────────────────────────────────────
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.15.1
+    hooks:
+      - id: lychee
+        name: lychee (markdown link check)
+        args:
+          - --verbose
+          - --no-progress
+          - --exclude=https://crates.io
+          - --include-verbatim
+        files: \.(md|markdown)$
+        pass_filenames: true
