@@ -4,8 +4,8 @@
 > [`docs/moon/research/Multi-Agent AI App Architecture.md`](../research/Multi-Agent%20AI%20App%20Architecture.md)
 > and [`docs/moon/reports/AI Coding Tools Feature Report.md`](../reports/AI%20Coding%20Tools%20Feature%20Report.md).
 > See [ADR 0002](../../adr/0002-polyglot-module-layout.md) for the current
-> (pre-daemon) layout decision — the items below supersede parts of it and
-> should get their own ADR once the daemon rearchitecture begins.
+> (pre-daemon) layout decision and [ADR 0003](../../adr/0003-daemon-extraction-spike.md)
+> for the RD1 spike's findings and recommended incremental path.
 
 Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
 
@@ -24,12 +24,13 @@ wired directly into `invoke()` handlers.
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RD1 | Spike: evaluate splitting `src-tauri/` into a `tokio`-based daemon crate + a thin Tauri IPC shim that talks to it locally | M | 📋 Pending |
+| RD1 | Spike: evaluate splitting `src-tauri/` into a `tokio`-based daemon crate + a thin Tauri IPC shim that talks to it locally | M | ✅ Done |
 | RD2 | Adopt an actor framework (`kameo` or `ractor`) so each LLM provider, tool-execution context, and local binary runs as an isolated actor communicating by message passing | L | 📋 Pending |
 | RD3 | Route all blocking I/O (file access, crypto) through `tokio::task::spawn_blocking`; audit for accidental blocking calls on async worker threads | S | ✅ Done |
 | RD4 | Cancellation-safety audit for `tokio::select!` usage — ensure a dropped future (e.g. a timed-out provider call) never leaves agent state corrupted | M | 📋 Pending |
 | RD5 | PTY integration via a `portable-pty`-equivalent crate so agent-invoked CLI tools (build scripts, test runners) emit real-time ANSI/OSC output instead of buffered plain text | M | 📋 Pending |
 | RD6 | Headless SDK streaming: for providers with a structured streaming mode (e.g. `--output-format stream-json`), parse one JSON event per line into typed `serde` structs instead of scraping terminal output | M | 📋 Pending |
+| RD7 | Introduce an internal `tokio::sync::broadcast::<AgentEvent>` bus decoupling `agents.rs`/`llm_client.rs` event emission from `tauri::AppHandle` (spike RD1's recommended first step — see [ADR 0003](../../adr/0003-daemon-extraction-spike.md)) | S | 📋 Pending |
 
 ## Track: API Layer (GraphQL over WebSockets)
 

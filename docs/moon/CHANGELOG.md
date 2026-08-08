@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Roadmap implementation, batch 2 (`RD1` from `docs/moon/roadmaps/rust.md`):
+  completed the daemon-extraction spike as [ADR 0003](../adr/0003-daemon-extraction-spike.md).
+  Measured the actual `tauri::AppHandle` coupling across the backend
+  (`file_tools.rs`: none; `agents.rs`/`llm_client.rs`: event emission only;
+  `tcp_server.rs`: event emission + listening) and decided against
+  extracting a separate daemon crate yet — recommends decoupling event
+  emission into an internal broadcast channel first (tracked as new item
+  `RD7`), deferring the physical crate split until the GraphQL API layer
+  (`RA1`) defines the real boundary.
 - Roadmap implementation, batch 1 (`RB1`, `RD3`, `RS5` from
   `docs/moon/roadmaps/rust.md`): per-provider token-bucket rate limiting on
   outbound LLM calls (`governor`, burst 3 / 1 per second) in
