@@ -1,0 +1,23 @@
+replicaCount: 1
+
+image:
+  repository: coding-assistants-docs
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: false
+  host: docs.coding-assistants.example.com
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi

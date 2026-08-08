@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coding-assistants-docs
+  labels:
+    app: coding-assistants-docs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coding-assistants-docs
+  template:
+    metadata:
+      labels:
+        app: coding-assistants-docs
+    spec:
+      containers:
+        - name: docs
+          # TODO: point at your real registry once infra/docker/Dockerfile is published there.
+          image: coding-assistants-docs:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"

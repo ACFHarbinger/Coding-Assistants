@@ -1,0 +1,6 @@
+apiVersion: v2
+name: coding-assistants-docs
+description: Helm chart packaging the same Deployment/Service/Ingress as infra/k8s/base, for the docs/website/ static site.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
