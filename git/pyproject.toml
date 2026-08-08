@@ -1,0 +1,13 @@
+[project]
+name = "coding-assistants-version-control"
+version = "0.1.0"
+description = "Version control utilities for the Coding-Assistants repository."
+requires-python = ">=3.11"
+dependencies = ["pyyaml>=6.0", "requests>=2.31", "google-genai>=0.3"]
+
+[build-system]
+requires = ["setuptools>=83.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
