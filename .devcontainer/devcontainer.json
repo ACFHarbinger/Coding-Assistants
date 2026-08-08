@@ -1,0 +1,30 @@
+{
+    "name": "Coding-Assistants Dev Environment",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "rust-lang.rust-analyzer",
+                "tauri-apps.tauri-vscode",
+                "fwcd.kotlin",
+                "ms-azuretools.vscode-docker"
+            ],
+            "settings": {
+                "editor.formatOnSave": true,
+                "[typescript]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode"
+                },
+                "[rust]": {
+                    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+                }
+            }
+        }
+    },
+    "postCreateCommand": "npm install && pre-commit install",
+    "remoteUser": "vscode"
+}
