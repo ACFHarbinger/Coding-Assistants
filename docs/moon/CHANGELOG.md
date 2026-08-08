@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Roadmap implementation, batch 1 (`RB1`, `RD3`, `RS5` from
+  `docs/moon/roadmaps/rust.md`): per-provider token-bucket rate limiting on
+  outbound LLM calls (`governor`, burst 3 / 1 per second) in
+  `llm_client.rs`; converted `FileTools` and the remaining Tauri-command
+  file I/O to `tokio::fs` so it no longer blocks async worker threads;
+  audited the tool layer for raw shell execution (none found — confirmed
+  compliant with `AGENTS.md`'s Security Notes). Also removed `lib.rs`'s
+  dead `start_remote_server` command (superseded by `TcpServer`, and it
+  hardcoded a machine-specific absolute path that doesn't exist in this
+  repo).
+
 - Synced repo scaffolding/tooling from the Tauri-App-Template layout (excluding
   its backend/frontend/middleware/notebooks directories, which don't apply to
   this repo's existing `src/`/`src-tauri/`/`android/` layout): `.agent/`

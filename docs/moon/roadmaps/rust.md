@@ -26,7 +26,7 @@ wired directly into `invoke()` handlers.
 | --- | --- | --- | --- |
 | RD1 | Spike: evaluate splitting `src-tauri/` into a `tokio`-based daemon crate + a thin Tauri IPC shim that talks to it locally | M | 📋 Pending |
 | RD2 | Adopt an actor framework (`kameo` or `ractor`) so each LLM provider, tool-execution context, and local binary runs as an isolated actor communicating by message passing | L | 📋 Pending |
-| RD3 | Route all blocking I/O (file access, crypto) through `tokio::task::spawn_blocking`; audit for accidental blocking calls on async worker threads | S | 📋 Pending |
+| RD3 | Route all blocking I/O (file access, crypto) through `tokio::task::spawn_blocking`; audit for accidental blocking calls on async worker threads | S | ✅ Done |
 | RD4 | Cancellation-safety audit for `tokio::select!` usage — ensure a dropped future (e.g. a timed-out provider call) never leaves agent state corrupted | M | 📋 Pending |
 | RD5 | PTY integration via a `portable-pty`-equivalent crate so agent-invoked CLI tools (build scripts, test runners) emit real-time ANSI/OSC output instead of buffered plain text | M | 📋 Pending |
 | RD6 | Headless SDK streaming: for providers with a structured streaming mode (e.g. `--output-format stream-json`), parse one JSON event per line into typed `serde` structs instead of scraping terminal output | M | 📋 Pending |
@@ -58,7 +58,7 @@ truth.
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RB1 | Token-bucket rate limiting for outbound provider API calls (e.g. via the `governor` crate) to avoid provider-side throttling | S | 📋 Pending |
+| RB1 | Token-bucket rate limiting for outbound provider API calls (e.g. via the `governor` crate) to avoid provider-side throttling | S | ✅ Done |
 | RB2 | Lock-free, high-throughput rate limiting for internal hot paths (streaming token ingestion, IPC message rate) if `governor` proves to be a bottleneck under load | M | 📋 Pending |
 | RB3 | Per-session spend cap: a `Budget` type that tracks cumulative cost against a user-set maximum and refuses further calls once exhausted | M | 📋 Pending |
 | RB4 | Affine-typed budget delegation: make `Budget` non-`Clone`/non-`Copy` so a sub-budget can only be handed to one delegated agent at a time — a double-spend attempt becomes a compile-time "use of moved value" error, not a runtime bug | M | 📋 Pending |
@@ -80,4 +80,4 @@ truth.
 | RS2 | Never pass client auth tokens through to downstream APIs unvalidated (token-passthrough mitigation) — scope and re-issue credentials at the daemon boundary instead | M | 📋 Pending |
 | RS3 | MCP confused-deputy mitigation: user-bound permission scopes and explicit consent for any MCP proxy/tool call, no shared static service identity | M | 📋 Pending |
 | RS4 | Tool-poisoning mitigation: sanitize/scan external tool descriptions and payloads (e.g. scraped web content, issue bodies) before they enter agent context | M | 📋 Pending |
-| RS5 | Reconfirm no raw shell execution anywhere in the tool layer (already required by `AGENTS.md`'s Security Notes) as MCP/A2A tool surfaces expand — non-shell OS APIs only | S | 📋 Pending |
+| RS5 | Reconfirm no raw shell execution anywhere in the tool layer (already required by `AGENTS.md`'s Security Notes) as MCP/A2A tool surfaces expand — non-shell OS APIs only | S | ✅ Done |
