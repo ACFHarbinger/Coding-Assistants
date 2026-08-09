@@ -7,7 +7,7 @@ Description: Serverless Backend stack for the Coding Assistants.
 
 Resources:
   # DynamoDB Database Table
-  Coding_assistantsTable:
+  CodingAssistantsTable:
     Type: AWS::Serverless::SimpleTable
     Properties:
       PrimaryKey:
@@ -18,7 +18,7 @@ Resources:
         WriteCapacityUnits: 5
 
   # Lambda Function
-  Coding_assistantsFunction:
+  CodingAssistantsFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: handler.lambda_handler
@@ -26,10 +26,10 @@ Resources:
       CodeUri: ./src
       Environment:
         Variables:
-          TABLE_NAME: !Ref Coding_assistantsTable
+          TABLE_NAME: !Ref CodingAssistantsTable
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref Coding_assistantsTable
+            TableName: !Ref CodingAssistantsTable
       Events:
         ApiEvent:
           Type: Api
