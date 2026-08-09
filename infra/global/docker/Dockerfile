@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1 — builder
 # ---------------------------------------------------------------------------
-FROM node:22-slim AS builder
+FROM node:26-slim AS builder
 
 WORKDIR /site
 COPY docs/website/package.json docs/website/package-lock.json ./
