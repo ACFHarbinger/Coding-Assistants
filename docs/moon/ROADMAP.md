@@ -26,7 +26,7 @@ Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
 | T2 | `.github/`, `.forgejo/`, `.gitea/`, `.gitlab/` CI/CD: workflows, issue/PR templates, dependabot | M | ✅ Done |
 | T3 | `docs/` documentation portal: MkDocs, Structurizr, ADRs | M | ✅ Done |
 | T4 | `docs/moon/` roadmap and changelog | S | ✅ Done |
-| T5 | `infra/docker/` infrastructure: Dockerfile, Compose stack (docs site) | S | ✅ Done |
+| T5 | `infra/global/docker/` infrastructure: Dockerfile, Compose stack (docs site) | S | ✅ Done |
 | T6 | `infra/{k8s,helm,terraform,ansible}/` — additional infra-as-code scaffolding | M | ✅ Done |
 | T7 | `.agent/` LLM coding-agent scaffolding | M | ✅ Done |
 | T8 | `justfile` + `tools/` command runner | M | ✅ Done |

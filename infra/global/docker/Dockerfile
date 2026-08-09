@@ -4,7 +4,7 @@
 # docs/website/ — this builds and serves it via nginx.
 #
 # Build context is the repository ROOT (see docker/docker-compose.yml:
-#   build: { context: .., dockerfile: infra/docker/Dockerfile }).
+#   build: { context: .., dockerfile: infra/global/docker/Dockerfile }).
 
 # ---------------------------------------------------------------------------
 # Stage 1 — builder

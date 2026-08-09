@@ -1,13 +1,13 @@
 # Local stack: serves the built docs/website/ static site via nginx.
 #
 # Usage (from the repo root):
-#   docker compose -f infra/docker/docker-compose.yml up --build
+#   docker compose -f infra/global/docker/docker-compose.yml up --build
 
 services:
   docs:
     build:
-      context: ..
-      dockerfile: infra/docker/Dockerfile
+      context: ../../..
+      dockerfile: infra/global/docker/Dockerfile
     ports:
       - "8080:80"
     restart: unless-stopped

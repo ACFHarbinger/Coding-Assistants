@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: docs
-          # TODO: point at your real registry once infra/docker/Dockerfile is published there.
+          # TODO: point at your real registry once infra/global/docker/Dockerfile is published there.
           image: coding-assistants-docs:latest
           ports:
             - containerPort: 80

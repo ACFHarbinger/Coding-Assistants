@@ -5,8 +5,8 @@ Kustomize-based Kubernetes manifests: a `base/` layer plus per-environment
 environment.
 
 ```bash
-kubectl apply -k infra/k8s/overlays/dev
-kubectl apply -k infra/k8s/overlays/prod
+kubectl apply -k infra/global/k8s/overlays/dev
+kubectl apply -k infra/global/k8s/overlays/prod
 ```
 
 | Directory | Purpose |
@@ -16,9 +16,9 @@ kubectl apply -k infra/k8s/overlays/prod
 | `overlays/prod/` | Prod patches: replica count, resource limits, prod host |
 
 These manifests deploy the `docs/website/` static site (see
-`infra/docker/`) — this repo has no other hosted service today.
+`infra/global/docker/`) — this repo has no other hosted service today.
 
 > **TODO:** Point the `image:` field in `base/deployment.yaml` at your real
-> container registry once one exists. The Helm chart in `infra/helm/`
+> container registry once one exists. The Helm chart in `infra/global/helm/`
 > packages the same base manifests for teams that prefer `helm install`
 > over `kubectl apply -k`.
