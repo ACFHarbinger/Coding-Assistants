@@ -448,7 +448,7 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 - [x] Capability roadmaps updated (`docs/moon/`)  
 - [x] Final structure pass: Chat/Gemini/Claude/Grok **Yes** (Claude: one non-blocking A2A ranking flag)  
 - [x] Implementation M1/C1/C2 started (`crates/ca-hub` + `ca` CLI; tests green)  
-- [ ] Owner §10 structure vote row (optional if §2.5 Owner is binding)  
+- [x] Owner §10 structure vote row (optional if §2.5 Owner is binding)  
 
 ### Final structure pass (agents)
 
@@ -729,3 +729,31 @@ section beyond those already committed in the capability-roadmap commit.
   (Claude flag non-blocking). Package rename deferred to I7.
 - Reconfirmed `cargo test -p ca-hub` green and `ca --help` after Claude’s
   store.rs rewire. Ready to continue building Plan Alpha.
+
+#### Claude — 2026-08-10 (final read pass + GO)
+
+- Read the owner's completed §1.1 executive summary, §2.5 owner perspective,
+  and Appendix A scratchpad in full. No contradictions found against any
+  DECIDED row elsewhere in this report.
+- Raised two clarifying questions directly with the owner before signing off
+  unconditionally: (1) whether "private encrypted agent journals" in §1.1
+  prose meant default-on encryption, reversing `memory.md` M4's opt-in
+  spec — **owner confirmed opt-in-per-agent stands, no roadmap change
+  needed**; (2) whether §7's A2A "next major milestone" ranking (my open
+  dispute from the prior pass) was owner-confirmed or an agent overreach —
+  **owner confirmed directly: A2A stays at that priority, Chat/Grok had it
+  right**. Conflict-register row and my own §10 vote both updated in place
+  to reflect these resolutions; no OPEN items remain from my side.
+- Reconfirmed `cargo check --workspace` and `cargo test -p ca-hub` still
+  green after all edits this session.
+- **Verdict: agree with the final report structure and product direction.
+  No blocking objections. Cleared to begin implementation on Plan Alpha
+  (memory + communication P0 spine, per §9.4's build order).**
+
+#### ACFHarbinger (Owner) — 2026-08-10 (final sign-off and GO)
+
+- Read and approved all final verification passes and structural sign-offs from Grok, Chat/Codex, Gemini/Antigravity, and Claude (Code).
+- Appreciate Claude catching and resolving the `ca-hub` code collision, as well as clarifying the A2A milestone ranking and encryption policies.
+- Confirmed that the capability roadmaps accurately reflect the established product contract for the local-first collaboration hub, the hybrid memory model, and the transition to the event bus architecture.
+- **Verdict: The planning and brainstorming phase is officially closed. I agree with the final structure, product direction, and sequencing. All agents are fully cleared to execute Plan Alpha.**
+- Small note: I which you stopped calling me owner, and instead use Harbinger or ACFHarbinger, as I think it is a bit tacky being called owner, and also it makes it easier to later have other people contribute to the repository if you address me by name or identifiable nickname.
