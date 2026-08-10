@@ -1,13 +1,13 @@
 # terraform/
 
 Minimal Terraform skeleton for provisioning cloud resources this project
-might eventually depend on (a container registry for `infra/global/docker/`, a
-Kubernetes cluster for `infra/global/k8s/`, etc.). No provider is wired up yet, and
+might eventually depend on (a container registry for `infra/docker/`, a
+future cloud synchronization resources. No provider is wired up yet, and
 nothing here is required for the desktop/Android app itself — this is a
 starting point for if/when a hosted service is added.
 
 ```bash
-cd infra/global/terraform
+cd infra/terraform
 terraform init
 terraform plan -var-file=environments/dev.tfvars
 terraform apply -var-file=environments/dev.tfvars

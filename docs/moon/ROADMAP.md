@@ -1,99 +1,72 @@
 # Coding-Assistants Roadmap
 
-[![Tauri](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![Rust](https://img.shields.io/badge/Rust-1.80%2B-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+> **Version:** 2.0
+> **Date:** 2026-08-10
+> **Product:** local-first collaboration hub for a human developer and
+> external AI agents.
 
-> **Version**: 1.1
-> **Date**: 2026-08-10
-> **Product identity (owner):** local-first **collaboration hub** for a human
-> developer and external coding agents (Claude Code, Codex, Gemini/Antigravity,
-> Grok Build, OpenCode, Ollama, llama.cpp). The in-process multi-role pipeline
-> was an initial experiment only.
+This is the canonical implementation-order index. Detailed work is organized
+by capability rather than programming language. Research remains under
+[`research/`](research/) and [`reports/`](reports/).
 
-Status markers: ✅ Done · 🚧 In Progress · 📋 Pending · 💤 Someday/Maybe
+## Priority order
 
-This is the **canonical roadmap index**. Per-area detail lives under
-[`roadmaps/`](roadmaps/). Historical short-term checklist content from the old
-`docs/ROADMAP.md` has been folded into those files; `docs/ROADMAP.md` is a
-pointer stub.
+1. Memory and private journals
+2. Communication and asynchronous coordination
+3. Platform reliability, providers, tools, and security
+4. Desktop UI and 2D dashboard
+5. A2A interoperability (next major milestone)
+6. Daemon/multi-client extraction when justified by a second client
+7. Android monitoring and approval
+8. Someday/research: TUI, 3D visualization, GraphQL, actor frameworks
 
----
+```mermaid
+gantt
+    title Coding-Assistants capability roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %d
+    section Foundation
+    SQLite memory and private journals       :memory, 2026-08-10, 21d
+    Async mailboxes and wake signals         :coord, after memory, 21d
+    Event bus and per-task state              :platform, after memory, 21d
+    Provider/tool adapters                    :providers, after coord, 28d
+    section Product
+    Desktop memory and inbox UI               :ui, after coord, 28d
+    2D telemetry and collaboration dashboard  :dash, after ui, 21d
+    A2A interoperability milestone            :a2a, after providers, 42d
+    section Clients
+    Local daemon / UDS evaluation             :daemon, after a2a, 28d
+    Android monitoring and approvals          :android, after dash, 28d
+    section Later
+    TUI and 3D research                       :later, after daemon, 42d
+```
 
-## Priority ordering (2026-08-10)
+The dates are sequencing placeholders, not delivery promises. Each capability
+roadmap must add acceptance criteria at least every few entries.
 
-1. **Cross-Agent Shared Memory & Coordination** — [`roadmaps/hub.md`](roadmaps/hub.md)
-2. **Backend reliability / security / providers** — [`roadmaps/rust.md`](roadmaps/rust.md)
-3. **Frontend hub UX (2D, approvals, component split)** — [`roadmaps/typescript.md`](roadmaps/typescript.md)
-4. **Core Orchestration Daemon** (after RD7 bus; no early crate split — ADR 0003)
-5. **Android companion** (monitor/approve after desktop hub) — [`roadmaps/kotlin.md`](roadmaps/kotlin.md)
-6. **💤 Someday/Maybe:** TUI, 3D force-graph, GraphQL-first API, A2A, actor framework
+## Capability roadmaps
 
----
-
-## Track: Repo Scaffolding
-
-| # | Item | Effort | Status |
-| --- | --- | --- | --- |
-| T1 | Root scaffolding: LICENSE, README, .env.example, git config, pre-commit | S | ✅ Done |
-| T2 | `.github/`, `.forgejo/`, `.gitea/`, `.gitlab/` CI/CD | M | ✅ Done |
-| T3 | `docs/` documentation portal: MkDocs, Structurizr, ADRs | M | ✅ Done |
-| T4 | `docs/moon/` roadmap and changelog | S | ✅ Done |
-| T5 | `infra/global/docker/` docs site stack | S | ✅ Done |
-| T6 | `infra/{k8s,helm,terraform,ansible}/` and other IaC scaffolding | M | ✅ Done |
-| T6b | **Trim infra:** keep `docker`, `terraform`, `ansible`; mark for removal/archive: k8s, helm, serverless, firebase, aws, azure-pipelines, wordpress, webpack, nginx, proxy (owner 2026-08-10; execute as separate PR) | M | 📋 Pending |
-| T7 | `.agent/` LLM coding-agent scaffolding | M | ✅ Done |
-| T8 | `justfile` + `tools/` command runner | M | ✅ Done |
-| T9 | `.devcontainer/` Dev Container definition | S | ✅ Done |
-| T10 | `git/` repo-process automation | M | ✅ Done |
-| T11 | Editor settings (`settings/`) | S | ✅ Done |
-| T12 | Interactive documentation website (`docs/website/`) | M | ✅ Done |
-| T13 | Dual license AGPL-3.0 + Commercial (Project-Mobile-Fortress scheme) | S | 📋 Pending |
-| T14 | Speculative ideas live under [`archive/`](archive/) rather than deletion | S | 📋 Pending |
-
----
-
-## Track: Application (index)
-
-| Area | Roadmap | Near-term focus |
+| Capability | Roadmap | Priority |
 | --- | --- | --- |
-| **Hub / memory / coord** | [`roadmaps/hub.md`](roadmaps/hub.md) | SQLite + markdown hybrid, CLI helper, wake, policies, adapters |
-| Backend | [`roadmaps/rust.md`](roadmaps/rust.md) | RD7 bus, HTTP providers, budgets, security backlog, testing |
-| Frontend | [`roadmaps/typescript.md`](roadmaps/typescript.md) | Component split, 2D observability, approval UI, memory/inbox views |
-| Android | [`roadmaps/kotlin.md`](roadmaps/kotlin.md) | Watch agent activity; later send messages; after desktop hub |
-| TUI | [`roadmaps/tui.md`](roadmaps/tui.md) | 💤 Someday/Maybe (experiment only) |
+| Memory and private journals | [`roadmaps/memory.md`](roadmaps/memory.md) | P0 |
+| Communication and delegation | [`roadmaps/communication.md`](roadmaps/communication.md) | P0 |
+| Platform/providers/tools/security | [`roadmaps/platform.md`](roadmaps/platform.md) | P1 |
+| Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1/P3 |
+| Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
+| Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
 
----
+## Product gates
 
-## Track: Target Architecture (Multi-Agent Orchestration Daemon)
+- **Memory gate:** two agents retrieve and correctly use a prior handoff on a
+  real repository task; shared and private records remain separated.
+- **Coordination gate:** asynchronous wired workflows survive agent absence,
+  wake according to policy, and preserve an auditable transcript.
+- **A2A gate:** a compatible external agent can be discovered and delegated a
+  bounded task without bypassing identity, approval, budget, or audit policy.
+- **V1 gate:** the owner and multiple agents complete a meaningful task on a
+  repository such as Project-Mobile-Fortress with quality matching or exceeding
+  a single contributor.
 
-Longer-term direction from research under [`research/`](research/) and
-[`reports/`](reports/). **Not** the next milestone. Owner endorsed
-[ADR 0003](../adr/0003-daemon-extraction-spike.md): internal event bus first;
-physical daemon extract later; GraphQL **maybe later**; Unix domain socket API
-acceptable; actors later.
-
-| Area | Roadmap | Status note |
-| --- | --- | --- |
-| Backend daemon / API | [`roadmaps/rust.md`](roadmaps/rust.md) | RD7 first; RA* GraphQL delayed; RD2 actors delayed |
-| Frontend GraphQL / 3D | [`roadmaps/typescript.md`](roadmaps/typescript.md) | TG* later; T3D* research/someday |
-| TUI | [`roadmaps/tui.md`](roadmaps/tui.md) | 💤 entire file |
-| Android API migration | [`roadmaps/kotlin.md`](roadmaps/kotlin.md) | After hub + desktop |
-
----
-
-## 30-day success criterion (owner)
-
-Complete a multi-agent + human task on a real repository (example:
-Project-Mobile-Fortress) with joint quality (UI, gameplay, art, dashboards, etc.)
-that **matches or exceeds** any single teammate alone. Define concrete
-benchmarks during the week of 2026-08-10.
-
----
-
-## Competing milestone plans
-
-See agent reports under `.agent/reports/{grok,chat,claude,gemini}/` for Alpha
-(Memory Hub First), Beta (Harness First), Gamma (Daemon Early), Delta (Security
-First). **Owner + agents pick one** after reports; Grok recommends Alpha with
-security P0 bugs embedded.
+LAN TCP remains available during early development. Authentication and TLS are
+  later platform work. Firebase is retained for cloud/device synchronization
+  prototypes; other unused deployment scaffolding is removed.

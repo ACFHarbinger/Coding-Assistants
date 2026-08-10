@@ -8,11 +8,11 @@ Accepted
 
 ## Context
 
-[`docs/moon/roadmaps/rust.md`](../moon/roadmaps/rust.md) (RD1, sourced from
+[`docs/moon/roadmaps/platform.md`](../moon/roadmaps/platform.md) (RD1, sourced from
 the target-architecture research) calls for evaluating whether to split
 `src-tauri/` into a headless `tokio`-based Core Orchestration Daemon crate
 plus a thin Tauri IPC shim, so the same daemon can eventually serve the GUI,
-a future TUI ([`tui.md`](../moon/roadmaps/tui.md)), and the Android companion
+a future TUI (tracked in [`ui.md`](../moon/roadmaps/ui.md)), and the Android companion
 app over one API instead of being wired directly into `invoke()` handlers.
 
 This is a spike: the goal is a decision and a concrete next step, not the
@@ -84,4 +84,4 @@ Rationale:
   scoped as its own roadmap item informed by the GraphQL API's real
   shape rather than speculated now.
 - No code changes ship as part of this spike beyond this record; RD7 is
-  tracked separately in [`rust.md`](../moon/roadmaps/rust.md).
+  tracked separately in [`platform.md`](../moon/roadmaps/platform.md).

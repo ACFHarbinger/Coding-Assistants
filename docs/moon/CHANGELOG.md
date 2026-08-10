@@ -9,26 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Replaced language-oriented roadmap files with capability roadmaps for memory,
+  communication, UI, dashboards, platform, and infrastructure. Added a Mermaid
+  Gantt index, made private agent journals part of the first memory milestone,
+  retained LAN and Firebase prototyping, promoted A2A to the next major
+  milestone, and removed obsolete deployment scaffolding. Deleted the duplicate
+  `docs/ROADMAP.md` and the superseded per-language roadmap files.
+
 - Reoriented the roadmap around the owner-confirmed product identity: a
   personal, local-first collaboration hub. Added the priority
-  [`Cross-Agent Shared Memory & Coordination`](roadmaps/hub.md) roadmap for
+  the shared memory and coordination capability roadmap for
   SQLite/Markdown hybrid memory, durable handoffs, CLI access, wake signals,
   configurable policies, and external-agent adapters. Folded the former root
   feature checklist into the moon roadmaps, kept `docs/ROADMAP.md` as a pointer
-  stub, demoted TUI/3D/GraphQL-first/A2A/early actors to Someday/Maybe, and
+  stub, demoted TUI/3D/GraphQL-first/early actors to Someday/Maybe, and
   recorded provider, security, testing, and infrastructure-hygiene follow-up.
 
-- Roadmap implementation, batch 2 (`RD1` from `docs/moon/roadmaps/rust.md`):
+- Roadmap implementation, batch 2 (the former daemon-extraction spike):
   completed the daemon-extraction spike as [ADR 0003](../adr/0003-daemon-extraction-spike.md).
   Measured the actual `tauri::AppHandle` coupling across the backend
   (`file_tools.rs`: none; `agents.rs`/`llm_client.rs`: event emission only;
   `tcp_server.rs`: event emission + listening) and decided against
   extracting a separate daemon crate yet — recommends decoupling event
   emission into an internal broadcast channel first (tracked as new item
-  `RD7`), deferring the physical crate split until the GraphQL API layer
-  (`RA1`) defines the real boundary.
-- Roadmap implementation, batch 1 (`RB1`, `RD3`, `RS5` from
-  `docs/moon/roadmaps/rust.md`): per-provider token-bucket rate limiting on
+  `P1`), deferring the physical crate split until the API boundary is clear.
+- Roadmap implementation, batch 1 (rate limiting, async file I/O, and shell
+  audit): per-provider token-bucket rate limiting on
   outbound LLM calls (`governor`, burst 3 / 1 per second) in
   `llm_client.rs`; converted `FileTools` and the remaining Tauri-command
   file I/O to `tokio::fs` so it no longer blocks async worker threads;
@@ -52,16 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SECURITY.md`, `CHANGELOG.md`) into `docs/`.
 - Moved `codecov.yaml`/`CONTRIBUTING.md` from `.github/` into the new `git/`
   directory.
-- Expanded the per-area roadmaps (`docs/moon/roadmaps/{rust,typescript,kotlin}.md`)
-  with target-architecture work items synthesized from
+- Expanded the former per-area roadmaps with target-architecture work items
+  synthesized from
   `docs/moon/research/Multi-Agent AI App Architecture.md` and
   `docs/moon/reports/AI Coding Tools Feature Report.md`: a headless Tokio
   actor-model daemon, a GraphQL-over-WebSockets API, MCP + A2A protocol
   support, rate limiting + affine-typed budget guardrails, two-tier
   persistent memory, human-in-the-loop security gates, a 2D telemetry
   dashboard, 3D force-graph visualization, and a new Ratatui TUI
-  (`docs/moon/roadmaps/tui.md`). Added a "Target Architecture" track to
-  `docs/moon/ROADMAP.md` summarizing and linking these.
+  (now reorganized under the capability roadmaps). Added a capability-order
+  index and Mermaid Gantt to `docs/moon/ROADMAP.md`.
 
 ## [0.1.0] — 2026-07-30
 
