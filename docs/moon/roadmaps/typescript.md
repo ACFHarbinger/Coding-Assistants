@@ -1,10 +1,10 @@
 # Frontend (React/TypeScript) Roadmap
 
-> Tracks planned work for `src/`. Sourced from
-> [`docs/moon/research/Multi-Agent AI App Architecture.md`](../research/Multi-Agent%20AI%20App%20Architecture.md)
-> and [`docs/moon/reports/AI Coding Tools Feature Report.md`](../reports/AI%20Coding%20Tools%20Feature%20Report.md).
+> Tracks planned work for `src/`. Updated 2026-08-10 for hub-first product
+> identity. GraphQL client work depends on a future multi-client API (maybe
+> later); 3D visualization is research/someday only. **2D observability first.**
 
-Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
+Status markers: ✅ Done · 🚧 In Progress · 📋 Pending · 💤 Someday/Maybe
 
 ## Current State
 
@@ -12,36 +12,66 @@ Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
 | --- | --- | --- | --- |
 | TS1 | Scaffold `package.json`, `tsconfig.json`, `src/App.tsx`, Vite build | S | ✅ Done |
 
-## Track: GraphQL/WebSocket Client
+---
 
-Depends on the daemon API work in [`rust.md`](rust.md) (Track: API Layer).
-
-| # | Item | Effort | Status |
-| --- | --- | --- | --- |
-| TG1 | GraphQL client wired to the daemon's mutation/query API (command invocation, historical logs, metric summaries) | M | 📋 Pending |
-| TG2 | GraphQL Subscription client over WebSockets for live telemetry (token generation, tool-call/PTY output streaming, agent status) | M | 📋 Pending |
-
-## Track: 2D Telemetry Dashboard
+## Track: Hub UX (near-term)
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| TD1 | Dashboard view: line charts of aggregate token consumption per provider, correlated with task/time | M | 📋 Pending |
-| TD2 | Progress rings for active agent/sub-agent completion velocity | S | 📋 Pending |
-| TD3 | Heatmap of tool-invocation frequency per agent (file access vs. web queries vs. shell) | M | 📋 Pending |
-| TD4 | Cost/spend view reflecting the backend's per-session `Budget` (see `rust.md` Track: Resource Management) | S | 📋 Pending |
+| THU1 | Component extraction — split `App.tsx` into panels (config, events, output, memory/inbox, remote) | M | 📋 Pending |
+| THU2 | Inbox / message browser for cross-agent durable messages (hub store) | M | 📋 Pending |
+| THU3 | Memory browser: search, edit, delete/stale, scope toggle (global vs workspace) | M | 📋 Pending |
+| THU4 | Standing-policy editor UI (who may wake/ask whom) | M | 📋 Pending |
+| THU5 | Per-task settings: human gate, tool permission, sandbox strictness, worktree isolation | M | 📋 Pending |
+| THU6 | Task history sidebar; re-run previous tasks | M | 📋 Pending |
+| THU7 | Keyboard shortcuts for common actions | S | 📋 Pending |
+| THU8 | Theme toggle (beyond dark-only glass-morphism) | S | 📋 Pending |
+| THU9 | Frontend test suite (Vitest + React Testing Library) | M | 📋 Pending |
 
-## Track: 3D Force-Graph Visualization
+---
+
+## Track: 2D Telemetry / Observability
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| T3D1 | Integrate `react-three-fiber` + `3d-force-graph` (or `react-force-graph`) as a new view rendering the live agent/MCP network in 3D | L | 📋 Pending |
-| T3D2 | Node representation: distinct geometry per entity type (agent vs. context/memory block vs. MCP server) | M | 📋 Pending |
-| T3D3 | Edge representation: force-directed links driven by live GraphQL subscription events, with particle flow density/speed reflecting message volume | L | 📋 Pending |
-| T3D4 | Dynamic clustering: force-directed physics pulling collaborating entities together (e.g. two agents editing the same file) | M | 📋 Pending |
-| T3D5 | Node click-through overlay panels: token usage, active system prompt, real-time execution log for the selected agent | M | 📋 Pending |
+| TD1 | Dashboard: token/cost lines per provider vs time | M | 📋 Pending |
+| TD2 | Progress rings for active agent completion | S | 📋 Pending |
+| TD3 | Heatmap of tool-invocation frequency | M | 📋 Pending |
+| TD4 | Cost/spend view reflecting budget soft/hard settings | S | 📋 Pending |
+| TD5 | **2D DAG / graph of agent collaboration** (SVG or similar) for debugging — preferred over 3D | M | 📋 Pending |
+
+---
 
 ## Track: Human-in-the-Loop UI
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| TH1 | Approval modal for destructive tool calls, surfacing the exact command/args from the backend's `RS1` approval gate (see `rust.md`) | M | 📋 Pending |
+| TH1 | Approval modal for tool calls when policy requires it (exact command/args) | M | 📋 Pending |
+| TH2 | Budget-exhaustion modal: authorize extension or accept summary + shutdown | M | 📋 Pending |
+
+---
+
+## Track: Multi-client API consumer
+
+Depends on backend multi-client work; GraphQL not required near-term.
+
+| # | Item | Effort | Status |
+| --- | --- | --- | --- |
+| TG0 | Optional client for local UDS/JSON API if daemon lands | M | 📋 Pending · after RD20 |
+| TG1 | GraphQL client for mutations/queries | M | 💤 Someday/Maybe · maybe later |
+| TG2 | GraphQL subscriptions over WebSockets | M | 💤 Someday/Maybe |
+
+---
+
+## Track: 3D Force-Graph Visualization — 💤 Research / Someday
+
+**Rationale (owner 2026-08-10):** not a V1 requirement; research only. Prefer
+2D observability (TD5). Items retained for later evaluation — not deleted.
+
+| # | Item | Effort | Status |
+| --- | --- | --- | --- |
+| T3D1 | `react-three-fiber` + force-graph live agent/MCP network | L | 💤 Someday/Maybe |
+| T3D2 | Node geometry per entity type | M | 💤 Someday/Maybe |
+| T3D3 | Edge particle flow from live events | L | 💤 Someday/Maybe |
+| T3D4 | Dynamic clustering of collaborators | M | 💤 Someday/Maybe |
+| T3D5 | Node click-through overlay panels | M | 💤 Someday/Maybe |

@@ -6,9 +6,9 @@ You have the authority to spawn a Gemini AI subagent via the terminal using the 
 
 **When to Delegate:**
 Invoke the Gemini subagent for:
-*   **Log/Data Parsing:** Standardizing complex data transformations or parsing large agent-session log files.
-*   **Cross-Boundary Boilerplate:** Drafting serde structs on the Rust side that mirror TypeScript IPC payload types, or vice versa.
-*   **System Architecture:** Extracting structured metrics or designing usage/error dashboards from raw agent execution logs.
+*   **Data Pipeline Construction:** Standardizing complex data transformations or parsing large JSON/log files.
+*   **Cross-Language Boilerplate:** Generating binding architectures (e.g., PySide6 to C++, or Python-Rust via Maturin).
+*   **System Architecture:** Extracting structured metrics or designing anomaly detection frameworks from raw execution logs.
 
 **Execution Syntax:**
 Execute the command in your terminal. Ensure the prompt is enclosed in single quotes.
@@ -20,7 +20,7 @@ Execute the command in your terminal. Ensure the prompt is enclosed in single qu
 3.  **Action-Oriented Verbs:** Start instructions with clear directives like "Analyze," "Generate," or "Extract."
 
 **Example Usage:**
-`agy 'Act as an expert TypeScript/React developer. Generate a React component for displaying a streaming agent response in App.tsx, matching the existing glass-morphism CSS custom properties in index.css. Constraints: 1. Use function components with hooks. 2. Output only the TSX component. Context: [INSERT_CURRENT_UI_STATE]'`
+`agy 'Act as an expert Python GUI developer. Generate a PySide6 layout component for a simulation dashboard. The component must display a Budget Report using a bold styling effect that is subtle, without splitting a single text label into half-bold segments. Constraints: 1. Use object-oriented design. 2. Output only the Python class. Context: [INSERT_CURRENT_UI_STATE]'`
 
 **Failure Modes to Avoid:**
 *   **Do not** use unescaped single quotes in the `agy` execution string.

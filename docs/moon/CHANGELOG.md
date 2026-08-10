@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reoriented the roadmap around the owner-confirmed product identity: a
+  personal, local-first collaboration hub. Added the priority
+  [`Cross-Agent Shared Memory & Coordination`](roadmaps/hub.md) roadmap for
+  SQLite/Markdown hybrid memory, durable handoffs, CLI access, wake signals,
+  configurable policies, and external-agent adapters. Folded the former root
+  feature checklist into the moon roadmaps, kept `docs/ROADMAP.md` as a pointer
+  stub, demoted TUI/3D/GraphQL-first/A2A/early actors to Someday/Maybe, and
+  recorded provider, security, testing, and infrastructure-hygiene follow-up.
+
 - Roadmap implementation, batch 2 (`RD1` from `docs/moon/roadmaps/rust.md`):
   completed the daemon-extraction spike as [ADR 0003](../adr/0003-daemon-extraction-spike.md).
   Measured the actual `tauri::AppHandle` coupling across the backend

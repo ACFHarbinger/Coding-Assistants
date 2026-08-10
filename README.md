@@ -127,7 +127,7 @@ The `android/` directory contains a Kotlin/Jetpack Compose app for remote contro
 | [CONTRIBUTING.md](git/CONTRIBUTING.md)      | Contribution workflow                    |
 | [TUTORIAL.md](docs/TUTORIAL.md)             | Step-by-step usage tutorial              |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions            |
-| [ROADMAP.md](docs/ROADMAP.md)               | Project roadmap and planned features     |
+| [ROADMAP.md](docs/moon/ROADMAP.md)          | Canonical project roadmap (moon index)   |
 
 ## Recommended IDE Setup
 

@@ -1,9 +1,11 @@
 # Android Companion App (Kotlin) Roadmap
 
-> Tracks planned work for `android/`. Sourced in part from
-> [`docs/moon/research/Multi-Agent AI App Architecture.md`](../research/Multi-Agent%20AI%20App%20Architecture.md).
+> Tracks planned work for `android/`.
+> **Owner 2026-08-10:** Android is **after** the desktop hub is mostly feature
+> complete. Highest mobile value: **watch** agent activity; next: **send messages**.
+> Full task configuration stays on desktop. Mainly monitoring/approval.
 
-Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
+Status markers: ✅ Done · 🚧 In Progress · 📋 Pending · 💤 Someday/Maybe
 
 ## Current State
 
@@ -11,11 +13,22 @@ Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
 | --- | --- | --- | --- |
 | K1 | Scaffold `build.gradle.kts`, `app/src/`, TCP client to pair with the desktop app | S | ✅ Done |
 
-## Track: Daemon API Alignment
-
-Depends on [`rust.md`](rust.md) Track: API Layer.
+## Track: Monitor & Message (priority after desktop hub)
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| KA1 | Evaluate migrating the companion app's raw TCP client to the GraphQL/WebSocket API once the Core Orchestration Daemon lands, so desktop, web, and mobile clients share one API surface | M | 📋 Pending |
-| KA2 | If migrated: subscribe to the same live telemetry (token usage, agent status) the GUI dashboard consumes, for a lightweight mobile monitoring view | M | 📋 Pending |
+| KM1 | Reliable live activity stream (agent events, status) for watch-only use | M | 📋 Pending · after desktop hub |
+| KM2 | Send short messages / approvals to running agents from Android | M | 📋 Pending · after KM1 |
+| KM3 | TCP auth/token support when desktop RS6 lands (keep LAN for now) | M | 📋 Pending |
+
+## Track: Daemon / multi-client API Alignment
+
+| # | Item | Effort | Status |
+| --- | --- | --- | --- |
+| KA1 | Evaluate migrating raw TCP client to whatever multi-client API ships (UDS bridge, WS, or GraphQL-later) | M | 📋 Pending · later |
+| KA2 | Lightweight mobile monitoring of hub telemetry (tokens, agent status) | M | 📋 Pending · later |
+
+## Explicitly not near-term
+
+- Full task/role configuration on mobile (desktop-only for now)
+- Replacing desktop as primary control surface

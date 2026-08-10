@@ -1,13 +1,12 @@
 # Backend (Rust/Tauri) Roadmap
 
-> Tracks planned work for `src-tauri/`. Sourced from
-> [`docs/moon/research/Multi-Agent AI App Architecture.md`](../research/Multi-Agent%20AI%20App%20Architecture.md)
-> and [`docs/moon/reports/AI Coding Tools Feature Report.md`](../reports/AI%20Coding%20Tools%20Feature%20Report.md).
-> See [ADR 0002](../../adr/0002-polyglot-module-layout.md) for the current
-> (pre-daemon) layout decision and [ADR 0003](../../adr/0003-daemon-extraction-spike.md)
-> for the RD1 spike's findings and recommended incremental path.
+> Tracks planned work for `src-tauri/`. Sourced from moon research plus owner
+> Q&A 2026-08-10. See [ADR 0002](../../adr/0002-polyglot-module-layout.md) and
+> [ADR 0003](../../adr/0003-daemon-extraction-spike.md).
+> **Product priority:** Cross-agent memory/coordination lives in
+> [`hub.md`](hub.md) and outranks the daemon track.
 
-Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
+Status markers: ✅ Done · 🚧 In Progress · 📋 Pending · 💤 Someday/Maybe
 
 ## Current State
 
@@ -15,70 +14,113 @@ Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
 | --- | --- | --- | --- |
 | R1 | Scaffold `Cargo.toml`, `src/`, backend commands (`agents.rs`, `llm_client.rs`, `file_tools.rs`, `tcp_server.rs`) | S | ✅ Done |
 
-## Track: Core Orchestration Daemon (Tokio + Actor Model)
+---
 
-Target: extract the current in-process Tauri-command backend into a headless
-Core Orchestration Daemon built on `tokio`, so the same daemon can eventually
-serve both the Tauri GUI and a future TUI over one API instead of being
-wired directly into `invoke()` handlers.
+## Track: Reliability Backlog (near-term)
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RD1 | Spike: evaluate splitting `src-tauri/` into a `tokio`-based daemon crate + a thin Tauri IPC shim that talks to it locally | M | ✅ Done |
-| RD2 | Adopt an actor framework (`kameo` or `ractor`) so each LLM provider, tool-execution context, and local binary runs as an isolated actor communicating by message passing | L | 📋 Pending |
-| RD3 | Route all blocking I/O (file access, crypto) through `tokio::task::spawn_blocking`; audit for accidental blocking calls on async worker threads | S | ✅ Done |
-| RD4 | Cancellation-safety audit for `tokio::select!` usage — ensure a dropped future (e.g. a timed-out provider call) never leaves agent state corrupted | M | 📋 Pending |
-| RD5 | PTY integration via a `portable-pty`-equivalent crate so agent-invoked CLI tools (build scripts, test runners) emit real-time ANSI/OSC output instead of buffered plain text | M | 📋 Pending |
-| RD6 | Headless SDK streaming: for providers with a structured streaming mode (e.g. `--output-format stream-json`), parse one JSON event per line into typed `serde` structs instead of scraping terminal output | M | 📋 Pending |
-| RD7 | Introduce an internal `tokio::sync::broadcast::<AgentEvent>` bus decoupling `agents.rs`/`llm_client.rs` event emission from `tauri::AppHandle` (spike RD1's recommended first step — see [ADR 0003](../../adr/0003-daemon-extraction-spike.md)) | S | 📋 Pending |
+| RD8 | **Per-task AppState:** replace single global `Mutex<Option<…>>` for agents/cancel/input so concurrent tasks cannot clobber each other | M | 📋 Pending |
+| RD9 | **Per-task / per-workspace MCP config path** (stop racing on fixed `~/.coding-assistants/mcp.json`) | S | 📋 Pending |
+| RD4 | Cancellation-safety audit for `tokio::select!` | M | 📋 Pending |
+| RD10 | Typed error system — replace `Result<T, String>` with structured error enum across commands | M | 📋 Pending |
+| RD11 | Backend test suite (`cargo test`) for orchestration markers, TCP protocol, file tools path rules | M | 📋 Pending |
+| RD12 | Configuration persistence — save/load agent configs; workspace profiles | M | 📋 Pending |
 
-## Track: API Layer (GraphQL over WebSockets)
+---
 
-Target: replace/augment direct `invoke()` calls with a typed, subscribable
-API so multiple clients (GUI, future TUI) can stay in sync off one source of
-truth.
+## Track: Provider / Tool Integration
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RA1 | Stand up `async-graphql` + `axum` as the daemon's API surface (mutations for command invocation, queries for history/metrics) | L | 📋 Pending |
-| RA2 | GraphQL subscriptions over WebSockets (`tokio-tungstenite`) for live telemetry: token usage, tool-call events, agent status, per the `agentActivity(taskId)` pattern | M | 📋 Pending |
-| RA3 | Internal `tokio::sync::broadcast` channel from agent/actor state changes to the GraphQL subscription resolvers | M | 📋 Pending |
-| RA4 | Keep a documented IPC fallback: local file access continues to go through Tauri IPC directly rather than round-tripping the API layer | S | 📋 Pending |
+| RP10 | **Direct HTTP API providers** — wire existing unused deps (`async-openai`, `reqwest`, `dotenv`, …) for OpenAI/Anthropic/Google/xAI-style APIs alongside CLI providers (owner: wire, do not drop) | L | 📋 Pending |
+| RP11 | Provider trait abstracting CLI vs HTTP backends | M | 📋 Pending |
+| RP12 | LM Studio full support (OpenAI-compatible endpoint; remove stub error) | S | 📋 Pending |
+| RP13 | Model parameter tuning (temperature, top-p, max tokens) per role/agent | S | 📋 Pending |
+| RP14 | Provider health checks before task start | S | 📋 Pending |
+| RP15 | Cost estimation telemetry (token usage display; soft warnings by default) | M | 📋 Pending |
+| RD5 | PTY integration for real-time ANSI/OSC tool output | M | 📋 Pending |
+| RD6 | Headless SDK stream-json parsing into typed events | M | 📋 Pending |
+| RT1 | Tool/command execution via OS APIs (not display-only); permission **user setting** (always / destructive-only / never) | L | 📋 Pending |
+| RT2 | Workspace sandbox strictness as user setting; default **relaxed** for now | M | 📋 Pending |
+
+---
+
+## Track: Core Orchestration Daemon (Tokio)
+
+Target: eventually extract headless daemon. **ADR 0003:** do **not** split
+crates until after RD7 and a clearer multi-client need. Actor framework later.
+
+| # | Item | Effort | Status |
+| --- | --- | --- | --- |
+| RD1 | Spike: daemon vs in-process | M | ✅ Done |
+| RD7 | Internal `tokio::sync::broadcast::<AgentEvent>` bus; remove `AppHandle` from agents/llm_client | S | 📋 Pending · **next spine step** |
+| RD3 | Blocking I/O via `spawn_blocking` / `tokio::fs` | S | ✅ Done |
+| RD2 | Actor framework (`kameo`/`ractor`) | L | 💤 Someday/Maybe · later interest |
+| RD20 | Optional headless daemon binary + UDS API (no GraphQL required) | L | 📋 Pending · after RD7 + hub MVP |
+| RD21 | Parallel agent execution (independent roles/adapters) | L | 📋 Pending · after async hub mailbox |
+| RD22 | Configurable strategies: sequential, parallel, conditional workflows | L | 📋 Pending |
+| RD23 | Agent templates for common tasks | M | 📋 Pending |
+
+---
+
+## Track: API Layer
+
+GraphQL is **maybe later** (owner). Prefer simpler local protocols first.
+
+| # | Item | Effort | Status |
+| --- | --- | --- | --- |
+| RA0 | Documented local multi-client protocol options: UDS + JSON/JSON-RPC (preferred near-term) | M | 📋 Pending |
+| RA1 | `async-graphql` + `axum` | L | 💤 Someday/Maybe · maybe later |
+| RA2 | GraphQL subscriptions over WebSockets | M | 💤 Someday/Maybe |
+| RA3 | Bridge agent bus → subscription resolvers | M | 💤 Someday/Maybe |
+| RA4 | Keep Tauri IPC fallback for local file/desktop-hot paths | S | 📋 Pending |
+
+---
 
 ## Track: Multi-Agent Protocols (MCP + A2A)
 
+Lean external MCP first; promote hot tools into core later. A2A strategic only.
+
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RM1 | MCP client support: connect to external MCP servers to consume Resources/Tools/Prompts (stdio and remote/Streamable-HTTP transports) | L | 📋 Pending |
-| RM2 | MCP host support: expose this app's own Tools/Resources as an MCP server so other MCP-aware clients can drive it | L | 📋 Pending |
-| RM3 | Code-execution-first tool design: for large intermediate payloads (logs, ASTs), expose a sandboxed script-execution tool instead of passing raw data into agent context, to avoid context-window exhaustion | M | 📋 Pending |
-| RM4 | A2A protocol support: publish an Agent Card (`/.well-known/agent.json`) and support horizontal task delegation/discovery between locally-orchestrated agents | XL | 📋 Pending |
-| RM5 | Collaboration topologies on top of MCP/A2A: handoffs (sequential delegation), chaining (pipelined output→input), and graph orchestration (parallel dispatch with shared state) | XL | 📋 Pending |
+| RM1 | MCP client (stdio + remote transports) | L | 📋 Pending · after hub MVP if not blocking |
+| RM2 | MCP host — expose CA tools/resources | L | 📋 Pending · later |
+| RM3 | Code-execution-first tool design for large payloads | M | 📋 Pending |
+| RM4 | A2A Agent Cards / horizontal delegation | XL | 💤 Someday/Maybe |
+| RM5 | Collaboration topologies on MCP/A2A | XL | 💤 Someday/Maybe · prefer hub.md RH30 first |
+
+---
 
 ## Track: Resource Management (Rate Limiting + Budgets)
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RB1 | Token-bucket rate limiting for outbound provider API calls (e.g. via the `governor` crate) to avoid provider-side throttling | S | ✅ Done |
-| RB2 | Lock-free, high-throughput rate limiting for internal hot paths (streaming token ingestion, IPC message rate) if `governor` proves to be a bottleneck under load | M | 📋 Pending |
-| RB3 | Per-session spend cap: a `Budget` type that tracks cumulative cost against a user-set maximum and refuses further calls once exhausted | M | 📋 Pending |
-| RB4 | Affine-typed budget delegation: make `Budget` non-`Clone`/non-`Copy` so a sub-budget can only be handed to one delegated agent at a time — a double-spend attempt becomes a compile-time "use of moved value" error, not a runtime bug | M | 📋 Pending |
+| RB1 | Per-provider token-bucket (`governor`) | S | ✅ Done |
+| RB2 | Lock-free hot-path limiter if needed | M | 💤 Someday/Maybe |
+| RB3 | Per-session spend cap with **telemetry + soft warning default**; optional hard kill setting | M | 📋 Pending |
+| RB3b | On cap: **pause**, write persistent markdown summary (objective, done, missing), delegate to user/agent, **shutdown until human wake** (owner) | M | 📋 Pending · pairs with hub RH23 |
+| RB4 | Affine-typed compile-time budget ownership | M | 💤 Someday/Maybe · after runtime budgets |
 
-## Track: Persistent Memory
+---
+
+## Track: Persistent Memory (single-agent framing — superseded)
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RP1 | Tier 1 declarative briefing: a compact (~150 line budget), auto-injected summary of high-confidence project facts at session start | M | 📋 Pending |
-| RP2 | Tier 2 deep store: a local JSON store (e.g. `.memory/state.json`) of every captured decision/observation, queryable via `memory_search`/`memory_ask`-style tools mid-conversation | L | 📋 Pending |
-| RP3 | Confidence-scored decay: temporal task-progress memories decay over ~7 days, broader context over ~30 days, architectural decisions persist indefinitely | M | 📋 Pending |
-| RP4 | Deduplication pass during session compaction (e.g. Jaccard similarity) so repeated observations don't bloat the deep store | S | 📋 Pending |
+| RP1–RP4 | Two-tier briefing/deep store/decay/dedup as originally written | — | 📋 **Superseded by [`hub.md`](hub.md)** multi-agent hybrid memory |
+
+---
 
 ## Track: Security & Human-in-the-Loop
 
 | # | Item | Effort | Status |
 | --- | --- | --- | --- |
-| RS1 | Human-in-the-loop approval gate (`PreToolUse`-style hook) before any destructive command (`rm -rf`, force-push, etc.) executes — surface the exact command/args to the user for explicit approve/deny/modify | M | 📋 Pending |
-| RS2 | Never pass client auth tokens through to downstream APIs unvalidated (token-passthrough mitigation) — scope and re-issue credentials at the daemon boundary instead | M | 📋 Pending |
-| RS3 | MCP confused-deputy mitigation: user-bound permission scopes and explicit consent for any MCP proxy/tool call, no shared static service identity | M | 📋 Pending |
-| RS4 | Tool-poisoning mitigation: sanitize/scan external tool descriptions and payloads (e.g. scraped web content, issue bodies) before they enter agent context | M | 📋 Pending |
-| RS5 | Reconfirm no raw shell execution anywhere in the tool layer (already required by `AGENTS.md`'s Security Notes) as MCP/A2A tool surfaces expand — non-shell OS APIs only | S | ✅ Done |
+| RS1 | Approval gate before destructive tools; surface exact args (mode configurable per task) | M | 📋 Pending |
+| RS6 | **TCP remote auth** (token) + document LAN trust; TLS later | M | 📋 Pending |
+| RS7 | Path canonicalization in `FileTools`; gate or remove unconstrained `read_file_absolute` | S | 📋 Pending |
+| RS8 | Production CSP (replace null) | S | 📋 Pending |
+| RS2 | No unvalidated token passthrough to downstream APIs | M | 📋 Pending |
+| RS3 | MCP confused-deputy mitigations | M | 📋 Pending · with RM* |
+| RS4 | Tool-poisoning sanitization | M | 📋 Pending |
+| RS5 | No raw shell in tool layer — OS APIs only | S | ✅ Done |
