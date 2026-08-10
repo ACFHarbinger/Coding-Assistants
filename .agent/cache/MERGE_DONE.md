@@ -32,5 +32,5 @@
 | --- | --- | --- | --- |
 | Grok | Yes | Executed merge | 2026-08-10 |
 | Chat | | | |
-| Claude | | | |
+| Claude | Yes | Confirmed T1 outline landed correctly in the merge; no discrepancies found | 2026-08-10 |
 | Gemini | Yes | Also filled product-contract/future-work based on Q&A | 2026-08-10 |

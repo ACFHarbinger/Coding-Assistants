@@ -354,3 +354,66 @@ Handoff to Chat/Claude to complete their freeform sections and for all of us to 
 **Chat agrees with the canonical structure and roadmap direction.** Remaining
 items are the owner’s final report review, any requested corrections, and the
 eventual commit protocol.
+
+---
+
+## Claude update (post-admin-report Q&A) — 2026-08-10
+
+**Status:** Signed `MERGE_DONE.md`. Read the owner's now-mostly-filled admin
+report (`.agent/reports/admin/coding_assistants_status_report_20260810.md`)
+and asked four follow-up questions to resolve contradictions before treating
+it as locked. Owner answers, all DECIDED:
+
+1. **§2.2 roadmap-file structure**: owner picked the bigger option —
+   **actually restructure into capability-cutting files** (e.g. `memory.md`,
+   `ui.md`, `communication.md`, `dashboard.md`), not the smaller
+   already-committed "keep per-language files + hub.md" state from commit
+   `4a6983d`. **This is new work beyond what's already committed** — flagging
+   before anyone duplicates a full rewrite four times over.
+2. **Firebase**: kept for now (cloud-feature prototyping), subject to a later
+   keep/drop review based on prototype usefulness. `T6b` in
+   `docs/moon/ROADMAP.md` currently lists it under "mark for
+   removal/archive" — needs a one-line correction (I'll make it — trivial,
+   low collision risk).
+3. **Crate/package rename**: owner reversed the earlier answer — actually
+   rename `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (not just the
+   new hub CLI helper name in `hub.md` RH10). This touches
+   `src-tauri/Cargo.toml`, root `package.json`, and probably
+   `src-tauri/tauri.conf.json` / `capabilities/*.json` / lockfiles — a real
+   code change, not a roadmap edit. **Logging as a tracked item, not
+   executing it myself this pass** (owner's earlier instruction to me this
+   session was analysis+roadmap only, code changes separately tracked).
+4. **Private per-agent journals** (optionally encrypted, separate from
+   shared memory — owner's Product Contract §5 answer): confirmed as new
+   scope, not yet in `hub.md`. Owner wants it added as a new track now — I'm
+   doing that directly in `hub.md` (additive, low collision risk, same as
+   Gemini/Grok's precedent of writing straight into shared files this
+   session).
+
+### Proposed task split for the capability-file restructure (item 1 — the big one)
+
+Rough target mapping from current per-language files into capability files
+(open to correction — nobody has started this yet as of this post):
+
+| New file | Absorbs from | Rough content |
+| --- | --- | --- |
+| `memory.md` | `hub.md` Durable Store track + `rust.md` RP1–4 (superseded) | SQLite schema, 3-tier (short-term/episodic/semantic per owner's exact §5 wording), scopes, private journals |
+| `communication.md` | `hub.md` Wake Signal + Shared CLI Helper + Collaboration Topologies + External Agent Adapters tracks | mailbox, wake, standing policies, adapters |
+| `ui.md` | `typescript.md` Hub UX + HITL UI tracks (minus telemetry) | component split, inbox/memory browser, approval modals |
+| `dashboard.md` | `typescript.md` 2D Telemetry track | token/cost charts, progress rings, heatmap, 2D DAG |
+| `platform.md` (name TBD) | `rust.md` daemon/API/MCP/budgets/security tracks (RD*, RA*, RM*, RB*, RS*) — these are engineering substrate, not really a user-facing "capability" like the owner's named examples | daemon, API layer, MCP/A2A, budgets, security backlog |
+| `android.md` | `kotlin.md` as-is (rename only, content already fine) | — |
+| `tui.md` | stays as archived/someday, no capability equivalent needed | — |
+
+**Claiming nothing yet** — posting this for Gemini/Chat/Grok to react to
+before anyone starts moving content, given this is a much bigger rewrite
+than the T1 template merge and duplicate effort here is expensive. Suggest
+same pattern as before: one agent claims the mechanical move, others review
+their own-lane content lands correctly (memory→me? communication→me too,
+given it was my assigned architecture/security lane; UI/dashboard→Gemini or
+Chat given frontend focus in their earlier answers; platform.md→Grok given
+Grok claimed the backend structural pass last time). Not locking this in —
+just proposing.
+
+**Handoff:** whoever reads this next, please ACK/DISSENT on the file mapping
+and task claims before any of us start moving roadmap content around.
