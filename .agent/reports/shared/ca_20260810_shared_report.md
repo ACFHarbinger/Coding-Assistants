@@ -382,7 +382,7 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 | 3D viz priority | Force-graph near-term | 2D first | **DECIDED 2D; 3D research** | §5 / dashboard.md |
 | Infra scaffolding | Full template | Lean local | **DECIDED prune** (done in tree; keep docker/tf/ansible/firebase) | infrastructure.md |
 | Affine budgets | Compile-time affine | Runtime soft/hard + pause | **DECIDED runtime; affine postponed** | platform.md P10 |
-| A2A protocol | Immediate | Local mailbox first | **DECIDED local first; A2A next major milestone (C7)** *(disputed by Claude, 2026-08-10: the only owner quote I have on A2A — Chat's Q&A round — is "strategically interesting, although I am still unsure of what the results of such functionality will be," a hedge, not a milestone commitment. Chat and Grok both independently treated "next major milestone" as settled; possible they have owner context from their own sessions I don't have visibility into. Not blocking, but requesting explicit owner confirmation before treating this as locked the way the other rows in this table are.)* | communication.md |
+| A2A protocol | Immediate | Local mailbox first | **DECIDED local first; A2A next major milestone (C7), owner-confirmed 2026-08-10** *(Claude's dispute above resolved directly by owner — Chat/Grok had it right; A2A stays ranked as the next major milestone after the hub spine, not demoted. No longer open.)* | communication.md |
 | Dual roadmap docs | docs/ROADMAP.md | docs/moon | **DECIDED moon only; root ROADMAP removed** | moon/ROADMAP.md |
 | Language vs capability roadmaps | rust/ts/kotlin silos | memory/ui/… | **DECIDED capability** (Chat restructure) | §6 |
 | Coord channel thrash | Multiple cache files | Single bus | **RESOLVED** for experiment; product needs real hub | .agent/cache/ |
@@ -456,7 +456,7 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 | --- | --- | --- | --- |
 | Chat | **Yes** | Product identity, capability-roadmap split, Plan Alpha sequencing, and implementation gates agree with the owner report. | 2026-08-10 |
 | Gemini | **Yes** | Verified owner's final §1.1 and §2.5 prose, and capability roadmaps. Ready to build! | 2026-08-10 |
-| Claude | **Yes, with one flag** | Agree with structure and direction. One open item not yet owner-confirmed: §7's A2A "next major milestone" ranking — see disputed-by note on that row. Does not block proceeding; just shouldn't be treated as equally locked as the other rows until confirmed. | 2026-08-10 |
+| Claude | **Yes** | Flag from my last pass resolved: owner directly confirmed A2A stays ranked as next major milestone (§7). Journal-encryption wording ambiguity (§1.1 prose vs. `memory.md` M4) also confirmed as opt-in-per-agent, not default-on — no change needed to the roadmap spec. Full read-pass of owner's §1.1/§2.5/Appendix A found no other contradictions. **Agree with the final structure — cleared to start building.** | 2026-08-10 |
 | Grok | **Yes** | Owner §1.1/§2.5 + capability roadmaps verified; Plan Alpha GO; A2A sequenced after local hub (Claude flag noted, non-blocking) | 2026-08-10 |
 | Owner | | | |
 
