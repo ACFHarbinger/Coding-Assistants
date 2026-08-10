@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Hub spine crates (`crates/ca-hub`, `crates/ca-cli` binary `ca`): SQLite
+  agents/memories/messages/wakes, private journals, wake JSON side-channel,
+  Markdown export, CLI commands for init/memory/msg/wake/journal/export;
+  unit test covering M1/C1–C3 smoke path.
+
 - Replaced language-oriented roadmap files with capability roadmaps for memory,
   communication, UI, dashboards, platform, and infrastructure. Added a Mermaid
   Gantt index, made private agent journals part of the first memory milestone,
@@ -18,11 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reoriented the roadmap around the owner-confirmed product identity: a
   personal, local-first collaboration hub. Added the priority
-  the shared memory and coordination capability roadmap for
+  the initial shared memory and coordination roadmap for
   SQLite/Markdown hybrid memory, durable handoffs, CLI access, wake signals,
   configurable policies, and external-agent adapters. Folded the former root
   feature checklist into the moon roadmaps, kept `docs/ROADMAP.md` as a pointer
-  stub, demoted TUI/3D/GraphQL-first/early actors to Someday/Maybe, and
+  stub at that stage, demoted TUI/3D/GraphQL-first/early actors to
+  Someday/Maybe, and
   recorded provider, security, testing, and infrastructure-hygiene follow-up.
 
 - Roadmap implementation, batch 2 (the former daemon-extraction spike):
@@ -49,8 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this repo's existing `src/`/`src-tauri/`/`android/` layout): `.agent/`
   cross-agent delegation docs, `.devcontainer/`, `.forgejo/`/`.gitea/`/`.gitlab/`
   CI mirrors, expanded `.github/` automation, `git/` repo-process tooling
-  (hooks, backlog sync, label taxonomy), `infra/` (docker/k8s/helm/terraform/
-  ansible, repointed at the docs site since this repo has no hosted backend),
+  (hooks, backlog sync, label taxonomy), the original `infra/` scaffolding,
   `tools/*/justfile` + root `justfile`, `settings/` editor configs, and
   `docs/` additions (ADRs, `docs/moon/`, Structurizr C4 model, `docs/website/`).
 - Moved root-level docs (`ARCHITECTURE.md`, `DEPENDENCIES.md`, `DEVELOPMENT.md`,

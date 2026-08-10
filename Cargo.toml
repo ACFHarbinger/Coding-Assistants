@@ -1,5 +1,7 @@
 [workspace]
-resolver = "1"
+resolver = "2"
 members = [
-    "src-tauri"
+    "src-tauri",
+    "crates/ca-hub",
+    "crates/ca-cli",
 ]

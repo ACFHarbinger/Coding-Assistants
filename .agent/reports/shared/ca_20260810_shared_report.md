@@ -4,7 +4,7 @@
 **Owner/editor:** ACFHarbinger (and collaborating agents)  
 **Repository under review:** `Coding-Assistants`  
 **Document authority:** Shared synthesis edited by all five parties (Owner, Chat/Codex, Gemini, Claude, Grok)  
-**Status:** Structure merged + owner Q&A applied (2026-08-10) — product contract largely DECIDED; owner may still fill prose §1  
+**Status:** Owner admin report complete; capability roadmaps live (Chat); Grok alignment pass 2026-08-10 — owner may still fill §1.1 prose and final structure vote  
 **Purpose:** Reconcile independent CA analyses, record product identity and architecture decisions, and provide binding input to the post-brainstorm roadmap set.
 
 **Provenance note (paths):**
@@ -13,7 +13,8 @@
 - **This shared report (canonical):** `.agent/reports/shared/ca_20260810_shared_report.md`
 - Superseded template stubs: `coding_assistants_shared_report_20260810.md`, `shared_team_report.md` (pointer only)
 - Coordination experiment log: `.agent/cache/shared_report_merge_coordination.md` (+ `AGENT_BUS.md` for T1 outline)
-- Active roadmaps: `docs/moon/` and `docs/ROADMAP.md` (to be updated only after this brainstorm cycle)
+- Active roadmaps: `docs/moon/ROADMAP.md` + capability files under `docs/moon/roadmaps/` (language silos removed; `docs/ROADMAP.md` deleted)
+- Owner admin report: `.agent/reports/admin/coding_assistants_status_report_20260810.md` (filled; §3 report reviews done)
 
 ---
 
@@ -37,7 +38,7 @@ Use these labels consistently:
 3. Cite the report, roadmap, ADR, code path, or owner observation supporting a claim.
 4. Record disagreement; do not manufacture consensus.
 5. The owner has final authority over product priorities and roadmap locks.
-6. **Do not update `docs/moon/*` or `docs/ROADMAP.md` from this file until owner signals brainstorm complete.**
+6. Roadmap authoring is **in progress / live** under `docs/moon/` per owner admin report; agents must not thrash structure without citing admin §8/§11.
 
 ### Concurrent editing protocol
 
@@ -83,17 +84,18 @@ Write 3–8 paragraphs covering:
 
 ### 1.3 Immediate priorities / Agreed roadmap priorities
 
-**Status:** `[OWNER TODO]`
+**Status:** `DECIDED` (owner admin §1.3 + moon v2 capability index)
 
 | Priority | Action / Capability | Owner | Dependencies | Exit criteria | Blocks |
 | --- | --- | --- | --- | --- | --- |
-| P0 | `[OWNER TODO]` | | | | |
-| P1 | `[OWNER TODO]` | | | | |
-| P2 | `[OWNER TODO]` | | | | |
+| P0 | Hybrid memory (SQLite short/episodic/semantic + git Markdown + private journals) | Hub team | — | M1–M6 gates in `roadmaps/memory.md` | Collab quality |
+| P0 | Async mailboxes, identities, CLI helper, wake signals, gates/policies | Hub team | Memory store | C1–C4 in `roadmaps/communication.md` | Agent coordination |
+| P1 | Event bus + per-task state; provider adapters; runtime budgets; path/TCP security | Platform | P0 spine usable | P1–P6,P10 in `roadmaps/platform.md` | Reliability |
+| P1 | Desktop hub UI + 2D dashboard | Frontend | Memory/inbox APIs | U1–U4, D1–D3 | Usability |
+| P2 | A2A interoperability | Later | Local coord solid | C7 | Interop |
+| P3 | Android monitor/approve; TUI/3D research | Later | Desktop stable | U5 / D6 | Mobile polish |
 
-*(Table widened 2026-08-10 merge: Chat template §5 columns Owner / Dependencies / Exit criteria.)*
-
-**Observed scale gap (Claude evidence, 2026-08-10):** backend core is ~1,350 LOC (`lib.rs` 277, `agents.rs` 423, `llm_client.rs` 344, `tcp_server.rs` 272, `file_tools.rs` 32) while moon roadmaps describe actor daemon + GraphQL + A2A + 3D UI — ambition/code ratio should inform §1.1 when filled.
+**Observed scale gap (still true):** backend core ~1,350 LOC; ambition must stay gated by memory/coordination gates first.
 
 ---
 
@@ -103,29 +105,29 @@ Write 3–8 paragraphs covering:
 
 | Agent | Path | Status |
 | --- | --- | --- |
-| Chat / Codex | `.agent/reports/chat/` | `[pending]` |
-| Claude | `.agent/reports/claude/` | `[pending]` |
-| Gemini | `.agent/reports/gemini/` | `[pending]` |
-| Grok | `.agent/reports/grok/` | `[pending — after Q&A]` |
-| Owner / Admin | `.agent/reports/admin/` | `[Chat scaffolds first]` |
+| Chat / Codex | `.agent/reports/chat/coding_assistants_architecture_review_20260810.md` | Present — owner: excellent |
+| Claude | `.agent/reports/claude/ca_20260810_claude_report.md` | Present — owner: detailed |
+| Gemini | `.agent/reports/gemini/gemini_status_report_20260810.md` | Present — owner: clear avenues |
+| Grok | `.agent/reports/grok/ca_20260810_status_report.md` | Present — owner: best Q&A synthesis |
+| Owner / Admin | `.agent/reports/admin/coding_assistants_status_report_20260810.md` | **Filled** (report reviews + decisions) |
 
 ### 2.2 Primary project evidence
 
 | Artifact | Path | Notes |
 | --- | --- | --- |
-| App roadmap (short-term) | `docs/ROADMAP.md` | Feature checklist, v0.1.0 alpha |
-| Moon index | `docs/moon/ROADMAP.md` | Scaffolding + target architecture pointer |
-| Backend roadmap | `docs/moon/roadmaps/rust.md` | Daemon, GraphQL, MCP/A2A, budgets, memory |
-| Frontend roadmap | `docs/moon/roadmaps/typescript.md` | GraphQL client, 2D/3D UI |
-| TUI roadmap | `docs/moon/roadmaps/tui.md` | Ratatui (not scaffolded) |
-| Android roadmap | `docs/moon/roadmaps/kotlin.md` | TCP → GraphQL migration |
-| Architecture research | `docs/moon/research/Multi-Agent AI App Architecture.md` | Aspirational blueprint |
-| Feature research | `docs/moon/reports/AI Coding Tools Feature Report.md` | Competitor feature synthesis |
-| ADR 0002 | `docs/adr/0002-polyglot-module-layout.md` | Keep Tauri layout |
-| ADR 0003 | `docs/adr/0003-daemon-extraction-spike.md` | Defer crate split; RD7 first |
-| Backend core | `src-tauri/src/{agents,llm_client,tcp_server,file_tools,lib}.rs` | ~1.35k LOC |
+| Moon index + Gantt | `docs/moon/ROADMAP.md` | **Canonical** capability index (v2.0, Chat) |
+| Memory roadmap | `docs/moon/roadmaps/memory.md` | P0 hybrid SQLite/Markdown/journals |
+| Communication roadmap | `docs/moon/roadmaps/communication.md` | P0 mailboxes, CLI, wake, A2A later |
+| Platform roadmap | `docs/moon/roadmaps/platform.md` | Event bus, providers, security, budgets |
+| UI roadmap | `docs/moon/roadmaps/ui.md` | Desktop first; Android after; TUI someday |
+| Dashboard roadmap | `docs/moon/roadmaps/dashboard.md` | 2D telemetry; 3D research |
+| Infrastructure roadmap | `docs/moon/roadmaps/infrastructure.md` | docker/terraform/ansible/firebase |
+| Owner admin report | `.agent/reports/admin/coding_assistants_status_report_20260810.md` | Binding product decisions |
+| Architecture research | `docs/moon/research/` | Aspirational; not near-term commits |
+| ADR 0003 | `docs/adr/0003-daemon-extraction-spike.md` | Event bus first — ACCEPTED |
+| Backend core | `src-tauri/src/*.rs` | ~1.35k LOC sequential pipeline |
 | Frontend | `src/App.tsx` | ~900 LOC monolith |
-| Android | `android/app/...` | ~1k LOC Kotlin |
+| Infra tree | `infra/{docker,terraform,ansible,firebase}` | Heavy scaffolding already pruned |
 
 ### 2.3 Cross-agent consensus (fill after independent reports)
 
@@ -174,7 +176,7 @@ Write 3–8 paragraphs covering:
 
 #### Grok (Build)
 
-**AGENT CLAIM → largely confirmed by owner DECIDED (2026-08-10):** Collaboration hub for external agents + human. Near-term spine: **hub memory/messaging first** ([`docs/moon/roadmaps/hub.md`](../../../docs/moon/roadmaps/hub.md)), RD7 bus, wire HTTP providers, security backlog; park GraphQL/A2A/3D/TUI. Milestone lean: Plan Alpha (Memory Hub First). Full report: `.agent/reports/grok/ca_20260810_status_report.md`.
+**Grok (post admin + capability roadmaps):** Owner admin report and Chat’s capability roadmaps **agree** with Plan Alpha. Binding spine: `memory.md` + `communication.md` first; `platform.md` event bus + per-task state next; A2A is next major *after* local coord (not archived). Language roadmaps correctly removed. Full report: `.agent/reports/grok/ca_20260810_status_report.md`. Implementation started: `crates/ca-hub` + `ca` CLI.
 
 ---
 
@@ -185,13 +187,18 @@ Write 3–8 paragraphs covering:
 | PC1 | Primary user(s) | DECIDED | Solo power developer (human), coordinating with external AI agents. |
 | PC2 | Primary agents integrated | DECIDED | Claude Code, Codex/Chat, Gemini/Antigravity, Grok Build, OpenCode, Ollama, llama.cpp. |
 | PC3 | Sync vs async collaboration model | DECIDED | Async mailbox/sequential boundaries first. True parallel execution is a future goal. |
-| PC4 | Shared memory model | DECIDED | Hybrid: SQLite for deep long-term storage, git-tracked Markdown for high-priority insights/decisions. Both global and per-repo scopes. |
+| PC4 | Shared memory model | DECIDED | Hybrid SQLite + git Markdown; tiers: **short-term** (raw recent), **episodic**, **semantic**; global + per-repo; **private journals** per agent (optional encrypt; shared never encrypted). |
 | PC5 | Orchestration depth | DECIDED | Declarative wiring of agents (node-editor style) first, with probabilistic A2A delegation as a future option. |
 | PC6 | UI priority order | DECIDED | Desktop GUI is primary. Android (monitoring only) and TUI are demoted/secondary. 3D viz is research-only (standard 2D DAG preferred). |
 | PC7 | Network threat model | DECIDED | Keep LAN TCP for now; strict auth/tunnels on roadmap later. Sandbox strictly configurable per task (relaxed default). |
 | PC8 | Cost controls required at v1 | DECIDED | Telemetry + soft warning default. Optional hard kill. If budget runs out, pause, write persistent markdown summary, and await user. |
-| PC9 | Open-source packaging scope | DECIDED | Dual AGPL-3.0 + Commercial. Keep docker/terraform/ansible; other infra marked for trim (roadmap T6b — not necessarily deleted in-tree yet). |
+| PC9 | Open-source packaging scope | DECIDED | Dual AGPL-3.0 + Commercial. Keep docker/terraform/ansible/**firebase**; heavy infra **removed from tree** (Chat pass). Package names remain `tauri-app` until owner renames. |
 | PC10| Human gate requirement | DECIDED | Configurable per task (e.g. large refactors require gate, small tasks don't). |
+| PC11| Memory tiers | DECIDED | Short-term / episodic / semantic + private journals (admin §5). |
+| PC12| V1 success bar | DECIDED | Collaborative quality on PMF (and multi-repo) ≥ single human contributor; issues in 2 sprints + holistic review. |
+| PC13| Roadmap shape | DECIDED | Capability files + moon index Gantt; language silos removed. |
+| PC14| Runtime budgets | DECIDED | Soft warn default; optional hard kill; pause → Markdown summary → delegate → shutdown. Affine typing postponed. |
+
 
 ---
 
@@ -223,7 +230,7 @@ Write 3–8 paragraphs covering:
 
 ### 4.2 Client API surface
 
-**Status:** OPEN
+**Status:** `DECIDED` direction (owner admin §6.3)
 
 | Option | Pros | Cons |
 | --- | --- | --- |
@@ -234,7 +241,7 @@ Write 3–8 paragraphs covering:
 
 ### 4.3 Agent integration model
 
-**Status:** OPEN
+**Status:** `DECIDED` direction (declarative wiring + external adapters; markers temporary)
 
 | Option | Description |
 | --- | --- |
@@ -246,14 +253,17 @@ Write 3–8 paragraphs covering:
 
 ### 4.4 Memory
 
-**Status:** OPEN
+**Status:** `DECIDED` (owner admin §5 / §6.4 + `roadmaps/memory.md`)
 
-| Option | Description |
+| Layer | Role |
 | --- | --- |
-| File-only (`.agent/`, `project_memory.md`) | Current; git-friendly |
-| Two-tier (briefing + deep store) as in moon RP* | Research plan |
-| SQLite + FTS/vector | Queryable sessions |
-| Hybrid file + DB | Briefing in git; deep store local |
+| Short-term | Raw recent transcripts/logs for task re-entry |
+| Episodic | Important events/lessons |
+| Semantic | Architecture, deps, features |
+| Git Markdown | High-priority handoffs and decisions |
+| Private journals | Per-agent; optional encrypt; not merged into shared |
+| Scopes | Global + workspace |
+
 
 ### 4.5 Security baseline for v1
 
@@ -274,25 +284,33 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 
 | Item | Why | Source |
 | --- | --- | --- |
-| `[fill]` | | |
+| Terraform, Docker, Ansible | Required for basic devops and potential cloud deployments. | Owner Admin Report §9.1 |
+| Crate/Package names (`ca`) | Current names have proper IDE icons and are liked by the owner. | Owner Q&A R.31 |
+| SQLite | Required for durable, long-term, compressed memory tier. | Owner Admin Report §9.1 |
 
 ### 5.2 Change
 
 | Item | Why | Candidate avenues | Source |
 | --- | --- | --- | --- |
-| `[fill]` | | | |
+| License | Prevent unauthorized commercialization while remaining free. | Dual AGPL-3.0 + Commercial | Owner Admin Report §9.2 |
+| Roadmap Structure | Decouple roadmap from tech stack (e.g. rust.md). | Feature-specific tracks (`memory.md`, `ui.md`) | Owner Admin Report §8.1 |
+| CLI wrappers | Too brittle for structured tool parsing. | Native HTTP/SDK integrations | Shared consensus |
 
 ### 5.3 Archive / deprioritize
 
 | Item | Why | Source |
 | --- | --- | --- |
-| `[fill]` | | |
+| 3D Visualization | Demoted to research-only; V1 needs standard 2D observability. | Owner Admin Report §9.3 |
+| Ratatui TUI | Nice-to-have secondary interface, not required for V1 hub. | Owner Admin Report §9.3 |
+| Android Client | Prioritizing desktop GUI stability first. | Owner Admin Report §6.6 |
 
 ### 5.4 Reject
 
 | Item | Why | Source |
 | --- | --- | --- |
-| `[fill]` | | |
+| Heavy Cloud Infra (K8s, Helm) | Unnecessary for a local-first hub; overcomplicates deployment. | Owner Admin Report §9.4 |
+| Single local API protocol | Not strictly required; Unix sockets are fine for now. | Owner Admin Report §9.4 |
+| GraphQL and Actor Frameworks | Too complex for V1; frozen/parked for a later date. | Owner Admin Report §9.4 |
 
 ---
 
@@ -300,25 +318,26 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 
 ### 6.1 Recommended document set
 
-**Status:** OPEN
+**Status:** DECIDED (Owner)
 
-Proposed options:
-
-1. **Single active index** (`docs/moon/ROADMAP.md`) + per-area files; archive or merge `docs/ROADMAP.md` into it.  
-2. **Capability maps** (memory, messaging, orchestration, UI, security) instead of language silos.  
-3. **Keep dual docs** with explicit "product features" vs "platform architecture" split and cross-links.
+1. **Single active index**: `docs/moon/ROADMAP.md` remains the high-level index with gantt charts. Old `docs/ROADMAP.md` is removed.
+2. **Capability maps**: Language silos (`rust.md`, `typescript.md`) are replaced with feature tracks (`memory.md`, `communication.md`, `ui.md`, `infrastructure.md`, `platform.md`, `dashboard.md`).
 
 ### 6.2 Sequencing principles
 
-`[OWNER TODO after Q&A]`
+**Status:** DECIDED (Owner)
+
+- Prioritize the "Persistent Shared Memory & Cross-Agent Coordination" track above all else.
+- Asynchronous mailboxes and defined sequential boundaries must be built before true parallel execution.
+- Must include mandatory acceptance tests and exit criteria gated every ~5 roadmap entries.
 
 ### 6.3 First three concrete engineering increments
 
 | # | Increment | Depends on | Success criterion |
 | --- | --- | --- | --- |
-| 1 | `[OPEN]` | | |
-| 2 | `[OPEN]` | | |
-| 3 | `[OPEN]` | | |
+| 1 | **Hybrid Memory & Handoff** (SQLite schemas + Git-tracked Markdown summaries) | None | Two agents successfully retrieve each other's durable context across a repository boundary. |
+| 2 | **Event Bus & Async Mailboxes** (Implement ADR 0003) | Increment 1 | Global `AppState` races resolved; agents can pause and await user safely without clobbering channels. |
+| 3 | **Provider Adapters & Direct SDKs** | Increment 2 | External agent LLM calls are executed via native HTTP or structured SDKs, eliminating CLI stdout scraping. |
 
 ---
 
@@ -326,14 +345,16 @@ Proposed options:
 
 | Conflict | Position A | Position B | Owner resolution | Recorded in |
 | --- | --- | --- | --- | --- |
-| Product = role pipeline vs collab hub | Current code/docs lean pipeline | Owner statement (session) leans collab hub | `[OWNER TODO]` | §3 |
-| GraphQL now vs later | moon RA1 early | ADR 0003 / RD7 first | `[OWNER TODO]` | §4.2 |
-| 3D viz priority | moon T3D* | Likely polish after core hub | `[OWNER TODO]` | §5 |
-| Infra scaffolding (k8s/helm/etc.) | Keep full template | Slim to what CA actually deploys | `[OWNER TODO]` | §5 |
-| Affine budgets compile-time | moon RB4 | Runtime budgets + telemetry enough for v1 | `[OWNER TODO]` | §4 / §5 |
-| A2A protocol | moon RM4 XL | Local messaging bus first | `[OWNER TODO]` | §4.3 |
-| Dual roadmap docs | `docs/ROADMAP.md` feature list | `docs/moon/` platform tracks | `[OWNER TODO — Claude: moon canonical, top-level stub/retire?]` | §6.1 |
-| Coord channel thrash (this experiment) | Three cache files opened | Converge on one | **PROVISIONAL:** `shared_report_merge_coordination.md` owner-facing; `AGENT_BUS.md` holds T1 | `.agent/cache/` |
+| Product = role pipeline vs collab hub | Pipeline experiment | Collaboration hub | **DECIDED hub** (admin §11) | §3 |
+| GraphQL now vs later | GraphQL-first | ADR 0003 / UDS later | **DECIDED later** (admin §7) | §4.2 |
+| 3D viz priority | Force-graph near-term | 2D first | **DECIDED 2D; 3D research** | §5 / dashboard.md |
+| Infra scaffolding | Full template | Lean local | **DECIDED prune** (done in tree; keep docker/tf/ansible/firebase) | infrastructure.md |
+| Affine budgets | Compile-time affine | Runtime soft/hard + pause | **DECIDED runtime; affine postponed** | platform.md P10 |
+| A2A protocol | Immediate | Local mailbox first | **DECIDED local first; A2A next major milestone (C7)** | communication.md |
+| Dual roadmap docs | docs/ROADMAP.md | docs/moon | **DECIDED moon only; root ROADMAP removed** | moon/ROADMAP.md |
+| Language vs capability roadmaps | rust/ts/kotlin silos | memory/ui/… | **DECIDED capability** (Chat restructure) | §6 |
+| Coord channel thrash | Multiple cache files | Single bus | **RESOLVED** for experiment; product needs real hub | .agent/cache/ |
+| Package naming | Rename to ca | Keep tauri-app icons | **PROVISIONAL keep tauri-app** until explicit rename task | §9.1 wording vs Q&A |
 
 ---
 
@@ -355,41 +376,54 @@ Proposed options:
 
 ### 9.1 Accepted consensus
 
-`[OWNER TODO]`
+- Product is a **collaboration hub** for external agents + human (admin §11.1).
+- Hybrid **SQLite + Markdown** memory with multi-tier + private journals.
+- **Plan Alpha** / memory-first sequencing (all agents + owner).
+- Capability roadmaps under `docs/moon/roadmaps/` with Gantt index.
 
 ### 9.2 Accepted minority recommendations
 
-`[OWNER TODO]`
+- ADR 0003 event bus before daemon extract.
+- Unix domain sockets / JSON before GraphQL.
+- Runtime budgets with pause/summary/shutdown (not affine compile-time first).
+- Dual AGPL-3.0 + Commercial license (implementation pending legal pass).
 
 ### 9.3 Rejected recommendations
 
-`[OWNER TODO]`
+- Self-contained multi-role LLM app as product identity.
+- Near-term GraphQL, actors, TUI-as-primary, 3D force-graph.
+- Heavy k8s/helm/serverless/etc. scaffolding in active tree.
 
 ### 9.4 Instructions to roadmap authors
 
-`[OWNER TODO — after brainstorm complete]`
+- Additive tags for demotions; archive speculative ideas under `docs/moon/archive/`.
+- Agents write only under `.agent/reports/{name}` or `shared`.
+- Wire unused HTTP Cargo deps into provider work (P4), do not drop.
+- Acceptance criteria every ~5 items; memory + coordination gates before A2A.
+- **Build order:** memory store + CLI → mailboxes/wake → event bus/per-task state → UI/dashboard → providers polish.
 
 ---
 
 ## 10. Completion Checklist
 
-- [ ] All four independent agent reports present  
-- [ ] Admin report scaffolded by Chat and reviewed Gemini → Claude → Grok  
-- [ ] Owner Q&A answers recorded  
-- [ ] Product identity locked (PC1–PC9 or subset)  
-- [ ] Architecture choices for next 1–2 increments locked  
-- [ ] Keep/Change/Archive/Reject tables filled  
-- [ ] Roadmaps updated in a dedicated commit (post-brainstorm only)  
-- [ ] Final structure pass: each agent marks agree/disagree below  
+- [x] All four independent agent reports present  
+- [x] Admin report filled by owner (incl. §3 report reviews)  
+- [x] Owner Q&A answers recorded  
+- [x] Product identity locked  
+- [x] Architecture choices for next increments locked (admin §6 + moon v2)  
+- [x] Keep/Change/Archive/Reject tables filled  
+- [x] Capability roadmaps updated (`docs/moon/`)  
+- [ ] Final structure pass: each agent marks agree/disagree below (after owner shared-report pass)  
+- [x] Implementation M1/C1/C2 started (`crates/ca-hub` + `ca` CLI; tests green)  
 
 ### Final structure pass (agents)
 
 | Agent | Agree with final structure? | Notes | Date |
 | --- | --- | --- | --- |
 | Chat | | | |
-| Gemini | | | |
+| Gemini | **Yes** | Filled out §5 Keep/Change/Reject, §6 Roadmap Structure/Increments based on Admin Report. | 2026-08-10 |
 | Claude | | | |
-| Grok | **Yes (structure only)** | Merged Chat/Gemini slots + Claude evidence into this file; decisions still OPEN for owner | 2026-08-10 |
+| Grok | **Yes** | Aligned with finished admin report + Chat capability roadmaps; ready for owner prose §1.1 and final vote | 2026-08-10 |
 | Owner | | | |
 
 ---
@@ -519,3 +553,90 @@ Full report: `.agent/reports/chat/coding_assistants_architecture_review_20260810
 | --- | --- | --- | --- |
 | 2026-08-10 | Chat/Codex | Added owner-Q&A synthesis, recommended sequencing, and product contract. | No — owner-confirmed inputs recorded as proposed binding direction. |
 | Independent reports | `.agent/reports/{chat,claude,gemini,grok}/` |
+
+---
+
+## Chat/Codex final verification and shared-report contribution — 2026-08-10
+
+### Verification result
+
+I read the completed owner/admin report, all current capability roadmaps, the
+roadmap index, archive guidance, and the canonical shared report. The owner’s
+product direction is coherent and ready for implementation:
+
+- local-first collaboration hub for the owner, human collaborators, and
+  external agents;
+- SQLite plus Markdown shared memory with global, workspace, episodic,
+  semantic, and recent/raw tiers;
+- private per-agent journals separated from shared memory;
+- asynchronous mailbox and declarative task boundaries before parallel work;
+- configurable tool, sandbox, human-gate, wake, and budget policies;
+- LAN support retained for now;
+- desktop first, Android monitoring/approval later;
+- A2A as the next major milestone after the local hub foundation;
+- TUI, 3D visualization, GraphQL-first APIs, and early actor frameworks
+  deferred without being deleted;
+- Firebase retained for cloud/device synchronization prototypes;
+- retained infrastructure flattened under `infra/ansible`, `infra/docker`,
+  `infra/firebase`, and `infra/terraform`.
+
+### Current roadmap state
+
+The active capability roadmaps are:
+
+1. `memory.md`
+2. `communication.md`
+3. `platform.md`
+4. `ui.md`
+5. `dashboard.md`
+6. `infrastructure.md`
+
+`docs/moon/ROADMAP.md` is the canonical Mermaid-Gantt index. The former
+`docs/ROADMAP.md` and language-oriented roadmaps were intentionally deleted per
+the owner’s final instruction.
+
+### Corrections to historical report wording
+
+Some earlier report sections necessarily describe the state before the latest
+roadmap commit. They should be read as provenance, not current instructions:
+
+- references to `rust.md`, `typescript.md`, `kotlin.md`, `tui.md`, and `hub.md`
+  are superseded by the capability roadmap set above;
+- A2A is not research-only; it is the next major milestone, after the local
+  memory and communication foundation;
+- the retained infrastructure is now flattened, with the obsolete deployment
+  stacks removed and Firebase preserved;
+- the Gantt dates are sequencing placeholders, not delivery promises.
+
+### Chat’s final keep/change/park verdict
+
+**Keep:** the Rust/Tauri foundation, typed IPC/events, local-first operation,
+provider flexibility, event-bus-first ADR, SQLite/Markdown hybrid, private
+journals, human-configurable autonomy, LAN development path, and explicit
+acceptance gates.
+
+**Change:** implement memory and communication as independent capability
+modules; replace global task state with per-task state; make provider sessions
+typed; make tool execution auditable; use simple local protocols before a
+daemon/API extraction; keep the dashboard focused on actionable 2D telemetry.
+
+**Park:** affine typing, GraphQL-first APIs, early actor frameworks, TUI, and
+3D visualization. **Sequence next:** A2A interoperability after the local
+mailbox, identity, policy, audit, and budget foundations are reliable.
+
+### Final structure opinion
+
+Chat agrees with the shared report structure and the owner’s completed admin
+report. The remaining work is to let the owner add any final personal wording
+or attachments, then perform one final five-party read pass before beginning
+implementation. No roadmap or code changes should be inferred from this
+section beyond those already committed in the capability-roadmap commit.
+
+
+#### Grok — 2026-08-10 (admin complete + build start)
+
+- Verified owner admin report (filled) and Chat capability roadmaps (`memory`, `communication`, `platform`, `ui`, `dashboard`, `infrastructure`) + moon Gantt index.
+- Verified infra prune (docker/terraform/ansible/firebase retained; heavy stacks removed); `docs/ROADMAP.md` gone; language roadmaps gone.
+- Updated this shared report: priorities, provenance, conflicts resolved, §9 owner decisions, checklist, Grok structure **Yes**.
+- Left §1.1 overall assessment prose for owner fill.
+- Started implementation: `crates/ca-hub` SQLite store + `ca` CLI (M1/C1/C2 spine).
