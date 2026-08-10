@@ -1,0 +1,90 @@
+# tools/agent/justfile
+# Agentic LLM execution recipes
+
+set shell := ["bash", "-c"]
+set unstable := true
+set working-directory := '../..'
+
+# Loop the Claude Code agent on a stateful context with live-streaming reasoning steps
+loop-claude prompt="Continue implementing the studio, updating the ROADMAP and CHANGELOG, and commiting your work":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    FEED_FILE="/tmp/claude_agent_feed.txt"
+    rm -f "$FEED_FILE"
+    touch "$FEED_FILE"
+
+    echo "=== Initializing Stateful Agent Memory Context ==="
+    echo "{{prompt}}" > "$FEED_FILE"
+
+    while true; do
+        CURRENT_TASK=$(cat "$FEED_FILE")
+        echo -e "\n[Loop Monitor] Injecting iterative task context down stream..."
+        claude --dangerously-skip-permissions --verbose -p "$CURRENT_TASK"
+        echo -e "\n[Loop Monitor] Iteration complete. Re-seeding context step..."
+        echo "Review the updates you just made to the studio, ROADMAP, and CHANGELOG in the previous step. Continue implementing the studio, updating the ROADMAP and CHANGELOG, and committing your work based on your current state." > "$FEED_FILE"
+        sleep 5
+    done
+
+# Loop the Grok agent on a stateful context with live-streaming reasoning steps
+loop-grok prompt="Continue implementing the studio, updating the ROADMAP and CHANGELOG, and commiting your work":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    FEED_FILE="/tmp/grok_agent_feed.txt"
+    rm -f "$FEED_FILE"
+    touch "$FEED_FILE"
+
+    echo "=== Initializing Stateful Agent Memory Context ==="
+    echo "{{prompt}}" > "$FEED_FILE"
+
+    while true; do
+        CURRENT_TASK=$(cat "$FEED_FILE")
+        echo -e "\n[Loop Monitor] Injecting iterative task context down stream..."
+        grok --always-approve -p "$CURRENT_TASK"
+        echo -e "\n[Loop Monitor] Iteration complete. Re-seeding context step..."
+        echo "Review the updates you just made to the studio, ROADMAP, and CHANGELOG in the previous step. Continue implementing the studio, updating the ROADMAP and CHANGELOG, and committing your work based on your current state." > "$FEED_FILE"
+        sleep 5
+    done
+
+# Loop the Gemini agent on a stateful context with live-streaming reasoning steps
+loop-gemini prompt="Continue implementing the studio, updating the ROADMAP and CHANGELOG, and commiting your work":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    FEED_FILE="/tmp/gemini_agent_feed.txt"
+    rm -f "$FEED_FILE"
+    touch "$FEED_FILE"
+
+    echo "=== Initializing Stateful Agent Memory Context ==="
+    echo "{{prompt}}" > "$FEED_FILE"
+
+    while true; do
+        CURRENT_TASK=$(cat "$FEED_FILE")
+        echo -e "\n[Loop Monitor] Injecting iterative task context down stream..."
+        agy --dangerously-skip-permissions -p "$CURRENT_TASK"
+        echo -e "\n[Loop Monitor] Iteration complete. Re-seeding context step..."
+        echo "Review the updates you just made to the studio, ROADMAP, and CHANGELOG in the previous step. Continue implementing the studio, updating the ROADMAP and CHANGELOG, and committing your work based on your current state." > "$FEED_FILE"
+        sleep 5
+    done
+
+# Loop the ChatGPT agent on a stateful context with live-streaming reasoning steps
+loop-chatgpt prompt="Continue implementing the studio, updating the ROADMAP and CHANGELOG, and commiting your work":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    FEED_FILE="/tmp/chatgpt_agent_feed.txt"
+    rm -f "$FEED_FILE"
+    touch "$FEED_FILE"
+
+    echo "=== Initializing Stateful Agent Memory Context ==="
+    echo "{{prompt}}" > "$FEED_FILE"
+
+    while true; do
+        CURRENT_TASK=$(cat "$FEED_FILE")
+        echo -e "\n[Loop Monitor] Injecting iterative task context down stream..."
+        codex exec --dangerously-bypass-approvals-and-sandbox "$CURRENT_TASK"
+        echo -e "\n[Loop Monitor] Iteration complete. Re-seeding context step..."
+        echo "Review the updates you just made to the studio, ROADMAP, and CHANGELOG in the previous step. Continue implementing the studio, updating the ROADMAP and CHANGELOG, and committing your work based on your current state." > "$FEED_FILE"
+        sleep 5
+    done

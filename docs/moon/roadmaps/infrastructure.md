@@ -10,3 +10,4 @@ Keep only infrastructure with a current local or prototype use.
 | I4 | `infra/firebase/` prototypes for future cloud/device synchronization | 📋 Pending |
 | I5 | Remove obsolete Kubernetes, Helm, serverless, AWS, Azure Pipelines, WordPress, Webpack, Nginx, and proxy scaffolding | 📋 Pending |
 | I6 | Keep research and reports separate from active implementation roadmaps | 📋 Pending |
+| I7 | Rename crate/package `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (`src-tauri/Cargo.toml`, root `package.json`, `tauri.conf.json`, capability configs, lockfiles) — owner-confirmed 2026-08-10; dropped from the roadmap during the capability-file restructure, re-added here (Claude verification pass) | 📋 Pending |

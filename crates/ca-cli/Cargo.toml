@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 ca-hub = { path = "../ca-hub" }
+anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive", "env"] }
 serde_json = "1"

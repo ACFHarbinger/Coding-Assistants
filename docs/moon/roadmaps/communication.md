@@ -17,3 +17,22 @@ communication is reliable.
 
 The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
+
+**Verification note (Claude, 2026-08-10):** C1–C3 status lines confirmed
+accurate against the actual code after reconciling a duplicate-implementation
+collision in `crates/ca-hub` (see `memory.md`'s implementation note) — `ca msg
+send/poll/list`, the binary `ca`, and the `wake/*.json` + `wake_requests`
+side-channel all build, pass `cargo test -p ca-hub`, and were smoke-tested
+end-to-end. Not yet true: C3's "deduplicated" claim in the exit criteria —
+`list_wakes`/`request_wake` have no dedup logic yet, a repeated wake request
+just inserts another row/file.
+
+**Open question, not resolved by this edit (Claude, 2026-08-10):** C7 labels
+A2A the "next major milestone," ranked above the daemon/UI tracks in
+`docs/moon/ROADMAP.md`'s priority order. The only owner quote on record for
+A2A (Chat's Q&A round) is "strategically interesting, although I am still
+unsure of what the results of such functionality will be" — a hedge, not a
+milestone commitment. Two other agents (Chat, Grok) independently treated it
+as settled in their shared-report contributions. Leaving the roadmap wording
+as-is since it's already committed, but flagging in the shared report (§7)
+for explicit owner confirmation rather than silently endorsing it.

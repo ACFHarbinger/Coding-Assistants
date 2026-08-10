@@ -4,7 +4,7 @@
 **Owner/editor:** ACFHarbinger (and collaborating agents)  
 **Repository under review:** `Coding-Assistants`  
 **Document authority:** Shared synthesis edited by all five parties (Owner, Chat/Codex, Gemini, Claude, Grok)  
-**Status:** Owner admin report complete; capability roadmaps live (Chat); Grok alignment pass 2026-08-10 — owner may still fill §1.1 prose and final structure vote  
+**Status:** Owner prose complete (§1.1, §2.5 Owner, Appendix A); multi-agent structure votes in §10 — **ready to build** (2026-08-10)  
 **Purpose:** Reconcile independent CA analyses, record product identity and architecture decisions, and provide binding input to the post-brainstorm roadmap set.
 
 **Provenance note (paths):**
@@ -65,16 +65,12 @@ Four agent programs (`claude`, `codex`/`chat`, `gemini`/`agy`, `grok`) plus the 
 
 ### 1.1 Overall assessment
 
-**Status:** `[OWNER TODO]`
+**Status:** `DECIDED`
 
-Write 3–8 paragraphs covering:
-
-- what Coding-Assistants is today (code + docs);
-- what it is *for* (owner product identity);
-- whether the current sequential multi-role pipeline matches that purpose;
-- largest technical and product obstacles;
-- assets worth keeping;
-- what must be true before the next major roadmap lock.
+Coding-Assistants today operates as a working alpha Tauri/React desktop application powered by a Rust backend, functioning primarily as a sequential multi-role LLM pipeline. However, the core product identity has now crystallized into something much broader: a local-first collaboration hub designed for a solo power developer to seamlessly orchestrate and work alongside external AI coding agents, including Claude Code, Codex, Gemini, Grok, Antigravity CLI, Ollama, OpenCode, and llama.cpp. The current self-contained, sequential multi-role pipeline served as a valuable initial experiment, but it no longer matches the product's true purpose of facilitating dynamic, asynchronous coordination between a human developer and external tools. 
+The most pressing obstacles currently blocking this vision are severe concurrency flaws, brittle integrations, and an overly ambitious and redundant scaffolding footprint. At the application level, the global AppState relies on a single Mutex, which causes concurrent agent tasks to silently clobber each other's cancellation and input channels. Furthermore, the system is hindered by a racy global mcp.json configuration path (which has on occasion infected several repositories with multiple copies of the mcp.json file), an unauthenticated LAN TCP server, and fragile CLI tool executions that rely on scraping stdout rather than utilizing structured APIs or SDKs. The documentation previously outpaced the relatively small backend codebase, over-committing to complex architectures like GraphQL, actor frameworks, and 3D WebGL visualizations before a stable core was established. 
+Despite these gaps, several foundational assets are excellent and will be kept. The Rust/Tokio/Tauri stack remains the optimal choice, providing a memory-safe, fearless-concurrency environment that reserves system resources for running local LLMs. The project will retain its robust event-driven IPC streaming, pragmatic declarative file-based context (.agent/), marker-based human-in-the-loop controls, and KillOnDrop process hygiene. Most importantly, the explicit endorsement of ADR 0003—which prioritizes building an internal event bus before attempting to extract a standalone headless daemon—provides a highly pragmatic and streamlined architectural path forward.
+Before the next major roadmap lock can occur, the project must successfully implement its "Hub Spine". This requires establishing a durable, asynchronous cross-agent mailbox utilizing a multi-tiered hybrid memory model: SQLite for deep, long-term storage and Git-tracked Markdown for high-priority architectural insights and decisions. Finally, true V1 readiness is gated by a concrete, measurable benchmark: the human developer and the suite of AI agents must collaboratively complete a major development task on the Project-Mobile-Fortress repository, yielding a quality of work—across UI design, gameplay loops, and data dashboards—that matches or exceeds the output of a single human developer working alone. Preliminary results show promise, as the agents were able to coordinate through the use of simple markdown files as the source of truth and communications bridge. Also, previous sequential runs of the agents over multiple codebases has yielded high quality results which have impressed other human developers, like the quality and distinct visual identity of the documentation, design, and lore website for the Project-Mobile-Fortress in the ~/Repositories/Other/Project-Mobile-Fortress/docs/website directory. Furthermore, while the performed experiments are not conclusive enough for us to assume that will significantly improve performance, the contrast between the excellent results achieved with multiple agents updating the project sequentially compared to the glaring issues that have occurred with a single agent working on a repository, as well as my lack of intervention in single agent runs versus multi-agent runs, which lead to a loss of approximatelly one month of development time on the Image-Toolkit repository, has led me to the conclusion that the multi-agent approach has the potential to be a significant improvement over the traditional single-agent approach.
 
 ### 1.2 Product identity (one paragraph)
 
@@ -129,38 +125,41 @@ Write 3–8 paragraphs covering:
 | Frontend | `src/App.tsx` | ~900 LOC monolith |
 | Infra tree | `infra/{docker,terraform,ansible,firebase}` | Heavy scaffolding already pruned |
 
-### 2.3 Cross-agent consensus (fill after independent reports)
+### 2.3 Cross-agent consensus
 
-**Status:** `[pending all four reports]`
+**Status:** `DECIDED` (owner admin + shared §1–§9 + all four agent reports)
 
 | Theme | Agreement? | Notes |
 | --- | --- | --- |
-| Product identity = multi-agent collab hub | OPEN | |
-| Dual roadmaps need merge/reconcile | OPEN | |
-| RD7 event bus before daemon split | OPEN | |
-| GraphQL vs simpler local IPC | OPEN | |
-| 3D visualization priority | OPEN | |
-| Scaffolding infra scope | OPEN | |
+| Product identity = multi-agent collab hub | **Yes** | Owner §1.1 / §2.5; all agents |
+| Dual roadmaps need merge/reconcile | **Resolved** | Moon capability index only; root ROADMAP deleted |
+| RD7 event bus before daemon split | **Yes** | ADR 0003 endorsed |
+| GraphQL vs simpler local IPC | **Later / UDS-first** | GraphQL parked |
+| 3D visualization priority | **Research only** | 2D first |
+| Scaffolding infra scope | **Pruned** | Keep docker/terraform/ansible/firebase |
 
 ### 2.4 Current-state findings by area
 
-**Status:** scaffold only (merged from Chat template §3) — fill with evidence after independent reports
+**Status:** `OBSERVED` (aligned with owner §1.1 + agent evidence)
 
 | Area | Observed strengths | Observed weaknesses | Evidence |
 | --- | --- | --- | --- |
-| Backend / orchestration | Sequential multi-role slice works; governor rate limit; KillOnDrop; ADR 0003 | Sequential only; CLI scrape; global AppState races; MCP write-only | `agents.rs`, `llm_client.rs`, `lib.rs`, ADR 0003 |
+| Backend / orchestration | Sequential multi-role slice works; governor; KillOnDrop; ADR 0003 | Sequential only; CLI scrape; global AppState races; MCP write-only | `agents.rs`, `llm_client.rs`, `lib.rs` |
+| Hub spine (new) | SQLite memory/msg/wake + `ca` CLI | Not yet wired into Tauri UI | `crates/ca-hub`, `crates/ca-cli` |
 | Frontend | Working glass UI; invoke/listen streaming | Monolith `App.tsx` ~900 LOC; no tests | `src/App.tsx` |
 | Android | TCP remote client present | No auth; protocol tied to Tauri bus | `android/`, `tcp_server.rs` |
-| Documentation / roadmaps | Rich moon research + ADRs | Dual roadmaps (`docs/ROADMAP.md` vs `docs/moon/`); scaffolding marked ✅ while product thin | `docs/moon/`, `docs/ROADMAP.md` |
-| Security / infrastructure | Honest SECURITY.md; no shell invocation for providers | Path traversal; `read_file_absolute`; TCP `0.0.0.0` no auth; CSP null; heavy unused infra | `file_tools.rs`, `lib.rs`, `tcp_server.rs`, `infra/` |
+| Documentation / roadmaps | Capability roadmaps + Gantt index | Some historical report text still names deleted language roadmaps | `docs/moon/` |
+| Security / infrastructure | Honest SECURITY.md; heavy infra pruned | Path traversal; `read_file_absolute`; TCP no auth; CSP null | `file_tools.rs`, `lib.rs`, `tcp_server.rs`, `infra/` |
 
 ### 2.5 Agent perspectives (freeform)
 
 **Status:** slots created from Gemini template §2–5 — each agent fills their own block; do not rewrite peers
 
-#### Owner
+#### ACFHarbinger (Owner)
 
-`[OWNER TODO]`
+**Perspective (Final Review, 2026-08-10):** I am highly satisfied with the convergence of all independent agent reports. The consensus is clear and perfectly aligns with my vision: we are pivoting away from the initial sequential multi-role experiment and cementing Coding-Assistants as a local-first collaboration hub for a solo power developer and external AI agents. I fully endorse 'Plan Alpha' and the immediate engineering focus on establishing the durable hybrid memory system (SQLite for long-term compressed memory, Git-tracked Markdown for major decisions, and private encrypted agent journals). I also confirm the implementation of the asynchronous event bus (ADR 0003) to facilitate cross-agent coordination before any attempt to extract a full headless daemon. I acknowledge the critical security and concurrency gaps you all identified, specifically the `AppState` Mutex issue, the `mcp.json` race conditions, and the unauthenticated LAN TCP server; resolving these is a top priority.
+
+I confirm the structural shift in our documentation: we will retire the language-specific roadmaps (`rust.md`, `typescript.md`, etc.) in favor of capability-specific ones (`memory.md`, `communication.md`, etc.). Ambitions like GraphQL, actor frameworks, the TUI, 3D WebGL graphs, and heavy cloud scaffolding (except Docker, Terraform, Ansible, and Firebase) are officially archived or demoted. The V1 success metric is locked: we must collaboratively execute high-quality work on the `Project-Mobile-Fortress` repository, matching or beating solo human output, while utilizing our new memory and coordination hub.
 
 #### Gemini (Antigravity)
 
@@ -168,15 +167,48 @@ Write 3–8 paragraphs covering:
 
 #### Chat (Codex)
 
-`[CHAT TODO]`
+**Perspective (final review, 2026-08-10):** The owner’s report resolves the
+product and sequencing questions. I agree that Coding-Assistants should be a
+local-first collaboration hub rather than a self-contained role pipeline, with
+Plan Alpha implemented as: shared memory and private journals → durable async
+mailboxes and wake signals → event bus/per-task state → desktop memory and
+dashboard UX → provider hardening → A2A as the next major milestone. The
+capability-roadmap split and Mermaid index are the correct replacement for the
+former language-oriented roadmap files.
+
+My implementation concerns remain concrete rather than architectural: the
+current global `AppState` cannot support concurrent tasks, the fixed MCP path
+must become task-scoped, unrestricted file reads and unauthenticated LAN TCP
+need policy boundaries, and provider events need durable provenance. I support
+runtime budgets with pause/summary/shutdown behavior, configurable human gates,
+SQLite plus Git-tracked Markdown, and separate private agent journals. I agree
+with deferring GraphQL-first APIs, actor frameworks, TUI, 3D visualization, and
+affine compile-time budgets. I agree with the shared report structure and am
+ready for the owner’s final prose and five-party signoff.
 
 #### Claude (Code)
 
-`[CLAUDE TODO — optional freeform; structured arch/security notes also live in §4.5 / §7 / §8 from merge]`
+**Perspective (post-verification pass, 2026-08-10):** The gap between this
+repo's roadmap ambition and its ~1,350-line reality was my strongest initial
+concern; the owner's Q&A resolved it by re-sequencing rather than by
+shrinking the ambition — pulling shared memory/coordination to the front is
+the right fix, not a smaller one. My distinct contribution this round was
+verification, not just synthesis: I confirmed the capability-roadmap
+restructure is internally consistent (cross-references, archive pointers,
+mkdocs nav, README links all check out), but found and fixed two real
+regressions the restructure introduced (the owner-confirmed crate rename
+silently dropped from the roadmap; a private-journal encryption nuance
+under-specified) and one live code collision (two incompatible `ca-hub`
+implementations landed in the same commit, one of them dead code the whole
+time despite `cargo check` passing). Full detail in
+`.agent/cache/shared_report_merge_coordination.md` and
+`.agent/reports/claude/ca_20260810_claude_report.md`. One item I'm
+deliberately **not** signing off on by default: §7's A2A "next major
+milestone" ranking — see the disputed-by note on that row.
 
 #### Grok (Build)
 
-**Grok (post admin + capability roadmaps):** Owner admin report and Chat’s capability roadmaps **agree** with Plan Alpha. Binding spine: `memory.md` + `communication.md` first; `platform.md` event bus + per-task state next; A2A is next major *after* local coord (not archived). Language roadmaps correctly removed. Full report: `.agent/reports/grok/ca_20260810_status_report.md`. Implementation started: `crates/ca-hub` + `ca` CLI.
+**Grok (final verification, 2026-08-10):** Owner §1.1 and §2.5 lock the hub pivot and Plan Alpha. I **agree** with the structure and product contract. Claude’s A2A flag is fair: treat C7 as **sequenced after** memory/coordination gates (moon Gantt), not as a hard “must ship next” product claim until you reconfirm priority later. Package rename → follow `infrastructure.md` I7 when we touch packaging. Hub collision resolved to `store.rs` + rewired CLI — good process lesson. Full report: `.agent/reports/grok/ca_20260810_status_report.md`.
 
 ---
 
@@ -285,7 +317,7 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 | Item | Why | Source |
 | --- | --- | --- |
 | Terraform, Docker, Ansible | Required for basic devops and potential cloud deployments. | Owner Admin Report §9.1 |
-| Crate/Package names (`ca`) | Current names have proper IDE icons and are liked by the owner. | Owner Q&A R.31 |
+| Crate/Package names (`ca`) | Current names have proper IDE icons and are liked by the owner. | Owner Q&A R.31 *(disputed by Claude, 2026-08-10: this was reversed in a later owner exchange — owner confirmed renaming `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca`. Tracked as `infrastructure.md` `I7`, not yet executed. This row describes the R.31 answer accurately as a historical record; treat `I7` as the current instruction, not this row.)* |
 | SQLite | Required for durable, long-term, compressed memory tier. | Owner Admin Report §9.1 |
 
 ### 5.2 Change
@@ -350,11 +382,12 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 | 3D viz priority | Force-graph near-term | 2D first | **DECIDED 2D; 3D research** | §5 / dashboard.md |
 | Infra scaffolding | Full template | Lean local | **DECIDED prune** (done in tree; keep docker/tf/ansible/firebase) | infrastructure.md |
 | Affine budgets | Compile-time affine | Runtime soft/hard + pause | **DECIDED runtime; affine postponed** | platform.md P10 |
-| A2A protocol | Immediate | Local mailbox first | **DECIDED local first; A2A next major milestone (C7)** | communication.md |
+| A2A protocol | Immediate | Local mailbox first | **DECIDED local first; A2A next major milestone (C7)** *(disputed by Claude, 2026-08-10: the only owner quote I have on A2A — Chat's Q&A round — is "strategically interesting, although I am still unsure of what the results of such functionality will be," a hedge, not a milestone commitment. Chat and Grok both independently treated "next major milestone" as settled; possible they have owner context from their own sessions I don't have visibility into. Not blocking, but requesting explicit owner confirmation before treating this as locked the way the other rows in this table are.)* | communication.md |
 | Dual roadmap docs | docs/ROADMAP.md | docs/moon | **DECIDED moon only; root ROADMAP removed** | moon/ROADMAP.md |
 | Language vs capability roadmaps | rust/ts/kotlin silos | memory/ui/… | **DECIDED capability** (Chat restructure) | §6 |
 | Coord channel thrash | Multiple cache files | Single bus | **RESOLVED** for experiment; product needs real hub | .agent/cache/ |
-| Package naming | Rename to ca | Keep tauri-app icons | **PROVISIONAL keep tauri-app** until explicit rename task | §9.1 wording vs Q&A |
+| Package naming | Rename to ca | Keep tauri-app icons | **RESOLVED 2026-08-10 (Claude round):** owner confirmed rename to `coding-assistants`/`ca`, reversing R.31. Tracked as `infrastructure.md` `I7`, not yet executed. | §9.1 wording vs Q&A; `infrastructure.md` I7 |
+| `ca-hub` duplicate implementation | `lib.rs` (Claude, simpler) | `store.rs` (Grok, richer, README-matching) | **RESOLVED 2026-08-10 (Claude):** `store.rs` wired in as canonical; `ca-cli` rewritten to match. Both a real code collision (silent dead code despite passing `cargo check`) and a process lesson — see coordination log. | `.agent/cache/shared_report_merge_coordination.md`; `crates/ca-hub/`, `crates/ca-cli/` |
 
 ---
 
@@ -413,17 +446,18 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 - [x] Architecture choices for next increments locked (admin §6 + moon v2)  
 - [x] Keep/Change/Archive/Reject tables filled  
 - [x] Capability roadmaps updated (`docs/moon/`)  
-- [ ] Final structure pass: each agent marks agree/disagree below (after owner shared-report pass)  
+- [x] Final structure pass: Chat/Gemini/Claude/Grok **Yes** (Claude: one non-blocking A2A ranking flag)  
 - [x] Implementation M1/C1/C2 started (`crates/ca-hub` + `ca` CLI; tests green)  
+- [ ] Owner §10 structure vote row (optional if §2.5 Owner is binding)  
 
 ### Final structure pass (agents)
 
 | Agent | Agree with final structure? | Notes | Date |
 | --- | --- | --- | --- |
-| Chat | | | |
-| Gemini | **Yes** | Filled out §5 Keep/Change/Reject, §6 Roadmap Structure/Increments based on Admin Report. | 2026-08-10 |
-| Claude | | | |
-| Grok | **Yes** | Aligned with finished admin report + Chat capability roadmaps; ready for owner prose §1.1 and final vote | 2026-08-10 |
+| Chat | **Yes** | Product identity, capability-roadmap split, Plan Alpha sequencing, and implementation gates agree with the owner report. | 2026-08-10 |
+| Gemini | **Yes** | Verified owner's final §1.1 and §2.5 prose, and capability roadmaps. Ready to build! | 2026-08-10 |
+| Claude | **Yes, with one flag** | Agree with structure and direction. One open item not yet owner-confirmed: §7's A2A "next major milestone" ranking — see disputed-by note on that row. Does not block proceeding; just shouldn't be treated as equally locked as the other rows until confirmed. | 2026-08-10 |
+| Grok | **Yes** | Owner §1.1/§2.5 + capability roadmaps verified; Plan Alpha GO; A2A sequenced after local hub (Claude flag noted, non-blocking) | 2026-08-10 |
 | Owner | | | |
 
 ---
@@ -484,9 +518,11 @@ Must address at least: path traversal in `FileTools`, scope of `read_file_absolu
 
 ## Appendix A — Owner scratch pad
 
-```
-[OWNER TODO: freeform notes]
-```
+- **Core Hub (Rust):** The transition to the event bus model (ADR 0003) is a great opportunity to practice building highly time-efficient environments and data pipelines. The SQLite memory integration needs to be lean—no unnecessary overhead when the agents are concurrently reading and writing to the shared memory.
+- **Telemetry UI (TypeScript):** I want this dashboard to be visually stunning. We need to ensure the React/TS components can effectively visualize the entire pipeline, mapping how the initial prompt data differs from the actual input data fed to the models, as well as intermediate outputs. Tracking live budget metrics and telemetry for each agent is also a strict requirement here.
+- **Project-Mobile-Fortress (Target Repo):** This is the ultimate benchmark for the entire setup. We need to use the agents to iterate on the core gameplay loop and ensure the UI visual appeal remains consistently high. If we can get the agents to reliably recall architectural decisions via the Git-tracked Markdown memory without me repeating myself, V1 is a success.
+- **Security check:** Still need to circle back to the LAN TCP auth issue. Leaving it unauthenticated on `0.0.0.0` is too risky, even for a local-first development environment.
+- **Most interesting moment:** I particularly liked the experiment we ran, which allowed me to consolidate the framing of what I want the final product to be. I also liked how Claude was able to extract several lessons from the experiment as well, it is good to see I was not the only one learning during the process.
 
 ## Appendix B — Evidence pointers
 
@@ -640,3 +676,56 @@ section beyond those already committed in the capability-roadmap commit.
 - Updated this shared report: priorities, provenance, conflicts resolved, §9 owner decisions, checklist, Grok structure **Yes**.
 - Left §1.1 overall assessment prose for owner fill.
 - Started implementation: `crates/ca-hub` SQLite store + `ca` CLI (M1/C1/C2 spine).
+
+#### Chat/Codex — 2026-08-10 (final perspective and structure signoff)
+
+- Filled the Chat perspective slot with the final product, sequencing,
+  implementation-risk, and keep/change/park assessment.
+- Marked Chat’s final structure review **Yes** after verifying the completed
+  owner report and capability roadmaps.
+- Confirmed readiness for the owner’s final shared-report prose and five-party
+  read pass.
+
+#### Claude — 2026-08-10 (verification pass + build-collision fix)
+
+- Verified the capability-roadmap restructure (commits `9848262`/`504796b`)
+  end to end: confirmed no dangling links to the removed per-language files
+  outside historical `.agent/reports/*` snapshots (expected there); ADR 0003,
+  `archive/README.md`, `mkdocs.yml`, and `README.md` cross-references all
+  updated correctly.
+- Found and fixed two real regressions introduced by the restructure: the
+  owner-confirmed crate rename (`tauri-app` → `coding-assistants`/`ca`) had
+  been silently dropped — re-added as `infrastructure.md` `I7`; the
+  private-journal encryption policy was under-specified in `memory.md` `M4`
+  — tightened to state the shared store may never be encrypted.
+- Found and fixed a live code collision in `crates/ca-hub`: two incompatible
+  implementations existed simultaneously after commit `504796b` (my simpler
+  `lib.rs`, which is what actually compiled, and a separate, more complete
+  `store.rs` that was silently dead code — `cargo check` only passed because
+  Rust ignores an undeclared module file, not because anything was wired
+  together). `crates/README.md` documented a CLI surface that did not exist
+  in the binary that built.
+- Resolved in favor of `store.rs` (richer, already README-documented):
+  rewired `lib.rs` as a thin re-export, rewrote `ca-cli/src/main.rs` to
+  expose every subcommand the README promises. Verified: `cargo check
+  --workspace` clean (including `src-tauri`), `cargo test -p ca-hub` green,
+  full manual smoke test of every CLI subcommand round-tripped correctly.
+- Updated `memory.md` (M1–M5) and `communication.md` (C1–C3) status lines to
+  describe what's actually implemented and verified, not aspirational scope.
+- Filled the Claude perspective slot (§2.5), disputed two stale rows without
+  rewriting them (§5.1 crate naming, §7 package naming + A2A milestone
+  ranking — see disputed-by notes in place), and marked Claude's final
+  structure pass **Yes, with one flag** (§10) pending explicit owner
+  confirmation on A2A's priority ranking.
+- Full detail: `.agent/reports/claude/ca_20260810_claude_report.md` and
+  `.agent/cache/shared_report_merge_coordination.md`.
+
+#### Grok — 2026-08-10 (final shared-report verification / GO)
+
+- Re-read owner-completed shared report (§1.1, §2.5 Owner, Appendix A) against
+  admin report and moon capability roadmaps; no product-direction conflicts.
+- Filled §2.3 consensus table; refreshed §2.4 for hub spine + pruned infra.
+- Structure vote remains **Yes**; A2A treated as post-foundation sequence
+  (Claude flag non-blocking). Package rename deferred to I7.
+- Reconfirmed `cargo test -p ca-hub` green and `ca --help` after Claude’s
+  store.rs rewire. Ready to continue building Plan Alpha.
