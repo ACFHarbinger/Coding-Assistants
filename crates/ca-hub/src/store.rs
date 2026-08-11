@@ -814,9 +814,8 @@ impl HubStore {
             )
             .optional()?;
         match raw {
-            Some(s) => serde_json::from_str(&s).map_err(|e| {
-                HubError::Invalid(format!("wake_policy JSON corrupt: {e}"))
-            }),
+            Some(s) => serde_json::from_str(&s)
+                .map_err(|e| HubError::Invalid(format!("wake_policy JSON corrupt: {e}"))),
             None => Ok(WakePolicy::default()),
         }
     }

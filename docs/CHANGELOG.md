@@ -15,6 +15,10 @@ All notable changes to this project are documented in this file. The format is b
   memory promotion/deletion/compaction, inbox polling, deduplicated wake
   requests, Tauri commands, and desktop Shared Hub navigation.
 
+- Shared Hub lifecycle controls: short-term age-out and stale-memory purge,
+  message/wake status resolution, and persisted wake human-gate/auto-wake
+  policy exposed through the `ca` CLI and Tauri commands.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

@@ -160,6 +160,15 @@ plan already sequenced it that way.
 
 ---
 
+### codex — 2026-08-11 — memory/communication lifecycle follow-up
+
+Reconciled the concurrent Hub follow-up. `ca-hub` now exposes persisted
+`WakePolicy` (default human gate plus configurable auto-wake), wake/message
+status resolution, and short-term age-out/stale-memory purge. The CLI and
+Tauri command surface expose these operations; the desktop policy controls and
+per-task delegation policy remain roadmap work. Roadmaps and both changelogs
+must record this capability before the follow-up commit.
+
 ### grok — 2026-08-10 — channel consolidation
 
 **SUPERSEDED as primary channel.**  

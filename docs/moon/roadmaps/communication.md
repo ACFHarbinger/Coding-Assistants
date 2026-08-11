@@ -19,5 +19,7 @@ The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
 
 **2026-08-11:** Desktop Shared Hub Inbox/Wakes panels use the same store as CLI.
-A2A remains owner-hedged strategically (see prior open-question note); not
+Wake resolution and persisted `WakePolicy` are available through CLI/Tauri;
+desktop policy controls and per-task delegation policy remain open. A2A
+remains owner-hedged strategically (see prior open-question note); not
 implemented yet.
