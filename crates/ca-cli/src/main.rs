@@ -72,6 +72,19 @@ enum Command {
         #[command(subcommand)]
         action: BudgetCommand,
     },
+    /// Persist a cancellation/shutdown handoff so interrupted work is not lost (C6).
+    Shutdown {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        objective: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long)]
+        delegate_to: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -598,6 +611,22 @@ fn main() -> anyhow::Result<()> {
                 println!("{}", serde_json::to_string_pretty(&status)?);
             }
         },
+        Command::Shutdown {
+            agent,
+            task,
+            objective,
+            reason,
+            delegate_to,
+        } => {
+            let outcome = store.record_shutdown(
+                &agent,
+                task.as_deref(),
+                &objective,
+                &reason,
+                delegate_to.as_deref(),
+            )?;
+            println!("{}", serde_json::to_string_pretty(&outcome)?);
+        }
     }
     Ok(())
 }

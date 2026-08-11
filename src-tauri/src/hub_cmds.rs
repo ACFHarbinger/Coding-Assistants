@@ -389,6 +389,24 @@ pub fn hub_get_budget(agent: String) -> Result<Option<BudgetStatus>, String> {
 }
 
 #[tauri::command]
+pub fn hub_list_agent_metrics() -> Result<Vec<ca_hub::AgentMetrics>, String> {
+    open_store()?.list_agent_metrics().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_record_agent_metrics(
+    agent: String,
+    lines_written: i64,
+    tokens_used: i64,
+    tokens_cached: i64,
+    output_chars: i64,
+) -> Result<ca_hub::AgentMetrics, String> {
+    open_store()?
+        .record_agent_metrics(&agent, lines_written, tokens_used, tokens_cached, output_chars)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn hub_record_budget_usage(agent: String, amount: f64) -> Result<BudgetStatus, String> {
     open_store()?
         .record_budget_usage(&agent, amount)
@@ -428,6 +446,28 @@ pub fn hub_pause_for_budget(args: PauseForBudgetArgs) -> Result<BudgetPauseOutco
             &args.objective,
             &args.completed,
             &args.missing,
+            args.delegate_to.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+pub struct RecordShutdownArgs {
+    pub agent: String,
+    pub task: Option<String>,
+    pub objective: String,
+    pub reason: String,
+    pub delegate_to: Option<String>,
+}
+
+#[tauri::command]
+pub fn hub_record_shutdown(args: RecordShutdownArgs) -> Result<ca_hub::ShutdownOutcome, String> {
+    open_store()?
+        .record_shutdown(
+            &args.agent,
+            args.task.as_deref(),
+            &args.objective,
+            &args.reason,
             args.delegate_to.as_deref(),
         )
         .map_err(|e| e.to_string())

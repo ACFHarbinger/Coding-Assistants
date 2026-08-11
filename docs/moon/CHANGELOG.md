@@ -66,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on 
     `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible 
     through both the `ca-cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
+  - **C6 done:** Exposed shutdown hooks via `ca shutdown` in the CLI and `hub_record_shutdown` 
+    in the Tauri API. This completes the budget exhaustion and shutdown delegation milestone, 
+    allowing external adapters to properly persist handoff states upon cancellation or limit reach.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
     acceptance, and C5 sequential plus bounded-parallel/retry workflows.
