@@ -7,7 +7,7 @@ an experiment.
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | U1 | Split `App.tsx` into configuration, activity, memory, inbox, approval, and remote panels | Components have focused state boundaries and frontend tests | ✅ **Done** · Refactored App.tsx into ConfigPanel, ActivityPanel, RemotePanel, ApprovalPanel, and HubPanel with aesthetic redesign |
-| U2 | Task history, transcript, and handoff browser | User can resume/review a prior task without reconstructing context manually | 📋 Pending · handoffs in inbox + MD export |
+| U2 | Task history, transcript, and handoff browser | User can resume/review a prior task without reconstructing context manually | ✅ **Done** · Added Task Browser tab to Shared Hub rendering task metadata and message history
 | U3 | Memory review UI with global/workspace/private scope indicators | User can search, edit, delete, and mark memories stale | ✅ **Done** · Hub memory tab includes search, inline editing, delete, promote, compact, export, and color-coded scope indicators |
 | U4 | Configurable policy controls for tool execution, sandbox strictness, wake gates, and budgets | Settings are persisted per task/workspace and reflected in audit events | 🚧 **Partial** · Wake policy integrated into Shared Hub Policy tab; tool sandbox UI still open |
 | U5 | Android monitoring and approval client | Mobile can watch events and send approved messages without configuring full tasks | 📋 Pending · after desktop |

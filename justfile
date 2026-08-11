@@ -49,6 +49,10 @@ clean:
 install-ca:
     @just dev::install-ca
 
+# Launch the Tauri application in development mode
+dev:
+    @just dev::dev
+
 # --- Build (→ tools/build) ---
 
 # Build the app (frontend + Rust backend)

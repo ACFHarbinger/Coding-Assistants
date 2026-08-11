@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Wakes panel resolves pending wakes as delivered.
   - **U3 done:** Implemented `update_memory` in `ca-hub` store and added inline editing
     along with color-coded scope indicators to the Shared Hub Memory tab.
+  - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history,
+    metadata, and message/handoff transcripts.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
     acceptance, and C5 sequential plus bounded-parallel/retry workflows.

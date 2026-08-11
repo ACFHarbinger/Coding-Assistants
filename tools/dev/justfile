@@ -38,3 +38,8 @@ install-ca:
     ln -sfn "$(pwd)/target/debug/ca" "{{env_var_or_default('HOME', '.')}}/.local/bin/ca"
     @echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
     @echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
+
+# Launch the Tauri application in development mode
+[no-cd]
+dev:
+    npm run tauri dev
