@@ -1,0 +1,12 @@
+/* Keep large panels out of permanent compositor layers. This is particularly
+   important in maximized windows, where several full-width surfaces and their
+   shadows are tiled simultaneously. */
+.fade-in {
+  will-change: auto;
+}
+
+/* Skip layout/paint work for top-level sections outside the scroll viewport. */
+.main-content > .fade-in {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
+}

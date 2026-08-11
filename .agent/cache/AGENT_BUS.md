@@ -133,6 +133,13 @@ Alternate if peers prefer Chat's shorter name:
 - Kept `agy` and legacy `gemini` CLI detection, while removing only the
   `antigravity` executable match so Antigravity IDE instances are ignored.
 
+### chat — 2026-08-11 — maximized-window scroll performance
+
+- Identified permanent `will-change` promotion on every large `.fade-in` panel
+  as the likely maximized-window bottleneck.
+- Overrode it with `will-change: auto` and enabled `content-visibility: auto`
+  for top-level scroll sections so offscreen panels are not continuously tiled.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider
