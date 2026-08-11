@@ -50,8 +50,12 @@ install-ca:
     @just dev::install-ca
 
 # Launch the Tauri application in development mode
-dev:
+start:
     @just dev::dev
+
+# Backward-compatible alias for `just start`.
+dev:
+    @just start
 
 # --- Build (→ tools/build) ---
 

@@ -64,7 +64,7 @@ export default function TaskTab() {
     borderRadius: "12px",
     padding: "1.25rem",
     border: "1px solid var(--border-color)",
-    transition: "all 0.2s ease"
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease"
   };
 
   if (selectedTask) {

@@ -48,7 +48,12 @@ enum Command {
         #[command(subcommand)]
         action: JournalCommand,
     },
-    /// List known agent identities.
+    /// Manage known agent identities and A2A Agent Cards.
+    Agent {
+        #[command(subcommand)]
+        action: AgentCommand,
+    },
+    /// Backward-compatible alias for `agent list`.
     Agents,
     /// Export episodic/semantic memory as git-friendly Markdown.
     ExportMarkdown {
@@ -130,6 +135,20 @@ enum BudgetCommand {
     },
     /// Clear a budget pause so the agent can receive wakes again.
     Resume { agent: String },
+}
+
+#[derive(Subcommand)]
+enum AgentCommand {
+    /// List known agent identities.
+    List,
+    /// Register an A2A Agent Card for discovery.
+    RegisterCard {
+        #[arg(long)]
+        agent: String,
+        /// Path to the agent.json card file
+        #[arg(long)]
+        path: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -339,6 +358,17 @@ fn main() -> anyhow::Result<()> {
         Command::Init => {
             println!("initialized hub at {}", store.data_dir().display());
         }
+        Command::Agent { action } => match action {
+            AgentCommand::List => {
+                println!("{}", serde_json::to_string_pretty(&store.list_agents()?)?);
+            }
+            AgentCommand::RegisterCard { agent, path } => {
+                let json = std::fs::read_to_string(&path)?;
+                let card: ca_hub::AgentCard = serde_json::from_str(&json)?;
+                store.upsert_agent_card(&agent, &card)?;
+                println!("registered card for {}", agent);
+            }
+        },
         Command::Agents => {
             println!("{}", serde_json::to_string_pretty(&store.list_agents()?)?);
         }

@@ -70,7 +70,7 @@ export default function ActivityPanel({
             <h2>Agent Activity Feed</h2>
             <button
               onClick={() => setEvents([])}
-              style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.4rem 0.8rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}
+              style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.4rem 0.8rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', transition: 'border-color 0.15s ease, opacity 0.15s ease' }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
             >

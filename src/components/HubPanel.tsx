@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { invoke } from "../lib/tauri";
 import TaskTab from "./panels/TaskTab";
 import DashboardPanel from "./panels/DashboardPanel";
@@ -55,7 +55,7 @@ interface BudgetStatus {
   updated_at: string;
 }
 
-type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "budget";
+type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage";
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -63,7 +63,8 @@ const cardStyle: React.CSSProperties = {
   padding: "1.5rem",
   background: "rgba(0, 0, 0, 0.3)",
   boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  transition: "all 0.2s ease"
+  /* Narrow to compositable properties only — avoids layout thrash on hover. */
+  transition: "border-color 0.2s ease, box-shadow 0.2s ease"
 };
 
 const inputStyle: React.CSSProperties = {
@@ -75,6 +76,38 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   transition: 'border-color 0.2s'
 };
+
+function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
+  if (budgets.length === 0) return <p style={{ color: "var(--text-muted)", margin: 0 }}>No budgets configured.</p>;
+  const chartWidth = 760;
+  const rowHeight = 42;
+  const labelWidth = 120;
+  const barWidth = chartWidth - labelWidth - 150;
+  return (
+    <div style={{ ...cardStyle, display: "grid", gap: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, color: "var(--text-main)" }}>Budget utilization</h3>
+        <div style={{ display: "flex", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--primary)", marginRight: 5 }} />Used</span>
+          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#334155", marginRight: 5 }} />Available</span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${chartWidth} ${budgets.length * rowHeight}`} width="100%" role="img" aria-label="Used and available budget by agent" style={{ minHeight: 120 }}>
+        {budgets.map((budget, index) => {
+          const used = Math.min(budget.limit_units, Math.max(0, budget.spent_units));
+          const usedWidth = budget.limit_units > 0 ? (used / budget.limit_units) * barWidth : 0;
+          const y = index * rowHeight + 8;
+          return <g key={budget.agent_id}>
+            <text x="0" y={y + 17} fill="var(--text-main)" fontSize="13">{budget.agent_id}</text>
+            <rect x={labelWidth} y={y} width={barWidth} height="22" rx="5" fill="#334155" />
+            <rect x={labelWidth} y={y} width={usedWidth} height="22" rx="5" fill="var(--primary)" />
+            <text x={labelWidth + barWidth + 12} y={y + 15} fill="var(--text-muted)" fontSize="12">{budget.spent_units} / {budget.limit_units}</text>
+          </g>;
+        })}
+      </svg>
+    </div>
+  );
+}
 
 export default function HubPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("memory");
@@ -180,7 +213,7 @@ export default function HubPanel() {
     else if (hubTab === "inbox") refreshMessages();
     else if (hubTab === "wakes") refreshWakes();
     else if (hubTab === "policy") refreshPolicy();
-    else if (hubTab === "budget") refreshBudgets();
+    else if (hubTab === "usage") refreshBudgets();
   }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets]);
 
   const writeMemory = async () => {
@@ -298,8 +331,8 @@ export default function HubPanel() {
     <button
       key={id}
       className={hubTab === id ? "btn-primary" : "btn-secondary"}
-      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "all 0.2s ease" }}
-      onClick={() => setHubTab(id)}
+      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }}
+      onClick={() => startTransition(() => setHubTab(id))}
     >
       {label}
     </button>
@@ -318,7 +351,7 @@ export default function HubPanel() {
           {tabBtn("wakes", "Wakes")}
           {tabBtn("tasks", "Tasks")}
           {tabBtn("policy", "Policy")}
-          {tabBtn("budget", "Budget")}
+          {tabBtn("usage", "Usage")}
         </div>
       </div>
 
@@ -657,10 +690,10 @@ export default function HubPanel() {
         </div>
       )}
 
-      {hubTab === "budget" && (
+      {hubTab === "usage" && (
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-main)" }}>Agent Budgets</h3>
+            <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-main)" }}>Agent Usage</h3>
             <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
               Configure caller-defined units such as provider calls, tokens, or spend. Reaching a limit blocks new wakes.
             </p>
@@ -674,6 +707,7 @@ export default function HubPanel() {
               <button className="btn-secondary" onClick={refreshBudgets}>Refresh</button>
             </div>
           </div>
+          <UsageChart budgets={budgets} />
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {budgets.length === 0 && <p style={{ color: "var(--text-muted)" }}>No budgets configured.</p>}
             {budgets.map((budget) => (

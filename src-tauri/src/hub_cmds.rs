@@ -31,6 +31,13 @@ pub fn hub_list_agents() -> Result<Vec<ca_hub::AgentRecord>, String> {
     open_store()?.list_agents().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn hub_upsert_agent_card(agent: String, card: ca_hub::AgentCard) -> Result<(), String> {
+    open_store()?
+        .upsert_agent_card(&agent, &card)
+        .map_err(|e| e.to_string())
+}
+
 #[derive(serde::Deserialize)]
 pub struct WriteMemoryArgs {
     pub tier: String,

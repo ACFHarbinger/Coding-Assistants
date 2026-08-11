@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a large-window performance profile that reduces full-surface gradients,
   card/button shadows, and header backdrop filtering while preserving layout and
   colors.
+- Renamed the Shared Hub Budget tab to Usage and added per-agent used/available
+  budget charts.
+- Made startup resource discovery read-only so the default workspace is not
+  created until the user explicitly initializes or runs a task.
 
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
@@ -70,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     boundary when a role exhausts its budget.
   - Active-run cancellation now records a durable shutdown handoff and
     delegation message before the Tauri task exits.
-  - Shared Hub now includes a Budget tab for configuring limits, recording
+  - Shared Hub now includes a Usage tab for configuring limits, recording
     usage, inspecting paused agents, and resuming them.
   - C4 task-level `require_human_approval` is persisted and exposed through
     CLI/Tauri workflow creation, with coverage for ungated task wakes.
@@ -81,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
     Wakes panel resolves pending wakes as delivered.
+  - **C7 done:** Implemented A2A-compatible discovery and horizontal delegation. `AgentCard` schema and storage were added to `ca-hub`. `ca agent register-card` was added to `ca-cli`. The Tauri API exposes `hub_upsert_agent_card` and the TCP server now handles `GetAgentCards` payloads, enabling local workflows to interoperate with A2A peers.
   - **U3 done:** Implemented `update_memory` in `ca-hub` store and added inline editing
     along with color-coded scope indicators to the Shared Hub Memory tab.
   - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history, 

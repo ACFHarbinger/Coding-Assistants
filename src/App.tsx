@@ -65,6 +65,7 @@ function App() {
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"orchestrate" | "hub">("orchestrate");
+  const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
@@ -257,7 +258,7 @@ function App() {
       <header style={{
         padding: '1.5rem 2.5rem',
         borderBottom: '1px solid var(--border-color)',
-        background: 'rgba(2, 6, 23, 0.5)',
+        background: 'rgba(2, 6, 23, 0.85)',
         backdropFilter: 'var(--glass-blur)',
         display: 'flex',
         alignItems: 'center',
@@ -278,7 +279,7 @@ function App() {
           <button
             className={mainView === "hub" ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => setMainView("hub")}
+            onClick={() => { setHubVisited(true); setMainView("hub"); }}
           >
             Shared Hub
           </button>
@@ -289,9 +290,9 @@ function App() {
       </header>
 
       <main className="main-content">
-        {mainView === "hub" && <HubPanel />}
+        {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel /></div>}
 
-        {mainView === "orchestrate" && (
+        <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
           <>
             <ConfigPanel 
               config={config} 
@@ -321,18 +322,17 @@ function App() {
               remoteLogs={remoteLogs} 
             />
           </>
-        )}
+        </div>
 
         {preview && (
           <div style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(2,6,23,0.85)',
+            background: 'rgba(2,6,23,0.92)',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(8px)'
+            zIndex: 1000
           }} onClick={() => setPreview(null)}>
             <div
               className="fade-in"

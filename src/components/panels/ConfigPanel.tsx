@@ -71,7 +71,7 @@ const ModelSelect = ({
   const roleConfig = role.config;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.02)', position: 'relative', transition: 'all 0.3s ease' }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.02)', position: 'relative', transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease' }}
          onMouseEnter={(e) => {
            e.currentTarget.style.transform = 'translateY(-2px)';
            e.currentTarget.style.boxShadow = '0 10px 30px -10px rgba(0,0,0,0.5)';
@@ -96,7 +96,7 @@ const ModelSelect = ({
             padding: '2px 0',
             outline: 'none',
             width: '100%',
-            transition: 'all 0.2s ease'
+            transition: 'border-color 0.2s ease'
           }}
           onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
           onBlur={(e) => e.target.style.borderBottom = '2px solid transparent'}
@@ -111,7 +111,7 @@ const ModelSelect = ({
             border: '1px solid rgba(239, 68, 68, 0.2)',
             borderRadius: '6px',
             cursor: 'pointer',
-            transition: 'all 0.2s ease'
+            transition: 'background 0.15s ease'
           }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
@@ -354,7 +354,7 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
             borderRadius: '12px',
             background: 'rgba(255, 255, 255, 0.02)',
             cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'transform 0.2s ease, border-color 0.2s ease, background 0.2s ease',
             minHeight: '220px'
           }}
           onMouseEnter={(e) => {

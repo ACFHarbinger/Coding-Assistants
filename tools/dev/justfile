@@ -39,7 +39,17 @@ install-ca:
     @echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
     @echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
 
-# Launch the Tauri application in development mode
+# Launch the Tauri application in development mode.
+#
+# GDK_BACKEND=x11 — Forces XWayland instead of native Wayland. Your desktop
+# session sets GDK_BACKEND=wayland, which makes GTK use EGL/Wayland for
+# rendering. NVIDIA's Wayland/EGL stack is immature and causes severe GPU
+# stalls in WebKitGTK at large window sizes. XWayland uses NVIDIA's GLX
+# (X11) path, which is stable and fast. Explicitly overriding here wins
+# over the session default.
+#
+# WEBKIT_DISABLE_DMABUF_RENDERER=1 — Belt-and-suspenders: even under X11,
+# newer WebKitGTK may probe for DMA-BUF. Keep it off.
 [no-cd]
 dev:
-    npm run tauri dev
+    GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev

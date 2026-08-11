@@ -6,7 +6,8 @@
 }
 
 /* Skip layout/paint work for top-level sections outside the scroll viewport. */
-.main-content > .fade-in {
+.main-content > .fade-in,
+.main-content > div > .fade-in {
   content-visibility: auto;
   contain-intrinsic-size: auto 600px;
 }

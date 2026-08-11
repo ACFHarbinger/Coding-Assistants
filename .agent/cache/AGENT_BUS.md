@@ -402,3 +402,12 @@ as Tauri APIs being called in browser/Vite mode. Added `src/lib/tauri.ts` with
 runtime detection, routed React command calls through it, and skipped Tauri
 event listeners outside the desktop runtime. Frontend build passes; commit
 pending.
+
+### chat — 2026-08-11 — Usage tab and startup filesystem audit
+
+- Renamed Shared Hub Budget to Usage and added used/available per-agent SVG
+  utilization bars.
+- Made `get_agent_resources` read-only; removed the generated empty
+  `src-tauri/workspace/.agent` tree and the untracked A2A test `agent.json`.
+- Added an existing-agent-card schema migration and preserved the `ca agents`
+  CLI alias while reviewing the concurrent A2A changes.

@@ -92,16 +92,6 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
     let rules_dir = base_path.join("rules");
     let workflows_dir = base_path.join("workflows");
 
-    tokio::fs::create_dir_all(&prompts_dir)
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(&rules_dir)
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(&workflows_dir)
-        .await
-        .map_err(|e| e.to_string())?;
-
     async fn list_files(dir: &std::path::Path, prefix: &str) -> Vec<String> {
         let mut out = Vec::new();
         let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
@@ -262,6 +252,24 @@ async fn get_server_ip() -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebKitGTK 2.48+ enables DMA-BUF buffer sharing by default on Wayland.
+    // On NVIDIA + Wayland this causes a GPU pipeline stall on every frame
+    // transfer when the window surface is large (e.g. maximized): the DMA-BUF
+    // import blocks the WebKit render thread until the NVIDIA driver flushes its
+    // command queue, producing severe scroll jank. Browsers (Chrome, Firefox)
+    // avoid this by running their own GPU process. Disabling DMA-BUF falls back
+    // to the SHM path, which is non-blocking and has no visual quality impact.
+    // Must be set before any WebView is created — process-level env var is the
+    // only reliable way to pass it to WebKitGTK's internal renderer process.
+    // See: https://bugs.webkit.org/show_bug.cgi?id=261874
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            // Only set if not already overridden by the caller.
+            unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -327,6 +335,7 @@ pub fn run() {
             hub_cmds::hub_init,
             hub_cmds::hub_data_dir,
             hub_cmds::hub_list_agents,
+            hub_cmds::hub_upsert_agent_card,
             hub_cmds::hub_write_memory,
             hub_cmds::hub_update_memory,
             hub_cmds::hub_list_memories,

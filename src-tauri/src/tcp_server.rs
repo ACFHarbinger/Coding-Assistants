@@ -18,6 +18,7 @@ pub enum ClientRequest {
     GetStatus,
     GetPendingWakes,
     ResolveWake { wake_id: String, approve: bool },
+    GetAgentCards,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +48,9 @@ pub enum ServerResponse {
     },
     WakeResolved {
         wake_id: String,
+    },
+    AgentCardsList {
+        cards: Vec<ca_hub::AgentRecord>,
     },
 }
 
@@ -268,31 +272,46 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
             running: true,
             message: "Connected".to_string(),
         },
-        ClientRequest::GetPendingWakes => {
-            match crate::hub_cmds::open_store() {
-                Ok(store) => match store.list_wakes(None, true) {
-                    Ok(wakes) => ServerResponse::PendingWakesList { wakes },
-                    Err(e) => ServerResponse::Error { message: e.to_string() }
+        ClientRequest::GetPendingWakes => match crate::hub_cmds::open_store() {
+            Ok(store) => match store.list_wakes(None, true) {
+                Ok(wakes) => ServerResponse::PendingWakesList { wakes },
+                Err(e) => ServerResponse::Error {
+                    message: e.to_string(),
                 },
-                Err(e) => ServerResponse::Error { message: e.to_string() }
-            }
+            },
+            Err(e) => ServerResponse::Error {
+                message: e.to_string(),
+            },
         },
-        ClientRequest::ResolveWake { wake_id, approve } => {
-            match crate::hub_cmds::open_store() {
-                Ok(store) => {
-                    let status = if approve {
-                        ca_hub::WakeStatus::Delivered
-                    } else {
-                        ca_hub::WakeStatus::Cancelled
-                    };
-                    match store.set_wake_status(&wake_id, status) {
-                        Ok(_) => ServerResponse::WakeResolved { wake_id },
-                        Err(e) => ServerResponse::Error { message: e.to_string() }
-                    }
-                },
-                Err(e) => ServerResponse::Error { message: e.to_string() }
+        ClientRequest::ResolveWake { wake_id, approve } => match crate::hub_cmds::open_store() {
+            Ok(store) => {
+                let status = if approve {
+                    ca_hub::WakeStatus::Delivered
+                } else {
+                    ca_hub::WakeStatus::Cancelled
+                };
+                match store.set_wake_status(&wake_id, status) {
+                    Ok(_) => ServerResponse::WakeResolved { wake_id },
+                    Err(e) => ServerResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
             }
-        }
+            Err(e) => ServerResponse::Error {
+                message: e.to_string(),
+            },
+        },
+        ClientRequest::GetAgentCards => match crate::hub_cmds::open_store() {
+            Ok(store) => match store.list_agents() {
+                Ok(cards) => ServerResponse::AgentCardsList { cards },
+                Err(e) => ServerResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            Err(e) => ServerResponse::Error {
+                message: e.to_string(),
+            },
+        },
     }
 }
 

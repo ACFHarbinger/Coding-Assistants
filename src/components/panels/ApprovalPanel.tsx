@@ -24,12 +24,11 @@ export default function ApprovalPanel({
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(2,6,23,0.85)',
+          background: 'rgba(2,6,23,0.92)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 2000,
-          backdropFilter: 'blur(12px)'
+          zIndex: 2000
         }}>
           <div className="fade-in" style={{
             background: 'var(--bg-card)',
@@ -81,12 +80,11 @@ export default function ApprovalPanel({
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(2,6,23,0.85)',
+          background: 'rgba(2,6,23,0.92)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 2000,
-          backdropFilter: 'blur(12px)'
+          zIndex: 2000
         }}>
           <div className="fade-in" style={{
             background: 'var(--bg-card)',

@@ -151,10 +151,24 @@ impl WakeStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentCard {
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub specializations: Vec<String>,
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
+    #[serde(default)]
+    pub output_format: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRecord {
     pub id: String,
     pub display_name: String,
     pub created_at: String,
+    #[serde(default)]
+    pub card_json: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -393,7 +407,8 @@ impl HubStore {
             CREATE TABLE IF NOT EXISTS agents (
                 id TEXT PRIMARY KEY NOT NULL,
                 display_name TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                card_json TEXT
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -488,6 +503,7 @@ impl HubStore {
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
+            "ALTER TABLE agents ADD COLUMN card_json TEXT",
             "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
@@ -538,27 +554,35 @@ impl HubStore {
     }
 
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {
-        let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            r#"
-            INSERT INTO agents(id, display_name, created_at)
-            VALUES (?1, ?2, ?3)
-            ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name
-            "#,
-            params![id, display_name, now],
+            "INSERT INTO agents (id, display_name, created_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET display_name = ?2",
+            params![id, display_name, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    pub fn upsert_agent_card(&self, id: &str, card: &AgentCard) -> Result<(), HubError> {
+        let card_json =
+            serde_json::to_string(card).map_err(|e| HubError::Invalid(e.to_string()))?;
+        self.conn.execute(
+            "INSERT INTO agents (id, display_name, created_at, card_json) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(id) DO UPDATE SET display_name = ?2, card_json = ?4",
+            params![id, card.name, Utc::now().to_rfc3339(), card_json],
         )?;
         Ok(())
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, display_name, created_at FROM agents ORDER BY id")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, display_name, created_at, card_json FROM agents ORDER BY id ASC",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok(AgentRecord {
                 id: r.get(0)?,
                 display_name: r.get(1)?,
                 created_at: r.get(2)?,
+                card_json: r.get(3)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
