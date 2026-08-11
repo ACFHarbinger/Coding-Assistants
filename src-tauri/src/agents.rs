@@ -170,6 +170,18 @@ impl AgentSystem {
             }
             let output = completion;
 
+            // Persist local, provider-neutral observability counters. Exact
+            // token/cache values can be supplied later by provider adapters.
+            if let Ok(store) = HubStore::open(default_hub_dir()) {
+                let _ = store.record_agent_metrics(
+                    role_name,
+                    output.lines().count() as i64,
+                    output.split_whitespace().count() as i64,
+                    0,
+                    output.chars().count() as i64,
+                );
+            }
+
             // Save Role Report
             let filename = format!("{}.md", role_name.to_lowercase().replace(" ", "_"));
             if let Err(e) = self.file_tools.write_file(&filename, &output).await {

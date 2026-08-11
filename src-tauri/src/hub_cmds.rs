@@ -390,7 +390,9 @@ pub fn hub_get_budget(agent: String) -> Result<Option<BudgetStatus>, String> {
 
 #[tauri::command]
 pub fn hub_list_agent_metrics() -> Result<Vec<ca_hub::AgentMetrics>, String> {
-    open_store()?.list_agent_metrics().map_err(|e| e.to_string())
+    open_store()?
+        .list_agent_metrics()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -402,7 +404,13 @@ pub fn hub_record_agent_metrics(
     output_chars: i64,
 ) -> Result<ca_hub::AgentMetrics, String> {
     open_store()?
-        .record_agent_metrics(&agent, lines_written, tokens_used, tokens_cached, output_chars)
+        .record_agent_metrics(
+            &agent,
+            lines_written,
+            tokens_used,
+            tokens_cached,
+            output_chars,
+        )
         .map_err(|e| e.to_string())
 }
 

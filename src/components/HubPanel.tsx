@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../lib/tauri";
 import TaskTab from "./panels/TaskTab";
+import DashboardPanel from "./panels/DashboardPanel";
 
 interface MemoryRecord {
   id: string;
@@ -54,7 +55,7 @@ interface BudgetStatus {
   updated_at: string;
 }
 
-type HubTab = "memory" | "inbox" | "wakes" | "tasks" | "policy" | "budget";
+type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "budget";
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -312,6 +313,7 @@ export default function HubPanel() {
         </h2>
         <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px" }}>
           {tabBtn("memory", "Memory")}
+          {tabBtn("dashboard", "Dashboard")}
           {tabBtn("inbox", "Inbox")}
           {tabBtn("wakes", "Wakes")}
           {tabBtn("tasks", "Tasks")}
@@ -319,7 +321,7 @@ export default function HubPanel() {
           {tabBtn("budget", "Budget")}
         </div>
       </div>
-      
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-color)" }}>
         <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
           Data dir: <code style={{ background: "rgba(0,0,0,0.3)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>{dataDir || "…"}</code>
@@ -331,6 +333,8 @@ export default function HubPanel() {
           </span>}
         </div>
       </div>
+
+      {hubTab === "dashboard" && <DashboardPanel agents={agents} />}
 
       {hubTab === "memory" && (
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>

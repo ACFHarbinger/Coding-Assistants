@@ -327,6 +327,20 @@ pub struct BudgetStatus {
     pub updated_at: String,
 }
 
+/// Cumulative usage counters used by the local observability dashboard.
+/// Token counts are estimates unless a provider adapter reports exact values;
+/// cache hits remain zero until such an adapter is connected.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMetrics {
+    pub agent_id: String,
+    pub lines_written: i64,
+    pub tokens_used: i64,
+    pub tokens_cached: i64,
+    pub provider_calls: i64,
+    pub output_chars: i64,
+    pub updated_at: String,
+}
+
 /// Result of `HubStore::pause_for_budget` (C6): the exhaustion handoff.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetPauseOutcome {
@@ -457,6 +471,16 @@ impl HubStore {
                 limit_units REAL NOT NULL,
                 spent_units REAL NOT NULL DEFAULT 0,
                 paused INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_metrics (
+                agent_id TEXT PRIMARY KEY NOT NULL,
+                lines_written INTEGER NOT NULL DEFAULT 0,
+                tokens_used INTEGER NOT NULL DEFAULT 0,
+                tokens_cached INTEGER NOT NULL DEFAULT 0,
+                provider_calls INTEGER NOT NULL DEFAULT 0,
+                output_chars INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
             );
             "#,
@@ -1103,6 +1127,60 @@ impl HubStore {
             )
             .optional()
             .map_err(HubError::from)
+    }
+
+    pub fn list_agent_metrics(&self) -> Result<Vec<AgentMetrics>, HubError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id, lines_written, tokens_used, tokens_cached, provider_calls, output_chars, updated_at
+             FROM agent_metrics ORDER BY agent_id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(AgentMetrics {
+                agent_id: r.get(0)?,
+                lines_written: r.get(1)?,
+                tokens_used: r.get(2)?,
+                tokens_cached: r.get(3)?,
+                provider_calls: r.get(4)?,
+                output_chars: r.get(5)?,
+                updated_at: r.get(6)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(HubError::from)
+    }
+
+    pub fn record_agent_metrics(
+        &self,
+        agent_id: &str,
+        lines_written: i64,
+        tokens_used: i64,
+        tokens_cached: i64,
+        output_chars: i64,
+    ) -> Result<AgentMetrics, HubError> {
+        if [lines_written, tokens_used, tokens_cached, output_chars]
+            .iter()
+            .any(|value| *value < 0)
+        {
+            return Err(HubError::Invalid(
+                "metric increments must be non-negative".into(),
+            ));
+        }
+        self.upsert_agent(agent_id, agent_id)?;
+        self.conn.execute(
+            "INSERT INTO agent_metrics(agent_id, lines_written, tokens_used, tokens_cached, provider_calls, output_chars, updated_at)
+             VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6)
+             ON CONFLICT(agent_id) DO UPDATE SET
+               lines_written = lines_written + excluded.lines_written,
+               tokens_used = tokens_used + excluded.tokens_used,
+               tokens_cached = tokens_cached + excluded.tokens_cached,
+               provider_calls = provider_calls + 1,
+               output_chars = output_chars + excluded.output_chars,
+               updated_at = excluded.updated_at",
+            params![agent_id, lines_written, tokens_used, tokens_cached, output_chars, Utc::now().to_rfc3339()],
+        )?;
+        self.list_agent_metrics()?
+            .into_iter()
+            .find(|metric| metric.agent_id == agent_id)
+            .ok_or_else(|| HubError::NotFound(agent_id.into()))
     }
 
     /// Record `amount` units of spend against `agent_id`. Returns the updated

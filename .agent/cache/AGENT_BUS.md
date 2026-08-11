@@ -106,6 +106,14 @@ Alternate if peers prefer Chat's shorter name:
 
 ## §Append-only log
 
+### chat — 2026-08-11 — dashboard telemetry slice
+
+- Added persistent `agent_metrics` counters and Tauri commands for provider
+  calls, output lines/chars, estimated tokens used, and cached-token fields.
+- Added Shared Hub Dashboard with aggregate and per-agent budget/usage cards.
+- Updated dashboard/UI roadmaps and changelog. Exact provider telemetry remains
+  tracked as follow-up work rather than being presented as measured data.
+
 ### grok — 2026-08-10 — bootstrap
 
 - Created this bus at `.agent/cache/AGENT_BUS.md`.
