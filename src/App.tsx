@@ -27,6 +27,7 @@ interface HubMessage {
   from_agent: string;
   to_agent: string;
   body: string;
+  subject: string | null;
   kind: string;
   status: string;
   created_at: string;
@@ -85,6 +86,7 @@ function App() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
+  const [recipient, setRecipient] = useState("team");
 
   useEffect(() => {
     async function loadModels() {
@@ -261,15 +263,16 @@ function App() {
       // This is deliberately a hub message, not an agent task. It must not
       // invoke OpenCode: Codex and the other harness participants receive
       // their messages through the shared hub.
-      const recipients = teamMembers.length > 0
-        ? teamMembers.map(member => member.id)
-        : ["chat"];
+      const recipients = recipient === "team"
+        ? (teamMembers.length > 0 ? teamMembers.map(member => member.target_id) : ["chat"])
+        : [recipient];
+      const subject = `${recipient === "team" ? "team" : "private"}:${crypto.randomUUID()}`;
       await Promise.all(recipients.map(to => invoke("hub_send_message", {
         args: {
           from: "human",
           to,
           kind: "message",
-          subject: null,
+          subject,
           workspace: config.work_dir || null,
           task: null,
           body: task.trim()
@@ -371,6 +374,8 @@ function App() {
               output={output}
               setOutput={setOutput}
               teamMembers={teamMembers}
+              recipient={recipient}
+              setRecipient={setRecipient}
               hubMessages={hubMessages}
               hubAgents={hubAgents}
             />

@@ -1156,6 +1156,53 @@ impl HubStore {
         self.get_message(&id)?.ok_or_else(|| HubError::NotFound(id))
     }
 
+    /// Fan out a team message while retaining one shared subject so clients
+    /// can render the broadcast once instead of once per recipient.
+    pub fn send_message_to_team(
+        &self,
+        from_agent: &str,
+        kind: MessageKind,
+        body: &str,
+        subject: Option<&str>,
+        workspace_path: Option<&str>,
+        task_id: Option<&str>,
+    ) -> Result<Vec<MessageRecord>, HubError> {
+        let subject = subject
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("team:{}", Uuid::new_v4()));
+        let recipients = self
+            .list_agents()?
+            .into_iter()
+            .filter(|agent| agent.id != from_agent && agent.id != "human" && agent.id != "system")
+            .map(|agent| agent.id)
+            .collect::<Vec<_>>();
+        if recipients.is_empty() {
+            return Ok(vec![self.send_message(
+                from_agent,
+                "team",
+                kind,
+                body,
+                Some(&subject),
+                workspace_path,
+                task_id,
+            )?]);
+        }
+        recipients
+            .into_iter()
+            .map(|recipient| {
+                self.send_message(
+                    from_agent,
+                    &recipient,
+                    kind,
+                    body,
+                    Some(&subject),
+                    workspace_path,
+                    task_id,
+                )
+            })
+            .collect()
+    }
+
     pub fn get_message(&self, id: &str) -> Result<Option<MessageRecord>, HubError> {
         let mut stmt = self.conn.prepare(
             r#"
@@ -2466,9 +2513,33 @@ mod tests {
             .unwrap();
         assert_eq!(msg.status, "pending");
 
+        let team_messages = store
+            .send_message_to_team(
+                "grok",
+                MessageKind::Message,
+                "A shared team update.",
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert!(team_messages
+            .iter()
+            .all(|message| message.from_agent == "grok"));
+        assert!(team_messages
+            .iter()
+            .all(|message| message.to_agent != "grok"));
+        assert!(team_messages.iter().all(|message| message
+            .subject
+            .as_deref()
+            .unwrap()
+            .starts_with("team:")));
+
         let polled = store.poll_messages("claude", true).unwrap();
-        assert_eq!(polled.len(), 1);
-        assert_eq!(polled[0].status, "acked");
+        assert_eq!(polled.len(), 2);
+        assert!(polled
+            .iter()
+            .any(|message| message.id == msg.id && message.status == "acked"));
 
         let wake = store
             .request_wake("claude", Some("schema ready"), Some(&msg.id), true)

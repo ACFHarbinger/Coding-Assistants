@@ -32,6 +32,7 @@ export interface AgentResources {
 
 export interface TeamMember {
   id: string;
+  target_id: string;
   name: string;
   provider: string;
   model: string;
@@ -279,6 +280,7 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
     setAddedPids(prev => [...prev, process.pid]);
     onAddAgent({
       id: `process:${process.pid}`,
+      target_id: processTargetId(process),
       name: process.agent,
       provider: process.provider,
       model: process.model,
@@ -289,6 +291,7 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
   const addSpawnedRole = (index: number, role: RoleConfig) => {
     onAddAgent({
       id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
+      target_id: role.process_pid ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid }) : `role:${index}`,
       name: role.name,
       provider: role.config.provider,
       model: role.config.model,
@@ -502,4 +505,13 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
       </div>
     </div>
   );
+}
+
+function processTargetId(process: Pick<DetectedProcess, "agent" | "pid">): string {
+  const normalized = process.agent.toLowerCase();
+  if (normalized === "codex" || normalized === "chatgpt") return "chat";
+  if (normalized === "claude") return "claude";
+  if (normalized === "gemini") return "gemini";
+  if (normalized === "grok") return "grok";
+  return `process:${process.pid}`;
 }

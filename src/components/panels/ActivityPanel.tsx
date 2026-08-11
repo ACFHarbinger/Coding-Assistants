@@ -12,6 +12,7 @@ interface HubMessage {
   from_agent: string;
   to_agent: string;
   body: string;
+  subject: string | null;
   kind: string;
   status: string;
   created_at: string;
@@ -34,6 +35,8 @@ interface ActivityPanelProps {
   teamMembers: TeamMember[];
   hubMessages: HubMessage[];
   hubAgents: HubAgent[];
+  recipient: string;
+  setRecipient: (recipient: string) => void;
 }
 
 export default function ActivityPanel({
@@ -47,7 +50,9 @@ export default function ActivityPanel({
   setOutput,
   teamMembers,
   hubMessages,
-  hubAgents
+  hubAgents,
+  recipient,
+  setRecipient
 }: ActivityPanelProps) {
   const agentName = (id: string) => id === "human"
     ? "Harbinger"
@@ -84,6 +89,16 @@ export default function ActivityPanel({
               <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 500 }}>Sending message to the agent team...</span>
             </div>
           )}
+          <select
+            value={recipient}
+            onChange={event => setRecipient(event.target.value)}
+            disabled={loading}
+            aria-label="Message recipient"
+            style={{ padding: '0.65rem 0.8rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'var(--text-main)', border: '1px solid var(--border-color)', outline: 'none' }}
+          >
+            <option value="team">Team</option>
+            {teamMembers.map(member => <option key={member.id} value={member.target_id}>{member.name}</option>)}
+          </select>
           <button className={loading ? "btn-secondary" : "btn-primary"} onClick={sendMessage} disabled={!task.trim() || loading}>
             {loading ? "Sending…" : "Send Message"}
           </button>
@@ -177,7 +192,10 @@ export default function ActivityPanel({
                 </div>
               </div>
             ))}
-            {hubMessages.map(message => (
+            {hubMessages.filter((message, index, all) => !message.subject?.startsWith("team:") || all.findIndex(candidate => candidate.subject === message.subject) === index).map(message => (
+              (() => {
+                const isTeamMessage = message.to_agent === "team" || message.subject?.startsWith("team:");
+                return (
               <div key={`hub-${message.id}`} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: message.from_agent === 'human' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.2)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                 <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255, 255, 255, 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -185,15 +203,17 @@ export default function ActivityPanel({
                       {agentName(message.from_agent)}
                     </span>
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                      to {agentName(message.to_agent)} · {message.kind}
+                      {isTeamMessage ? "sent a message to the team" : `sent a private message to ${agentName(message.to_agent)}`}
                     </span>
                   </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{message.status}</span>
                 </div>
                 <div style={{ padding: '1.25rem' }}>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{message.body}</pre>
+                  {isTeamMessage ? <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{message.body}</pre> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>Private message contents hidden in team chat.</span>}
                 </div>
               </div>
+                );
+              })()
             ))}
           </div>
         </div>

@@ -498,6 +498,18 @@ fn main() -> anyhow::Result<()> {
                 body,
             } => {
                 let kind = MessageKind::parse(&kind)?;
+                if to == "team" {
+                    let records = store.send_message_to_team(
+                        &from,
+                        kind,
+                        &body,
+                        subject.as_deref(),
+                        workspace.as_deref(),
+                        task.as_deref(),
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&records)?);
+                    return Ok(());
+                }
                 let record = store.send_message(
                     &from,
                     &to,

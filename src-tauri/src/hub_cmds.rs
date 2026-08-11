@@ -162,6 +162,21 @@ pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> 
     let store = open_store()?;
     let kind =
         MessageKind::parse(args.kind.as_deref().unwrap_or("message")).map_err(|e| e.to_string())?;
+    if args.to == "team" {
+        return store
+            .send_message_to_team(
+                &args.from,
+                kind,
+                &args.body,
+                args.subject.as_deref(),
+                args.workspace.as_deref(),
+                args.task.as_deref(),
+            )
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .next()
+            .ok_or_else(|| "team message produced no recipient records".to_string());
+    }
     store
         .send_message(
             &args.from,
