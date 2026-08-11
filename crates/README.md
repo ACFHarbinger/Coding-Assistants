@@ -57,13 +57,22 @@ ca wake policy --set-default-gate true --set-allow-auto true
 ca export-markdown
 ca export-markdown --commit --message "chore(hub): update shared memory export"
 
-# Sequential workflow (C5) — steps JSON array
-ca task create --title "plan-code-review" --workspace "$PWD" \
-  --steps '[{"agent":"grok","instruction":"Plan"},{"agent":"claude","instruction":"Implement"},{"agent":"gemini","instruction":"Review"}]'
-ca task advance 'TASK-UUID'            # first step
-ca task advance 'TASK-UUID' --from grok --note "plan ready"
+# Workflow (C5) — sequential + bounded-parallel stages
+# Consecutive steps sharing parallel_group run together (capped by --max-parallel)
+ca task create --title "plan-impl-review" --workspace "$PWD" --max-parallel 2 --steps '[
+  {"agent":"grok","instruction":"Plan"},
+  {"agent":"dev_a","instruction":"Impl A","parallel_group":"impl","max_retries":1},
+  {"agent":"dev_b","instruction":"Impl B","parallel_group":"impl","max_retries":1},
+  {"agent":"dev_c","instruction":"Impl C","parallel_group":"impl","max_retries":1},
+  {"agent":"gemini","instruction":"Review"}
+]'
+ca task advance 'TASK-UUID'                         # plan stage
+ca task advance 'TASK-UUID' --from grok             # parallel impl (2 wake, 1 queued)
+ca task complete 'TASK-UUID' --agent dev_a          # frees a slot → wakes queued
+ca task retry 'TASK-UUID' --note "flake"            # re-dispatch current stage
 ca task list --status running
 ```
+
 
 **Do not** type angle brackets literally. These are placeholders:
 

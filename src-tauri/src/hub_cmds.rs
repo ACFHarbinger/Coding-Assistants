@@ -286,12 +286,18 @@ pub struct CreateTaskArgs {
     pub title: String,
     pub workspace: Option<String>,
     pub steps: Vec<WorkflowStep>,
+    pub max_parallel: Option<u32>,
 }
 
 #[tauri::command]
 pub fn hub_create_task(args: CreateTaskArgs) -> Result<TaskRecord, String> {
     open_store()?
-        .create_task(&args.title, args.workspace.as_deref(), &args.steps)
+        .create_task_with_parallel(
+            &args.title,
+            args.workspace.as_deref(),
+            &args.steps,
+            args.max_parallel.unwrap_or(4),
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -327,4 +333,26 @@ pub fn hub_advance_task(
 #[tauri::command]
 pub fn hub_cancel_task(id: String) -> Result<TaskRecord, String> {
     open_store()?.cancel_task(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_complete_parallel_member(
+    id: String,
+    agent: String,
+    note: Option<String>,
+) -> Result<TaskRecord, String> {
+    open_store()?
+        .complete_parallel_member(&id, &agent, note.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_retry_task(
+    id: String,
+    from: Option<String>,
+    note: Option<String>,
+) -> Result<TaskRecord, String> {
+    open_store()?
+        .retry_task(&id, from.as_deref(), note.as_deref())
+        .map_err(|e| e.to_string())
 }

@@ -1269,9 +1269,46 @@ impl HubStore {
         Ok(path)
     }
 
+    /// Group consecutive steps that share a `parallel_group` into stages.
+    pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
+        let mut stages: Vec<Vec<usize>> = Vec::new();
+        let mut i = 0usize;
+        while i < steps.len() {
+            if let Some(ref g) = steps[i].parallel_group {
+                if g.trim().is_empty() {
+                    stages.push(vec![i]);
+                    i += 1;
+                    continue;
+                }
+                let mut group = vec![i];
+                let mut j = i + 1;
+                while j < steps.len()
+                    && steps[j]
+                        .parallel_group
+                        .as_ref()
+                        .map(|x| x == g)
+                        .unwrap_or(false)
+                {
+                    group.push(j);
+                    j += 1;
+                }
+                stages.push(group);
+                i = j;
+            } else {
+                stages.push(vec![i]);
+                i += 1;
+            }
+        }
+        stages
+    }
+
     fn map_task_row(r: &rusqlite::Row<'_>) -> Result<TaskRecord, rusqlite::Error> {
         let steps_json: String = r.get(5)?;
         let steps: Vec<WorkflowStep> = serde_json::from_str(&steps_json).unwrap_or_default();
+        let attempts_json: String = r.get(9).unwrap_or_else(|_| "{}".into());
+        let open_json: String = r.get(10).unwrap_or_else(|_| "[]".into());
+        let pending_json: String = r.get(11).unwrap_or_else(|_| "[]".into());
+        let max_parallel: i64 = r.get(12).unwrap_or(4);
         Ok(TaskRecord {
             id: r.get(0)?,
             title: r.get(1)?,
@@ -1282,10 +1319,10 @@ impl HubStore {
             created_at: r.get(6)?,
             updated_at: r.get(7)?,
             last_message_id: r.get(8)?,
-            attempts: serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default(),
-            open_agents: serde_json::from_str(&r.get::<_, String>(10)?).unwrap_or_default(),
-            pending_agents: serde_json::from_str(&r.get::<_, String>(11)?).unwrap_or_default(),
-            max_parallel: r.get::<_, i64>(12)?.max(1) as u32,
+            attempts: serde_json::from_str(&attempts_json).unwrap_or_default(),
+            open_agents: serde_json::from_str(&open_json).unwrap_or_default(),
+            pending_agents: serde_json::from_str(&pending_json).unwrap_or_default(),
+            max_parallel: max_parallel.max(1) as u32,
         })
     }
 
@@ -1295,6 +1332,16 @@ impl HubStore {
         workspace_path: Option<&str>,
         steps: &[WorkflowStep],
     ) -> Result<TaskRecord, HubError> {
+        self.create_task_with_parallel(title, workspace_path, steps, 4)
+    }
+
+    pub fn create_task_with_parallel(
+        &self,
+        title: &str,
+        workspace_path: Option<&str>,
+        steps: &[WorkflowStep],
+        max_parallel: u32,
+    ) -> Result<TaskRecord, HubError> {
         if title.trim().is_empty() {
             return Err(HubError::Invalid("task title must not be empty".into()));
         }
@@ -1303,6 +1350,7 @@ impl HubStore {
                 "task needs at least one workflow step".into(),
             ));
         }
+        let max_parallel = max_parallel.max(1);
         for (i, s) in steps.iter().enumerate() {
             if s.agent.trim().is_empty() {
                 return Err(HubError::Invalid(format!("step {i}: agent required")));
@@ -1320,8 +1368,9 @@ impl HubStore {
             r#"
             INSERT INTO tasks(
                 id, title, workspace_path, status, step_index, steps_json,
-                created_at, updated_at, last_message_id
-            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL)
+                created_at, updated_at, last_message_id,
+                attempts_json, open_agents_json, pending_agents_json, max_parallel
+            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, '{}', '[]', '[]', ?8)
             "#,
             params![
                 id,
@@ -1331,6 +1380,7 @@ impl HubStore {
                 steps_json,
                 now,
                 now,
+                max_parallel as i64,
             ],
         )?;
         self.get_task(&id)?.ok_or_else(|| HubError::NotFound(id))
@@ -1371,9 +1421,76 @@ impl HubStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Advance a sequential workflow one step:
-    /// - pending → running at step 0 (handoff+wake first agent)
-    /// - running → next step (handoff from `from_agent` to next agent) or done
+    fn dispatch_step(
+        &self,
+        task_id: &str,
+        task: &TaskRecord,
+        step: &WorkflowStep,
+        from_agent: &str,
+        note: Option<&str>,
+        stage_label: &str,
+    ) -> Result<String, HubError> {
+        let body = if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        };
+        let subject = Some(format!("[{}] {}", stage_label, task.title));
+        let msg = self.send_message(
+            from_agent,
+            &step.agent,
+            MessageKind::Handoff,
+            &body,
+            subject.as_deref(),
+            task.workspace_path.as_deref(),
+            Some(task_id),
+        )?;
+        let _wake = self.request_wake(
+            &step.agent,
+            Some(&format!("task {task_id} {stage_label}")),
+            Some(&msg.id),
+            true,
+        )?;
+        Ok(msg.id)
+    }
+
+    fn persist_task_runtime(
+        &self,
+        id: &str,
+        status: &str,
+        stage_index: i64,
+        last_message_id: Option<&str>,
+        attempts: &std::collections::HashMap<String, u32>,
+        open_agents: &[String],
+        pending_agents: &[String],
+    ) -> Result<(), HubError> {
+        let now = Utc::now().to_rfc3339();
+        let attempts_json = serde_json::to_string(attempts).unwrap_or_else(|_| "{}".into());
+        let open_json = serde_json::to_string(open_agents).unwrap_or_else(|_| "[]".into());
+        let pending_json = serde_json::to_string(pending_agents).unwrap_or_else(|_| "[]".into());
+        self.conn.execute(
+            r#"
+            UPDATE tasks
+            SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4,
+                attempts_json = ?5, open_agents_json = ?6, pending_agents_json = ?7
+            WHERE id = ?8
+            "#,
+            params![
+                status,
+                stage_index,
+                now,
+                last_message_id,
+                attempts_json,
+                open_json,
+                pending_json,
+                id,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Advance to the next **stage** (sequential step or parallel group).
+    /// Fails if the current stage still has open parallel agents.
     pub fn advance_task(
         &self,
         id: &str,
@@ -1383,77 +1500,256 @@ impl HubStore {
         let task = self
             .get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))?;
-        if task.status == TaskStatus::Done.as_str() || task.status == TaskStatus::Cancelled.as_str()
-        {
+        let status = TaskStatus::parse(&task.status)?;
+        if status.is_terminal() {
             return Err(HubError::Invalid(format!(
                 "task is already {}",
                 task.status
             )));
         }
-        let n_steps = task.steps.len() as i64;
-        if n_steps == 0 {
+        if !task.open_agents.is_empty() {
+            return Err(HubError::Invalid(format!(
+                "parallel stage still open for agents: {}",
+                task.open_agents.join(", ")
+            )));
+        }
+        if !task.pending_agents.is_empty() {
+            return Err(HubError::Invalid(format!(
+                "parallel stage still has queued agents: {}",
+                task.pending_agents.join(", ")
+            )));
+        }
+
+        let stages = Self::workflow_stages(&task.steps);
+        if stages.is_empty() {
             return Err(HubError::Invalid("task has no steps".into()));
         }
 
-        let (next_index, new_status) = if task.status == TaskStatus::Pending.as_str() {
-            (0i64, TaskStatus::Running)
+        let next_stage = if status == TaskStatus::Pending {
+            0i64
         } else {
             let ni = task.step_index + 1;
-            if ni >= n_steps {
-                // Complete without a further handoff.
-                let now = Utc::now().to_rfc3339();
-                self.conn.execute(
-                    "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![TaskStatus::Done.as_str(), now, id],
+            if ni >= stages.len() as i64 {
+                self.persist_task_runtime(
+                    id,
+                    TaskStatus::Done.as_str(),
+                    task.step_index,
+                    task.last_message_id.as_deref(),
+                    &task.attempts,
+                    &[],
+                    &[],
                 )?;
                 return self
                     .get_task(id)?
                     .ok_or_else(|| HubError::NotFound(id.into()));
             }
-            (ni, TaskStatus::Running)
+            ni
         };
 
-        let step = &task.steps[next_index as usize];
-        let from = from_agent.unwrap_or("human");
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        self.activate_stage(id, &task, next_stage, from_agent.unwrap_or("human"), note)
+    }
+
+    fn activate_stage(
+        &self,
+        id: &str,
+        task: &TaskRecord,
+        stage_index: i64,
+        from_agent: &str,
+        note: Option<&str>,
+    ) -> Result<TaskRecord, HubError> {
+        let stages = Self::workflow_stages(&task.steps);
+        let idxs = &stages[stage_index as usize];
+        let stage_label = format!("{}/{}", stage_index + 1, stages.len());
+        let mut attempts = task.attempts.clone();
+        *attempts.entry(stage_index.to_string()).or_insert(0) += 1;
+
+        let mut last_msg: Option<String> = None;
+        let mut open: Vec<String> = Vec::new();
+        let mut pending: Vec<String> = Vec::new();
+
+        if idxs.len() == 1 {
+            let step = &task.steps[idxs[0]];
+            let msg_id = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
+            last_msg = Some(msg_id);
         } else {
-            step.instruction.clone()
-        };
-        let subject = Some(format!("[{}/{}] {}", next_index + 1, n_steps, task.title));
-        let msg = self.send_message(
-            from,
-            &step.agent,
-            MessageKind::Handoff,
-            &body,
-            subject.as_deref(),
-            task.workspace_path.as_deref(),
-            Some(id),
-        )?;
-        let _wake = self.request_wake(
-            &step.agent,
-            Some(&format!("task {} step {}", id, next_index + 1)),
-            Some(&msg.id),
-            true,
-        )?;
+            let mut agents_to_run: Vec<usize> = idxs.clone();
+            let cap = task.max_parallel as usize;
+            let take = cap.min(agents_to_run.len());
+            let wake_now: Vec<usize> = agents_to_run.drain(..take).collect();
+            for si in &wake_now {
+                let step = &task.steps[*si];
+                let msg_id = self.dispatch_step(
+                    id,
+                    task,
+                    step,
+                    from_agent,
+                    note,
+                    &format!("{stage_label}/{}", step.agent),
+                )?;
+                last_msg = Some(msg_id);
+                open.push(step.agent.clone());
+            }
+            for si in agents_to_run {
+                pending.push(task.steps[si].agent.clone());
+            }
+        }
 
-        let now = Utc::now().to_rfc3339();
-        self.conn.execute(
-            r#"
-            UPDATE tasks
-            SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4
-            WHERE id = ?5
-            "#,
-            params![new_status.as_str(), next_index, now, msg.id, id,],
+        self.persist_task_runtime(
+            id,
+            TaskStatus::Running.as_str(),
+            stage_index,
+            last_msg.as_deref(),
+            &attempts,
+            &open,
+            &pending,
         )?;
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
+    /// Mark one agent finished in the current parallel stage.
+    pub fn complete_parallel_member(
+        &self,
+        id: &str,
+        agent: &str,
+        note: Option<&str>,
+    ) -> Result<TaskRecord, HubError> {
+        let task = self
+            .get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        if task.status != TaskStatus::Running.as_str() {
+            return Err(HubError::Invalid("task is not running".into()));
+        }
+        if task.open_agents.is_empty() && task.pending_agents.is_empty() {
+            return Err(HubError::Invalid(
+                "no open parallel stage (use advance_task for sequential steps)".into(),
+            ));
+        }
+        if !task.open_agents.iter().any(|a| a == agent) {
+            return Err(HubError::Invalid(format!(
+                "agent '{agent}' is not in the open parallel set"
+            )));
+        }
+
+        let mut open: Vec<String> = task
+            .open_agents
+            .iter()
+            .filter(|a| *a != agent)
+            .cloned()
+            .collect();
+        let mut pending = task.pending_agents.clone();
+        let mut last_msg = task.last_message_id.clone();
+        let stage_index = task.step_index;
+        let max_parallel = task.max_parallel;
+        let attempts = task.attempts.clone();
+
+        while open.len() < max_parallel as usize && !pending.is_empty() {
+            let next_agent = pending.remove(0);
+            let stages = Self::workflow_stages(&task.steps);
+            let idxs = &stages[stage_index as usize];
+            let step = idxs
+                .iter()
+                .map(|i| &task.steps[*i])
+                .find(|s| s.agent == next_agent)
+                .ok_or_else(|| {
+                    HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
+                })?;
+            let msg_id = self.dispatch_step(
+                id,
+                &task,
+                step,
+                agent,
+                note,
+                &format!("{}/{}", stage_index + 1, next_agent),
+            )?;
+            last_msg = Some(msg_id);
+            open.push(next_agent);
+        }
+
+        self.persist_task_runtime(
+            id,
+            TaskStatus::Running.as_str(),
+            stage_index,
+            last_msg.as_deref(),
+            &attempts,
+            &open,
+            &pending,
+        )?;
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    /// Re-dispatch the current stage (honours max_retries on the stage).
+    pub fn retry_task(
+        &self,
+        id: &str,
+        from_agent: Option<&str>,
+        note: Option<&str>,
+    ) -> Result<TaskRecord, HubError> {
+        let task = self
+            .get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        if task.status != TaskStatus::Running.as_str() {
+            return Err(HubError::Invalid("can only retry a running task".into()));
+        }
+        let stages = Self::workflow_stages(&task.steps);
+        let stage_index = task.step_index as usize;
+        if stage_index >= stages.len() {
+            return Err(HubError::Invalid("invalid stage index".into()));
+        }
+        let idxs = &stages[stage_index];
+        let max_retries = idxs
+            .iter()
+            .map(|i| task.steps[*i].max_retries)
+            .max()
+            .unwrap_or(0);
+        let attempts = *task.attempts.get(&stage_index.to_string()).unwrap_or(&1);
+        // After first dispatch attempts=1. With max_retries=1, one more dispatch is allowed
+        // (activate will bump to 2). Block when attempts already exceeds max_retries.
+        if attempts > max_retries {
+            self.persist_task_runtime(
+                id,
+                TaskStatus::Failed.as_str(),
+                task.step_index,
+                task.last_message_id.as_deref(),
+                &task.attempts,
+                &[],
+                &[],
+            )?;
+            return Err(HubError::Invalid(format!(
+                "max_retries ({max_retries}) exhausted for stage {stage_index} (attempts={attempts}); task marked failed"
+            )));
+        }
+
+        self.persist_task_runtime(
+            id,
+            TaskStatus::Running.as_str(),
+            task.step_index,
+            task.last_message_id.as_deref(),
+            &task.attempts,
+            &[],
+            &[],
+        )?;
+        let task = self
+            .get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        self.activate_stage(
+            id,
+            &task,
+            task.step_index,
+            from_agent.unwrap_or("human"),
+            note.or(Some("retry")),
+        )
+    }
+
     pub fn cancel_task(&self, id: &str) -> Result<TaskRecord, HubError> {
         let n = self.conn.execute(
-            "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
-            params![TaskStatus::Cancelled.as_str(), Utc::now().to_rfc3339(), id],
+            "UPDATE tasks SET status = ?1, updated_at = ?2, open_agents_json = '[]', pending_agents_json = '[]' WHERE id = ?3",
+            params![
+                TaskStatus::Cancelled.as_str(),
+                Utc::now().to_rfc3339(),
+                id
+            ],
         )?;
         if n == 0 {
             return Err(HubError::NotFound(id.into()));
@@ -1893,5 +2189,111 @@ mod tests {
 
         let listed = store.list_tasks(Some(TaskStatus::Done)).unwrap();
         assert_eq!(listed.len(), 1);
+    }
+
+    #[test]
+    fn c5_bounded_parallel_and_retry() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let steps = vec![
+            WorkflowStep {
+                agent: "planner".into(),
+                role: None,
+                instruction: "Plan".into(),
+                max_retries: 0,
+                parallel_group: None,
+            },
+            WorkflowStep {
+                agent: "dev_a".into(),
+                role: None,
+                instruction: "Code path A".into(),
+                max_retries: 1,
+                parallel_group: Some("impl".into()),
+            },
+            WorkflowStep {
+                agent: "dev_b".into(),
+                role: None,
+                instruction: "Code path B".into(),
+                max_retries: 1,
+                parallel_group: Some("impl".into()),
+            },
+            WorkflowStep {
+                agent: "dev_c".into(),
+                role: None,
+                instruction: "Code path C".into(),
+                max_retries: 1,
+                parallel_group: Some("impl".into()),
+            },
+            WorkflowStep {
+                agent: "reviewer".into(),
+                role: None,
+                instruction: "Review all".into(),
+                max_retries: 0,
+                parallel_group: None,
+            },
+        ];
+        // max_parallel=2 → wake two of three implementers first
+        let task = store
+            .create_task_with_parallel("parallel slice", None, &steps, 2)
+            .unwrap();
+        let stages = HubStore::workflow_stages(&task.steps);
+        assert_eq!(stages.len(), 3); // plan | parallel impl | review
+
+        let t1 = store.advance_task(&task.id, None, None).unwrap();
+        assert_eq!(t1.step_index, 0); // sequential plan
+        assert!(t1.open_agents.is_empty());
+
+        let t2 = store.advance_task(&task.id, Some("planner"), None).unwrap();
+        assert_eq!(t2.step_index, 1);
+        assert_eq!(t2.open_agents.len(), 2);
+        assert_eq!(t2.pending_agents.len(), 1);
+
+        // Cannot advance while parallel open
+        assert!(store.advance_task(&task.id, None, None).is_err());
+
+        let a = t2.open_agents[0].clone();
+        let b = t2.open_agents[1].clone();
+        let mid = store.complete_parallel_member(&task.id, &a, None).unwrap();
+        // one free slot → pending agent wakes
+        assert_eq!(mid.open_agents.len(), 2);
+        assert!(mid.pending_agents.is_empty());
+
+        let mid2 = store.complete_parallel_member(&task.id, &b, None).unwrap();
+        let mid3 = store
+            .complete_parallel_member(&task.id, &mid2.open_agents[0], None)
+            .unwrap();
+        // after draining the third
+        let drained = if mid3.open_agents.is_empty() {
+            mid3
+        } else {
+            store
+                .complete_parallel_member(&task.id, &mid3.open_agents[0], None)
+                .unwrap()
+        };
+        assert!(drained.open_agents.is_empty());
+        assert!(drained.pending_agents.is_empty());
+
+        // Retry current parallel stage once (max_retries=1 on those steps)
+        let retried = store
+            .retry_task(&task.id, Some("human"), Some("impl flaked"))
+            .unwrap();
+        assert_eq!(retried.step_index, 1);
+        assert_eq!(retried.open_agents.len(), 2);
+
+        // Drain again
+        let mut cur = retried;
+        while !cur.open_agents.is_empty() || !cur.pending_agents.is_empty() {
+            let agent = cur.open_agents[0].clone();
+            cur = store
+                .complete_parallel_member(&task.id, &agent, None)
+                .unwrap();
+        }
+
+        let done = store.advance_task(&task.id, Some("dev_a"), None).unwrap(); // review stage
+        assert_eq!(done.step_index, 2);
+        let finished = store
+            .advance_task(&task.id, Some("reviewer"), None)
+            .unwrap();
+        assert_eq!(finished.status, "done");
     }
 }

@@ -302,6 +302,8 @@ pub fn run() {
             hub_cmds::hub_get_task,
             hub_cmds::hub_advance_task,
             hub_cmds::hub_cancel_task,
+            hub_cmds::hub_complete_parallel_member,
+            hub_cmds::hub_retry_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

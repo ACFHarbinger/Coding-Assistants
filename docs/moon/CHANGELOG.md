@@ -13,10 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
     pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
     message status updates; Markdown export includes handoffs;
-    **`export_markdown_git`** (M3); sequential **`tasks`** workflow advance (C5).
+    **`export_markdown_git`** (M3); **`tasks`** with sequential stages,
+    bounded-parallel groups (`parallel_group` + `max_parallel`), and
+    per-stage **retries** (`max_retries` / `retry_task`) (C5).
   - `ca` CLI: `memory promote|delete|compact|purge-stale|age-out`,
     `msg status`, `wake resolve|policy`, `export-markdown --commit`,
-    `task create|advance|list|get|cancel`.
+    `task create|advance|complete|retry|list|get|cancel`.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);

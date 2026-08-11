@@ -71,8 +71,9 @@ enum Command {
 
 #[derive(Subcommand)]
 enum TaskCommand {
-    /// Create a sequential workflow. --steps is JSON array of
-    /// {agent, instruction, role?} objects.
+    /// Create a workflow. --steps is JSON array of
+    /// {agent, instruction, role?, max_retries?, parallel_group?} objects.
+    /// Consecutive steps sharing parallel_group form a bounded parallel stage.
     Create {
         #[arg(long)]
         title: String,
@@ -80,6 +81,9 @@ enum TaskCommand {
         workspace: Option<String>,
         #[arg(long)]
         steps: String,
+        /// Max concurrent wakes inside a parallel stage (default 4).
+        #[arg(long, default_value_t = 4)]
+        max_parallel: u32,
     },
     List {
         #[arg(long)]
@@ -88,8 +92,25 @@ enum TaskCommand {
     Get {
         id: String,
     },
-    /// Advance one step (or complete the task after the last step).
+    /// Advance one **stage** (or complete after the last stage).
+    /// Fails while a parallel stage still has open agents.
     Advance {
+        id: String,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Mark one agent finished in the current parallel stage (wakes queued agents).
+    Complete {
+        id: String,
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Re-dispatch the current stage (honours max_retries; may mark task failed).
+    Retry {
         id: String,
         #[arg(long)]
         from: Option<String>,
@@ -441,10 +462,16 @@ fn main() -> anyhow::Result<()> {
                 title,
                 workspace,
                 steps,
+                max_parallel,
             } => {
                 let steps: Vec<WorkflowStep> = serde_json::from_str(&steps)
                     .map_err(|e| anyhow::anyhow!("--steps JSON: {e}"))?;
-                let record = store.create_task(&title, workspace.as_deref(), &steps)?;
+                let record = store.create_task_with_parallel(
+                    &title,
+                    workspace.as_deref(),
+                    &steps,
+                    max_parallel,
+                )?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
             }
             TaskCommand::List { status } => {
@@ -460,6 +487,14 @@ fn main() -> anyhow::Result<()> {
             }
             TaskCommand::Advance { id, from, note } => {
                 let record = store.advance_task(&id, from.as_deref(), note.as_deref())?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            TaskCommand::Complete { id, agent, note } => {
+                let record = store.complete_parallel_member(&id, &agent, note.as_deref())?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            TaskCommand::Retry { id, from, note } => {
+                let record = store.retry_task(&id, from.as_deref(), note.as_deref())?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
             }
             TaskCommand::Cancel { id } => {
