@@ -329,3 +329,11 @@ Added `try_consume_budget` plus CLI `ca budget consume` and Tauri
 starting a provider call; over-limit requests are rejected atomically. Tauri
 `AgentSystem` now uses the same reservation path. Validation passes; unrelated
 TCP formatting changes remain untouched.
+
+### codex — 2026-08-11 — C4 task delegation policy verification
+
+Verified the existing persisted `require_human_approval` task policy and added
+`c4_task_policy_controls_wake_gate`. With standing auto-wake allowed, a task
+created without human approval now emits an ungated wake; standing policy can
+still force a gate. CLI/Tauri support is present; desktop task-creation policy
+controls remain open.

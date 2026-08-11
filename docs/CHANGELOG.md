@@ -49,6 +49,9 @@ All notable changes to this project are documented in this file. The format is b
 - Added an atomic pre-provider budget reservation command so external adapters
   can reject over-limit calls before invocation, matching Tauri enforcement.
 
+- C4 task-level delegation approval is now persisted and exposed through CLI
+  and Tauri workflow creation, with a regression test for ungated task wakes.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)
