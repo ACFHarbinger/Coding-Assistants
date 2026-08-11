@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Orchestrate|Hub tabs; same `$CA_HOME` / `~/.coding-assistants` store as CLI.
   - Roadmaps/changelog/crates README updated; unit tests for promote/compact,
     wake dedup, policy, and retention.
+- Added the first executable M6 acceptance flow covering a durable handoff,
+  provenance-linked memory, cross-agent inbox retrieval, wake resolution, and
+  Markdown export; a real multi-agent repository run remains.
 - PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
   Rust workspace checks passed before this implementation began.
 

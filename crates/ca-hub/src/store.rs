@@ -169,6 +169,7 @@ pub struct MemoryRecord {
     pub created_at: String,
     pub updated_at: String,
     pub stale: bool,
+    pub source_event_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,6 +392,29 @@ impl HubStore {
         body: &str,
         tags: &[String],
     ) -> Result<MemoryRecord, HubError> {
+        self.write_memory_with_source(
+            tier,
+            scope,
+            agent_id,
+            workspace_path,
+            title,
+            body,
+            tags,
+            None,
+        )
+    }
+
+    pub fn write_memory_with_source(
+        &self,
+        tier: MemoryTier,
+        scope: MemoryScope,
+        agent_id: Option<&str>,
+        workspace_path: Option<&str>,
+        title: Option<&str>,
+        body: &str,
+        tags: &[String],
+        source_event_id: Option<&str>,
+    ) -> Result<MemoryRecord, HubError> {
         if scope == MemoryScope::Workspace && workspace_path.is_none() {
             return Err(HubError::Invalid(
                 "workspace scope requires --workspace".into(),
@@ -408,8 +432,8 @@ impl HubStore {
             r#"
             INSERT INTO memories(
                 id, scope, workspace_path, tier, agent_id, title, body,
-                tags_json, created_at, updated_at, stale
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                tags_json, created_at, updated_at, stale, source_event_id
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, ?11)
             "#,
             params![
                 id,
@@ -422,6 +446,7 @@ impl HubStore {
                 tags_json,
                 now,
                 now,
+                source_event_id,
             ],
         )?;
 
@@ -432,7 +457,7 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale
+                   tags_json, created_at, updated_at, stale, source_event_id
             FROM memories WHERE id = ?1
             "#,
         )?;
@@ -450,6 +475,7 @@ impl HubStore {
                     created_at: r.get(8)?,
                     updated_at: r.get(9)?,
                     stale: r.get::<_, i64>(10)? != 0,
+                    source_event_id: r.get(11)?,
                 })
             })
             .optional()?;
@@ -466,7 +492,7 @@ impl HubStore {
         let mut sql = String::from(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale
+                   tags_json, created_at, updated_at, stale, source_event_id
             FROM memories WHERE 1=1
             "#,
         );
@@ -505,6 +531,7 @@ impl HubStore {
                 created_at: r.get(8)?,
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
+                source_event_id: r.get(11)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -518,7 +545,7 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale
+                   tags_json, created_at, updated_at, stale, source_event_id
             FROM memories
             WHERE stale = 0 AND (body LIKE ?1 OR IFNULL(title, '') LIKE ?1 OR tags_json LIKE ?1)
             ORDER BY created_at DESC
@@ -538,6 +565,7 @@ impl HubStore {
                 created_at: r.get(8)?,
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
+                source_event_id: r.get(11)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -1299,5 +1327,58 @@ mod tests {
         store.mark_memory_stale(&m.id, true).unwrap();
         assert_eq!(store.purge_stale_memories().unwrap(), 1);
         assert!(store.get_memory(&m.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn m6_cross_agent_handoff_acceptance_flow() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        let handoff = store
+            .send_message(
+                "grok",
+                "claude",
+                MessageKind::Handoff,
+                "The shared Hub slice is ready for review.",
+                Some("m6-acceptance"),
+                None,
+                Some("m6-acceptance"),
+            )
+            .unwrap();
+        let memory = store
+            .write_memory_with_source(
+                MemoryTier::Episodic,
+                MemoryScope::Global,
+                Some("grok"),
+                Some("m6-acceptance"),
+                Some("Hub handoff"),
+                "Review the Hub implementation and verify wake delivery.",
+                &["handoff".into(), "acceptance".into()],
+                Some("m6-acceptance"),
+            )
+            .unwrap();
+        assert_eq!(memory.source_event_id.as_deref(), Some("m6-acceptance"));
+
+        let inbox = store.poll_messages("claude", true).unwrap();
+        assert_eq!(inbox.len(), 1);
+        assert_eq!(inbox[0].id, handoff.id);
+        assert_eq!(inbox[0].status, "acked");
+
+        let wake = store
+            .request_wake("claude", Some("handoff ready"), Some(&handoff.id), true)
+            .unwrap();
+        let duplicate = store
+            .request_wake("claude", Some("handoff ready"), Some(&handoff.id), true)
+            .unwrap();
+        assert_eq!(wake.id, duplicate.id);
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+        assert!(store.list_wakes(Some("claude"), true).unwrap().is_empty());
+
+        let export = store.export_markdown(None).unwrap();
+        let text = fs::read_to_string(export).unwrap();
+        assert!(text.contains("Hub handoff"));
+        assert!(text.contains("The shared Hub slice is ready for review."));
     }
 }
