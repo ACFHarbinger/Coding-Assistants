@@ -78,7 +78,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
-  if (budgets.length === 0) return <p style={{ color: "var(--text-muted)", margin: 0 }}>No budgets configured.</p>;
+  if (budgets.length === 0) return null;
   const chartWidth = 760;
   const rowHeight = 42;
   const labelWidth = 120;
