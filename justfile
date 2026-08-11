@@ -45,6 +45,10 @@ pre-commit:
 clean:
     @just dev::clean
 
+# Build and install the `ca` hub CLI onto ~/.local/bin
+install-ca:
+    @just dev::install-ca
+
 # --- Build (→ tools/build) ---
 
 # Build the app (frontend + Rust backend)
