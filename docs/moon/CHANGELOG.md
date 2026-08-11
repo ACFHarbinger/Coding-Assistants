@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history, 
     metadata, and message/handoff transcripts.
   - **U5 done:** Added DashboardScreen to Android app for viewing events and approving/rejecting wakes via TCP.
+  - **U6 done:** Implemented Project Creation Wizard via a `bootstrap_workspace` Tauri command 
+    and a button in the ConfigPanel to initialize `.agent/` skeletons for new workspaces.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
     acceptance, and C5 sequential plus bounded-parallel/retry workflows.

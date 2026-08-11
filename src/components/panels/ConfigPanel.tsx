@@ -326,6 +326,20 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
             >
               Browse
             </button>
+            <button
+              className="btn-secondary"
+              style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+              onClick={async () => {
+                try {
+                  await invoke("bootstrap_workspace", { workDir: config.work_dir });
+                  alert(`Successfully bootstrapped .agent/ in ${config.work_dir}`);
+                } catch (err) {
+                  alert(`Failed to bootstrap: ${err}`);
+                }
+              }}
+            >
+              Initialize .agent/
+            </button>
           </div>
         </div>
 

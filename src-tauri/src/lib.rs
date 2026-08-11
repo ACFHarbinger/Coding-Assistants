@@ -145,6 +145,49 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn bootstrap_workspace(work_dir: String) -> Result<(), String> {
+    let base = std::path::Path::new(&work_dir).join(".agent");
+    if base.exists() {
+        return Err("Workspace is already bootstrapped (.agent directory exists)".to_string());
+    }
+
+    tokio::fs::create_dir_all(base.join("rules"))
+        .await
+        .map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(base.join("prompts"))
+        .await
+        .map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(base.join("workflows"))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mcp_config = r#"{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}"#;
+
+    tokio::fs::write(base.join("mcp_config.json"), mcp_config)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let agents_md = r#"# AGENTS.md
+
+Welcome to your new Coding Assistants workspace!
+Place your instructions in this file or under the `rules/` directory.
+"#;
+
+    tokio::fs::write(base.join("AGENTS.md"), agents_md)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> {
     // Determine if we have an active agent system or need to create a temporary one (or just use a temporary LLMClient)
     // Since LLMClient::new() is cheap, we can just create one.
@@ -268,6 +311,7 @@ pub fn run() {
             get_agent_resources,
             get_resource_content,
             read_file_absolute,
+            bootstrap_workspace,
             get_available_models,
             start_tcp_server,
             stop_tcp_server,
