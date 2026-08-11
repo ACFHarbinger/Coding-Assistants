@@ -22,6 +22,21 @@ interface AgentEvent {
   content: string;
 }
 
+interface HubMessage {
+  id: string;
+  from_agent: string;
+  to_agent: string;
+  body: string;
+  kind: string;
+  status: string;
+  created_at: string;
+}
+
+interface HubAgent {
+  id: string;
+  display_name: string;
+}
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
     roles: [
@@ -68,6 +83,8 @@ function App() {
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
+  const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
 
   useEffect(() => {
     async function loadModels() {
@@ -216,25 +233,52 @@ function App() {
     }
   };
 
-  const startTask = async () => {
-    if (loading) {
-      try {
-        await invoke("cancel_task");
-        setOutput(prev => prev + "\n[Cancelling task...]");
-      } catch (error) {
-        console.error("Failed to cancel task:", error);
-      }
-      return;
-    }
-
-    setLoading(true);
-    setEvents(prev => [...prev, { source: "Harbinger", event_type: "message", content: task }]);
-    setOutput("");
+  const refreshHubChat = async () => {
+    if (!isTauriRuntime()) return;
     try {
-      const result = await invoke<string>("run_agent_task", { config, task });
-      setOutput(result);
+      const [messages, agents] = await Promise.all([
+        invoke<HubMessage[]>("hub_list_messages", { to: null, status: null }),
+        invoke<HubAgent[]>("hub_list_agents")
+      ]);
+      setHubMessages(messages);
+      setHubAgents(agents);
     } catch (error) {
-      setOutput(`Error: ${error}`);
+      console.error("Failed to refresh harness messages:", error);
+    }
+  };
+
+  useEffect(() => {
+    refreshHubChat();
+    if (!isTauriRuntime()) return;
+    const interval = window.setInterval(refreshHubChat, 1500);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const sendMessage = async () => {
+    if (loading || !task.trim()) return;
+    setLoading(true);
+    try {
+      // This is deliberately a hub message, not an agent task. It must not
+      // invoke OpenCode: Codex and the other harness participants receive
+      // their messages through the shared hub.
+      const recipients = teamMembers.length > 0
+        ? teamMembers.map(member => member.id)
+        : ["chat"];
+      await Promise.all(recipients.map(to => invoke("hub_send_message", {
+        args: {
+          from: "human",
+          to,
+          kind: "message",
+          subject: null,
+          workspace: config.work_dir || null,
+          task: null,
+          body: task.trim()
+        }
+      })));
+      setTask("");
+      await refreshHubChat();
+    } catch (error) {
+      setEvents(prev => [...prev, { source: "System", event_type: "error", content: `Message failed: ${error}` }]);
     } finally {
       setLoading(false);
     }
@@ -296,7 +340,7 @@ function App() {
             Shared Hub
           </button>
           <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(168, 85, 247, 0.2)', color: 'var(--accent)', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-            Powered by OpenCode
+            Shared Hub Messaging
           </div>
         </div>
       </header>
@@ -321,12 +365,14 @@ function App() {
               task={task}
               setTask={setTask}
               loading={loading}
-              startTask={startTask}
+              sendMessage={sendMessage}
               events={events}
               setEvents={setEvents}
               output={output}
               setOutput={setOutput}
               teamMembers={teamMembers}
+              hubMessages={hubMessages}
+              hubAgents={hubAgents}
             />
 
             <RemotePanel

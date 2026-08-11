@@ -7,29 +7,51 @@ interface AgentEvent {
   content: string;
 }
 
+interface HubMessage {
+  id: string;
+  from_agent: string;
+  to_agent: string;
+  body: string;
+  kind: string;
+  status: string;
+  created_at: string;
+}
+
+interface HubAgent {
+  id: string;
+  display_name: string;
+}
+
 interface ActivityPanelProps {
   task: string;
   setTask: (t: string) => void;
   loading: boolean;
-  startTask: () => Promise<void>;
+  sendMessage: () => Promise<void>;
   events: AgentEvent[];
   setEvents: (events: AgentEvent[]) => void;
   output: string;
   setOutput: (out: string) => void;
   teamMembers: TeamMember[];
+  hubMessages: HubMessage[];
+  hubAgents: HubAgent[];
 }
 
 export default function ActivityPanel({
   task,
   setTask,
   loading,
-  startTask,
+  sendMessage,
   events,
   setEvents,
   output,
   setOutput,
-  teamMembers
+  teamMembers,
+  hubMessages,
+  hubAgents
 }: ActivityPanelProps) {
+  const agentName = (id: string) => id === "human"
+    ? "Harbinger"
+    : hubAgents.find(agent => agent.id === id)?.display_name || id;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="glass-card fade-in" style={{ animationDelay: '0.2s' }}>
@@ -62,8 +84,8 @@ export default function ActivityPanel({
               <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 500 }}>Sending message to the agent team...</span>
             </div>
           )}
-          <button className={loading ? "btn-secondary" : "btn-primary"} onClick={startTask} disabled={!task && !loading}>
-            {loading ? "Cancel Message" : "Send Message"}
+          <button className={loading ? "btn-secondary" : "btn-primary"} onClick={sendMessage} disabled={!task.trim() || loading}>
+            {loading ? "Sending…" : "Send Message"}
           </button>
         </div>
       </div>
@@ -86,7 +108,7 @@ export default function ActivityPanel({
         )}
       </div>
 
-      {events.length > 0 && (
+      {(events.length > 0 || hubMessages.length > 0) && (
         <div className="glass-card fade-in" style={{ animationDelay: '0.3s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h2>Messages</h2>
@@ -152,6 +174,24 @@ export default function ActivityPanel({
                   }}>
                     {ev.content}
                   </pre>
+                </div>
+              </div>
+            ))}
+            {hubMessages.map(message => (
+              <div key={`hub-${message.id}`} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: message.from_agent === 'human' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.2)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255, 255, 255, 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span style={{ background: 'rgba(99, 102, 241, 0.18)', color: 'var(--primary)', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {agentName(message.from_agent)}
+                    </span>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                      to {agentName(message.to_agent)} · {message.kind}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{message.status}</span>
+                </div>
+                <div style={{ padding: '1.25rem' }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{message.body}</pre>
                 </div>
               </div>
             ))}

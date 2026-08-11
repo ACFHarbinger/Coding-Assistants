@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Connected Orchestrate to the shared harness inbox: messages sent by Harbinger
+  use `hub_send_message` directly instead of launching an OpenCode task, while
+  persisted agent and private messages are refreshed into the chat with sender,
+  recipient, kind, and status labels.
+
 - Reframed Orchestrate as a session team chat: **Execute Task** is now
   **Write Message**, **Launch Sequence** is **Send Message**, agent events are
   displayed as sender-attributed messages, and configured spawned agents have
