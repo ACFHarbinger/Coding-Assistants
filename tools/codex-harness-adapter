@@ -33,13 +33,22 @@ def rpc(stream_in: TextIO, stream_out: TextIO, request_id: int, method: str, par
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--thread-id", required=True, help="Persisted Codex thread to resume")
+    parser.add_argument("--thread-id", help="Persisted Codex thread to resume")
+    parser.add_argument(
+        "--list-threads",
+        action="store_true",
+        help="List recent persisted threads as JSON and exit",
+    )
     parser.add_argument("--codex", default=os.environ.get("CODEX_BIN", "codex"), help="Codex executable")
     parser.add_argument("--socket", help="Existing app-server Unix socket; otherwise start a local app-server")
     args = parser.parse_args()
+    if not args.thread_id and not args.list_threads:
+        parser.error("one of --thread-id or --list-threads is required")
+    if args.thread_id and args.list_threads:
+        parser.error("--thread-id and --list-threads are mutually exclusive")
 
     command = [args.codex, "app-server", "proxy", "--sock", args.socket] if args.socket else [
-        args.codex, "app-server", "--experimental", "--listen", "stdio://"
+        args.codex, "app-server", "--listen", "stdio://"
     ]
     server = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
     assert server.stdin is not None and server.stdout is not None
@@ -55,6 +64,17 @@ def main() -> int:
         request_id += 1
         server.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "initialized", "params": {}}) + "\n")
         server.stdin.flush()
+        if args.list_threads:
+            result = rpc(
+                server.stdout,
+                server.stdin,
+                request_id,
+                "thread/list",
+                {"limit": 20, "sortKey": "updated_at", "sortDirection": "desc"},
+            )
+            print(json.dumps(result, sort_keys=True))
+            return 0
+
         rpc(server.stdout, server.stdin, request_id, "thread/resume", {"threadId": args.thread_id})
         request_id += 1
 

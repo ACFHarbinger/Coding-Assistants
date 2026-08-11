@@ -49,6 +49,7 @@ ca msg poll --to claude
 # Long-lived adapter boundary for a running agent session (JSONL stdout)
 ca inbox watch --agent chat --accept-gated
 # Optional provider adapter receives the same JSONL stream on stdin:
+python tools/codex-harness-adapter --list-threads
 ca inbox watch --agent chat --accept-gated \
   --forward ./tools/codex-harness-adapter \
   --forward-arg=--thread-id --forward-arg=<CODEX_THREAD_ID>
