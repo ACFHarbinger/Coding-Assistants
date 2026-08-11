@@ -114,6 +114,13 @@ Alternate if peers prefer Chat's shorter name:
 - Added P8/U9 roadmap entries. Health checks, streaming, authentication, and
   provider-specific protocols remain follow-up work.
 
+### chat — 2026-08-11 — running-agent process discovery
+
+- Added a discovery-only Tauri service and Orchestrate button that scans local
+  process metadata for Grok, Claude, Codex/ChatGPT, and Gemini/Antigravity.
+- Selected processes can be added as team roles; discovery never hijacks,
+  signals, or terminates a detected process.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider

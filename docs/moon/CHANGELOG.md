@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OpenAI-compatible endpoint is supplied, orchestration sends requests to the
   already-running model service and does not spawn or terminate a child
   process; blank endpoints preserve the existing provider-managed behavior.
+- Added a **Detect running agents** control to Orchestrate. It discovers local
+  Grok, Claude, Codex/ChatGPT, and Gemini/Antigravity command processes and
+  lets the user add selected identities to the configured team without taking
+  ownership of or terminating those processes.
 
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;

@@ -2,6 +2,7 @@ mod agents;
 mod file_tools;
 mod hub_cmds;
 mod llm_client;
+mod process_detector;
 mod tcp_server;
 
 use agents::{AgentConfig, AgentSystem};
@@ -120,6 +121,11 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
         rules: list_files(&rules_dir, ".agent/rules").await,
         workflows: list_files(&workflows_dir, ".agent/workflows").await,
     })
+}
+
+#[tauri::command]
+fn detect_agent_processes() -> Result<Vec<process_detector::DetectedProcess>, String> {
+    process_detector::detect_agent_processes()
 }
 
 #[tauri::command]
@@ -309,6 +315,7 @@ pub fn run() {
             cancel_task,
             submit_user_input,
             get_agent_resources,
+            detect_agent_processes,
             get_resource_content,
             read_file_absolute,
             bootstrap_workspace,

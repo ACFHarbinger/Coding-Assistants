@@ -12,6 +12,7 @@ const PROVIDERS = {
   "openai": "OpenAI",
   "anthropic": "Anthropic",
   "google": "Google",
+  "xai": "Grok (xAI)",
   "ollama": "Ollama (Local)",
 };
 
