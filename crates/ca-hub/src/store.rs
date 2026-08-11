@@ -205,6 +205,24 @@ pub struct CompactReport {
     pub skipped: usize,
 }
 
+/// Standing policy for wake/delegation human gates (C4 skeleton).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WakePolicy {
+    /// When true, every wake request requires human approval.
+    pub default_requires_human_gate: bool,
+    /// When false, auto-wake without a gate is rejected.
+    pub allow_auto_wake: bool,
+}
+
+impl Default for WakePolicy {
+    fn default() -> Self {
+        Self {
+            default_requires_human_gate: true,
+            allow_auto_wake: true,
+        }
+    }
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -407,8 +425,7 @@ impl HubStore {
             ],
         )?;
 
-        self.get_memory(&id)?
-            .ok_or_else(|| HubError::NotFound(id))
+        self.get_memory(&id)?.ok_or_else(|| HubError::NotFound(id))
     }
 
     pub fn get_memory(&self, id: &str) -> Result<Option<MemoryRecord>, HubError> {
@@ -683,8 +700,7 @@ impl HubStore {
                 now,
             ],
         )?;
-        self.get_message(&id)?
-            .ok_or_else(|| HubError::NotFound(id))
+        self.get_message(&id)?.ok_or_else(|| HubError::NotFound(id))
     }
 
     pub fn get_message(&self, id: &str) -> Result<Option<MessageRecord>, HubError> {
@@ -788,6 +804,36 @@ impl HubStore {
         }
     }
 
+    pub fn get_wake_policy(&self) -> Result<WakePolicy, HubError> {
+        let raw: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'wake_policy'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match raw {
+            Some(s) => serde_json::from_str(&s).map_err(|e| {
+                HubError::Invalid(format!("wake_policy JSON corrupt: {e}"))
+            }),
+            None => Ok(WakePolicy::default()),
+        }
+    }
+
+    pub fn set_wake_policy(&self, policy: &WakePolicy) -> Result<(), HubError> {
+        let json = serde_json::to_string(policy)
+            .map_err(|e| HubError::Invalid(format!("wake_policy serialize: {e}")))?;
+        self.conn.execute(
+            r#"
+            INSERT INTO meta(key, value) VALUES ('wake_policy', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            "#,
+            params![json],
+        )?;
+        Ok(())
+    }
+
     pub fn request_wake(
         &self,
         target_agent: &str,
@@ -796,6 +842,52 @@ impl HubStore {
         requires_human_gate: bool,
     ) -> Result<WakeRecord, HubError> {
         self.upsert_agent(target_agent, target_agent)?;
+
+        let policy = self.get_wake_policy()?;
+        let mut requires_human_gate = requires_human_gate;
+        if policy.default_requires_human_gate {
+            requires_human_gate = true;
+        }
+        if !requires_human_gate && !policy.allow_auto_wake {
+            return Err(HubError::Invalid(
+                "wake policy forbids auto-wake without human gate".into(),
+            ));
+        }
+
+        // A pending wake is an edge-triggered signal. Repeating the same
+        // request must not create duplicate durable rows or side-channel files.
+        let existing = self
+            .conn
+            .query_row(
+                r#"
+                SELECT id, target_agent, message_id, reason, status,
+                       requires_human_gate, created_at
+                FROM wake_requests
+                WHERE target_agent = ?1
+                  AND status = 'pending'
+                  AND message_id IS ?2
+                  AND reason IS ?3
+                ORDER BY created_at DESC
+                LIMIT 1
+                "#,
+                params![target_agent, message_id, reason],
+                |r| {
+                    Ok(WakeRecord {
+                        id: r.get(0)?,
+                        target_agent: r.get(1)?,
+                        message_id: r.get(2)?,
+                        reason: r.get(3)?,
+                        status: r.get(4)?,
+                        requires_human_gate: r.get::<_, i64>(5)? != 0,
+                        created_at: r.get(6)?,
+                    })
+                },
+            )
+            .optional()?;
+        if let Some(wake) = existing {
+            return Ok(wake);
+        }
+
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
@@ -840,6 +932,30 @@ impl HubStore {
         })
     }
 
+    pub fn set_wake_status(&self, id: &str, status: WakeStatus) -> Result<(), HubError> {
+        let n = self.conn.execute(
+            "UPDATE wake_requests SET status = ?1 WHERE id = ?2",
+            params![status.as_str(), id],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        // Keep side-channel file in sync when present.
+        let path = self.data_dir.join("wake").join(format!("{id}.json"));
+        if path.exists() {
+            if let Ok(text) = fs::read_to_string(&path) {
+                if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&text) {
+                    v["status"] = serde_json::json!(status.as_str());
+                    let _ = fs::write(&path, serde_json::to_string_pretty(&v).unwrap_or_default());
+                }
+            }
+            if status != WakeStatus::Pending {
+                let _ = fs::remove_file(&path);
+            }
+        }
+        Ok(())
+    }
+
     pub fn list_wakes(
         &self,
         target_agent: Option<&str>,
@@ -879,11 +995,7 @@ impl HubStore {
     }
 
     /// Append to a private journal file (never written into shared SQLite tables).
-    pub fn append_private_journal(
-        &self,
-        agent_id: &str,
-        entry: &str,
-    ) -> Result<PathBuf, HubError> {
+    pub fn append_private_journal(&self, agent_id: &str, entry: &str) -> Result<PathBuf, HubError> {
         if entry.trim().is_empty() {
             return Err(HubError::Invalid("journal entry must not be empty".into()));
         }
@@ -901,7 +1013,53 @@ impl HubStore {
         Ok(path)
     }
 
-    /// Export high-priority memories as git-friendly Markdown under `markdown/`.
+    /// Permanently delete memories already marked stale (M5 retention).
+    pub fn purge_stale_memories(&self) -> Result<usize, HubError> {
+        let n = self
+            .conn
+            .execute("DELETE FROM memories WHERE stale = 1", [])?;
+        Ok(n as usize)
+    }
+
+    /// Mark short-term memories older than `max_age_hours` as stale (soft retention).
+    pub fn mark_short_term_stale_older_than(&self, max_age_hours: i64) -> Result<usize, HubError> {
+        if max_age_hours < 0 {
+            return Err(HubError::Invalid("max_age_hours must be >= 0".into()));
+        }
+        let cutoff = (Utc::now() - chrono::Duration::hours(max_age_hours)).to_rfc3339();
+        let n = self.conn.execute(
+            r#"
+            UPDATE memories
+            SET stale = 1, updated_at = ?1
+            WHERE tier = 'short_term' AND stale = 0 AND created_at < ?2
+            "#,
+            params![Utc::now().to_rfc3339(), cutoff],
+        )?;
+        Ok(n as usize)
+    }
+
+    pub fn set_message_status(
+        &self,
+        id: &str,
+        status: MessageStatus,
+    ) -> Result<MessageRecord, HubError> {
+        let acked = if matches!(status, MessageStatus::Acked | MessageStatus::Done) {
+            Some(Utc::now().to_rfc3339())
+        } else {
+            None
+        };
+        let n = self.conn.execute(
+            "UPDATE messages SET status = ?1, acked_at = COALESCE(?2, acked_at) WHERE id = ?3",
+            params![status.as_str(), acked, id],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        self.get_message(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    /// Export high-priority memories + handoffs as git-friendly Markdown under `markdown/`.
     pub fn export_markdown(&self, out_dir: Option<&Path>) -> Result<PathBuf, HubError> {
         let out = out_dir
             .map(|p| p.to_path_buf())
@@ -910,6 +1068,11 @@ impl HubStore {
 
         let episodic = self.list_memories(None, Some(MemoryTier::Episodic), None, false)?;
         let semantic = self.list_memories(None, Some(MemoryTier::Semantic), None, false)?;
+        let handoffs = self.list_messages(None, None)?;
+        let handoffs: Vec<_> = handoffs
+            .into_iter()
+            .filter(|m| m.kind == MessageKind::Handoff.as_str())
+            .collect();
 
         let mut body = String::from("# Coding-Assistants Shared Memory Export\n\n");
         body.push_str(&format!("Generated: {}\n\n", Utc::now().to_rfc3339()));
@@ -936,6 +1099,23 @@ impl HubStore {
                 m.id,
                 m.scope,
                 m.agent_id.as_deref().unwrap_or("-"),
+                m.body
+            ));
+        }
+
+        body.push_str("## Handoffs\n\n");
+        if handoffs.is_empty() {
+            body.push_str("_No handoff messages._\n\n");
+        }
+        for m in &handoffs {
+            body.push_str(&format!(
+                "### {} → {} ({})\n\n- id: `{}`\n- status: {}\n- task: {}\n\n{}\n\n",
+                m.from_agent,
+                m.to_agent,
+                m.created_at,
+                m.id,
+                m.status,
+                m.task_id.as_deref().unwrap_or("-"),
                 m.body
             ));
         }
@@ -992,8 +1172,17 @@ mod tests {
         let wake = store
             .request_wake("claude", Some("schema ready"), Some(&msg.id), true)
             .unwrap();
+        let duplicate = store
+            .request_wake("claude", Some("schema ready"), Some(&msg.id), true)
+            .unwrap();
         assert!(wake.requires_human_gate);
-        assert!(dir.path().join("wake").join(format!("{}.json", wake.id)).exists());
+        assert_eq!(wake.id, duplicate.id);
+        assert_eq!(store.list_wakes(Some("claude"), true).unwrap().len(), 1);
+        assert!(dir
+            .path()
+            .join("wake")
+            .join(format!("{}.json", wake.id))
+            .exists());
 
         let journal = store
             .append_private_journal("grok", "Private note: do not share.")
@@ -1054,9 +1243,7 @@ mod tests {
                 &[],
             )
             .unwrap();
-        let semantic = store
-            .promote_memory(&one.id, MemoryTier::Semantic)
-            .unwrap();
+        let semantic = store.promote_memory(&one.id, MemoryTier::Semantic).unwrap();
         assert_eq!(semantic.tier, "semantic");
         store.delete_memory(&semantic.id).unwrap();
         assert!(store.get_memory(&semantic.id).unwrap().is_none());

@@ -188,7 +188,15 @@ fn main() -> anyhow::Result<()> {
             println!("exported to {}", path.display());
         }
         Command::Memory { action } => match action {
-            MemoryCommand::Write { tier, scope, agent, workspace, title, tags, body } => {
+            MemoryCommand::Write {
+                tier,
+                scope,
+                agent,
+                workspace,
+                title,
+                tags,
+                body,
+            } => {
                 let tier = MemoryTier::parse(&tier)?;
                 let scope = MemoryScope::parse(&scope)?;
                 let record = store.write_memory(
@@ -202,14 +210,23 @@ fn main() -> anyhow::Result<()> {
                 )?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
             }
-            MemoryCommand::List { scope, tier, workspace, include_stale } => {
+            MemoryCommand::List {
+                scope,
+                tier,
+                workspace,
+                include_stale,
+            } => {
                 let scope = scope.map(|s| MemoryScope::parse(&s)).transpose()?;
                 let tier = tier.map(|t| MemoryTier::parse(&t)).transpose()?;
-                let records = store.list_memories(scope, tier, workspace.as_deref(), include_stale)?;
+                let records =
+                    store.list_memories(scope, tier, workspace.as_deref(), include_stale)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
             }
             MemoryCommand::Search { query } => {
-                println!("{}", serde_json::to_string_pretty(&store.search_memories(&query)?)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.search_memories(&query)?)?
+                );
             }
             MemoryCommand::Stale { id, unstale } => {
                 store.mark_memory_stale(&id, !unstale)?;
@@ -230,7 +247,15 @@ fn main() -> anyhow::Result<()> {
             }
         },
         Command::Msg { action } => match action {
-            MsgCommand::Send { from, to, kind, subject, workspace, task, body } => {
+            MsgCommand::Send {
+                from,
+                to,
+                kind,
+                subject,
+                workspace,
+                task,
+                body,
+            } => {
                 let kind = MessageKind::parse(&kind)?;
                 let record = store.send_message(
                     &from,
@@ -254,11 +279,24 @@ fn main() -> anyhow::Result<()> {
             }
         },
         Command::Wake { action } => match action {
-            WakeCommand::Request { target, reason, message_id, human_gate } => {
-                let record = store.request_wake(&target, reason.as_deref(), message_id.as_deref(), human_gate)?;
+            WakeCommand::Request {
+                target,
+                reason,
+                message_id,
+                human_gate,
+            } => {
+                let record = store.request_wake(
+                    &target,
+                    reason.as_deref(),
+                    message_id.as_deref(),
+                    human_gate,
+                )?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
             }
-            WakeCommand::List { target, pending_only } => {
+            WakeCommand::List {
+                target,
+                pending_only,
+            } => {
                 let records = store.list_wakes(target.as_deref(), pending_only)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
             }

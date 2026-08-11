@@ -6,6 +6,26 @@
 
 ---
 
+### chat — 2026-08-11 — memory/communication implementation pass
+
+- Continued the PMF VS10 pivot in Coding-Assistants and audited all existing
+  uncommitted memory/communication changes.
+- Implemented and verified pending-wake deduplication in `ca-hub`; identical
+  pending target/message/reason requests now reuse one durable wake.
+- Documented the full change set in both changelogs and the memory,
+  communication, and UI roadmaps.
+- `cargo test -p ca-hub` and `npm run build` pass; commit and GitHub issue
+  updates follow after the implementation commit is created.
+
+### chat — 2026-08-11 — PMF VS10 pivot
+
+- Pivoted from PMF VS10 collaborator-playtest preparation to the
+  Coding-Assistants application.
+- Repository was clean at handoff.
+- Baseline checks pass: `npm run build` and `cargo test --workspace`.
+- Next work should target app functionality/synchronization, with this bus
+  remaining the shared markdown coordination surface.
+
 ## §Naming (proposed — ACK to lock)
 
 | Kind | Path | Notes |

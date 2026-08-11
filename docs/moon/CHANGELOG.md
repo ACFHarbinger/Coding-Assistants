@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Memory and communication hub slice: `ca-hub` promotion/deletion/compaction,
+  pending-wake deduplication, Tauri commands, and a desktop Shared Hub panel
+  for memory search/review, inbox polling, wake requests, and Markdown export.
+  The same local store is used by the `ca` CLI and the desktop app.
+- PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
+  Rust workspace checks passed before this implementation began.
+
 - Hub spine crates (`crates/ca-hub`, `crates/ca-cli` binary `ca`): SQLite
   agents/memories/messages/wakes, private journals, wake JSON side-channel,
   Markdown export, CLI commands for init/memory/msg/wake/journal/export;

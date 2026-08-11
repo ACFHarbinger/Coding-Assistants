@@ -79,7 +79,12 @@ pub fn hub_list_memories(
         .transpose()
         .map_err(|e| e.to_string())?;
     store
-        .list_memories(scope, tier, workspace.as_deref(), include_stale.unwrap_or(false))
+        .list_memories(
+            scope,
+            tier,
+            workspace.as_deref(),
+            include_stale.unwrap_or(false),
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -99,9 +104,7 @@ pub fn hub_mark_memory_stale(id: String, stale: bool) -> Result<(), String> {
 
 #[tauri::command]
 pub fn hub_delete_memory(id: String) -> Result<(), String> {
-    open_store()?
-        .delete_memory(&id)
-        .map_err(|e| e.to_string())
+    open_store()?.delete_memory(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -132,8 +135,8 @@ pub struct SendMessageArgs {
 #[tauri::command]
 pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> {
     let store = open_store()?;
-    let kind = MessageKind::parse(args.kind.as_deref().unwrap_or("message"))
-        .map_err(|e| e.to_string())?;
+    let kind =
+        MessageKind::parse(args.kind.as_deref().unwrap_or("message")).map_err(|e| e.to_string())?;
     store
         .send_message(
             &args.from,
@@ -148,7 +151,10 @@ pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> 
 }
 
 #[tauri::command]
-pub fn hub_poll_messages(to: String, mark_acked: Option<bool>) -> Result<Vec<MessageRecord>, String> {
+pub fn hub_poll_messages(
+    to: String,
+    mark_acked: Option<bool>,
+) -> Result<Vec<MessageRecord>, String> {
     open_store()?
         .poll_messages(&to, mark_acked.unwrap_or(true))
         .map_err(|e| e.to_string())
