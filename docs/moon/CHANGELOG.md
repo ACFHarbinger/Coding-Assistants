@@ -26,8 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <id>` emits JSONL `ready`/`message` records, polls the durable inbox,
   acknowledges delivered messages, and resolves linked wakes. Human-gated
   wakes require explicit `--accept-gated`; `--forward PROGRAM` can pipe the
-  same stream to a long-lived provider adapter. Provider-specific injection
-  into an already-running Codex/Claude/Gemini process remains adapter work.
+  same stream to a long-lived provider adapter. Added a Codex adapter using
+  the installed app-server `thread/resume` + `turn/start` protocol rather than
+  terminal injection; outbound replies and full session lifecycle remain open.
 
 - Connected Orchestrate to the shared harness inbox: messages sent by Harbinger
   use `hub_send_message` directly instead of launching an OpenCode task, while

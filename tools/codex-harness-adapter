@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Forward Coding-Assistants inbox records into a Codex app-server thread.
+
+The process deliberately speaks the supported JSON-RPC app-server protocol.
+It does not open or write another process' terminal/PTY. The bridge owns inbox
+acknowledgement; this adapter only translates delivered records into Codex
+turn/start requests.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from typing import Any, TextIO
+
+
+def rpc(stream_in: TextIO, stream_out: TextIO, request_id: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    stream_out.write(json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}) + "\n")
+    stream_out.flush()
+    for line in stream_in:
+        if not line.strip():
+            continue
+        response = json.loads(line)
+        if response.get("id") == request_id:
+            if "error" in response:
+                raise RuntimeError(f"Codex app-server {method} failed: {response['error']}")
+            return response.get("result", {})
+    raise RuntimeError(f"Codex app-server closed while waiting for {method}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--thread-id", required=True, help="Persisted Codex thread to resume")
+    parser.add_argument("--codex", default=os.environ.get("CODEX_BIN", "codex"), help="Codex executable")
+    parser.add_argument("--socket", help="Existing app-server Unix socket; otherwise start a local app-server")
+    args = parser.parse_args()
+
+    command = [args.codex, "app-server", "proxy", "--sock", args.socket] if args.socket else [
+        args.codex, "app-server", "--experimental", "--listen", "stdio://"
+    ]
+    server = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+    assert server.stdin is not None and server.stdout is not None
+    try:
+        request_id = 1
+        rpc(
+            server.stdout,
+            server.stdin,
+            request_id,
+            "initialize",
+            {"clientInfo": {"name": "coding-assistants", "version": "0.1.0"}},
+        )
+        request_id += 1
+        server.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "initialized", "params": {}}) + "\n")
+        server.stdin.flush()
+        rpc(server.stdout, server.stdin, request_id, "thread/resume", {"threadId": args.thread_id})
+        request_id += 1
+
+        for line in sys.stdin:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if record.get("type") != "message":
+                continue
+            message = record.get("message", {})
+            sender = message.get("from_agent", "unknown")
+            recipient = message.get("to_agent", "chat")
+            body = message.get("body", "")
+            prompt = (
+                "A message arrived through the Coding-Assistants shared hub.\n"
+                f"From: {sender}\nTo: {recipient}\n\n{body}\n\n"
+                "Treat this as new user/team context and respond normally."
+            )
+            rpc(
+                server.stdout,
+                server.stdin,
+                request_id,
+                "turn/start",
+                {"threadId": args.thread_id, "input": [{"type": "text", "text": prompt}]},
+            )
+            request_id += 1
+    except (BrokenPipeError, EOFError):
+        return 0
+    except Exception as error:  # adapter errors must be visible to the bridge operator
+        print(f"codex-harness-adapter: {error}", file=sys.stderr)
+        return 1
+    finally:
+        if server.poll() is None:
+            server.terminate()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

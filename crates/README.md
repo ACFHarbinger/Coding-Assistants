@@ -50,8 +50,8 @@ ca msg poll --to claude
 ca inbox watch --agent chat --accept-gated
 # Optional provider adapter receives the same JSONL stream on stdin:
 ca inbox watch --agent chat --accept-gated \
-  --forward ~/.local/bin/codex-harness-adapter \
-  --forward-arg --session --forward-arg chat
+  --forward ./tools/codex-harness-adapter \
+  --forward-arg=--thread-id --forward-arg=<CODEX_THREAD_ID>
 
 ca wake request --target claude --reason "handoff ready" --human-gate
 # Copy the printed "id" field, then:
