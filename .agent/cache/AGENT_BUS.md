@@ -337,3 +337,11 @@ Verified the existing persisted `require_human_approval` task policy and added
 created without human approval now emits an ungated wake; standing policy can
 still force a gate. CLI/Tauri support is present; desktop task-creation policy
 controls remain open.
+
+### codex — 2026-08-11 — browser bridge guard
+
+Diagnosed the `Cannot read properties of undefined (reading 'invoke')` error
+as Tauri APIs being called in browser/Vite mode. Added `src/lib/tauri.ts` with
+runtime detection, routed React command calls through it, and skipped Tauri
+event listeners outside the desktop runtime. Frontend build passes; commit
+pending.

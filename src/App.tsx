@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
 import HubPanel from "./components/HubPanel";
@@ -101,6 +101,7 @@ function App() {
   };
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     const unlisten = listen<string>("remote-status", (event) => {
       setRemoteLogs(prev => [event.payload, ...prev].slice(0, 10));
     });
@@ -137,6 +138,7 @@ function App() {
   }, [config.work_dir]);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     const unlisten = listen<AgentEvent>("agent-event", (event) => {
       setEvents((prev) => {
         const last = prev[prev.length - 1];
@@ -167,6 +169,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     const unlistenTask = listen<{ config: AgentConfig, task: string }>("android-task-request", (event) => {
       setConfig(event.payload.config);
       setTask(event.payload.task);

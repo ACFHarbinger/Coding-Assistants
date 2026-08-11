@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Centralized Tauri invocation behind a runtime guard. Browser/Vite mode now
+  reports a clear desktop-runtime requirement instead of throwing an undefined
+  bridge error, and Tauri event listeners are skipped outside the desktop app.
+
 ### Added
 
 - **C6 done:** `agent_budgets` table + `HubStore::set_agent_budget` /

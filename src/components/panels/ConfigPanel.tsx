@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/tauri";
 
 export interface ModelConfig {
   provider: string;
