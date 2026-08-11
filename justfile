@@ -53,10 +53,6 @@ install-ca:
 start:
     @just dev::dev
 
-# Backward-compatible alias for `just start`.
-dev:
-    @just start
-
 # --- Build (→ tools/build) ---
 
 # Build the app (frontend + Rust backend)
