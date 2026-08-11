@@ -60,6 +60,7 @@ ca export-markdown --commit --message "chore(hub): update shared memory export"
 # Budget-aware pause and handoff (C6)
 ca budget set --agent claude --limit 100
 ca budget spend --agent claude --amount 25
+ca budget consume --agent claude --amount 1  # reserve before a provider call
 ca budget pause --agent claude --task TASK-UUID \
   --objective "Implement feature" --completed "Core code" \
   --missing "Review and tests" --delegate-to grok

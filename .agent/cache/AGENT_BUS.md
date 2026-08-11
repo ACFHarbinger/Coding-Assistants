@@ -321,3 +321,11 @@ record caller-defined usage, inspect active/paused state, and resume paused
 agents through the existing Tauri budget commands. Provider/external-adapter
 automatic accounting and shutdown hooks remain open. Frontend build passes;
 commit pending.
+
+### codex — 2026-08-11 — C6 atomic provider reservation
+
+Added `try_consume_budget` plus CLI `ca budget consume` and Tauri
+`hub_consume_budget`. External adapters can reserve caller-defined units before
+starting a provider call; over-limit requests are rejected atomically. Tauri
+`AgentSystem` now uses the same reservation path. Validation passes; unrelated
+TCP formatting changes remain untouched.

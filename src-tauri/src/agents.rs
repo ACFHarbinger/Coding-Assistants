@@ -88,16 +88,23 @@ impl AgentSystem {
 
             let role_name = &role_config.name;
             let budget_store = HubStore::open(default_hub_dir()).ok();
-            if let Some(store) = &budget_store {
-                if let Some(status) = store.get_budget(role_name).map_err(|e| e.to_string())? {
-                    if status.paused || status.spent_units >= status.limit_units {
-                        return Err(format!(
-                            "agent {role_name} is budget-paused ({}/{} units); resume it before continuing",
-                            status.spent_units, status.limit_units
-                        ));
-                    }
+            let budget_reservation = if let Some(store) = &budget_store {
+                if store
+                    .get_budget(role_name)
+                    .map_err(|e| e.to_string())?
+                    .is_some()
+                {
+                    Some(
+                        store
+                            .try_consume_budget(role_name, 1.0)
+                            .map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
             let default_system = format!(
                 "You are an expert {}. Work with your team to complete the task. \n\
                  Review the previous outputs and contribute your expertise. \n\
@@ -140,34 +147,25 @@ impl AgentSystem {
             }
             let completion = completion.expect("completion checked above");
 
-            if let Some(store) = &budget_store {
-                if store
-                    .get_budget(role_name)
-                    .map_err(|e| e.to_string())?
-                    .is_some()
-                {
-                    let status = store
-                        .record_budget_usage(role_name, 1.0)
-                        .map_err(|e| e.to_string())?;
-                    if status.paused {
-                        let completed = if completion.is_empty() {
-                            "Provider call completed without output."
-                        } else {
-                            "Provider call completed and its output was captured in the task transcript."
-                        };
-                        let _ = store.pause_for_budget(
-                            role_name,
-                            None,
-                            task,
-                            completed,
-                            "Remaining workflow roles and final synthesis.",
-                            None,
-                        );
-                        return Err(format!(
-                            "agent {role_name} reached its budget ({}/{} units); handoff written",
-                            status.spent_units, status.limit_units
-                        ));
-                    }
+            if let (Some(store), Some(status)) = (&budget_store, budget_reservation) {
+                if status.paused {
+                    let completed = if completion.is_empty() {
+                        "Provider call completed without output."
+                    } else {
+                        "Provider call completed and its output was captured in the task transcript."
+                    };
+                    let _ = store.pause_for_budget(
+                        role_name,
+                        None,
+                        task,
+                        completed,
+                        "Remaining workflow roles and final synthesis.",
+                        None,
+                    );
+                    return Err(format!(
+                        "agent {role_name} reached its budget ({}/{} units); handoff written",
+                        status.spent_units, status.limit_units
+                    ));
                 }
             }
             let output = completion;

@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     delegation message before the Tauri task exits.
   - Shared Hub now includes a Budget tab for configuring limits, recording
     usage, inspecting paused agents, and resuming them.
+  - Added atomic pre-call budget reservation via `ca budget consume` and
+    Tauri `hub_consume_budget`; over-limit provider calls are rejected before
+    they start.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);

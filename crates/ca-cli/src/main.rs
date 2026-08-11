@@ -92,6 +92,13 @@ enum BudgetCommand {
         #[arg(long)]
         amount: f64,
     },
+    /// Reserve units before an external provider call; rejects over-limit calls.
+    Consume {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        amount: f64,
+    },
     /// Pause an agent, write a Markdown handoff summary, and hand the task
     /// off to another agent (or "human" by default).
     Pause {
@@ -127,6 +134,8 @@ enum TaskCommand {
         /// Max concurrent wakes inside a parallel stage (default 4).
         #[arg(long, default_value_t = 4)]
         max_parallel: u32,
+        #[arg(long, default_value = "true")]
+        require_approval: bool,
     },
     List {
         #[arg(long)]
@@ -506,6 +515,7 @@ fn main() -> anyhow::Result<()> {
                 workspace,
                 steps,
                 max_parallel,
+                require_approval,
             } => {
                 let steps: Vec<WorkflowStep> = serde_json::from_str(&steps)
                     .map_err(|e| anyhow::anyhow!("--steps JSON: {e}"))?;
@@ -514,6 +524,7 @@ fn main() -> anyhow::Result<()> {
                     workspace.as_deref(),
                     &steps,
                     max_parallel,
+                    require_approval,
                 )?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
             }
@@ -558,6 +569,10 @@ fn main() -> anyhow::Result<()> {
             }
             BudgetCommand::Spend { agent, amount } => {
                 let status = store.record_budget_usage(&agent, amount)?;
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            }
+            BudgetCommand::Consume { agent, amount } => {
+                let status = store.try_consume_budget(&agent, amount)?;
                 println!("{}", serde_json::to_string_pretty(&status)?);
             }
             BudgetCommand::Pause {

@@ -46,6 +46,9 @@ All notable changes to this project are documented in this file. The format is b
 - Shared Hub now exposes a Budget tab for configuring per-agent limits,
   recording caller-defined usage, viewing pause state, and resuming agents.
 
+- Added an atomic pre-provider budget reservation command so external adapters
+  can reject over-limit calls before invocation, matching Tauri enforcement.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

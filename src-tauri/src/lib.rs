@@ -352,6 +352,7 @@ pub fn run() {
             hub_cmds::hub_set_agent_budget,
             hub_cmds::hub_get_budget,
             hub_cmds::hub_record_budget_usage,
+            hub_cmds::hub_consume_budget,
             hub_cmds::hub_resume_agent,
             hub_cmds::hub_pause_for_budget,
         ])

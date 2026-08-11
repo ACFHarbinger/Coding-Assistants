@@ -304,6 +304,7 @@ pub struct CreateTaskArgs {
     pub workspace: Option<String>,
     pub steps: Vec<WorkflowStep>,
     pub max_parallel: Option<u32>,
+    pub require_human_approval: Option<bool>,
 }
 
 #[tauri::command]
@@ -314,6 +315,7 @@ pub fn hub_create_task(args: CreateTaskArgs) -> Result<TaskRecord, String> {
             args.workspace.as_deref(),
             &args.steps,
             args.max_parallel.unwrap_or(4),
+            args.require_human_approval.unwrap_or(true),
         )
         .map_err(|e| e.to_string())
 }
@@ -390,6 +392,13 @@ pub fn hub_get_budget(agent: String) -> Result<Option<BudgetStatus>, String> {
 pub fn hub_record_budget_usage(agent: String, amount: f64) -> Result<BudgetStatus, String> {
     open_store()?
         .record_budget_usage(&agent, amount)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_consume_budget(agent: String, amount: f64) -> Result<BudgetStatus, String> {
+    open_store()?
+        .try_consume_budget(&agent, amount)
         .map_err(|e| e.to_string())
 }
 

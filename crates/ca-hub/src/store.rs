@@ -284,6 +284,8 @@ pub struct TaskRecord {
     pub pending_agents: Vec<String>,
     /// Max concurrent wakes inside a parallel stage (default 4).
     pub max_parallel: u32,
+    /// Whether this task requires human approval for delegation/wakes (C4).
+    pub require_human_approval: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -443,7 +445,8 @@ impl HubStore {
                 attempts_json TEXT NOT NULL DEFAULT '{}',
                 open_agents_json TEXT NOT NULL DEFAULT '[]',
                 pending_agents_json TEXT NOT NULL DEFAULT '[]',
-                max_parallel INTEGER NOT NULL DEFAULT 4
+                max_parallel INTEGER NOT NULL DEFAULT 4,
+                require_human_approval INTEGER NOT NULL DEFAULT 1
             );
 
             CREATE INDEX IF NOT EXISTS idx_tasks_status
@@ -465,6 +468,7 @@ impl HubStore {
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
+            "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
         ] {
             let _ = self.conn.execute(ddl, []);
         }
@@ -1123,6 +1127,45 @@ impl HubStore {
         Ok(self.get_budget(agent_id)?.expect("just updated"))
     }
 
+    /// Atomically reserve budget before starting a provider call. Unlike
+    /// `record_budget_usage`, this rejects a call that would exceed the limit.
+    pub fn try_consume_budget(
+        &self,
+        agent_id: &str,
+        amount: f64,
+    ) -> Result<BudgetStatus, HubError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(HubError::Invalid(
+                "budget amount must be finite and > 0".into(),
+            ));
+        }
+        let budget = self
+            .get_budget(agent_id)?
+            .ok_or_else(|| HubError::NotFound(format!("no budget set for {agent_id}")))?;
+        if budget.paused {
+            return Err(HubError::Invalid(format!("{agent_id} budget is paused")));
+        }
+        let next_spent = budget.spent_units + amount;
+        if next_spent > budget.limit_units {
+            let now = Utc::now().to_rfc3339();
+            self.conn.execute(
+                "UPDATE agent_budgets SET paused = 1, updated_at = ?1 WHERE agent_id = ?2",
+                params![now, agent_id],
+            )?;
+            return Err(HubError::Invalid(format!(
+                "budget exceeded for {agent_id}: {}/{} units",
+                next_spent, budget.limit_units
+            )));
+        }
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE agent_budgets SET spent_units = ?1, paused = ?2, updated_at = ?3 WHERE agent_id = ?4",
+            params![next_spent, if next_spent >= budget.limit_units { 1 } else { 0 }, now, agent_id],
+        )?;
+        self.get_budget(agent_id)?
+            .ok_or_else(|| HubError::NotFound(agent_id.into()))
+    }
+
     /// Clear a budget pause so the agent can receive wakes again (C6). A
     /// human/owner action, not something an agent should call on itself.
     pub fn resume_agent(&self, agent_id: &str) -> Result<BudgetStatus, HubError> {
@@ -1589,6 +1632,7 @@ impl HubStore {
             open_agents: serde_json::from_str(&open_json).unwrap_or_default(),
             pending_agents: serde_json::from_str(&pending_json).unwrap_or_default(),
             max_parallel: max_parallel.max(1) as u32,
+            require_human_approval: r.get::<_, i64>(13).unwrap_or(1) > 0,
         })
     }
 
@@ -1598,7 +1642,7 @@ impl HubStore {
         workspace_path: Option<&str>,
         steps: &[WorkflowStep],
     ) -> Result<TaskRecord, HubError> {
-        self.create_task_with_parallel(title, workspace_path, steps, 4)
+        self.create_task_with_parallel(title, workspace_path, steps, 4, true)
     }
 
     pub fn create_task_with_parallel(
@@ -1607,6 +1651,7 @@ impl HubStore {
         workspace_path: Option<&str>,
         steps: &[WorkflowStep],
         max_parallel: u32,
+        require_human_approval: bool,
     ) -> Result<TaskRecord, HubError> {
         if title.trim().is_empty() {
             return Err(HubError::Invalid("task title must not be empty".into()));
@@ -1635,8 +1680,9 @@ impl HubStore {
             INSERT INTO tasks(
                 id, title, workspace_path, status, step_index, steps_json,
                 created_at, updated_at, last_message_id,
-                attempts_json, open_agents_json, pending_agents_json, max_parallel
-            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, '{}', '[]', '[]', ?8)
+                attempts_json, open_agents_json, pending_agents_json, max_parallel,
+                require_human_approval
+            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, '{}', '[]', '[]', ?8, ?9)
             "#,
             params![
                 id,
@@ -1647,6 +1693,7 @@ impl HubStore {
                 now,
                 now,
                 max_parallel as i64,
+                if require_human_approval { 1 } else { 0 },
             ],
         )?;
         self.get_task(&id)?.ok_or_else(|| HubError::NotFound(id))
@@ -1657,7 +1704,8 @@ impl HubStore {
             r#"
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
-                   attempts_json, open_agents_json, pending_agents_json, max_parallel
+                   attempts_json, open_agents_json, pending_agents_json, max_parallel,
+                   require_human_approval
             FROM tasks WHERE id = ?1
             "#,
         )?;
@@ -1670,7 +1718,8 @@ impl HubStore {
             r#"
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
-                   attempts_json, open_agents_json, pending_agents_json, max_parallel
+                   attempts_json, open_agents_json, pending_agents_json, max_parallel,
+                   require_human_approval
             FROM tasks WHERE 1=1
             "#,
         );
@@ -1715,7 +1764,7 @@ impl HubStore {
             &step.agent,
             Some(&format!("task {task_id} {stage_label}")),
             Some(&msg.id),
-            true,
+            task.require_human_approval,
         )?;
         Ok(msg.id)
     }
@@ -2501,7 +2550,7 @@ mod tests {
         ];
         // max_parallel=2 → wake two of three implementers first
         let task = store
-            .create_task_with_parallel("parallel slice", None, &steps, 2)
+            .create_task_with_parallel("parallel slice", None, &steps, 2, true)
             .unwrap();
         let stages = HubStore::workflow_stages(&task.steps);
         assert_eq!(stages.len(), 3); // plan | parallel impl | review
