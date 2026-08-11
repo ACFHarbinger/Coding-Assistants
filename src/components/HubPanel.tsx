@@ -42,11 +42,23 @@ interface AgentRecord {
 
 type HubTab = "memory" | "inbox" | "wakes";
 
-const card: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
-  borderRadius: "0.5rem",
-  padding: "0.75rem 1rem",
-  background: "rgba(255,255,255,0.03)",
+  borderRadius: "12px",
+  padding: "1.5rem",
+  background: "rgba(0, 0, 0, 0.3)",
+  boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+  transition: "all 0.2s ease"
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '0.75rem',
+  borderRadius: '8px',
+  background: 'rgba(0,0,0,0.4)',
+  color: 'white',
+  border: '1px solid var(--border-color)',
+  outline: 'none',
+  transition: 'border-color 0.2s'
 };
 
 export default function HubPanel() {
@@ -101,51 +113,44 @@ export default function HubPanel() {
   }, [run, tierFilter]);
 
   const refreshMessages = useCallback(async () => {
-    const list = await run("inbox refreshed", () =>
-      invoke<MessageRecord[]>("hub_list_messages", { to: null, status: null })
-    );
+    const list = await run("inbox refreshed", () => invoke<MessageRecord[]>("hub_list_messages"));
     if (list) setMessages(list);
   }, [run]);
 
   const refreshWakes = useCallback(async () => {
-    const list = await run("wakes refreshed", () =>
-      invoke<WakeRecord[]>("hub_list_wakes", { target: null, pendingOnly: false })
-    );
+    const list = await run("wakes refreshed", () => invoke<WakeRecord[]>("hub_list_wakes"));
     if (list) setWakes(list);
   }, [run]);
 
   useEffect(() => {
-    (async () => {
-      const dir = await run("hub ready", () => invoke<string>("hub_init"));
-      if (dir) setDataDir(dir);
-      const a = await invoke<AgentRecord[]>("hub_list_agents").catch(() => []);
-      setAgents(a);
-      await refreshMemories();
-      await refreshMessages();
-      await refreshWakes();
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
+    invoke<AgentRecord[]>("hub_list_agents").then((list) => {
+      setAgents(list);
+      if (list.length > 0) {
+        setMemAgent(list[0].id);
+        setMsgFrom(list[0].id);
+        setMsgTo(list[0].id);
+        setPollTo(list[0].id);
+        setWakeTarget(list[0].id);
+      }
+    }).catch((e) => setError(String(e)));
   }, []);
 
   useEffect(() => {
-    if (hubTab === "memory") void refreshMemories();
-    if (hubTab === "inbox") void refreshMessages();
-    if (hubTab === "wakes") void refreshWakes();
+    if (hubTab === "memory") refreshMemories();
+    else if (hubTab === "inbox") refreshMessages();
+    else if (hubTab === "wakes") refreshWakes();
   }, [hubTab, refreshMemories, refreshMessages, refreshWakes]);
 
   const writeMemory = async () => {
     if (!memBody.trim()) return;
     await run("memory written", () =>
       invoke("hub_write_memory", {
-        args: {
-          tier: memTier,
-          scope: "global",
-          agent: memAgent || null,
-          workspace: null,
-          title: memTitle || null,
-          body: memBody,
-          tags: [],
-        },
+        tier: memTier,
+        agentId: memAgent,
+        title: memTitle || null,
+        body: memBody,
+        tags: [],
       })
     );
     setMemBody("");
@@ -210,7 +215,7 @@ export default function HubPanel() {
     <button
       key={id}
       className={hubTab === id ? "btn-primary" : "btn-secondary"}
-      style={{ padding: "0.4rem 0.9rem", fontSize: "0.85rem" }}
+      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "all 0.2s ease" }}
       onClick={() => setHubTab(id)}
     >
       {label}
@@ -218,36 +223,43 @@ export default function HubPanel() {
   );
 
   return (
-    <div className="glass-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Shared Hub</h2>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+    <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+        <h2 style={{ margin: 0, fontSize: "1.5rem", background: "linear-gradient(to right, #fff, var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          Shared Hub
+        </h2>
+        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px" }}>
           {tabBtn("memory", "Memory")}
           {tabBtn("inbox", "Inbox")}
           {tabBtn("wakes", "Wakes")}
         </div>
       </div>
-      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
-        Data dir: <code>{dataDir || "…"}</code> · same as <code>ca</code> CLI ($CA_HOME)
-      </p>
-      {error && (
-        <p style={{ color: "#f87171", fontSize: "0.85rem" }}>{error}</p>
-      )}
-      {status && !error && (
-        <p style={{ color: "#86efac", fontSize: "0.8rem" }}>{status}</p>
-      )}
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-color)" }}>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
+          Data dir: <code style={{ background: "rgba(0,0,0,0.3)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>{dataDir || "…"}</code>
+        </p>
+        <div>
+          {error && <span style={{ color: "#ef4444", fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>Error: {error}</span>}
+          {status && !error && <span style={{ color: "#22c55e", fontSize: "0.85rem", background: "rgba(34, 197, 94, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+            <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> {status}
+          </span>}
+        </div>
+      </div>
 
       {hubTab === "memory" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
             <input
               placeholder="Search memories…"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
-              style={{ flex: 1, minWidth: 160 }}
+              style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+              onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
             />
             <button className="btn-secondary" onClick={searchMemories}>Search</button>
-            <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+            <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} style={inputStyle}>
               <option value="">All tiers</option>
               <option value="short_term">short_term</option>
               <option value="episodic">episodic</option>
@@ -265,16 +277,6 @@ export default function HubPanel() {
             </button>
             <button
               className="btn-secondary"
-              onClick={async () => {
-                const path = await run("exported", () => invoke<string>("hub_export_markdown"));
-                if (path) setStatus(`exported → ${path}`);
-              }}
-            >
-              Export MD
-            </button>
-            <button
-              className="btn-secondary"
-              title="git add + git commit the export if it's inside a Git work tree"
               onClick={async () => {
                 const outcome = await run("export_committed", () =>
                   invoke<{ path: string; committed: boolean; detail: string }>(
@@ -295,24 +297,24 @@ export default function HubPanel() {
             </button>
           </div>
 
-          <div style={{ ...card, display: "grid", gap: "0.5rem" }}>
-            <strong>Write memory</strong>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <select value={memTier} onChange={(e) => setMemTier(e.target.value)}>
+          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Write Memory</h3>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <select value={memTier} onChange={(e) => setMemTier(e.target.value)} style={inputStyle}>
                 <option value="short_term">short_term</option>
                 <option value="episodic">episodic</option>
                 <option value="semantic">semantic</option>
               </select>
-              <select value={memAgent} onChange={(e) => setMemAgent(e.target.value)}>
+              <select value={memAgent} onChange={(e) => setMemAgent(e.target.value)} style={inputStyle}>
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>{a.display_name}</option>
                 ))}
               </select>
               <input
-                placeholder="Title"
+                placeholder="Title (optional)"
                 value={memTitle}
                 onChange={(e) => setMemTitle(e.target.value)}
-                style={{ flex: 1, minWidth: 120 }}
+                style={{ ...inputStyle, flex: 1, minWidth: 150 }}
               />
             </div>
             <textarea
@@ -320,6 +322,7 @@ export default function HubPanel() {
               placeholder="Memory body…"
               value={memBody}
               onChange={(e) => setMemBody(e.target.value)}
+              style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-sans)" }}
             />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button className="btn-primary" onClick={writeMemory} disabled={!memBody.trim()}>
@@ -328,76 +331,52 @@ export default function HubPanel() {
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", maxHeight: 420, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 500, overflowY: "auto", paddingRight: "0.5rem" }}>
             {memories.length === 0 && (
-              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No memories yet.</p>
+              <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>No memories found in the hub.</p>
+              </div>
             )}
             {memories.map((m) => (
-              <div key={m.id} style={card}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div key={m.id} style={{ ...cardStyle, position: "relative", overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
                   <div>
-                    <strong>{m.title || "(untitled)"}</strong>{" "}
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                      {m.tier} · {m.scope} · {m.agent_id || "—"}
-                    </span>
+                    <strong style={{ fontSize: "1.1rem", color: "var(--primary)" }}>{m.title || "(untitled)"}</strong>
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.35rem" }}>
+                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "var(--text-main)" }}>{m.tier}</span>
+                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(56, 189, 248, 0.1)", borderRadius: "4px", color: "#38bdf8" }}>{m.scope}</span>
+                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(168, 85, 247, 0.1)", borderRadius: "4px", color: "#a855f7" }}>{m.agent_id || "global"}</span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: "0.35rem" }}>
+                  <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
                     {m.tier === "short_term" && (
-                      <button
-                        className="btn-secondary"
-                        style={{ fontSize: "0.75rem", padding: "0.15rem 0.45rem" }}
-                        onClick={async () => {
-                          await run("promoted", () =>
-                            invoke("hub_promote_memory", { id: m.id, toTier: "episodic" })
-                          );
-                          await refreshMemories();
-                        }}
-                      >
-                        → episodic
-                      </button>
+                      <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                        await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" }));
+                        await refreshMemories();
+                      }}>→ episodic</button>
                     )}
                     {m.tier === "episodic" && (
-                      <button
-                        className="btn-secondary"
-                        style={{ fontSize: "0.75rem", padding: "0.15rem 0.45rem" }}
-                        onClick={async () => {
-                          await run("promoted", () =>
-                            invoke("hub_promote_memory", { id: m.id, toTier: "semantic" })
-                          );
-                          await refreshMemories();
-                        }}
-                      >
-                        → semantic
-                      </button>
+                      <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                        await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" }));
+                        await refreshMemories();
+                      }}>→ semantic</button>
                     )}
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: "0.75rem", padding: "0.15rem 0.45rem" }}
-                      onClick={async () => {
-                        await run("stale", () =>
-                          invoke("hub_mark_memory_stale", { id: m.id, stale: true })
-                        );
-                        await refreshMemories();
-                      }}
-                    >
-                      Stale
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: "0.75rem", padding: "0.15rem 0.45rem", color: "#f87171" }}
-                      onClick={async () => {
-                        await run("deleted", () => invoke("hub_delete_memory", { id: m.id }));
-                        await refreshMemories();
-                      }}
-                    >
-                      Delete
-                    </button>
+                    <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                      await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true }));
+                      await refreshMemories();
+                    }}>Stale</button>
+                    <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => {
+                      await run("deleted", () => invoke("hub_delete_memory", { id: m.id }));
+                      await refreshMemories();
+                    }}>Delete</button>
                   </div>
                 </div>
-                <pre style={{ margin: "0.5rem 0 0", whiteSpace: "pre-wrap", fontSize: "0.85rem", color: "var(--text-primary)" }}>
+                <pre style={{ margin: "0", whiteSpace: "pre-wrap", fontSize: "0.9rem", color: "var(--text-main)", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
                   {m.body}
                 </pre>
-                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{m.created_at} · {m.id.slice(0, 8)}</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "1rem", textAlign: "right" }}>
+                  {m.created_at} · <span style={{ fontFamily: "var(--font-mono)" }}>{m.id.slice(0, 8)}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -405,45 +384,59 @@ export default function HubPanel() {
       )}
 
       {hubTab === "inbox" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-          <div style={{ ...card, display: "grid", gap: "0.5rem" }}>
-            <strong>Send message / handoff</strong>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <select value={msgFrom} onChange={(e) => setMsgFrom(e.target.value)}>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.id}</option>)}
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Send Message / Handoff</h3>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+              <select value={msgFrom} onChange={(e) => setMsgFrom(e.target.value)} style={inputStyle}>
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
-              <span style={{ alignSelf: "center" }}>→</span>
-              <select value={msgTo} onChange={(e) => setMsgTo(e.target.value)}>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.id}</option>)}
+              <span style={{ color: "var(--text-muted)" }}>→</span>
+              <select value={msgTo} onChange={(e) => setMsgTo(e.target.value)} style={inputStyle}>
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
-              <select value={msgKind} onChange={(e) => setMsgKind(e.target.value)}>
+              <select value={msgKind} onChange={(e) => setMsgKind(e.target.value)} style={{ ...inputStyle, marginLeft: "auto" }}>
                 <option value="message">message</option>
                 <option value="handoff">handoff</option>
                 <option value="system">system</option>
               </select>
             </div>
-            <textarea rows={3} value={msgBody} onChange={(e) => setMsgBody(e.target.value)} placeholder="Body…" />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button className="btn-primary" onClick={sendMessage} disabled={!msgBody.trim()}>Send</button>
+            <textarea rows={4} value={msgBody} onChange={(e) => setMsgBody(e.target.value)} placeholder="Message body…" style={{ ...inputStyle, resize: "vertical" }} />
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn-primary" onClick={sendMessage} disabled={!msgBody.trim()}>Send Message</button>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <span style={{ fontSize: "0.85rem" }}>Poll for</span>
-            <select value={pollTo} onChange={(e) => setPollTo(e.target.value)}>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.id}</option>)}
+
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+            <span style={{ fontSize: "0.9rem", color: "var(--text-main)" }}>Poll inbox for:</span>
+            <select value={pollTo} onChange={(e) => setPollTo(e.target.value)} style={inputStyle}>
+              {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
             </select>
             <button className="btn-secondary" onClick={pollInbox}>Poll (ack)</button>
-            <button className="btn-secondary" onClick={refreshMessages}>Refresh</button>
+            <button className="btn-secondary" onClick={refreshMessages}>Refresh List</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", maxHeight: 360, overflowY: "auto" }}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 400, overflowY: "auto", paddingRight: "0.5rem" }}>
+            {messages.length === 0 && (
+              <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>Inbox is empty.</p>
+              </div>
+            )}
             {messages.map((m) => (
-              <div key={m.id} style={card}>
-                <div style={{ fontSize: "0.85rem" }}>
-                  <strong>{m.from_agent}</strong> → <strong>{m.to_agent}</strong>{" "}
-                  <span style={{ color: "var(--text-muted)" }}>{m.kind} · {m.status}</span>
+              <div key={m.id} style={cardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
+                  <div style={{ fontSize: "0.95rem" }}>
+                    <strong style={{ color: "var(--primary)" }}>{m.from_agent}</strong> <span style={{ color: "var(--text-muted)" }}>→</span> <strong>{m.to_agent}</strong>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(255,255,255,0.1)", borderRadius: "4px" }}>{m.kind}</span>
+                    <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: m.status === 'read' ? "rgba(34, 197, 94, 0.1)" : "rgba(234, 179, 8, 0.1)", color: m.status === 'read' ? "#22c55e" : "#eab308", borderRadius: "4px" }}>{m.status}</span>
+                  </div>
                 </div>
-                {m.subject && <div style={{ fontWeight: 600 }}>{m.subject}</div>}
-                <pre style={{ margin: "0.4rem 0 0", whiteSpace: "pre-wrap", fontSize: "0.85rem" }}>{m.body}</pre>
+                {m.subject && <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-main)" }}>{m.subject}</div>}
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "0.9rem", color: "var(--text-main)", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
+                  {m.body}
+                </pre>
               </div>
             ))}
           </div>
@@ -451,34 +444,53 @@ export default function HubPanel() {
       )}
 
       {hubTab === "wakes" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-          <div style={{ ...card, display: "grid", gap: "0.5rem" }}>
-            <strong>Request wake</strong>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <select value={wakeTarget} onChange={(e) => setWakeTarget(e.target.value)}>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.id}</option>)}
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Request Wake</h3>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <select value={wakeTarget} onChange={(e) => setWakeTarget(e.target.value)} style={inputStyle}>
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
               <input
-                style={{ flex: 1, minWidth: 160 }}
-                placeholder="Reason"
+                style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+                placeholder="Reason for waking..."
                 value={wakeReason}
                 onChange={(e) => setWakeReason(e.target.value)}
               />
               <button className="btn-primary" onClick={requestWake}>Wake (human gate)</button>
-              <button className="btn-secondary" onClick={refreshWakes}>Refresh</button>
+              <button className="btn-secondary" onClick={refreshWakes}>Refresh List</button>
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", maxHeight: 360, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 400, overflowY: "auto", paddingRight: "0.5rem" }}>
+            {wakes.length === 0 && (
+              <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>No wakes recorded.</p>
+              </div>
+            )}
             {wakes.map((w) => (
-              <div key={w.id} style={card}>
+              <div key={w.id} style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <strong>{w.target_agent}</strong> · {w.status}
+                  <div style={{ marginBottom: "0.25rem", fontSize: "1.05rem", fontWeight: 600, color: "var(--primary)" }}>
+                    {w.target_agent}
+                  </div>
+                  <div style={{ fontSize: "0.9rem", color: "var(--text-main)" }}>
+                    {w.reason || <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No reason provided</span>}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+                    {w.created_at}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.75rem", padding: "0.2rem 0.6rem", background: "rgba(255,255,255,0.1)", borderRadius: "20px" }}>
+                    {w.status}
+                  </span>
                   {w.requires_human_gate && (
-                    <span style={{ marginLeft: 8, color: "#eab308", fontSize: "0.8rem" }}>human gate</span>
+                    <span style={{ fontSize: "0.7rem", color: "#eab308", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <span style={{ display: "inline-block", width: "6px", height: "6px", background: "#eab308", borderRadius: "50%" }} />
+                      Human Gate Required
+                    </span>
                   )}
                 </div>
-                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{w.reason || "(no reason)"}</div>
-                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{w.created_at}</div>
               </div>
             ))}
           </div>
