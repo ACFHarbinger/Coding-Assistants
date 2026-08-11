@@ -19,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `task create|advance|list|get|cancel`.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
-  - Shared Hub Wakes panel now reads/saves standing `WakePolicy` and resolves
-    pending wakes as delivered.
+  - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
+    Wakes panel resolves pending wakes as delivered.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
     acceptance, C5 sequential plan→code→review.
