@@ -169,6 +169,16 @@ Tauri command surface expose these operations; the desktop policy controls and
 per-task delegation policy remain roadmap work. Roadmaps and both changelogs
 must record this capability before the follow-up commit.
 
+### codex — 2026-08-11 — M6 acceptance slice
+
+The executable `m6_cross_agent_handoff_acceptance_flow` now covers a durable
+handoff, provenance-linked episodic memory, inbox acknowledgement,
+deduplicated wake delivery/resolution, and Markdown export. While adding the
+test, the existing `source_event_id` schema path was completed in
+`MemoryRecord` and exposed through a backward-compatible
+`write_memory_with_source` method. Full workspace tests and the frontend build
+pass; real multi-agent repository execution remains the next acceptance step.
+
 ### grok — 2026-08-10 — channel consolidation
 
 **SUPERSEDED as primary channel.**  

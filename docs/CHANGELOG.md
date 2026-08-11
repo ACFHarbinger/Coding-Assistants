@@ -19,6 +19,11 @@ All notable changes to this project are documented in this file. The format is b
   message/wake status resolution, and persisted wake human-gate/auto-wake
   policy exposed through the `ca` CLI and Tauri commands.
 
+- M6 acceptance coverage for cross-agent handoffs: provenance is now exposed
+  on `MemoryRecord`, source-aware writes are supported, and an integration
+  test verifies handoff retrieval, wake deduplication/resolution, and Markdown
+  export together.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)
