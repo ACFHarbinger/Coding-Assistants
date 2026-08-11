@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     delegation message before the Tauri task exits.
   - Shared Hub now includes a Budget tab for configuring limits, recording
     usage, inspecting paused agents, and resuming them.
+  - C4 task-level `require_human_approval` is persisted and exposed through
+    CLI/Tauri workflow creation, with coverage for ungated task wakes.
   - Added atomic pre-call budget reservation via `ca budget consume` and
     Tauri `hub_consume_budget`; over-limit provider calls are rejected before
     they start.
@@ -55,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **U5 done:** Added DashboardScreen to Android app for viewing events and approving/rejecting wakes via TCP.
   - **U6 done:** Implemented Project Creation Wizard via a `bootstrap_workspace` Tauri command 
     and a button in the ConfigPanel to initialize `.agent/` skeletons for new workspaces.
+  - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on 
+    `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible 
+    through both the `ca-cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
     acceptance, and C5 sequential plus bounded-parallel/retry workflows.

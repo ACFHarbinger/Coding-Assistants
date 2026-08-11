@@ -2614,6 +2614,39 @@ mod tests {
     }
 
     #[test]
+    fn c4_task_policy_controls_wake_gate() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .set_wake_policy(&WakePolicy {
+                default_requires_human_gate: false,
+                allow_auto_wake: true,
+            })
+            .unwrap();
+        let steps = vec![WorkflowStep {
+            agent: "claude".into(),
+            role: None,
+            instruction: "Run the delegated step.".into(),
+            max_retries: 0,
+            parallel_group: None,
+        }];
+        let task = store
+            .create_task_with_parallel("ungated task", None, &steps, 1, false)
+            .unwrap();
+        store.advance_task(&task.id, Some("human"), None).unwrap();
+        let wakes = store.list_wakes(Some("claude"), true).unwrap();
+        assert_eq!(wakes.len(), 1);
+        assert!(!wakes[0].requires_human_gate);
+        assert!(
+            !store
+                .get_task(&task.id)
+                .unwrap()
+                .unwrap()
+                .require_human_approval
+        );
+    }
+
+    #[test]
     fn c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
