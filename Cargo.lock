@@ -4458,6 +4458,7 @@ name = "tauri-app"
 version = "0.1.0"
 dependencies = [
  "async-openai",
+ "ca-hub",
  "dotenv",
  "governor",
  "reqwest",

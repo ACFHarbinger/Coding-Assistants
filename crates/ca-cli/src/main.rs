@@ -89,6 +89,21 @@ enum MemoryCommand {
         #[arg(long, default_value_t = false)]
         unstale: bool,
     },
+    /// Promote a memory to a higher tier (short_term→episodic→semantic).
+    Promote {
+        id: String,
+        #[arg(long, default_value = "episodic")]
+        to: String,
+    },
+    /// Delete a memory row permanently.
+    Delete {
+        id: String,
+    },
+    /// Compact short-term: keep newest N, promote the rest to episodic.
+    Compact {
+        #[arg(long, default_value_t = 50)]
+        keep: usize,
+    },
 }
 
 #[derive(Subcommand)]
@@ -199,6 +214,19 @@ fn main() -> anyhow::Result<()> {
             MemoryCommand::Stale { id, unstale } => {
                 store.mark_memory_stale(&id, !unstale)?;
                 println!("ok");
+            }
+            MemoryCommand::Promote { id, to } => {
+                let to = MemoryTier::parse(&to)?;
+                let record = store.promote_memory(&id, to)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            MemoryCommand::Delete { id } => {
+                store.delete_memory(&id)?;
+                println!("ok");
+            }
+            MemoryCommand::Compact { keep } => {
+                let report = store.compact_short_term(keep)?;
+                println!("{}", serde_json::to_string_pretty(&report)?);
             }
         },
         Command::Msg { action } => match action {

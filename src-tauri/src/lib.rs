@@ -1,5 +1,6 @@
 mod agents;
 mod file_tools;
+mod hub_cmds;
 mod llm_client;
 mod tcp_server;
 
@@ -270,7 +271,25 @@ pub fn run() {
             get_available_models,
             start_tcp_server,
             stop_tcp_server,
-            get_server_ip
+            get_server_ip,
+            // Shared hub (ca-hub) — same store as the `ca` CLI
+            hub_cmds::hub_init,
+            hub_cmds::hub_data_dir,
+            hub_cmds::hub_list_agents,
+            hub_cmds::hub_write_memory,
+            hub_cmds::hub_list_memories,
+            hub_cmds::hub_search_memories,
+            hub_cmds::hub_mark_memory_stale,
+            hub_cmds::hub_delete_memory,
+            hub_cmds::hub_promote_memory,
+            hub_cmds::hub_compact_short_term,
+            hub_cmds::hub_send_message,
+            hub_cmds::hub_poll_messages,
+            hub_cmds::hub_list_messages,
+            hub_cmds::hub_request_wake,
+            hub_cmds::hub_list_wakes,
+            hub_cmds::hub_export_markdown,
+            hub_cmds::hub_append_journal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

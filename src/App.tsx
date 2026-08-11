@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import HubPanel from "./components/HubPanel";
 
 interface AgentEvent {
   source: string;
@@ -230,6 +231,7 @@ function App() {
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
+  const [mainView, setMainView] = useState<"orchestrate" | "hub">("orchestrate");
 
   const startRemoteServer = async () => {
     try {
@@ -495,10 +497,29 @@ function App() {
         <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.025em' }}>
           Coding Assistants
         </h1>
-        <div className="status-badge">Powered by OpenCode</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            className={mainView === "orchestrate" ? "btn-primary" : "btn-secondary"}
+            style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem' }}
+            onClick={() => setMainView("orchestrate")}
+          >
+            Orchestrate
+          </button>
+          <button
+            className={mainView === "hub" ? "btn-primary" : "btn-secondary"}
+            style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem' }}
+            onClick={() => setMainView("hub")}
+          >
+            Shared Hub
+          </button>
+          <div className="status-badge">Powered by OpenCode</div>
+        </div>
       </header>
 
       <main className="main-content">
+        {mainView === "hub" && <HubPanel />}
+
+        {mainView === "orchestrate" && (<>
         <div className="glass-card">
           <h2>Configuration</h2>
 
@@ -749,6 +770,7 @@ function App() {
             </pre>
           </div>
         )}
+        </>)}
 
         {preview && (
           <div style={{

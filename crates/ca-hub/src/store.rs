@@ -197,6 +197,14 @@ pub struct WakeRecord {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactReport {
+    pub examined: usize,
+    pub promoted: usize,
+    pub kept: usize,
+    pub skipped: usize,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -527,6 +535,114 @@ impl HubStore {
             return Err(HubError::NotFound(id.into()));
         }
         Ok(())
+    }
+
+    pub fn delete_memory(&self, id: &str) -> Result<(), HubError> {
+        let n = self
+            .conn
+            .execute("DELETE FROM memories WHERE id = ?1", params![id])?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        Ok(())
+    }
+
+    /// Promote a memory to another tier, preserving provenance via `source_event_id`.
+    pub fn promote_memory(&self, id: &str, to_tier: MemoryTier) -> Result<MemoryRecord, HubError> {
+        let src = self
+            .get_memory(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        if src.stale {
+            return Err(HubError::Invalid("cannot promote a stale memory".into()));
+        }
+        let from = MemoryTier::parse(&src.tier)?;
+        if from == to_tier {
+            return Ok(src);
+        }
+        // Only allow short_term → episodic → semantic (no demotion).
+        let allowed = matches!(
+            (from, to_tier),
+            (MemoryTier::ShortTerm, MemoryTier::Episodic)
+                | (MemoryTier::ShortTerm, MemoryTier::Semantic)
+                | (MemoryTier::Episodic, MemoryTier::Semantic)
+        );
+        if !allowed {
+            return Err(HubError::Invalid(format!(
+                "cannot promote {} → {}",
+                from.as_str(),
+                to_tier.as_str()
+            )));
+        }
+
+        let new_id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        let title = src
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("promoted from {}", from.as_str()));
+        let body = format!(
+            "{}\n\n---\n_Promoted from `{}` (`{}`) at {}_\n",
+            src.body,
+            from.as_str(),
+            id,
+            now
+        );
+
+        self.conn.execute(
+            r#"
+            INSERT INTO memories(
+                id, scope, workspace_path, tier, agent_id, title, body,
+                tags_json, created_at, updated_at, stale, source_event_id
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, ?11)
+            "#,
+            params![
+                new_id,
+                src.scope,
+                src.workspace_path,
+                to_tier.as_str(),
+                src.agent_id,
+                title,
+                body,
+                src.tags_json,
+                now,
+                now,
+                id,
+            ],
+        )?;
+        // Mark source stale so short-term lists stay lean; provenance remains queryable.
+        self.mark_memory_stale(id, true)?;
+        self.get_memory(&new_id)?
+            .ok_or_else(|| HubError::NotFound(new_id))
+    }
+
+    /// Compact short-term memories: keep the newest `keep_newest`, promote the rest to episodic.
+    pub fn compact_short_term(&self, keep_newest: usize) -> Result<CompactReport, HubError> {
+        let mut short = self.list_memories(None, Some(MemoryTier::ShortTerm), None, false)?;
+        // list is DESC by created_at; keep head, promote tail
+        let mut promoted = 0usize;
+        let mut skipped = 0usize;
+        if short.len() <= keep_newest {
+            return Ok(CompactReport {
+                examined: short.len(),
+                promoted: 0,
+                kept: short.len(),
+                skipped: 0,
+            });
+        }
+        let to_promote: Vec<MemoryRecord> = short.split_off(keep_newest);
+        let kept = short.len();
+        for m in &to_promote {
+            match self.promote_memory(&m.id, MemoryTier::Episodic) {
+                Ok(_) => promoted += 1,
+                Err(_) => skipped += 1,
+            }
+        }
+        Ok(CompactReport {
+            examined: kept + to_promote.len(),
+            promoted,
+            kept,
+            skipped,
+        })
     }
 
     pub fn send_message(
@@ -889,5 +1005,60 @@ mod tests {
         let export = store.export_markdown(None).unwrap();
         let text = fs::read_to_string(export).unwrap();
         assert!(text.contains("first handoff"));
+    }
+
+    #[test]
+    fn promote_and_compact_short_term() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        for i in 0..5 {
+            store
+                .write_memory(
+                    MemoryTier::ShortTerm,
+                    MemoryScope::Global,
+                    Some("grok"),
+                    None,
+                    Some(&format!("note-{i}")),
+                    &format!("short body {i}"),
+                    &[],
+                )
+                .unwrap();
+            // tiny delay so created_at ordering is stable across platforms
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+
+        let report = store.compact_short_term(2).unwrap();
+        assert_eq!(report.promoted, 3);
+        assert_eq!(report.kept, 2);
+
+        let short = store
+            .list_memories(None, Some(MemoryTier::ShortTerm), None, false)
+            .unwrap();
+        assert_eq!(short.len(), 2);
+
+        let episodic = store
+            .list_memories(None, Some(MemoryTier::Episodic), None, false)
+            .unwrap();
+        assert_eq!(episodic.len(), 3);
+        assert!(episodic[0].body.contains("Promoted from"));
+
+        let one = store
+            .write_memory(
+                MemoryTier::Episodic,
+                MemoryScope::Global,
+                Some("claude"),
+                None,
+                Some("decision"),
+                "Use SQLite as source of truth.",
+                &[],
+            )
+            .unwrap();
+        let semantic = store
+            .promote_memory(&one.id, MemoryTier::Semantic)
+            .unwrap();
+        assert_eq!(semantic.tier, "semantic");
+        store.delete_memory(&semantic.id).unwrap();
+        assert!(store.get_memory(&semantic.id).unwrap().is_none());
     }
 }

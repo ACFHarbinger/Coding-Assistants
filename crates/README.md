@@ -18,6 +18,8 @@ export CA_HOME="$HOME/.coding-assistants"   # optional; default is ~/.coding-ass
 ./target/debug/ca msg poll --to claude
 ./target/debug/ca wake request --target claude --reason "handoff ready" --human-gate
 ./target/debug/ca export-markdown
+./target/debug/ca memory compact --keep 20
+./target/debug/ca memory promote <id> --to episodic
 ```
 
 Private journals (`ca journal append --agent grok`) never write into shared SQLite tables.
