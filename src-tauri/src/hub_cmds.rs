@@ -302,9 +302,7 @@ pub fn hub_list_tasks(status: Option<String>) -> Result<Vec<TaskRecord>, String>
         .map(TaskStatus::parse)
         .transpose()
         .map_err(|e| e.to_string())?;
-    open_store()?
-        .list_tasks(status)
-        .map_err(|e| e.to_string())
+    open_store()?.list_tasks(status).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -328,7 +326,5 @@ pub fn hub_advance_task(
 
 #[tauri::command]
 pub fn hub_cancel_task(id: String) -> Result<TaskRecord, String> {
-    open_store()?
-        .cancel_task(&id)
-        .map_err(|e| e.to_string())
+    open_store()?.cancel_task(&id).map_err(|e| e.to_string())
 }

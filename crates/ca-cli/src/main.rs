@@ -256,13 +256,21 @@ fn main() -> anyhow::Result<()> {
         Command::Agents => {
             println!("{}", serde_json::to_string_pretty(&store.list_agents()?)?);
         }
-        Command::ExportMarkdown { out, commit, message } => {
+        Command::ExportMarkdown {
+            out,
+            commit,
+            message,
+        } => {
             if commit {
                 let outcome = store.export_markdown_git(out.as_deref(), message.as_deref())?;
                 println!(
                     "exported to {} ({})",
                     outcome.path.display(),
-                    if outcome.committed { "committed" } else { &outcome.detail }
+                    if outcome.committed {
+                        "committed"
+                    } else {
+                        &outcome.detail
+                    }
                 );
             } else {
                 let path = store.export_markdown(out.as_deref())?;

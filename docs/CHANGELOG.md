@@ -24,6 +24,10 @@ All notable changes to this project are documented in this file. The format is b
   test verifies handoff retrieval, wake deduplication/resolution, and Markdown
   export together.
 
+- Shared Hub Wakes panel now exposes persisted wake policy controls and a
+  pending-wake delivery action, completing the desktop side of C4's standing
+  policy boundary.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

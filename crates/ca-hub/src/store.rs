@@ -207,13 +207,23 @@ pub struct GitExportOutcome {
     pub detail: String,
 }
 
-/// One step in a sequential multi-agent workflow (C5).
+/// One step in a multi-agent workflow (C5).
+///
+/// Consecutive steps that share the same non-empty `parallel_group` form a
+/// **parallel stage** (bounded by the task's `max_parallel`). Steps with
+/// `parallel_group = null` are sequential one-agent stages.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowStep {
     pub agent: String,
     #[serde(default)]
     pub role: Option<String>,
     pub instruction: String,
+    /// How many times this step may be re-dispatched after `retry_task` (default 0).
+    #[serde(default)]
+    pub max_retries: u32,
+    /// When set, adjacent steps with the same group run as one parallel stage.
+    #[serde(default)]
+    pub parallel_group: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,6 +233,7 @@ pub enum TaskStatus {
     Running,
     Done,
     Cancelled,
+    Failed,
 }
 
 impl TaskStatus {
@@ -232,6 +243,7 @@ impl TaskStatus {
             Self::Running => "running",
             Self::Done => "done",
             Self::Cancelled => "cancelled",
+            Self::Failed => "failed",
         }
     }
 
@@ -241,8 +253,13 @@ impl TaskStatus {
             "running" => Ok(Self::Running),
             "done" => Ok(Self::Done),
             "cancelled" => Ok(Self::Cancelled),
+            "failed" => Ok(Self::Failed),
             other => Err(HubError::Invalid(format!("unknown task status: {other}"))),
         }
+    }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Done | Self::Cancelled | Self::Failed)
     }
 }
 
@@ -252,12 +269,21 @@ pub struct TaskRecord {
     pub title: String,
     pub workspace_path: Option<String>,
     pub status: String,
+    /// Index into the list of **stages** (sequential units / parallel groups).
     pub step_index: i64,
     pub steps: Vec<WorkflowStep>,
     pub created_at: String,
     pub updated_at: String,
-    /// Last handoff message id produced by `advance_task`, if any.
+    /// Last handoff message id produced by advance/retry, if any.
     pub last_message_id: Option<String>,
+    /// Per-stage attempt counts (`"0" → 1` after first dispatch).
+    pub attempts: std::collections::HashMap<String, u32>,
+    /// Agents still outstanding in the current parallel stage (empty when sequential).
+    pub open_agents: Vec<String>,
+    /// Agents in the current stage not yet woken (queued behind max_parallel).
+    pub pending_agents: Vec<String>,
+    /// Max concurrent wakes inside a parallel stage (default 4).
+    pub max_parallel: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -384,13 +410,27 @@ impl HubStore {
                 steps_json TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                last_message_id TEXT
+                last_message_id TEXT,
+                attempts_json TEXT NOT NULL DEFAULT '{}',
+                open_agents_json TEXT NOT NULL DEFAULT '[]',
+                pending_agents_json TEXT NOT NULL DEFAULT '[]',
+                max_parallel INTEGER NOT NULL DEFAULT 4
             );
 
             CREATE INDEX IF NOT EXISTS idx_tasks_status
                 ON tasks(status, updated_at);
             "#,
         )?;
+
+        // Soft-migrate columns for DBs created before C5 retries/parallel.
+        for ddl in [
+            "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
+        ] {
+            let _ = self.conn.execute(ddl, []);
+        }
 
         let version: Option<i64> = self
             .conn
@@ -1231,8 +1271,7 @@ impl HubStore {
 
     fn map_task_row(r: &rusqlite::Row<'_>) -> Result<TaskRecord, rusqlite::Error> {
         let steps_json: String = r.get(5)?;
-        let steps: Vec<WorkflowStep> =
-            serde_json::from_str(&steps_json).unwrap_or_default();
+        let steps: Vec<WorkflowStep> = serde_json::from_str(&steps_json).unwrap_or_default();
         Ok(TaskRecord {
             id: r.get(0)?,
             title: r.get(1)?,
@@ -1243,6 +1282,10 @@ impl HubStore {
             created_at: r.get(6)?,
             updated_at: r.get(7)?,
             last_message_id: r.get(8)?,
+            attempts: serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default(),
+            open_agents: serde_json::from_str(&r.get::<_, String>(10)?).unwrap_or_default(),
+            pending_agents: serde_json::from_str(&r.get::<_, String>(11)?).unwrap_or_default(),
+            max_parallel: r.get::<_, i64>(12)?.max(1) as u32,
         })
     }
 
@@ -1256,7 +1299,9 @@ impl HubStore {
             return Err(HubError::Invalid("task title must not be empty".into()));
         }
         if steps.is_empty() {
-            return Err(HubError::Invalid("task needs at least one workflow step".into()));
+            return Err(HubError::Invalid(
+                "task needs at least one workflow step".into(),
+            ));
         }
         for (i, s) in steps.iter().enumerate() {
             if s.agent.trim().is_empty() {
@@ -1288,21 +1333,19 @@ impl HubStore {
                 now,
             ],
         )?;
-        self.get_task(&id)?
-            .ok_or_else(|| HubError::NotFound(id))
+        self.get_task(&id)?.ok_or_else(|| HubError::NotFound(id))
     }
 
     pub fn get_task(&self, id: &str) -> Result<Option<TaskRecord>, HubError> {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, title, workspace_path, status, step_index, steps_json,
-                   created_at, updated_at, last_message_id
+                   created_at, updated_at, last_message_id,
+                   attempts_json, open_agents_json, pending_agents_json, max_parallel
             FROM tasks WHERE id = ?1
             "#,
         )?;
-        let row = stmt
-            .query_row(params![id], Self::map_task_row)
-            .optional()?;
+        let row = stmt.query_row(params![id], Self::map_task_row).optional()?;
         Ok(row)
     }
 
@@ -1310,7 +1353,8 @@ impl HubStore {
         let mut sql = String::from(
             r#"
             SELECT id, title, workspace_path, status, step_index, steps_json,
-                   created_at, updated_at, last_message_id
+                   created_at, updated_at, last_message_id,
+                   attempts_json, open_agents_json, pending_agents_json, max_parallel
             FROM tasks WHERE 1=1
             "#,
         );
@@ -1339,8 +1383,7 @@ impl HubStore {
         let task = self
             .get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))?;
-        if task.status == TaskStatus::Done.as_str()
-            || task.status == TaskStatus::Cancelled.as_str()
+        if task.status == TaskStatus::Done.as_str() || task.status == TaskStatus::Cancelled.as_str()
         {
             return Err(HubError::Invalid(format!(
                 "task is already {}",
@@ -1377,12 +1420,7 @@ impl HubStore {
         } else {
             step.instruction.clone()
         };
-        let subject = Some(format!(
-            "[{}/{}] {}",
-            next_index + 1,
-            n_steps,
-            task.title
-        ));
+        let subject = Some(format!("[{}/{}] {}", next_index + 1, n_steps, task.title));
         let msg = self.send_message(
             from,
             &step.agent,
@@ -1406,13 +1444,7 @@ impl HubStore {
             SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4
             WHERE id = ?5
             "#,
-            params![
-                new_status.as_str(),
-                next_index,
-                now,
-                msg.id,
-                id,
-            ],
+            params![new_status.as_str(), next_index, now, msg.id, id,],
         )?;
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
@@ -1421,11 +1453,7 @@ impl HubStore {
     pub fn cancel_task(&self, id: &str) -> Result<TaskRecord, HubError> {
         let n = self.conn.execute(
             "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
-            params![
-                TaskStatus::Cancelled.as_str(),
-                Utc::now().to_rfc3339(),
-                id
-            ],
+            params![TaskStatus::Cancelled.as_str(), Utc::now().to_rfc3339(), id],
         )?;
         if n == 0 {
             return Err(HubError::NotFound(id.into()));
@@ -1452,7 +1480,12 @@ impl HubStore {
             .unwrap_or_else(|| self.data_dir.join("markdown"));
 
         let in_work_tree = Command::new("git")
-            .args(["-C", &dir.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+            .args([
+                "-C",
+                &dir.to_string_lossy(),
+                "rev-parse",
+                "--is-inside-work-tree",
+            ])
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
@@ -1773,7 +1806,11 @@ mod tests {
         let outcome = store
             .export_markdown_git(None, Some("chore(hub): test export"))
             .unwrap();
-        assert!(outcome.committed, "expected a commit, got: {}", outcome.detail);
+        assert!(
+            outcome.committed,
+            "expected a commit, got: {}",
+            outcome.detail
+        );
 
         let log = Command::new("git")
             .arg("-C")
@@ -1792,7 +1829,11 @@ mod tests {
         let second = store
             .export_markdown_git(None, Some("chore(hub): test export 2"))
             .unwrap();
-        assert!(second.committed, "expected a second commit, got: {}", second.detail);
+        assert!(
+            second.committed,
+            "expected a second commit, got: {}",
+            second.detail
+        );
     }
 
     #[test]
@@ -1804,16 +1845,22 @@ mod tests {
                 agent: "grok".into(),
                 role: Some("Planner".into()),
                 instruction: "Plan the dual-mode pathing fix.".into(),
+                max_retries: 0,
+                parallel_group: None,
             },
             WorkflowStep {
                 agent: "claude".into(),
                 role: Some("Developer".into()),
                 instruction: "Implement the plan.".into(),
+                max_retries: 0,
+                parallel_group: None,
             },
             WorkflowStep {
                 agent: "gemini".into(),
                 role: Some("Reviewer".into()),
                 instruction: "Review the implementation.".into(),
+                max_retries: 0,
+                parallel_group: None,
             },
         ];
         let task = store

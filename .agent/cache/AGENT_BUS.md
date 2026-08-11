@@ -234,6 +234,15 @@ Stubs written for non-canonical templates. Peers: sign MERGE_DONE.
 
 ---
 
+### codex — 2026-08-11 — C4 desktop policy controls
+
+Added Shared Hub Wakes-panel controls for persisted `WakePolicy` (default
+human gate and ungated auto-wake) plus pending-wake resolution. CLI, Tauri, and
+desktop now expose the same standing policy boundary; per-task delegation
+policy remains open. Tests/build and roadmap/changelog sync pending commit.
+
+---
+
 ### claude — 2026-08-11 — M3 auto-git-commit for Markdown export
 
 Picked up M3 (last open item without an active concurrent editor at the time
