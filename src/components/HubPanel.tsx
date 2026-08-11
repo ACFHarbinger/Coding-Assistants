@@ -55,6 +55,23 @@ interface BudgetStatus {
   updated_at: string;
 }
 
+interface ProviderQuotaWindow {
+  label: string;
+  used_percent: number;
+  remaining_percent: number;
+  resets_at?: number | null;
+  window_minutes?: number | null;
+}
+
+interface ProviderQuota {
+  agent_id: string;
+  provider: string;
+  status: string;
+  detail?: string | null;
+  windows: ProviderQuotaWindow[];
+  fetched_at: number;
+}
+
 type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage";
 
 const cardStyle: React.CSSProperties = {
@@ -109,6 +126,55 @@ function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
   );
 }
 
+function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
+  const formatReset = (timestamp?: number | null) => timestamp
+    ? `resets ${new Date(timestamp * 1000).toLocaleString()}`
+    : "reset time unavailable";
+  const windowName = (window: ProviderQuotaWindow) => {
+    if (!window.window_minutes) return window.label;
+    if (window.window_minutes <= 360) return `${window.label} · hourly window`;
+    if (window.window_minutes >= 24 * 60) return `${window.label} · weekly window`;
+    return `${window.label} · ${window.window_minutes} min`;
+  };
+  return (
+    <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0, color: "var(--text-main)" }}>Provider quota remaining</h3>
+          <p style={{ margin: "0.35rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem" }}>Account limits reported by each provider, separate from local Shared Hub budgets.</p>
+        </div>
+        <div style={{ display: "flex", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--primary)", marginRight: 5 }} />Remaining</span>
+          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#334155", marginRight: 5 }} />Used</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: "1rem" }}>
+        {quotas.map((quota) => (
+          <div key={quota.agent_id} style={{ display: "grid", gap: "0.55rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+              <strong style={{ color: "var(--primary)" }}>{quota.agent_id} · {quota.provider}</strong>
+              <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem" }}>{quota.status === "ok" ? "live quota" : "unavailable"}</span>
+            </div>
+            {quota.windows.length === 0 ? (
+              <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
+            ) : quota.windows.map((window) => (
+              <div key={`${quota.agent_id}-${window.label}`} style={{ display: "grid", gap: "0.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
+                  <strong style={{ color: "var(--text-main)" }}>{window.remaining_percent}% remaining</strong>
+                </div>
+                <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
+                  <div style={{ width: `${window.remaining_percent}%`, height: "100%", background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function HubPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("memory");
   const [dataDir, setDataDir] = useState<string>("");
@@ -138,6 +204,7 @@ export default function HubPanel() {
 
   const [wakePolicy, setWakePolicy] = useState<WakePolicy | null>(null);
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
+  const [quotas, setQuotas] = useState<ProviderQuota[]>([]);
   const [budgetAgent, setBudgetAgent] = useState("");
   const [budgetLimit, setBudgetLimit] = useState("100");
   const [budgetSpend, setBudgetSpend] = useState("1");
@@ -194,6 +261,13 @@ export default function HubPanel() {
     setBudgets(statuses.filter((status): status is BudgetStatus => status !== null));
   }, [agents]);
 
+  const refreshQuotas = useCallback(async () => {
+    const statuses = await run("provider quotas refreshed", () =>
+      invoke<ProviderQuota[]>("hub_get_provider_quotas")
+    );
+    if (statuses) setQuotas(statuses);
+  }, [run]);
+
   useEffect(() => {
     invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
     invoke<AgentRecord[]>("hub_list_agents").then((list) => {
@@ -213,8 +287,11 @@ export default function HubPanel() {
     else if (hubTab === "inbox") refreshMessages();
     else if (hubTab === "wakes") refreshWakes();
     else if (hubTab === "policy") refreshPolicy();
-    else if (hubTab === "usage") refreshBudgets();
-  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets]);
+    else if (hubTab === "usage") {
+      refreshBudgets();
+      refreshQuotas();
+    }
+  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets, refreshQuotas]);
 
   const writeMemory = async () => {
     if (!memBody.trim()) return;
@@ -705,9 +782,11 @@ export default function HubPanel() {
               <input type="number" min="0" step="1" value={budgetLimit} onChange={(e) => setBudgetLimit(e.target.value)} style={{ ...inputStyle, width: 130 }} placeholder="Limit" />
               <button className="btn-primary" onClick={setBudget} disabled={!budgetAgent}>Set / reset budget</button>
               <button className="btn-secondary" onClick={refreshBudgets}>Refresh</button>
+              <button className="btn-secondary" onClick={refreshQuotas}>Refresh provider quotas</button>
             </div>
           </div>
           <UsageChart budgets={budgets} />
+          <QuotaChart quotas={quotas} />
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {budgets.length === 0 && <p style={{ color: "var(--text-muted)" }}>No budgets configured.</p>}
             {budgets.map((budget) => (

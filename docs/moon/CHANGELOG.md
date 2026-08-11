@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added provider-quota plots to the Shared Hub Usage tab. Codex is queried
+  through its local app-server account rate-limit endpoint and displays each
+  reported window's used/remaining percentage and reset time; providers that
+  do not expose a local quota snapshot are explicitly marked unavailable
+  instead of being confused with local Shared Hub budgets.
+
 - Added the first agent-session bridge boundary: `ca inbox watch --agent
   <id>` emits JSONL `ready`/`message` records, polls the durable inbox,
   acknowledges delivered messages, and resolves linked wakes. Human-gated
