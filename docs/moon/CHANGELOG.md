@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added per-role existing-process endpoint configuration. When an
+  OpenAI-compatible endpoint is supplied, orchestration sends requests to the
+  already-running model service and does not spawn or terminate a child
+  process; blank endpoints preserve the existing provider-managed behavior.
+
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
   added Shared Hub Dashboard cards with per-agent budget progress. Exact

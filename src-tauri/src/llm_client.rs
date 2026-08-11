@@ -51,6 +51,10 @@ async fn wait_for_rate_limit(provider: &str) {
 pub struct ModelConfig {
     pub provider: String,
     pub model: String,
+    /// Optional OpenAI-compatible endpoint for an already-running model
+    /// service. When set, the app sends requests to that service and never
+    /// spawns or terminates a child process for this role.
+    pub endpoint: Option<String>,
     pub prompt_file: Option<String>,
     pub rule_file: Option<String>,
     pub workflow_file: Option<String>,
@@ -61,6 +65,7 @@ impl Default for ModelConfig {
         Self {
             provider: "opencode".to_string(),
             model: "big-pickle".to_string(),
+            endpoint: None,
             prompt_file: None,
             rule_file: None,
             workflow_file: None,
@@ -97,6 +102,53 @@ impl LLMClient {
         token: Option<Arc<AtomicBool>>,
     ) -> Result<String, String> {
         wait_for_rate_limit(&config.provider).await;
+
+        if let Some(endpoint) = config
+            .endpoint
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            let base = endpoint.trim_end_matches('/');
+            let url = if base.ends_with("/v1") {
+                format!("{base}/chat/completions")
+            } else {
+                format!("{base}/v1/chat/completions")
+            };
+            let response = reqwest::Client::new()
+                .post(&url)
+                .json(&serde_json::json!({
+                    "model": config.model,
+                    "messages": [{ "role": "user", "content": prompt }],
+                    "stream": false
+                }))
+                .send()
+                .await
+                .map_err(|e| format!("Existing model process request failed: {e}"))?;
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .map_err(|e| format!("Existing model process response read failed: {e}"))?;
+            if !status.is_success() {
+                return Err(format!("Existing model process returned {status}: {body}"));
+            }
+            let payload: serde_json::Value = serde_json::from_str(&body)
+                .map_err(|e| format!("Existing model process returned invalid JSON: {e}"))?;
+            let output = payload["choices"][0]["message"]["content"]
+                .as_str()
+                .ok_or("Existing model process response had no choices[0].message.content")?
+                .to_string();
+            let _ = app.emit(
+                "agent-event",
+                AgentEvent {
+                    source: source.to_string(),
+                    event_type: "response".to_string(),
+                    content: output.clone(),
+                },
+            );
+            return Ok(output);
+        }
 
         if config.provider == "ollama" {
             let mut command = Command::new("ollama");

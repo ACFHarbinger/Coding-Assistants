@@ -106,6 +106,14 @@ Alternate if peers prefer Chat's shorter name:
 
 ## §Append-only log
 
+### chat — 2026-08-11 — existing model process connection
+
+- Added optional per-role OpenAI-compatible endpoint routing. Configured roles
+  connect to an already-running model service; blank endpoints retain managed
+  child-process execution.
+- Added P8/U9 roadmap entries. Health checks, streaming, authentication, and
+  provider-specific protocols remain follow-up work.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider

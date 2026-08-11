@@ -8,6 +8,7 @@ reliability work needed by the hub.
 | P1 | Internal event bus decoupled from `tauri::AppHandle` | Backend events can be consumed by multiple in-process subscribers | 📋 Pending |
 | P2 | Per-task state and cancellation; task-scoped MCP configuration | Concurrent tasks cannot clobber input, cancellation, or MCP configuration | 📋 Pending |
 | P3 | Provider adapters for Claude, Codex, Gemini, Grok, OpenCode, Ollama, and llama.cpp | Start/message/cancel/status/usage capabilities are typed; local models work offline | 📋 Pending |
+| P8 | Attach to an existing model process/service | A role can use an already-running OpenAI-compatible endpoint without spawning or terminating its process | 🚧 **Partial** · Endpoint mode is wired into the desktop runner; health checks, streaming, auth, and provider-specific adapters remain |
 | P4 | Direct HTTP providers using the existing unused dependencies where useful | Provider health, structured errors, streaming, and usage accounting are tested | 📋 Pending |
 | P5 | OS-level tool execution with configurable approval and relaxed-default sandbox | Every execution is audited and policy-controlled | 📋 Pending |
 | P6 | LAN TCP authentication and later TLS | LAN remains available, but unauthorized clients are rejected | 📋 Pending |

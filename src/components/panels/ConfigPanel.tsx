@@ -4,6 +4,7 @@ import { invoke } from "../../lib/tauri";
 export interface ModelConfig {
   provider: string;
   model: string;
+  endpoint?: string;
   prompt_file?: string;
   rule_file?: string;
   workflow_file?: string;
@@ -133,6 +134,17 @@ const ModelSelect = ({
             <option key={model} value={model}>{model}</option>
           ))}
         </select>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <label className="label">Existing process endpoint <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+        <input
+          value={roleConfig.endpoint || ""}
+          onChange={(e) => onConfigChange(index, 'endpoint', e.target.value)}
+          placeholder="http://127.0.0.1:1234/v1"
+          style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+        />
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Uses an OpenAI-compatible service already running. Leave blank to let Coding Assistants start the provider.</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
