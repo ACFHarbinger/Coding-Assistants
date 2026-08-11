@@ -8,7 +8,7 @@
 mod store;
 
 pub use store::{
-    AgentRecord, CompactReport, GitExportOutcome, HubError, HubStore, MemoryRecord, MemoryScope,
-    MemoryTier, MessageKind, MessageRecord, MessageStatus, TaskRecord, TaskStatus, WakePolicy,
-    WakeRecord, WakeStatus, WorkflowStep,
+    AgentRecord, BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubError,
+    HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
+    TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
 };

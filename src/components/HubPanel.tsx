@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import TaskTab from "./panels/TaskTab";
 
 interface MemoryRecord {
   id: string;
@@ -45,7 +46,7 @@ interface WakePolicy {
   allow_auto_wake: boolean;
 }
 
-type HubTab = "memory" | "inbox" | "wakes" | "policy";
+type HubTab = "memory" | "inbox" | "wakes" | "tasks" | "policy";
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -270,6 +271,7 @@ export default function HubPanel() {
           {tabBtn("memory", "Memory")}
           {tabBtn("inbox", "Inbox")}
           {tabBtn("wakes", "Wakes")}
+          {tabBtn("tasks", "Tasks")}
           {tabBtn("policy", "Policy")}
         </div>
       </div>
@@ -606,6 +608,8 @@ export default function HubPanel() {
           </div>
         </div>
       )}
+
+      {hubTab === "tasks" && <TaskTab />}
     </div>
   );
 }

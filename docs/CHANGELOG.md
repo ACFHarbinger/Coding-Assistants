@@ -32,6 +32,10 @@ All notable changes to this project are documented in this file. The format is b
   release, retry limits, failed terminal state, CLI/Tauri commands, and Shared
   Hub task controls.
 
+- C6 now provides per-agent budget tracking, exhaustion pause, durable Markdown
+  delegation handoffs, wake blocking, and human-controlled resume through the
+  CLI/Tauri Hub boundary. Automatic provider spend reporting remains open.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

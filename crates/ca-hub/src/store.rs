@@ -530,6 +530,7 @@ impl HubStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn write_memory(
         &self,
         tier: MemoryTier,
@@ -552,6 +553,7 @@ impl HubStore {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn write_memory_with_source(
         &self,
         tier: MemoryTier,
@@ -638,7 +640,7 @@ impl HubStore {
         tags: Option<&[String]>,
     ) -> Result<MemoryRecord, HubError> {
         let now = Utc::now().to_rfc3339();
-        
+
         if body.trim().is_empty() {
             return Err(HubError::Invalid("memory body must not be empty".into()));
         }
@@ -662,7 +664,8 @@ impl HubStore {
             }
         }
 
-        self.get_memory(id)?.ok_or_else(|| HubError::NotFound(id.to_string()))
+        self.get_memory(id)?
+            .ok_or_else(|| HubError::NotFound(id.to_string()))
     }
 
     pub fn list_memories(
@@ -873,6 +876,7 @@ impl HubStore {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn send_message(
         &self,
         from_agent: &str,
@@ -1046,7 +1050,11 @@ impl HubStore {
 
     /// Set (or reset) an agent's spend budget (C6). Resets `spent_units` to 0
     /// and clears any prior pause.
-    pub fn set_agent_budget(&self, agent_id: &str, limit_units: f64) -> Result<BudgetStatus, HubError> {
+    pub fn set_agent_budget(
+        &self,
+        agent_id: &str,
+        limit_units: f64,
+    ) -> Result<BudgetStatus, HubError> {
         if limit_units <= 0.0 {
             return Err(HubError::Invalid("limit_units must be > 0".into()));
         }
@@ -1091,7 +1099,11 @@ impl HubStore {
     /// status; `paused` flips to true once `spent_units >= limit_units`, but
     /// this call alone does **not** write a handoff — call `pause_for_budget`
     /// when the caller is ready to hand off and stop (C6).
-    pub fn record_budget_usage(&self, agent_id: &str, amount: f64) -> Result<BudgetStatus, HubError> {
+    pub fn record_budget_usage(
+        &self,
+        agent_id: &str,
+        amount: f64,
+    ) -> Result<BudgetStatus, HubError> {
         let budget = self
             .get_budget(agent_id)?
             .ok_or_else(|| HubError::NotFound(format!("no budget set for {agent_id}")))?;
@@ -1375,7 +1387,7 @@ impl HubStore {
         let n = self
             .conn
             .execute("DELETE FROM memories WHERE stale = 1", [])?;
-        Ok(n as usize)
+        Ok(n)
     }
 
     /// Mark short-term memories older than `max_age_hours` as stale (soft retention).
@@ -1392,7 +1404,7 @@ impl HubStore {
             "#,
             params![Utc::now().to_rfc3339(), cutoff],
         )?;
-        Ok(n as usize)
+        Ok(n)
     }
 
     pub fn set_message_status(
@@ -1667,6 +1679,7 @@ impl HubStore {
         Ok(msg.id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn persist_task_runtime(
         &self,
         id: &str,
@@ -2508,5 +2521,66 @@ mod tests {
             .advance_task(&task.id, Some("reviewer"), None)
             .unwrap();
         assert_eq!(finished.status, "done");
+    }
+
+    #[test]
+    fn c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        let set = store.set_agent_budget("claude", 10.0).unwrap();
+        assert_eq!(set.spent_units, 0.0);
+        assert!(!set.paused);
+
+        // Under the limit: no pause, wakes still allowed.
+        let under = store.record_budget_usage("claude", 4.0).unwrap();
+        assert!(!under.paused);
+        store
+            .request_wake("claude", Some("still fine"), None, true)
+            .unwrap();
+
+        // Crossing the limit flips paused, but record_budget_usage alone
+        // does not yet write a handoff or block new wakes on its own -- the
+        // caller must call pause_for_budget to do that explicitly.
+        let over = store.record_budget_usage("claude", 10.0).unwrap();
+        assert!(over.paused);
+        assert_eq!(over.spent_units, 14.0);
+
+        let outcome = store
+            .pause_for_budget(
+                "claude",
+                Some("task-42"),
+                "Implement C6 budget handoff.",
+                "Schema + store methods + tests.",
+                "CLI/Tauri wiring and roadmap docs.",
+                Some("grok"),
+            )
+            .unwrap();
+        assert!(outcome.status.paused);
+        assert!(outcome.summary_path.exists());
+        let summary = fs::read_to_string(&outcome.summary_path).unwrap();
+        assert!(summary.contains("Implement C6 budget handoff."));
+        assert!(summary.contains("Delegated to"));
+        assert!(summary.contains("grok"));
+
+        let handoff = store
+            .get_message(&outcome.handoff_message_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(handoff.from_agent, "claude");
+        assert_eq!(handoff.to_agent, "grok");
+        assert_eq!(handoff.kind, "handoff");
+
+        // Paused agent cannot receive further wakes until resumed.
+        let err = store
+            .request_wake("claude", Some("try again"), None, true)
+            .unwrap_err();
+        assert!(err.to_string().contains("budget-paused"));
+
+        let resumed = store.resume_agent("claude").unwrap();
+        assert!(!resumed.paused);
+        store
+            .request_wake("claude", Some("resumed"), None, true)
+            .unwrap();
     }
 }

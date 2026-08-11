@@ -57,6 +57,14 @@ ca wake policy --set-default-gate true --set-allow-auto true
 ca export-markdown
 ca export-markdown --commit --message "chore(hub): update shared memory export"
 
+# Budget-aware pause and handoff (C6)
+ca budget set --agent claude --limit 100
+ca budget spend --agent claude --amount 25
+ca budget pause --agent claude --task TASK-UUID \
+  --objective "Implement feature" --completed "Core code" \
+  --missing "Review and tests" --delegate-to grok
+ca budget resume claude
+
 # Workflow (C5) — sequential + bounded-parallel stages
 # Consecutive steps sharing parallel_group run together (capped by --max-parallel)
 ca task create --title "plan-impl-review" --workspace "$PWD" --max-parallel 2 --steps '[

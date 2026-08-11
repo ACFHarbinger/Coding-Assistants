@@ -305,6 +305,11 @@ pub fn run() {
             hub_cmds::hub_cancel_task,
             hub_cmds::hub_complete_parallel_member,
             hub_cmds::hub_retry_task,
+            hub_cmds::hub_set_agent_budget,
+            hub_cmds::hub_get_budget,
+            hub_cmds::hub_record_budget_usage,
+            hub_cmds::hub_resume_agent,
+            hub_cmds::hub_pause_for_budget,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

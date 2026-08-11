@@ -2,9 +2,9 @@
 //! Same data directory as the `ca` CLI (`$CA_HOME` or `~/.coding-assistants`).
 
 use ca_hub::{
-    CompactReport, GitExportOutcome, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
-    MessageRecord, MessageStatus, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
-    WorkflowStep,
+    BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubStore, MemoryRecord,
+    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, TaskRecord, TaskStatus,
+    WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
 };
 use std::path::PathBuf;
 
@@ -371,5 +371,55 @@ pub fn hub_retry_task(
 ) -> Result<TaskRecord, String> {
     open_store()?
         .retry_task(&id, from.as_deref(), note.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_set_agent_budget(agent: String, limit: f64) -> Result<BudgetStatus, String> {
+    open_store()?
+        .set_agent_budget(&agent, limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_get_budget(agent: String) -> Result<Option<BudgetStatus>, String> {
+    open_store()?.get_budget(&agent).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_record_budget_usage(agent: String, amount: f64) -> Result<BudgetStatus, String> {
+    open_store()?
+        .record_budget_usage(&agent, amount)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_resume_agent(agent: String) -> Result<BudgetStatus, String> {
+    open_store()?
+        .resume_agent(&agent)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+pub struct PauseForBudgetArgs {
+    pub agent: String,
+    pub task: Option<String>,
+    pub objective: String,
+    pub completed: String,
+    pub missing: String,
+    pub delegate_to: Option<String>,
+}
+
+#[tauri::command]
+pub fn hub_pause_for_budget(args: PauseForBudgetArgs) -> Result<BudgetPauseOutcome, String> {
+    open_store()?
+        .pause_for_budget(
+            &args.agent,
+            args.task.as_deref(),
+            &args.objective,
+            &args.completed,
+            &args.missing,
+            args.delegate_to.as_deref(),
+        )
         .map_err(|e| e.to_string())
 }

@@ -67,6 +67,49 @@ enum Command {
         #[command(subcommand)]
         action: TaskCommand,
     },
+    /// Per-agent spend budgets and exhaustion handoffs (C6).
+    Budget {
+        #[command(subcommand)]
+        action: BudgetCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum BudgetCommand {
+    /// Set (or reset) an agent's budget.
+    Set {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        limit: f64,
+    },
+    /// Show an agent's current spend/limit/pause status.
+    Status { agent: String },
+    /// Record spend against an agent's budget.
+    Spend {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        amount: f64,
+    },
+    /// Pause an agent, write a Markdown handoff summary, and hand the task
+    /// off to another agent (or "human" by default).
+    Pause {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        objective: String,
+        #[arg(long)]
+        completed: String,
+        #[arg(long)]
+        missing: String,
+        #[arg(long)]
+        delegate_to: Option<String>,
+    },
+    /// Clear a budget pause so the agent can receive wakes again.
+    Resume { agent: String },
 }
 
 #[derive(Subcommand)]
@@ -500,6 +543,44 @@ fn main() -> anyhow::Result<()> {
             TaskCommand::Cancel { id } => {
                 let record = store.cancel_task(&id)?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+        },
+        Command::Budget { action } => match action {
+            BudgetCommand::Set { agent, limit } => {
+                let status = store.set_agent_budget(&agent, limit)?;
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            }
+            BudgetCommand::Status { agent } => {
+                let status = store
+                    .get_budget(&agent)?
+                    .ok_or_else(|| anyhow::anyhow!("no budget set for {agent}"))?;
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            }
+            BudgetCommand::Spend { agent, amount } => {
+                let status = store.record_budget_usage(&agent, amount)?;
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            }
+            BudgetCommand::Pause {
+                agent,
+                task,
+                objective,
+                completed,
+                missing,
+                delegate_to,
+            } => {
+                let outcome = store.pause_for_budget(
+                    &agent,
+                    task.as_deref(),
+                    &objective,
+                    &completed,
+                    &missing,
+                    delegate_to.as_deref(),
+                )?;
+                println!("{}", serde_json::to_string_pretty(&outcome)?);
+            }
+            BudgetCommand::Resume { agent } => {
+                let status = store.resume_agent(&agent)?;
+                println!("{}", serde_json::to_string_pretty(&status)?);
             }
         },
     }

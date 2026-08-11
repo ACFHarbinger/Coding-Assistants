@@ -81,7 +81,7 @@ repos:
 
   # ── Markdown: link checker ───────────────────────────────────────────────
   - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.15.1
+    rev: v0.15.1
     hooks:
       - id: lychee
         name: lychee (markdown link check)

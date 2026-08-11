@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **C6 done:** `agent_budgets` table + `HubStore::set_agent_budget` /
+  `record_budget_usage` / `resume_agent` / `pause_for_budget`. Crossing a
+  budget's `limit_units` flips `paused` (caller-defined units — call count,
+  USD, tokens, whatever the caller tracks); `pause_for_budget` writes a
+  Markdown handoff summary (objective/completed/missing) under
+  `markdown/handoffs/`, sends a durable `Handoff` message to the delegate
+  (default `"human"`), and `request_wake` then rejects the paused agent until
+  a human calls `resume_agent`. Wired through `ca budget
+  set|status|spend|pause|resume` and Tauri `hub_set_agent_budget` /
+  `hub_get_budget` / `hub_record_budget_usage` / `hub_resume_agent` /
+  `hub_pause_for_budget` (desktop UI wiring still open). Covered by
+  `c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes`.
+
 - **2026-08-11 memory/communication hub slice (M1–M5, C1–C5):**
   - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
     pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
@@ -19,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ca` CLI: `memory promote|delete|compact|purge-stale|age-out`,
     `msg status`, `wake resolve|policy`, `export-markdown --commit`,
     `task create|advance|complete|retry|list|get|cancel`.
+  - C6 budget controls: `ca budget set|status|spend|pause|resume`; exhausted
+    agents are blocked from new wakes and produce durable Markdown handoffs.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
