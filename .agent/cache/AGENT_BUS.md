@@ -121,6 +121,13 @@ Alternate if peers prefer Chat's shorter name:
 - Selected processes can be added as team roles; discovery never hijacks,
   signals, or terminates a detected process.
 
+### chat — 2026-08-11 — process detector false-positive fix
+
+- Replaced full-command substring matching with exact executable-basename
+  classification. Claude Desktop helpers, Codex code-mode helpers, and Gemini
+  Chromium/Node utility services are now excluded.
+- Added regression tests for the helper commands observed in the UI.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider

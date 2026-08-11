@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Grok, Claude, Codex/ChatGPT, and Gemini/Antigravity command processes and
   lets the user add selected identities to the configured team without taking
   ownership of or terminating those processes.
+- Tightened process discovery to match executable basenames only, excluding
+  desktop helpers, Chromium/Node utility services, and agent runtime helpers.
 
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
