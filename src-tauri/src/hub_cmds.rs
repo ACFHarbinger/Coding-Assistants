@@ -61,6 +61,23 @@ pub fn hub_write_memory(args: WriteMemoryArgs) -> Result<MemoryRecord, String> {
         .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+pub struct UpdateMemoryArgs {
+    pub id: String,
+    pub title: Option<String>,
+    pub body: String,
+    pub tags: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub fn hub_update_memory(args: UpdateMemoryArgs) -> Result<MemoryRecord, String> {
+    let store = open_store()?;
+    let tags = args.tags.as_deref();
+    store
+        .update_memory(&args.id, args.title.as_deref(), &args.body, tags)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_list_memories(
     scope: Option<String>,

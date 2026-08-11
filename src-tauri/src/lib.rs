@@ -277,6 +277,7 @@ pub fn run() {
             hub_cmds::hub_data_dir,
             hub_cmds::hub_list_agents,
             hub_cmds::hub_write_memory,
+            hub_cmds::hub_update_memory,
             hub_cmds::hub_list_memories,
             hub_cmds::hub_search_memories,
             hub_cmds::hub_mark_memory_stale,

@@ -312,6 +312,29 @@ impl Default for WakePolicy {
     }
 }
 
+/// Per-agent provider-call/spend budget (C6). Units are caller-defined
+/// (call count, USD, tokens, ...) — the store only compares totals.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetStatus {
+    pub agent_id: String,
+    pub limit_units: f64,
+    pub spent_units: f64,
+    /// True once spend has reached or exceeded the limit; wakes are blocked
+    /// for this agent until a human explicitly `resume_agent`s it.
+    pub paused: bool,
+    pub updated_at: String,
+}
+
+/// Result of `HubStore::pause_for_budget` (C6): the exhaustion handoff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetPauseOutcome {
+    pub status: BudgetStatus,
+    /// Markdown handoff summary path under `markdown/handoffs/`.
+    pub summary_path: PathBuf,
+    /// The durable handoff message id sent to `delegate_to` (or `"human"`).
+    pub handoff_message_id: String,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -419,6 +442,14 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_tasks_status
                 ON tasks(status, updated_at);
+
+            CREATE TABLE IF NOT EXISTS agent_budgets (
+                agent_id TEXT PRIMARY KEY NOT NULL,
+                limit_units REAL NOT NULL,
+                spent_units REAL NOT NULL DEFAULT 0,
+                paused INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
             "#,
         )?;
 
@@ -597,6 +628,41 @@ impl HubStore {
             })
             .optional()?;
         Ok(row)
+    }
+
+    pub fn update_memory(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        body: &str,
+        tags: Option<&[String]>,
+    ) -> Result<MemoryRecord, HubError> {
+        let now = Utc::now().to_rfc3339();
+        
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid("memory body must not be empty".into()));
+        }
+
+        if let Some(t) = tags {
+            let tags_json = serde_json::to_string(t).unwrap_or_else(|_| "[]".into());
+            let updated = self.conn.execute(
+                "UPDATE memories SET title = ?1, body = ?2, tags_json = ?3, updated_at = ?4 WHERE id = ?5",
+                params![title, body, tags_json, now, id],
+            )?;
+            if updated == 0 {
+                return Err(HubError::NotFound(id.to_string()));
+            }
+        } else {
+            let updated = self.conn.execute(
+                "UPDATE memories SET title = ?1, body = ?2, updated_at = ?3 WHERE id = ?4",
+                params![title, body, now, id],
+            )?;
+            if updated == 0 {
+                return Err(HubError::NotFound(id.to_string()));
+            }
+        }
+
+        self.get_memory(id)?.ok_or_else(|| HubError::NotFound(id.to_string()))
     }
 
     pub fn list_memories(
@@ -978,6 +1044,143 @@ impl HubStore {
         Ok(())
     }
 
+    /// Set (or reset) an agent's spend budget (C6). Resets `spent_units` to 0
+    /// and clears any prior pause.
+    pub fn set_agent_budget(&self, agent_id: &str, limit_units: f64) -> Result<BudgetStatus, HubError> {
+        if limit_units <= 0.0 {
+            return Err(HubError::Invalid("limit_units must be > 0".into()));
+        }
+        self.upsert_agent(agent_id, agent_id)?;
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO agent_budgets(agent_id, limit_units, spent_units, paused, updated_at)
+            VALUES (?1, ?2, 0, 0, ?3)
+            ON CONFLICT(agent_id) DO UPDATE SET
+                limit_units = excluded.limit_units,
+                spent_units = 0,
+                paused = 0,
+                updated_at = excluded.updated_at
+            "#,
+            params![agent_id, limit_units, now],
+        )?;
+        Ok(self.get_budget(agent_id)?.expect("just inserted"))
+    }
+
+    pub fn get_budget(&self, agent_id: &str) -> Result<Option<BudgetStatus>, HubError> {
+        self.conn
+            .query_row(
+                "SELECT agent_id, limit_units, spent_units, paused, updated_at \
+                 FROM agent_budgets WHERE agent_id = ?1",
+                params![agent_id],
+                |r| {
+                    Ok(BudgetStatus {
+                        agent_id: r.get(0)?,
+                        limit_units: r.get(1)?,
+                        spent_units: r.get(2)?,
+                        paused: r.get::<_, i64>(3)? != 0,
+                        updated_at: r.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(HubError::from)
+    }
+
+    /// Record `amount` units of spend against `agent_id`. Returns the updated
+    /// status; `paused` flips to true once `spent_units >= limit_units`, but
+    /// this call alone does **not** write a handoff — call `pause_for_budget`
+    /// when the caller is ready to hand off and stop (C6).
+    pub fn record_budget_usage(&self, agent_id: &str, amount: f64) -> Result<BudgetStatus, HubError> {
+        let budget = self
+            .get_budget(agent_id)?
+            .ok_or_else(|| HubError::NotFound(format!("no budget set for {agent_id}")))?;
+        let spent = budget.spent_units + amount;
+        let paused = budget.paused || spent >= budget.limit_units;
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE agent_budgets SET spent_units = ?1, paused = ?2, updated_at = ?3 WHERE agent_id = ?4",
+            params![spent, if paused { 1 } else { 0 }, now, agent_id],
+        )?;
+        Ok(self.get_budget(agent_id)?.expect("just updated"))
+    }
+
+    /// Clear a budget pause so the agent can receive wakes again (C6). A
+    /// human/owner action, not something an agent should call on itself.
+    pub fn resume_agent(&self, agent_id: &str) -> Result<BudgetStatus, HubError> {
+        let n = self.conn.execute(
+            "UPDATE agent_budgets SET paused = 0, updated_at = ?1 WHERE agent_id = ?2",
+            params![Utc::now().to_rfc3339(), agent_id],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(agent_id.into()));
+        }
+        Ok(self.get_budget(agent_id)?.expect("just updated"))
+    }
+
+    /// C6 exhaustion flow: mark `agent_id` paused (no further wakes accepted
+    /// until `resume_agent`), write a durable Markdown handoff summary under
+    /// `markdown/handoffs/`, and send a `Handoff` message to `delegate_to`
+    /// (defaults to `"human"`) so the work is picked up rather than lost.
+    #[allow(clippy::too_many_arguments)]
+    pub fn pause_for_budget(
+        &self,
+        agent_id: &str,
+        task_id: Option<&str>,
+        objective: &str,
+        completed: &str,
+        missing: &str,
+        delegate_to: Option<&str>,
+    ) -> Result<BudgetPauseOutcome, HubError> {
+        if self.get_budget(agent_id)?.is_none() {
+            return Err(HubError::NotFound(format!("no budget set for {agent_id}")));
+        }
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE agent_budgets SET paused = 1, updated_at = ?1 WHERE agent_id = ?2",
+            params![now, agent_id],
+        )?;
+        let status = self.get_budget(agent_id)?.expect("just updated");
+
+        let delegate = delegate_to.unwrap_or("human");
+        let summary = format!(
+            "# Budget-exhaustion handoff: {agent_id}\n\n\
+             Generated: {now}\n\n\
+             - agent: `{agent_id}`\n\
+             - task: `{}`\n\
+             - spent: {} / {} units\n\n\
+             ## Objective\n\n{objective}\n\n\
+             ## Completed\n\n{completed}\n\n\
+             ## Missing / next steps\n\n{missing}\n\n\
+             ## Delegated to\n\n`{delegate}`\n",
+            task_id.unwrap_or("-"),
+            status.spent_units,
+            status.limit_units,
+        );
+
+        let handoffs_dir = self.data_dir.join("markdown").join("handoffs");
+        fs::create_dir_all(&handoffs_dir)?;
+        let stamp = now.replace([':', '.'], "-");
+        let summary_path = handoffs_dir.join(format!("{stamp}-{agent_id}.md"));
+        fs::write(&summary_path, &summary)?;
+
+        let message = self.send_message(
+            agent_id,
+            delegate,
+            MessageKind::Handoff,
+            &summary,
+            Some("budget exhausted: handoff"),
+            None,
+            task_id,
+        )?;
+
+        Ok(BudgetPauseOutcome {
+            status,
+            summary_path,
+            handoff_message_id: message.id,
+        })
+    }
+
     pub fn request_wake(
         &self,
         target_agent: &str,
@@ -986,6 +1189,16 @@ impl HubStore {
         requires_human_gate: bool,
     ) -> Result<WakeRecord, HubError> {
         self.upsert_agent(target_agent, target_agent)?;
+
+        if let Some(budget) = self.get_budget(target_agent)? {
+            if budget.paused {
+                return Err(HubError::Invalid(format!(
+                    "{target_agent} is budget-paused ({}/{} units spent); \
+                     resume_agent() required before new wakes are allowed",
+                    budget.spent_units, budget.limit_units
+                )));
+            }
+        }
 
         let policy = self.get_wake_policy()?;
         let mut requires_human_gate = requires_human_gate;

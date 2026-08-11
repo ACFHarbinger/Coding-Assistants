@@ -95,6 +95,10 @@ export default function HubPanel() {
 
   const [wakePolicy, setWakePolicy] = useState<WakePolicy | null>(null);
 
+  const [editingMemory, setEditingMemory] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setError("");
     try {
@@ -168,6 +172,20 @@ export default function HubPanel() {
     );
     setMemBody("");
     setMemTitle("");
+    await refreshMemories();
+  };
+
+  const saveEditedMemory = async (id: string) => {
+    if (!editBody.trim()) return;
+    await run("memory updated", () =>
+      invoke("hub_update_memory", {
+        id,
+        title: editTitle || null,
+        body: editBody,
+        tags: null, // Keep existing tags
+      })
+    );
+    setEditingMemory(null);
     await refreshMemories();
   };
 
@@ -361,40 +379,73 @@ export default function HubPanel() {
             {memories.map((m) => (
               <div key={m.id} style={{ ...cardStyle, position: "relative", overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
-                  <div>
-                    <strong style={{ fontSize: "1.1rem", color: "var(--primary)" }}>{m.title || "(untitled)"}</strong>
+                  <div style={{ flex: 1 }}>
+                    {editingMemory === m.id ? (
+                      <input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="Memory title (optional)"
+                        style={{ ...inputStyle, width: "100%", marginBottom: "0.5rem" }}
+                      />
+                    ) : (
+                      <strong style={{ fontSize: "1.1rem", color: m.stale ? "var(--text-muted)" : "var(--primary)", textDecoration: m.stale ? "line-through" : "none" }}>{m.title || "(untitled)"}</strong>
+                    )}
                     <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.35rem" }}>
                       <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "var(--text-main)" }}>{m.tier}</span>
-                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(56, 189, 248, 0.1)", borderRadius: "4px", color: "#38bdf8" }}>{m.scope}</span>
+                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: m.scope === 'global' ? "rgba(16, 185, 129, 0.1)" : "rgba(56, 189, 248, 0.1)", borderRadius: "4px", color: m.scope === 'global' ? "#10b981" : "#38bdf8" }}>{m.scope}</span>
                       <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(168, 85, 247, 0.1)", borderRadius: "4px", color: "#a855f7" }}>{m.agent_id || "global"}</span>
+                      {m.stale && <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "4px", color: "#ef4444" }}>STALE</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
-                    {m.tier === "short_term" && (
-                      <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                        await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" }));
-                        await refreshMemories();
-                      }}>→ episodic</button>
+                    {editingMemory === m.id ? (
+                      <>
+                        <button className="btn-primary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)}>Save</button>
+                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => {
+                          setEditingMemory(m.id);
+                          setEditTitle(m.title || "");
+                          setEditBody(m.body);
+                        }}>Edit</button>
+                        {m.tier === "short_term" && (
+                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                            await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" }));
+                            await refreshMemories();
+                          }}>→ episodic</button>
+                        )}
+                        {m.tier === "episodic" && (
+                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                            await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" }));
+                            await refreshMemories();
+                          }}>→ semantic</button>
+                        )}
+                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                          await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true }));
+                          await refreshMemories();
+                        }}>Stale</button>
+                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => {
+                          await run("deleted", () => invoke("hub_delete_memory", { id: m.id }));
+                          await refreshMemories();
+                        }}>Delete</button>
+                      </>
                     )}
-                    {m.tier === "episodic" && (
-                      <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                        await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" }));
-                        await refreshMemories();
-                      }}>→ semantic</button>
-                    )}
-                    <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                      await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true }));
-                      await refreshMemories();
-                    }}>Stale</button>
-                    <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => {
-                      await run("deleted", () => invoke("hub_delete_memory", { id: m.id }));
-                      await refreshMemories();
-                    }}>Delete</button>
                   </div>
                 </div>
-                <pre style={{ margin: "0", whiteSpace: "pre-wrap", fontSize: "0.9rem", color: "var(--text-main)", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
-                  {m.body}
-                </pre>
+                {editingMemory === m.id ? (
+                  <textarea
+                    rows={4}
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    style={{ ...inputStyle, width: "100%", resize: "vertical", fontFamily: "var(--font-sans)" }}
+                  />
+                ) : (
+                  <pre style={{ margin: "0", whiteSpace: "pre-wrap", fontSize: "0.9rem", color: m.stale ? "var(--text-muted)" : "var(--text-main)", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
+                    {m.body}
+                  </pre>
+                )}
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "1rem", textAlign: "right" }}>
                   {m.created_at} · <span style={{ fontFamily: "var(--font-mono)" }}>{m.id.slice(0, 8)}</span>
                 </div>
