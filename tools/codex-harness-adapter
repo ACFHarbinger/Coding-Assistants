@@ -12,23 +12,75 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
+import time
 from typing import Any, TextIO
 
 
-def rpc(stream_in: TextIO, stream_out: TextIO, request_id: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
+class JsonRpcReader:
+    """Keep notifications available while a request waits for its response."""
+
+    def __init__(self, stream: TextIO) -> None:
+        self.events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+        def read() -> None:
+            try:
+                for line in stream:
+                    if line.strip():
+                        self.events.put(json.loads(line))
+            finally:
+                self.events.put(None)
+
+        self.thread = threading.Thread(target=read, name="codex-rpc-reader", daemon=True)
+        self.thread.start()
+
+    def next(self, timeout: float | None = None) -> dict[str, Any]:
+        event = self.events.get(timeout=timeout)
+        if event is None:
+            raise RuntimeError("Codex app-server closed its output")
+        return event
+
+
+def rpc(
+    reader: JsonRpcReader,
+    stream_out: TextIO,
+    request_id: int,
+    method: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
     stream_out.write(json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}) + "\n")
     stream_out.flush()
-    for line in stream_in:
-        if not line.strip():
-            continue
-        response = json.loads(line)
+    while True:
+        response = reader.next()
         if response.get("id") == request_id:
             if "error" in response:
                 raise RuntimeError(f"Codex app-server {method} failed: {response['error']}")
             return response.get("result", {})
-    raise RuntimeError(f"Codex app-server closed while waiting for {method}")
+
+
+def send_hub_reply(ca_bin: str, sender: str, body: str, turn_id: str) -> None:
+    if not body.strip() or sender in {"", "unknown", "system", "chat"}:
+        return
+    subprocess.run(
+        [
+            ca_bin,
+            "msg",
+            "send",
+            "--from",
+            "chat",
+            "--to",
+            sender,
+            "--kind",
+            "message",
+            "--subject",
+            f"codex-reply:{turn_id}",
+            body,
+        ],
+        check=True,
+    )
 
 
 def main() -> int:
@@ -41,6 +93,17 @@ def main() -> int:
     )
     parser.add_argument("--codex", default=os.environ.get("CODEX_BIN", "codex"), help="Codex executable")
     parser.add_argument("--socket", help="Existing app-server Unix socket; otherwise start a local app-server")
+    parser.add_argument(
+        "--ca",
+        default=os.environ.get("CA_BIN", "ca"),
+        help="Coding-Assistants CLI used to publish Codex replies",
+    )
+    parser.add_argument(
+        "--reply-timeout",
+        type=float,
+        default=900.0,
+        help="Seconds to wait for each Codex turn before continuing",
+    )
     args = parser.parse_args()
     if not args.thread_id and not args.list_threads:
         parser.error("one of --thread-id or --list-threads is required")
@@ -52,10 +115,11 @@ def main() -> int:
     ]
     server = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
     assert server.stdin is not None and server.stdout is not None
+    reader = JsonRpcReader(server.stdout)
     try:
         request_id = 1
         rpc(
-            server.stdout,
+            reader,
             server.stdin,
             request_id,
             "initialize",
@@ -66,7 +130,7 @@ def main() -> int:
         server.stdin.flush()
         if args.list_threads:
             result = rpc(
-                server.stdout,
+                reader,
                 server.stdin,
                 request_id,
                 "thread/list",
@@ -75,7 +139,7 @@ def main() -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
 
-        rpc(server.stdout, server.stdin, request_id, "thread/resume", {"threadId": args.thread_id})
+        rpc(reader, server.stdin, request_id, "thread/resume", {"threadId": args.thread_id})
         request_id += 1
 
         for line in sys.stdin:
@@ -93,12 +157,40 @@ def main() -> int:
                 f"From: {sender}\nTo: {recipient}\n\n{body}\n\n"
                 "Treat this as new user/team context and respond normally."
             )
-            rpc(
-                server.stdout,
+            result = rpc(
+                reader,
                 server.stdin,
                 request_id,
                 "turn/start",
                 {"threadId": args.thread_id, "input": [{"type": "text", "text": prompt}]},
+            )
+            turn = result.get("turn", {})
+            turn_id = turn.get("id", f"hub-{message.get('id', request_id)}")
+            reply_parts: list[str] = []
+            deadline = time.monotonic() + args.reply_timeout
+            while time.monotonic() < deadline:
+                try:
+                    event = reader.next(timeout=max(0.1, deadline - time.monotonic()))
+                except queue.Empty:
+                    continue
+                if event.get("method") == "item/completed":
+                    params = event.get("params", {})
+                    item = params.get("item", {})
+                    if item.get("type") == "agentMessage":
+                        reply_parts.append(item.get("text", ""))
+                if event.get("method") == "turn/completed":
+                    params = event.get("params", {})
+                    completed_turn = params.get("turn", {})
+                    if completed_turn.get("id") == turn_id:
+                        break
+            reply = "\n\n".join(part for part in reply_parts if part.strip())
+            send_hub_reply(args.ca, sender, reply, turn_id)
+            print(
+                json.dumps(
+                    {"type": "reply", "thread_id": args.thread_id, "turn_id": turn_id, "to_agent": sender},
+                    sort_keys=True,
+                ),
+                flush=True,
             )
             request_id += 1
     except (BrokenPipeError, EOFError):

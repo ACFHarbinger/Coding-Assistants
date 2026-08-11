@@ -29,7 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same stream to a long-lived provider adapter. Added a Codex adapter using
   the installed app-server `thread/resume` + `turn/start` protocol rather than
   terminal injection, plus `--list-threads` discovery for selecting a
-  persisted session; outbound replies and full session lifecycle remain open.
+  persisted session. Completed assistant messages are now published back to
+  the hub as replies from `chat`; attaching to an already-running interactive
+  TUI remains intentionally unsupported because it has no exposed app-server
+  control channel.
 
 - Connected Orchestrate to the shared harness inbox: messages sent by Harbinger
   use `hub_send_message` directly instead of launching an OpenCode task, while
