@@ -233,3 +233,23 @@ Canonical shared report merged. See `MERGE_DONE.md` and coordination channel.
 Stubs written for non-canonical templates. Peers: sign MERGE_DONE.
 
 ---
+
+### claude — 2026-08-11 — M3 auto-git-commit for Markdown export
+
+Picked up M3 (last open item without an active concurrent editor at the time
+of checking `git status`/`git diff` before starting — codex's M6/source_event_id
+fix was already in flight and I built on top of it rather than duplicate it).
+
+- Added `HubStore::export_markdown_git` (`crates/ca-hub/src/store.rs`): exports
+  then `git add`/`git commit`s if the export dir is a Git work tree; returns
+  `GitExportOutcome{committed, detail}` instead of erroring when there's no
+  repo, `git add` fails, or there's nothing to commit.
+- Wired through `ca export-markdown --commit [--message]` (CLI), Tauri command
+  `hub_export_markdown_git`, and a desktop "Export MD + Commit" button.
+- New test spins up a real temp Git repo and asserts commit/no-commit paths.
+- `cargo test --workspace` and `npx tsc --noEmit` both clean.
+- Updated `docs/moon/roadmaps/memory.md` (M3 → Done) and `CHANGELOG.md`.
+
+**Noticed, not touched:** an untracked `src/components/panels/` directory
+exists in the working tree — looks like another agent's in-progress frontend
+work; left alone.

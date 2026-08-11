@@ -2,8 +2,8 @@
 //! Same data directory as the `ca` CLI (`$CA_HOME` or `~/.coding-assistants`).
 
 use ca_hub::{
-    CompactReport, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord,
-    MessageStatus, WakePolicy, WakeRecord, WakeStatus,
+    CompactReport, GitExportOutcome, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
+    MessageRecord, MessageStatus, WakePolicy, WakeRecord, WakeStatus,
 };
 use std::path::PathBuf;
 
@@ -209,6 +209,15 @@ pub fn hub_export_markdown() -> Result<String, String> {
         .export_markdown(None)
         .map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
+}
+
+/// Export + `git add`/`git commit` if the markdown dir is inside a work tree
+/// (M3). Never fails solely because there's no repo there — see `detail`.
+#[tauri::command]
+pub fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+    open_store()?
+        .export_markdown_git(None, message.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -3,6 +3,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -196,6 +197,14 @@ pub struct WakeRecord {
     pub status: String,
     pub requires_human_gate: bool,
     pub created_at: String,
+}
+
+/// Result of `HubStore::export_markdown_git` (M3 auto-commit).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitExportOutcome {
+    pub path: PathBuf,
+    pub committed: bool,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1151,6 +1160,71 @@ impl HubStore {
         fs::write(&path, body)?;
         Ok(path)
     }
+
+    /// Export as in `export_markdown`, then `git add` + `git commit` the
+    /// result if `out_dir` (or the default `markdown/` dir) sits inside a Git
+    /// work tree (M3). Never errors solely because Git is unavailable, the
+    /// directory isn't a repo, or there is nothing new to commit — those are
+    /// reported via `GitExportOutcome`, not `Err`, so callers who don't care
+    /// about Git can ignore the field.
+    pub fn export_markdown_git(
+        &self,
+        out_dir: Option<&Path>,
+        message: Option<&str>,
+    ) -> Result<GitExportOutcome, HubError> {
+        let path = self.export_markdown(out_dir)?;
+        let dir = path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| self.data_dir.join("markdown"));
+
+        let in_work_tree = Command::new("git")
+            .args(["-C", &dir.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if !in_work_tree {
+            return Ok(GitExportOutcome {
+                path,
+                committed: false,
+                detail: "not inside a Git work tree; commit skipped".into(),
+            });
+        }
+
+        let add = Command::new("git")
+            .args(["-C", &dir.to_string_lossy(), "add", "--"])
+            .arg(&path)
+            .output()?;
+        if !add.status.success() {
+            return Ok(GitExportOutcome {
+                path,
+                committed: false,
+                detail: format!("git add failed: {}", String::from_utf8_lossy(&add.stderr)),
+            });
+        }
+
+        let msg = message
+            .map(str::to_string)
+            .unwrap_or_else(|| "chore(hub): update shared memory export".to_string());
+        let commit = Command::new("git")
+            .args(["-C", &dir.to_string_lossy(), "commit", "-m", &msg, "--"])
+            .arg(&path)
+            .output()?;
+        if commit.status.success() {
+            Ok(GitExportOutcome {
+                path,
+                committed: true,
+                detail: "committed".into(),
+            })
+        } else {
+            // Commonly "nothing to commit" when the export is unchanged.
+            Ok(GitExportOutcome {
+                path,
+                committed: false,
+                detail: String::from_utf8_lossy(&commit.stderr).trim().to_string(),
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1380,5 +1454,71 @@ mod tests {
         let text = fs::read_to_string(export).unwrap();
         assert!(text.contains("Hub handoff"));
         assert!(text.contains("The shared Hub slice is ready for review."));
+    }
+
+    #[test]
+    fn m3_export_markdown_git_commits_inside_a_work_tree() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        // No repo yet: commit is skipped, not an error.
+        let outcome = store.export_markdown_git(None, None).unwrap();
+        assert!(!outcome.committed);
+        assert!(outcome.path.exists());
+
+        let md_dir = dir.path().join("markdown");
+        let git = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&md_dir)
+                .args(args)
+                .output()
+                .expect("git available for test");
+            assert!(
+                out.status.success(),
+                "git {:?} failed: {}",
+                args,
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+        git(&["init", "-q"]);
+        git(&["config", "user.email", "hub-test@example.com"]);
+        git(&["config", "user.name", "Hub Test"]);
+
+        store
+            .write_memory(
+                MemoryTier::Episodic,
+                MemoryScope::Global,
+                Some("claude"),
+                None,
+                Some("git export"),
+                "Verify markdown export auto-commits inside a work tree.",
+                &[],
+            )
+            .unwrap();
+
+        let outcome = store
+            .export_markdown_git(None, Some("chore(hub): test export"))
+            .unwrap();
+        assert!(outcome.committed, "expected a commit, got: {}", outcome.detail);
+
+        let log = Command::new("git")
+            .arg("-C")
+            .arg(&md_dir)
+            .args(["log", "-1", "--pretty=%s"])
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&log.stdout).trim(),
+            "chore(hub): test export"
+        );
+
+        // The export body always rewrites its "Generated:" timestamp, so a
+        // second call still has a diff and commits again rather than being a
+        // no-op; that's the git-tracked-history behavior M3 asks for.
+        let second = store
+            .export_markdown_git(None, Some("chore(hub): test export 2"))
+            .unwrap();
+        assert!(second.committed, "expected a second commit, got: {}", second.detail);
     }
 }

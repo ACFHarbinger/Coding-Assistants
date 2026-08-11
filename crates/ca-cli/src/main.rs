@@ -51,6 +51,13 @@ enum Command {
     ExportMarkdown {
         #[arg(long)]
         out: Option<PathBuf>,
+        /// `git add` + `git commit` the export if `out` (or the default
+        /// `markdown/` dir) is inside a Git work tree (M3). No-op, not an
+        /// error, outside a repo or when nothing changed.
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, requires = "commit")]
+        message: Option<String>,
     },
 }
 
@@ -209,9 +216,18 @@ fn main() -> anyhow::Result<()> {
         Command::Agents => {
             println!("{}", serde_json::to_string_pretty(&store.list_agents()?)?);
         }
-        Command::ExportMarkdown { out } => {
-            let path = store.export_markdown(out.as_deref())?;
-            println!("exported to {}", path.display());
+        Command::ExportMarkdown { out, commit, message } => {
+            if commit {
+                let outcome = store.export_markdown_git(out.as_deref(), message.as_deref())?;
+                println!(
+                    "exported to {} ({})",
+                    outcome.path.display(),
+                    if outcome.committed { "committed" } else { &outcome.detail }
+                );
+            } else {
+                let path = store.export_markdown(out.as_deref())?;
+                println!("exported to {}", path.display());
+            }
         }
         Command::Memory { action } => match action {
             MemoryCommand::Write {

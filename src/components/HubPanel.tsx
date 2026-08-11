@@ -272,6 +272,27 @@ export default function HubPanel() {
             >
               Export MD
             </button>
+            <button
+              className="btn-secondary"
+              title="git add + git commit the export if it's inside a Git work tree"
+              onClick={async () => {
+                const outcome = await run("export_committed", () =>
+                  invoke<{ path: string; committed: boolean; detail: string }>(
+                    "hub_export_markdown_git",
+                    { message: null },
+                  ),
+                );
+                if (outcome) {
+                  setStatus(
+                    outcome.committed
+                      ? `exported + committed → ${outcome.path}`
+                      : `exported → ${outcome.path} (${outcome.detail})`,
+                  );
+                }
+              }}
+            >
+              Export MD + Commit
+            </button>
           </div>
 
           <div style={{ ...card, display: "grid", gap: "0.5rem" }}>

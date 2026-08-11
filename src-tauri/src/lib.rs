@@ -289,6 +289,7 @@ pub fn run() {
             hub_cmds::hub_request_wake,
             hub_cmds::hub_list_wakes,
             hub_cmds::hub_export_markdown,
+            hub_cmds::hub_export_markdown_git,
             hub_cmds::hub_append_journal,
             hub_cmds::hub_purge_stale_memories,
             hub_cmds::hub_age_out_short_term,

@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the first executable M6 acceptance flow covering a durable handoff,
   provenance-linked memory, cross-agent inbox retrieval, wake resolution, and
   Markdown export; a real multi-agent repository run remains.
+- **M3 done:** `HubStore::export_markdown_git` runs `git add` + `git commit`
+  on the Markdown export when its directory is inside a Git work tree; outside
+  a repo, with a failed `git add`, or with nothing to commit, it returns a
+  `GitExportOutcome { committed: false, detail }` instead of erroring. Wired
+  through `ca export-markdown --commit [--message ...]`, the Tauri command
+  `hub_export_markdown_git`, and a desktop "Export MD + Commit" button. Covered
+  by `m3_export_markdown_git_commits_inside_a_work_tree` (spins up a real
+  temporary Git repo).
 - PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
   Rust workspace checks passed before this implementation began.
 
