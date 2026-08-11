@@ -2,6 +2,19 @@
 
 Top-priority capability for the local-first collaboration hub.
 
+## Audit integrity MVP (in progress)
+
+- [x] Persist filesystem observations as reviewable SQLite audit events with
+  operation, path, observed time, content hash, process context, and status.
+- [x] Chain events with SHA-256 links and expose `ca audit verify` so tampering
+  or reordering is detectable.
+- [x] Add `ca audit watch`, `pending`, `list`, `approve`, and `quarantine`.
+- [ ] Surface pending events at the owner checkpoint when a journal opens.
+- [ ] Add a privileged Linux auditd/fanotify adapter for originating-writer PID
+  attribution; the current user-space watcher labels that attribution
+  unavailable instead of guessing.
+- [ ] Add append-only export and retention/backup policy for audit records.
+
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | M1 | SQLite schema: `agents` (seeded with the PC2 roster), `memories`, `messages`, `wake_requests` | Migrations run on a clean clone; records are queryable by scope and agent | ✅ **Done** · `HubStore` migrate + seed agents; verified `cargo test -p ca-hub` |

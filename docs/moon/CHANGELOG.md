@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the audit integrity MVP to `ca-hub` and `ca-cli`: recursive filesystem
+  observation via `ca audit watch`, durable pending change records, owner
+  approve/quarantine actions, and SHA-256 chain verification via `ca audit
+  verify`. User-space observation records the watcher context and documents
+  that originating external-writer PID attribution requires a privileged
+  adapter.
+
 - Added per-role existing-process endpoint configuration. When an
   OpenAI-compatible endpoint is supplied, orchestration sends requests to the
   already-running model service and does not spawn or terminate a child
@@ -88,16 +95,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **C7 done:** Implemented A2A-compatible discovery and horizontal delegation. `AgentCard` schema and storage were added to `ca-hub`. `ca agent register-card` was added to `ca-cli`. The Tauri API exposes `hub_upsert_agent_card` and the TCP server now handles `GetAgentCards` payloads, enabling local workflows to interoperate with A2A peers.
   - **U3 done:** Implemented `update_memory` in `ca-hub` store and added inline editing
     along with color-coded scope indicators to the Shared Hub Memory tab.
-  - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history, 
+  - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history,
     metadata, and message/handoff transcripts.
   - **U5 done:** Added DashboardScreen to Android app for viewing events and approving/rejecting wakes via TCP.
-  - **U6 done:** Implemented Project Creation Wizard via a `bootstrap_workspace` Tauri command 
+  - **U6 done:** Implemented Project Creation Wizard via a `bootstrap_workspace` Tauri command
     and a button in the ConfigPanel to initialize `.agent/` skeletons for new workspaces.
-  - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on 
-    `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible 
+  - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on
+    `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible
     through both the `ca-cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
-  - **C6 done:** Exposed shutdown hooks via `ca shutdown` in the CLI and `hub_record_shutdown` 
-    in the Tauri API. This completes the budget exhaustion and shutdown delegation milestone, 
+  - **C6 done:** Exposed shutdown hooks via `ca shutdown` in the CLI and `hub_record_shutdown`
+    in the Tauri API. This completes the budget exhaustion and shutdown delegation milestone,
     allowing external adapters to properly persist handoff states upon cancellation or limit reach.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff

@@ -1,6 +1,7 @@
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -371,9 +372,43 @@ pub struct ShutdownOutcome {
     pub handoff_message_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvent {
+    pub id: String,
+    pub root_path: String,
+    pub path: String,
+    pub operation: String,
+    pub observed_at: String,
+    pub process_json: String,
+    pub content_hash: Option<String>,
+    pub previous_hash: Option<String>,
+    pub event_hash: String,
+    pub status: String,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn audit_event_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditEvent> {
+    Ok(AuditEvent {
+        id: row.get(0)?,
+        root_path: row.get(1)?,
+        path: row.get(2)?,
+        operation: row.get(3)?,
+        observed_at: row.get(4)?,
+        process_json: row.get(5)?,
+        content_hash: row.get(6)?,
+        previous_hash: row.get(7)?,
+        event_hash: row.get(8)?,
+        status: row.get(9)?,
+    })
 }
 
 impl HubStore {
@@ -394,6 +429,135 @@ impl HubStore {
 
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
+    }
+
+    /// Record an observed filesystem change. The hash chain makes later
+    /// deletion or reordering of rows detectable by `verify_audit_chain`.
+    pub fn record_audit_event(
+        &self,
+        root_path: &Path,
+        path: &Path,
+        operation: &str,
+        process_json: &str,
+        content_hash: Option<&str>,
+    ) -> Result<AuditEvent, HubError> {
+        if operation.trim().is_empty() || process_json.trim().is_empty() {
+            return Err(HubError::Invalid(
+                "audit operation and process metadata are required".into(),
+            ));
+        }
+        let root_path = root_path.to_string_lossy().to_string();
+        let path = path.to_string_lossy().to_string();
+        let observed_at = Utc::now().to_rfc3339();
+        let id = Uuid::new_v4().to_string();
+        let tx = self.conn.unchecked_transaction()?;
+        let previous_hash: Option<String> = tx
+            .query_row(
+                "SELECT event_hash FROM audit_events ORDER BY rowid DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let canonical = serde_json::json!({
+            "id": id,
+            "root_path": root_path,
+            "path": path,
+            "operation": operation,
+            "observed_at": observed_at,
+            "process_json": process_json,
+            "content_hash": content_hash,
+            "previous_hash": previous_hash,
+        });
+        let event_hash = sha256_hex(
+            &serde_json::to_vec(&canonical).map_err(|e| HubError::Invalid(e.to_string()))?,
+        );
+        tx.execute(
+            "INSERT INTO audit_events(id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'pending')",
+            params![
+                id,
+                root_path,
+                path,
+                operation,
+                observed_at,
+                process_json,
+                content_hash,
+                previous_hash,
+                event_hash
+            ],
+        )?;
+        tx.commit()?;
+        Ok(AuditEvent {
+            id,
+            root_path,
+            path,
+            operation: operation.into(),
+            observed_at,
+            process_json: process_json.into(),
+            content_hash: content_hash.map(str::to_string),
+            previous_hash,
+            event_hash,
+            status: "pending".into(),
+        })
+    }
+
+    pub fn list_audit_events(&self, pending_only: bool) -> Result<Vec<AuditEvent>, HubError> {
+        let sql = if pending_only {
+            "SELECT id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status FROM audit_events WHERE status = 'pending' ORDER BY rowid"
+        } else {
+            "SELECT id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status FROM audit_events ORDER BY rowid"
+        };
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map([], audit_event_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn set_audit_status(&self, id: &str, status: &str) -> Result<(), HubError> {
+        if !matches!(status, "approved" | "quarantined" | "pending") {
+            return Err(HubError::Invalid(format!("unknown audit status: {status}")));
+        }
+        let changed = self.conn.execute(
+            "UPDATE audit_events SET status = ?1 WHERE id = ?2",
+            params![status, id],
+        )?;
+        if changed == 0 {
+            return Err(HubError::NotFound(format!("audit event {id}")));
+        }
+        Ok(())
+    }
+
+    pub fn verify_audit_chain(&self) -> Result<usize, HubError> {
+        let events = self.list_audit_events(false)?;
+        let mut previous = None;
+        for event in &events {
+            if event.previous_hash != previous {
+                return Err(HubError::Invalid(format!(
+                    "audit chain link broken at {}",
+                    event.id
+                )));
+            }
+            let canonical = serde_json::json!({
+                "id": event.id,
+                "root_path": event.root_path,
+                "path": event.path,
+                "operation": event.operation,
+                "observed_at": event.observed_at,
+                "process_json": event.process_json,
+                "content_hash": event.content_hash,
+                "previous_hash": event.previous_hash,
+            });
+            let expected = sha256_hex(
+                &serde_json::to_vec(&canonical).map_err(|e| HubError::Invalid(e.to_string()))?,
+            );
+            if expected != event.event_hash {
+                return Err(HubError::Invalid(format!(
+                    "audit event hash mismatch at {}",
+                    event.id
+                )));
+            }
+            previous = Some(event.event_hash.clone());
+        }
+        Ok(events.len())
     }
 
     fn migrate(&self) -> Result<(), HubError> {
@@ -498,6 +662,22 @@ impl HubStore {
                 output_chars INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY NOT NULL,
+                root_path TEXT NOT NULL,
+                path TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                observed_at TEXT NOT NULL,
+                process_json TEXT NOT NULL,
+                content_hash TEXT,
+                previous_hash TEXT,
+                event_hash TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'pending'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_audit_status_time
+                ON audit_events(status, observed_at);
             "#,
         )?;
 
@@ -2315,6 +2495,42 @@ mod tests {
         let export = store.export_markdown(None).unwrap();
         let text = fs::read_to_string(export).unwrap();
         assert!(text.contains("first handoff"));
+    }
+
+    #[test]
+    fn audit_events_are_reviewable_and_hash_chained() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let root = dir.path().join("watched");
+        fs::create_dir_all(&root).unwrap();
+
+        let first = store
+            .record_audit_event(
+                &root,
+                Path::new("journals/chat.md"),
+                "modified",
+                r#"{"pid":123,"attribution":"test"}"#,
+                Some("abc"),
+            )
+            .unwrap();
+        let second = store
+            .record_audit_event(
+                &root,
+                Path::new("journals/chat.md"),
+                "modified",
+                r#"{"pid":123,"attribution":"test"}"#,
+                Some("def"),
+            )
+            .unwrap();
+        assert_eq!(
+            second.previous_hash.as_deref(),
+            Some(first.event_hash.as_str())
+        );
+        assert_eq!(store.verify_audit_chain().unwrap(), 2);
+        assert_eq!(store.list_audit_events(true).unwrap().len(), 2);
+        store.set_audit_status(&first.id, "approved").unwrap();
+        assert_eq!(store.list_audit_events(true).unwrap().len(), 1);
+        assert!(store.set_audit_status("missing", "approved").is_err());
     }
 
     #[test]

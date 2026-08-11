@@ -10,6 +10,8 @@ use ca_hub::{
     WorkflowStep,
 };
 use clap::{Parser, Subcommand};
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -77,6 +79,11 @@ enum Command {
         #[command(subcommand)]
         action: BudgetCommand,
     },
+    /// Observe filesystem changes and retain them for owner review.
+    Audit {
+        #[command(subcommand)]
+        action: AuditCommand,
+    },
     /// Persist a cancellation/shutdown handoff so interrupted work is not lost (C6).
     Shutdown {
         #[arg(long)]
@@ -90,6 +97,26 @@ enum Command {
         #[arg(long)]
         delegate_to: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum AuditCommand {
+    /// Watch a directory recursively until interrupted.
+    Watch { root: PathBuf },
+    /// List changes that have not yet been owner-approved or quarantined.
+    Pending,
+    /// List all recorded changes.
+    List,
+    /// Mark one event approved, or approve all currently pending events.
+    Approve {
+        id: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// Mark an event as quarantined pending a later remediation workflow.
+    Quarantine { id: String },
+    /// Verify every hash-chain link.
+    Verify,
 }
 
 #[derive(Subcommand)]
@@ -641,6 +668,70 @@ fn main() -> anyhow::Result<()> {
                 println!("{}", serde_json::to_string_pretty(&status)?);
             }
         },
+        Command::Audit { action } => match action {
+            AuditCommand::Watch { root } => {
+                let root = std::fs::canonicalize(&root)?;
+                if !root.is_dir() {
+                    anyhow::bail!("audit root is not a directory: {}", root.display());
+                }
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let mut watcher = RecommendedWatcher::new(sender, Config::default())?;
+                watcher.watch(&root, RecursiveMode::Recursive)?;
+                println!("watching {} (Ctrl-C to stop)", root.display());
+                while let Ok(result) = receiver.recv() {
+                    match result {
+                        Ok(event) => {
+                            let operation = audit_operation(&event.kind);
+                            for path in event.paths {
+                                let relative = path.strip_prefix(&root).unwrap_or(&path);
+                                let process = audit_process_context();
+                                let hash = audit_file_hash(&path);
+                                let record = store.record_audit_event(
+                                    &root,
+                                    relative,
+                                    operation,
+                                    &process,
+                                    hash.as_deref(),
+                                )?;
+                                println!("{} {} {}", record.id, record.operation, record.path);
+                            }
+                        }
+                        Err(error) => eprintln!("audit watcher error: {error}"),
+                    }
+                }
+            }
+            AuditCommand::Pending => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.list_audit_events(true)?)?
+                );
+            }
+            AuditCommand::List => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.list_audit_events(false)?)?
+                );
+            }
+            AuditCommand::Approve { id, all } => {
+                if all {
+                    for event in store.list_audit_events(true)? {
+                        store.set_audit_status(&event.id, "approved")?;
+                    }
+                } else {
+                    let id = id.ok_or_else(|| anyhow::anyhow!("provide an event id or --all"))?;
+                    store.set_audit_status(&id, "approved")?;
+                }
+                println!("approved");
+            }
+            AuditCommand::Quarantine { id } => {
+                store.set_audit_status(&id, "quarantined")?;
+                println!("quarantined");
+            }
+            AuditCommand::Verify => {
+                let count = store.verify_audit_chain()?;
+                println!("verified {count} audit events");
+            }
+        },
         Command::Shutdown {
             agent,
             task,
@@ -659,4 +750,34 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn audit_operation(kind: &EventKind) -> &'static str {
+    match kind {
+        EventKind::Create(_) => "created",
+        EventKind::Remove(_) => "removed",
+        EventKind::Modify(_) => "modified",
+        EventKind::Access(_) => "accessed",
+        EventKind::Other => "other",
+        EventKind::Any => "other",
+    }
+}
+
+fn audit_file_hash(path: &std::path::Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    let digest = Sha256::digest(bytes);
+    Some(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn audit_process_context() -> String {
+    let exe = std::env::current_exe()
+        .ok()
+        .map(|path| path.display().to_string());
+    serde_json::json!({
+        "pid": std::process::id(),
+        "exe": exe,
+        "cmdline": std::env::args().collect::<Vec<_>>(),
+        "attribution": "observer_process; originating_writer_not_available_in_user_space_notify"
+    })
+    .to_string()
 }
