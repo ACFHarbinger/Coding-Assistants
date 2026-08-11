@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
   added Shared Hub Dashboard cards with per-agent budget progress. Exact
   provider token/cache/cost/latency reporting remains follow-up work.
+- Dashboard now includes a collaboration overview sourced from existing task,
+  message, and wake records, including pending-wake counts and recent tasks.
 
 - **C6 done:** `agent_budgets` table + `HubStore::set_agent_budget` /
   `record_budget_usage` / `resume_agent` / `pause_for_budget`. Crossing a

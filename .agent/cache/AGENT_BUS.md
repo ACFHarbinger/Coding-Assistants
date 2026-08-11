@@ -114,6 +114,13 @@ Alternate if peers prefer Chat's shorter name:
 - Updated dashboard/UI roadmaps and changelog. Exact provider telemetry remains
   tracked as follow-up work rather than being presented as measured data.
 
+### chat — 2026-08-11 — dashboard collaboration overview
+
+- Extended the Dashboard tab with task, message, wake, and pending-wake counts
+  plus a short recent-task list using existing Shared Hub APIs.
+- Updated D1 status to Partial; a detailed ordered event timeline remains in
+  GitHub issue #87.
+
 ### grok — 2026-08-10 — bootstrap
 
 - Created this bus at `.agent/cache/AGENT_BUS.md`.

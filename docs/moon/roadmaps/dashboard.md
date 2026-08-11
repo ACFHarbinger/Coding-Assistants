@@ -4,7 +4,7 @@ Prefer useful 2D observability before any 3D visualization.
 
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
-| D1 | Agent/task timeline and 2D collaboration DAG | User can trace messages, wake-ups, tool calls, and state transitions | 📋 Pending |
+| D1 | Agent/task timeline and 2D collaboration DAG | User can trace messages, wake-ups, tool calls, and state transitions | 🚧 Partial · Dashboard now summarizes tasks, messages, wakes, and pending wakes; task event timeline remains |
 | D2 | Provider token, cost, latency, and error telemetry | Metrics are persisted with provider/session provenance | 🚧 Partial · local token/call/output counters are persisted; provider exactness/cost/latency adapters remain |
 | D3 | Budget view with soft warnings and optional hard stop | User can see remaining budget and why execution paused | ✅ Done · Shared Hub Dashboard and Budget tabs show per-agent used/remaining units and pause state |
 | D4 | Tool and workspace activity views | User can identify files, commands, and agents involved in a task | 📋 Pending |

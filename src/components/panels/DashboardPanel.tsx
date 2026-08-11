@@ -4,6 +4,9 @@ import { invoke } from "../../lib/tauri";
 interface AgentRecord { id: string; display_name: string; }
 interface BudgetStatus { agent_id: string; limit_units: number; spent_units: number; paused: boolean; updated_at: string; }
 interface AgentMetrics { agent_id: string; lines_written: number; tokens_used: number; tokens_cached: number; provider_calls: number; output_chars: number; updated_at: string; }
+interface TaskRecord { id: string; title: string; status: string; updated_at: string; }
+interface MessageRecord { id: string; from_agent: string; to_agent: string; kind: string; status: string; created_at: string; }
+interface WakeRecord { id: string; target_agent: string; status: string; created_at: string; }
 
 const cardStyle: React.CSSProperties = { border: "1px solid var(--border-color)", borderRadius: "12px", padding: "1.25rem", background: "rgba(0,0,0,0.3)" };
 const number = (value: number) => new Intl.NumberFormat().format(value);
@@ -11,18 +14,27 @@ const number = (value: number) => new Intl.NumberFormat().format(value);
 export default function DashboardPanel({ agents }: { agents: AgentRecord[] }) {
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [wakes, setWakes] = useState<WakeRecord[]>([]);
   const [error, setError] = useState("");
   const [updated, setUpdated] = useState("");
 
   const refresh = useCallback(async () => {
     setError("");
     try {
-      const [nextMetrics, nextBudgets] = await Promise.all([
+      const [nextMetrics, nextBudgets, nextTasks, nextMessages, nextWakes] = await Promise.all([
         invoke<AgentMetrics[]>("hub_list_agent_metrics"),
         Promise.all(agents.map((agent) => invoke<BudgetStatus | null>("hub_get_budget", { agent: agent.id }))),
+        invoke<TaskRecord[]>("hub_list_tasks", { status: null }),
+        invoke<MessageRecord[]>("hub_list_messages", { to: null, status: null }),
+        invoke<WakeRecord[]>("hub_list_wakes", { target: null, pendingOnly: false }),
       ]);
       setMetrics(nextMetrics);
       setBudgets(nextBudgets.filter((budget): budget is BudgetStatus => budget !== null));
+      setTasks(nextTasks);
+      setMessages(nextMessages);
+      setWakes(nextWakes);
       setUpdated(new Date().toLocaleTimeString());
     } catch (e) { setError(String(e)); }
   }, [agents]);
@@ -44,6 +56,19 @@ export default function DashboardPanel({ agents }: { agents: AgentRecord[] }) {
         <div style={{ color: "var(--text-muted)", fontSize: "0.78rem", textTransform: "uppercase" }}>{field.replace(/_/g, " ")}</div>
         <strong style={{ display: "block", color: "var(--primary)", fontSize: "1.7rem", marginTop: "0.4rem" }}>{number(total(field as keyof AgentMetrics))}</strong>
       </div>)}
+    </div>
+    <div style={{ ...cardStyle }}>
+      <h3 style={{ margin: "0 0 1rem", color: "var(--text-main)" }}>Collaboration Overview</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
+        <span style={{ color: "var(--text-muted)" }}>Tasks<br /><b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>{number(tasks.length)}</b></span>
+        <span style={{ color: "var(--text-muted)" }}>Messages<br /><b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>{number(messages.length)}</b></span>
+        <span style={{ color: "var(--text-muted)" }}>Wakes<br /><b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>{number(wakes.length)}</b></span>
+        <span style={{ color: "var(--text-muted)" }}>Pending wakes<br /><b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>{number(wakes.filter((wake) => wake.status === "pending").length)}</b></span>
+      </div>
+      {tasks.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {tasks.slice(0, 5).map((task) => <div key={task.id} style={{ display: "flex", justifyContent: "space-between", gap: "1rem", borderTop: "1px solid var(--border-color)", paddingTop: "0.55rem", fontSize: "0.85rem" }}><span style={{ color: "var(--text-main)" }}>{task.title}</span><span style={{ color: task.status === "failed" ? "#ef4444" : "var(--text-muted)" }}>{task.status}</span></div>)}
+      </div>}
+      {tasks.length === 0 && <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No workflow tasks recorded.</span>}
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {agents.map((agent) => { const metric = metricFor(agent.id); const budget = budgetFor(agent.id); const percent = budget ? Math.min(100, budget.spent_units / budget.limit_units * 100) : 0; return <div key={agent.id} style={cardStyle}>
