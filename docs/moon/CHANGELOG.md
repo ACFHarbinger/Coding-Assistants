@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tauri `AgentSystem` now checks configured budgets before provider calls and
     records one call unit after successful completions, invoking the handoff
     boundary when a role exhausts its budget.
+  - Active-run cancellation now records a durable shutdown handoff and
+    delegation message before the Tauri task exits.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);

@@ -28,9 +28,10 @@ The C5 task schema and dispatch path now persist retry counters,
 parallel-stage queues, and a maximum concurrency bound.
 
 The Tauri execution path now performs call-count accounting around `LLMClient`
-completions and invokes the existing handoff flow on exhaustion. Provider
-automatic spend reporting, shutdown hooks, and desktop Budget-tab wiring remain
-open.
+completions and invokes the existing handoff flow on exhaustion. Cancellation
+now also writes a durable shutdown handoff before the active run exits.
+Provider automatic spend reporting, external-adapter hooks, and desktop
+Budget-tab wiring remain open.
 
 **2026-08-11:** C6 first boundary implemented — per-agent budgets are caller-defined units
 (call count, USD, tokens, ...); the store only compares totals, so the

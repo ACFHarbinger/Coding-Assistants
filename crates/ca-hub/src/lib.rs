@@ -10,5 +10,5 @@ mod store;
 pub use store::{
     AgentRecord, BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubError,
     HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
-    TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
+    ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
 };

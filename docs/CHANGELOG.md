@@ -40,6 +40,9 @@ All notable changes to this project are documented in this file. The format is b
   and records one call unit after successful completions, triggering the
   durable exhaustion handoff when a role reaches its limit.
 
+- Cancelled Tauri runs now write a reviewable shutdown handoff under the shared
+  Markdown handoff directory and emit a durable delegation message.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

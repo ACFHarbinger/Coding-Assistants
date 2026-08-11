@@ -335,6 +335,12 @@ pub struct BudgetPauseOutcome {
     pub handoff_message_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShutdownOutcome {
+    pub summary_path: PathBuf,
+    pub handoff_message_id: String,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -1188,6 +1194,41 @@ impl HubStore {
 
         Ok(BudgetPauseOutcome {
             status,
+            summary_path,
+            handoff_message_id: message.id,
+        })
+    }
+
+    /// Persist a cancellation/shutdown handoff so interrupted work is not lost.
+    pub fn record_shutdown(
+        &self,
+        agent_id: &str,
+        task_id: Option<&str>,
+        objective: &str,
+        reason: &str,
+        delegate_to: Option<&str>,
+    ) -> Result<ShutdownOutcome, HubError> {
+        let delegate = delegate_to.unwrap_or("human");
+        let now = Utc::now().to_rfc3339();
+        let summary = format!(
+            "# Shutdown handoff: {agent_id}\n\nGenerated: {now}\n\n- task: `{}`\n- delegated to: `{delegate}`\n- reason: {reason}\n\n## Objective\n\n{objective}\n",
+            task_id.unwrap_or("-")
+        );
+        let handoffs_dir = self.data_dir.join("markdown").join("handoffs");
+        fs::create_dir_all(&handoffs_dir)?;
+        let stamp = now.replace([':', '.'], "-");
+        let summary_path = handoffs_dir.join(format!("{stamp}-{agent_id}-shutdown.md"));
+        fs::write(&summary_path, &summary)?;
+        let message = self.send_message(
+            agent_id,
+            delegate,
+            MessageKind::Handoff,
+            &summary,
+            Some("shutdown: handoff required"),
+            None,
+            task_id,
+        )?;
+        Ok(ShutdownOutcome {
             summary_path,
             handoff_message_id: message.id,
         })
@@ -2582,5 +2623,30 @@ mod tests {
         store
             .request_wake("claude", Some("resumed"), None, true)
             .unwrap();
+    }
+
+    #[test]
+    fn c6_shutdown_records_reviewable_handoff() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let outcome = store
+            .record_shutdown(
+                "claude",
+                Some("task-99"),
+                "Finish the migration",
+                "owner cancelled the active provider call",
+                Some("grok"),
+            )
+            .unwrap();
+        assert!(outcome.summary_path.exists());
+        let summary = fs::read_to_string(&outcome.summary_path).unwrap();
+        assert!(summary.contains("Finish the migration"));
+        assert!(summary.contains("owner cancelled"));
+        let message = store
+            .get_message(&outcome.handoff_message_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(message.to_agent, "grok");
+        assert_eq!(message.kind, "handoff");
     }
 }

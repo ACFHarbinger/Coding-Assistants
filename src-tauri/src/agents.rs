@@ -128,7 +128,17 @@ impl AgentSystem {
                     input_rx,
                     mcp_abs_path.as_deref(),
                 )
-                .await?;
+                .await;
+
+            if let Err(error) = &completion {
+                if token.load(Ordering::SeqCst) {
+                    if let Ok(store) = HubStore::open(default_hub_dir()) {
+                        let _ = store.record_shutdown(role_name, None, task, error, None);
+                    }
+                }
+                return Err(error.clone());
+            }
+            let completion = completion.expect("completion checked above");
 
             if let Some(store) = &budget_store {
                 if store

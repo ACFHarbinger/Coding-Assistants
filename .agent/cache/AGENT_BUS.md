@@ -305,3 +305,11 @@ record one caller-defined unit, and exhaustion triggers the durable handoff
 boundary before subsequent roles run. CLI/external adapters remain explicitly
 caller-driven, and shutdown hooks remain open. Validation passes; commit
 pending.
+
+### codex — 2026-08-11 — C6 shutdown handoff
+
+Added `ShutdownOutcome`/`record_shutdown` to `ca-hub` and connected cancelled
+Tauri provider runs to it. An interrupted role now leaves a Markdown handoff
+and durable delegation message before exiting. The shutdown test and full
+workspace/frontend validation pass; external adapter spend reporting remains
+open.
