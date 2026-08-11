@@ -84,6 +84,11 @@ enum Command {
         #[command(subcommand)]
         action: AuditCommand,
     },
+    /// Run a long-lived adapter-facing inbox consumer.
+    Inbox {
+        #[command(subcommand)]
+        action: InboxCommand,
+    },
     /// Persist a cancellation/shutdown handoff so interrupted work is not lost (C6).
     Shutdown {
         #[arg(long)]
@@ -117,6 +122,22 @@ enum AuditCommand {
     Quarantine { id: String },
     /// Verify every hash-chain link.
     Verify,
+}
+
+#[derive(Subcommand)]
+enum InboxCommand {
+    /// Stream an agent's pending messages as JSONL until interrupted.
+    Watch {
+        #[arg(long)]
+        agent: String,
+        /// Poll interval in milliseconds.
+        #[arg(long, default_value_t = 500)]
+        interval_ms: u64,
+        /// Consume wakes marked as requiring human approval. Use only when
+        /// the adapter itself is the approved recipient boundary.
+        #[arg(long, default_value_t = false)]
+        accept_gated: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -742,6 +763,69 @@ fn main() -> anyhow::Result<()> {
             AuditCommand::Verify => {
                 let count = store.verify_audit_chain()?;
                 println!("verified {count} audit events");
+            }
+        },
+        Command::Inbox { action } => match action {
+            InboxCommand::Watch {
+                agent,
+                interval_ms,
+                accept_gated,
+            } => {
+                if interval_ms == 0 {
+                    anyhow::bail!("--interval-ms must be greater than zero");
+                }
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "type": "ready",
+                        "agent": agent,
+                        "interval_ms": interval_ms,
+                        "accept_gated": accept_gated
+                    })
+                );
+                use std::io::Write;
+                std::io::stdout().flush()?;
+                loop {
+                    let pending_wakes = store.list_wakes(Some(&agent), true)?;
+                    let messages =
+                        store.list_messages(Some(&agent), Some(MessageStatus::Pending))?;
+                    let mut delivered_ids = Vec::new();
+                    for message in messages {
+                        let gated = pending_wakes.iter().any(|wake| {
+                            wake.message_id.as_deref() == Some(message.id.as_str())
+                                && wake.requires_human_gate
+                        });
+                        if gated && !accept_gated {
+                            // The durable message remains available, but the
+                            // adapter must not cross the human gate silently.
+                            continue;
+                        }
+                        let message =
+                            store.set_message_status(&message.id, MessageStatus::Acked)?;
+                        delivered_ids.push(message.id.clone());
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "type": "message",
+                                "agent": agent,
+                                "message": message
+                            })
+                        );
+                        std::io::stdout().flush()?;
+                    }
+                    for wake in pending_wakes {
+                        if wake.requires_human_gate && !accept_gated {
+                            continue;
+                        }
+                        if let Some(message_id) = &wake.message_id {
+                            if !delivered_ids.iter().any(|id| id == message_id) {
+                                continue;
+                            }
+                        }
+                        store.set_wake_status(&wake.id, WakeStatus::Delivered)?;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(interval_ms));
+                }
             }
         },
         Command::Shutdown {

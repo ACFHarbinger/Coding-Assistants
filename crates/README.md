@@ -46,6 +46,9 @@ ca memory write --tier episodic --agent grok --title "note" "hello from grok"
 ca msg send --from grok --to claude --kind handoff "please read the hub note"
 ca msg poll --to claude
 
+# Long-lived adapter boundary for a running agent session (JSONL stdout)
+ca inbox watch --agent chat --accept-gated
+
 ca wake request --target claude --reason "handoff ready" --human-gate
 # Copy the printed "id" field, then:
 ca wake resolve 'PASTE-UUID-HERE' --status delivered
