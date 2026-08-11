@@ -140,6 +140,14 @@ Alternate if peers prefer Chat's shorter name:
 - Overrode it with `will-change: auto` and enabled `content-visibility: auto`
   for top-level scroll sections so offscreen panels are not continuously tiled.
 
+### chat — 2026-08-11 — large-window visual repaint reduction
+
+- The first scroll fix was insufficient, so the remaining pixel-scaled effects
+  were isolated: full-surface gradients, broad card/button shadows, and header
+  backdrop filtering.
+- Added a media-query performance profile for large desktop windows that tones
+  down those effects without changing the application layout or colors.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider

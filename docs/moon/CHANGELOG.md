@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   excluding the `antigravity` IDE executable.
 - Improved maximized-window scrolling by removing permanent compositor-layer
   promotion from full-page panels and allowing offscreen sections to be skipped.
+- Added a large-window performance profile that reduces full-surface gradients,
+  card/button shadows, and header backdrop filtering while preserving layout and
+  colors.
 
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
