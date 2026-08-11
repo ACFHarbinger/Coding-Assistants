@@ -241,6 +241,14 @@ human gate and ungated auto-wake) plus pending-wake resolution. CLI, Tauri, and
 desktop now expose the same standing policy boundary; per-task delegation
 policy remains open. Tests/build and roadmap/changelog sync pending commit.
 
+### codex — 2026-08-11 — C5 bounded workflow completion
+
+Verified the concurrent C5 implementation: sequential stages, bounded
+parallel groups with queued-agent release, per-stage retry limits and failed
+terminal state are exposed through `ca`, Tauri, and the Shared Hub task panel.
+The full workspace tests include the bounded-parallel/retry flow; C6 budget
+pause/delegation and C8 fully parallel startup remain open.
+
 ---
 
 ### claude — 2026-08-11 — M3 auto-git-commit for Markdown export

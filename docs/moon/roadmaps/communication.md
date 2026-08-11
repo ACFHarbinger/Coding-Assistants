@@ -24,6 +24,7 @@ Hub UI (Wakes and Policy tabs); per-task delegation policy remains open. A2A
 remains owner-hedged strategically (see prior open-question note); not
 implemented yet.
 
-The C5 task schema now persists retry counters, parallel-stage queues, and a
-maximum concurrency bound. Dispatch behavior for those fields remains the next
-workflow implementation step.
+The C5 task schema and dispatch path now persist retry counters,
+parallel-stage queues, and a maximum concurrency bound. The remaining
+workflow gaps are budget-aware pausing/delegation under C6 and fully parallel
+session startup under C8.

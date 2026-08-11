@@ -40,7 +40,12 @@ interface AgentRecord {
   display_name: string;
 }
 
-type HubTab = "memory" | "inbox" | "wakes";
+interface WakePolicy {
+  default_requires_human_gate: boolean;
+  allow_auto_wake: boolean;
+}
+
+type HubTab = "memory" | "inbox" | "wakes" | "policy";
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -88,6 +93,8 @@ export default function HubPanel() {
   const [wakeTarget, setWakeTarget] = useState("claude");
   const [wakeReason, setWakeReason] = useState("");
 
+  const [wakePolicy, setWakePolicy] = useState<WakePolicy | null>(null);
+
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setError("");
     try {
@@ -122,6 +129,11 @@ export default function HubPanel() {
     if (list) setWakes(list);
   }, [run]);
 
+  const refreshPolicy = useCallback(async () => {
+    const policy = await run("policy refreshed", () => invoke<WakePolicy>("hub_get_wake_policy"));
+    if (policy) setWakePolicy(policy);
+  }, [run]);
+
   useEffect(() => {
     invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
     invoke<AgentRecord[]>("hub_list_agents").then((list) => {
@@ -140,7 +152,8 @@ export default function HubPanel() {
     if (hubTab === "memory") refreshMemories();
     else if (hubTab === "inbox") refreshMessages();
     else if (hubTab === "wakes") refreshWakes();
-  }, [hubTab, refreshMemories, refreshMessages, refreshWakes]);
+    else if (hubTab === "policy") refreshPolicy();
+  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy]);
 
   const writeMemory = async () => {
     if (!memBody.trim()) return;
@@ -211,6 +224,13 @@ export default function HubPanel() {
     await refreshWakes();
   };
 
+  const updatePolicy = async (updates: Partial<WakePolicy>) => {
+    if (!wakePolicy) return;
+    const newPolicy = { ...wakePolicy, ...updates };
+    await run("policy updated", () => invoke("hub_set_wake_policy", { policy: newPolicy }));
+    setWakePolicy(newPolicy);
+  };
+
   const tabBtn = (id: HubTab, label: string) => (
     <button
       key={id}
@@ -232,6 +252,7 @@ export default function HubPanel() {
           {tabBtn("memory", "Memory")}
           {tabBtn("inbox", "Inbox")}
           {tabBtn("wakes", "Wakes")}
+          {tabBtn("policy", "Policy")}
         </div>
       </div>
       
@@ -493,6 +514,44 @@ export default function HubPanel() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {hubTab === "policy" && wakePolicy && (
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ ...cardStyle, display: "grid", gap: "1.5rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600, color: "var(--text-main)" }}>Wake Policy Controls</h3>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+              Configure standing policies for agent-to-agent wakeups. This policy applies to all agents operating within the local hub.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginTop: "0.5rem" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: "1rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={wakePolicy.default_requires_human_gate}
+                  onChange={(e) => updatePolicy({ default_requires_human_gate: e.target.checked })}
+                  style={{ marginTop: "0.25rem", width: "1.2rem", height: "1.2rem", accentColor: "var(--primary)" }}
+                />
+                <div>
+                  <div style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-main)", marginBottom: "0.25rem" }}>Require Human Gate by Default</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>If enabled, all incoming wake requests must be manually approved by the human owner before the target agent is launched.</div>
+                </div>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "flex-start", gap: "1rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={wakePolicy.allow_auto_wake}
+                  onChange={(e) => updatePolicy({ allow_auto_wake: e.target.checked })}
+                  style={{ marginTop: "0.25rem", width: "1.2rem", height: "1.2rem", accentColor: "var(--primary)" }}
+                />
+                <div>
+                  <div style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-main)", marginBottom: "0.25rem" }}>Allow Auto-Wake Requests</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>If disabled, any attempt to bypass the human gate (auto-wake) will be outright rejected. Overrides agent-specific delegations.</div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
       )}

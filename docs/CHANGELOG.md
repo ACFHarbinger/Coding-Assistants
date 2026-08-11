@@ -28,6 +28,10 @@ All notable changes to this project are documented in this file. The format is b
   pending-wake delivery action, completing the desktop side of C4's standing
   policy boundary.
 
+- C5 workflow orchestration now supports bounded parallel stages, queued agent
+  release, retry limits, failed terminal state, CLI/Tauri commands, and Shared
+  Hub task controls.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

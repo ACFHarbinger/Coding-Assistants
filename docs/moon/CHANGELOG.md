@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **2026-08-11 memory/communication hub slice (M1–M5, C1–C5 partial):**
+- **2026-08-11 memory/communication hub slice (M1–M5, C1–C5):**
   - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
     pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
     message status updates; Markdown export includes handoffs;
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Wakes panel resolves pending wakes as delivered.
   - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
   - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
-    acceptance, C5 sequential plan→code→review.
+    acceptance, and C5 sequential plus bounded-parallel/retry workflows.
   - **U1 done:** Refactored `App.tsx` into decoupled components (`ConfigPanel`,
     `ActivityPanel`, `RemotePanel`, `ApprovalPanel`) and overhauled the UI with
     a stunning glassmorphism design and micro-animations.
