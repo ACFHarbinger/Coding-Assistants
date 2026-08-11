@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `task create|advance|complete|retry|list|get|cancel`.
   - C6 budget controls: `ca budget set|status|spend|pause|resume`; exhausted
     agents are blocked from new wakes and produce durable Markdown handoffs.
+  - Tauri `AgentSystem` now checks configured budgets before provider calls and
+    records one call unit after successful completions, invoking the handoff
+    boundary when a role exhausts its budget.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);

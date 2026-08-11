@@ -16,7 +16,7 @@ fn default_home() -> PathBuf {
     PathBuf::from(home).join(".coding-assistants")
 }
 
-fn open_store() -> Result<HubStore, String> {
+pub fn open_store() -> Result<HubStore, String> {
     HubStore::open(default_home()).map_err(|e| e.to_string())
 }
 

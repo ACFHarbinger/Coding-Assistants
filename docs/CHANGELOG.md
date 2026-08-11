@@ -36,6 +36,10 @@ All notable changes to this project are documented in this file. The format is b
   delegation handoffs, wake blocking, and human-controlled resume through the
   CLI/Tauri Hub boundary. Automatic provider spend reporting remains open.
 
+- Tauri agent execution now enforces configured budgets before provider calls
+  and records one call unit after successful completions, triggering the
+  durable exhaustion handoff when a role reaches its limit.
+
 - **AGPL-3.0 license** for open-source distribution (`1b580e3`)
 - **Local model serving** via Ollama and file-based memory persistence (`8a098ec`)
 - **Android companion app updates** with improved UI and stability (`2c3d4ff`)

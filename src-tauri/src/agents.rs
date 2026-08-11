@@ -1,5 +1,6 @@
 use crate::file_tools::FileTools;
 use crate::llm_client::{LLMClient, ModelConfig};
+use ca_hub::HubStore;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -86,6 +87,17 @@ impl AgentSystem {
             }
 
             let role_name = &role_config.name;
+            let budget_store = HubStore::open(default_hub_dir()).ok();
+            if let Some(store) = &budget_store {
+                if let Some(status) = store.get_budget(role_name).map_err(|e| e.to_string())? {
+                    if status.paused || status.spent_units >= status.limit_units {
+                        return Err(format!(
+                            "agent {role_name} is budget-paused ({}/{} units); resume it before continuing",
+                            status.spent_units, status.limit_units
+                        ));
+                    }
+                }
+            }
             let default_system = format!(
                 "You are an expert {}. Work with your team to complete the task. \n\
                  Review the previous outputs and contribute your expertise. \n\
@@ -106,7 +118,7 @@ impl AgentSystem {
                 },
             );
 
-            let output = self
+            let completion = self
                 .interactive_completion(
                     &role_config.config,
                     &prompt,
@@ -117,6 +129,38 @@ impl AgentSystem {
                     mcp_abs_path.as_deref(),
                 )
                 .await?;
+
+            if let Some(store) = &budget_store {
+                if store
+                    .get_budget(role_name)
+                    .map_err(|e| e.to_string())?
+                    .is_some()
+                {
+                    let status = store
+                        .record_budget_usage(role_name, 1.0)
+                        .map_err(|e| e.to_string())?;
+                    if status.paused {
+                        let completed = if completion.is_empty() {
+                            "Provider call completed without output."
+                        } else {
+                            "Provider call completed and its output was captured in the task transcript."
+                        };
+                        let _ = store.pause_for_budget(
+                            role_name,
+                            None,
+                            task,
+                            completed,
+                            "Remaining workflow roles and final synthesis.",
+                            None,
+                        );
+                        return Err(format!(
+                            "agent {role_name} reached its budget ({}/{} units); handoff written",
+                            status.spent_units, status.limit_units
+                        ));
+                    }
+                }
+            }
+            let output = completion;
 
             // Save Role Report
             let filename = format!("{}.md", role_name.to_lowercase().replace(" ", "_"));
@@ -420,4 +464,12 @@ impl AgentSystem {
 
         Ok(full_prompt)
     }
+}
+
+fn default_hub_dir() -> std::path::PathBuf {
+    if let Ok(home) = std::env::var("CA_HOME") {
+        return std::path::PathBuf::from(home);
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    std::path::PathBuf::from(home).join(".coding-assistants")
 }

@@ -296,3 +296,12 @@ budget, wake-blocking, handoff, and resume behavior is covered; the roadmap is
 now conservative about the remaining provider automatic-spend and shutdown
 hooks. Documentation and final validation are being synchronized before the
 commit.
+
+### codex — 2026-08-11 — C6 provider execution guard
+
+Connected the Tauri `AgentSystem` to the shared budget store. Configured roles
+are checked before `LLMClient` invocation; successful provider completions
+record one caller-defined unit, and exhaustion triggers the durable handoff
+boundary before subsequent roles run. CLI/external adapters remain explicitly
+caller-driven, and shutdown hooks remain open. Validation passes; commit
+pending.
