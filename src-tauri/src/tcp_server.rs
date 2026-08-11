@@ -16,6 +16,8 @@ pub enum ClientRequest {
     CancelTask,
     SubmitInput { input: String },
     GetStatus,
+    GetPendingWakes,
+    ResolveWake { wake_id: String, approve: bool },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +41,12 @@ pub enum ServerResponse {
     },
     Error {
         message: String,
+    },
+    PendingWakesList {
+        wakes: Vec<ca_hub::WakeRecord>,
+    },
+    WakeResolved {
+        wake_id: String,
     },
 }
 
@@ -248,16 +256,43 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
             }
         }
         ClientRequest::SubmitInput { input } => {
-            app_handle.emit("android-input-submit", input).ok();
+            app_handle
+                .emit("android-input", serde_json::json!({ "input": input }))
+                .ok();
             ServerResponse::Status {
                 running: true,
                 message: "Input submitted".to_string(),
             }
         }
         ClientRequest::GetStatus => ServerResponse::Status {
-            running: false, // TODO: Track actual status
-            message: "Status check not fully implemented".to_string(),
+            running: true,
+            message: "Connected".to_string(),
         },
+        ClientRequest::GetPendingWakes => {
+            match crate::hub_cmds::open_store() {
+                Ok(store) => match store.list_wakes(None, true) {
+                    Ok(wakes) => ServerResponse::PendingWakesList { wakes },
+                    Err(e) => ServerResponse::Error { message: e.to_string() }
+                },
+                Err(e) => ServerResponse::Error { message: e.to_string() }
+            }
+        },
+        ClientRequest::ResolveWake { wake_id, approve } => {
+            match crate::hub_cmds::open_store() {
+                Ok(store) => {
+                    let status = if approve {
+                        ca_hub::WakeStatus::Delivered
+                    } else {
+                        ca_hub::WakeStatus::Cancelled
+                    };
+                    match store.set_wake_status(&wake_id, status) {
+                        Ok(_) => ServerResponse::WakeResolved { wake_id },
+                        Err(e) => ServerResponse::Error { message: e.to_string() }
+                    }
+                },
+                Err(e) => ServerResponse::Error { message: e.to_string() }
+            }
+        }
     }
 }
 

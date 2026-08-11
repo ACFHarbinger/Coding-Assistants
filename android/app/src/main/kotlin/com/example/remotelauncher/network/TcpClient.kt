@@ -44,6 +44,17 @@ sealed class ClientRequest {
     @Serializable
     @SerialName("GetStatus")
     class GetStatus : ClientRequest()
+
+    @Serializable
+    @SerialName("GetPendingWakes")
+    class GetPendingWakes : ClientRequest()
+    
+    @Serializable
+    @SerialName("ResolveWake")
+    data class ResolveWake(
+        val wake_id: String,
+        val approve: Boolean
+    ) : ClientRequest()
 }
 
 @Serializable
@@ -106,7 +117,30 @@ sealed class ServerResponse {
     data class Error(
         val message: String
     ) : ServerResponse()
+
+    @Serializable
+    @SerialName("PendingWakesList")
+    data class PendingWakesList(
+        val wakes: List<WakeRecord>
+    ) : ServerResponse()
+    
+    @Serializable
+    @SerialName("WakeResolved")
+    data class WakeResolved(
+        val wake_id: String
+    ) : ServerResponse()
 }
+
+@Serializable
+data class WakeRecord(
+    val id: String,
+    val target_agent: String,
+    val message_id: String? = null,
+    val reason: String? = null,
+    val status: String,
+    val requires_human_gate: Boolean,
+    val created_at: String
+)
 
 class TcpClient(private val host: String, private val port: Int = 5555) {
     private var socket: Socket? = null
@@ -174,8 +208,18 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
     suspend fun startTask(config: AgentConfig, task: String): Result<Unit> = 
         sendRequest(ClientRequest.StartTask(config = config, task = task))
     
-    suspend fun cancelTask(): Result<Unit> = sendRequest(ClientRequest.CancelTask())
+    suspend fun cancelTask(): Result<Unit> = withContext(Dispatchers.IO) {
+        sendRequest(ClientRequest.CancelTask())
+    }
     
+    suspend fun getPendingWakes(): Result<Unit> = withContext(Dispatchers.IO) {
+        sendRequest(ClientRequest.GetPendingWakes())
+    }
+    
+    suspend fun resolveWake(wakeId: String, approve: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        sendRequest(ClientRequest.ResolveWake(wakeId, approve))
+    }
+
     suspend fun submitInput(input: String): Result<Unit> = sendRequest(ClientRequest.SubmitInput(input = input))
     
     fun disconnect() {

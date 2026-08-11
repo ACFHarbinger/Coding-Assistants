@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 
 sealed class Screen {
     object Connection : Screen()
+    object Dashboard : Screen()
     object ModelSelection : Screen()
     object TaskExecution : Screen()
 }
@@ -39,7 +40,9 @@ data class AppState(
 }
 """.trimIndent(),
     val taskResult: String = "",
-    val isExecutingTask: Boolean = false
+    val isExecutingTask: Boolean = false,
+    val pendingWakes: List<WakeRecord> = emptyList(),
+    val activeEvents: List<ServerResponse.TaskEvent> = emptyList()
 )
 
 class MainViewModel : ViewModel() {
@@ -64,6 +67,7 @@ class MainViewModel : ViewModel() {
                         isConnected = true
                     )
                     
+                    
                     // Start listening to messages
                     launch {
                         tcpClient?.messages?.collect { response ->
@@ -71,8 +75,11 @@ class MainViewModel : ViewModel() {
                         }
                     }
                     
-                    // Fetch available models
-                    tcpClient?.getModels()
+                    // Jump to Dashboard instead of fetching models right away
+                    _state.value = _state.value.copy(
+                        currentScreen = Screen.Dashboard
+                    )
+                    refreshWakes()
                 } else {
                     _state.value = _state.value.copy(
                         errorMessage = "Connection failed: ${connectResult?.exceptionOrNull()?.message}"
@@ -90,7 +97,6 @@ class MainViewModel : ViewModel() {
         when (response) {
             is ServerResponse.ModelsList -> {
                 _state.value = _state.value.copy(
-                    currentScreen = Screen.ModelSelection,
                     availableModels = response.models
                 )
             }
@@ -112,6 +118,20 @@ class MainViewModel : ViewModel() {
                     taskResult = newResult,
                     isExecutingTask = false
                 )
+            }
+            is ServerResponse.TaskEvent -> {
+                 _state.value = _state.value.copy(
+                    taskResult = _state.value.taskResult + "\n[${response.source}] ${response.event_type}: ${response.content}",
+                    activeEvents = _state.value.activeEvents + response
+                )
+            }
+            is ServerResponse.PendingWakesList -> {
+                _state.value = _state.value.copy(
+                    pendingWakes = response.wakes
+                )
+            }
+            is ServerResponse.WakeResolved -> {
+                refreshWakes()
             }
             is ServerResponse.Error -> {
                 _state.value = _state.value.copy(
@@ -221,6 +241,25 @@ class MainViewModel : ViewModel() {
                     errorMessage = "Failed to cancel: ${e.message}"
                 )
             }
+        }
+    }
+    
+    fun refreshWakes() {
+        viewModelScope.launch {
+            tcpClient?.getPendingWakes()
+        }
+    }
+    
+    fun resolveWake(wakeId: String, approve: Boolean) {
+        viewModelScope.launch {
+            tcpClient?.resolveWake(wakeId, approve)
+        }
+    }
+    
+    fun fetchModelsAndNavigate() {
+        viewModelScope.launch {
+            tcpClient?.getModels()
+            _state.value = _state.value.copy(currentScreen = Screen.ModelSelection)
         }
     }
     

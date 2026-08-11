@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.remotelauncher.ui.ConnectionScreen
+import com.example.remotelauncher.ui.DashboardScreen
 import com.example.remotelauncher.ui.ModelSelectionScreen
 import com.example.remotelauncher.ui.TaskExecutionScreen
 import com.example.remotelauncher.viewmodel.MainViewModel
@@ -36,6 +37,13 @@ class MainActivity : ComponentActivity() {
                         is Screen.Connection -> ConnectionScreen(
                             state = state,
                             onConnect = { viewModel.connectToServer(it) }
+                        )
+                        is Screen.Dashboard -> DashboardScreen(
+                            state = state,
+                            onResolveWake = { wakeId, approve -> viewModel.resolveWake(wakeId, approve) },
+                            onRefreshWakes = { viewModel.refreshWakes() },
+                            onConfigureTask = { viewModel.fetchModelsAndNavigate() },
+                            onDisconnect = { viewModel.disconnect() }
                         )
                         is Screen.ModelSelection -> ModelSelectionScreen(
                             state = state,
