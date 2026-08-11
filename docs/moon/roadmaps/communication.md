@@ -11,7 +11,7 @@ communication is reliable.
 | C3 | Separate ephemeral wake mechanism via file watch or local socket | Durable writes survive absent agents; wake requests are observable and **deduplicated** | ✅ **Done** · `wake/*.json` + SQLite; pending dedup by target/message/reason; resolve delivered/cancelled |
 | C4 | Configurable human gates and standing policies for wake-ups and delegation | Per-task policy can allow or require approval | 🚧 **Partial** · persisted `WakePolicy` integrated into desktop Shared Hub Policy tab; per-task delegation policy still open |
 | C5 | Declarative sequential and bounded-parallel workflow wiring | A real task can be split into plan/code/review boundaries with retries and handoffs | ✅ **Done** · stages via `parallel_group`; `max_parallel` queue; `retry_task`/`max_retries`; `complete_parallel_member`; CLI `task complete|retry` + Tauri (2026-08-11) |
-| C6 | Budget exhaustion pause, Markdown handoff summary, delegation, and shutdown | No uncontrolled provider calls continue after a configured limit | 🚧 **Partial** · Tauri `AgentSystem` blocks paused roles and records one call unit per successful provider completion; CLI/external adapters remain caller-driven, and shutdown hooks remain open |
+| C6 | Budget exhaustion pause, Markdown handoff summary, delegation, and shutdown | No uncontrolled provider calls continue after a configured limit | 🚧 **Partial** · Tauri `AgentSystem`, CLI, Tauri commands, and Shared Hub Budget tab enforce configured limits; external adapters remain caller-driven and shutdown hooks remain open |
 | C7 | **Next major milestone:** A2A-compatible discovery, Agent Cards, and horizontal delegation | Local workflows interoperate with an A2A peer while preserving identity, approval, budget, and audit policy | 📋 Pending · next major milestone |
 | C8 | Fully parallel execution from session start | Concurrent work has conflict detection, task isolation, and deterministic recovery | 📋 Pending · later |
 
@@ -30,8 +30,8 @@ parallel-stage queues, and a maximum concurrency bound.
 The Tauri execution path now performs call-count accounting around `LLMClient`
 completions and invokes the existing handoff flow on exhaustion. Cancellation
 now also writes a durable shutdown handoff before the active run exits.
-Provider automatic spend reporting, external-adapter hooks, and desktop
-Budget-tab wiring remain open.
+Provider automatic spend reporting, external-adapter hooks, and shutdown hooks
+remain open.
 
 **2026-08-11:** C6 first boundary implemented — per-agent budgets are caller-defined units
 (call count, USD, tokens, ...); the store only compares totals, so the

@@ -313,3 +313,11 @@ Tauri provider runs to it. An interrupted role now leaves a Markdown handoff
 and durable delegation message before exiting. The shutdown test and full
 workspace/frontend validation pass; external adapter spend reporting remains
 open.
+
+### codex — 2026-08-11 — C6 desktop Budget tab
+
+Added the Shared Hub Budget tab. Owners can configure/reset per-agent limits,
+record caller-defined usage, inspect active/paused state, and resume paused
+agents through the existing Tauri budget commands. Provider/external-adapter
+automatic accounting and shutdown hooks remain open. Frontend build passes;
+commit pending.

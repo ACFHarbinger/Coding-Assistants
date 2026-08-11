@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     boundary when a role exhausts its budget.
   - Active-run cancellation now records a durable shutdown handoff and
     delegation message before the Tauri task exits.
+  - Shared Hub now includes a Budget tab for configuring limits, recording
+    usage, inspecting paused agents, and resuming them.
   - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
