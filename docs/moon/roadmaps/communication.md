@@ -10,7 +10,7 @@ communication is reliable.
 | C2 | Shared `ca` CLI for read/write/search/poll operations | External agent loops can use it without the desktop UI | ✅ **Done** · binary `ca`; also mirrored by Tauri `hub_*` commands / HubPanel |
 | C3 | Separate ephemeral wake mechanism via file watch or local socket | Durable writes survive absent agents; wake requests are observable and **deduplicated** | ✅ **Done** · `wake/*.json` + SQLite; pending dedup by target/message/reason; resolve delivered/cancelled |
 | C4 | Configurable human gates and standing policies for wake-ups and delegation | Per-task policy can allow or require approval | 🚧 **Partial** · standing `WakePolicy` in meta (default human-gate, allow_auto_wake); per-task policy still open |
-| C5 | Declarative sequential and bounded-parallel workflow wiring | A real task can be split into plan/code/review boundaries with retries and handoffs | 📋 Pending |
+| C5 | Declarative sequential and bounded-parallel workflow wiring | A real task can be split into plan/code/review boundaries with retries and handoffs | 🚧 **Partial** · sequential `tasks` + `ca task create/advance/list` (handoff+wake per step); bounded-parallel + retries still open |
 | C6 | Budget exhaustion pause, Markdown handoff summary, delegation, and shutdown | No uncontrolled provider calls continue after a configured limit | 📋 Pending |
 | C7 | **Next major milestone:** A2A-compatible discovery, Agent Cards, and horizontal delegation | Local workflows interoperate with an A2A peer while preserving identity, approval, budget, and audit policy | 📋 Pending · next major milestone |
 | C8 | Fully parallel execution from session start | Concurrent work has conflict detection, task isolation, and deterministic recovery | 📋 Pending · later |

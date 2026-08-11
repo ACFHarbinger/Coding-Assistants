@@ -5,7 +5,10 @@
 //! depending on the Tauri desktop process being open. Backed by
 //! `ca_hub::HubStore`; command surface matches `crates/README.md`.
 
-use ca_hub::{HubStore, MemoryScope, MemoryTier, MessageKind, MessageStatus, WakeStatus};
+use ca_hub::{
+    HubStore, MemoryScope, MemoryTier, MessageKind, MessageStatus, TaskStatus, WakeStatus,
+    WorkflowStep,
+};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -58,6 +61,43 @@ enum Command {
         commit: bool,
         #[arg(long, requires = "commit")]
         message: Option<String>,
+    },
+    /// Sequential multi-agent workflow tasks (C5).
+    Task {
+        #[command(subcommand)]
+        action: TaskCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TaskCommand {
+    /// Create a sequential workflow. --steps is JSON array of
+    /// {agent, instruction, role?} objects.
+    Create {
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        workspace: Option<String>,
+        #[arg(long)]
+        steps: String,
+    },
+    List {
+        #[arg(long)]
+        status: Option<String>,
+    },
+    Get {
+        id: String,
+    },
+    /// Advance one step (or complete the task after the last step).
+    Advance {
+        id: String,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    Cancel {
+        id: String,
     },
 }
 
@@ -386,6 +426,37 @@ fn main() -> anyhow::Result<()> {
             JournalCommand::Append { agent, entry } => {
                 let path = store.append_private_journal(&agent, &entry)?;
                 println!("appended to {}", path.display());
+            }
+        },
+        Command::Task { action } => match action {
+            TaskCommand::Create {
+                title,
+                workspace,
+                steps,
+            } => {
+                let steps: Vec<WorkflowStep> = serde_json::from_str(&steps)
+                    .map_err(|e| anyhow::anyhow!("--steps JSON: {e}"))?;
+                let record = store.create_task(&title, workspace.as_deref(), &steps)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            TaskCommand::List { status } => {
+                let status = status.map(|s| TaskStatus::parse(&s)).transpose()?;
+                let records = store.list_tasks(status)?;
+                println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            TaskCommand::Get { id } => {
+                let record = store
+                    .get_task(&id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {id}"))?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            TaskCommand::Advance { id, from, note } => {
+                let record = store.advance_task(&id, from.as_deref(), note.as_deref())?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            TaskCommand::Cancel { id } => {
+                let record = store.cancel_task(&id)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
             }
         },
     }

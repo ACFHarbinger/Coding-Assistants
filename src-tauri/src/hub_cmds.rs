@@ -3,7 +3,8 @@
 
 use ca_hub::{
     CompactReport, GitExportOutcome, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
-    MessageRecord, MessageStatus, WakePolicy, WakeRecord, WakeStatus,
+    MessageRecord, MessageStatus, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
+    WorkflowStep,
 };
 use std::path::PathBuf;
 
@@ -278,4 +279,56 @@ pub fn hub_set_wake_policy(policy: WakePolicy) -> Result<WakePolicy, String> {
     let store = open_store()?;
     store.set_wake_policy(&policy).map_err(|e| e.to_string())?;
     Ok(policy)
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateTaskArgs {
+    pub title: String,
+    pub workspace: Option<String>,
+    pub steps: Vec<WorkflowStep>,
+}
+
+#[tauri::command]
+pub fn hub_create_task(args: CreateTaskArgs) -> Result<TaskRecord, String> {
+    open_store()?
+        .create_task(&args.title, args.workspace.as_deref(), &args.steps)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_tasks(status: Option<String>) -> Result<Vec<TaskRecord>, String> {
+    let status = status
+        .as_deref()
+        .map(TaskStatus::parse)
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    open_store()?
+        .list_tasks(status)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_get_task(id: String) -> Result<TaskRecord, String> {
+    open_store()?
+        .get_task(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("task not found: {id}"))
+}
+
+#[tauri::command]
+pub fn hub_advance_task(
+    id: String,
+    from: Option<String>,
+    note: Option<String>,
+) -> Result<TaskRecord, String> {
+    open_store()?
+        .advance_task(&id, from.as_deref(), note.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_cancel_task(id: String) -> Result<TaskRecord, String> {
+    open_store()?
+        .cancel_task(&id)
+        .map_err(|e| e.to_string())
 }

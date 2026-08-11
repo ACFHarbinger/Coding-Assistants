@@ -297,6 +297,11 @@ pub fn run() {
             hub_cmds::hub_resolve_wake,
             hub_cmds::hub_get_wake_policy,
             hub_cmds::hub_set_wake_policy,
+            hub_cmds::hub_create_task,
+            hub_cmds::hub_list_tasks,
+            hub_cmds::hub_get_task,
+            hub_cmds::hub_advance_task,
+            hub_cmds::hub_cancel_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

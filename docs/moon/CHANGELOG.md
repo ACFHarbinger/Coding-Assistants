@@ -9,16 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **2026-08-11 memory/communication hub slice (M1–M5, C1–C4 partial):**
+- **2026-08-11 memory/communication hub slice (M1–M5, C1–C5 partial):**
   - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
     pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
-    message status updates; Markdown export includes handoffs.
+    message status updates; Markdown export includes handoffs;
+    **`export_markdown_git`** (M3); sequential **`tasks`** workflow advance (C5).
   - `ca` CLI: `memory promote|delete|compact|purge-stale|age-out`,
-    `msg status`, `wake resolve|policy`.
-  - Tauri `hub_*` IPC + React **Shared Hub** panel (Memory/Inbox/Wakes) with
-    Orchestrate|Hub tabs; same `$CA_HOME` / `~/.coding-assistants` store as CLI.
-  - Roadmaps/changelog/crates README updated; unit tests for promote/compact,
-    wake dedup, policy, and retention.
+    `msg status`, `wake resolve|policy`, `export-markdown --commit`,
+    `task create|advance|list|get|cancel`.
+  - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
+    `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
+  - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
+  - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
+    acceptance, C5 sequential plan→code→review.
   - **U1 done:** Refactored `App.tsx` into decoupled components (`ConfigPanel`,
     `ActivityPanel`, `RemotePanel`, `ApprovalPanel`) and overhauled the UI with
     a stunning glassmorphism design and micro-animations.

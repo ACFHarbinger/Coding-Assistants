@@ -55,6 +55,14 @@ ca memory purge-stale
 ca memory age-out --hours 72
 ca wake policy --set-default-gate true --set-allow-auto true
 ca export-markdown
+ca export-markdown --commit --message "chore(hub): update shared memory export"
+
+# Sequential workflow (C5) — steps JSON array
+ca task create --title "plan-code-review" --workspace "$PWD" \
+  --steps '[{"agent":"grok","instruction":"Plan"},{"agent":"claude","instruction":"Implement"},{"agent":"gemini","instruction":"Review"}]'
+ca task advance 'TASK-UUID'            # first step
+ca task advance 'TASK-UUID' --from grok --note "plan ready"
+ca task list --status running
 ```
 
 **Do not** type angle brackets literally. These are placeholders:

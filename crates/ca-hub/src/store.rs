@@ -207,6 +207,59 @@ pub struct GitExportOutcome {
     pub detail: String,
 }
 
+/// One step in a sequential multi-agent workflow (C5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowStep {
+    pub agent: String,
+    #[serde(default)]
+    pub role: Option<String>,
+    pub instruction: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    Pending,
+    Running,
+    Done,
+    Cancelled,
+}
+
+impl TaskStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Done => "done",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn parse(s: &str) -> Result<Self, HubError> {
+        match s {
+            "pending" => Ok(Self::Pending),
+            "running" => Ok(Self::Running),
+            "done" => Ok(Self::Done),
+            "cancelled" => Ok(Self::Cancelled),
+            other => Err(HubError::Invalid(format!("unknown task status: {other}"))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRecord {
+    pub id: String,
+    pub title: String,
+    pub workspace_path: Option<String>,
+    pub status: String,
+    pub step_index: i64,
+    pub steps: Vec<WorkflowStep>,
+    pub created_at: String,
+    pub updated_at: String,
+    /// Last handoff message id produced by `advance_task`, if any.
+    pub last_message_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompactReport {
     pub examined: usize,
@@ -321,6 +374,21 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_wake_target_status
                 ON wake_requests(target_agent, status);
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                workspace_path TEXT,
+                status TEXT NOT NULL,
+                step_index INTEGER NOT NULL DEFAULT 0,
+                steps_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_message_id TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_status
+                ON tasks(status, updated_at);
             "#,
         )?;
 
@@ -1161,6 +1229,211 @@ impl HubStore {
         Ok(path)
     }
 
+    fn map_task_row(r: &rusqlite::Row<'_>) -> Result<TaskRecord, rusqlite::Error> {
+        let steps_json: String = r.get(5)?;
+        let steps: Vec<WorkflowStep> =
+            serde_json::from_str(&steps_json).unwrap_or_default();
+        Ok(TaskRecord {
+            id: r.get(0)?,
+            title: r.get(1)?,
+            workspace_path: r.get(2)?,
+            status: r.get(3)?,
+            step_index: r.get(4)?,
+            steps,
+            created_at: r.get(6)?,
+            updated_at: r.get(7)?,
+            last_message_id: r.get(8)?,
+        })
+    }
+
+    pub fn create_task(
+        &self,
+        title: &str,
+        workspace_path: Option<&str>,
+        steps: &[WorkflowStep],
+    ) -> Result<TaskRecord, HubError> {
+        if title.trim().is_empty() {
+            return Err(HubError::Invalid("task title must not be empty".into()));
+        }
+        if steps.is_empty() {
+            return Err(HubError::Invalid("task needs at least one workflow step".into()));
+        }
+        for (i, s) in steps.iter().enumerate() {
+            if s.agent.trim().is_empty() {
+                return Err(HubError::Invalid(format!("step {i}: agent required")));
+            }
+            if s.instruction.trim().is_empty() {
+                return Err(HubError::Invalid(format!("step {i}: instruction required")));
+            }
+            self.upsert_agent(&s.agent, &s.agent)?;
+        }
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        let steps_json = serde_json::to_string(steps)
+            .map_err(|e| HubError::Invalid(format!("steps serialize: {e}")))?;
+        self.conn.execute(
+            r#"
+            INSERT INTO tasks(
+                id, title, workspace_path, status, step_index, steps_json,
+                created_at, updated_at, last_message_id
+            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL)
+            "#,
+            params![
+                id,
+                title,
+                workspace_path,
+                TaskStatus::Pending.as_str(),
+                steps_json,
+                now,
+                now,
+            ],
+        )?;
+        self.get_task(&id)?
+            .ok_or_else(|| HubError::NotFound(id))
+    }
+
+    pub fn get_task(&self, id: &str) -> Result<Option<TaskRecord>, HubError> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, title, workspace_path, status, step_index, steps_json,
+                   created_at, updated_at, last_message_id
+            FROM tasks WHERE id = ?1
+            "#,
+        )?;
+        let row = stmt
+            .query_row(params![id], Self::map_task_row)
+            .optional()?;
+        Ok(row)
+    }
+
+    pub fn list_tasks(&self, status: Option<TaskStatus>) -> Result<Vec<TaskRecord>, HubError> {
+        let mut sql = String::from(
+            r#"
+            SELECT id, title, workspace_path, status, step_index, steps_json,
+                   created_at, updated_at, last_message_id
+            FROM tasks WHERE 1=1
+            "#,
+        );
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        if let Some(st) = status {
+            sql.push_str(" AND status = ?");
+            params_vec.push(Box::new(st.as_str().to_string()));
+        }
+        sql.push_str(" ORDER BY updated_at DESC LIMIT 100");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
+        let rows = stmt.query_map(params_refs.as_slice(), Self::map_task_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Advance a sequential workflow one step:
+    /// - pending → running at step 0 (handoff+wake first agent)
+    /// - running → next step (handoff from `from_agent` to next agent) or done
+    pub fn advance_task(
+        &self,
+        id: &str,
+        from_agent: Option<&str>,
+        note: Option<&str>,
+    ) -> Result<TaskRecord, HubError> {
+        let task = self
+            .get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        if task.status == TaskStatus::Done.as_str()
+            || task.status == TaskStatus::Cancelled.as_str()
+        {
+            return Err(HubError::Invalid(format!(
+                "task is already {}",
+                task.status
+            )));
+        }
+        let n_steps = task.steps.len() as i64;
+        if n_steps == 0 {
+            return Err(HubError::Invalid("task has no steps".into()));
+        }
+
+        let (next_index, new_status) = if task.status == TaskStatus::Pending.as_str() {
+            (0i64, TaskStatus::Running)
+        } else {
+            let ni = task.step_index + 1;
+            if ni >= n_steps {
+                // Complete without a further handoff.
+                let now = Utc::now().to_rfc3339();
+                self.conn.execute(
+                    "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![TaskStatus::Done.as_str(), now, id],
+                )?;
+                return self
+                    .get_task(id)?
+                    .ok_or_else(|| HubError::NotFound(id.into()));
+            }
+            (ni, TaskStatus::Running)
+        };
+
+        let step = &task.steps[next_index as usize];
+        let from = from_agent.unwrap_or("human");
+        let body = if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        };
+        let subject = Some(format!(
+            "[{}/{}] {}",
+            next_index + 1,
+            n_steps,
+            task.title
+        ));
+        let msg = self.send_message(
+            from,
+            &step.agent,
+            MessageKind::Handoff,
+            &body,
+            subject.as_deref(),
+            task.workspace_path.as_deref(),
+            Some(id),
+        )?;
+        let _wake = self.request_wake(
+            &step.agent,
+            Some(&format!("task {} step {}", id, next_index + 1)),
+            Some(&msg.id),
+            true,
+        )?;
+
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            UPDATE tasks
+            SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4
+            WHERE id = ?5
+            "#,
+            params![
+                new_status.as_str(),
+                next_index,
+                now,
+                msg.id,
+                id,
+            ],
+        )?;
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    pub fn cancel_task(&self, id: &str) -> Result<TaskRecord, HubError> {
+        let n = self.conn.execute(
+            "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![
+                TaskStatus::Cancelled.as_str(),
+                Utc::now().to_rfc3339(),
+                id
+            ],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
     /// Export as in `export_markdown`, then `git add` + `git commit` the
     /// result if `out_dir` (or the default `markdown/` dir) sits inside a Git
     /// work tree (M3). Never errors solely because Git is unavailable, the
@@ -1520,5 +1793,58 @@ mod tests {
             .export_markdown_git(None, Some("chore(hub): test export 2"))
             .unwrap();
         assert!(second.committed, "expected a second commit, got: {}", second.detail);
+    }
+
+    #[test]
+    fn c5_sequential_task_advance_plan_code_review() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let steps = vec![
+            WorkflowStep {
+                agent: "grok".into(),
+                role: Some("Planner".into()),
+                instruction: "Plan the dual-mode pathing fix.".into(),
+            },
+            WorkflowStep {
+                agent: "claude".into(),
+                role: Some("Developer".into()),
+                instruction: "Implement the plan.".into(),
+            },
+            WorkflowStep {
+                agent: "gemini".into(),
+                role: Some("Reviewer".into()),
+                instruction: "Review the implementation.".into(),
+            },
+        ];
+        let task = store
+            .create_task("Slice pathing", Some("/tmp/pmf"), &steps)
+            .unwrap();
+        assert_eq!(task.status, "pending");
+        assert_eq!(task.step_index, 0);
+
+        let t1 = store.advance_task(&task.id, None, None).unwrap();
+        assert_eq!(t1.status, "running");
+        assert_eq!(t1.step_index, 0);
+        assert!(t1.last_message_id.is_some());
+        let inbox = store.poll_messages("grok", true).unwrap();
+        assert_eq!(inbox.len(), 1);
+        assert_eq!(inbox[0].kind, "handoff");
+
+        let t2 = store
+            .advance_task(&task.id, Some("grok"), Some("plan ready"))
+            .unwrap();
+        assert_eq!(t2.step_index, 1);
+        let for_claude = store.poll_messages("claude", true).unwrap();
+        assert!(!for_claude.is_empty());
+        assert!(for_claude[0].body.contains("Implement"));
+
+        let t3 = store.advance_task(&task.id, Some("claude"), None).unwrap();
+        assert_eq!(t3.step_index, 2);
+
+        let done = store.advance_task(&task.id, Some("gemini"), None).unwrap();
+        assert_eq!(done.status, "done");
+
+        let listed = store.list_tasks(Some(TaskStatus::Done)).unwrap();
+        assert_eq!(listed.len(), 1);
     }
 }
