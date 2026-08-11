@@ -9,7 +9,7 @@ use ca_hub::{
     HubStore, MemoryScope, MemoryTier, MessageKind, MessageStatus, TaskStatus, WakeStatus,
     WorkflowStep,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -137,6 +137,13 @@ enum InboxCommand {
         /// the adapter itself is the approved recipient boundary.
         #[arg(long, default_value_t = false)]
         accept_gated: bool,
+        /// Optional long-lived adapter program. JSONL records are forwarded
+        /// to its stdin in addition to this command's stdout.
+        #[arg(long, value_name = "PROGRAM")]
+        forward: Option<PathBuf>,
+        /// Argument passed to --forward; may be repeated.
+        #[arg(long = "forward-arg", action = ArgAction::Append)]
+        forward_args: Vec<String>,
     },
 }
 
@@ -770,20 +777,37 @@ fn main() -> anyhow::Result<()> {
                 agent,
                 interval_ms,
                 accept_gated,
+                forward,
+                forward_args,
             } => {
                 if interval_ms == 0 {
                     anyhow::bail!("--interval-ms must be greater than zero");
                 }
-                println!(
-                    "{}",
-                    serde_json::json!({
-                        "type": "ready",
-                        "agent": agent,
-                        "interval_ms": interval_ms,
-                        "accept_gated": accept_gated
-                    })
-                );
                 use std::io::Write;
+                let mut forwarder = if let Some(program) = forward {
+                    let mut child = std::process::Command::new(program)
+                        .args(forward_args)
+                        .stdin(std::process::Stdio::piped())
+                        .spawn()?;
+                    child.stdin.take()
+                } else {
+                    if !forward_args.is_empty() {
+                        anyhow::bail!("--forward-arg requires --forward");
+                    }
+                    None
+                };
+                let ready = serde_json::json!({
+                    "type": "ready",
+                    "agent": agent,
+                    "interval_ms": interval_ms,
+                    "accept_gated": accept_gated
+                })
+                .to_string();
+                println!("{ready}");
+                if let Some(stdin) = forwarder.as_mut() {
+                    writeln!(stdin, "{ready}")?;
+                    stdin.flush()?;
+                }
                 std::io::stdout().flush()?;
                 loop {
                     let pending_wakes = store.list_wakes(Some(&agent), true)?;
@@ -803,14 +827,17 @@ fn main() -> anyhow::Result<()> {
                         let message =
                             store.set_message_status(&message.id, MessageStatus::Acked)?;
                         delivered_ids.push(message.id.clone());
-                        println!(
-                            "{}",
-                            serde_json::json!({
-                                "type": "message",
-                                "agent": agent,
-                                "message": message
-                            })
-                        );
+                        let line = serde_json::json!({
+                            "type": "message",
+                            "agent": agent,
+                            "message": message
+                        })
+                        .to_string();
+                        println!("{line}");
+                        if let Some(stdin) = forwarder.as_mut() {
+                            writeln!(stdin, "{line}")?;
+                            stdin.flush()?;
+                        }
                         std::io::stdout().flush()?;
                     }
                     for wake in pending_wakes {

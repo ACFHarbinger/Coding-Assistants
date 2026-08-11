@@ -25,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the first agent-session bridge boundary: `ca inbox watch --agent
   <id>` emits JSONL `ready`/`message` records, polls the durable inbox,
   acknowledges delivered messages, and resolves linked wakes. Human-gated
-  wakes require explicit `--accept-gated`; provider-specific injection into an
-  already-running Codex/Claude/Gemini process remains the next adapter layer.
+  wakes require explicit `--accept-gated`; `--forward PROGRAM` can pipe the
+  same stream to a long-lived provider adapter. Provider-specific injection
+  into an already-running Codex/Claude/Gemini process remains adapter work.
 
 - Connected Orchestrate to the shared harness inbox: messages sent by Harbinger
   use `hub_send_message` directly instead of launching an OpenCode task, while

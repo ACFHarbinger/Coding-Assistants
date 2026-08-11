@@ -48,6 +48,10 @@ ca msg poll --to claude
 
 # Long-lived adapter boundary for a running agent session (JSONL stdout)
 ca inbox watch --agent chat --accept-gated
+# Optional provider adapter receives the same JSONL stream on stdin:
+ca inbox watch --agent chat --accept-gated \
+  --forward ~/.local/bin/codex-harness-adapter \
+  --forward-arg --session --forward-arg chat
 
 ca wake request --target claude --reason "handoff ready" --human-gate
 # Copy the printed "id" field, then:
