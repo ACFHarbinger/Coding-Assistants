@@ -20,8 +20,15 @@ export CA_HOME="$HOME/.coding-assistants"   # optional; default is ~/.coding-ass
 ./target/debug/ca export-markdown
 ./target/debug/ca memory compact --keep 20
 ./target/debug/ca memory promote <id> --to episodic
+./target/debug/ca memory purge-stale
+./target/debug/ca memory age-out --hours 72
+./target/debug/ca msg status <id> --status done
+./target/debug/ca wake resolve <id> --status delivered
+./target/debug/ca wake policy --set-default-gate true --set-allow-auto true
 ```
 
 Private journals (`ca journal append --agent grok`) never write into shared SQLite tables.
 
-Roadmap refs: `docs/moon/roadmaps/memory.md` (M1+), `docs/moon/roadmaps/communication.md` (C1–C3).
+Desktop: Tauri `hub_*` commands + **Shared Hub** panel (same data dir).
+
+Roadmap refs: `docs/moon/roadmaps/memory.md` (M1–M5), `docs/moon/roadmaps/communication.md` (C1–C4).

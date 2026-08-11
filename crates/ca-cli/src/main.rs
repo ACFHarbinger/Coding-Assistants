@@ -5,7 +5,7 @@
 //! depending on the Tauri desktop process being open. Backed by
 //! `ca_hub::HubStore`; command surface matches `crates/README.md`.
 
-use ca_hub::{HubStore, MemoryScope, MemoryTier, MessageKind, MessageStatus};
+use ca_hub::{HubStore, MemoryScope, MemoryTier, MessageKind, MessageStatus, WakeStatus};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -104,6 +104,13 @@ enum MemoryCommand {
         #[arg(long, default_value_t = 50)]
         keep: usize,
     },
+    /// Permanently delete memories marked stale.
+    PurgeStale,
+    /// Soft-stale short-term rows older than N hours.
+    AgeOut {
+        #[arg(long, default_value_t = 72)]
+        hours: i64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -135,6 +142,12 @@ enum MsgCommand {
         #[arg(long)]
         status: Option<String>,
     },
+    /// Mark a message done/acked/cancelled.
+    Status {
+        id: String,
+        #[arg(long)]
+        status: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -154,6 +167,19 @@ enum WakeCommand {
         target: Option<String>,
         #[arg(long, default_value_t = false)]
         pending_only: bool,
+    },
+    /// Mark a wake delivered or cancelled.
+    Resolve {
+        id: String,
+        #[arg(long, default_value = "delivered")]
+        status: String,
+    },
+    /// Get or set standing wake/human-gate policy (C4).
+    Policy {
+        #[arg(long)]
+        set_default_gate: Option<bool>,
+        #[arg(long)]
+        set_allow_auto: Option<bool>,
     },
 }
 
@@ -245,6 +271,14 @@ fn main() -> anyhow::Result<()> {
                 let report = store.compact_short_term(keep)?;
                 println!("{}", serde_json::to_string_pretty(&report)?);
             }
+            MemoryCommand::PurgeStale => {
+                let n = store.purge_stale_memories()?;
+                println!("{{\"purged\":{n}}}");
+            }
+            MemoryCommand::AgeOut { hours } => {
+                let n = store.mark_short_term_stale_older_than(hours)?;
+                println!("{{\"aged_out\":{n}}}");
+            }
         },
         Command::Msg { action } => match action {
             MsgCommand::Send {
@@ -277,6 +311,11 @@ fn main() -> anyhow::Result<()> {
                 let records = store.list_messages(to.as_deref(), status)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
             }
+            MsgCommand::Status { id, status } => {
+                let status = MessageStatus::parse(&status)?;
+                let record = store.set_message_status(&id, status)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
         },
         Command::Wake { action } => match action {
             WakeCommand::Request {
@@ -299,6 +338,32 @@ fn main() -> anyhow::Result<()> {
             } => {
                 let records = store.list_wakes(target.as_deref(), pending_only)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            WakeCommand::Resolve { id, status } => {
+                let status = match status.as_str() {
+                    "delivered" => WakeStatus::Delivered,
+                    "cancelled" => WakeStatus::Cancelled,
+                    "pending" => WakeStatus::Pending,
+                    other => anyhow::bail!("unknown wake status: {other}"),
+                };
+                store.set_wake_status(&id, status)?;
+                println!("ok");
+            }
+            WakeCommand::Policy {
+                set_default_gate,
+                set_allow_auto,
+            } => {
+                let mut policy = store.get_wake_policy()?;
+                if let Some(v) = set_default_gate {
+                    policy.default_requires_human_gate = v;
+                }
+                if let Some(v) = set_allow_auto {
+                    policy.allow_auto_wake = v;
+                }
+                if set_default_gate.is_some() || set_allow_auto.is_some() {
+                    store.set_wake_policy(&policy)?;
+                }
+                println!("{}", serde_json::to_string_pretty(&policy)?);
             }
         },
         Command::Journal { action } => match action {

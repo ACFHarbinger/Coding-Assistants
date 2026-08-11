@@ -1248,4 +1248,57 @@ mod tests {
         store.delete_memory(&semantic.id).unwrap();
         assert!(store.get_memory(&semantic.id).unwrap().is_none());
     }
+
+    #[test]
+    fn wake_policy_and_retention() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        // Default policy forces human gate even when caller passes false.
+        let wake = store
+            .request_wake("claude", Some("need review"), None, false)
+            .unwrap();
+        assert!(wake.requires_human_gate);
+
+        store
+            .set_wake_policy(&WakePolicy {
+                default_requires_human_gate: false,
+                allow_auto_wake: false,
+            })
+            .unwrap();
+        let err = store
+            .request_wake("claude", Some("auto"), None, false)
+            .unwrap_err();
+        assert!(err.to_string().contains("forbids auto-wake"));
+
+        store
+            .set_wake_policy(&WakePolicy {
+                default_requires_human_gate: false,
+                allow_auto_wake: true,
+            })
+            .unwrap();
+        let auto = store
+            .request_wake("gemini", Some("auto ok"), None, false)
+            .unwrap();
+        assert!(!auto.requires_human_gate);
+        store
+            .set_wake_status(&auto.id, WakeStatus::Delivered)
+            .unwrap();
+        assert_eq!(store.list_wakes(Some("gemini"), true).unwrap().len(), 0);
+
+        let m = store
+            .write_memory(
+                MemoryTier::ShortTerm,
+                MemoryScope::Global,
+                Some("grok"),
+                None,
+                Some("old"),
+                "stale me",
+                &[],
+            )
+            .unwrap();
+        store.mark_memory_stale(&m.id, true).unwrap();
+        assert_eq!(store.purge_stale_memories().unwrap(), 1);
+        assert!(store.get_memory(&m.id).unwrap().is_none());
+    }
 }

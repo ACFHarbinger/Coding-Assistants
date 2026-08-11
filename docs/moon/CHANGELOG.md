@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Memory and communication hub slice: `ca-hub` promotion/deletion/compaction,
-  pending-wake deduplication, Tauri commands, and a desktop Shared Hub panel
-  for memory search/review, inbox polling, wake requests, and Markdown export.
-  The same local store is used by the `ca` CLI and the desktop app.
+- **2026-08-11 memory/communication hub slice (M1–M5, C1–C4 partial):**
+  - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
+    pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
+    message status updates; Markdown export includes handoffs.
+  - `ca` CLI: `memory promote|delete|compact|purge-stale|age-out`,
+    `msg status`, `wake resolve|policy`.
+  - Tauri `hub_*` IPC + React **Shared Hub** panel (Memory/Inbox/Wakes) with
+    Orchestrate|Hub tabs; same `$CA_HOME` / `~/.coding-assistants` store as CLI.
+  - Roadmaps/changelog/crates README updated; unit tests for promote/compact,
+    wake dedup, policy, and retention.
 - PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
   Rust workspace checks passed before this implementation began.
 

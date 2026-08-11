@@ -3,7 +3,7 @@
 
 use ca_hub::{
     CompactReport, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord,
-    MessageStatus, WakeRecord,
+    MessageStatus, WakePolicy, WakeRecord, WakeStatus,
 };
 use std::path::PathBuf;
 
@@ -222,4 +222,51 @@ pub fn hub_append_journal(agent: String, entry: String) -> Result<String, String
 #[tauri::command]
 pub fn hub_data_dir() -> Result<String, String> {
     Ok(open_store()?.data_dir().display().to_string())
+}
+
+#[tauri::command]
+pub fn hub_purge_stale_memories() -> Result<usize, String> {
+    open_store()?
+        .purge_stale_memories()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_age_out_short_term(hours: Option<i64>) -> Result<usize, String> {
+    open_store()?
+        .mark_short_term_stale_older_than(hours.unwrap_or(72))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_set_message_status(id: String, status: String) -> Result<MessageRecord, String> {
+    let st = MessageStatus::parse(&status).map_err(|e| e.to_string())?;
+    open_store()?
+        .set_message_status(&id, st)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_resolve_wake(id: String, status: String) -> Result<(), String> {
+    let st = match status.as_str() {
+        "delivered" => WakeStatus::Delivered,
+        "cancelled" => WakeStatus::Cancelled,
+        "pending" => WakeStatus::Pending,
+        other => return Err(format!("unknown wake status: {other}")),
+    };
+    open_store()?
+        .set_wake_status(&id, st)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_get_wake_policy() -> Result<WakePolicy, String> {
+    open_store()?.get_wake_policy().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_set_wake_policy(policy: WakePolicy) -> Result<WakePolicy, String> {
+    let store = open_store()?;
+    store.set_wake_policy(&policy).map_err(|e| e.to_string())?;
+    Ok(policy)
 }
