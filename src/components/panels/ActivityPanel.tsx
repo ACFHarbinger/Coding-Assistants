@@ -1,4 +1,6 @@
 
+import { TeamMember } from "./ConfigPanel";
+
 interface AgentEvent {
   source: string;
   event_type: string;
@@ -14,6 +16,7 @@ interface ActivityPanelProps {
   setEvents: (events: AgentEvent[]) => void;
   output: string;
   setOutput: (out: string) => void;
+  teamMembers: TeamMember[];
 }
 
 export default function ActivityPanel({
@@ -24,15 +27,16 @@ export default function ActivityPanel({
   events,
   setEvents,
   output,
-  setOutput
+  setOutput,
+  teamMembers
 }: ActivityPanelProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="glass-card fade-in" style={{ animationDelay: '0.2s' }}>
-        <h2>Execute Task</h2>
+        <h2>Write Message</h2>
         <textarea
           rows={5}
-          placeholder="What should the agent team build today?"
+          placeholder="Write a message to the agent team…"
           value={task}
           onChange={e => setTask(e.target.value)}
           style={{
@@ -55,19 +59,37 @@ export default function ActivityPanel({
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div className="pulse-indicator" style={{ backgroundColor: 'var(--primary)' }} />
-              <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 500 }}>Orchestrating agents via OpenCode...</span>
+              <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 500 }}>Sending message to the agent team...</span>
             </div>
           )}
           <button className={loading ? "btn-secondary" : "btn-primary"} onClick={startTask} disabled={!task && !loading}>
-            {loading ? "Cancel Sequence" : "Launch Sequence"}
+            {loading ? "Cancel Message" : "Send Message"}
           </button>
         </div>
+      </div>
+
+      <div className="glass-card fade-in" style={{ animationDelay: '0.25s' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Team Chat</h2>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{teamMembers.length} participant{teamMembers.length === 1 ? "" : "s"}</span>
+        </div>
+        {teamMembers.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Add an agent to the team to start a shared conversation.</p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {teamMembers.map(member => (
+              <span key={member.id} style={{ padding: '0.35rem 0.65rem', borderRadius: '999px', background: 'rgba(99, 102, 241, 0.14)', color: 'var(--primary)', fontSize: '0.8rem' }}>
+                {member.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {events.length > 0 && (
         <div className="glass-card fade-in" style={{ animationDelay: '0.3s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2>Agent Activity Feed</h2>
+            <h2>Messages</h2>
             <button
               onClick={() => setEvents([])}
               style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.4rem 0.8rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', transition: 'border-color 0.15s ease, opacity 0.15s ease' }}
@@ -77,10 +99,10 @@ export default function ActivityPanel({
               Clear Feed
             </button>
           </div>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {events.map((ev, i) => (
-              <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)', transition: 'transform 0.2s', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+              <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: ev.source === 'Harbinger' || ev.source === 'Remote' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.2)', transition: 'transform 0.2s', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                 <div style={{
                   padding: '0.75rem 1.25rem',
                   background: 'rgba(255, 255, 255, 0.04)',
@@ -115,7 +137,7 @@ export default function ActivityPanel({
                       );
                     })()}
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                      {ev.event_type === "thought" ? "is thinking..." : "responded"}
+                      {ev.event_type === "thought" ? "is thinking..." : ev.event_type === "team" ? "joined the conversation" : ev.event_type === "message" ? "sent a message" : "responded"}
                     </span>
                   </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>#{i + 1}</span>
@@ -150,7 +172,7 @@ export default function ActivityPanel({
               Clear Output
             </button>
           </div>
-          <pre style={{ 
+          <pre style={{
             whiteSpace: 'pre-wrap',
             background: 'rgba(0,0,0,0.3)',
             padding: '1.25rem',

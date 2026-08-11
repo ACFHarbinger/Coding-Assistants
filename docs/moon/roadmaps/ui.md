@@ -14,6 +14,7 @@ an experiment.
 | U6 | Project creation wizard | Simple flow to bootstrap `.agent/` directories in new workspaces | ✅ **Done** · Added `bootstrap_workspace` command and UI button to initialize `.agent/` skeleton in workspaces |
 | U8 | Agent telemetry dashboard | Shared Hub visualizes per-agent budget, output, token, and call counters | 🚧 **Partial** · Dashboard tab and persisted local counters are available; provider-exact telemetry and historical charts remain |
 | U9 | Existing model process connection | Orchestrate roles can attach to a running model service instead of always starting a child process | 🚧 **Partial** · Endpoint configuration and process discovery/add-to-team controls are available; connection health and streaming controls remain |
+| U10 | Orchestrate team chat | Write/send message actions, sender-attributed conversation feed, and explicit enrollment for spawned or existing agents | 🚧 **Partial** · Session chat and participant enrollment are available; durable cross-session chat and presence remain |
 | U7 | TUI/Ratatui experiment | Built only after the shared client protocol is stable | 💤 Someday/Maybe |
 
 **2026-08-11:** Completed the U1 objective. Extracted `App.tsx` logic into `ConfigPanel`, `ActivityPanel`, `RemotePanel`, and `ApprovalPanel` along with a major glassmorphism redesign for premium aesthetics.

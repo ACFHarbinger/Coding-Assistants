@@ -14,6 +14,8 @@ export interface ModelConfig {
 export interface RoleConfig {
   name: string;
   config: ModelConfig;
+  origin?: "spawned" | "existing";
+  process_pid?: number;
 }
 
 export interface AgentConfig {
@@ -28,6 +30,14 @@ export interface AgentResources {
   workflows: string[];
 }
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  origin: "spawned" | "existing";
+}
+
 interface ConfigPanelProps {
   config: AgentConfig;
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
@@ -35,9 +45,11 @@ interface ConfigPanelProps {
   resources: AgentResources;
   PROVIDERS: Record<string, string>;
   onPreview: (type: string, name?: string) => Promise<void>;
+  teamMemberIds: string[];
+  onAddAgent: (agent: TeamMember) => void;
 }
 
-interface DetectedProcess {
+export interface DetectedProcess {
   pid: number;
   agent: string;
   provider: string;
@@ -55,7 +67,9 @@ const ModelSelect = ({
   onRemove,
   onPreview,
   resources,
-  PROVIDERS
+  PROVIDERS,
+  onAddToTeam,
+  isOnTeam
 }: {
   index: number;
   role: RoleConfig;
@@ -67,6 +81,8 @@ const ModelSelect = ({
   onPreview: (type: string, name?: string) => Promise<void>;
   resources: AgentResources;
   PROVIDERS: Record<string, string>;
+  onAddToTeam: () => void;
+  isOnTeam: boolean;
 }) => {
   const roleConfig = role.config;
 
@@ -117,6 +133,14 @@ const ModelSelect = ({
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
         >
           Remove
+        </button>
+        <button
+          className={isOnTeam ? "btn-secondary" : "btn-primary"}
+          onClick={onAddToTeam}
+          disabled={isOnTeam}
+          style={{ marginLeft: "0.5rem" }}
+        >
+          {isOnTeam ? "In team" : "Add to team"}
         </button>
       </div>
 
@@ -222,7 +246,7 @@ const ModelSelect = ({
   );
 };
 
-export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview }: ConfigPanelProps) {
+export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview, teamMemberIds, onAddAgent }: ConfigPanelProps) {
   const [detectedProcesses, setDetectedProcesses] = useState<DetectedProcess[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState("");
@@ -247,10 +271,29 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
       ...prev,
       roles: [...prev.roles, {
         name: `${process.agent} · PID ${process.pid}`,
-        config: { provider: process.provider, model: process.model }
+        config: { provider: process.provider, model: process.model },
+        origin: "existing",
+        process_pid: process.pid
       }]
     }));
     setAddedPids(prev => [...prev, process.pid]);
+    onAddAgent({
+      id: `process:${process.pid}`,
+      name: process.agent,
+      provider: process.provider,
+      model: process.model,
+      origin: "existing"
+    });
+  };
+
+  const addSpawnedRole = (index: number, role: RoleConfig) => {
+    onAddAgent({
+      id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
+      name: role.name,
+      provider: role.config.provider,
+      model: role.config.model,
+      origin: role.origin || "spawned"
+    });
   };
 
   const handleProviderChange = (index: number, provider: string) => {
@@ -338,9 +381,11 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
             onPreview={onPreview}
             resources={resources}
             PROVIDERS={PROVIDERS}
+            onAddToTeam={() => addSpawnedRole(index, role)}
+            isOnTeam={teamMemberIds.includes(role.process_pid ? `process:${role.process_pid}` : `role:${index}`)}
           />
         ))}
-        
+
         <div
           onClick={addRole}
           style={{

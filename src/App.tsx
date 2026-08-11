@@ -3,7 +3,7 @@ import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
 import HubPanel from "./components/HubPanel";
-import ConfigPanel, { AgentConfig, AgentResources } from "./components/panels/ConfigPanel";
+import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import ActivityPanel from "./components/panels/ActivityPanel";
 import RemotePanel from "./components/panels/RemotePanel";
 import ApprovalPanel from "./components/panels/ApprovalPanel";
@@ -56,17 +56,18 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
-  
+
   const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
   const [authorizationRequest, setAuthorizationRequest] = useState<{ role: string, question: string } | null>(null);
   const [userInput, setUserInput] = useState("");
-  
+
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"orchestrate" | "hub">("orchestrate");
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   useEffect(() => {
     async function loadModels() {
@@ -227,7 +228,7 @@ function App() {
     }
 
     setLoading(true);
-    setEvents([]);
+    setEvents(prev => [...prev, { source: "Harbinger", event_type: "message", content: task }]);
     setOutput("");
     try {
       const result = await invoke<string>("run_agent_task", { config, task });
@@ -241,7 +242,7 @@ function App() {
 
   const startTaskRemote = async (remoteConfig: AgentConfig, remoteTask: string) => {
     setLoading(true);
-    setEvents([]);
+    setEvents(prev => [...prev, { source: "Remote", event_type: "message", content: remoteTask }]);
     setOutput("");
     try {
       const result = await invoke<string>("run_agent_task", { config: remoteConfig, task: remoteTask });
@@ -251,6 +252,17 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const addAgentToTeam = (agent: TeamMember) => {
+    setTeamMembers(prev => {
+      if (prev.some(member => member.id === agent.id)) return prev;
+      return [...prev, agent];
+    });
+    setEvents(prev => {
+      if (prev.some(event => event.event_type === "team" && event.content === `${agent.name} joined the team chat.`)) return prev;
+      return [...prev, { source: "System", event_type: "team", content: `${agent.name} joined the team chat.` }];
+    });
   };
 
   return (
@@ -294,32 +306,35 @@ function App() {
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
           <>
-            <ConfigPanel 
-              config={config} 
-              setConfig={setConfig} 
-              availableModels={availableModels} 
-              resources={resources} 
-              PROVIDERS={PROVIDERS} 
-              onPreview={fetchPreview} 
-            />
-            
-            <ActivityPanel 
-              task={task} 
-              setTask={setTask} 
-              loading={loading} 
-              startTask={startTask} 
-              events={events} 
-              setEvents={setEvents} 
-              output={output} 
-              setOutput={setOutput} 
+            <ConfigPanel
+              config={config}
+              setConfig={setConfig}
+              availableModels={availableModels}
+              resources={resources}
+              PROVIDERS={PROVIDERS}
+              onPreview={fetchPreview}
+              teamMemberIds={teamMembers.map(member => member.id)}
+              onAddAgent={addAgentToTeam}
             />
 
-            <RemotePanel 
-              remoteStatus={remoteStatus} 
-              serverIP={serverIP} 
-              startRemoteServer={startRemoteServer} 
-              stopRemoteServer={stopRemoteServer} 
-              remoteLogs={remoteLogs} 
+            <ActivityPanel
+              task={task}
+              setTask={setTask}
+              loading={loading}
+              startTask={startTask}
+              events={events}
+              setEvents={setEvents}
+              output={output}
+              setOutput={setOutput}
+              teamMembers={teamMembers}
+            />
+
+            <RemotePanel
+              remoteStatus={remoteStatus}
+              serverIP={serverIP}
+              startRemoteServer={startRemoteServer}
+              stopRemoteServer={stopRemoteServer}
+              remoteLogs={remoteLogs}
             />
           </>
         </div>
@@ -355,10 +370,10 @@ function App() {
                 </h2>
                 <button onClick={() => setPreview(null)} className="btn-secondary" style={{ padding: '0.5rem 1rem' }}>Close</button>
               </div>
-              <pre style={{ 
-                whiteSpace: 'pre-wrap', 
-                background: 'rgba(0,0,0,0.4)', 
-                padding: '1.5rem', 
+              <pre style={{
+                whiteSpace: 'pre-wrap',
+                background: 'rgba(0,0,0,0.4)',
+                padding: '1.5rem',
                 borderRadius: '12px',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.9rem',
@@ -372,7 +387,7 @@ function App() {
           </div>
         )}
 
-        <ApprovalPanel 
+        <ApprovalPanel
           authorizationRequest={authorizationRequest}
           respondToAuthorization={respondToAuthorization}
           currentQuestion={currentQuestion}

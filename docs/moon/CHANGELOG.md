@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reframed Orchestrate as a session team chat: **Execute Task** is now
+  **Write Message**, **Launch Sequence** is **Send Message**, agent events are
+  displayed as sender-attributed messages, and configured spawned agents have
+  explicit **Add to team** controls. Enrolling a detected existing process now
+  immediately adds its participant and a join message to the chat.
+
 - Added the audit integrity MVP to `ca-hub` and `ca-cli`: recursive filesystem
   observation via `ca audit watch`, durable pending change records, owner
   approve/quarantine actions, and SHA-256 chain verification via `ca audit
