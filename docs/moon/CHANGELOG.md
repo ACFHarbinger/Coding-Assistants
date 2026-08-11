@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Private hub messages addressed to Harbinger now display their contents in
+  the Messages feed; private messages addressed to another participant remain
+  redacted in the shared team view.
+
 - Fixed Orchestrate message delivery to use stable harness identities (`chat`
   for Codex/ChatGPT) instead of detected process IDs, and added Team/private
   recipient routing. Each sent message now also creates a linked hub wake so

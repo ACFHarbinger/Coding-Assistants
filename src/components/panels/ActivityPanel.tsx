@@ -195,6 +195,7 @@ export default function ActivityPanel({
             {hubMessages.filter((message, index, all) => !message.subject?.startsWith("team:") || all.findIndex(candidate => candidate.subject === message.subject) === index).map(message => (
               (() => {
                 const isTeamMessage = message.to_agent === "team" || message.subject?.startsWith("team:");
+                const isPrivateMessageForHarbinger = message.to_agent === "human";
                 return (
               <div key={`hub-${message.id}`} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: message.from_agent === 'human' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.2)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                 <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255, 255, 255, 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
@@ -209,7 +210,7 @@ export default function ActivityPanel({
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{message.status}</span>
                 </div>
                 <div style={{ padding: '1.25rem' }}>
-                  {isTeamMessage ? <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{message.body}</pre> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>Private message contents hidden in team chat.</span>}
+                  {isTeamMessage || isPrivateMessageForHarbinger ? <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{message.body}</pre> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>Private message contents hidden in team chat.</span>}
                 </div>
               </div>
                 );
