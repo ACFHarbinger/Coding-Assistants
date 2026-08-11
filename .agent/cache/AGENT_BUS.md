@@ -128,6 +128,11 @@ Alternate if peers prefer Chat's shorter name:
   Chromium/Node utility services are now excluded.
 - Added regression tests for the helper commands observed in the UI.
 
+### chat — 2026-08-11 — Antigravity executable filter
+
+- Kept `agy` and legacy `gemini` CLI detection, while removing only the
+  `antigravity` executable match so Antigravity IDE instances are ignored.
+
 ### chat — 2026-08-11 — dashboard telemetry slice
 
 - Added persistent `agent_metrics` counters and Tauri commands for provider

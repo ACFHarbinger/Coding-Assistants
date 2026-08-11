@@ -24,7 +24,7 @@ fn classify_command(command: &str) -> Option<(&'static str, &'static str)> {
     match executable.as_str() {
         "claude" | "claude-code" => Some(("Claude", "anthropic")),
         "codex" | "chatgpt" => Some(("Codex", "openai")),
-        "agy" | "antigravity" | "gemini" => Some(("Gemini", "google")),
+        "agy" | "gemini" => Some(("Gemini", "google")),
         "grok" | "supergrok" => Some(("Grok", "xai")),
         _ => None,
     }
@@ -87,6 +87,10 @@ mod tests {
             Some(("Gemini", "google"))
         );
         assert_eq!(classify_command("grok"), Some(("Grok", "xai")));
+        assert_eq!(
+            classify_command("gemini --resume"),
+            Some(("Gemini", "google"))
+        );
     }
 
     #[test]
@@ -105,5 +109,6 @@ mod tests {
             None
         );
         assert_eq!(classify_command("node /opt/gemini/worker.js"), None);
+        assert_eq!(classify_command("/usr/share/antigravity/antigravity"), None);
     }
 }

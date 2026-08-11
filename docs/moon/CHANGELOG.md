@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ownership of or terminating those processes.
 - Tightened process discovery to match executable basenames only, excluding
   desktop helpers, Chromium/Node utility services, and agent runtime helpers.
+- Refined Gemini detection to recognize `agy` and the legacy `gemini` CLI while
+  excluding the `antigravity` IDE executable.
 
 - **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
   provider calls, output lines/chars, estimated tokens used, and cached tokens;
