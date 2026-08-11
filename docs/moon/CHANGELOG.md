@@ -11,9 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed Orchestrate message delivery to use stable harness identities (`chat`
   for Codex/ChatGPT) instead of detected process IDs, and added Team/private
-  recipient routing. Team broadcasts fan out with a shared marker; private
-  messages remain visible as sender/recipient metadata without their bodies in
-  the team chat.
+  recipient routing. Each sent message now also creates a linked hub wake so
+  the receiving harness has an explicit signal to poll its inbox. Team
+  broadcasts fan out with a shared marker; private messages remain visible as
+  sender/recipient metadata without their bodies in the team chat.
 
 - Centralized Tauri invocation behind a runtime guard. Browser/Vite mode now
   reports a clear desktop-runtime requirement instead of throwing an undefined

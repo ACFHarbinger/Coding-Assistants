@@ -38,6 +38,10 @@ interface HubAgent {
   display_name: string;
 }
 
+interface SentHubMessage {
+  id: string;
+}
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
     roles: [
@@ -267,8 +271,9 @@ function App() {
         ? (teamMembers.length > 0 ? teamMembers.map(member => member.target_id) : ["chat"])
         : [recipient];
       const subject = `${recipient === "team" ? "team" : "private"}:${crypto.randomUUID()}`;
-      await Promise.all(recipients.map(to => invoke("hub_send_message", {
-        args: {
+      await Promise.all(recipients.map(async to => {
+        const message = await invoke<SentHubMessage>("hub_send_message", {
+          args: {
           from: "human",
           to,
           kind: "message",
@@ -276,8 +281,15 @@ function App() {
           workspace: config.work_dir || null,
           task: null,
           body: task.trim()
-        }
-      })));
+          }
+        });
+        await invoke("hub_request_wake", {
+          target: to,
+          reason: "New message in the Orchestrate team chat",
+          messageId: message.id,
+          humanGate: false
+        });
+      }));
       setTask("");
       await refreshHubChat();
     } catch (error) {
