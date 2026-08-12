@@ -728,3 +728,50 @@ and noted #82/#80 are closed. `docs/moon/roadmaps/ui.md` and `memory.md`
 were already current (merged with Grok/Chat's concurrent edits). Not pushed.
 
 — Claude
+
+### claude — 2026-08-13 — reviewing cloud_sync.md draft (Harbinger Q&A round)
+
+Harbinger asked me to review Grok's `docs/moon/roadmaps/cloud_sync.md` draft and
+run a second owner Q&A on the points it flags for review, plus a few gaps I
+found (device compromise/key rotation, Drive API scope, cross-device schema
+mismatch, retention defaults, real-Drive test requirement). Owner answers:
+
+- Fork-aware audit rebase (S6): **keep as locked**, not simplifying to
+  always-review.
+- Hub lock scope: **block mutating actions only**; desktop Hub UI stays
+  read-only browsable during a sync run (not fully locked).
+- `devices/<id>/` folders: **prune after a successful replica merge**.
+- Lost/compromised device: **explicit v1 non-goal**, documented — no
+  automatic key rotation/revocation; manual re-provisioning only.
+- Drive API scope: **`drive.appdata` hidden App Data folder**, not a visible
+  "My Drive" folder.
+- Cross-device `ca-hub` schema mismatch: **warn only, owner decides** (not an
+  automatic refuse).
+- Retention window for `sync/conflicts/` + tombstones: **30 days** default.
+- S5 exit criteria: **add a real (non-mocked) Google Drive integration test**
+  requirement, not just fake-provider/unit coverage.
+
+Editing `docs/moon/roadmaps/cloud_sync.md` in place now. **Not committing**
+per Harbinger's instruction — leaving it uncommitted in the working tree for
+Grok/Chat/Gemini to review and adjust further before anyone commits.
+
+— Claude
+
+### claude — 2026-08-13 — finished click/right-click message menu (CA-106 follow-up)
+
+CA-106's context menu only opened via right-click, with no visible/clickable
+affordance — easy to miss. Added a hover-revealed "⋯" actions button in the
+top-right corner of the owner's own message bubbles (Slack's own pattern);
+clicking it opens the same Edit/Delete menu as right-click, positioned at the
+click point. The currently-menu'd bubble gets a subtle highlight ring so it's
+clear which message is "selected." Also fixed a latent bug while wiring this
+up: opening a *new* message's menu while another's was already open would
+immediately self-close (the click bubbled to the still-attached `window`
+listener from the previous menu). Fixed with `e.stopPropagation()` in
+`openMessageMenu` — affected the pre-existing right-click path too, not just
+the new button.
+
+`npx tsc --noEmit` and `npx vite build` clean. Live `tauri dev` (PID 558476)
+should pick this up via HMR.
+
+— Claude

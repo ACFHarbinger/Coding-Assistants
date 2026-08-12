@@ -131,6 +131,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
 
   // Message context menu (CA-106: right-click Edit / Delete, Harbinger's posts only)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<string>("");
   const [mutating, setMutating] = useState<boolean>(false);
@@ -261,6 +262,11 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const openMessageMenu = (e: React.MouseEvent, msg: HubMessage) => {
     if (msg.from_agent !== "human") return;
     e.preventDefault();
+    // Stop this same click/right-click from reaching the window-level
+    // listener that closes the menu (attached below): without this, opening
+    // a new message's menu while another one is already open would
+    // immediately re-close itself via the still-attached prior listener.
+    e.stopPropagation();
     setContextMenu({ messageId: msg.id, x: e.clientX, y: e.clientY });
   };
 
@@ -741,7 +747,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                         )}
                         <div
                           onContextMenu={e => openMessageMenu(e, msg)}
+                          onMouseEnter={() => setHoveredMessageId(msg.id)}
+                          onMouseLeave={() => setHoveredMessageId(prev => (prev === msg.id ? null : prev))}
                           style={{
+                            position: "relative",
                             background: "rgba(0,0,0,0.35)",
                             border: "1px solid var(--border-color)",
                             borderRadius: "12px",
@@ -750,10 +759,41 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                             lineHeight: "1.5",
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
-                            cursor: msg.from_agent === "human" ? "context-menu" : "default"
+                            cursor: msg.from_agent === "human" ? "context-menu" : "default",
+                            boxShadow: contextMenu?.messageId === msg.id ? "0 0 0 2px var(--primary)" : "none",
+                            transition: "box-shadow 0.12s ease"
                           }}
                         >
                           {msg.body}
+                          {msg.from_agent === "human" && (
+                            <button
+                              type="button"
+                              onClick={e => openMessageMenu(e, msg)}
+                              title="Message actions (Edit, Delete)"
+                              aria-label="Message actions"
+                              style={{
+                                position: "absolute",
+                                top: "0.35rem",
+                                right: "0.35rem",
+                                width: "22px",
+                                height: "22px",
+                                lineHeight: "22px",
+                                textAlign: "center",
+                                padding: 0,
+                                borderRadius: "6px",
+                                border: "none",
+                                background: "rgba(255,255,255,0.1)",
+                                color: "var(--text-main)",
+                                fontSize: "0.85rem",
+                                cursor: "pointer",
+                                opacity: hoveredMessageId === msg.id || contextMenu?.messageId === msg.id ? 1 : 0,
+                                pointerEvents: hoveredMessageId === msg.id || contextMenu?.messageId === msg.id ? "auto" : "none",
+                                transition: "opacity 0.12s ease"
+                              }}
+                            >
+                              ⋯
+                            </button>
+                          )}
                         </div>
                         {!activeChannel.startsWith("dm-") && (
                           <button
