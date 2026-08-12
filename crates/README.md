@@ -50,6 +50,10 @@ ca agent enroll --id ollama
 ca agent unenroll --id ollama
 ca msg poll --to claude
 
+# Edit/delete (Harbinger only; updates or cancels every copy of a team/channel broadcast)
+ca msg edit --id <uuid> --from human "corrected body"
+ca msg delete --id <uuid> --from human
+
 # Long-lived adapter boundary for a running agent session (JSONL stdout)
 ca inbox watch --agent chat --accept-gated
 # Optional provider adapter receives the same JSONL stream on stdin:

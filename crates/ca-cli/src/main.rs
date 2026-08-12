@@ -380,6 +380,23 @@ enum MsgCommand {
         #[arg(long)]
         status: String,
     },
+    /// Edit a message (and every sibling copy of the same team/channel
+    /// broadcast). Only Harbinger's own posts may be edited (CA-106/CA-109).
+    Edit {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        from: String,
+        body: String,
+    },
+    /// Delete (cancel) a message and every sibling copy of the same
+    /// team/channel broadcast. Only Harbinger's own posts may be deleted.
+    Delete {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        from: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -427,6 +444,23 @@ enum JournalCommand {
 fn default_home() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".coding-assistants")
+}
+
+/// CA-106/CA-109: only Harbinger may edit/delete a chat message, mirroring
+/// the desktop `require_human_authored` check in `src-tauri/src/hub_cmds.rs`.
+/// Checked against both the caller-supplied `--from` and the message's
+/// actual `from_agent`, since only the latter is authoritative.
+fn require_human_authored(store: &HubStore, from: &str, message_id: &str) -> anyhow::Result<()> {
+    if from != "human" {
+        anyhow::bail!("only Harbinger (--from human) may edit or delete a chat message");
+    }
+    let message = store
+        .get_message(message_id)?
+        .ok_or_else(|| anyhow::anyhow!("message not found: {message_id}"))?;
+    if message.from_agent != "human" {
+        anyhow::bail!("only Harbinger may edit or delete a chat message");
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -609,6 +643,16 @@ fn main() -> anyhow::Result<()> {
                 let status = MessageStatus::parse(&status)?;
                 let record = store.set_message_status(&id, status)?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            MsgCommand::Edit { id, from, body } => {
+                require_human_authored(&store, &from, &id)?;
+                let records = store.update_broadcast(&id, &body)?;
+                println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            MsgCommand::Delete { id, from } => {
+                require_human_authored(&store, &from, &id)?;
+                let count = store.delete_broadcast(&id)?;
+                println!("{{\"deleted\": {count}}}");
             }
         },
         Command::Wake { action } => match action {

@@ -58,6 +58,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the audit trail (`hub_list_messages`) still returns them. `cargo test -p
   ca-hub` (15 passed).
 
+- CA-109: CLI parity for CA-106 — `ca msg edit --id <uuid> --from human
+  "body"` and `ca msg delete --id <uuid> --from human`. Rejects any `--from`
+  other than `human`, and independently verifies the target message's
+  `from_agent` is `human` before mutating, matching the desktop
+  `require_human_authored` check. Both commands resolve every sibling copy
+  of a team/channel broadcast via `update_broadcast`/`delete_broadcast`.
+
 - Persisted Orchestrate **Add to team** onto the Slack roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
   `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:
