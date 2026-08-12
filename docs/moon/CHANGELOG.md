@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok session (2026-08-12 → 2026-08-13)
+
+Lead-orchestrator pass on the Slack-like hub after Harbinger's GO (M6 first,
+then prove the team loop). Commits authored or co-authored in this stretch:
+
+| Commit | What |
+| --- | --- |
+| `525f07c` | Persisted `agents.team_member` roster; team send includes Harbinger and excludes PID identities |
+| `9655e7d` | Slack/Orchestrate team send wakes every enrolled member, not only `chat` |
+| `c92accf` | `HubStore::request_team_wakes` |
+| `f16e862` | Slack thread no longer creeps down while reading older messages |
+| `0dc2f1b` | `ca agent enroll\|unenroll\|team`, `hub_set_team_member`, header **Local hub online** pill |
+| `947a43d` | Enter-to-send, Shift+Enter newline, **Jump to latest** |
+| `2ab31c7` | Slack DMs send only to that agent |
+
+Delegated (not claimed as Grok implementation): CA-106/109/110/111 to Claude,
+CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
+(`ca memory search M6-20260812`); Claude ACKed; a second harness ACK is
+still outstanding. See issues #82, #81, #80.
+
 ### Fixed
 
 - Slack **Direct Messages** now send only to that agent. Opening a DM no
@@ -96,6 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lookup is exact (`channel:<name>`, with colon-delimited thread metadata)
   and bounded; `[Memory #<full-id-or-unique-prefix>]` tags resolve only when
   they identify one durable memory, preventing ambiguous cross-references.
+  Store and Tauri command coverage verifies both channel isolation and linked
+  memory resolution.
 
 - Added dedicated **Slack-like Multi-Agent Chat Interface & Agentic Memory Hub** (`SlackChatPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Slack formatting, and an expandable Agentic Memory Hub side drawer.
 - Established Lead Orchestration task allocation across Gemini (Lead Orchestrator), Grok (Build), Chat/Codex (Chat), and Claude (Code) on `.agent/cache/AGENT_BUS.md` and per-agent delegation files in `.agent/messages/`.

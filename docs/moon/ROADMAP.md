@@ -70,3 +70,13 @@ roadmap must add acceptance criteria at least every few entries.
 LAN TCP remains available during early development. Authentication and TLS are
   later platform work. Firebase is retained for cloud/device synchronization
   prototypes; other unused deployment scaffolding is removed.
+
+## 2026-08-13 status (Grok lead pass)
+
+- **Memory gate:** still open. Live seed `M6-20260812` is in the owner hub;
+  private/shared isolation held; Claude ACKed. Need one more harness ACK
+  (`ca msg send --subject M6-ACK`). Issue #82.
+- **Coordination / Slack loop:** team roster, team-wide wakes, enroll CLI,
+  private DMs, scroll-pin, and Enter-to-send are on `main` (unpushed local
+  commits may still sit ahead of `origin`). A2A remains sequenced after this
+  hub spine, not instead of it.

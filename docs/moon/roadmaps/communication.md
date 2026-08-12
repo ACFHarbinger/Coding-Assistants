@@ -7,7 +7,7 @@ communication is reliable.
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | C1 | Agent identities, attribution headers, durable inbox/outbox messages, and handoff records | Every message records sender, receiver, task, workspace, timestamp, and status | ✅ **Done** · `ca msg send/poll/list/status` + seeded agents + handoff kind in MD export |
-| C2 | Shared `ca` CLI for read/write/search/poll operations | External agent loops can use it without the desktop UI | ✅ **Done** · binary `ca`; also mirrored by Tauri `hub_*` commands / HubPanel |
+| C2 | Shared `ca` CLI for read/write/search/poll operations | External agent loops can use it without the desktop UI | ✅ **Done** · binary `ca`; `ca agent team\|enroll\|unenroll`; also mirrored by Tauri `hub_*` commands / HubPanel |
 | C3 | Separate ephemeral wake mechanism via file watch or local socket | Durable writes survive absent agents; wake requests are observable and **deduplicated** | ✅ **Done** · `wake/*.json` + SQLite; pending dedup by target/message/reason; resolve delivered/cancelled |
 | C4 | Configurable human gates and standing policies for wake-ups and delegation | Per-task policy can allow or require approval | ✅ **Done** · persisted `WakePolicy` integrated into desktop Shared Hub Policy tab; per-task delegation policy via `require_human_approval` on `TaskRecord` |
 | C5 | Declarative sequential and bounded-parallel workflow wiring | A real task can be split into plan/code/review boundaries with retries and handoffs | ✅ **Done** · stages via `parallel_group`; `max_parallel` queue; `retry_task`/`max_retries`; `complete_parallel_member`; CLI `task complete|retry` + Tauri (2026-08-11) |
@@ -20,7 +20,10 @@ communication is reliable.
 store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).
 Chat messages can embed `[Memory #<full-id-or-unique-prefix>]`; the Hub
 resolves only unique references, retaining isolation and avoiding accidental
-links to similarly prefixed memories.
+links to similarly prefixed memories. CA-106/109 add owner-only edit/delete
+parity across the desktop and CLI. CA-114 adds contextual replies using the
+same subject namespace (`channel:<name>:thread:<root>:<id>`), preserving
+channel isolation and existing roster wake behavior without a migration.
 
 The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
@@ -55,6 +58,12 @@ The remaining workflow gap is fully parallel session startup under C8.
 (`agents.team_member`) instead of every row in `agents`. Default members:
 `human`, `claude`, `chat`, `gemini`, `grok`. Harbinger is included so Slack-like
 `#general` is visible to the owner. Slack/Orchestrate team sends wake that
-roster with `hub_request_wake` per enrolled member. `set_team_member` /
-`list_team_members` remain the enrollment API; Chat's CA-102 channel-query
-work owns `list_channel_messages` in the same store.
+roster with `hub_request_wake` per enrolled member (`HubStore::request_team_wakes`,
+`hub_request_team_wakes`). Enrollment: `ca agent enroll\|unenroll\|team` and
+`hub_set_team_member`. Chat's CA-102 channel-query work owns
+`list_channel_messages` in the same store.
+
+**2026-08-13:** Slack DMs no longer inherit the team-broadcast recipient
+(`2ab31c7`). Composer is Enter-to-send with a jump-to-latest chip while
+reading history (`947a43d`). Thread replies (CA-114, Chat) stay in the
+`channel:<name>:thread:` subject namespace.

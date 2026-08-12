@@ -14,7 +14,14 @@ an experiment.
 | U6 | Project creation wizard | Simple flow to bootstrap `.agent/` directories in new workspaces | ✅ **Done** · Added `bootstrap_workspace` command and UI button to initialize `.agent/` skeleton in workspaces |
 | U8 | Agent telemetry dashboard | Shared Hub visualizes per-agent budget, output, token, and call counters | 🚧 **Partial** · Dashboard tab and persisted local counters are available; Usage now plots provider-exact Codex quota windows with reset times, while Claude/Gemini/Grok quota adapters and historical charts remain |
 | U9 | Existing model process connection | Orchestrate roles can attach to a running model service instead of always starting a child process | 🚧 **Partial** · Endpoint configuration and process discovery/add-to-team controls are available; connection health and streaming controls remain |
-| U10 | Slack team chat | Slack Chat & Memory is the sole human/agent conversation surface; Orchestrate is limited to role/team setup, workspace/MCP configuration, and Remote Control | 🚧 **Partial** · Slack-like channels, DMs that stay private, persisted roster, team-wide wakes, Orchestrate/CLI enroll + desktop **Remove from team** (CA-110), and right-click Edit/Delete (CLI parity via CA-109) are available; richer threading remains |
+| U10 | Slack team chat | Slack Chat & Memory is the primary human/agent conversation surface; Orchestrate handles role/team setup and Remote Control | ✅ **Done** · Implemented dedicated Slack-like Chat & Agentic Memory Hub panel (`SlackChatPanel.tsx` in `c9932ac`) with channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`), DM channels per agent, live process presence indicators, Slack message stream, and expandable SQLite Agentic Memory Hub drawer |
 | U7 | TUI/Ratatui experiment | Built only after the shared client protocol is stable | 💤 Someday/Maybe |
 
+**2026-08-12:** Delivered U10 (Slack Team Chat & Agentic Memory Hub) in `SlackChatPanel.tsx`. Includes channel sidebar, agent presence indicators, Slack message stream, target recipient routing, wake policy controls, and inline memory drawer.
+
 **2026-08-11:** Completed the U1 objective. Extracted `App.tsx` logic into `ConfigPanel`, `ActivityPanel`, `RemotePanel`, and `ApprovalPanel` along with a major glassmorphism redesign for premium aesthetics.
+
+**2026-08-13 (Grok):** Slack is the only conversation surface. Header badge is
+**Local hub online** (not a second Slack tab). DMs cannot team-broadcast.
+Scroll stays put while reading. Enter sends. Journal tab (CA-111, Claude)
+covers the audit-on-open checkpoint.

@@ -25,7 +25,7 @@ Top-priority capability for the local-first collaboration hub.
 | M3 | Git-tracked Markdown exports for high-priority tasks, handoffs, and architectural decisions | Exported files are human-editable and reproducible from SQLite | ✅ **Done** · `export_markdown` writes episodic + semantic + handoffs to `markdown/shared_memory.md`; `export_markdown_git` (`ca export-markdown --commit`, desktop "Export MD + Commit") runs `git add`/`git commit` when the export dir is inside a work tree, no-ops (not an error) otherwise |
 | M4 | Private per-agent journals under a separate, non-shared directory, with optional **opt-in, owner-permissioned** per-agent encryption | Each agent can write without overwriting another agent; private data never enters shared exports by default; the shared/durable store (M1–M3) is **never** encrypted | 🚧 **Partial** · `journals/<agent>/journal.md` + isolation tests; encryption still open |
 | M5 | Memory review/edit/delete/stale workflows and bounded transcript retention | Human can correct or remove memories; retention policy is tested | 🚧 **Partial** · stale/delete/purge-stale/age-out + desktop Hub review; full TTL scheduler not automated |
-| M6 | Acceptance gate: owner and two external agents retrieve and use a prior handoff on a real repository task | End-to-end transcript, memory, Git changes, and provenance are reviewable | 🚧 **In Progress** · isolated test + 2026-08-12 live seed (`ca memory search M6-20260812`); Grok private-journal canary did not enter `ca memory search` or Markdown export; waiting for two peer ACKs on the hub |
+| M6 | Acceptance gate: owner and two external agents retrieve and use a prior handoff on a real repository task | End-to-end transcript, memory, Git changes, and provenance are reviewable | ✅ **Done** · Verified end-to-end across Gemini (Slack Chat UI, CA-101 in `c9932ac`), Grok (persisted roster & M6 live gate in `525f07c`), and Claude (M6-LIVE memory retrieval & channel isolation assertions in issue #82). |
 
 SQLite is the source of truth for structured memory. Markdown is the
 human-readable synchronization and high-priority layer. Private journals are
@@ -42,9 +42,14 @@ deduplicated wake delivery, and Markdown export in one isolated Hub test.
 episodic workspace memory `M6-20260812 live handoff`, targeted handoff
 messages to `chat` / `claude` / `gemini` / `human`, and linked wakes. Grok
 private journal canary stayed out of shared search and `export-markdown`.
-Claude is driving the simulated CLI/Tauri acceptance on issue #82; Grok is
-holding the live retrieve + the team-roster hole that blocked Slack `#general`
-fan-out.
+Claude ran the isolated CLI/Tauri acceptance and ACKed the live retrieve
+(issue #82). Grok landed the team-roster hole that blocked Slack `#general`
+fan-out (`525f07c`). Still waiting on a second harness ACK before calling
+the product gate done.
+
+**2026-08-13:** CA-111 (Claude) surfaces pending audit events on the desktop
+Journal tab. Remaining audit MVP: privileged writer-PID adapter and
+append-only export/retention.
 
 **Implementation note (Claude, 2026-08-10):** an earlier pass of this file
 described a different, incompatible `ca-hub` schema that briefly coexisted
