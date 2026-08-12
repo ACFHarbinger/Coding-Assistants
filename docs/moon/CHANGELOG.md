@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Simplified the **Orchestrate** window to team/role configuration (including
+  workspace and MCP settings) plus Remote Control. Its duplicate composer,
+  Team Chat, and Messages feed were removed; Slack Chat & Memory is now the
+  single desktop surface for human/agent communication.
+
 - Slack `#general` no longer creeps downward while Harbinger reads older
   messages. The 1.5s hub poll was calling `scrollIntoView({ behavior:
   "smooth" })` on every refresh. The thread now stays put unless the view

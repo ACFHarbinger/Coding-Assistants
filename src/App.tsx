@@ -4,9 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 
 import HubPanel from "./components/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
-import ActivityPanel from "./components/panels/ActivityPanel";
 import RemotePanel from "./components/panels/RemotePanel";
-import ApprovalPanel from "./components/panels/ApprovalPanel";
 import SlackChatPanel from "./components/panels/SlackChatPanel";
 
 const PROVIDERS = {
@@ -16,12 +14,6 @@ const PROVIDERS = {
   "xai": "Grok (xAI)",
   "ollama": "Ollama (Local)",
 };
-
-interface AgentEvent {
-  source: string;
-  event_type: string;
-  content: string;
-}
 
 interface HubMessage {
   id: string;
@@ -38,10 +30,6 @@ interface HubAgent {
   id: string;
   display_name: string;
   team_member?: boolean;
-}
-
-interface SentHubMessage {
-  id: string;
 }
 
 function sameHubMessages(left: HubMessage[], right: HubMessage[]): boolean {
@@ -94,15 +82,7 @@ function App() {
   });
 
   const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
-  const [task, setTask] = useState("");
-  const [output, setOutput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
-
-  const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
-  const [authorizationRequest, setAuthorizationRequest] = useState<{ role: string, question: string } | null>(null);
-  const [userInput, setUserInput] = useState("");
 
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
@@ -113,7 +93,6 @@ function App() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
-  const [recipient, setRecipient] = useState("team");
 
   useEffect(() => {
     async function loadModels() {
@@ -186,82 +165,6 @@ function App() {
     fetchResources();
   }, [config.work_dir]);
 
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    const unlisten = listen<AgentEvent>("agent-event", (event) => {
-      setEvents((prev) => {
-        const last = prev[prev.length - 1];
-        if (event.payload.event_type === "stream") {
-          if (last && last.source === event.payload.source && last.event_type === "response") {
-            const newLast = { ...last, content: last.content + event.payload.content };
-            return [...prev.slice(0, -1), newLast];
-          }
-          return [...prev, { ...event.payload, event_type: "response" }];
-        }
-        if (event.payload.event_type === "question") {
-          setCurrentQuestion(event.payload.content);
-        }
-        if (event.payload.event_type === "authorization") {
-          try {
-            const content = JSON.parse(event.payload.content);
-            setAuthorizationRequest(content);
-          } catch (e) {
-            console.error("Failed to parse authorization request", e);
-          }
-        }
-        return [...prev, event.payload];
-      });
-    });
-    return () => {
-      unlisten.then(f => f());
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    const unlistenTask = listen<{ config: AgentConfig, task: string }>("android-task-request", (event) => {
-      setConfig(event.payload.config);
-      setTask(event.payload.task);
-      startTaskRemote(event.payload.config, event.payload.task);
-    });
-
-    const unlistenCancel = listen("android-cancel-request", () => {
-      invoke("cancel_task").catch(err => console.error("Remote cancel failed:", err));
-    });
-
-    const unlistenInput = listen<string>("android-input-submit", (event) => {
-      setUserInput(event.payload);
-      invoke("submit_user_input", { input: event.payload }).catch(err => console.error("Remote input submittal failed:", err));
-      setCurrentQuestion(null);
-    });
-
-    return () => {
-      unlistenTask.then(f => f());
-      unlistenCancel.then(f => f());
-      unlistenInput.then(f => f());
-    };
-  }, []);
-
-  const submitAnswer = async () => {
-    if (!userInput.trim()) return;
-    try {
-      await invoke("submit_user_input", { input: userInput });
-      setCurrentQuestion(null);
-      setUserInput("");
-    } catch (e) {
-      alert("Failed to submit answer: " + e);
-    }
-  };
-
-  const respondToAuthorization = async (approved: boolean) => {
-    try {
-      await invoke("submit_user_input", { input: approved ? "APPROVED" : "DENIED" });
-      setAuthorizationRequest(null);
-    } catch (e) {
-      alert("Failed to submit response: " + e);
-    }
-  };
-
   const refreshHubChat = async () => {
     if (!isTauriRuntime()) return;
     try {
@@ -283,70 +186,10 @@ function App() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const sendMessage = async () => {
-    if (loading || !task.trim()) return;
-    setLoading(true);
-    try {
-      // This is deliberately a hub message, not an agent task. It must not
-      // invoke OpenCode: Codex and the other harness participants receive
-      // their messages through the shared hub.
-      const subject = `${recipient === "team" ? "team" : "private"}:${crypto.randomUUID()}`;
-      const message = await invoke<SentHubMessage>("hub_send_message", {
-        args: {
-          from: "human",
-          to: recipient,
-          kind: "message",
-          subject,
-          workspace: config.work_dir || null,
-          task: null,
-          body: task.trim()
-        }
-      });
-      const wakeTargets = recipient === "team"
-        ? hubAgents
-            .filter(agent => agent.team_member && agent.id !== "human" && agent.id !== "system")
-            .map(agent => agent.id)
-        : [recipient];
-      const targets = wakeTargets.length > 0 ? wakeTargets : recipient === "team"
-        ? ["chat", "claude", "gemini", "grok"]
-        : [recipient];
-      await Promise.all(targets.map(target => invoke("hub_request_wake", {
-        target,
-        reason: "New message in the Orchestrate team chat",
-        messageId: message.id,
-        humanGate: false
-      })));
-      setTask("");
-      await refreshHubChat();
-    } catch (error) {
-      setEvents(prev => [...prev, { source: "System", event_type: "error", content: `Message failed: ${error}` }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startTaskRemote = async (remoteConfig: AgentConfig, remoteTask: string) => {
-    setLoading(true);
-    setEvents(prev => [...prev, { source: "Remote", event_type: "message", content: remoteTask }]);
-    setOutput("");
-    try {
-      const result = await invoke<string>("run_agent_task", { config: remoteConfig, task: remoteTask });
-      setOutput(result);
-    } catch (error) {
-      setOutput(`Error: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const addAgentToTeam = (agent: TeamMember) => {
     setTeamMembers(prev => {
       if (prev.some(member => member.id === agent.id)) return prev;
       return [...prev, agent];
-    });
-    setEvents(prev => {
-      if (prev.some(event => event.event_type === "team" && event.content === `${agent.name} joined the team chat.`)) return prev;
-      return [...prev, { source: "System", event_type: "team", content: `${agent.name} joined the team chat.` }];
     });
   };
 
@@ -387,8 +230,8 @@ function App() {
           >
             Shared Hub
           </button>
-          <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(168, 85, 247, 0.2)', color: 'var(--accent)', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-            Slack Multi-Agent Hub
+          <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(16, 185, 129, 0.15)', color: '#6ee7b7', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            Local hub online
           </div>
         </div>
       </header>
@@ -415,22 +258,6 @@ function App() {
               onPreview={fetchPreview}
               teamMemberIds={teamMembers.map(member => member.id)}
               onAddAgent={addAgentToTeam}
-            />
-
-            <ActivityPanel
-              task={task}
-              setTask={setTask}
-              loading={loading}
-              sendMessage={sendMessage}
-              events={events}
-              setEvents={setEvents}
-              output={output}
-              setOutput={setOutput}
-              teamMembers={teamMembers}
-              recipient={recipient}
-              setRecipient={setRecipient}
-              hubMessages={hubMessages}
-              hubAgents={hubAgents}
             />
 
             <RemotePanel
@@ -490,15 +317,6 @@ function App() {
             </div>
           </div>
         )}
-
-        <ApprovalPanel
-          authorizationRequest={authorizationRequest}
-          respondToAuthorization={respondToAuthorization}
-          currentQuestion={currentQuestion}
-          userInput={userInput}
-          setUserInput={setUserInput}
-          submitAnswer={submitAnswer}
-        />
       </main>
     </div>
   );
