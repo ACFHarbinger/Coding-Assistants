@@ -360,6 +360,8 @@ pub fn run() {
             hub_cmds::hub_purge_stale_memories,
             hub_cmds::hub_age_out_short_term,
             hub_cmds::hub_set_message_status,
+            hub_cmds::hub_update_message,
+            hub_cmds::hub_delete_message,
             hub_cmds::hub_resolve_wake,
             hub_cmds::hub_get_wake_policy,
             hub_cmds::hub_set_wake_policy,

@@ -90,6 +90,12 @@ function channelDedupeKey(msg: HubMessage, channel: string): string {
   return `${msg.from_agent}|${msg.body}|${(msg.created_at || "").slice(0, 19)}`;
 }
 
+interface ContextMenuState {
+  messageId: string;
+  x: number;
+  y: number;
+}
+
 export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
@@ -107,10 +113,33 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   // Running processes state for presence
   const [runningProcesses, setRunningProcesses] = useState<DetectedProcess[]>([]);
 
+  // Message context menu (CA-106: right-click Edit / Delete, Harbinger's posts only)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<string>("");
+  const [mutating, setMutating] = useState<boolean>(false);
+
   const scrollBoxRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
   const prevChannelRef = useRef(activeChannel);
+
+  // Close the context menu on outside click or Escape.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const closeMenu = () => setContextMenu(null);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("contextmenu", closeMenu);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("contextmenu", closeMenu);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
 
   // Fetch memories and process presence
   useEffect(() => {
@@ -175,6 +204,51 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     }
   };
 
+  const openMessageMenu = (e: React.MouseEvent, msg: HubMessage) => {
+    if (msg.from_agent !== "human") return;
+    e.preventDefault();
+    setContextMenu({ messageId: msg.id, x: e.clientX, y: e.clientY });
+  };
+
+  const startEdit = (msg: HubMessage) => {
+    setEditingId(msg.id);
+    setEditDraft(msg.body);
+    setContextMenu(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editDraft.trim() || mutating) return;
+    setMutating(true);
+    try {
+      await invoke("hub_update_message", { id: editingId, body: editDraft.trim() });
+      cancelEdit();
+      await onRefresh();
+    } catch (err) {
+      alert(`Failed to edit message: ${err}`);
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    setContextMenu(null);
+    if (!window.confirm("Delete this message for everyone?")) return;
+    setMutating(true);
+    try {
+      await invoke("hub_delete_message", { id: messageId });
+      await onRefresh();
+    } catch (err) {
+      alert(`Failed to delete message: ${err}`);
+    } finally {
+      setMutating(false);
+    }
+  };
+
   const getAgentInfo = (agentId: string) => {
     const key = agentId.toLowerCase();
     const info = AGENT_COLORS[key] || {
@@ -196,6 +270,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   // Filter messages for active channel / DM view
   const channelMessages = (() => {
     const matches = hubMessages.filter(msg => {
+      if (msg.status === "cancelled") return false;
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         if (!msg.body.toLowerCase().includes(q) && !(msg.subject || "").toLowerCase().includes(q)) {
@@ -304,7 +379,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
             {DEFAULT_CHANNELS.map(ch => {
               const isActive = activeChannel === ch.id;
               const unreadCount = hubMessages.filter(m =>
-                m.subject === `channel:${ch.id}` || m.subject?.startsWith(`channel:${ch.id}:`)
+                m.status !== "cancelled" &&
+                (m.subject === `channel:${ch.id}` || m.subject?.startsWith(`channel:${ch.id}:`))
               ).length;
               return (
                 <button
@@ -512,18 +588,70 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                       <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{formattedTime}</span>
                     </div>
 
-                    <div style={{
-                      background: "rgba(0,0,0,0.35)",
-                      border: "1px solid var(--border-color)",
-                      borderRadius: "12px",
-                      padding: "0.85rem 1.1rem",
-                      fontSize: "0.95rem",
-                      lineHeight: "1.5",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word"
-                    }}>
-                      {msg.body}
-                    </div>
+                    {editingId === msg.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        <textarea
+                          autoFocus
+                          rows={3}
+                          value={editDraft}
+                          onChange={e => setEditDraft(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              cancelEdit();
+                            } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault();
+                              saveEdit();
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            background: "rgba(0,0,0,0.4)",
+                            border: "1px solid var(--primary)",
+                            borderRadius: "10px",
+                            padding: "0.7rem 0.9rem",
+                            color: "#fff",
+                            fontSize: "0.95rem",
+                            outline: "none",
+                            resize: "none"
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            className="btn-primary"
+                            onClick={saveEdit}
+                            disabled={!editDraft.trim() || mutating}
+                            style={{ padding: "0.35rem 0.9rem", fontSize: "0.8rem" }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn-secondary"
+                            onClick={cancelEdit}
+                            style={{ padding: "0.35rem 0.9rem", fontSize: "0.8rem" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onContextMenu={e => openMessageMenu(e, msg)}
+                        style={{
+                          background: "rgba(0,0,0,0.35)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "12px",
+                          padding: "0.85rem 1.1rem",
+                          fontSize: "0.95rem",
+                          lineHeight: "1.5",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          cursor: msg.from_agent === "human" ? "context-menu" : "default"
+                        }}
+                      >
+                        {msg.body}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -726,6 +854,66 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           </div>
         </div>
       )}
+
+      {/* Message Context Menu (CA-106: right-click Edit / Delete) */}
+      {contextMenu && (() => {
+        const msg = hubMessages.find(m => m.id === contextMenu.messageId);
+        if (!msg) return null;
+        return (
+          <div
+            className="glass-card"
+            onClick={e => e.stopPropagation()}
+            onContextMenu={e => e.preventDefault()}
+            style={{
+              position: "fixed",
+              top: contextMenu.y,
+              left: contextMenu.x,
+              zIndex: 1000,
+              padding: "0.35rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.15rem",
+              minWidth: "140px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)"
+            }}
+          >
+            <button
+              onClick={() => startEdit(msg)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-main)",
+                textAlign: "left",
+                padding: "0.45rem 0.6rem",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                cursor: "pointer"
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              ✏️ Edit
+            </button>
+            <button
+              onClick={() => deleteMessage(msg.id)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#f87171",
+                textAlign: "left",
+                padding: "0.45rem 0.6rem",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                cursor: "pointer"
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

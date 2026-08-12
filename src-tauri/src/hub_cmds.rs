@@ -522,6 +522,38 @@ pub fn hub_set_message_status(id: String, status: String) -> Result<MessageRecor
         .map_err(|e| e.to_string())
 }
 
+/// CA-106: only Harbinger may edit/delete a Slack chat post in v1 — an agent
+/// must not be able to silently rewrite another agent's line. Team/channel
+/// broadcasts are N SQLite rows (one per recipient) sharing a subject, so
+/// both commands update/cancel every sibling copy via `ca_hub`'s broadcast
+/// grouping, not just the row the caller happened to have in view.
+fn require_human_authored(store: &HubStore, message_id: &str) -> Result<(), String> {
+    let message = store
+        .get_message(message_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("message not found: {message_id}"))?;
+    if message.from_agent != "human" {
+        return Err("only Harbinger may edit or delete a chat message".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hub_update_message(id: String, body: String) -> Result<Vec<MessageRecord>, String> {
+    let store = open_store()?;
+    require_human_authored(&store, &id)?;
+    store
+        .update_broadcast(&id, &body)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_delete_message(id: String) -> Result<usize, String> {
+    let store = open_store()?;
+    require_human_authored(&store, &id)?;
+    store.delete_broadcast(&id).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_resolve_wake(id: String, status: String) -> Result<(), String> {
     let st = match status.as_str() {
@@ -736,9 +768,17 @@ mod tests {
     //! caller must be retrievable through this Tauri command layer, not
     //! just through the `ca` CLI that shares the same `HubStore`.
     use super::*;
+    use std::sync::Mutex;
+
+    /// `open_store()` reads the process-global `CA_HOME` env var, so any
+    /// test that sets it must not run concurrently with another one doing
+    /// the same (Rust's default test runner is multi-threaded within one
+    /// binary). Every test below acquires this before touching `CA_HOME`.
+    static CA_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn tauri_hub_commands_retrieve_what_the_store_wrote() {
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
             "ca-hub-tauri-test-{}-{}",
             std::process::id(),
@@ -773,6 +813,71 @@ mod tests {
             .expect("hub_search_memories should succeed");
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, listed[0].id);
+
+        std::env::remove_var("CA_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ca106_hub_commands_edit_delete_every_copy_and_reject_non_human_authors() {
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "ca-hub-tauri-ca106-{}-{}",
+            std::process::id(),
+            now_unix()
+        ));
+        std::env::set_var("CA_HOME", &dir);
+
+        let store = open_store().expect("open_store should create the hub dir");
+        store.set_team_member("claude", true).unwrap();
+        store.set_team_member("grok", true).unwrap();
+
+        let posted = store
+            .send_message_to_team(
+                "human",
+                ca_hub::MessageKind::Message,
+                "hi",
+                Some("channel:general:22222222-2222-2222-2222-222222222222"),
+                None,
+                None,
+            )
+            .expect("send_message_to_team should succeed");
+        assert!(posted.len() >= 2, "{posted:?}");
+
+        let edited = hub_update_message(posted[0].id.clone(), "hi (edited)".into())
+            .expect("hub_update_message should succeed for a human-authored post");
+        assert_eq!(edited.len(), posted.len());
+        assert!(edited.iter().all(|m| m.body == "hi (edited)"));
+
+        let deleted = hub_delete_message(posted[0].id.clone())
+            .expect("hub_delete_message should succeed for a human-authored post");
+        assert_eq!(deleted, posted.len());
+        for original in &posted {
+            let refreshed = store.get_message(&original.id).unwrap().unwrap();
+            assert_eq!(refreshed.status, "cancelled");
+        }
+
+        let agent_authored = store
+            .send_message(
+                "grok",
+                "human",
+                ca_hub::MessageKind::Message,
+                "not yours",
+                None,
+                None,
+                None,
+            )
+            .expect("send_message should succeed");
+        let rejected = hub_update_message(agent_authored.id.clone(), "rewritten".into());
+        assert!(
+            rejected.is_err(),
+            "expected agent-authored edit to be rejected"
+        );
+        assert_eq!(
+            store.get_message(&agent_authored.id).unwrap().unwrap().body,
+            "not yours",
+            "an agent's message must not be silently rewritten"
+        );
 
         std::env::remove_var("CA_HOME");
         let _ = std::fs::remove_dir_all(&dir);

@@ -38,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CA-106: right-click **Edit** / **Delete** on Slack message bubbles
+  (`SlackChatPanel.tsx`). Only Harbinger's own posts (`from_agent ===
+  "human"`) show the menu; `hub_update_message` / `hub_delete_message`
+  enforce the same rule server-side. Team/channel broadcasts are N SQLite
+  rows sharing a subject, so both commands resolve and mutate every sibling
+  copy via `ca_hub::update_broadcast` / `delete_broadcast` — new posts group
+  by the exact `channel:<name>:<uuid>` subject, legacy posts fall back to
+  `(from_agent, body, subject, created-at-to-the-second)`. Delete is a soft
+  cancel (`status = cancelled`); the Slack view hides cancelled rows while
+  the audit trail (`hub_list_messages`) still returns them. `cargo test -p
+  ca-hub` (15 passed).
+
 - Persisted Orchestrate **Add to team** onto the Slack roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
   `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:

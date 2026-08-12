@@ -2033,6 +2033,107 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
+    pub fn update_message_body(&self, id: &str, body: &str) -> Result<MessageRecord, HubError> {
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid("message body must not be empty".into()));
+        }
+        let n = self.conn.execute(
+            "UPDATE messages SET body = ?1 WHERE id = ?2",
+            params![body, id],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        self.get_message(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    pub fn delete_message(&self, id: &str) -> Result<(), HubError> {
+        let n = self.conn.execute(
+            "UPDATE messages SET status = ?1 WHERE id = ?2",
+            params![MessageStatus::Cancelled.as_str(), id],
+        )?;
+        if n == 0 {
+            return Err(HubError::NotFound(id.into()));
+        }
+        Ok(())
+    }
+
+    /// Finds every row sharing `message_id`'s broadcast group: an exact
+    /// `subject` match when it carries a `:<uuid>` suffix (CA-107 team/channel
+    /// fan-out, one row per recipient), otherwise the legacy grouping by
+    /// `(from_agent, body, subject, created-at-to-the-second)` that the
+    /// desktop chat also uses to collapse duplicate renders.
+    fn broadcast_group_ids(&self, message_id: &str) -> Result<Vec<String>, HubError> {
+        let anchor = self
+            .get_message(message_id)?
+            .ok_or_else(|| HubError::NotFound(message_id.into()))?;
+
+        let has_uuid_suffix = anchor
+            .subject
+            .as_deref()
+            .is_some_and(|subject| subject.matches(':').count() >= 2);
+
+        if has_uuid_suffix {
+            let subject = anchor.subject.as_deref().expect("checked above");
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id FROM messages WHERE subject = ?1")?;
+            let ids = stmt
+                .query_map(params![subject], |r| r.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(ids);
+        }
+
+        let created_second = anchor.created_at.get(..19).unwrap_or(&anchor.created_at);
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id FROM messages
+            WHERE from_agent = ?1 AND body = ?2
+              AND subject IS ?3
+              AND substr(created_at, 1, 19) = ?4
+            "#,
+        )?;
+        let ids = stmt
+            .query_map(
+                params![
+                    anchor.from_agent,
+                    anchor.body,
+                    anchor.subject,
+                    created_second
+                ],
+                |r| r.get::<_, String>(0),
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
+    /// Edit every copy of a team/channel broadcast (CA-106). `message_id` may
+    /// be any one row from the group; all sibling copies are updated too.
+    pub fn update_broadcast(
+        &self,
+        message_id: &str,
+        body: &str,
+    ) -> Result<Vec<MessageRecord>, HubError> {
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid("message body must not be empty".into()));
+        }
+        let ids = self.broadcast_group_ids(message_id)?;
+        ids.iter()
+            .map(|id| self.update_message_body(id, body))
+            .collect()
+    }
+
+    /// Delete (cancel) every copy of a team/channel broadcast (CA-106).
+    /// Returns the number of rows affected.
+    pub fn delete_broadcast(&self, message_id: &str) -> Result<usize, HubError> {
+        let ids = self.broadcast_group_ids(message_id)?;
+        for id in &ids {
+            self.delete_message(id)?;
+        }
+        Ok(ids.len())
+    }
+
     /// Export high-priority memories + handoffs as git-friendly Markdown under `markdown/`.
     pub fn export_markdown(&self, out_dir: Option<&Path>) -> Result<PathBuf, HubError> {
         let out = out_dir
@@ -3091,6 +3192,107 @@ mod tests {
         assert!(!woke.contains(&"ollama"), "{woke:?}");
         assert!(!woke.contains(&"process:1"), "{woke:?}");
         assert_eq!(woke.len(), 4, "{woke:?}");
+    }
+
+    #[test]
+    fn ca106_edit_and_delete_a_team_broadcast_updates_every_copy() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        store.set_team_member("claude", true).unwrap();
+        store.set_team_member("grok", true).unwrap();
+        store.set_team_member("chat", true).unwrap();
+
+        let subject = "channel:general:11111111-1111-1111-1111-111111111111";
+        let posted = store
+            .send_message_to_team(
+                "human",
+                MessageKind::Message,
+                "hi",
+                Some(subject),
+                None,
+                None,
+            )
+            .unwrap();
+        assert!(posted.len() >= 3, "{posted:?}");
+
+        // Editing any one copy of the broadcast must update every sibling
+        // row sharing the subject, not just the row that happened to render.
+        let edited = store
+            .update_broadcast(&posted[0].id, "hi (edited)")
+            .unwrap();
+        assert_eq!(edited.len(), posted.len());
+        assert!(edited.iter().all(|m| m.body == "hi (edited)"));
+        for original in &posted {
+            let refreshed = store.get_message(&original.id).unwrap().unwrap();
+            assert_eq!(refreshed.body, "hi (edited)");
+        }
+
+        let deleted_count = store.delete_broadcast(&posted[1].id).unwrap();
+        assert_eq!(deleted_count, posted.len());
+        for original in &posted {
+            let refreshed = store.get_message(&original.id).unwrap().unwrap();
+            assert_eq!(refreshed.status, "cancelled");
+        }
+    }
+
+    #[test]
+    fn ca106_edit_and_delete_a_legacy_broadcast_groups_by_sender_body_and_second() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        // Legacy posts share the exact `channel:<name>` subject with no
+        // per-broadcast uuid suffix; grouping falls back to
+        // (from_agent, body, subject, created-at-to-the-second).
+        let a = store
+            .send_message(
+                "grok",
+                "claude",
+                MessageKind::Message,
+                "legacy note",
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+        let b = store
+            .send_message(
+                "grok",
+                "chat",
+                MessageKind::Message,
+                "legacy note",
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+        // A distinct send (different body) must not be swept into the group.
+        let unrelated = store
+            .send_message(
+                "grok",
+                "gemini",
+                MessageKind::Message,
+                "unrelated note",
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+
+        let deleted_count = store.delete_broadcast(&a.id).unwrap();
+        assert_eq!(deleted_count, 2);
+        assert_eq!(
+            store.get_message(&a.id).unwrap().unwrap().status,
+            "cancelled"
+        );
+        assert_eq!(
+            store.get_message(&b.id).unwrap().unwrap().status,
+            "cancelled"
+        );
+        assert_eq!(
+            store.get_message(&unrelated.id).unwrap().unwrap().status,
+            "pending"
+        );
     }
 
     #[test]
