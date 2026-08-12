@@ -54,6 +54,7 @@ roadmap must add acceptance criteria at least every few entries.
 | Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1/P3 |
 | Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
+| Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
 
 ## Product gates
 
@@ -68,8 +69,11 @@ roadmap must add acceptance criteria at least every few entries.
   a single contributor.
 
 LAN TCP remains available during early development. Authentication and TLS are
-  later platform work. Firebase is retained for cloud/device synchronization
-  prototypes; other unused deployment scaffolding is removed.
+  later platform work. **`.coding-assistants` multi-device replica transport
+  starts with Google Drive**, then Firebase Auth + private Storage, Supabase
+  Auth + private Storage, and finally Dropbox/OneDrive — see
+  [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md). Other unused deployment
+  scaffolding is removed.
 
 ## 2026-08-13 status (Grok lead pass)
 
