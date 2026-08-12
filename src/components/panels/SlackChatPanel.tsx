@@ -90,6 +90,45 @@ function channelDedupeKey(msg: HubMessage, channel: string): string {
   return `${msg.from_agent}|${msg.body}|${(msg.created_at || "").slice(0, 19)}`;
 }
 
+const LAST_READ_STORAGE_KEY = "ca-slack-last-read";
+
+function loadLastRead(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LAST_READ_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function belongsToChannel(message: HubMessage, channelId: string): boolean {
+  if (message.status === "cancelled") return false;
+  return message.subject === `channel:${channelId}`
+    || Boolean(message.subject?.startsWith(`channel:${channelId}:`));
+}
+
+function uniqueChannelPosts(messages: HubMessage[], channelId: string): HubMessage[] {
+  const seen = new Set<string>();
+  const posts: HubMessage[] = [];
+  for (const message of messages) {
+    if (!belongsToChannel(message, channelId)) continue;
+    const key = channelDedupeKey(message, channelId);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    posts.push(message);
+  }
+  return posts;
+}
+
+function latestCreatedAt(messages: HubMessage[]): string | null {
+  if (messages.length === 0) return null;
+  return messages.reduce((latest, message) =>
+    message.created_at > latest ? message.created_at : latest,
+  messages[0].created_at);
+}
+
 interface ContextMenuState {
   messageId: string;
   x: number;
@@ -116,6 +155,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [lastReadAt, setLastReadAt] = useState<Record<string, string>>(loadLastRead);
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
@@ -181,6 +221,22 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     const interval = setInterval(loadHubData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const posts = uniqueChannelPosts(hubMessages, activeChannel);
+    const latest = latestCreatedAt(posts);
+    if (!latest) return;
+    setLastReadAt(prev => {
+      if ((prev[activeChannel] || "") >= latest) return prev;
+      const next = { ...prev, [activeChannel]: latest };
+      try {
+        localStorage.setItem(LAST_READ_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore quota / private-mode failures */
+      }
+      return next;
+    });
+  }, [activeChannel, hubMessages]);
 
   // Channel views use the bounded Hub query instead of filtering the entire
   // transcript in the renderer. DMs stay local because their privacy predicate
@@ -468,10 +524,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
             {DEFAULT_CHANNELS.map(ch => {
               const isActive = activeChannel === ch.id;
-              const unreadCount = hubMessages.filter(m =>
-                m.status !== "cancelled" &&
-                (m.subject === `channel:${ch.id}` || m.subject?.startsWith(`channel:${ch.id}:`))
-              ).length;
+              const unreadCount = isActive ? 0 : uniqueChannelPosts(hubMessages, ch.id)
+                .filter(message => message.from_agent !== "human"
+                  && message.created_at > (lastReadAt[ch.id] || ""))
+                .length;
               return (
                 <button
                   key={ch.id}
