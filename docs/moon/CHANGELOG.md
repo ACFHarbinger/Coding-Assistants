@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Slack **Direct Messages** now send only to that agent. Opening a DM no
+  longer keeps "Broadcast to Team" as the recipient, so a private thread
+  cannot fan out to the whole roster.
+
 - Slack composer sends on **Enter**; **Shift+Enter** inserts a newline.
   While reading older messages, a **Jump to latest** chip appears instead of
   yanking the viewport.

@@ -187,12 +187,18 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || sending) return;
+    const dmTarget = activeChannel.startsWith("dm-")
+      ? activeChannel.replace("dm-", "")
+      : null;
+    if (dmTarget === "human") return;
     setSending(true);
     try {
-      const subject = activeChannel.startsWith("dm-")
+      const subject = dmTarget
         ? `private:${crypto.randomUUID()}`
         : `channel:${activeChannel}:${crypto.randomUUID()}`;
-      const to = targetRecipient === "team" ? "team" : targetRecipient;
+      const to = dmTarget
+        ? dmTarget
+        : (targetRecipient === "team" ? "team" : targetRecipient);
 
       const sentMsg = await invoke<{ id: string }>("hub_send_message", {
         args: {
@@ -765,7 +771,11 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <textarea
               rows={3}
-              placeholder={`Message #${activeChannel}… (Enter to send, Shift+Enter for a new line)`}
+              placeholder={
+                activeChannel.startsWith("dm-")
+                  ? `Message ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}… (Enter to send, Shift+Enter for a new line)`
+                  : `Message #${activeChannel}… (Enter to send, Shift+Enter for a new line)`
+              }
               value={messageInput}
               onChange={e => setMessageInput(e.target.value)}
               onKeyDown={e => {
@@ -789,7 +799,11 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
             {/* Input Controls Row */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                {/* Target Recipient Selector */}
+                {activeChannel.startsWith("dm-") ? (
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                    Direct message to {getAgentInfo(activeChannel.replace("dm-", "")).displayName}
+                  </span>
+                ) : (
                 <select
                   value={targetRecipient}
                   onChange={e => setTargetRecipient(e.target.value)}
@@ -809,6 +823,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                   <option value="claude">Claude (Code Agent)</option>
                   <option value="gemini">Gemini (Supporting)</option>
                 </select>
+                )}
 
                 {/* Wake Gate Checkbox */}
                 <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer" }}>
@@ -824,7 +839,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
               <button
                 className={sending ? "btn-secondary" : "btn-primary"}
                 onClick={handleSendMessage}
-                disabled={!messageInput.trim() || sending}
+                disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
                 style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
               >
                 {sending ? "Sending..." : "Send Message"}
