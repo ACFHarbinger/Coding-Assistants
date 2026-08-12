@@ -67,3 +67,7 @@ roster with `hub_request_wake` per enrolled member (`HubStore::request_team_wake
 (`2ab31c7`). Composer is Enter-to-send with a jump-to-latest chip while
 reading history (`947a43d`). Thread replies (CA-114, Chat) stay in the
 `channel:<name>:thread:` subject namespace.
+
+**2026-08-13 (cloud):** Multi-device replica of `.coding-assistants` is specified
+in [`cloud_sync.md`](cloud_sync.md) (S1–S13, issues #91–#103). Drive first;
+journal-integrity merge is S6 after the S5 snapshot gate. Not implemented.

@@ -77,10 +77,11 @@ LAN TCP remains available during early development. Authentication and TLS are
 
 ## 2026-08-13 status (Grok lead pass)
 
-- **Memory gate:** still open. Live seed `M6-20260812` is in the owner hub;
-  private/shared isolation held; Claude ACKed. Need one more harness ACK
-  (`ca msg send --subject M6-ACK`). Issue #82.
+- **Memory gate:** live seed `M6-20260812` + Claude ACK. Board closed #82 /
+  #80. Residual: Chat never posted a second `M6-ACK`; treat as board-closed
+  with that caveat in `roadmaps/memory.md`.
 - **Coordination / Slack loop:** team roster, team-wide wakes, enroll CLI,
-  private DMs, scroll-pin, and Enter-to-send are on `main` (unpushed local
-  commits may still sit ahead of `origin`). A2A remains sequenced after this
-  hub spine, not instead of it.
+  private DMs, scroll-pin, Enter-to-send. Claude closed the U10 follow-up
+  epic as #90. #81 (wake policy leftovers) remains open.
+- **Cloud sync:** approved plan in [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md);
+  GitHub S1–S13 are #91–#103. Not implemented yet.

@@ -24,8 +24,15 @@ then prove the team loop). Commits authored or co-authored in this stretch:
 
 Delegated (not claimed as Grok implementation): CA-106/109/110/111 to Claude,
 CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
-(`ca memory search M6-20260812`); Claude ACKed; a second harness ACK is
-still outstanding. See issues #82, #81, #80.
+(`ca memory search M6-20260812`); Claude ACKed. Board: #82 and #80 closed;
+U10 follow-through tracked as #90 (closed after CA-106/109/110/111). Grok
+Slack spine commits for #90: `525f07c`, `9655e7d`, `c92accf`, `f16e862`,
+`0dc2f1b`, `947a43d`, `2ab31c7`. Wakes increment: #81 (still open).
+
+**Cloud sync (2026-08-13):** Grok wrote the first `cloud_sync.md` draft from
+the owner Q&A; Claude's second Q&A and `743000a` finalized it as the
+approved S1–S13 plan. Grok review: agree, with S6 rebase-test and S10
+no-key-envelope caveats recorded in that file. Issues #91–#103.
 
 **Claude, 2026-08-13:** #82 and #80 are now closed. CA-106/109/110/111
 (`2064a59`, `09d3533`, `bec7454`, `ca40e46`) shipped and are tracked/closed
@@ -90,6 +97,12 @@ as issue #90, since U10 had no prior issue of its own.
   with the real backend shape.
 
 ### Added
+
+- Cloud Drive sync capability roadmap (`docs/moon/roadmaps/cloud_sync.md`,
+  `743000a`): Google Drive first, then Firebase Auth+Storage, then Supabase,
+  then OneDrive/Dropbox. Encrypted replica, journal-integrity merge, hashed
+  remote names, confirm-only deletes, CLI `ca sync`, Hub mutation lock.
+  Implementation issues S1–S13 (#91–#103).
 
 - CA-114: channel messages can now be replied to in context. Replies retain a
   stable root message in the existing `channel:<name>:thread:<root>:<id>`
