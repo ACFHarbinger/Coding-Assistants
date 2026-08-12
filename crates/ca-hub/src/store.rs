@@ -703,26 +703,6 @@ impl HubStore {
             let _ = self.conn.execute(ddl, []);
         }
 
-        // One-time default roster. Later enroll/unenroll must persist across opens.
-        let roster_seeded: Option<String> = self
-            .conn
-            .query_row(
-                "SELECT value FROM meta WHERE key = 'team_roster_seeded'",
-                [],
-                |r| r.get(0),
-            )
-            .optional()?;
-        if roster_seeded.is_none() {
-            self.conn.execute(
-                "UPDATE agents SET team_member = 1 WHERE id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
-                [],
-            )?;
-            self.conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '1')",
-                [],
-            )?;
-        }
-
         let version: Option<i64> = self
             .conn
             .query_row(
@@ -758,6 +738,26 @@ impl HubStore {
             ] {
                 self.upsert_agent(id, name)?;
             }
+        }
+
+        // One-time default roster after agents exist. Later enroll/unenroll persists.
+        let roster_seeded: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'team_roster_seeded'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if roster_seeded.is_none() {
+            self.conn.execute(
+                "UPDATE agents SET team_member = 1 WHERE id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '1')",
+                [],
+            )?;
         }
 
         Ok(())
@@ -2814,6 +2814,129 @@ mod tests {
         let text = fs::read_to_string(export).unwrap();
         assert!(text.contains("Hub handoff"));
         assert!(text.contains("The shared Hub slice is ready for review."));
+
+        // CA-103: Slack-style channel communication across multiple agent
+        // roles must stay isolated per channel at the data layer, since the
+        // desktop SlackChatPanel filters purely by `subject == "channel:<id>"`
+        // over the full `list_messages` result — a leak here would be
+        // invisible in the UI but would surface as one channel seeing
+        // another channel's traffic.
+        store
+            .send_message(
+                "grok",
+                "claude",
+                MessageKind::Message,
+                "general channel: build is green",
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+        store
+            .send_message(
+                "gemini",
+                "claude",
+                MessageKind::Message,
+                &format!("team-coordination channel: see memory:{}", memory.id),
+                Some("channel:team-coordination"),
+                None,
+                None,
+            )
+            .unwrap();
+        store
+            .send_message(
+                "grok",
+                "human",
+                MessageKind::Message,
+                "DM: quick question about the Hub schema",
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        let all = store.list_messages(None, None).unwrap();
+        let general: Vec<_> = all
+            .iter()
+            .filter(|m| m.subject.as_deref() == Some("channel:general"))
+            .collect();
+        let team_coord: Vec<_> = all
+            .iter()
+            .filter(|m| m.subject.as_deref() == Some("channel:team-coordination"))
+            .collect();
+        assert_eq!(general.len(), 1);
+        assert_eq!(general[0].body, "general channel: build is green");
+        assert_eq!(team_coord.len(), 1);
+        assert!(team_coord[0].body.contains(&memory.id));
+        assert!(general.iter().all(|m| m.body != team_coord[0].body));
+
+        let dm: Vec<_> = all
+            .iter()
+            .filter(|m| m.from_agent == "grok" && m.to_agent == "human")
+            .collect();
+        assert_eq!(dm.len(), 1);
+        assert!(dm[0].subject.is_none());
+
+        // Memory-link retrieval: a channel message can reference a memory
+        // id inline (as the desktop drawer's "attach memory" action does);
+        // the linked memory must still be reachable through the normal
+        // search path used by both the CLI and the Tauri hub commands.
+        let linked = store
+            .search_memories("Review the Hub implementation")
+            .unwrap();
+        assert_eq!(linked.len(), 1);
+        assert_eq!(linked[0].id, memory.id);
+        assert!(team_coord[0].body.contains(&linked[0].id));
+    }
+
+    #[test]
+    fn team_broadcast_uses_enrolled_roster_and_includes_human() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        store.upsert_agent("process:1", "Codex · PID 1").unwrap();
+        store.upsert_agent("a2a-peer", "a2a-peer").unwrap();
+
+        let team = store
+            .send_message_to_team(
+                "grok",
+                MessageKind::Message,
+                "M6 roster check",
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+        let recipients: Vec<&str> = team.iter().map(|m| m.to_agent.as_str()).collect();
+        assert!(recipients.contains(&"human"), "{recipients:?}");
+        assert!(recipients.contains(&"claude"), "{recipients:?}");
+        assert!(recipients.contains(&"chat"), "{recipients:?}");
+        assert!(recipients.contains(&"gemini"), "{recipients:?}");
+        assert!(!recipients.contains(&"grok"), "{recipients:?}");
+        assert!(!recipients.contains(&"process:1"), "{recipients:?}");
+        assert!(!recipients.contains(&"a2a-peer"), "{recipients:?}");
+        assert!(!recipients.contains(&"ollama"), "{recipients:?}");
+        assert!(!recipients.contains(&"system"), "{recipients:?}");
+        assert!(team
+            .iter()
+            .all(|m| m.subject.as_deref() == Some("channel:general")));
+
+        store.set_team_member("ollama", true).unwrap();
+        store.set_team_member("claude", false).unwrap();
+        let updated = store
+            .send_message_to_team(
+                "grok",
+                MessageKind::Message,
+                "roster after enroll change",
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        let recipients: Vec<&str> = updated.iter().map(|m| m.to_agent.as_str()).collect();
+        assert!(recipients.contains(&"ollama"), "{recipients:?}");
+        assert!(!recipients.contains(&"claude"), "{recipients:?}");
+        assert!(recipients.contains(&"human"), "{recipients:?}");
     }
 
     #[test]

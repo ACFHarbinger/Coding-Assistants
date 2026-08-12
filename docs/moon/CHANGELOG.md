@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Team broadcasts (`ca msg send --to team` and `hub_send_message` with
+  `to: "team"`) now fan out only to agents with persisted `team_member = 1`.
+  The default roster is Harbinger (`human`) plus `claude`, `chat`, `gemini`,
+  and `grok`. Process-discovered PID identities and local model runtimes stay
+  privately addressable. `cargo test -p ca-hub` (12 passed).
+
 ### Added
 
 - Added dedicated **Slack-like Multi-Agent Chat Interface & Agentic Memory Hub** (`SlackChatPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Slack formatting, and an expandable Agentic Memory Hub side drawer.

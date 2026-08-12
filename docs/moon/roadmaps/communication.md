@@ -44,3 +44,10 @@ is expected to call it before stopping, per the owner's original answer (a
 persistent summary + delegation + shutdown, not a hard kill). Provider
 automatic spend reporting and shutdown hooks remain open, as does desktop
 The remaining workflow gap is fully parallel session startup under C8.
+
+**2026-08-12:** Team fan-out now uses an explicit persisted roster
+(`agents.team_member`) instead of every row in `agents`. Default members:
+`human`, `claude`, `chat`, `gemini`, `grok`. Harbinger is included so Slack-like
+`#general` is visible to the owner. `HubStore::set_team_member` /
+`list_team_members` are the enrollment API; CLI/Tauri wrappers remain open so
+this does not collide with Chat's CA-102 channel-query work.
