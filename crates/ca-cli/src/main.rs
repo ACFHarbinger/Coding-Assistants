@@ -196,6 +196,18 @@ enum BudgetCommand {
 enum AgentCommand {
     /// List known agent identities.
     List,
+    /// List agents with persisted Slack/Orchestrate team enrollment.
+    Team,
+    /// Enroll an existing agent on the team roster.
+    Enroll {
+        #[arg(long)]
+        id: String,
+    },
+    /// Remove an agent from the team roster (still privately addressable).
+    Unenroll {
+        #[arg(long)]
+        id: String,
+    },
     /// Register an A2A Agent Card for discovery.
     RegisterCard {
         #[arg(long)]
@@ -429,6 +441,20 @@ fn main() -> anyhow::Result<()> {
         Command::Agent { action } => match action {
             AgentCommand::List => {
                 println!("{}", serde_json::to_string_pretty(&store.list_agents()?)?);
+            }
+            AgentCommand::Team => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.list_team_members()?)?
+                );
+            }
+            AgentCommand::Enroll { id } => {
+                let record = store.set_team_member(&id, true)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            AgentCommand::Unenroll { id } => {
+                let record = store.set_team_member(&id, false)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
             }
             AgentCommand::RegisterCard { agent, path } => {
                 let json = std::fs::read_to_string(&path)?;

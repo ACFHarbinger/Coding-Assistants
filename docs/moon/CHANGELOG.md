@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Header chrome no longer shows a second Slack-looking control. The purple
+  **Slack Multi-Agent Hub** badge is now a green **Local hub online** status
+  pill so it cannot be mistaken for another Slack tab.
+
 - Simplified the **Orchestrate** window to team/role configuration (including
   workspace and MCP settings) plus Remote Control. Its duplicate composer,
   Team Chat, and Messages feed were removed; Slack Chat & Memory is now the
@@ -33,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   privately addressable. `cargo test -p ca-hub` (12 passed).
 
 ### Added
+
+- Persisted Orchestrate **Add to team** onto the Slack roster for stable
+  harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
+  `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:
+  `hub_set_team_member`, `hub_list_team_members`, `hub_request_team_wakes`.
 
 - Added CA-102 channel and memory-reference queries across the shared Hub:
   `ca msg channel <name> [--limit N]`, `ca msg memories <message-id>`, and

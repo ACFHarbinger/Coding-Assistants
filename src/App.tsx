@@ -191,6 +191,17 @@ function App() {
       if (prev.some(member => member.id === agent.id)) return prev;
       return [...prev, agent];
     });
+    const rosterId = agent.target_id;
+    const persistable = rosterId === "chat"
+      || rosterId === "claude"
+      || rosterId === "gemini"
+      || rosterId === "grok"
+      || rosterId === "human";
+    if (persistable && isTauriRuntime()) {
+      invoke("hub_set_team_member", { id: rosterId, enrolled: true }).catch(error => {
+        console.error("Failed to persist team enrollment:", error);
+      });
+    }
   };
 
   return (

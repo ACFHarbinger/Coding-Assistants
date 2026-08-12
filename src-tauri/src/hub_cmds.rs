@@ -413,6 +413,36 @@ pub fn hub_list_message_memories(message_id: String) -> Result<Vec<MemoryRecord>
         .list_message_memories(&message_id)
         .map_err(|error| error.to_string())
 }
+
+#[tauri::command]
+pub fn hub_list_team_members() -> Result<Vec<ca_hub::AgentRecord>, String> {
+    open_store()?.list_team_members().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<ca_hub::AgentRecord, String> {
+    open_store()?
+        .set_team_member(&id, enrolled)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_request_team_wakes(
+    from: String,
+    reason: Option<String>,
+    message_id: Option<String>,
+    human_gate: Option<bool>,
+) -> Result<Vec<WakeRecord>, String> {
+    open_store()?
+        .request_team_wakes(
+            &from,
+            reason.as_deref(),
+            message_id.as_deref(),
+            human_gate.unwrap_or(false),
+        )
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_request_wake(
     target: String,

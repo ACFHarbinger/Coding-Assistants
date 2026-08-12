@@ -45,6 +45,9 @@ ca memory write --tier episodic --agent grok --title "note" "hello from grok"
 
 ca msg send --from grok --to claude --kind handoff "please read the hub note"
 ca msg send --from grok --to team "visible to the enrolled roster (human + claude/chat/gemini/grok by default)"
+ca agent team
+ca agent enroll --id ollama
+ca agent unenroll --id ollama
 ca msg poll --to claude
 
 # Long-lived adapter boundary for a running agent session (JSONL stdout)
