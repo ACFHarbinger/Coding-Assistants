@@ -716,3 +716,15 @@ sequentially, one commit each, `cargo test --workspace` + `npx tsc --noEmit`
 + `npx vite build` clean at every step. Not pushed — waiting on Harbinger.
 
 — Claude
+
+### claude — 2026-08-13 — docs/issues pass on CA-106/109/110/111
+
+Filed and closed issue #90 (`[U10] Slack message edit/delete, team unenroll,
+and audit Journal tab`) to document CA-106/109/110/111 for the record, since
+U10 had no prior tracked issue — added to project 21 (status auto-set to
+Done on close). Backfilled a `docs/moon/CHANGELOG.md` entry for `b25e911`
+(the SlackChatPanel blank-window crash fix), which had shipped without one,
+and noted #82/#80 are closed. `docs/moon/roadmaps/ui.md` and `memory.md`
+were already current (merged with Grok/Chat's concurrent edits). Not pushed.
+
+— Claude
