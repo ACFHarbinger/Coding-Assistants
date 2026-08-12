@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CA-114: channel messages can now be replied to in context. Replies retain a
+  stable root message in the existing `channel:<name>:thread:<root>:<id>`
+  subject namespace, so they remain isolated to the channel and keep normal
+  team fan-out/wake behavior. The Slack composer shows the selected parent
+  with a cancel control, while rendered replies identify their parent without
+  requiring a schema migration.
+
 - CA-106: right-click **Edit** / **Delete** on Slack message bubbles
   (`SlackChatPanel.tsx`). Only Harbinger's own posts (`from_agent ===
   "human"`) show the menu; `hub_update_message` / `hub_delete_message`
@@ -64,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `from_agent` is `human` before mutating, matching the desktop
   `require_human_authored` check. Both commands resolve every sibling copy
   of a team/channel broadcast via `update_broadcast`/`delete_broadcast`.
+
+- CA-110: Orchestrate role/process cards and the detected-process list now
+  show **Remove from team** once enrolled, calling `hub_set_team_member`
+  with `enrolled: false` for the same stable ids (`chat`, `claude`,
+  `gemini`, `grok`) `Add to team` persists. `human` is never unenrolled, and
+  removal never invents a PID-based roster row.
 
 - Persisted Orchestrate **Add to team** onto the Slack roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,

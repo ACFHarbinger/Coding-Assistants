@@ -204,6 +204,21 @@ function App() {
     }
   };
 
+  const removeAgentFromTeam = (agent: TeamMember) => {
+    setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+    const rosterId = agent.target_id;
+    if (rosterId === "human") return;
+    const persistable = rosterId === "chat"
+      || rosterId === "claude"
+      || rosterId === "gemini"
+      || rosterId === "grok";
+    if (persistable && isTauriRuntime()) {
+      invoke("hub_set_team_member", { id: rosterId, enrolled: false }).catch(error => {
+        console.error("Failed to persist team unenrollment:", error);
+      });
+    }
+  };
+
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
       <header style={{
@@ -269,6 +284,7 @@ function App() {
               onPreview={fetchPreview}
               teamMemberIds={teamMembers.map(member => member.id)}
               onAddAgent={addAgentToTeam}
+              onRemoveAgent={removeAgentFromTeam}
             />
 
             <RemotePanel

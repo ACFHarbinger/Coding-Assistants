@@ -48,6 +48,7 @@ interface ConfigPanelProps {
   onPreview: (type: string, name?: string) => Promise<void>;
   teamMemberIds: string[];
   onAddAgent: (agent: TeamMember) => void;
+  onRemoveAgent: (agent: TeamMember) => void;
 }
 
 export interface DetectedProcess {
@@ -70,6 +71,7 @@ const ModelSelect = ({
   resources,
   PROVIDERS,
   onAddToTeam,
+  onRemoveFromTeam,
   isOnTeam
 }: {
   index: number;
@@ -83,6 +85,7 @@ const ModelSelect = ({
   resources: AgentResources;
   PROVIDERS: Record<string, string>;
   onAddToTeam: () => void;
+  onRemoveFromTeam: () => void;
   isOnTeam: boolean;
 }) => {
   const roleConfig = role.config;
@@ -137,11 +140,10 @@ const ModelSelect = ({
         </button>
         <button
           className={isOnTeam ? "btn-secondary" : "btn-primary"}
-          onClick={onAddToTeam}
-          disabled={isOnTeam}
+          onClick={isOnTeam ? onRemoveFromTeam : onAddToTeam}
           style={{ marginLeft: "0.5rem" }}
         >
-          {isOnTeam ? "In team" : "Add to team"}
+          {isOnTeam ? "Remove from team" : "Add to team"}
         </button>
       </div>
 
@@ -247,7 +249,7 @@ const ModelSelect = ({
   );
 };
 
-export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview, teamMemberIds, onAddAgent }: ConfigPanelProps) {
+export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview, teamMemberIds, onAddAgent, onRemoveAgent }: ConfigPanelProps) {
   const [detectedProcesses, setDetectedProcesses] = useState<DetectedProcess[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState("");
@@ -288,15 +290,37 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
     });
   };
 
-  const addSpawnedRole = (index: number, role: RoleConfig) => {
-    onAddAgent({
-      id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
-      target_id: role.process_pid ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid }) : `role:${index}`,
-      name: role.name,
-      provider: role.config.provider,
-      model: role.config.model,
-      origin: role.origin || "spawned"
+  const removeDetectedProcess = (process: DetectedProcess) => {
+    setConfig(prev => ({
+      ...prev,
+      roles: prev.roles.filter(role => role.process_pid !== process.pid)
+    }));
+    setAddedPids(prev => prev.filter(pid => pid !== process.pid));
+    onRemoveAgent({
+      id: `process:${process.pid}`,
+      target_id: processTargetId(process),
+      name: process.agent,
+      provider: process.provider,
+      model: process.model,
+      origin: "existing"
     });
+  };
+
+  const spawnedRoleTeamMember = (index: number, role: RoleConfig): TeamMember => ({
+    id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
+    target_id: role.process_pid ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid }) : `role:${index}`,
+    name: role.name,
+    provider: role.config.provider,
+    model: role.config.model,
+    origin: role.origin || "spawned"
+  });
+
+  const addSpawnedRole = (index: number, role: RoleConfig) => {
+    onAddAgent(spawnedRoleTeamMember(index, role));
+  };
+
+  const removeSpawnedRole = (index: number, role: RoleConfig) => {
+    onRemoveAgent(spawnedRoleTeamMember(index, role));
   };
 
   const handleProviderChange = (index: number, provider: string) => {
@@ -365,7 +389,12 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
         <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Detected local agent processes. Selecting one adds its identity to the team; it does not take ownership of or terminate the process.</div>
         {detectedProcesses.map(process => <div key={process.pid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.65rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)' }}>
           <div style={{ minWidth: 0 }}><strong style={{ color: 'var(--primary)' }}>{process.agent}</strong><span style={{ color: 'var(--text-muted)', marginLeft: '0.6rem', fontSize: '0.8rem' }}>PID {process.pid}</span><div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'min(65vw, 680px)' }}>{process.command}</div></div>
-          <button className={addedPids.includes(process.pid) ? "btn-secondary" : "btn-primary"} onClick={() => addDetectedProcess(process)} disabled={addedPids.includes(process.pid)}>{addedPids.includes(process.pid) ? "Added" : "Add to team"}</button>
+          <button
+            className={addedPids.includes(process.pid) ? "btn-secondary" : "btn-primary"}
+            onClick={() => addedPids.includes(process.pid) ? removeDetectedProcess(process) : addDetectedProcess(process)}
+          >
+            {addedPids.includes(process.pid) ? "Remove from team" : "Add to team"}
+          </button>
         </div>)}
         {detectedProcesses.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No supported agent processes found.</span>}
       </div>}
@@ -385,6 +414,7 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
             resources={resources}
             PROVIDERS={PROVIDERS}
             onAddToTeam={() => addSpawnedRole(index, role)}
+            onRemoveFromTeam={() => removeSpawnedRole(index, role)}
             isOnTeam={teamMemberIds.includes(role.process_pid ? `process:${role.process_pid}` : `role:${index}`)}
           />
         ))}

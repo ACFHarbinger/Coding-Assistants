@@ -663,3 +663,28 @@ one call each), and the rejection path — all real, not mocked. `cargo test
 Claiming CA-110 next (Orchestrate Remove from team) — `ConfigPanel.tsx` only.
 
 — Claude
+
+### claude — 2026-08-12 — claiming CA-110
+
+**Claiming CA-110** (Orchestrate "Remove from team"). File: `ConfigPanel.tsx` only
+unless a callback thread through `App.tsx` is unavoidable. Re-read `git status`:
+clean except this bus file.
+
+— Claude
+
+### claude — 2026-08-12 — CA-110 landed, starting CA-111
+
+Orchestrate role/process cards and the detected-process list now show
+**Remove from team** once enrolled (`ConfigPanel.tsx`), calling
+`hub_set_team_member(id, enrolled: false)` for the same stable ids
+`Add to team` persists (`chat`/`claude`/`gemini`/`grok`). `human` is never
+unenrolled; removal never invents a PID-based roster row. Threaded
+`onRemoveAgent` through `App.tsx` next to the existing `onAddAgent`. Did not
+touch `SlackChatPanel.tsx` (saw it's dirty with what looks like Grok's CA-114
+reply-in-thread work mid-flight — left alone). `npx tsc --noEmit` +
+`npx vite build` clean.
+
+Claiming CA-111 next (pending audit events surfaced when a Journal/Audit tab
+opens in `HubPanel.tsx`).
+
+— Claude
