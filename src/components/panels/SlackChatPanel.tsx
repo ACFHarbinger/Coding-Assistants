@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
 
 export interface HubMessage {
@@ -75,6 +75,21 @@ function teamWakeTargets(hubAgents: HubAgent[]): string[] {
   return rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
 }
 
+const NEAR_BOTTOM_PX = 96;
+
+function isNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+}
+
+/** Collapse team fan-out copies of one post without merging later distinct sends. */
+function channelDedupeKey(msg: HubMessage, channel: string): string {
+  const prefix = `channel:${channel}`;
+  if (msg.subject && msg.subject.startsWith(`${prefix}:`) && msg.subject.length > prefix.length + 1) {
+    return msg.subject;
+  }
+  return `${msg.from_agent}|${msg.body}|${(msg.created_at || "").slice(0, 19)}`;
+}
+
 export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
@@ -92,7 +107,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   // Running processes state for presence
   const [runningProcesses, setRunningProcesses] = useState<DetectedProcess[]>([]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const forceScrollRef = useRef(false);
+  const prevChannelRef = useRef(activeChannel);
 
   // Fetch memories and process presence
   useEffect(() => {
@@ -117,16 +135,13 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-scroll to bottom of chat on message update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [hubMessages, activeChannel]);
-
   const handleSendMessage = async () => {
     if (!messageInput.trim() || sending) return;
     setSending(true);
     try {
-      const subject = `channel:${activeChannel}`;
+      const subject = activeChannel.startsWith("dm-")
+        ? `private:${crypto.randomUUID()}`
+        : `channel:${activeChannel}:${crypto.randomUUID()}`;
       const to = targetRecipient === "team" ? "team" : targetRecipient;
 
       const sentMsg = await invoke<{ id: string }>("hub_send_message", {
@@ -150,6 +165,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
       })));
 
       setMessageInput("");
+      forceScrollRef.current = true;
+      stickToBottomRef.current = true;
       await onRefresh();
     } catch (err) {
       alert(`Failed to send message: ${err}`);
@@ -177,27 +194,57 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   };
 
   // Filter messages for active channel / DM view
-  const channelMessages = hubMessages.filter(msg => {
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      if (!msg.body.toLowerCase().includes(q) && !(msg.subject || "").toLowerCase().includes(q)) {
-        return false;
+  const channelMessages = (() => {
+    const matches = hubMessages.filter(msg => {
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        if (!msg.body.toLowerCase().includes(q) && !(msg.subject || "").toLowerCase().includes(q)) {
+          return false;
+        }
       }
-    }
+
+      if (activeChannel.startsWith("dm-")) {
+        const dmTarget = activeChannel.replace("dm-", "");
+        return (msg.from_agent === dmTarget && msg.to_agent === "human") ||
+               (msg.from_agent === "human" && msg.to_agent === dmTarget);
+      }
+
+      const prefix = `channel:${activeChannel}`;
+      if (msg.subject === prefix || msg.subject?.startsWith(`${prefix}:`)) {
+        return true;
+      }
+
+      // Default general fallback for non-channel prefixed messages
+      return activeChannel === "general" && !msg.subject?.startsWith("channel:");
+    });
 
     if (activeChannel.startsWith("dm-")) {
-      const dmTarget = activeChannel.replace("dm-", "");
-      return (msg.from_agent === dmTarget && msg.to_agent === "human") ||
-             (msg.from_agent === "human" && msg.to_agent === dmTarget);
+      return matches;
     }
 
-    if (msg.subject && msg.subject.startsWith("channel:")) {
-      return msg.subject === `channel:${activeChannel}`;
-    }
+    const seen = new Set<string>();
+    return matches.filter(msg => {
+      const key = channelDedupeKey(msg, activeChannel);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  })();
 
-    // Default general fallback for non-channel prefixed messages
-    return activeChannel === "general";
-  });
+  const lastThreadId = channelMessages.length > 0 ? channelMessages[channelMessages.length - 1].id : "";
+  const threadKey = `${activeChannel}:${channelMessages.length}:${lastThreadId}`;
+
+  useLayoutEffect(() => {
+    const el = scrollBoxRef.current;
+    if (!el) return;
+    const channelChanged = prevChannelRef.current !== activeChannel;
+    prevChannelRef.current = activeChannel;
+    if (channelChanged || forceScrollRef.current || stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      stickToBottomRef.current = true;
+      forceScrollRef.current = false;
+    }
+  }, [threadKey, activeChannel]);
 
   const filteredMemories = memories.filter(m => {
     if (selectedTierFilter !== "all" && m.tier !== selectedTierFilter) return false;
@@ -256,7 +303,9 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
             {DEFAULT_CHANNELS.map(ch => {
               const isActive = activeChannel === ch.id;
-              const unreadCount = hubMessages.filter(m => m.subject === `channel:${ch.id}`).length;
+              const unreadCount = hubMessages.filter(m =>
+                m.subject === `channel:${ch.id}` || m.subject?.startsWith(`channel:${ch.id}:`)
+              ).length;
               return (
                 <button
                   key={ch.id}
@@ -394,7 +443,14 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
         </div>
 
         {/* Message Stream Scroll Area */}
-        <div style={{
+        <div
+          ref={scrollBoxRef}
+          onScroll={() => {
+            const el = scrollBoxRef.current;
+            if (!el) return;
+            stickToBottomRef.current = isNearBottom(el);
+          }}
+          style={{
           flex: 1,
           padding: "1.5rem",
           overflowY: "auto",
@@ -473,7 +529,6 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
               );
             })
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Slack Message Input Box */}

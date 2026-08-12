@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Slack `#general` no longer creeps downward while Harbinger reads older
+  messages. The 1.5s hub poll was calling `scrollIntoView({ behavior:
+  "smooth" })` on every refresh. The thread now stays put unless the view
+  is already near the bottom, the channel changed, or Harbinger sent a
+  message. Team fan-out copies of one post are shown once.
+
 - Slack/Orchestrate team sends now wake every persisted roster member
   (`hub_list_agents` + `hub_request_wake`) instead of only `chat`. Direct
   messages still wake the selected recipient. The Slack DM list follows

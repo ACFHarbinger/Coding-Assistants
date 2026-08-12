@@ -44,6 +44,27 @@ interface SentHubMessage {
   id: string;
 }
 
+function sameHubMessages(left: HubMessage[], right: HubMessage[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((message, index) => {
+    const other = right[index];
+    return message.id === other.id
+      && message.body === other.body
+      && message.status === other.status
+      && message.subject === other.subject;
+  });
+}
+
+function sameHubAgents(left: HubAgent[], right: HubAgent[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((agent, index) => {
+    const other = right[index];
+    return agent.id === other.id
+      && agent.display_name === other.display_name
+      && agent.team_member === other.team_member;
+  });
+}
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
     roles: [
@@ -248,8 +269,8 @@ function App() {
         invoke<HubMessage[]>("hub_list_messages", { to: null, status: null }),
         invoke<HubAgent[]>("hub_list_agents")
       ]);
-      setHubMessages(messages);
-      setHubAgents(agents);
+      setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
+      setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
     }
