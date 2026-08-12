@@ -96,6 +96,19 @@ interface ContextMenuState {
   y: number;
 }
 
+interface ReplyTarget {
+  id: string;
+  fromAgent: string;
+  preview: string;
+}
+
+function threadRootId(message: HubMessage, channel: string): string | null {
+  const prefix = `channel:${channel}:thread:`;
+  if (!message.subject?.startsWith(prefix)) return null;
+  const rootId = message.subject.slice(prefix.length).split(":", 1)[0];
+  return rootId || null;
+}
+
 export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
@@ -105,6 +118,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 
   // Memories side drawer state
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
@@ -172,6 +186,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   // is participant-specific rather than a channel subject.
   useEffect(() => {
     let disposed = false;
+    setReplyTo(null);
     if (activeChannel.startsWith("dm-")) {
       setChannelRecords([]);
       return () => { disposed = true; };
@@ -195,6 +210,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     try {
       const subject = dmTarget
         ? `private:${crypto.randomUUID()}`
+        : replyTo
+          ? `channel:${activeChannel}:thread:${replyTo.id}:${crypto.randomUUID()}`
         : `channel:${activeChannel}:${crypto.randomUUID()}`;
       const to = dmTarget
         ? dmTarget
@@ -221,6 +238,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
       })));
 
       setMessageInput("");
+      setReplyTo(null);
       forceScrollRef.current = true;
       stickToBottomRef.current = true;
       await onRefresh();
@@ -229,6 +247,15 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     } finally {
       setSending(false);
     }
+  };
+
+  const startReply = (message: HubMessage) => {
+    const rootId = threadRootId(message, activeChannel) || message.id;
+    setReplyTo({
+      id: rootId,
+      fromAgent: message.from_agent,
+      preview: message.body,
+    });
   };
 
   const openMessageMenu = (e: React.MouseEvent, msg: HubMessage) => {
@@ -612,6 +639,9 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
             channelMessages.map(msg => {
               const sender = getAgentInfo(msg.from_agent);
               const formattedTime = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const rootId = threadRootId(msg, activeChannel);
+              const rootMessage = rootId ? channelMessages.find(candidate => candidate.id === rootId) : null;
+              const rootSender = rootMessage ? getAgentInfo(rootMessage.from_agent) : null;
               return (
                 <div key={msg.id} style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
                   {/* Sender Avatar Bubble */}
@@ -696,6 +726,19 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                       </div>
                     ) : (
                       <div style={{ display: "grid", gap: "0.45rem" }}>
+                        {rootId && (
+                          <div style={{
+                            borderLeft: "2px solid rgba(99, 102, 241, 0.8)",
+                            color: "var(--text-muted)",
+                            fontSize: "0.78rem",
+                            lineHeight: 1.35,
+                            marginLeft: "0.25rem",
+                            paddingLeft: "0.55rem"
+                          }}>
+                            ↳ Replying to {rootSender?.displayName || "an earlier message"}
+                            {rootMessage ? `: ${rootMessage.body.slice(0, 96)}${rootMessage.body.length > 96 ? "…" : ""}` : ""}
+                          </div>
+                        )}
                         <div
                           onContextMenu={e => openMessageMenu(e, msg)}
                           style={{
@@ -712,6 +755,24 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                         >
                           {msg.body}
                         </div>
+                        {!activeChannel.startsWith("dm-") && (
+                          <button
+                            type="button"
+                            onClick={() => startReply(msg)}
+                            style={{
+                              justifySelf: "start",
+                              background: "transparent",
+                              border: "none",
+                              color: "var(--text-muted)",
+                              cursor: "pointer",
+                              fontSize: "0.78rem",
+                              padding: "0.1rem 0.2rem"
+                            }}
+                            title="Reply in this thread"
+                          >
+                            ↩ Reply
+                          </button>
+                        )}
                         {(linkedMemories[msg.id] || []).map(memory => (
                           <button
                             key={memory.id}
@@ -769,6 +830,32 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           background: "rgba(2, 6, 23, 0.8)"
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {replyTo && (
+              <div style={{
+                alignItems: "center",
+                background: "rgba(99, 102, 241, 0.12)",
+                border: "1px solid rgba(129, 140, 248, 0.3)",
+                borderRadius: "8px",
+                color: "var(--text-muted)",
+                display: "flex",
+                fontSize: "0.8rem",
+                gap: "0.5rem",
+                justifyContent: "space-between",
+                padding: "0.45rem 0.65rem"
+              }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ↩ Replying to {getAgentInfo(replyTo.fromAgent).displayName}: {replyTo.preview.slice(0, 96)}{replyTo.preview.length > 96 ? "…" : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(null)}
+                  style={{ background: "transparent", border: "none", color: "var(--text-main)", cursor: "pointer", fontSize: "0.85rem" }}
+                  title="Cancel reply"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <textarea
               rows={3}
               placeholder={
