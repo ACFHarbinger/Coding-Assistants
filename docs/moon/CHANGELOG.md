@@ -33,6 +33,16 @@ as issue #90, since U10 had no prior issue of its own.
 
 ### Fixed
 
+- CA-106's Edit/Delete menu only opened via right-click, with no visible
+  affordance a first-time owner would discover. Added a hover-revealed
+  **⋯** actions button on the owner's own message bubbles (opens the same
+  menu as right-click, at the click point); the bubble the open menu targets
+  gets a highlight ring. Also fixed opening a *new* message's menu while
+  another's was already open immediately self-closing — the click bubbled to
+  the still-mounted `window` listener left over from the previous menu.
+  `e.stopPropagation()` in `openMessageMenu` fixes both the new button and
+  the pre-existing right-click path.
+
 - Slack **Direct Messages** now send only to that agent. Opening a DM no
   longer keeps "Broadcast to Team" as the recipient, so a private thread
   cannot fan out to the whole roster.
