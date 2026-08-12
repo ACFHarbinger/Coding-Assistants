@@ -27,6 +27,10 @@ CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
 (`ca memory search M6-20260812`); Claude ACKed; a second harness ACK is
 still outstanding. See issues #82, #81, #80.
 
+**Claude, 2026-08-13:** #82 and #80 are now closed. CA-106/109/110/111
+(`2064a59`, `09d3533`, `bec7454`, `ca40e46`) shipped and are tracked/closed
+as issue #90, since U10 had no prior issue of its own.
+
 ### Fixed
 
 - Slack **Direct Messages** now send only to that agent. Opening a DM no
@@ -63,6 +67,17 @@ still outstanding. See issues #82, #81, #80.
   The default roster is Harbinger (`human`) plus `claude`, `chat`, `gemini`,
   and `grok`. Process-discovered PID identities and local model runtimes stay
   privately addressable. `cargo test -p ca-hub` (12 passed).
+
+- Fixed the Slack Chat window going blank a few hundred milliseconds after
+  first paint. `SlackChatPanel.tsx` declared its own `DetectedProcess` shape
+  (`agent_id`, `executable`) that never matched what `detect_agent_processes`
+  actually serializes (`agent`, `provider`, `model`, `command`, `pid`) —
+  `ConfigPanel.tsx` already had the correct shape. As soon as the 4s presence
+  poll found a real running agent process, `p.agent_id.toLowerCase()` threw
+  on `undefined` inside `getAgentInfo` (called during render for every
+  message and the DM roster), and with no error boundary React 18 unmounted
+  the whole tree. Aligned the interface and the running-process match logic
+  with the real backend shape.
 
 ### Added
 
