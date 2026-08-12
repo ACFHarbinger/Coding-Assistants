@@ -15,6 +15,7 @@ export interface HubMessage {
 export interface HubAgent {
   id: string;
   display_name: string;
+  team_member?: boolean;
 }
 
 export interface MemoryRecord {
@@ -45,11 +46,11 @@ export interface SlackChatPanelProps {
 
 const AGENT_COLORS: Record<string, { bg: string; text: string; role: string }> = {
   human: { bg: "linear-gradient(135deg, #3b82f6, #1d4ed8)", text: "#93c5fd", role: "Human Developer" },
-  gemini: { bg: "linear-gradient(135deg, #a855f7, #7e22ce)", text: "#e9d5ff", role: "Lead Orchestrator" },
+  grok: { bg: "linear-gradient(135deg, #10b981, #047857)", text: "#a7f3d0", role: "Lead Orchestrator" },
+  chat: { bg: "linear-gradient(135deg, #06b6d4, #0e7490)", text: "#cffafe", role: "Co-Lead / Codex" },
+  codex: { bg: "linear-gradient(135deg, #06b6d4, #0e7490)", text: "#cffafe", role: "Co-Lead / Codex" },
   claude: { bg: "linear-gradient(135deg, #f97316, #c2410c)", text: "#ffedd5", role: "Code Agent" },
-  grok: { bg: "linear-gradient(135deg, #10b981, #047857)", text: "#a7f3d0", role: "Build & Infra" },
-  chat: { bg: "linear-gradient(135deg, #06b6d4, #0e7490)", text: "#cffafe", role: "Chat & Codex" },
-  codex: { bg: "linear-gradient(135deg, #06b6d4, #0e7490)", text: "#cffafe", role: "Chat & Codex" },
+  gemini: { bg: "linear-gradient(135deg, #a855f7, #7e22ce)", text: "#e9d5ff", role: "Supporting" },
 };
 
 const DEFAULT_CHANNELS = [
@@ -58,6 +59,21 @@ const DEFAULT_CHANNELS = [
   { id: "agent-memory", name: "#agent-memory", topic: "Shared memory insights, context tags, and audit events" },
   { id: "wakes-alerts", name: "#wakes-alerts", topic: "System wake requests and human approval gates" },
 ];
+
+const FALLBACK_ROSTER = ["human", "grok", "chat", "claude", "gemini"];
+
+function rosterAgentIds(hubAgents: HubAgent[]): string[] {
+  const enrolled = hubAgents
+    .filter(agent => agent.team_member && agent.id !== "system")
+    .map(agent => agent.id);
+  const ids = enrolled.length > 0 ? enrolled : FALLBACK_ROSTER;
+  const rest = ids.filter(id => id !== "human");
+  return ids.includes("human") ? ["human", ...rest] : ids;
+}
+
+function teamWakeTargets(hubAgents: HubAgent[]): string[] {
+  return rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
+}
 
 export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
@@ -125,12 +141,13 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
         }
       });
 
-      await invoke("hub_request_wake", {
-        target: to === "team" ? "chat" : to,
+      const wakeTargets = to === "team" ? teamWakeTargets(hubAgents) : [to];
+      await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
+        target,
         reason: `Slack Chat message in ${activeChannel}`,
         messageId: sentMsg.id,
         humanGate: wakePolicyGate
-      });
+      })));
 
       setMessageInput("");
       await onRefresh();
@@ -285,7 +302,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
             Direct Messages & Agents
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            {["human", "gemini", "claude", "grok", "chat"].map(agentId => {
+            {rosterAgentIds(hubAgents).map(agentId => {
               const info = getAgentInfo(agentId);
               const dmId = `dm-${agentId}`;
               const isActive = activeChannel === dmId;
@@ -508,10 +525,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                   }}
                 >
                   <option value="team">Broadcast to Team</option>
-                  <option value="gemini">Gemini (Lead Orchestrator)</option>
+                  <option value="grok">Grok (Lead Orchestrator)</option>
+                  <option value="chat">Chat (Co-Lead / Codex)</option>
                   <option value="claude">Claude (Code Agent)</option>
-                  <option value="grok">Grok (Build Agent)</option>
-                  <option value="chat">Chat (Codex Agent)</option>
+                  <option value="gemini">Gemini (Supporting)</option>
                 </select>
 
                 {/* Wake Gate Checkbox */}

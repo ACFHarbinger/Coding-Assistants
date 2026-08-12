@@ -37,6 +37,7 @@ interface HubMessage {
 interface HubAgent {
   id: string;
   display_name: string;
+  team_member?: boolean;
 }
 
 interface SentHubMessage {
@@ -268,29 +269,32 @@ function App() {
       // This is deliberately a hub message, not an agent task. It must not
       // invoke OpenCode: Codex and the other harness participants receive
       // their messages through the shared hub.
-      const recipients = recipient === "team"
-        ? (teamMembers.length > 0 ? teamMembers.map(member => member.target_id) : ["chat"])
-        : [recipient];
       const subject = `${recipient === "team" ? "team" : "private"}:${crypto.randomUUID()}`;
-      await Promise.all(recipients.map(async to => {
-        const message = await invoke<SentHubMessage>("hub_send_message", {
-          args: {
+      const message = await invoke<SentHubMessage>("hub_send_message", {
+        args: {
           from: "human",
-          to,
+          to: recipient,
           kind: "message",
           subject,
           workspace: config.work_dir || null,
           task: null,
           body: task.trim()
-          }
-        });
-        await invoke("hub_request_wake", {
-          target: to,
-          reason: "New message in the Orchestrate team chat",
-          messageId: message.id,
-          humanGate: false
-        });
-      }));
+        }
+      });
+      const wakeTargets = recipient === "team"
+        ? hubAgents
+            .filter(agent => agent.team_member && agent.id !== "human" && agent.id !== "system")
+            .map(agent => agent.id)
+        : [recipient];
+      const targets = wakeTargets.length > 0 ? wakeTargets : recipient === "team"
+        ? ["chat", "claude", "gemini", "grok"]
+        : [recipient];
+      await Promise.all(targets.map(target => invoke("hub_request_wake", {
+        target,
+        reason: "New message in the Orchestrate team chat",
+        messageId: message.id,
+        humanGate: false
+      })));
       setTask("");
       await refreshHubChat();
     } catch (error) {

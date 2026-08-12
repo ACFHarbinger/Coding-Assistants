@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Slack/Orchestrate team sends now wake every persisted roster member
+  (`hub_list_agents` + `hub_request_wake`) instead of only `chat`. Direct
+  messages still wake the selected recipient. The Slack DM list follows
+  `team_member` enrollment and role labels match the Grok-lead / Chat-co-lead
+  split.
+
 - Team broadcasts (`ca msg send --to team` and `hub_send_message` with
   `to: "team"`) now fan out only to agents with persisted `team_member = 1`.
   The default roster is Harbinger (`human`) plus `claude`, `chat`, `gemini`,
@@ -16,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   privately addressable. `cargo test -p ca-hub` (12 passed).
 
 ### Added
+
+- Added CA-102 channel and memory-reference queries across the shared Hub:
+  `ca msg channel <name> [--limit N]`, `ca msg memories <message-id>`, and
+  Tauri `hub_list_channel_messages` / `hub_list_message_memories`. Channel
+  lookup is exact (`channel:<name>`, with colon-delimited thread metadata)
+  and bounded; `[Memory #<full-id-or-unique-prefix>]` tags resolve only when
+  they identify one durable memory, preventing ambiguous cross-references.
 
 - Added dedicated **Slack-like Multi-Agent Chat Interface & Agentic Memory Hub** (`SlackChatPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Slack formatting, and an expandable Agentic Memory Hub side drawer.
 - Established Lead Orchestration task allocation across Gemini (Lead Orchestrator), Grok (Build), Chat/Codex (Chat), and Claude (Code) on `.agent/cache/AGENT_BUS.md` and per-agent delegation files in `.agent/messages/`.

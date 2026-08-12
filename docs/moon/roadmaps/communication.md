@@ -16,6 +16,12 @@ communication is reliable.
 | C8 | Fully parallel execution from session start | Concurrent work has conflict detection, task isolation, and deterministic recovery | 📋 Pending · later |
 | C9 | Agent inbox bridge process | A long-lived adapter can consume one agent's hub messages as a stable stream, acknowledge them, and honor wake gates | 🚧 **In Progress** · `ca inbox watch --agent <id>` emits JSONL, resolves accepted wakes, forwards to an adapter stdin, and includes a Codex app-server thread adapter with persisted-thread discovery and hub reply routing; direct attachment to an existing interactive TUI remains open |
 
+**2026-08-12:** CA-102 adds bounded, exact channel queries to the shared
+store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).
+Chat messages can embed `[Memory #<full-id-or-unique-prefix>]`; the Hub
+resolves only unique references, retaining isolation and avoiding accidental
+links to similarly prefixed memories.
+
 The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
 
@@ -48,6 +54,7 @@ The remaining workflow gap is fully parallel session startup under C8.
 **2026-08-12:** Team fan-out now uses an explicit persisted roster
 (`agents.team_member`) instead of every row in `agents`. Default members:
 `human`, `claude`, `chat`, `gemini`, `grok`. Harbinger is included so Slack-like
-`#general` is visible to the owner. `HubStore::set_team_member` /
-`list_team_members` are the enrollment API; CLI/Tauri wrappers remain open so
-this does not collide with Chat's CA-102 channel-query work.
+`#general` is visible to the owner. Slack/Orchestrate team sends wake that
+roster with `hub_request_wake` per enrolled member. `set_team_member` /
+`list_team_members` remain the enrollment API; Chat's CA-102 channel-query
+work owns `list_channel_messages` in the same store.

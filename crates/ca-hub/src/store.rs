@@ -211,6 +211,34 @@ pub struct MessageRecord {
     pub acked_at: Option<String>,
 }
 
+/// Extracts the memory identifiers embedded by the Hub's chat composer.
+///
+/// References deliberately accept both full UUIDs and the short prefix shown
+/// in the UI (for example, `[Memory #d5c1a2b3]`). The store resolves a prefix
+/// only when it maps to exactly one memory record.
+pub fn parse_memory_references(body: &str) -> Vec<String> {
+    let mut references = Vec::new();
+    let mut remaining = body;
+    while let Some(start) = remaining.find("[Memory #") {
+        let after_start = &remaining[start + "[Memory #".len()..];
+        let Some(end) = after_start.find(']') else {
+            break;
+        };
+        let candidate = &after_start[..end];
+        if !candidate.is_empty()
+            && candidate.len() <= 36
+            && candidate
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+            && !references.iter().any(|reference| reference == candidate)
+        {
+            references.push(candidate.to_string());
+        }
+        remaining = &after_start[end + 1..];
+    }
+    references
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WakeRecord {
     pub id: String,
@@ -1326,6 +1354,98 @@ impl HubStore {
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Lists one Slack-like channel without exposing similarly named channels.
+    /// In addition to the canonical `channel:<name>` subject, a colon-delimited
+    /// suffix is accepted for future thread/topic metadata.
+    pub fn list_channel_messages(
+        &self,
+        channel: &str,
+        limit: usize,
+    ) -> Result<Vec<MessageRecord>, HubError> {
+        let channel = channel
+            .trim()
+            .strip_prefix("channel:")
+            .unwrap_or(channel.trim());
+        if channel.is_empty() {
+            return Err(HubError::Invalid("channel must not be empty".into()));
+        }
+        let subject = format!("channel:{channel}");
+        let subject_prefix = format!("{subject}:%");
+        let limit = limit.clamp(1, 200) as i64;
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, from_agent, to_agent, workspace_path, task_id, kind, status,
+                   subject, body, created_at, acked_at
+            FROM messages
+            WHERE subject = ?1 OR subject LIKE ?2
+            ORDER BY created_at DESC
+            LIMIT ?3
+            "#,
+        )?;
+        let rows = stmt.query_map(params![subject, subject_prefix, limit], |r| {
+            Ok(MessageRecord {
+                id: r.get(0)?,
+                from_agent: r.get(1)?,
+                to_agent: r.get(2)?,
+                workspace_path: r.get(3)?,
+                task_id: r.get(4)?,
+                kind: r.get(5)?,
+                status: r.get(6)?,
+                subject: r.get(7)?,
+                body: r.get(8)?,
+                created_at: r.get(9)?,
+                acked_at: r.get(10)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Resolves the unique shared memories referenced by one message body.
+    /// Unknown or ambiguous short prefixes are omitted; callers can still use
+    /// `parse_memory_references` to present an unresolved reference to users.
+    pub fn list_message_memories(&self, message_id: &str) -> Result<Vec<MemoryRecord>, HubError> {
+        let message = self
+            .get_message(message_id)?
+            .ok_or_else(|| HubError::NotFound(message_id.to_string()))?;
+        let mut resolved = Vec::new();
+        for reference in parse_memory_references(&message.body) {
+            let exact = self.get_memory(&reference)?;
+            if let Some(memory) = exact {
+                resolved.push(memory);
+                continue;
+            }
+            let mut stmt = self.conn.prepare(
+                r#"
+                SELECT id, scope, workspace_path, tier, agent_id, title, body,
+                       tags_json, created_at, updated_at, stale, source_event_id
+                FROM memories WHERE id LIKE ?1 ORDER BY id ASC LIMIT 2
+                "#,
+            )?;
+            let matches = stmt
+                .query_map(params![format!("{reference}%")], |r| {
+                    Ok(MemoryRecord {
+                        id: r.get(0)?,
+                        scope: r.get(1)?,
+                        workspace_path: r.get(2)?,
+                        tier: r.get(3)?,
+                        agent_id: r.get(4)?,
+                        title: r.get(5)?,
+                        body: r.get(6)?,
+                        tags_json: r.get(7)?,
+                        created_at: r.get(8)?,
+                        updated_at: r.get(9)?,
+                        stale: r.get::<_, i64>(10)? != 0,
+                        source_event_id: r.get(11)?,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            if matches.len() == 1 {
+                resolved.push(matches.into_iter().next().expect("one memory match"));
+            }
+        }
+        Ok(resolved)
     }
 
     pub fn poll_messages(
@@ -3295,5 +3415,84 @@ mod tests {
             .unwrap();
         assert_eq!(message.to_agent, "grok");
         assert_eq!(message.kind, "handoff");
+    }
+
+    #[test]
+    fn channel_queries_and_memory_reference_resolution_are_isolated() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let memory = store
+            .write_memory(
+                MemoryTier::Episodic,
+                MemoryScope::Global,
+                Some("chat"),
+                None,
+                Some("Channel query contract"),
+                "Messages can reference durable shared memory.",
+                &[],
+            )
+            .unwrap();
+        let short_id = &memory.id[..8];
+        let general = store
+            .send_message(
+                "chat",
+                "grok",
+                MessageKind::Message,
+                &format!("Review this [Memory #{short_id}] twice [Memory #{short_id}]."),
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .unwrap();
+        store
+            .send_message(
+                "chat",
+                "grok",
+                MessageKind::Message,
+                "Coordination-only message.",
+                Some("channel:team-coordination"),
+                None,
+                None,
+            )
+            .unwrap();
+        store
+            .send_message(
+                "chat",
+                "grok",
+                MessageKind::Message,
+                "A general thread detail.",
+                Some("channel:general:thread-1"),
+                None,
+                None,
+            )
+            .unwrap();
+
+        let channel = store.list_channel_messages("general", 10).unwrap();
+        assert_eq!(channel.len(), 2);
+        assert!(channel.iter().all(|message| message
+            .subject
+            .as_deref()
+            .unwrap()
+            .starts_with("channel:general")));
+        assert!(!channel
+            .iter()
+            .any(|message| message.body == "Coordination-only message."));
+        assert_eq!(
+            store
+                .list_channel_messages("channel:general", 1)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(store.list_channel_messages("", 10).is_err());
+
+        assert_eq!(
+            parse_memory_references(&general.body),
+            vec![short_id.to_string()]
+        );
+        assert!(parse_memory_references("[Memory #not-an-id] [Memory #]").is_empty());
+        let linked = store.list_message_memories(&general.id).unwrap();
+        assert_eq!(linked.len(), 1);
+        assert_eq!(linked[0].id, memory.id);
     }
 }
