@@ -683,3 +683,52 @@ pub fn hub_record_shutdown(args: RecordShutdownArgs) -> Result<ca_hub::ShutdownO
         )
         .map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    //! M6 acceptance gate (#82): a durable memory record written by one
+    //! caller must be retrievable through this Tauri command layer, not
+    //! just through the `ca` CLI that shares the same `HubStore`.
+    use super::*;
+
+    #[test]
+    fn tauri_hub_commands_retrieve_what_the_store_wrote() {
+        let dir = std::env::temp_dir().join(format!(
+            "ca-hub-tauri-test-{}-{}",
+            std::process::id(),
+            now_unix()
+        ));
+        std::env::set_var("CA_HOME", &dir);
+
+        let store = open_store().expect("open_store should create the hub dir");
+        store
+            .write_memory(
+                MemoryTier::Semantic,
+                MemoryScope::Workspace,
+                Some("claude"),
+                Some("Coding-Assistants"),
+                Some("M6 desktop-layer check"),
+                "written directly against HubStore, must surface via hub_list_memories",
+                &["m6".to_string()],
+            )
+            .expect("write_memory should succeed");
+
+        let listed = hub_list_memories(
+            Some("workspace".into()),
+            None,
+            Some("Coding-Assistants".into()),
+            None,
+        )
+        .expect("hub_list_memories should succeed");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].title.as_deref(), Some("M6 desktop-layer check"));
+
+        let found = hub_search_memories("desktop-layer check".into())
+            .expect("hub_search_memories should succeed");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, listed[0].id);
+
+        std::env::remove_var("CA_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

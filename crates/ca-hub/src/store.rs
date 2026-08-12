@@ -44,7 +44,9 @@ impl MemoryTier {
             "short_term" | "short-term" | "short" => Ok(Self::ShortTerm),
             "episodic" => Ok(Self::Episodic),
             "semantic" => Ok(Self::Semantic),
-            other => Err(HubError::Invalid(format!("unknown memory tier: {other}"))),
+            other => Err(HubError::Invalid(format!(
+                "unknown memory tier: {other} (expected one of: short_term, episodic, semantic)"
+            ))),
         }
     }
 }
@@ -68,7 +70,9 @@ impl MemoryScope {
         match s {
             "global" => Ok(Self::Global),
             "workspace" => Ok(Self::Workspace),
-            other => Err(HubError::Invalid(format!("unknown scope: {other}"))),
+            other => Err(HubError::Invalid(format!(
+                "unknown scope: {other} (expected one of: global, workspace)"
+            ))),
         }
     }
 }
@@ -170,6 +174,10 @@ pub struct AgentRecord {
     pub created_at: String,
     #[serde(default)]
     pub card_json: Option<String>,
+    /// Explicit Slack-like team enrollment. Process-discovered identities
+    /// and local model runtimes stay addressable but are not implicit members.
+    #[serde(default)]
+    pub team_member: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -572,7 +580,8 @@ impl HubStore {
                 id TEXT PRIMARY KEY NOT NULL,
                 display_name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                card_json TEXT
+                card_json TEXT,
+                team_member INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -684,6 +693,7 @@ impl HubStore {
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
             "ALTER TABLE agents ADD COLUMN card_json TEXT",
+            "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
@@ -691,6 +701,26 @@ impl HubStore {
             "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
         ] {
             let _ = self.conn.execute(ddl, []);
+        }
+
+        // One-time default roster. Later enroll/unenroll must persist across opens.
+        let roster_seeded: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'team_roster_seeded'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if roster_seeded.is_none() {
+            self.conn.execute(
+                "UPDATE agents SET team_member = 1 WHERE id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '1')",
+                [],
+            )?;
         }
 
         let version: Option<i64> = self
@@ -755,7 +785,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json FROM agents ORDER BY id ASC",
+            "SELECT id, display_name, created_at, card_json, team_member FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(AgentRecord {
@@ -763,9 +793,32 @@ impl HubStore {
                 display_name: r.get(1)?,
                 created_at: r.get(2)?,
                 card_json: r.get(3)?,
+                team_member: r.get::<_, i64>(4)? != 0,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn list_team_members(&self) -> Result<Vec<AgentRecord>, HubError> {
+        Ok(self
+            .list_agents()?
+            .into_iter()
+            .filter(|agent| agent.team_member)
+            .collect())
+    }
+
+    pub fn set_team_member(&self, id: &str, enrolled: bool) -> Result<AgentRecord, HubError> {
+        let updated = self.conn.execute(
+            "UPDATE agents SET team_member = ?1 WHERE id = ?2",
+            params![if enrolled { 1 } else { 0 }, id],
+        )?;
+        if updated == 0 {
+            return Err(HubError::NotFound(id.to_string()));
+        }
+        self.list_agents()?
+            .into_iter()
+            .find(|agent| agent.id == id)
+            .ok_or_else(|| HubError::NotFound(id.to_string()))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1171,9 +1224,9 @@ impl HubStore {
             .map(str::to_string)
             .unwrap_or_else(|| format!("team:{}", Uuid::new_v4()));
         let recipients = self
-            .list_agents()?
+            .list_team_members()?
             .into_iter()
-            .filter(|agent| agent.id != from_agent && agent.id != "human" && agent.id != "system")
+            .filter(|agent| agent.id != from_agent && agent.id != "system")
             .map(|agent| agent.id)
             .collect::<Vec<_>>();
         if recipients.is_empty() {

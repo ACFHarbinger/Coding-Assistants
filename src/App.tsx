@@ -7,6 +7,7 @@ import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./componen
 import ActivityPanel from "./components/panels/ActivityPanel";
 import RemotePanel from "./components/panels/RemotePanel";
 import ApprovalPanel from "./components/panels/ApprovalPanel";
+import SlackChatPanel from "./components/panels/SlackChatPanel";
 
 const PROVIDERS = {
   "openai": "OpenAI",
@@ -84,7 +85,7 @@ function App() {
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
-  const [mainView, setMainView] = useState<"orchestrate" | "hub">("orchestrate");
+  const [mainView, setMainView] = useState<"orchestrate" | "hub" | "slack">("slack");
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -341,6 +342,13 @@ function App() {
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
+            className={mainView === "slack" ? "btn-primary" : "btn-secondary"}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
+            onClick={() => setMainView("slack")}
+          >
+            💬 Slack Chat & Memory
+          </button>
+          <button
             className={mainView === "orchestrate" ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
             onClick={() => setMainView("orchestrate")}
@@ -355,12 +363,20 @@ function App() {
             Shared Hub
           </button>
           <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(168, 85, 247, 0.2)', color: 'var(--accent)', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-            Shared Hub Messaging
+            Slack Multi-Agent Hub
           </div>
         </div>
       </header>
 
       <main className="main-content">
+        <div style={{ display: mainView === "slack" ? "contents" : "none" }}>
+          <SlackChatPanel
+            hubMessages={hubMessages}
+            hubAgents={hubAgents}
+            onRefresh={refreshHubChat}
+          />
+        </div>
+
         {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel /></div>}
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>

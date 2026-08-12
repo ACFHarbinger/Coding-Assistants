@@ -411,3 +411,56 @@ pending.
   `src-tauri/workspace/.agent` tree and the untracked A2A test `agent.json`.
 - Added an existing-agent-card schema migration and preserved the `ca agents`
   CLI alias while reviewing the concurrent A2A changes.
+
+### gemini — 2026-08-12 — Lead Orchestration & Slack-like Multi-Agent Chat UI Plan
+
+- **Role:** Lead Orchestrator (Gemini 3.6 Antigravity)
+- **Status:** ONLINE
+- **Focus:** Slack-like Multi-Agent Chat Interface & Agentic Memory Hub (GitHub Project #21)
+
+#### Multi-Agent Task Allocation:
+
+| Task ID | Owner | Work Description | Status |
+| --- | --- | --- | --- |
+| **CA-101** | **Gemini** | **Slack Chat UI Core & Memory Hub**: Build dedicated Slack-like channel interface (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status badges, real-time message stream with Slack bubble formatting, and inline memory drawer. | **IN PROGRESS** |
+| **CA-102** | **Chat/Codex** | **Channel & Message Query Extensions**: Extend `ca-hub` store and Tauri IPC commands (`src-tauri/src/hub_cmds.rs`) to support channel filtering, message search by tag, and memory links. | **ASSIGNED** |
+| **CA-103** | **Claude** | **Memory Verification & Test Suite**: Add integration tests for channel messaging, memory drawer search, and multi-agent handoff acceptance gates. | **ASSIGNED** |
+| **CA-104** | **Grok** | **Process Heartbeat & Telemetry Bridge**: Wire process detector (`detect_agent_processes`) into the Slack sidebar to show active agent process status (ONLINE/OFFLINE/IDLE). | **ASSIGNED** |
+
+### grok — 2026-08-12 — wake + M6 live gate (owner-bound)
+
+**ONLINE.** Read HIE→CA handoff, journals, roadmap v2, project 21, then asked Harbinger before claiming.
+
+Owner answers this session:
+
+- First claim = **M6 memory gate** (real two-agent retrieve of a prior handoff)
+- Success bar = **prove the Slack-like hub loop end-to-end**, then fix only holes that block it
+- Dirty `.agent/messages/**` + adapter move = **leave untouched**
+- All four agents concurrent in this checkout
+
+**CA-104:** declining the UI heartbeat slice. `SlackChatPanel.tsx` already calls `detect_agent_processes` on a 4s timer; that file is Gemini's CA-101. I will not edit it.
+
+**Taking instead (blocks the Slack loop Gemini is building):**
+
+| Task | Owner | Files | Notes |
+| --- | --- | --- | --- |
+| **M6-LIVE** | grok | hub data only (`ca` CLI) | Seed durable handoff + memory + wakes; Chat + Claude retrieve via `ca memory search M6-20260812` and `ca msg poll --to <you>` |
+| **M6-ROSTER** | grok | `crates/ca-hub/src/store.rs` **only** | `send_message_to_team` currently fans out to every agent row (PID identities, ollama, a2a-peer) and **excludes `human`**. Persist `team_member` and default-enroll `human,claude,chat,gemini,grok`. Chat CA-102 can still add `list_channel_messages` beside this. |
+
+**Will not touch:** `src/components/panels/SlackChatPanel.tsx`, `src/App.tsx`, `src/components/HubPanel.tsx`, `src-tauri/src/hub_cmds.rs` (Claude has an M6 Tauri test in flight), `crates/ca-cli` (peer comments in flight).
+
+**Hole for Gemini/Chat (not editing your files):** Slack send to `team` only `hub_request_wake`s `chat`. After the roster fix, please wake each enrolled member (or wake `human` + the four harness ids).
+
+**M6 protocol for Chat / Claude / Gemini:**
+
+```
+ca memory search M6-20260812
+ca msg poll --to <chat|claude|gemini> --no-ack
+# confirm the private canary string is NOT in:
+ca memory search xyzzy-20260812
+ca export-markdown
+# then ACK:
+ca msg send --from <you> --to grok --kind handoff --subject M6-ACK '<found memory: yes/no; private journal leaked: yes/no; your next CA slice>'
+```
+
+Do **not** stage my `store.rs` work with your Slack/channel/test commits. Re-read `git status` before `git add`.

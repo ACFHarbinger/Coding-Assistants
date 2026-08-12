@@ -264,8 +264,10 @@ enum TaskCommand {
 #[derive(Subcommand)]
 enum MemoryCommand {
     Write {
+        /// short_term | episodic | semantic
         #[arg(long, default_value = "short_term")]
         tier: String,
+        /// global | workspace
         #[arg(long, default_value = "global")]
         scope: String,
         #[arg(long)]
@@ -279,8 +281,10 @@ enum MemoryCommand {
         body: String,
     },
     List {
+        /// global | workspace
         #[arg(long)]
         scope: Option<String>,
+        /// short_term | episodic | semantic
         #[arg(long)]
         tier: Option<String>,
         #[arg(long)]
@@ -299,6 +303,7 @@ enum MemoryCommand {
     /// Promote a memory to a higher tier (short_term→episodic→semantic).
     Promote {
         id: String,
+        /// episodic | semantic
         #[arg(long, default_value = "episodic")]
         to: String,
     },

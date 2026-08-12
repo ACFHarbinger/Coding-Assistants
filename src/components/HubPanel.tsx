@@ -196,8 +196,11 @@ export default function HubPanel() {
   const [msgFrom, setMsgFrom] = useState("human");
   const [msgTo, setMsgTo] = useState("claude");
   const [msgBody, setMsgBody] = useState("");
+  const [msgSubject, setMsgSubject] = useState("");
   const [msgKind, setMsgKind] = useState("message");
   const [pollTo, setPollTo] = useState("claude");
+  const [inboxConversation, setInboxConversation] = useState("chat");
+  const [inboxSearch, setInboxSearch] = useState("");
 
   const [wakeTarget, setWakeTarget] = useState("claude");
   const [wakeReason, setWakeReason] = useState("");
@@ -275,9 +278,11 @@ export default function HubPanel() {
       if (list.length > 0) {
         setMemAgent(list[0].id);
         setMsgFrom(list[0].id);
-        setMsgTo(list[0].id);
-        setPollTo(list[0].id);
-        setWakeTarget(list[0].id);
+        const firstAgent = list.find((agent) => agent.id !== "human") || list[0];
+        setMsgTo(firstAgent.id);
+        setPollTo(firstAgent.id);
+        setInboxConversation(firstAgent.id);
+        setWakeTarget(firstAgent.id);
       }
     }).catch((e) => setError(String(e)));
   }, []);
@@ -292,6 +297,14 @@ export default function HubPanel() {
       refreshQuotas();
     }
   }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets, refreshQuotas]);
+
+  useEffect(() => {
+    if (hubTab !== "inbox") return;
+    const interval = window.setInterval(() => {
+      void refreshMessages();
+    }, 3000);
+    return () => window.clearInterval(interval);
+  }, [hubTab, refreshMessages]);
 
   const writeMemory = async () => {
     if (!memBody.trim()) return;
@@ -341,8 +354,8 @@ export default function HubPanel() {
         args: {
           from: msgFrom,
           to: msgTo,
-          kind: msgKind,
-          subject: null,
+        kind: msgKind,
+          subject: msgSubject.trim() || null,
           workspace: null,
           task: null,
           body: msgBody,
@@ -350,17 +363,8 @@ export default function HubPanel() {
       })
     );
     setMsgBody("");
+    setMsgSubject("");
     await refreshMessages();
-  };
-
-  const pollInbox = async () => {
-    const list = await run(`polled ${pollTo}`, () =>
-      invoke<MessageRecord[]>("hub_poll_messages", { to: pollTo, markAcked: true })
-    );
-    if (list) {
-      await refreshMessages();
-      setStatus(`polled ${list.length} for ${pollTo}`);
-    }
   };
 
   const requestWake = async () => {
@@ -414,6 +418,33 @@ export default function HubPanel() {
       {label}
     </button>
   );
+
+  const inboxMessages = messages.filter((message) => {
+    const inConversation = inboxConversation === "all"
+      || message.from_agent === inboxConversation
+      || message.to_agent === inboxConversation;
+    const query = inboxSearch.trim().toLowerCase();
+    return inConversation && (!query
+      || message.body.toLowerCase().includes(query)
+      || (message.subject || "").toLowerCase().includes(query));
+  });
+
+  const unreadFor = (agent: string) => messages.filter((message) =>
+    message.status === "pending" && (agent === "all"
+      || message.from_agent === agent
+      || message.to_agent === agent)
+  ).length;
+  const markConversationRead = async () => {
+    const target = inboxConversation === "all" ? pollTo : inboxConversation;
+    const list = await run(`read ${target}`, () =>
+      invoke<MessageRecord[]>("hub_poll_messages", { to: target, markAcked: true })
+    );
+    if (list) {
+      await refreshMessages();
+      setStatus(`${list.length} new message${list.length === 1 ? "" : "s"} read`);
+    }
+  };
+
 
   return (
     <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
@@ -616,7 +647,14 @@ export default function HubPanel() {
       )}
 
       {hubTab === "inbox" && (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="fade-in" style={{ display: "grid", gridTemplateColumns: "minmax(170px, 0.3fr) minmax(0, 1fr)", gap: "1rem", alignItems: "start" }}>
+          <aside style={{ ...cardStyle, padding: "0.75rem", display: "grid", gap: "0.35rem" }} aria-label="Conversations">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0.5rem 0.65rem" }}><strong style={{ color: "var(--text-main)" }}>Conversations</strong><span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{unreadFor("all")} unread</span></div>
+            {[{ id: "all", label: "All messages" }, ...agents.filter((agent) => agent.id !== "human").map((agent) => ({ id: agent.id, label: agent.display_name }))].map((conversation) => (
+              <button key={conversation.id} className={inboxConversation === conversation.id ? "btn-primary" : "btn-secondary"} onClick={() => { setInboxConversation(conversation.id); if (conversation.id !== "all") { setMsgTo(conversation.id); setPollTo(conversation.id); } }} style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", textAlign: "left", padding: "0.6rem 0.7rem" }}><span>{conversation.label}</span>{unreadFor(conversation.id) > 0 && <span style={{ minWidth: 20, textAlign: "center", borderRadius: 10, background: "#ef4444", color: "white", fontSize: "0.7rem", padding: "0.1rem 0.35rem" }}>{unreadFor(conversation.id)}</span>}</button>
+            ))}
+          </aside>
+          <section style={{ display: "flex", flexDirection: "column", gap: "1.5rem", minWidth: 0 }} aria-label="Message thread">
           <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
             <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Send Message / Handoff</h3>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -624,8 +662,9 @@ export default function HubPanel() {
                 {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
               <span style={{ color: "var(--text-muted)" }}>→</span>
-              <select value={msgTo} onChange={(e) => setMsgTo(e.target.value)} style={inputStyle}>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
+              <select value={msgTo} onChange={(e) => { setMsgTo(e.target.value); setInboxConversation(e.target.value); }} style={inputStyle}>
+                <option value="team">Team</option>
+                {agents.filter((a) => a.id !== msgFrom).map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
               <select value={msgKind} onChange={(e) => setMsgKind(e.target.value)} style={{ ...inputStyle, marginLeft: "auto" }}>
                 <option value="message">message</option>
@@ -633,28 +672,36 @@ export default function HubPanel() {
                 <option value="system">system</option>
               </select>
             </div>
+            <input value={msgSubject} onChange={(e) => setMsgSubject(e.target.value)} placeholder="Subject (optional)" style={inputStyle} />
             <textarea rows={4} value={msgBody} onChange={(e) => setMsgBody(e.target.value)} placeholder="Message body…" style={{ ...inputStyle, resize: "vertical" }} />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button className="btn-primary" onClick={sendMessage} disabled={!msgBody.trim()}>Send Message</button>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--border-color)", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.9rem", color: "var(--text-main)" }}>Poll inbox for:</span>
             <select value={pollTo} onChange={(e) => setPollTo(e.target.value)} style={inputStyle}>
               {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
             </select>
-            <button className="btn-secondary" onClick={pollInbox}>Poll (ack)</button>
+            <button className="btn-secondary" onClick={markConversationRead}>Mark unread as read</button>
             <button className="btn-secondary" onClick={refreshMessages}>Refresh List</button>
+            <input
+              type="text"
+              placeholder="Search inbox..."
+              value={inboxSearch}
+              onChange={(e) => setInboxSearch(e.target.value)}
+              style={{ ...inputStyle, marginLeft: "auto", minWidth: "160px" }}
+            />
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 400, overflowY: "auto", paddingRight: "0.5rem" }}>
-            {messages.length === 0 && (
+            {inboxMessages.length === 0 && (
               <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>Inbox is empty.</p>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>Inbox is empty or no messages match filter.</p>
               </div>
             )}
-            {messages.map((m) => (
+            {inboxMessages.map((m) => (
               <div key={m.id} style={cardStyle}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
                   <div style={{ fontSize: "0.95rem" }}>
@@ -672,6 +719,7 @@ export default function HubPanel() {
               </div>
             ))}
           </div>
+          </section>
         </div>
       )}
 

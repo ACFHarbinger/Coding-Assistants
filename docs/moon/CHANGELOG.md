@@ -5,9 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+### Added
 
-### Fixed
+- Added dedicated **Slack-like Multi-Agent Chat Interface & Agentic Memory Hub** (`SlackChatPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Slack formatting, and an expandable Agentic Memory Hub side drawer.
+- Established Lead Orchestration task allocation across Gemini (Lead Orchestrator), Grok (Build), Chat/Codex (Chat), and Claude (Code) on `.agent/cache/AGENT_BUS.md` and per-agent delegation files in `.agent/messages/`.
 
 - Private hub messages addressed to Harbinger now display their contents in
   the Messages feed; private messages addressed to another participant remain
