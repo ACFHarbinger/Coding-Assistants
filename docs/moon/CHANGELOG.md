@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Slack composer sends on **Enter**; **Shift+Enter** inserts a newline.
+  While reading older messages, a **Jump to latest** chip appears instead of
+  yanking the viewport.
+
 - Header chrome no longer shows a second Slack-looking control. The purple
   **Slack Multi-Agent Hub** badge is now a green **Local hub online** status
   pill so it cannot be mistaken for another Slack tab.

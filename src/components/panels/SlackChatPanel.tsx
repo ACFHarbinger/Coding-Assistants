@@ -103,6 +103,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
+  const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
 
   // Memories side drawer state
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
@@ -123,6 +125,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const stickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
   const prevChannelRef = useRef(activeChannel);
+  const [jumpToLatest, setJumpToLatest] = useState(false);
 
   // Close the context menu on outside click or Escape.
   useEffect(() => {
@@ -163,6 +166,24 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     const interval = setInterval(loadHubData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Channel views use the bounded Hub query instead of filtering the entire
+  // transcript in the renderer. DMs stay local because their privacy predicate
+  // is participant-specific rather than a channel subject.
+  useEffect(() => {
+    let disposed = false;
+    if (activeChannel.startsWith("dm-")) {
+      setChannelRecords([]);
+      return () => { disposed = true; };
+    }
+    if (!isTauriRuntime()) return;
+    invoke<HubMessage[]>("hub_list_channel_messages", { channel: activeChannel, limit: 200 })
+      .then((records) => {
+        if (!disposed) setChannelRecords(records);
+      })
+      .catch((error) => console.error("Failed to load channel messages:", error));
+    return () => { disposed = true; };
+  }, [activeChannel, hubMessages]);
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || sending) return;
@@ -269,7 +290,16 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
 
   // Filter messages for active channel / DM view
   const channelMessages = (() => {
-    const matches = hubMessages.filter(msg => {
+    const records = activeChannel.startsWith("dm-")
+      ? hubMessages
+      : [
+          ...channelRecords,
+          // Preserve pre-channel legacy messages in #general only.
+          ...(activeChannel === "general"
+            ? hubMessages.filter(msg => !msg.subject?.startsWith("channel:"))
+            : []),
+        ];
+    const matches = records.filter(msg => {
       if (msg.status === "cancelled") return false;
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
@@ -309,6 +339,24 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const lastThreadId = channelMessages.length > 0 ? channelMessages[channelMessages.length - 1].id : "";
   const threadKey = `${activeChannel}:${channelMessages.length}:${lastThreadId}`;
 
+  useEffect(() => {
+    let disposed = false;
+    const messagesWithReferences = channelMessages.filter(message => message.body.includes("[Memory #"));
+    if (messagesWithReferences.length === 0) {
+      setLinkedMemories({});
+      return () => { disposed = true; };
+    }
+    Promise.all(messagesWithReferences.map(async (message) => [
+      message.id,
+      await invoke<MemoryRecord[]>("hub_list_message_memories", { messageId: message.id }),
+    ] as const))
+      .then((entries) => {
+        if (!disposed) setLinkedMemories(Object.fromEntries(entries));
+      })
+      .catch((error) => console.error("Failed to resolve message memory links:", error));
+    return () => { disposed = true; };
+  }, [threadKey]);
+
   useLayoutEffect(() => {
     const el = scrollBoxRef.current;
     if (!el) return;
@@ -318,6 +366,9 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
       el.scrollTop = el.scrollHeight;
       stickToBottomRef.current = true;
       forceScrollRef.current = false;
+      setJumpToLatest(false);
+    } else {
+      setJumpToLatest(true);
     }
   }, [threadKey, activeChannel]);
 
@@ -519,15 +570,18 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
         </div>
 
         {/* Message Stream Scroll Area */}
+        <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div
           ref={scrollBoxRef}
           onScroll={() => {
             const el = scrollBoxRef.current;
             if (!el) return;
-            stickToBottomRef.current = isNearBottom(el);
+            const near = isNearBottom(el);
+            stickToBottomRef.current = near;
+            if (near) setJumpToLatest(false);
           }}
           style={{
-          flex: 1,
+          height: "100%",
           padding: "1.5rem",
           overflowY: "auto",
           display: "flex",
@@ -635,21 +689,37 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                         </div>
                       </div>
                     ) : (
-                      <div
-                        onContextMenu={e => openMessageMenu(e, msg)}
-                        style={{
-                          background: "rgba(0,0,0,0.35)",
-                          border: "1px solid var(--border-color)",
-                          borderRadius: "12px",
-                          padding: "0.85rem 1.1rem",
-                          fontSize: "0.95rem",
-                          lineHeight: "1.5",
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                          cursor: msg.from_agent === "human" ? "context-menu" : "default"
-                        }}
-                      >
-                        {msg.body}
+                      <div style={{ display: "grid", gap: "0.45rem" }}>
+                        <div
+                          onContextMenu={e => openMessageMenu(e, msg)}
+                          style={{
+                            background: "rgba(0,0,0,0.35)",
+                            border: "1px solid var(--border-color)",
+                            borderRadius: "12px",
+                            padding: "0.85rem 1.1rem",
+                            fontSize: "0.95rem",
+                            lineHeight: "1.5",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            cursor: msg.from_agent === "human" ? "context-menu" : "default"
+                          }}
+                        >
+                          {msg.body}
+                        </div>
+                        {(linkedMemories[msg.id] || []).map(memory => (
+                          <button
+                            key={memory.id}
+                            className="btn-secondary"
+                            onClick={() => {
+                              setShowMemoryDrawer(true);
+                              setMemorySearch(memory.id.slice(0, 8));
+                            }}
+                            style={{ justifySelf: "start", padding: "0.3rem 0.55rem", fontSize: "0.75rem", color: "var(--accent)" }}
+                            title="Open this durable memory in the Memory Hub"
+                          >
+                            🧠 {memory.title || `Memory #${memory.id.slice(0, 8)}`}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -657,6 +727,33 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
               );
             })
           )}
+        </div>
+        {jumpToLatest && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              const el = scrollBoxRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+              stickToBottomRef.current = true;
+              forceScrollRef.current = false;
+              setJumpToLatest(false);
+            }}
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: "0.85rem",
+              transform: "translateX(-50%)",
+              padding: "0.4rem 0.9rem",
+              fontSize: "0.8rem",
+              borderRadius: "999px",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+              zIndex: 2
+            }}
+          >
+            Jump to latest
+          </button>
+        )}
         </div>
 
         {/* Slack Message Input Box */}
@@ -668,14 +765,13 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <textarea
               rows={3}
-              placeholder={`Message #${activeChannel}... (Press Ctrl+Enter to send)`}
+              placeholder={`Message #${activeChannel}… (Enter to send, Shift+Enter for a new line)`}
               value={messageInput}
               onChange={e => setMessageInput(e.target.value)}
               onKeyDown={e => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
+                if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+                e.preventDefault();
+                handleSendMessage();
               }}
               style={{
                 width: "100%",
