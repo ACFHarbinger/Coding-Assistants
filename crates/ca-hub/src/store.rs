@@ -849,6 +849,25 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.to_string()))
     }
 
+    /// Wake every enrolled teammate except the sender and `system`.
+    /// Slack/Orchestrate team sends must use this instead of waking a single harness.
+    pub fn request_team_wakes(
+        &self,
+        from_agent: &str,
+        reason: Option<&str>,
+        message_id: Option<&str>,
+        requires_human_gate: bool,
+    ) -> Result<Vec<WakeRecord>, HubError> {
+        let mut wakes = Vec::new();
+        for member in self.list_team_members()? {
+            if member.id == from_agent || member.id == "system" {
+                continue;
+            }
+            wakes.push(self.request_wake(&member.id, reason, message_id, requires_human_gate)?);
+        }
+        Ok(wakes)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn write_memory(
         &self,
@@ -3057,6 +3076,21 @@ mod tests {
         assert!(recipients.contains(&"ollama"), "{recipients:?}");
         assert!(!recipients.contains(&"claude"), "{recipients:?}");
         assert!(recipients.contains(&"human"), "{recipients:?}");
+
+        store.set_team_member("claude", true).unwrap();
+        store.set_team_member("ollama", false).unwrap();
+        let wakes = store
+            .request_team_wakes("human", Some("Slack #general"), Some("msg-team-1"), false)
+            .unwrap();
+        let woke: Vec<&str> = wakes.iter().map(|w| w.target_agent.as_str()).collect();
+        assert!(woke.contains(&"claude"), "{woke:?}");
+        assert!(woke.contains(&"chat"), "{woke:?}");
+        assert!(woke.contains(&"gemini"), "{woke:?}");
+        assert!(woke.contains(&"grok"), "{woke:?}");
+        assert!(!woke.contains(&"human"), "{woke:?}");
+        assert!(!woke.contains(&"ollama"), "{woke:?}");
+        assert!(!woke.contains(&"process:1"), "{woke:?}");
+        assert_eq!(woke.len(), 4, "{woke:?}");
     }
 
     #[test]
