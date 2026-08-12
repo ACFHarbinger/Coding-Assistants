@@ -819,6 +819,65 @@ mod tests {
     }
 
     #[test]
+    fn ca102_hub_commands_return_only_the_requested_channel_and_linked_memories() {
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "ca-hub-tauri-ca102-{}-{}",
+            std::process::id(),
+            now_unix()
+        ));
+        std::env::set_var("CA_HOME", &dir);
+
+        let store = open_store().expect("open_store should create the hub dir");
+        let memory = store
+            .write_memory(
+                MemoryTier::Episodic,
+                MemoryScope::Global,
+                Some("human"),
+                None,
+                Some("Linked chat decision"),
+                "The Slack chat should remain the central conversation surface.",
+                &[],
+            )
+            .expect("write_memory should succeed");
+        let general = store
+            .send_message(
+                "human",
+                "team",
+                MessageKind::Message,
+                &format!("Decision recorded: [Memory #{}]", memory.id),
+                Some("channel:general"),
+                None,
+                None,
+            )
+            .expect("send_message should succeed");
+        store
+            .send_message(
+                "human",
+                "team",
+                MessageKind::Message,
+                "This belongs in a separate channel.",
+                Some("channel:engineering"),
+                None,
+                None,
+            )
+            .expect("send_message should succeed");
+
+        let channel = hub_list_channel_messages("general".into(), Some(10))
+            .expect("hub_list_channel_messages should succeed");
+        assert_eq!(channel.len(), 1);
+        assert_eq!(channel[0].id, general.id);
+
+        let linked = hub_list_message_memories(general.id)
+            .expect("hub_list_message_memories should resolve the message reference");
+        assert_eq!(linked.len(), 1);
+        assert_eq!(linked[0].id, memory.id);
+
+        std::env::remove_var("CA_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn ca106_hub_commands_edit_delete_every_copy_and_reject_non_human_authors() {
         let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
