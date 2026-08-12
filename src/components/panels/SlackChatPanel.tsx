@@ -30,9 +30,11 @@ export interface MemoryRecord {
 }
 
 export interface DetectedProcess {
-  agent_id: string;
-  executable: string;
   pid: number;
+  agent: string;
+  provider: string;
+  model: string;
+  command: string;
 }
 
 export interface SlackChatPanelProps {
@@ -150,7 +152,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
       ? "Harbinger (Human Dev)"
       : hubAgents.find(a => a.id === agentId)?.display_name || agentId;
 
-    const isRunning = runningProcesses.some(p => p.agent_id.toLowerCase().includes(key));
+    const isRunning = runningProcesses.some(p => {
+      const detected = p.agent.toLowerCase();
+      return detected === key || (key === "chat" && detected === "codex");
+    });
     return { ...info, displayName, isRunning };
   };
 
