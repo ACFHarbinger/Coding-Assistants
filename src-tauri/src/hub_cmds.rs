@@ -2,9 +2,9 @@
 //! Same data directory as the `ca` CLI (`$CA_HOME` or `~/.coding-assistants`).
 
 use ca_hub::{
-    BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubStore, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
+    AuditEvent, BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubStore,
+    MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, TaskRecord,
+    TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
 };
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -567,6 +567,30 @@ pub fn hub_resolve_wake(id: String, status: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// CA-111: pending audit events surfaced when the desktop Journal/Audit tab
+/// opens (`ca_hub::HubStore::list_audit_events`, already implemented — this
+/// just exposes it, plus approve/quarantine, to the Tauri IPC boundary).
+#[tauri::command]
+pub fn hub_list_audit_events(pending_only: Option<bool>) -> Result<Vec<AuditEvent>, String> {
+    open_store()?
+        .list_audit_events(pending_only.unwrap_or(false))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_approve_audit(id: String) -> Result<(), String> {
+    open_store()?
+        .set_audit_status(&id, "approved")
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_quarantine_audit(id: String) -> Result<(), String> {
+    open_store()?
+        .set_audit_status(&id, "quarantined")
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_get_wake_policy() -> Result<WakePolicy, String> {
     open_store()?.get_wake_policy().map_err(|e| e.to_string())
@@ -936,6 +960,66 @@ mod tests {
             store.get_message(&agent_authored.id).unwrap().unwrap().body,
             "not yours",
             "an agent's message must not be silently rewritten"
+        );
+
+        std::env::remove_var("CA_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ca111_audit_tab_lists_pending_and_can_approve_or_quarantine() {
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "ca-hub-tauri-ca111-{}-{}",
+            std::process::id(),
+            now_unix()
+        ));
+        std::env::set_var("CA_HOME", &dir);
+
+        let store = open_store().expect("open_store should create the hub dir");
+        let watched = store
+            .record_audit_event(
+                std::path::Path::new("/workspace"),
+                std::path::Path::new("/workspace/src/lib.rs"),
+                "modified",
+                r#"{"pid":1234,"name":"vim"}"#,
+                None,
+            )
+            .expect("record_audit_event should succeed");
+        let to_quarantine = store
+            .record_audit_event(
+                std::path::Path::new("/workspace"),
+                std::path::Path::new("/workspace/suspicious.sh"),
+                "created",
+                r#"{"pid":5678,"name":"unknown"}"#,
+                None,
+            )
+            .expect("record_audit_event should succeed");
+
+        let pending =
+            hub_list_audit_events(Some(true)).expect("hub_list_audit_events should succeed");
+        assert_eq!(pending.len(), 2);
+        assert!(pending.iter().all(|e| e.status == "pending"));
+
+        hub_approve_audit(watched.id.clone()).expect("hub_approve_audit should succeed");
+        hub_quarantine_audit(to_quarantine.id.clone())
+            .expect("hub_quarantine_audit should succeed");
+
+        let remaining_pending =
+            hub_list_audit_events(Some(true)).expect("hub_list_audit_events should succeed");
+        assert!(remaining_pending.is_empty(), "{remaining_pending:?}");
+
+        let all = hub_list_audit_events(Some(false)).expect("hub_list_audit_events should succeed");
+        assert_eq!(
+            all.iter().find(|e| e.id == watched.id).unwrap().status,
+            "approved"
+        );
+        assert_eq!(
+            all.iter()
+                .find(|e| e.id == to_quarantine.id)
+                .unwrap()
+                .status,
+            "quarantined"
         );
 
         std::env::remove_var("CA_HOME");

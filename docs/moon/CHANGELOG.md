@@ -78,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `gemini`, `grok`) `Add to team` persists. `human` is never unenrolled, and
   removal never invents a PID-based roster row.
 
+- CA-111: added a desktop **Journal** tab (`HubPanel.tsx`) surfacing pending
+  audit events (`ca audit watch` output) at the owner checkpoint — fetched on
+  first load (tab badge shows the pending count) and every time the tab
+  opens, with **Approve** / **Quarantine** actions. New Tauri commands
+  `hub_list_audit_events`, `hub_approve_audit`, `hub_quarantine_audit` wrap
+  the existing `ca_hub::HubStore` audit API; no new privileged adapter.
+
 - Persisted Orchestrate **Add to team** onto the Slack roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
   `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:

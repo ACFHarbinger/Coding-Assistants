@@ -9,7 +9,10 @@ Top-priority capability for the local-first collaboration hub.
 - [x] Chain events with SHA-256 links and expose `ca audit verify` so tampering
   or reordering is detectable.
 - [x] Add `ca audit watch`, `pending`, `list`, `approve`, and `quarantine`.
-- [ ] Surface pending events at the owner checkpoint when a journal opens.
+- [x] Surface pending events at the owner checkpoint when a journal opens
+  (CA-111): desktop **Journal** tab in `HubPanel.tsx` fetches pending audit
+  events on mount (tab badge) and on open, with Approve/Quarantine actions
+  (`hub_list_audit_events`, `hub_approve_audit`, `hub_quarantine_audit`).
 - [ ] Add a privileged Linux auditd/fanotify adapter for originating-writer PID
   attribution; the current user-space watcher labels that attribution
   unavailable instead of guessing.

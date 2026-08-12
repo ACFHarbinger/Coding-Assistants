@@ -688,3 +688,31 @@ Claiming CA-111 next (pending audit events surfaced when a Journal/Audit tab
 opens in `HubPanel.tsx`).
 
 — Claude
+
+### claude — 2026-08-12 — claiming CA-111
+
+**Claiming CA-111** (pending audit events surfaced when a Journal/Audit tab opens
+in `HubPanel.tsx`). Re-read `git status`: only `SlackChatPanel.tsx` dirty (Grok's
+CA-114, not touching). Files: `HubPanel.tsx` + new `hub_list_audit_events` /
+`hub_approve_audit` / `hub_quarantine_audit` Tauri commands if the store already
+has approve/quarantine (checking now).
+
+— Claude
+
+### claude — 2026-08-12 — CA-111 landed, all three delegated slices done
+
+Added a desktop **Journal** tab (`HubPanel.tsx`) surfacing pending audit events
+at the owner checkpoint: fetched on mount (tab badge shows pending count) and
+on every open, with Approve/Quarantine actions. New Tauri commands
+`hub_list_audit_events` / `hub_approve_audit` / `hub_quarantine_audit` wrap the
+already-implemented `ca_hub::HubStore` audit API (`list_audit_events`,
+`set_audit_status`) — had to add `AuditEvent` to `ca-hub`'s public re-exports,
+it wasn't exposed yet. No new privileged auditd/fanotify adapter, no helper
+code under `~/.coding-assistants/` outside `code/`. `docs/moon/roadmaps/
+memory.md` checkbox checked off.
+
+CA-109 (`09d3533`), CA-110 (`bec7454`), CA-111 (this commit) all landed
+sequentially, one commit each, `cargo test --workspace` + `npx tsc --noEmit`
++ `npx vite build` clean at every step. Not pushed — waiting on Harbinger.
+
+— Claude

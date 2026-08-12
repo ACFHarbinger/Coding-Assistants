@@ -42,6 +42,19 @@ interface AgentRecord {
   display_name: string;
 }
 
+interface AuditEvent {
+  id: string;
+  root_path: string;
+  path: string;
+  operation: string;
+  observed_at: string;
+  process_json: string;
+  content_hash?: string | null;
+  previous_hash?: string | null;
+  event_hash: string;
+  status: string;
+}
+
 interface WakePolicy {
   default_requires_human_gate: boolean;
   allow_auto_wake: boolean;
@@ -72,7 +85,7 @@ interface ProviderQuota {
   fetched_at: number;
 }
 
-type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage";
+type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage" | "journal";
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -185,6 +198,8 @@ export default function HubPanel() {
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [wakes, setWakes] = useState<WakeRecord[]>([]);
   const [agents, setAgents] = useState<AgentRecord[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [auditShowAll, setAuditShowAll] = useState(false);
 
   const [searchQ, setSearchQ] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("");
@@ -271,6 +286,23 @@ export default function HubPanel() {
     if (statuses) setQuotas(statuses);
   }, [run]);
 
+  const refreshAuditEvents = useCallback(async () => {
+    const list = await run("audit events refreshed", () =>
+      invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: !auditShowAll })
+    );
+    if (list) setAuditEvents(list);
+  }, [run, auditShowAll]);
+
+  const approveAudit = async (id: string) => {
+    await run("audit event approved", () => invoke("hub_approve_audit", { id }));
+    await refreshAuditEvents();
+  };
+
+  const quarantineAudit = async (id: string) => {
+    await run("audit event quarantined", () => invoke("hub_quarantine_audit", { id }));
+    await refreshAuditEvents();
+  };
+
   useEffect(() => {
     invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
     invoke<AgentRecord[]>("hub_list_agents").then((list) => {
@@ -285,6 +317,9 @@ export default function HubPanel() {
         setWakeTarget(firstAgent.id);
       }
     }).catch((e) => setError(String(e)));
+    invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: true })
+      .then(setAuditEvents)
+      .catch((e) => console.error("Failed to load pending audit events:", e));
   }, []);
 
   useEffect(() => {
@@ -296,7 +331,8 @@ export default function HubPanel() {
       refreshBudgets();
       refreshQuotas();
     }
-  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets, refreshQuotas]);
+    else if (hubTab === "journal") refreshAuditEvents();
+  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets, refreshQuotas, refreshAuditEvents]);
 
   useEffect(() => {
     if (hubTab !== "inbox") return;
@@ -408,7 +444,7 @@ export default function HubPanel() {
     await refreshBudgets();
   };
 
-  const tabBtn = (id: HubTab, label: string) => (
+  const tabBtn = (id: HubTab, label: string, badge?: number) => (
     <button
       key={id}
       className={hubTab === id ? "btn-primary" : "btn-secondary"}
@@ -416,6 +452,11 @@ export default function HubPanel() {
       onClick={() => startTransition(() => setHubTab(id))}
     >
       {label}
+      {!!badge && (
+        <span style={{ marginLeft: "0.4rem", fontSize: "0.7rem", padding: "0.05rem 0.4rem", borderRadius: "20px", background: "#eab308", color: "#1a1a1a", fontWeight: 700 }}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 
@@ -460,6 +501,7 @@ export default function HubPanel() {
           {tabBtn("tasks", "Tasks")}
           {tabBtn("policy", "Policy")}
           {tabBtn("usage", "Usage")}
+          {tabBtn("journal", "Journal", auditEvents.filter((e) => e.status === "pending").length)}
         </div>
       </div>
 
@@ -769,6 +811,70 @@ export default function HubPanel() {
                       <span style={{ display: "inline-block", width: "6px", height: "6px", background: "#eab308", borderRadius: "50%" }} />
                       Human Gate Required
                     </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {hubTab === "journal" && (
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Pending Audit Events</h3>
+              <p style={{ margin: "0.35rem 0 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                Filesystem changes observed by <code>ca audit watch</code>, awaiting owner review.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={auditShowAll}
+                  onChange={(e) => setAuditShowAll(e.target.checked)}
+                />
+                Show all (not just pending)
+              </label>
+              <button className="btn-secondary" onClick={refreshAuditEvents}>Refresh List</button>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 400, overflowY: "auto", paddingRight: "0.5rem" }}>
+            {auditEvents.length === 0 && (
+              <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>
+                  {auditShowAll ? "No audit events recorded." : "No pending audit events."}
+                </p>
+              </div>
+            )}
+            {auditEvents.map((event) => (
+              <div key={event.id} style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ marginBottom: "0.25rem", fontSize: "0.95rem", fontWeight: 600, color: "var(--primary)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {event.path}
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-main)" }}>
+                    {event.operation} · {event.observed_at}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.35rem" }}>
+                    root: {event.root_path}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                  <span style={{
+                    fontSize: "0.75rem",
+                    padding: "0.2rem 0.6rem",
+                    borderRadius: "20px",
+                    background: event.status === "pending" ? "rgba(234, 179, 8, 0.15)" : event.status === "quarantined" ? "rgba(239, 68, 68, 0.15)" : "rgba(255,255,255,0.1)",
+                    color: event.status === "pending" ? "#eab308" : event.status === "quarantined" ? "#ef4444" : "var(--text-muted)"
+                  }}>
+                    {event.status}
+                  </span>
+                  {event.status === "pending" && (
+                    <>
+                      <button className="btn-primary" onClick={() => approveAudit(event.id)}>Approve</button>
+                      <button className="btn-secondary" onClick={() => quarantineAudit(event.id)}>Quarantine</button>
+                    </>
                   )}
                 </div>
               </div>
