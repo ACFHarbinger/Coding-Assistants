@@ -354,6 +354,14 @@ enum MsgCommand {
         #[arg(long)]
         status: Option<String>,
     },
+    /// List one Slack-style channel (`channel:<name>` messages only).
+    Channel {
+        channel: String,
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+    },
+    /// Resolve durable memory references embedded in a message body.
+    Memories { message_id: String },
     /// Mark a message done/acked/cancelled.
     Status {
         id: String,
@@ -562,6 +570,14 @@ fn main() -> anyhow::Result<()> {
                 let status = status.map(|s| MessageStatus::parse(&s)).transpose()?;
                 let records = store.list_messages(to.as_deref(), status)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            MsgCommand::Channel { channel, limit } => {
+                let records = store.list_channel_messages(&channel, limit)?;
+                println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            MsgCommand::Memories { message_id } => {
+                let memories = store.list_message_memories(&message_id)?;
+                println!("{}", serde_json::to_string_pretty(&memories)?);
             }
             MsgCommand::Status { id, status } => {
                 let status = MessageStatus::parse(&status)?;

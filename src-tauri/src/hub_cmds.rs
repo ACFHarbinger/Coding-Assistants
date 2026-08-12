@@ -398,6 +398,22 @@ pub fn hub_list_messages(
 }
 
 #[tauri::command]
+pub fn hub_list_channel_messages(
+    channel: String,
+    limit: Option<usize>,
+) -> Result<Vec<MessageRecord>, String> {
+    open_store()?
+        .list_channel_messages(&channel, limit.unwrap_or(100))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_message_memories(message_id: String) -> Result<Vec<MemoryRecord>, String> {
+    open_store()?
+        .list_message_memories(&message_id)
+        .map_err(|error| error.to_string())
+}
+#[tauri::command]
 pub fn hub_request_wake(
     target: String,
     reason: Option<String>,

@@ -347,6 +347,8 @@ pub fn run() {
             hub_cmds::hub_send_message,
             hub_cmds::hub_poll_messages,
             hub_cmds::hub_list_messages,
+            hub_cmds::hub_list_channel_messages,
+            hub_cmds::hub_list_message_memories,
             hub_cmds::hub_request_wake,
             hub_cmds::hub_list_wakes,
             hub_cmds::hub_export_markdown,
