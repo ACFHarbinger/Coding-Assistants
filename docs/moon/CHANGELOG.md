@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S5 final relocation (#131) (2026-08-13)
+
+- Review returned S5 once more: a legacy Shared Hub → Policy tab still
+  duplicated the standing wake-policy controls the new Settings
+  Orchestration tab was supposed to be the sole editor for, and its second
+  field (`allow_auto_wake`) had never been surfaced in the new flow at
+  all — only `default_requires_human_gate` (renamed `confirm_wakes`) was
+  wired.
+- **Backend:** added `allow_auto_wake` to `StandingPolicySnapshot`
+  (`src-tauri/src/hub/commands/settings.rs`), populated it in
+  `settings_get_standing_policy`, and added a new
+  `settings_set_allow_auto_wake` command (registered in `lib.rs`)
+  mirroring `settings_set_confirm_wakes`. Both continue to compose with
+  the existing Hub `WakePolicy` storage, not duplicate it.
+- **Frontend:** `SettingsApp.tsx`'s Orchestration tab gained a second
+  "Allow auto-wake requests" toggle next to "Confirm before wakes",
+  reusing the existing `ToggleRow`/`StandingPolicySnapshot` plumbing.
+- **Retired the legacy tab entirely:** removed the `"policy"` `HubTab`
+  entry and its tab button (`HubPanelView.tsx`), the rendered Wake Policy
+  Controls section and its two checkboxes, the `WakePolicyCheckbox`
+  component (`HubCharts.tsx`, no other importer), the `wakePolicy`
+  state/`refreshPolicy`/`updatePolicy` logic and prop wiring
+  (`HubPanel.tsx`), and the now-unused `WakePolicy` frontend interface
+  (`hub/types.ts`). Left `hub_get_wake_policy`/`hub_set_wake_policy`
+  registered in `lib.rs` — they're generic, harmless, and Settings itself
+  doesn't call them (it goes straight through `HubStore`), so removing
+  them wasn't necessary to complete the relocation. Verified
+  `MessagerPanel.tsx`'s unrelated `wakePolicyGate` (a per-message compose
+  flag, not the standing `WakePolicy` object) was untouched.
+- **Regression coverage:** added
+  `standing_policy_exposes_and_updates_both_wake_policy_fields` in
+  `src-tauri/src/hub/commands/tests.rs`, asserting both fields round-trip
+  independently (setting one never clobbers the other) and persist across
+  a fresh read.
+- Verified with `cargo test -p hub --lib` (87/87), `cargo test -p
+  tauri-app` (47/47 +1 ignored, +1 new), `cargo clippy -p hub -p
+  tauri-app --all-targets -- -D warnings` clean, `cargo check --workspace`
+  clean, `cargo fmt --check` clean (formatted only files this change
+  touched, to avoid reformatting Gemini's concurrently in-flight `[tui]`
+  work in `crates/hub/src/settings/store.rs`), `npx tsc --noEmit` clean,
+  `npm run build` passes.
+
 ### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback (#137) (2026-08-13)
 
 - Added durable `[tui]` section serialization and setters (`set_tui_prefix_chord`, `set_tui_unicode_fallback`, `set_tui_bell_notification`, `set_tui_high_contrast`) in `crates/hub/src/settings/store.rs`.

@@ -50,11 +50,6 @@ export interface AuditEvent {
   status: string;
 }
 
-export interface WakePolicy {
-  default_requires_human_gate: boolean;
-  allow_auto_wake: boolean;
-}
-
 export interface BudgetStatus {
   agent_id: string;
   limit_units: number;
@@ -82,4 +77,4 @@ export interface ProviderQuota {
   fetched_at: number;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage" | "journal";
+export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal";

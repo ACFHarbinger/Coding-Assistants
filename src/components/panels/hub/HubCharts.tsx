@@ -30,36 +30,6 @@ export const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.2s'
 };
 
-export function WakePolicyCheckbox({
-  checked,
-  onChange,
-  title,
-  description,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  title: string;
-  description: string;
-}) {
-  return (
-    <label style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem", cursor: "pointer", padding: "0.8rem", borderRadius: "10px", border: checked ? "1px solid #a78bfa" : "1px solid rgba(100, 116, 139, 0.65)", background: checked ? "rgba(124, 58, 237, 0.18)" : "rgba(15, 23, 42, 0.58)", transition: "background 0.15s ease, border-color 0.15s ease" }}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        style={{ position: "absolute", opacity: 0, width: 1, height: 1 }}
-      />
-      <span aria-hidden="true" style={{ display: "grid", placeItems: "center", flex: "0 0 auto", width: "1.35rem", height: "1.35rem", marginTop: "0.1rem", borderRadius: "0.35rem", border: checked ? "2px solid #c4b5fd" : "2px solid #64748b", background: checked ? "#7c3aed" : "#0f172a", color: "#fff", fontSize: "0.95rem", fontWeight: 800, boxShadow: checked ? "0 0 0 3px rgba(167, 139, 250, 0.24)" : "inset 0 0 0 1px rgba(255, 255, 255, 0.04)", transition: "background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease" }}>
-        {checked ? "✓" : ""}
-      </span>
-      <span>
-        <span style={{ display: "block", fontSize: "1rem", fontWeight: 600, color: checked ? "#ede9fe" : "var(--text-main)", marginBottom: "0.25rem" }}>{title}</span>
-        <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.45 }}>{description}</span>
-      </span>
-    </label>
-  );
-}
-
 export function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
   if (budgets.length === 0) return null;
   const chartWidth = 760;
@@ -217,4 +187,3 @@ export function QuotaChart({
     </div>
   );
 }
-

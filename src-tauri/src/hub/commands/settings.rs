@@ -394,6 +394,10 @@ pub fn settings_set_retention_days(
 pub struct StandingPolicySnapshot {
     /// Mirrors `hub::WakePolicy::default_requires_human_gate`.
     pub confirm_wakes: bool,
+    /// Mirrors `hub::WakePolicy::allow_auto_wake`. When false, any wake
+    /// attempting to bypass the human gate is rejected outright rather
+    /// than silently falling back to requiring approval.
+    pub allow_auto_wake: bool,
     pub orchestration: EffectiveOrchestrationPolicy,
 }
 
@@ -409,6 +413,7 @@ pub fn settings_get_standing_policy(
         .map_err(|e| e.to_string())?;
     Ok(StandingPolicySnapshot {
         confirm_wakes: wake_policy.default_requires_human_gate,
+        allow_auto_wake: wake_policy.allow_auto_wake,
         orchestration,
     })
 }
@@ -427,6 +432,25 @@ pub fn settings_set_confirm_wakes(value: bool) -> Result<StandingPolicySnapshot,
     let orchestration = open_settings_store().effective(None).orchestration;
     Ok(StandingPolicySnapshot {
         confirm_wakes: value,
+        allow_auto_wake: policy.allow_auto_wake,
+        orchestration,
+    })
+}
+
+/// Global only, same as `settings_set_confirm_wakes`.
+#[tauri::command]
+pub fn settings_set_allow_auto_wake(value: bool) -> Result<StandingPolicySnapshot, String> {
+    let hub_store = super::store::open_store()?;
+    let mut policy = hub_store.get_wake_policy().map_err(|e| e.to_string())?;
+    policy.allow_auto_wake = value;
+    hub_store
+        .set_wake_policy(&policy)
+        .map_err(|e| e.to_string())?;
+    record_settings_audit("orchestration.allow_auto_wake", "global", "update")?;
+    let orchestration = open_settings_store().effective(None).orchestration;
+    Ok(StandingPolicySnapshot {
+        confirm_wakes: policy.default_requires_human_gate,
+        allow_auto_wake: value,
         orchestration,
     })
 }

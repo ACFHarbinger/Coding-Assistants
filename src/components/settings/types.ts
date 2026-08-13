@@ -114,6 +114,7 @@ export interface OrchestrationPatch {
 // one view even though wake-gate storage stays in HubStore.
 export interface StandingPolicySnapshot {
   confirm_wakes: boolean;
+  allow_auto_wake: boolean;
   orchestration: EffectiveOrchestrationPolicy;
 }
 

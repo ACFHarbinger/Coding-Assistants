@@ -8,6 +8,7 @@ import {
   listSettingsAuditEvents,
   resetSettingsField,
   setAgentBudget,
+  setAllowAutoWake,
   setConfirmWakes,
   setDefaultSession,
   setDefaultWorkspace,
@@ -172,6 +173,7 @@ export default function SettingsApp() {
   const [backupRetentionDraft, setBackupRetentionDraft] = useState(3);
 
   const [confirmWakes, setConfirmWakesLocal] = useState(true);
+  const [allowAutoWake, setAllowAutoWakeLocal] = useState(true);
   const [retentionDaysDraft, setRetentionDaysDraft] = useState("");
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [budgetAgentIdDraft, setBudgetAgentIdDraft] = useState("");
@@ -216,6 +218,7 @@ export default function SettingsApp() {
     try {
       const snapshot = await getStandingPolicy(null);
       setConfirmWakesLocal(snapshot.confirm_wakes);
+      setAllowAutoWakeLocal(snapshot.allow_auto_wake);
     } catch (err) {
       setError(String(err));
     }
@@ -293,6 +296,20 @@ export default function SettingsApp() {
     try {
       const snapshot = await setConfirmWakes(!confirmWakes);
       setConfirmWakesLocal(snapshot.confirm_wakes);
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleAllowAutoWake = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const snapshot = await setAllowAutoWake(!allowAutoWake);
+      setAllowAutoWakeLocal(snapshot.allow_auto_wake);
       void refreshAudit();
     } catch (err) {
       setError(String(err));
@@ -585,6 +602,14 @@ export default function SettingsApp() {
                 hint="Standing wake human-gate. Global only — Hub's WakePolicy has no per-workspace scope today."
                 checked={confirmWakes}
                 onToggle={() => void toggleConfirmWakes()}
+                disabled={busy}
+              />
+
+              <ToggleRow
+                label="Allow auto-wake requests"
+                hint="If off, any wake attempting to bypass the human gate is rejected outright rather than falling back to requiring approval. Global only, same as the human-gate toggle above."
+                checked={allowAutoWake}
+                onToggle={() => void toggleAllowAutoWake()}
                 disabled={busy}
               />
 

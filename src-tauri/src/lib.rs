@@ -431,6 +431,7 @@ pub fn run() {
             hub::commands::settings::settings_set_retention_days,
             hub::commands::settings::settings_get_standing_policy,
             hub::commands::settings::settings_set_confirm_wakes,
+            hub::commands::settings::settings_set_allow_auto_wake,
             hub::commands::settings::settings_list_agent_budgets,
             hub::commands::settings::settings_set_agent_budget,
         ])

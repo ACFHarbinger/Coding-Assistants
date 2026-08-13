@@ -1,10 +1,10 @@
 // @ts-nocheck -- the view consumes the HubPanel's local interaction contract.
 import TaskTab from "../../TaskTab";
 import DashboardPanel from "../DashboardPanel";
-import { WakePolicyCheckbox, UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
+import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 
 export default function HubPanelView(props: any) {
-  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, wakePolicy, updatePolicy, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget } = props;
+  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget } = props;
 
 
   return (
@@ -16,7 +16,6 @@ export default function HubPanelView(props: any) {
         <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px" }}>
           {tabBtn("dashboard", "Dashboard")}
           {tabBtn("tasks", "Tasks")}
-          {tabBtn("policy", "Policy")}
           {tabBtn("usage", "Usage")}
           {tabBtn("journal", "Journal", auditEvents.filter((e) => e.status === "pending").length)}
         </div>
@@ -399,32 +398,6 @@ export default function HubPanelView(props: any) {
           </div>
         </div>
       )}
-      {hubTab === "policy" && wakePolicy && (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <div style={{ ...cardStyle, display: "grid", gap: "1.5rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600, color: "var(--text-main)" }}>Wake Policy Controls</h3>
-            <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-              Configure standing policies for agent-to-agent wakeups. This policy applies to all agents operating within the local hub.
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
-              <WakePolicyCheckbox
-                checked={wakePolicy.default_requires_human_gate}
-                onChange={(checked) => updatePolicy({ default_requires_human_gate: checked })}
-                title="Require Human Gate by Default"
-                description="If enabled, all incoming wake requests must be manually approved by the human owner before the target agent is launched."
-              />
-              <WakePolicyCheckbox
-                checked={wakePolicy.allow_auto_wake}
-                onChange={(checked) => updatePolicy({ allow_auto_wake: checked })}
-                title="Allow Auto-Wake Requests"
-                description="If disabled, any attempt to bypass the human gate (auto-wake) will be outright rejected. Overrides agent-specific delegations."
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       {hubTab === "usage" && (
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>

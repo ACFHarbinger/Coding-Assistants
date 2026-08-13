@@ -127,6 +127,12 @@ export function setConfirmWakes(value: boolean): Promise<StandingPolicySnapshot>
   return invoke<StandingPolicySnapshot>("settings_set_confirm_wakes", { value });
 }
 
+// Global only, same as `setConfirmWakes`. When false, any wake attempting
+// to bypass the human gate is rejected outright.
+export function setAllowAutoWake(value: boolean): Promise<StandingPolicySnapshot> {
+  return invoke<StandingPolicySnapshot>("settings_set_allow_auto_wake", { value });
+}
+
 export function listAgentBudgets(): Promise<BudgetStatus[]> {
   return invoke<BudgetStatus[]>("settings_list_agent_budgets");
 }

@@ -542,3 +542,43 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
     std::env::remove_var("CA_HOME");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// S5 / #131 return: the legacy Shared Hub → Policy tab exposed both
+/// `WakePolicy` fields (`default_requires_human_gate`, `allow_auto_wake`).
+/// The unified Settings Orchestration flow must expose both too, so
+/// retiring that tab doesn't drop `allow_auto_wake` editing capability.
+#[test]
+fn standing_policy_exposes_and_updates_both_wake_policy_fields() {
+    let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "hub-tauri-standing-policy-{}-{}",
+        std::process::id(),
+        now_unix()
+    ));
+    std::env::set_var("CA_HOME", &dir);
+
+    let defaults = settings_get_standing_policy(None).expect("get standing policy");
+    assert!(defaults.confirm_wakes);
+    assert!(defaults.allow_auto_wake);
+
+    let after_gate = settings_set_confirm_wakes(false).expect("set confirm_wakes");
+    assert!(!after_gate.confirm_wakes);
+    assert!(
+        after_gate.allow_auto_wake,
+        "unrelated field must be untouched"
+    );
+
+    let after_auto = settings_set_allow_auto_wake(false).expect("set allow_auto_wake");
+    assert!(!after_auto.allow_auto_wake);
+    assert!(
+        !after_auto.confirm_wakes,
+        "the previous confirm_wakes change must survive this call"
+    );
+
+    let reread = settings_get_standing_policy(None).expect("re-read standing policy");
+    assert!(!reread.confirm_wakes);
+    assert!(!reread.allow_auto_wake);
+
+    std::env::remove_var("CA_HOME");
+    let _ = std::fs::remove_dir_all(&dir);
+}

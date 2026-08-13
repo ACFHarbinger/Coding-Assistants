@@ -2,7 +2,7 @@ import { startTransition, useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/tauri";
 import { LIVE_QUOTA_AGENT_IDS } from "./hub/HubCharts";
 import HubPanelView from "./hub/HubPanelView";
-import type { AgentRecord, AuditEvent, BudgetStatus, HubTab, MemoryRecord, MessageRecord, ProviderQuota, WakePolicy, WakeRecord } from "./hub/types";
+import type { AgentRecord, AuditEvent, BudgetStatus, HubTab, MemoryRecord, MessageRecord, ProviderQuota, WakeRecord } from "./hub/types";
 
 export default function HubPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("dashboard");
@@ -36,7 +36,6 @@ export default function HubPanel() {
   const [wakeTarget, setWakeTarget] = useState("claude");
   const [wakeReason, setWakeReason] = useState("");
 
-  const [wakePolicy, setWakePolicy] = useState<WakePolicy | null>(null);
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [quotas, setQuotas] = useState<ProviderQuota[]>([]);
   const [refreshingQuotaIds, setRefreshingQuotaIds] = useState<Set<string>>(new Set());
@@ -80,11 +79,6 @@ export default function HubPanel() {
   const refreshWakes = useCallback(async () => {
     const list = await run("wakes refreshed", () => invoke<WakeRecord[]>("hub_list_wakes"));
     if (list) setWakes(list);
-  }, [run]);
-
-  const refreshPolicy = useCallback(async () => {
-    const policy = await run("policy refreshed", () => invoke<WakePolicy>("hub_get_wake_policy"));
-    if (policy) setWakePolicy(policy);
   }, [run]);
 
   const refreshBudgets = useCallback(async () => {
@@ -168,13 +162,12 @@ export default function HubPanel() {
     if (hubTab === "memory") refreshMemories();
     else if (hubTab === "inbox") refreshMessages();
     else if (hubTab === "wakes") refreshWakes();
-    else if (hubTab === "policy") refreshPolicy();
     else if (hubTab === "usage") {
       refreshBudgets();
       refreshQuotas();
     }
     else if (hubTab === "journal") refreshAuditEvents();
-  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshPolicy, refreshBudgets, refreshQuotas, refreshAuditEvents]);
+  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshBudgets, refreshQuotas, refreshAuditEvents]);
 
   useEffect(() => {
     if (hubTab !== "inbox") return;
@@ -258,19 +251,6 @@ export default function HubPanel() {
     await refreshWakes();
   };
 
-  const updatePolicy = async (updates: Partial<WakePolicy>) => {
-    if (!wakePolicy) return;
-    const previousPolicy = wakePolicy;
-    const newPolicy = { ...previousPolicy, ...updates };
-    // Update immediately so this controlled input never snaps back while IPC
-    // persists the choice. Roll back only when persistence actually fails.
-    setWakePolicy(newPolicy);
-    const savedPolicy = await run("policy updated", () =>
-      invoke<WakePolicy>("hub_set_wake_policy", { policy: newPolicy })
-    );
-    setWakePolicy(savedPolicy ?? previousPolicy);
-  };
-
   const setBudget = async () => {
     if (!budgetAgent || !Number.isFinite(Number(budgetLimit))) return;
     await run("budget saved", () => invoke("hub_set_agent_budget", {
@@ -334,5 +314,5 @@ export default function HubPanel() {
     }
   };
 
-  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, wakePolicy, updatePolicy, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget }} />;
+  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget }} />;
 }
