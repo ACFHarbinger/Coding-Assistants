@@ -8,6 +8,8 @@ export interface HubMessage {
   kind: string;
   status: string;
   created_at: string;
+  /** Client-only aggregation of the durable fan-out copies for one post. */
+  recipient_agents?: string[];
 }
 
 export interface HubAgent {

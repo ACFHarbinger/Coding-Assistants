@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only. Harness execution is requested only through **TASK** and/or **WAKE**;
   an unsupported or inactive adapter still reports a truthful queued or
   unavailable outcome.
+- Fixed transcript fan-out aggregation: grouped all/subset posts now retain
+  and display every durable recipient rather than showing the first fan-out
+  copy (commonly `grok`) as if it were the sole target.
 
 ### Claude — Settings S5 final relocation (#131) (2026-08-13)
 

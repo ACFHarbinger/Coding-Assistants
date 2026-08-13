@@ -113,7 +113,11 @@ export default function MessageStream(props: any) {
                           color: "#c7d2fe",
                           border: "1px solid rgba(99, 102, 241, 0.3)"
                         }}>
-                          To: {msg.to_agent === "team" ? "All Team" : msg.to_agent}
+                          To: {msg.to_agent === "team"
+                            ? "All Team"
+                            : (msg.recipient_agents?.length
+                              ? msg.recipient_agents.join(", ")
+                              : msg.to_agent)}
                         </span>
                       )}
 
