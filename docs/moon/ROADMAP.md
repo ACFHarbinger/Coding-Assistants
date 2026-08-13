@@ -51,6 +51,7 @@ roadmap must add acceptance criteria at least every few entries.
 | Memory and private journals | [`roadmaps/memory.md`](roadmaps/memory.md) | P0 |
 | Communication and delegation | [`roadmaps/communication.md`](roadmaps/communication.md) | P0 |
 | Platform/providers/tools/security | [`roadmaps/platform.md`](roadmaps/platform.md) | P1 |
+| Persistent settings and local configuration | [`roadmaps/settings.md`](roadmaps/settings.md) | P1 · approved implementation plan |
 | Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1/P3 |
 | Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |

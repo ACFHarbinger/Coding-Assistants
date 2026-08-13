@@ -56,6 +56,7 @@
 | Unassigned — Grok to allocate | S3: durable delivery semantics | Audit/fix backend and CLI enforcement: task targets a present session member only; wake may start/enrol an identity; mixed tags record per-recipient outcomes and policy decisions. | Suggested files: `src-tauri/src/hub/**`, `crates/hub/**`, `crates/cli/**`; no frontend feature changes. |
 | Unassigned — Grok to allocate | S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — Grok to allocate | S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
+| Grok (team lead) | Persistent Settings epic | Assign the seven approved Settings delivery slices after their issues are created. Start with S1 only; do not overlap the settings store, IPC, separate-window UI, profile, policy, or dangerous-action boundaries. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
 
 ### Shared completion rules
 
@@ -68,6 +69,76 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Chat / Codex — Persistent Settings plan finalized
+
+- Final roadmap is approved for implementation and issue creation. The earlier
+  in-app overlay was a review scaffold and is removed; S3 owns the approved
+  standalone, reusable Settings window. Grok should allocate S1 first once the
+  issue set is available.
+
+### Grok — Persistent Settings owner answers recorded (review only)
+
+- Asked the owner the Grok-lens questions (standing-policy surface,
+  workspace-open/team defaults, task/wake safety, auto-enrol bound,
+  policy granularity, first-release Orchestration scope, window model,
+  wake-spawn profile). Recorded the answers in
+  `docs/moon/roadmaps/settings.md`.
+- **Changed files:** `docs/moon/roadmaps/settings.md` (this bus entry).
+  Did not edit `src/App.tsx` or `src/components/SettingsWindow.tsx`. The
+  current overlay remains a read-only review shell, not the accepted
+  separate-window model.
+- **Decided:** Settings is the only standing-policy editor (move Shared
+  Hub → Policy). Workspace-open and default team are user-selectable.
+  Task/wake stay separate tags; task never spawns. Auto-enrol may include
+  any supported harness identity. Ordinary + Advanced granularity.
+  First release includes confirmation, auto-enrol, budgets, tool/sandbox,
+  and capture/inject permission. Settings is a separate navigable window.
+  Wake-spawn uses the workspace default profile for that harness.
+- **Still open:** ordinary-versus-Advanced field list; TOML vs other
+  format; which profile fields are workspace-local; first-release
+  memory/export/backup vs later destructive slice; keychain fallback;
+  hub vs dedicated settings audit stream. Gemini visual/a11y and Claude
+  persistence/recovery lenses are not recorded here.
+- **Suggested issue split (do not create yet):** keep one epic + S1–S7.
+  Fold independent-window chrome into S3. Fold Policy-tab move, budgets,
+  sandbox, capture/inject, and Advanced scopes into S5. No extra epic.
+- No commit, stage, implementation, or GitHub issue from this pass.
+
+— Grok
+
+### Gemini — Persistent Settings owner answers recorded (Gemini review lens)
+
+- Asked the owner the Gemini-lens questions (visual language, window chrome,
+  danger zone warning/confirmation UX, workspace override/inheritance pills,
+  keychain secret status indicators, and audit logging stream). Recorded answers
+  in `docs/moon/roadmaps/settings.md`.
+- **Changed files:** `docs/moon/roadmaps/settings.md`, `.agent/cache/AGENT_BUS.md`.
+  Preserved all uncommitted settings shell UI files and unrelated work.
+- **Decided:** Standalone resizable window matching dark glass-morphism theme,
+  non-blocking over main app; red/amber warning badges with high-contrast container,
+  'Cancel'-focused modals, and required target name-typing for data purges;
+  visual status pills ('Inherited' vs 'Workspace Override') with single-click 'Reset to Global';
+  key status badges ('Stored in System Keychain' / 'Env Var $NAME') with zero raw secret UI;
+  dedicated settings audit log stream with path/secret redaction + fanout to Hub audit stream.
+- **Still open:** Exact ordinary-versus-Advanced field list; TOML migration & comment-preservation;
+  workspace-local vs global profile field boundary; first-release memory/export vs later destructive slice;
+  keychain desktop abstraction fallback. Claude persistence & recovery lens remains open.
+- **Suggested issue split (do not create yet):** S3 covers independent window chrome, tablist WAI-ARIA, and inheritance pills; S4 covers secret status indicators; S6 covers red/amber warning modals & name-typed purge confirmation.
+- All work left uncommitted. No GitHub issues created.
+
+— Gemini
+
+### Chat / Codex — Persistent Settings draft ready for review
+
+- Added a navigable read-only Settings window shell with General, Workspace &
+  sessions, Agents & harnesses, Orchestration, Memory & storage, Diagnostics,
+  and warning-marked Danger zone tabs.
+- Added the uncommitted persistent-settings roadmap. It proposes a versioned
+  `~/.coding-assistants/settings.toml`, global defaults with canonical
+  workspace overrides, named per-provider profiles, no plaintext secrets, and
+  target-aware dangerous-action confirmations. Review the draft before any
+  settings implementation or GitHub issue creation.
 
 ### Grok — claiming Pages landing/navigation acceptance (#120/#121)
 
@@ -294,3 +365,32 @@ review/merge and update #123 — as far as I know this closes out the W7
 scope assigned to me; let me know if there's more.
 
 — Claude
+
+### claude — 2026-08-13 — Persistent Settings owner answers recorded (Claude review lens)
+
+- Asked the owner the Claude-lens questions from the handoff (persistence
+  format, keychain fallback behavior, workspace-local vs global profile
+  fields, backup/recovery retention and UX). Recorded answers in
+  `docs/moon/roadmaps/settings.md`.
+- **Changed files:** `docs/moon/roadmaps/settings.md` (this bus entry). Did
+  not touch `src/App.tsx`, `src/components/SettingsWindow.tsx`, or any other
+  uncommitted work from this review pass.
+- **Decided:** TOML stays the format, written with `toml_edit` so hand
+  comments survive an app save. When no OS keychain is available, a profile
+  falls back to an app-managed encrypted local vault (keyed to the OS user
+  session) instead of failing closed or blocking creation. Provider profiles
+  are global-only; a workspace only picks its default profile per harness,
+  it does not get an independent field copy. Recovery keeps a single
+  `settings.toml.bak` plus a one-click in-app "Restore last known good"
+  action, not just a diagnostic message.
+- **Still open (my lens):** which encrypted-vault primitive/library to use
+  and how a vault-backed profile is visually distinguished from a real
+  OS-keychain profile in Gemini's key-status badges; whether the single
+  `.bak` slot should later become rotated/timestamped. Also unresolved from
+  earlier passes: ordinary-vs-Advanced field list, first-release
+  memory/export/backup scope vs a later destructive-action slice.
+- All four review lenses (Grok, Gemini, Claude) are now recorded in the
+  roadmap. Chat/Codex consolidation and final owner pass remain outstanding.
+- No commit, stage, implementation, or GitHub issue from this pass.
+
+— claude
