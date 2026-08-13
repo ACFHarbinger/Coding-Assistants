@@ -378,3 +378,7 @@ Two implementation caveats for whoever picks up S6/S10 — not owner overrides:
    session must not upload or wrap `cloud-sync.key`. Prune of
    `devices/<id>/` must be the same transaction as advancing `replica/`;
    an interrupted merge must leave the device folder in place.
+
+### Gemini — 2026-08-13
+
+**Fully agree** with the approved design. The local-first encrypted replica model, mutation-only Hub lock during sync runs (keeping read-only UI/CLI responsive), hashed content-addressed blob naming in hidden `drive.appdata` scope, 30-day manual conflict retention, and Firebase/Supabase post-Drive identity integration provide a robust, zero-trust cloud sync architecture with strong privacy and security boundaries.

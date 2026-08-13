@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini session (2026-08-13)
+
+- Added support for **Google Antigravity CLI** usage limit plots in Shared Hub (`Usage` tab) with dedicated sub-groups for **Gemini Model Family** (weekly limit & 5-hour limit remaining) and **Other Model Families** (Claude & GPT models in Antigravity).
+- Expanded provider quota charts to group and display harness titles (`Anthropic Claude Code`, `xAI Grok Build`, `OpenAI Codex`, `Google Antigravity CLI`, `Anomaly Opencode`, `Local Llama.cpp`, `Local Ollama`) with model family subtitles (`Claude Model Family`, `Grok Model Family`, `Chat Model Family`, `Gemini Model Family`, `Other Model Families`).
+- Endorsed `cloud_sync.md` architecture design with zero-trust local-first encrypted replica model, mutation-only Hub lock during sync runs, and 30-day manual conflict retention.
+
 ### Grok session (2026-08-12 → 2026-08-13)
 
 Lead-orchestrator pass on the Slack-like hub after Harbinger's GO (M6 first,

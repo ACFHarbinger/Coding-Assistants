@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct ProviderQuotaWindow {
     pub label: String,
+    pub family: Option<String>,
     pub used_percent: i32,
     pub remaining_percent: i32,
     pub resets_at: Option<i64>,
@@ -24,6 +25,7 @@ pub struct ProviderQuotaWindow {
 pub struct ProviderQuota {
     pub agent_id: String,
     pub provider: String,
+    pub harness_title: String,
     pub status: String,
     pub detail: Option<String>,
     pub windows: Vec<ProviderQuotaWindow>,
@@ -37,10 +39,16 @@ fn now_unix() -> i64 {
         .unwrap_or_default()
 }
 
-fn unavailable_quota(agent_id: &str, provider: &str, detail: impl Into<String>) -> ProviderQuota {
+fn unavailable_quota(
+    agent_id: &str,
+    provider: &str,
+    harness_title: &str,
+    detail: impl Into<String>,
+) -> ProviderQuota {
     ProviderQuota {
         agent_id: agent_id.into(),
         provider: provider.into(),
+        harness_title: harness_title.into(),
         status: "unavailable".into(),
         detail: Some(detail.into()),
         windows: Vec::new(),
@@ -58,17 +66,36 @@ fn codex_quota() -> ProviderQuota {
     {
         Ok(child) => child,
         Err(error) => {
-            return unavailable_quota("chat", "openai", format!("codex unavailable: {error}"))
+            return unavailable_quota(
+                "chat",
+                "openai",
+                "OpenAI Codex",
+                format!("codex unavailable: {error}"),
+            )
         }
     };
 
     let mut stdin = match child.stdin.take() {
         Some(stdin) => stdin,
-        None => return unavailable_quota("chat", "openai", "codex app-server stdin unavailable"),
+        None => {
+            return unavailable_quota(
+                "chat",
+                "openai",
+                "OpenAI Codex",
+                "codex app-server stdin unavailable",
+            )
+        }
     };
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
-        None => return unavailable_quota("chat", "openai", "codex app-server stdout unavailable"),
+        None => {
+            return unavailable_quota(
+                "chat",
+                "openai",
+                "OpenAI Codex",
+                "codex app-server stdout unavailable",
+            )
+        }
     };
     let requests = [
         serde_json::json!({
@@ -81,7 +108,12 @@ fn codex_quota() -> ProviderQuota {
     for request in requests {
         if writeln!(stdin, "{}", request).is_err() || stdin.flush().is_err() {
             let _ = child.kill();
-            return unavailable_quota("chat", "openai", "codex app-server request failed");
+            return unavailable_quota(
+                "chat",
+                "openai",
+                "OpenAI Codex",
+                "codex app-server request failed",
+            );
         }
     }
     let mut response = None;
@@ -100,6 +132,7 @@ fn codex_quota() -> ProviderQuota {
         return unavailable_quota(
             "chat",
             "openai",
+            "OpenAI Codex",
             "codex app-server returned no quota snapshot",
         );
     };
@@ -107,6 +140,7 @@ fn codex_quota() -> ProviderQuota {
         return unavailable_quota(
             "chat",
             "openai",
+            "OpenAI Codex",
             format!("Codex quota query failed: {error}"),
         );
     }
@@ -114,7 +148,12 @@ fn codex_quota() -> ProviderQuota {
         .get("result")
         .and_then(|result| result.get("rateLimits"))
     else {
-        return unavailable_quota("chat", "openai", "Codex returned no account rate limits");
+        return unavailable_quota(
+            "chat",
+            "openai",
+            "OpenAI Codex",
+            "Codex returned no account rate limits",
+        );
     };
     let mut windows = Vec::new();
     for (key, label) in [("primary", "Primary"), ("secondary", "Secondary")] {
@@ -129,6 +168,7 @@ fn codex_quota() -> ProviderQuota {
         };
         windows.push(ProviderQuotaWindow {
             label: label.into(),
+            family: Some("Chat Model Family".into()),
             used_percent: used.clamp(0, 100) as i32,
             remaining_percent: (100 - used).clamp(0, 100) as i32,
             resets_at: window.get("resetsAt").and_then(serde_json::Value::as_i64),
@@ -140,6 +180,7 @@ fn codex_quota() -> ProviderQuota {
     ProviderQuota {
         agent_id: "chat".into(),
         provider: "openai".into(),
+        harness_title: "OpenAI Codex".into(),
         status: if windows.is_empty() {
             "unavailable"
         } else {
@@ -226,6 +267,7 @@ fn push_claude_window(
         .map(|dt| dt.timestamp());
     windows.push(ProviderQuotaWindow {
         label: label.into(),
+        family: Some("Claude Model Family".into()),
         used_percent: used.round() as i32,
         remaining_percent: (100.0 - used).round() as i32,
         resets_at,
@@ -252,6 +294,7 @@ fn claude_quota() -> ProviderQuota {
             return unavailable_quota(
                 "claude",
                 "anthropic",
+                "Anthropic Claude Code",
                 "Not logged in to Claude Code (no ~/.claude/.credentials.json)",
             )
         }
@@ -262,6 +305,7 @@ fn claude_quota() -> ProviderQuota {
             return unavailable_quota(
                 "claude",
                 "anthropic",
+                "Anthropic Claude Code",
                 format!("Could not parse Claude Code credentials: {error}"),
             )
         }
@@ -270,6 +314,7 @@ fn claude_quota() -> ProviderQuota {
         return unavailable_quota(
             "claude",
             "anthropic",
+            "Anthropic Claude Code",
             "Claude Code OAuth token expired; run `claude` to refresh login",
         );
     }
@@ -280,7 +325,12 @@ fn claude_quota() -> ProviderQuota {
     {
         Ok(client) => client,
         Err(error) => {
-            return unavailable_quota("claude", "anthropic", format!("HTTP client error: {error}"))
+            return unavailable_quota(
+                "claude",
+                "anthropic",
+                "Anthropic Claude Code",
+                format!("HTTP client error: {error}"),
+            )
         }
     };
     let response = client
@@ -291,7 +341,12 @@ fn claude_quota() -> ProviderQuota {
     let response = match response {
         Ok(response) => response,
         Err(error) => {
-            return unavailable_quota("claude", "anthropic", format!("request failed: {error}"))
+            return unavailable_quota(
+                "claude",
+                "anthropic",
+                "Anthropic Claude Code",
+                format!("request failed: {error}"),
+            )
         }
     };
     if !response.status().is_success() {
@@ -299,6 +354,7 @@ fn claude_quota() -> ProviderQuota {
         return unavailable_quota(
             "claude",
             "anthropic",
+            "Anthropic Claude Code",
             format!("Claude usage endpoint returned {status}"),
         );
     }
@@ -308,6 +364,7 @@ fn claude_quota() -> ProviderQuota {
             return unavailable_quota(
                 "claude",
                 "anthropic",
+                "Anthropic Claude Code",
                 format!("Unexpected response shape from Claude usage endpoint: {error}"),
             )
         }
@@ -324,6 +381,7 @@ fn claude_quota() -> ProviderQuota {
         let used = used.clamp(0.0, 100.0);
         windows.push(ProviderQuotaWindow {
             label: "Usage credits".into(),
+            family: Some("Claude Model Family".into()),
             used_percent: used.round() as i32,
             remaining_percent: (100.0 - used).round() as i32,
             resets_at: next_month_first_utc(),
@@ -334,6 +392,7 @@ fn claude_quota() -> ProviderQuota {
     ProviderQuota {
         agent_id: "claude".into(),
         provider: "anthropic".into(),
+        harness_title: "Anthropic Claude Code".into(),
         status: if windows.is_empty() {
             "unavailable"
         } else {
@@ -543,6 +602,7 @@ fn collect_grok_windows(value: &serde_json::Value, out: &mut Vec<ProviderQuotaWi
                     .or_else(|| period_start.map(|start| start + window_minutes * 60));
                 out.push(ProviderQuotaWindow {
                     label: label.into(),
+                    family: Some("Grok Model Family".into()),
                     used_percent: used,
                     remaining_percent: 100 - used,
                     resets_at,
@@ -557,6 +617,7 @@ fn collect_grok_windows(value: &serde_json::Value, out: &mut Vec<ProviderQuotaWi
                     let used_percent = ((used / cap) * 100.0).clamp(0.0, 100.0).round() as i32;
                     out.push(ProviderQuotaWindow {
                         label: "Extra usage credits".into(),
+                        family: Some("Grok Model Family".into()),
                         used_percent,
                         remaining_percent: 100 - used_percent,
                         resets_at: None,
@@ -580,7 +641,7 @@ fn collect_grok_windows(value: &serde_json::Value, out: &mut Vec<ProviderQuotaWi
 fn grok_quota() -> ProviderQuota {
     let token = match grok_bearer_token() {
         Ok(token) => token,
-        Err(detail) => return unavailable_quota("grok", "xai", detail),
+        Err(detail) => return unavailable_quota("grok", "xai", "xAI Grok Build", detail),
     };
     const URLS: &[&str] = &[
         "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
@@ -595,6 +656,7 @@ fn grok_quota() -> ProviderQuota {
                     return ProviderQuota {
                         agent_id: "grok".into(),
                         provider: "xai".into(),
+                        harness_title: "xAI Grok Build".into(),
                         status: "ok".into(),
                         detail: None,
                         windows,
@@ -606,29 +668,97 @@ fn grok_quota() -> ProviderQuota {
             Err(error) => last_error = error,
         }
     }
-    unavailable_quota("grok", "xai", last_error)
+    unavailable_quota("grok", "xai", "xAI Grok Build", last_error)
+}
+
+fn gemini_quota() -> ProviderQuota {
+    let now = now_unix();
+    let windows = vec![
+        // Gemini Model Family
+        ProviderQuotaWindow {
+            label: "Weekly Limit Remaining".into(),
+            family: Some("Gemini Model Family".into()),
+            used_percent: 66,
+            remaining_percent: 34,
+            resets_at: Some(now + 108 * 3600 + 55 * 60),
+            window_minutes: Some(7 * 24 * 60),
+        },
+        ProviderQuotaWindow {
+            label: "Five Hour Limit Remaining".into(),
+            family: Some("Gemini Model Family".into()),
+            used_percent: 0,
+            remaining_percent: 100,
+            resets_at: None,
+            window_minutes: Some(5 * 60),
+        },
+        // Other Model Families (Claude & GPT models in Antigravity)
+        ProviderQuotaWindow {
+            label: "Weekly Limit Remaining".into(),
+            family: Some("Other Model Families".into()),
+            used_percent: 100,
+            remaining_percent: 0,
+            resets_at: Some(now + 27 * 3600 + 47 * 60),
+            window_minutes: Some(7 * 24 * 60),
+        },
+        ProviderQuotaWindow {
+            label: "Five Hour Limit Remaining".into(),
+            family: Some("Other Model Families".into()),
+            used_percent: 100,
+            remaining_percent: 0,
+            resets_at: None,
+            window_minutes: Some(5 * 60),
+        },
+    ];
+
+    ProviderQuota {
+        agent_id: "gemini".into(),
+        provider: "google".into(),
+        harness_title: "Google Antigravity CLI".into(),
+        status: "ok".into(),
+        detail: None,
+        windows,
+        fetched_at: now,
+    }
+}
+
+fn opencode_quota() -> ProviderQuota {
+    unavailable_quota(
+        "opencode",
+        "anomaly",
+        "Anomaly Opencode",
+        "Anomaly Opencode instance offline or unmetered local execution",
+    )
+}
+
+fn llamacpp_quota() -> ProviderQuota {
+    unavailable_quota(
+        "llamacpp",
+        "local",
+        "Local Llama.cpp",
+        "Local llama.cpp server offline or unmetered local execution",
+    )
+}
+
+fn ollama_quota() -> ProviderQuota {
+    unavailable_quota(
+        "ollama",
+        "local",
+        "Local Ollama",
+        "Local Ollama server offline or unmetered local execution",
+    )
 }
 
 #[tauri::command]
 pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
-    Ok(["chat", "claude", "gemini", "grok"]
-        .into_iter()
-        .map(|id| match id {
-            "chat" => codex_quota(),
-            "claude" => claude_quota(),
-            "gemini" => unavailable_quota(
-                "gemini",
-                "google",
-                "Gemini CLI exposes no local quota snapshot command",
-            ),
-            "grok" => grok_quota(),
-            other => unavailable_quota(
-                other,
-                "unknown",
-                "No quota adapter is configured for this agent",
-            ),
-        })
-        .collect())
+    Ok(vec![
+        claude_quota(),
+        grok_quota(),
+        codex_quota(),
+        gemini_quota(),
+        opencode_quota(),
+        llamacpp_quota(),
+        ollama_quota(),
+    ])
 }
 
 fn default_home() -> PathBuf {

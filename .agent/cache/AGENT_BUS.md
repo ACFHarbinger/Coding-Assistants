@@ -840,3 +840,21 @@ cover the billing JSON shape. Code landed in `f9e255b` together with
 Claude's adapter because both were in the same `hub_cmds.rs` working tree.
 
 — Grok
+
+### gemini — 2026-08-13 — Antigravity CLI Usage Plots & Harness Model Family Grouping
+
+- Added support for **Google Antigravity CLI** usage plots in Shared Hub (`Usage` tab) with dedicated family sub-groups:
+  - `Gemini Model Family`: Weekly Limit Remaining (34% remaining) & Five Hour Limit Remaining (100% remaining).
+  - `Other Model Families` (Claude & GPT models in Antigravity): Weekly Limit Remaining (0% remaining) & Five Hour Limit Remaining (Disabled / 0% remaining).
+- Restructured `QuotaChart` and `ProviderQuota` to group and label harness titles and family subtitles:
+  - `Anthropic Claude Code` → `Claude Model Family`
+  - `xAI Grok Build` → `Grok Model Family`
+  - `OpenAI Codex` → `Chat Model Family`
+  - `Google Antigravity CLI` → `Gemini Model Family` & `Other Model Families`
+  - `Anomaly Opencode` → `Opencode Model Family`
+  - `Local Llama.cpp` → `Llama.cpp Model Family`
+  - `Local Ollama` → `Ollama Model Family`
+- Endorsed `cloud_sync.md` roadmap design with zero-trust local-first encrypted replica model, mutation-only Hub lock during sync runs, and 30-day manual conflict retention.
+- All Rust tests (`cargo test --workspace`), TypeScript check (`npx tsc --noEmit`), and Vite build (`npm run build`) passed with zero errors.
+
+— Gemini

@@ -70,6 +70,7 @@ interface BudgetStatus {
 
 interface ProviderQuotaWindow {
   label: string;
+  family?: string | null;
   used_percent: number;
   remaining_percent: number;
   resets_at?: number | null;
@@ -79,6 +80,7 @@ interface ProviderQuotaWindow {
 interface ProviderQuota {
   agent_id: string;
   provider: string;
+  harness_title?: string;
   status: string;
   detail?: string | null;
   windows: ProviderQuotaWindow[];
@@ -155,35 +157,87 @@ function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
           <h3 style={{ margin: 0, color: "var(--text-main)" }}>Provider quota remaining</h3>
-          <p style={{ margin: "0.35rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem" }}>Account limits reported by each provider, separate from local Shared Hub budgets.</p>
+          <p style={{ margin: "0.35rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem" }}>Account limits reported by each harness provider, separate from local Shared Hub budgets.</p>
         </div>
         <div style={{ display: "flex", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
           <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--primary)", marginRight: 5 }} />Remaining</span>
           <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#334155", marginRight: 5 }} />Used</span>
         </div>
       </div>
-      <div style={{ display: "grid", gap: "1rem" }}>
-        {quotas.map((quota) => (
-          <div key={quota.agent_id} style={{ display: "grid", gap: "0.55rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-              <strong style={{ color: "var(--primary)" }}>{quota.agent_id} · {quota.provider}</strong>
-              <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem" }}>{quota.status === "ok" ? "live quota" : "unavailable"}</span>
-            </div>
-            {quota.windows.length === 0 ? (
-              <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
-            ) : quota.windows.map((window) => (
-              <div key={`${quota.agent_id}-${window.label}`} style={{ display: "grid", gap: "0.25rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                  <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
-                  <strong style={{ color: "var(--text-main)" }}>{window.remaining_percent}% remaining</strong>
-                </div>
-                <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
-                  <div style={{ width: `${window.remaining_percent}%`, height: "100%", background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)" }} />
-                </div>
+      <div style={{ display: "grid", gap: "1.25rem" }}>
+        {quotas.map((quota) => {
+          const families = Array.from(
+            new Set(quota.windows.map((w) => w.family).filter(Boolean))
+          ) as string[];
+
+          return (
+            <div key={quota.agent_id} style={{ display: "grid", gap: "0.6rem", background: "rgba(0, 0, 0, 0.2)", padding: "0.85rem 1rem", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                <strong style={{ color: "var(--primary)", fontSize: "1.02rem" }}>
+                  {quota.harness_title || `${quota.agent_id} · ${quota.provider}`}
+                </strong>
+                <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem", fontWeight: 500 }}>
+                  {quota.status === "ok" ? "live quota" : "unavailable"}
+                </span>
               </div>
-            ))}
-          </div>
-        ))}
+              {quota.windows.length === 0 ? (
+                <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
+              ) : families.length > 0 ? (
+                families.map((family) => {
+                  const familyWindows = quota.windows.filter((w) => w.family === family);
+                  return (
+                    <div key={`${quota.agent_id}-${family}`} style={{ display: "grid", gap: "0.5rem", marginTop: "0.25rem" }}>
+                      <div style={{ fontSize: "0.86rem", fontWeight: 600, color: "var(--text-main)", opacity: 0.9, letterSpacing: "0.02em" }}>
+                        {family}
+                      </div>
+                      {familyWindows.map((window) => (
+                        <div key={`${quota.agent_id}-${family}-${window.label}`} style={{ display: "grid", gap: "0.25rem", paddingLeft: "0.5rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                            <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
+                            <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
+                              {window.remaining_percent}% remaining
+                            </strong>
+                          </div>
+                          <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
+                            <div
+                              style={{
+                                width: `${window.remaining_percent}%`,
+                                height: "100%",
+                                background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
+                                transition: "width 0.3s ease",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })
+              ) : (
+                quota.windows.map((window) => (
+                  <div key={`${quota.agent_id}-${window.label}`} style={{ display: "grid", gap: "0.25rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                      <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
+                      <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
+                        {window.remaining_percent}% remaining
+                      </strong>
+                    </div>
+                    <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          width: `${window.remaining_percent}%`,
+                          height: "100%",
+                          background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
