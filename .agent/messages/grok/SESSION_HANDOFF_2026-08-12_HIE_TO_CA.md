@@ -112,7 +112,7 @@ Tests green → changelog → roadmap note → commit (and issue comments). Push
 | Path | Role |
 | --- | --- |
 | `/home/pkhunter/Repositories/Repos/Coding-Assistants` | Product repo (Tauri + React + Rust + Android) |
-| `crates/ca-hub`, `crates/ca-cli` | Hub spine CLI / SQLite store (Plan Alpha) |
+| `crates/hub`, `crates/cli` | Hub spine CLI / SQLite store (Plan Alpha) |
 | `src/` | React 19 UI |
 | `src-tauri/` | Tauri 2 backend (orchestration, TCP, tools) |
 | `android/` | Remote companion (approvals / monitoring) |
@@ -169,8 +169,8 @@ dirty (do not stomp without checking):
 ```bash
 cd /home/pkhunter/Repositories/Repos/Coding-Assistants
 # Hub CLI (after workspace build)
-cargo test -p ca-hub
-cargo run -p ca-cli -- --help
+cargo test -p hub
+cargo run -p cli -- --help
 # Desktop
 npm install   # if needed
 # Tauri dev — check package.json / justfile for current recipe
@@ -196,7 +196,7 @@ Journal encryption (optional): Fernet blocks in `<!--ENC-->…<!--/ENC-->`; help
 
 These are **suggestions**, not claims. Confirm on bus / with Harbinger before starting:
 
-1. **Hub spine hardening** — `ca-hub` / `ca-cli` completeness vs README; smoke every subcommand; no dead modules.
+1. **Hub spine hardening** — `hub` / `cli` completeness vs README; smoke every subcommand; no dead modules.
 2. **Memory gate** — two agents retrieve a prior handoff on a real repo task; shared vs private separation.
 3. **Orchestrate / messaging** — team vs private delivery, wake policies, human gates; fix remaining privacy/display edge cases.
 4. **Codex bridge** — inbox adapters and harness path moved under `scripts/`; finish discovery/publish path cleanly.

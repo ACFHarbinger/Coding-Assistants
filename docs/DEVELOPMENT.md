@@ -43,7 +43,7 @@ Full details: [Tauri v2 Prerequisites](https://v2.tauri.app/start/prerequisites/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/Coding-Assistants.git
+git clone https://github.com/ACFHarbinger/Coding-Assistants.git
 cd Coding-Assistants
 
 # 2. Install frontend dependencies
@@ -70,7 +70,7 @@ npm run tauri dev
 ```
 
 This command:
-1. Starts the Vite dev server on `http://localhost:1420`
+1. Starts the Vite dev server on port `1420`
 2. Compiles the Rust backend
 3. Launches the Tauri window pointing to the dev server
 4. Watches for frontend changes (HMR) and backend changes (recompile)
@@ -108,10 +108,10 @@ Build output locations:
 | ------------------------------ | ----------------------------- |
 | UI layout, styling             | `src/App.tsx`, `src/index.css` |
 | New Tauri command              | `src-tauri/src/lib.rs`        |
-| Agent orchestration logic      | `src-tauri/src/agents.rs`     |
-| LLM provider integration      | `src-tauri/src/llm_client.rs` |
-| Remote control protocol       | `src-tauri/src/tcp_server.rs` |
-| File system operations         | `src-tauri/src/file_tools.rs` |
+| Agent orchestration logic      | `src-tauri/src/agent/orchestrator.rs` |
+| LLM provider integration      | `src-tauri/src/client/llm.rs` |
+| Remote control protocol       | `src-tauri/src/server/tcp_server.rs` |
+| File system operations         | `src-tauri/src/core/file_tools.rs` |
 | Tauri permissions/capabilities | `src-tauri/capabilities/`     |
 | App metadata/config            | `src-tauri/tauri.conf.json`   |
 
@@ -145,7 +145,7 @@ const result = await invoke<string>("my_command", { arg: "world" });
 
 ### Adding a New LLM Provider
 
-1. Add the provider logic in `src-tauri/src/llm_client.rs`
+1. Add the provider logic in `src-tauri/src/client/llm.rs`
 2. Update `chat_completion()` to handle the new provider string
 3. Update `list_models()` if the provider supports model discovery
 4. Add the provider option to the frontend dropdown in `src/App.tsx`

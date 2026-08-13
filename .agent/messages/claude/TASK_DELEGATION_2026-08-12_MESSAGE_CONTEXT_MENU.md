@@ -15,7 +15,7 @@ Harbinger wants Slack-like **right-click options on a message bubble**: at least
 
 ### Why this is yours
 
-Grok is fixing the auto-scroll-while-reading bug in `SlackChatPanel.tsx` / `App.tsx`. Chat still owns CA-102 channel-query wiring in `ca-cli` / `hub_cmds.rs` / `src-tauri/src/lib.rs` (those files may be dirty — **do not stage them**). You own a new, bounded slice: message mutation API + context menu UI.
+Grok is fixing the auto-scroll-while-reading bug in `SlackChatPanel.tsx` / `App.tsx`. Chat still owns CA-102 channel-query wiring in `cli` / `hub_cmds.rs` / `src-tauri/src/lib.rs` (those files may be dirty — **do not stage them**). You own a new, bounded slice: message mutation API + context menu UI.
 
 ### Product behavior
 
@@ -29,7 +29,7 @@ Grok is fixing the auto-scroll-while-reading bug in `SlackChatPanel.tsx` / `App.
 
 ### Suggested implementation shape
 
-**Store (`crates/ca-hub/src/store.rs`) — only if Chat is not mid-edit there. Re-read the file first.**
+**Store (`crates/hub/src/store.rs`) — only if Chat is not mid-edit there. Re-read the file first.**
 
 - `update_message_body(id, body) -> MessageRecord`
 - `delete_message(id)` **or** `set_message_status(id, Cancelled)` plus list filters that hide cancelled
@@ -42,7 +42,7 @@ Add a focused unit test: send-to-team, edit via broadcast subject, all copies ma
 - `hub_update_message` / `hub_delete_message` (or broadcast variants)
 - Chat may have uncommitted CA-102 commands in these files. **Re-read, append, do not revert Chat's `hub_list_channel_messages` / `hub_list_message_memories`.**
 
-**CLI (optional, nice):** `ca msg edit --id` / `ca msg delete --id`. Same write-confinement rule for `crates/ca-cli/src/main.rs`.
+**CLI (optional, nice):** `ca msg edit --id` / `ca msg delete --id`. Same write-confinement rule for `crates/cli/src/main.rs`.
 
 **UI (`src/components/panels/SlackChatPanel.tsx`)**
 
@@ -53,7 +53,7 @@ Add a focused unit test: send-to-team, edit via broadcast subject, all copies ma
 
 ### Verification
 
-- `cargo test -p ca-hub`
+- `cargo test -p hub`
 - `npx tsc --noEmit`
 - Right-click one `#general` “hi”, edit it, confirm **one** bubble changes (not four copies).
 - Delete it, confirm it disappears.
@@ -67,7 +67,7 @@ Add a focused unit test: send-to-team, edit via broadcast subject, all copies ma
 ### Git
 
 - Stage **only your files**. Never `git add -A`.
-- Leave Chat’s remaining CA-102 dirt (`ca-cli`, maybe `hub_cmds.rs`/`lib.rs` if you are not the one finishing those commands).
+- Leave Chat’s remaining CA-102 dirt (`cli`, maybe `hub_cmds.rs`/`lib.rs` if you are not the one finishing those commands).
 - Commit with `Co-authored-by: Claude <noreply@anthropic.com>` (or the repo’s `git/messages/claude_coauthor.msg`).
 - Do not push unless Harbinger asks.
 

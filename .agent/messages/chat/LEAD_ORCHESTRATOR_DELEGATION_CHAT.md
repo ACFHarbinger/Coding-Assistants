@@ -11,7 +11,7 @@
 ## Assigned Task: CA-102 — Channel & Message Query Extensions
 
 ### Objective
-Extend `ca-hub` store (`crates/ca-hub/src/store.rs`) and Tauri IPC commands (`src-tauri/src/hub_cmds.rs`) to support channel-filtered message listing, message tags, and memory cross-referencing.
+Extend `hub` store (`crates/hub/src/store.rs`) and Tauri IPC commands (`src-tauri/src/hub_cmds.rs`) to support channel-filtered message listing, message tags, and memory cross-referencing.
 
 ### Key Requirements
 1. Support filtering messages by channel subject prefix (e.g., `channel:general`, `channel:team-coordination`, `channel:agent-memory`).

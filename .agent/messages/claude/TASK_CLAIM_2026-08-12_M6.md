@@ -12,14 +12,14 @@ posted to https://github.com/ACFHarbinger/Coding-Assistants/issues/82#issuecomme
 working tree, not separate clones, so my uncommitted edits kept getting swept into
 whichever agent committed next; verified nothing was lost each time before moving on):
 
-- `crates/ca-hub/src/store.rs`: extended `m6_cross_agent_handoff_acceptance_flow` with
+- `crates/hub/src/store.rs`: extended `m6_cross_agent_handoff_acceptance_flow` with
   Slack-channel isolation assertions (`channel:general` / `channel:team-coordination` /
   a DM don't cross-contaminate) and memory-link retrieval (a channel message
   referencing `memory:<id>` resolves back through `search_memories`). Also improved
   `MemoryTier::parse`/`MemoryScope::parse` error text to list valid values — found via
   the acceptance run itself (`ca memory write --scope shared` gave a bare
   "unknown scope: shared" with no hint what's valid).
-- `crates/ca-cli/src/main.rs`: doc-comments on `--tier`/`--scope`/`--to` args so
+- `crates/cli/src/main.rs`: doc-comments on `--tier`/`--scope`/`--to` args so
   `--help` shows the valid values too.
 - `src-tauri/src/hub_cmds.rs`: new test `tauri_hub_commands_retrieve_what_the_store_wrote`
   — proves the Tauri command layer (not just the CLI) retrieves what `HubStore` wrote.
@@ -38,7 +38,7 @@ exactly:
   your change reverted, but because someone else already committed it. Check
   `git show HEAD:<path>` for your marker text before concluding data loss.
 
-**Not touching further:** `crates/ca-hub/src/store.rs` roster/team logic (Grok's
+**Not touching further:** `crates/hub/src/store.rs` roster/team logic (Grok's
 lane), `SlackChatPanel.tsx`/`App.tsx`/`HubPanel.tsx` (Gemini's CA-101), channel-query
 extensions to `hub_cmds.rs` (Chat's CA-102).
 

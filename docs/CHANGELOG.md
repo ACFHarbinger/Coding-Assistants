@@ -1,7 +1,7 @@
 # Changelog
 
-[![Version](https://img.shields.io/badge/Version-0.1.0-orange)](package.json)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-0.1.0-orange)](../package.json)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](../LICENSE)
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
@@ -9,16 +9,30 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Added
 
+- **Tauri backend organization:** `src-tauri/src` is grouped into `agent`,
+  `client`, `harness`, `hub`, `server`, `core`, and `main` modules without
+  changing the public IPC command contract.
+- **Crate naming:** workspace packages are `hub` and `cli`; the installed
+  binary remains `ca`.
 - **Hub-Native Multi-Agent Orchestration (U11–U12, C10–C12)**:
   - **Create & Load Team Chat (U11)**: Added `Create & Open` and `Load & Open` entry points in Orchestrate view to manage durable work sessions and switch focus to Chat & Memory.
   - **Recipient Addressing & Intent Tags (U12, C10, C11)**: Added Recipient Mode controls (`All Team`, `Subset`, `Single Agent`) and Intent Tag toggles (`⚡ [TASK]`, `🔔 [WAKE]`), enforcing task-refuse vs wake-enroll semantics with durable per-recipient `SendOutcome` records.
-  - **Bidirectional Harness Adapters (C12)**: Implemented explicit argv start and inject adapters for Grok (`grok --cwd`), OpenAI Codex (`codex exec --cwd`), Anthropic Claude Code (`claude -p`), and Google Antigravity CLI (`agy --cwd`).
+  - **Harness lifecycle and capture (C12)**: Implemented explicit-argument
+    wake/start adapters for Grok (`grok`), OpenAI Codex (`codex`), Anthropic
+    Claude Code (`claude`), and Google Antigravity CLI (`agy`), plus on-disk
+    transcript capture. Task delivery uses only a provider-supported active
+    bridge and otherwise remains durably queued.
   - **4-Harness Session Capture (C12)**: Added on-disk session transcript reverse-engineering for all four harness identities (`harness_grok.rs`, `harness_codex.rs`, `harness_claude.rs`, `harness_gemini.rs`), with SHA-256 content deduplication and active work session refresh polling.
-  - **CLI Harness Capture & Tagged Dispatch (`ca-cli`)**: Added `ca harness capture` for headless transcript capture and `ca msg tag --dispatch` for CLI-native tagged message injection.
+  - **CLI Harness Capture & Tagged Dispatch (`cli`)**: Added `ca harness capture` for headless transcript capture and `ca msg tag --dispatch` for CLI-native tagged message injection.
 - **Website Documentation Portal Sync (V1-DOCS-SYNC)**: Regenerated `docs/website/src/data/docs.json` for full capability roadmap, architecture, and changelog alignment.
 
 ### Fixed
 
+- **Orchestrate persistence and process discovery:** the selected workspace
+  root and persisted team roster survive restart. The discovery action now
+  toggles between **Detect running agents** and purple **Hide detected
+  agents**, making its visibility state clear and avoiding any implication
+  that a discovered terminal process is automatically controllable.
 - **Tagged harness-delivery failure reporting (C12)**: A failed Tauri harness
   injection no longer aborts the entire recipient batch and masquerades as a
   generic send failure. Chat & Memory now retains the durable post and lists

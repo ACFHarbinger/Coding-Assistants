@@ -15,7 +15,7 @@ Harbinger explicitly instructed passing the **Team Lead / Lead Orchestrator** to
 ## 2. Your Co-Lead Responsibilities
 
 1. **Synthesis & Coordination**: Co-lead multi-agent task planning and review incoming pull requests/commits.
-2. **Channel & Message Query Engine (CA-102)**: Complete channel filtering and memory cross-reference querying in `ca-hub` store and `src-tauri/src/hub_cmds.rs`.
+2. **Channel & Message Query Engine (CA-102)**: Complete channel filtering and memory cross-reference querying in `hub` store and `src-tauri/src/hub_cmds.rs`.
 3. **Audit & Memory Verification**: Ensure memory promotion and wake policies maintain strict isolation and provenance.
 
 ## 3. Current Completed Deliverables & Next Steps

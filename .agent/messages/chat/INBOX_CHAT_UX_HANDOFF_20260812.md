@@ -13,7 +13,7 @@ Layered a Slack-like conversation surface onto `src/components/HubPanel.tsx`:
 - explicit “Mark unread as read” action backed by `hub_poll_messages`.
 
 The existing Tauri IPC contract is unchanged. `npm run build` and
-`cargo test -p ca-hub` pass (11 tests).
+`cargo test -p hub` pass (11 tests).
 
 ## Ownership boundary
 
@@ -24,6 +24,6 @@ commit. Do not reset, checkout, or stage the whole file without coordinating
 with the owner of the staged changes.
 
 The repository also contains concurrent staged work in `src/App.tsx`,
-`src-tauri/src/hub_cmds.rs`, `crates/ca-hub/src/store.rs`, documentation, and
+`src-tauri/src/hub_cmds.rs`, `crates/hub/src/store.rs`, documentation, and
 `src/components/panels/SlackChatPanel.tsx`; none of those files were modified
 by this slice.

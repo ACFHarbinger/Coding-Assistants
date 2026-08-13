@@ -34,12 +34,14 @@ Coding-Assistants/
 │   └── index.css           # Global styles (glass-morphism theme)
 ├── src-tauri/              # Rust backend
 │   ├── src/
-│   │   ├── main.rs         # Tauri app entry
 │   │   ├── lib.rs          # Tauri commands & app state
-│   │   ├── agents.rs       # Multi-agent orchestration engine
-│   │   ├── llm_client.rs   # LLM provider integration
-│   │   ├── tcp_server.rs   # TCP remote control server
-│   │   └── file_tools.rs   # Workspace file utilities
+│   │   ├── main/main.rs    # Tauri binary entry point
+│   │   ├── agent/          # Multi-agent orchestration engine
+│   │   ├── client/         # LLM provider integrations
+│   │   ├── harness/        # Harness capture and delivery adapters
+│   │   ├── hub/            # Shared Hub desktop commands
+│   │   ├── server/         # TCP remote-control server
+│   │   └── core/           # Workspace file and process utilities
 │   ├── Cargo.toml          # Rust dependencies
 │   ├── tauri.conf.json     # Tauri configuration
 │   └── capabilities/       # Permission capabilities
@@ -131,7 +133,8 @@ Agents communicate via special markers embedded in LLM responses:
 | `[[ASK_USER]]`              | Pause execution and request user input        |
 | `[[ASK_AGENT:RoleName]]`   | Request input from another agent (requires auth) |
 
-These markers are parsed by `AgentSystem::interactive_completion` in `agents.rs`.
+These markers are parsed by `AgentSystem::interactive_completion` in
+`src-tauri/src/agent/orchestrator.rs`.
 
 ## Contribution Guidelines
 

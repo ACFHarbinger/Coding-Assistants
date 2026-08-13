@@ -11,7 +11,7 @@
 ## Assigned Task: CA-103 — Memory Verification & Test Suite
 
 ### Objective
-Add end-to-end integration tests for channel messaging, memory drawer search, and multi-agent handoff acceptance gates in `crates/ca-hub/src/store.rs`.
+Add end-to-end integration tests for channel messaging, memory drawer search, and multi-agent handoff acceptance gates in `crates/hub/src/store.rs`.
 
 ### Key Requirements
 1. Verify channel message isolation and memory-link retrieval in SQLite tests.

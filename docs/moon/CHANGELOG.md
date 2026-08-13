@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tauri backend layout.** Reorganized `src-tauri/src` by responsibility:
+  `agent/` contains orchestration, `client/` external model clients,
+  `harness/` capture and delivery adapters, `hub/` desktop Hub commands,
+  `server/` local TCP services, `core/` filesystem/process utilities, and
+  `main/` the binary entry point. Module names and Tauri IPC command names are
+  unchanged.
 - **C12-CLAUDE-BRIDGE.** Real, verified discovery of already-running Claude
-  Code sessions for task delivery (`crates/ca-hub/src/claude_bridge.rs`),
+  Code sessions for task delivery (`crates/hub/src/claude_bridge.rs`),
   wired into `inject_harness`. `claude agents --json` (documented in
   `claude --help`) lists every active interactive/background session with
   its pid, cwd, session id, and status — confirmed directly on a live
@@ -27,7 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every claim behind it is grounded in something actually observed rather
   than assumed. Never spawns a replacement `claude -p` process or writes
   to a PTY.
-- **C12-GEMINI-BRIDGE.** An explicitly registered Gemini / Antigravity CLI session can receive a queued Hub task through the active bridge adapter (`crates/ca-hub/src/gemini_bridge.rs`). Forwards prompt requests to the active session via `default_gemini_bridge_socket` (`~/.gemini/antigravity-cli/bridge.sock` or `GEMINI_BRIDGE_SOCKET`), setting message status to `Acked` and recording extracted responses via `record_harness_capture`. If the bridge socket is absent, delivery is `unavailable` and the task remains queued without spawning a replacement CLI process.
+- **C12 bridge review.** Gemini/Antigravity capture remains available, but its
+  published CLI has no supported active-session IPC/RPC transport. The former
+  assumed bridge-socket implementation was removed: task delivery now reports
+  `unavailable` and stays queued rather than claiming delivery through an
+  undocumented interface. Claude likewise performs documented active-session
+  discovery but safely leaves tasks queued because its live socket protocol is
+  undocumented. Grok retains the provider-supported ACP leader path.
+- **Crate names simplified.** Workspace packages/directories are now `hub`
+  and `cli` (the CLI binary remains `ca`); Rust imports, build commands, and
+  project documentation use the new names.
 - **C12-GROK-BRIDGE.** An explicitly registered Grok session can receive a
   queued Hub **task** through Grok Build's documented ACP leader path
   (`grok agent --leader stdio` → `session/load` + `session/prompt` on
@@ -46,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stay; custom names persist in the hub store and can be removed from the
   sidebar (messages remain). Tracked as U13.
 
-- **V1 hub-native orchestration (U11–U12, C10–C12), ready for owner test.**
+- **V1 hub-native orchestration (U11–U12, C10–C12), foundation delivered.**
   Orchestrate can **Create** or **Load** a named team chat and focus Chat &
   Memory on that session (`localStorage` keeps the choice across hub polls).
   The composer addresses all / a subset / one session member and can mark
@@ -54,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused; wake-tagged sends may enroll a new identity. Tagged delivery
   goes through `hub_send_tagged_message` / `ca msg tag` and, when accepted,
   `hub_inject_harness` or `ca msg tag --dispatch` (explicit argv, no shell,
-  no TUI attach).
+  no TUI attach). Active-session execution remains gated on provider-supported
+  bridge transports.
 - **C12 four-harness capture.** Disk adapters record assistant text from
   Grok (`~/.grok/sessions/<pct-workspace>/<id>/chat_history.jsonl`), Claude
   Code (`~/.claude/projects/...jsonl`), Codex (`~/.codex/sessions/...`), and
@@ -77,6 +93,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Orchestrate continuity.** The selected Workspace Root is now persisted in
+  browser storage, and the Orchestrate roster rehydrates persisted Hub team
+  membership after an app restart. **Detect running agents** is now a visible
+  toggle: after scanning it becomes purple **Hide detected agents** and hides
+  the discovery panel when clicked again. Process detection explicitly
+  distinguishes finding a local process from having a supported live-delivery
+  bridge.
 - **Tagged task delivery and Gemini adapter:** task-only posts no longer
   launch an unexpected replacement Grok/Chat/Claude/Gemini CLI process; they
   remain in the durable session inbox and explicitly report that an active
@@ -252,7 +275,7 @@ configured harness families. This completes the agreed usage-limit scope for
   `to: "team"`) now fan out only to agents with persisted `team_member = 1`.
   The default roster is Harbinger (`human`) plus `claude`, `chat`, `gemini`,
   and `grok`. Process-discovered PID identities and local model runtimes stay
-  privately addressable. `cargo test -p ca-hub` (12 passed).
+  privately addressable. `cargo test -p hub` (12 passed).
 
 - Fixed the Slack Chat window going blank a few hundred milliseconds after
   first paint. `SlackChatPanel.tsx` declared its own `DetectedProcess` shape
@@ -309,12 +332,12 @@ configured harness families. This completes the agreed usage-limit scope for
   "human"`) show the menu; `hub_update_message` / `hub_delete_message`
   enforce the same rule server-side. Team/channel broadcasts are N SQLite
   rows sharing a subject, so both commands resolve and mutate every sibling
-  copy via `ca_hub::update_broadcast` / `delete_broadcast` — new posts group
+  copy via `hub::update_broadcast` / `delete_broadcast` — new posts group
   by the exact `channel:<name>:<uuid>` subject, legacy posts fall back to
   `(from_agent, body, subject, created-at-to-the-second)`. Delete is a soft
   cancel (`status = cancelled`); the Slack view hides cancelled rows while
   the audit trail (`hub_list_messages`) still returns them. `cargo test -p
-  ca-hub` (15 passed).
+  hub` (15 passed).
 
 - CA-109: CLI parity for CA-106 — `ca msg edit --id <uuid> --from human
   "body"` and `ca msg delete --id <uuid> --from human`. Rejects any `--from`
@@ -334,7 +357,7 @@ configured harness families. This completes the agreed usage-limit scope for
   first load (tab badge shows the pending count) and every time the tab
   opens, with **Approve** / **Quarantine** actions. New Tauri commands
   `hub_list_audit_events`, `hub_approve_audit`, `hub_quarantine_audit` wrap
-  the existing `ca_hub::HubStore` audit API; no new privileged adapter.
+  the existing `hub::HubStore` audit API; no new privileged adapter.
 
 - Persisted Orchestrate **Add to team** onto the Slack roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
@@ -408,7 +431,7 @@ configured harness families. This completes the agreed usage-limit scope for
   explicit **Add to team** controls. Enrolling a detected existing process now
   immediately adds its participant and a join message to the chat.
 
-- Added the audit integrity MVP to `ca-hub` and `ca-cli`: recursive filesystem
+- Added the audit integrity MVP to `hub` and `cli`: recursive filesystem
   observation via `ca audit watch`, durable pending change records, owner
   approve/quarantine actions, and SHA-256 chain verification via `ca audit
   verify`. User-space observation records the watcher context and documents
@@ -458,7 +481,7 @@ configured harness families. This completes the agreed usage-limit scope for
   `c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes`.
 
 - **2026-08-11 memory/communication hub slice (M1–M5, C1–C5):**
-  - `ca-hub`: promote/compact/delete, purge-stale, age-out short-term; wake
+  - `hub`: promote/compact/delete, purge-stale, age-out short-term; wake
     pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
     message status updates; Markdown export includes handoffs;
     **`export_markdown_git`** (M3); **`tasks`** with sequential stages,
@@ -485,8 +508,8 @@ configured harness families. This completes the agreed usage-limit scope for
     `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
   - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
     Wakes panel resolves pending wakes as delivered.
-  - **C7 done:** Implemented A2A-compatible discovery and horizontal delegation. `AgentCard` schema and storage were added to `ca-hub`. `ca agent register-card` was added to `ca-cli`. The Tauri API exposes `hub_upsert_agent_card` and the TCP server now handles `GetAgentCards` payloads, enabling local workflows to interoperate with A2A peers.
-  - **U3 done:** Implemented `update_memory` in `ca-hub` store and added inline editing
+  - **C7 done:** Implemented A2A-compatible discovery and horizontal delegation. `AgentCard` schema and storage were added to `hub`. `ca agent register-card` was added to `cli`. The Tauri API exposes `hub_upsert_agent_card` and the TCP server now handles `GetAgentCards` payloads, enabling local workflows to interoperate with A2A peers.
+  - **U3 done:** Implemented `update_memory` in `hub` store and added inline editing
     along with color-coded scope indicators to the Shared Hub Memory tab.
   - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history,
     metadata, and message/handoff transcripts.
@@ -495,7 +518,7 @@ configured harness families. This completes the agreed usage-limit scope for
     and a button in the ConfigPanel to initialize `.agent/` skeletons for new workspaces.
   - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on
     `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible
-    through both the `ca-cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
+    through both the `cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
   - **C6 done:** Exposed shutdown hooks via `ca shutdown` in the CLI and `hub_record_shutdown`
     in the Tauri API. This completes the budget exhaustion and shutdown delegation milestone,
     allowing external adapters to properly persist handoff states upon cancellation or limit reach.
@@ -519,7 +542,7 @@ configured harness families. This completes the agreed usage-limit scope for
 - PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
   Rust workspace checks passed before this implementation began.
 
-- Hub spine crates (`crates/ca-hub`, `crates/ca-cli` binary `ca`): SQLite
+- Hub spine crates (`crates/hub`, `crates/cli` binary `ca`): SQLite
   agents/memories/messages/wakes, private journals, wake JSON side-channel,
   Markdown export, CLI commands for init/memory/msg/wake/journal/export;
   unit test covering M1/C1–C3 smoke path.

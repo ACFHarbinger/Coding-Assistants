@@ -40,7 +40,7 @@ These supersede vaguer wording in the previous draft.
 | **Per-device folder retention** *(new, Claude round)* | Prune `devices/<device-id>/` once its uploads are successfully merged into `replica/`. Per-device provenance is not lost — it lives in the local `hub.db` audit chain, which is not the archival record kept on the remote. Keeps remote storage and attack surface minimal. |
 | **Lost / compromised device** *(new, Claude round)* | **Explicit v1 non-goal.** No automatic key rotation or device revocation propagation. On suspected loss/compromise, the owner manually generates a new `cloud-sync.key` and re-copies it to every still-trusted device — the same manual model as initial key distribution. S9's "device register/trust/revoke" is about the **trust list** (who may sync going forward), not about rotating an already-shared key after compromise; those are different problems and only the former is in scope pre-v2. |
 | **Drive API scope** *(new, Claude round)* | Use the restrictive `drive.appdata` **hidden App Data folder** scope, not a regular visible "My Drive" folder. Invisible/unbrowsable outside the app, consistent with the hashed/unlinkable naming requirement. The owner manages the replica only through the app or `ca sync`, never via drive.google.com — trade-off accepted deliberately. |
-| **Cross-device schema mismatch** *(new, Claude round)* | If devices run different `ca`/`ca-hub` versions with incompatible SQLite schemas, `ca sync preview` **warns** rather than refusing automatically. The owner reviews the warning and decides whether to proceed, upgrade the older device first, or cancel. (Still subject to invariant 6: SQLite is never copied over a live database file regardless of this choice.) |
+| **Cross-device schema mismatch** *(new, Claude round)* | If devices run different `ca`/`hub` versions with incompatible SQLite schemas, `ca sync preview` **warns** rather than refusing automatically. The owner reviews the warning and decides whether to proceed, upgrade the older device first, or cancel. (Still subject to invariant 6: SQLite is never copied over a live database file regardless of this choice.) |
 | **Retention window** *(new, Claude round)* | Default **30 days** for `sync/conflicts/` preserved copies and confirmed tombstones before they become eligible for cleanup. Expiry is still a manual/explicit owner action, never automatic deletion — consistent with "confirm, never auto-propagate deletes." Configurable later; 30 days is the v1 default. |
 | **S5 acceptance testing** *(new, Claude round)* | S5 is not done on fake-provider/unit tests alone. Exit criteria require one real, non-mocked run of the S5 acceptance scenario against a dedicated test Google Drive account. |
 
@@ -241,7 +241,7 @@ before the first upload.
 | S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | 📋 Planned |
 | S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | 📋 Planned |
 | S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | 📋 Planned |
-| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `ca-hub` schema-version mismatch | 📋 Planned |
+| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | 📋 Planned |
 | S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 📋 Planned |
 | S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 📋 Planned |
 | S7 | Conflict review and preservation | Desktop (and CLI list/apply) queue: local / remote / keep-both / manual; both versions and the owner decision are audit-recorded and recoverable under `sync/conflicts/` | 📋 Planned |
@@ -308,7 +308,7 @@ S13 waits on a green S5.
   a device is lost, stolen, or suspected compromised *(Claude round,
   2026-08-13)*. Recovery is manual: the owner generates a new key and
   re-copies it to every still-trusted device, same as initial distribution.
-- Automatic cross-device `ca-hub` schema migration during sync *(Claude
+- Automatic cross-device `hub` schema migration during sync *(Claude
   round)*. A version mismatch produces a warning for the owner to act on,
   not a silent upgrade attempt.
 
@@ -343,7 +343,7 @@ the locked table. New locked decisions from this round, also inline above:
   re-provisioning only) — added to Deferred decisions and non-goals.
 - Google Drive adapter uses the `drive.appdata` hidden App Data scope, not a
   visible "My Drive" folder.
-- Cross-device `ca-hub` schema mismatch: `ca sync preview` warns, doesn't
+- Cross-device `hub` schema mismatch: `ca sync preview` warns, doesn't
   auto-refuse — owner decides.
 - `sync/conflicts/` and tombstone retention default: 30 days, manual cleanup
   only.

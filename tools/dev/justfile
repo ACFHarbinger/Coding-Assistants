@@ -30,12 +30,12 @@ clean:
     rm -rf src-tauri/target
     rm -rf android/build android/app/build
 
-# Build ca-cli and symlink `ca` into ~/.local/bin
+# Build cli and symlink `ca` into ~/.local/bin
 [no-cd]
 install-ca:
-    cargo build -p ca-cli
-    mkdir -p "{{env_var_or_default('HOME', '.')}}/.local/bin"
-    ln -sfn "$(pwd)/target/debug/ca" "{{env_var_or_default('HOME', '.')}}/.local/bin/ca"
+    cargo build -p cli
+    mkdir -p "{{ env_var_or_default('HOME', '.') }}/.local/bin"
+    ln -sfn "$(pwd)/target/debug/ca" "{{ env_var_or_default('HOME', '.') }}/.local/bin/ca"
     @echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
     @echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
 
@@ -49,6 +49,7 @@ install-ca:
 # over the session default.
 #
 # WEBKIT_DISABLE_DMABUF_RENDERER=1 — Belt-and-suspenders: even under X11,
+
 # newer WebKitGTK may probe for DMA-BUF. Keep it off.
 [no-cd]
 dev:

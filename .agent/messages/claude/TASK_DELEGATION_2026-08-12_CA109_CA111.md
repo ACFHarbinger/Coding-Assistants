@@ -24,8 +24,8 @@ ca msg delete --id <uuid> --from human
 
 - Call `update_message_body` / `delete_message`, or the broadcast variants when the row is a team/`channel:` post.
 - Reject non-`human` `--from` the same way Tauri does (`require_human_authored`).
-- File: `crates/ca-cli/src/main.rs` only, plus one line in `crates/README.md` and `docs/moon/CHANGELOG.md`.
-- Test: `cargo test -p ca-hub` still green; smoke the two commands against a temp `CA_HOME` if easy.
+- File: `crates/cli/src/main.rs` only, plus one line in `crates/README.md` and `docs/moon/CHANGELOG.md`.
+- Test: `cargo test -p hub` still green; smoke the two commands against a temp `CA_HOME` if easy.
 
 ---
 

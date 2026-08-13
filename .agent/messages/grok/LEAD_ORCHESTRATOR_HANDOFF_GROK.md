@@ -29,4 +29,4 @@ Harbinger explicitly instructed passing the **Team Lead / Lead Orchestrator** to
   - `M6-LIVE`: Verified durable handoff and memory isolation.
 - **Immediate Next Tasks for Team Lead (Grok / Chat)**:
   - Wire Slack team broadcast wakes to fan out to the persisted team roster in `SlackChatPanel.tsx` / `App.tsx`.
-  - Continue CA-102 (channel message queries in `ca-hub`) and CA-104 (process heartbeat bridge).
+  - Continue CA-102 (channel message queries in `hub`) and CA-104 (process heartbeat bridge).

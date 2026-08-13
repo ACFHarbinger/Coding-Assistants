@@ -20,7 +20,7 @@ Top-priority capability for the local-first collaboration hub.
 
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
-| M1 | SQLite schema: `agents` (seeded with the PC2 roster), `memories`, `messages`, `wake_requests` | Migrations run on a clean clone; records are queryable by scope and agent | ✅ **Done** · `HubStore` migrate + seed agents; verified `cargo test -p ca-hub` |
+| M1 | SQLite schema: `agents` (seeded with the PC2 roster), `memories`, `messages`, `wake_requests` | Migrations run on a clean clone; records are queryable by scope and agent | ✅ **Done** · `HubStore` migrate + seed agents; verified `cargo test -p hub` |
 | M2 | Recent raw memory plus episodic and semantic long-term tiers | Compaction preserves important decisions and links each compressed memory to source events | ✅ **Done** · tiers + search + `promote_memory` / `compact_short_term` (`source_event_id`); 2026-08-11 |
 | M3 | Git-tracked Markdown exports for high-priority tasks, handoffs, and architectural decisions | Exported files are human-editable and reproducible from SQLite | ✅ **Done** · `export_markdown` writes episodic + semantic + handoffs to `markdown/shared_memory.md`; `export_markdown_git` (`ca export-markdown --commit`, desktop "Export MD + Commit") runs `git add`/`git commit` when the export dir is inside a work tree, no-ops (not an error) otherwise |
 | M4 | Private per-agent journals under a separate, non-shared directory, with optional **opt-in, owner-permissioned** per-agent encryption | Each agent can write without overwriting another agent; private data never enters shared exports by default; the shared/durable store (M1–M3) is **never** encrypted | 🚧 **Partial** · `journals/<agent>/journal.md` + isolation tests; encryption still open |
@@ -52,6 +52,6 @@ Journal tab. Remaining audit MVP: privileged writer-PID adapter and
 append-only export/retention.
 
 **Implementation note (Claude, 2026-08-10):** an earlier pass of this file
-described a different, incompatible `ca-hub` schema that briefly coexisted
+described a different, incompatible `hub` schema that briefly coexisted
 after concurrent sessions; reconciled by wiring `store.rs` as the real
 implementation.
