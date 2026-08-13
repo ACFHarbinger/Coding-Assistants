@@ -21,6 +21,7 @@ then prove the team loop). Commits authored or co-authored in this stretch:
 | `0dc2f1b` | `ca agent enroll\|unenroll\|team`, `hub_set_team_member`, header **Local hub online** pill |
 | `947a43d` | Enter-to-send, Shift+Enter newline, **Jump to latest** |
 | `2ab31c7` | Slack DMs send only to that agent |
+| `f9e255b` | Shared Hub Usage plots Grok's weekly pool (`creditUsagePercent`) and extra-usage credits from the TUI `/usage` billing snapshot |
 
 Delegated (not claimed as Grok implementation): CA-106/109/110/111 to Claude,
 CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
@@ -37,6 +38,12 @@ no-key-envelope caveats recorded in that file. Issues #91–#103.
 **Claude, 2026-08-13:** #82 and #80 are now closed. CA-106/109/110/111
 (`2064a59`, `09d3533`, `bec7454`, `ca40e46`) shipped and are tracked/closed
 as issue #90, since U10 had no prior issue of its own.
+
+**U8 quota (2026-08-13):** Shared Hub Usage now plots live Grok weekly
+remaining (same `GET /v1/billing?format=credits` snapshot as TUI `/usage`,
+session from `grok login`). Claude's session/weekly/credits bars landed in
+the same `hub_cmds.rs` commit (`f9e255b`). Tracked on #86; Gemini adapter
+and historical charts remain.
 
 ### Fixed
 

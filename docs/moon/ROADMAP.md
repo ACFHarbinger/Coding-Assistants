@@ -85,3 +85,6 @@ LAN TCP remains available during early development. Authentication and TLS are
   epic as #90. #81 (wake policy leftovers) remains open.
 - **Cloud sync:** approved plan in [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md);
   GitHub S1–S13 are #91–#103. Not implemented yet.
+- **U8 Usage quotas:** live remaining bars for Codex, Claude, and Grok
+  (Grok weekly pool after `grok login`, `f9e255b`). #86 stays open for
+  Gemini and historical/exportable telemetry.

@@ -25,3 +25,8 @@ an experiment.
 **Local hub online** (not a second Slack tab). DMs cannot team-broadcast.
 Scroll stays put while reading. Enter sends. Journal tab (CA-111, Claude)
 covers the audit-on-open checkpoint.
+
+**2026-08-13 (Grok, U8):** Usage plots Grok's weekly subscription pool next to
+Chat/Codex and Claude. The adapter uses the signed-in Grok CLI session and
+the TUI `/usage` billing snapshot (`creditUsagePercent`, `billingPeriodEnd`).
+Gemini and historical charts remain. Board: #86.
