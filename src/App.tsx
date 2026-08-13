@@ -217,17 +217,30 @@ function App() {
       );
       const workspace = workDirRef.current;
       if (workspace) {
-        void Promise.allSettled([
-          invoke("hub_capture_grok_session", {
+        const captures = await Promise.allSettled([
+          invoke<{ captured?: unknown[] }>("hub_capture_grok_session", {
             workspace,
             grokSessionId: null,
             hubSessionId: sessionIdRef.current,
           }),
-          invoke("hub_capture_claude_session", {
+          invoke<{ captured?: unknown[] }>("hub_capture_claude_session", {
             workspace,
-            sessionId: null,
+            claudeSessionId: null,
+            hubSessionId: sessionIdRef.current,
+          }),
+          invoke<{ captured?: unknown[] }>("hub_capture_codex_session", {
+            workspace,
+            codexSessionId: null,
+            hubSessionId: sessionIdRef.current,
           }),
         ]);
+        const capturedNew = captures.some(result =>
+          result.status === "fulfilled" && (result.value.captured?.length ?? 0) > 0
+        );
+        if (capturedNew) {
+          const latest = await invoke<HubMessage[]>("hub_list_messages", { to: null, status: null });
+          setHubMessages(prev => sameHubMessages(prev, latest) ? prev : latest);
+        }
       }
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
