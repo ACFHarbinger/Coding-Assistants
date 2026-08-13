@@ -35,7 +35,29 @@ documented bridge.
 | C14.2 | Chat/Codex | Reuse a long-lived documented `codex app-server` connection per managed thread. Serialize `turn/start`; on an externally active writer retain the message as queued and show a retryable busy state, never race a second writer. **In progress:** #149 now enforces the durable managed-session writer lease and turns app-server active-writer errors into queued/retryable outcomes; the long-lived streaming broker remains. |
 | C14.3 | Claude Code | Provide an opt-in Coding-Assistants Claude **Channel** MCP bridge. The bridge uses Claude Code's documented `claude/channel` capability to push authenticated Hub events into a session and a reply tool to return Claude output to the original Hub message/session. It supports the documented permission relay only after explicit human approval. Existing Claude sessions without that channel remain capture-only. **In progress:** [#150](https://github.com/ACFHarbinger/Coding-Assistants/issues/150) — new `crates/claude-channel` binary implements the stdio MCP server (`claude/channel` + `claude/channel/permission` capabilities, `reply` tool, permission-request relay); `hub::bridge::claude_channel` (new file, `bridge::claude`'s C12 path untouched) provides the authenticated-sender gate (enrolled team members only), reply routing, and a never-auto-approved permission lifecycle reusing the Hub audit chain. Opt-in setup registers the workspace as a C14.1-managed `claude` session and writes/merges `.mcp.json`. End-to-end Claude Code acceptance (a real `--channels` session) is still open. |
 | C14.4 | Gemini / Antigravity (`agy`) | Start app-managed non-interactive workers with `agy --print --output-format stream-json` in the selected workspace; persist the conversation id and use documented `--conversation` only for a worker the app owns. Parse stream events into the Hub, support cancellation/status, and never pretend to attach to an unrelated interactive `agy` TUI. |
-| C14.5 | End-to-end UX and acceptance | Orchestrate and Chat & Memory create/select managed sessions, show setup prerequisites and actionable errors, and test all/subset/one task+wake routing, replies, cancellation, restart/recovery, permissions, and no-writer-race behavior on Kubuntu. |
+| C14.5 | End-to-end UX and acceptance | Orchestrate and Chat & Memory create/select managed sessions, show setup prerequisites and actionable errors, and test all/subset/one task+wake routing, replies, cancellation, restart/recovery, permissions, and no-writer-race behavior on Kubuntu. **Desktop UX ready for review** ([#152](https://github.com/ACFHarbinger/Coding-Assistants/issues/152)): readiness badges, observed vs managed register, retry/dismiss banners. Live Kubuntu owner-run remains open. |
+
+#### C14.5 desktop acceptance matrix
+
+This is the Orchestrate / Chat & Memory surface. It reads existing Hub
+session records and reuses `hub_start_harness`, `hub_register_harness_session`,
+`hub_register_managed_harness_session`, and `hub_inject_harness`. It does
+**not** change provider transports, writer leases, or the
+`harness_session_registrations` schema. Dismiss is UI-only and must never
+steal a writer lease. TUI coverage stays with the TUI owner.
+
+| Surface | Action / state | Expected result |
+| --- | --- | --- |
+| Orchestrate readiness | No row for the workspace | Empty list plus the selected provider's setup prerequisite |
+| Orchestrate | **Register observed** | Capture-only `observed` / `ready`. No process spawn |
+| Orchestrate | **Start managed** | Documented wake spawn; on pid, row becomes `managed` / `ready`. Failed start stays unregistered |
+| Chat session strip | Registered rows | High-contrast **managed**, **observed**, **busy**, **queued**, **unavailable** (and `stopped` when recorded) |
+| Chat send | all / subset / one + task and/or wake | Existing C10/C11 tagged send; inject outcomes appear as a banner, not a browser `alert` |
+| Chat banner | `queued` / `busy` / `unavailable` | Retry re-calls `hub_inject_harness` for that message. Dismiss hides the notice only |
+| Codex / `agy` busy writer | Second task while leased | Truthful queued/retryable outcome; no second writer is started |
+| Claude without Channel | Task inject | `unavailable` or queued; session remains capture-only |
+| Observed Gemini / interactive TUI | Task inject | `unavailable`; UI must not claim attach |
+| Kubuntu live | Replies, cancel, restart, permissions, no-writer-race | Owner-run evidence on #152. Implementation alone is not acceptance |
 
 **Provider facts verified on 2026-08-13:** Codex CLI 0.147.0 supplies the
 experimental documented app-server; Claude Code 2.1.231 supplies documented

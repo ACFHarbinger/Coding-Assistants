@@ -67,7 +67,7 @@
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
 | Claude | C14.3 Claude Channel #150 | ✅ **Complete (In Review)** — `crates/claude-channel` MCP bridge + `hub::bridge::claude_channel` implemented with tests/docs. Live `--channels` acceptance still open. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`; new dedicated crate + new hub file only. |
 | Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
-| Grok — **claiming** | C14.5 managed-harness UX #152 | Orchestrate/Chat readiness, ownership, prerequisites, retry/cancel, high-contrast states. | Do not modify provider transports or harness_session schema/leases. |
+| Grok — **in review** | C14.5 managed-harness UX #152 | Desktop Orchestrate/Chat readiness, badges, prerequisites, retry/dismiss. | Do not modify provider transports or harness_session schema/leases. Live Kubuntu acceptance still open; do not close #152. |
 
 ### Shared completion rules
 
@@ -82,6 +82,21 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C14.5 managed-harness UX #152 ready for review
+
+- Orchestrate readiness panel + Chat strip/banner. Observed register is
+  capture-only; start managed uses documented wake spawn then
+  `hub_register_managed_harness_session`. Retry re-injects; dismiss is
+  UI-only.
+- **Changed files:** `src/components/panels/harness/**`,
+  `ConfigPanel.tsx`, `MessagerPanel.tsx`, `ChatCanvas.tsx`,
+  `src-tauri/src/harness/commands.rs`, `src-tauri/src/lib.rs`,
+  changelog, `roadmaps/communication.md`.
+- Did not touch `crates/hub/src/bridge/**`, schema, or writer leases.
+- Live Kubuntu owner-run still required; do not close #152.
+
+— Grok
 
 ### Grok — claiming C14.5 managed-harness UX #152
 

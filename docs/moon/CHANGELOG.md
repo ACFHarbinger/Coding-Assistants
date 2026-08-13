@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C14.5 managed harness readiness UX (#152) (2026-08-13)
+
+- Orchestrate now has a readiness panel that lists Hub harness rows with
+  high-contrast **managed**, **observed**, **busy**, **queued**, and
+  **unavailable** badges, plus per-provider setup prerequisites.
+- **Register observed** uses the existing capture-only registration.
+  **Start managed** uses the documented wake spawn, then
+  `hub_register_managed_harness_session`. Failed starts are not marked
+  managed. No TTY attach and no undocumented socket.
+- Chat & Memory shows the same session strip and replaces inject
+  `alert()` popups with a retry/dismiss delivery banner. Retry re-injects
+  the recorded message; dismiss is UI-only and does not release a writer
+  lease.
+- Added Tauri `hub_register_managed_harness_session` as a thin wrapper
+  over the existing Hub store method. Provider transports and the
+  `harness_session_registrations` schema/leases were not changed.
+- **Verification:** `npx tsc --noEmit`; `cargo test -p tauri-app
+  harness::commands`; clippy on the touched Tauri harness command file.
+- **Not claimed:** live Kubuntu all/subset/one, Claude Channel
+  permission/reply, or `agy` restart evidence. #152 stays open.
+
 ### Claude — C14.3 Claude Code Channel MCP bridge (#150) (2026-08-13)
 
 - Added a new `crates/claude-channel` binary crate

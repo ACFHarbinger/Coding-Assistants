@@ -374,6 +374,7 @@ pub fn run() {
             harness::commands::hub_inject_harness,
             harness::commands::hub_register_harness_session,
             harness::commands::hub_list_harness_sessions,
+            harness::commands::hub_register_managed_harness_session,
             harness::commands::hub_record_harness_capture,
             harness::commands::hub_capture_claude_session,
             harness::commands::hub_capture_codex_session,

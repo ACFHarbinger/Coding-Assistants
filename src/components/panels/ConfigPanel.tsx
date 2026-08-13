@@ -2,6 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { invoke } from "../../lib/tauri";
 import { ModelSelect } from "./config/ModelSelect";
+import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
 
 export interface ModelConfig {
   provider: string;
@@ -306,6 +307,8 @@ export default function ConfigPanel({
           </button>
         </div>
       </section>
+
+      <HarnessReadinessPanel workspace={config.work_dir} />
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>

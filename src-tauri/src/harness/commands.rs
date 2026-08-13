@@ -109,6 +109,20 @@ pub fn hub_list_harness_sessions() -> Result<Vec<HarnessSessionRegistration>, St
         .map_err(|error| error.to_string())
 }
 
+/// Mark a session as Hub-owned. Discovery stays observed via
+/// `hub_register_harness_session`. Does not write a provider transport.
+#[tauri::command]
+pub fn hub_register_managed_harness_session(
+    harness: String,
+    workspace: String,
+    disk_session_id: String,
+    managed_pid: u32,
+) -> Result<HarnessSessionRegistration, String> {
+    open_store()?
+        .register_managed_harness_session(&harness, &workspace, &disk_session_id, managed_pid)
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 pub fn hub_capture_grok_session(
     workspace: String,
@@ -256,6 +270,56 @@ mod tests {
             )
             .expect_err("strict policy must reject vibe before it ever spawns");
             assert!(error.contains("strict sandbox policy"), "{error}");
+        });
+    }
+
+    #[test]
+    fn hub_register_managed_session_is_distinct_from_observed() {
+        with_ca_home("register-managed-vs-observed", || {
+            let observed = hub_register_harness_session(
+                "chat".into(),
+                "/abs/repo".into(),
+                Some("thread-observed".into()),
+                None,
+            )
+            .expect("observed registration");
+            assert_eq!(observed.mode.as_str(), "observed");
+            assert!(observed.managed_pid.is_none());
+
+            let managed = hub_register_managed_harness_session(
+                "gemini".into(),
+                "/abs/repo".into(),
+                "conv-owned".into(),
+                4242,
+            )
+            .expect("managed registration");
+            assert_eq!(managed.mode.as_str(), "managed");
+            assert_eq!(managed.managed_pid, Some(4242));
+            assert_eq!(managed.state.as_str(), "ready");
+
+            let listed = hub_list_harness_sessions().expect("list");
+            assert!(listed
+                .iter()
+                .any(|row| row.harness == "chat" && row.mode.as_str() == "observed"));
+            assert!(listed.iter().any(|row| {
+                row.harness == "gemini"
+                    && row.mode.as_str() == "managed"
+                    && row.managed_pid == Some(4242)
+            }));
+        });
+    }
+
+    #[test]
+    fn hub_register_managed_session_rejects_relative_workspace() {
+        with_ca_home("register-managed-relative", || {
+            let error = hub_register_managed_harness_session(
+                "chat".into(),
+                "relative/repo".into(),
+                "thread-1".into(),
+                7,
+            )
+            .expect_err("relative workspace must be rejected");
+            assert!(error.contains("absolute"), "unexpected error: {error}");
         });
     }
 

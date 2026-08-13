@@ -1,0 +1,151 @@
+import { useCallback, useEffect, useState } from "react";
+import { invoke } from "../../../lib/tauri";
+import HarnessBadge from "./HarnessBadge";
+import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration } from "./types";
+
+const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
+
+export default function HarnessReadinessPanel({ workspace }: { workspace: string }) {
+  const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
+  const [error, setError] = useState("");
+  const [diskId, setDiskId] = useState("");
+  const [harness, setHarness] = useState<string>("grok");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const listed = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
+      setSessions(listed.filter((row) => !workspace || row.workspace === workspace));
+      setError("");
+    } catch (cause) {
+      setError(String(cause));
+    }
+  }, [workspace]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const requireWorkspace = () => {
+    if (!workspace.startsWith("/")) {
+      throw new Error("Set an absolute Workspace Root before registering a harness.");
+    }
+  };
+
+  const registerObserved = async () => {
+    setBusy(true);
+    try {
+      requireWorkspace();
+      await invoke("hub_register_harness_session", {
+        harness,
+        workspace,
+        diskSessionId: diskId.trim() || null,
+        leaderSocket: null,
+      });
+      setDiskId("");
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startManaged = async () => {
+    setBusy(true);
+    try {
+      requireWorkspace();
+      const started = await invoke<{ pid?: number | null; status: string; detail: string }>("hub_start_harness", {
+        harness,
+        workspace,
+        sessionId: null,
+        prompt: "Coding-Assistants managed session",
+      });
+      if (!started.pid) {
+        throw new Error(started.detail || "Managed start did not return a pid. The session was not marked managed.");
+      }
+      await invoke("hub_register_managed_harness_session", {
+        harness,
+        workspace,
+        diskSessionId: diskId.trim() || `managed-${started.pid}`,
+        managedPid: started.pid,
+      });
+      setDiskId("");
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section style={{ marginBottom: "1.5rem", padding: "1.25rem", border: "1px solid rgba(251, 191, 36, 0.35)", borderRadius: "12px", background: "rgba(251, 191, 36, 0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
+        <div>
+          <strong style={{ color: "var(--text-main)" }}>Managed harness readiness</strong>
+          <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.25rem" }}>
+            Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Never attach to an undocumented socket or TTY.
+          </div>
+        </div>
+        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy}>
+          Refresh
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.85rem 0" }}>
+        {HARNESS_STATE_LEGEND.map((sample) => (
+          <HarnessBadge key={`${sample.mode}:${sample.state}`} mode={sample.mode} state={sample.state} />
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.14)", border: "1px solid rgba(248, 113, 113, 0.55)", color: "#fecaca", fontSize: "0.85rem" }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.85rem" }}>
+        <select value={harness} onChange={(event) => setHarness(event.target.value)} style={{ padding: "0.45rem 0.6rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)" }}>
+          {PROVIDERS.map((id) => (
+            <option key={id} value={id}>{id}</option>
+          ))}
+        </select>
+        <input
+          value={diskId}
+          onChange={(event) => setDiskId(event.target.value)}
+          placeholder="thread / disk session id"
+          style={{ flex: "1 1 180px", padding: "0.45rem 0.6rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)" }}
+        />
+        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void registerObserved()}>
+          Register observed
+        </button>
+        <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void startManaged()}>
+          Start managed
+        </button>
+      </div>
+      <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
+        {HARNESS_PREREQUISITES[harness]} Start managed uses the documented wake spawn, then marks the Hub row owned. It does not attach to an existing TTY or undocumented socket.
+      </p>
+
+      <div style={{ display: "grid", gap: "0.55rem" }}>
+        {sessions.length === 0 && (
+          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No harness sessions registered for this workspace.</div>
+        )}
+        {sessions.map((row) => (
+          <div key={`${row.harness}:${row.workspace}`} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", padding: "0.65rem 0.75rem", borderRadius: "9px", border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.22)" }}>
+            <div>
+              <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
+              <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                thread {row.disk_session_id}
+                {row.writer_owner ? ` · writer ${row.writer_owner}` : ""}
+                {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
+              </div>
+            </div>
+            <HarnessBadge mode={row.mode} state={row.state} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

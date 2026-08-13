@@ -51,9 +51,22 @@ export function harnessTone(mode: HarnessSessionMode, state: HarnessSessionState
   return { label: "observed", color: "#a5f3fc", border: "rgba(34, 211, 238, 0.75)", bg: "rgba(14, 116, 144, 0.4)" };
 }
 
+export const HARNESS_STATE_LEGEND: Array<{ mode: HarnessSessionMode; state: HarnessSessionState }> = [
+  { mode: "managed", state: "ready" },
+  { mode: "observed", state: "ready" },
+  { mode: "managed", state: "busy" },
+  { mode: "managed", state: "queued" },
+  { mode: "observed", state: "unavailable" },
+];
+
+export function isSuccessfulInject(status: string): boolean {
+  const lowered = status.toLowerCase();
+  return lowered === "delivered" || lowered === "started" || lowered === "ok" || lowered === "spawned";
+}
+
 export function injectNotice(status: string, _detail: string): { retryable: boolean; tone: "ok" | "warn" | "bad" } {
   const lowered = status.toLowerCase();
-  if (lowered === "delivered" || lowered === "started") return { retryable: false, tone: "ok" };
+  if (isSuccessfulInject(lowered)) return { retryable: false, tone: "ok" };
   if (lowered === "queued" || lowered === "busy") return { retryable: true, tone: "warn" };
   return { retryable: lowered === "unavailable", tone: "bad" };
 }
