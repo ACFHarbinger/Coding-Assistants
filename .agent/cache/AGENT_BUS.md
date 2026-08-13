@@ -775,3 +775,68 @@ the new button.
 should pick this up via HMR.
 
 — Claude
+
+### claude — 2026-08-13 — Claude Code quota adapter landed (U8)
+
+Harbinger asked for a Claude Code quota bar in the Usage tab, matching Chat's
+Codex one. There's no documented Anthropic API for a subscription's
+session/weekly limit percentages (`anthropic-ratelimit-*` headers are a
+different, per-API-key billing concept) — confirmed this genuinely via the
+Claude API skill's reference docs, not from memory.
+
+Harbinger asked me to reverse-engineer it anyway. Drove an interactive
+`claude --debug` session through a PTY (Python `pty`/`select`), sent
+`/usage`, and read the debug log: `fetchUtilization: GET /api/oauth/usage`.
+Verified directly with `curl` using the OAuth Bearer token from
+`~/.claude/.credentials.json` (`anthropic-beta: oauth-2025-04-20` header,
+host `api.anthropic.com`) — live response matches the `/usage` UI numbers
+exactly (session/weekly/monthly-credit percentages + reset timestamps).
+
+Implemented `claude_quota()` in `hub_cmds.rs` mirroring `codex_quota()`'s
+structure: reads the local OAuth token (checks `expiresAt` first), calls the
+endpoint via `reqwest::blocking`, maps `five_hour`/`seven_day`/`extra_usage`
+into the existing `ProviderQuotaWindow` shape. `extra_usage` has no
+`resets_at` in the payload, so its reset date is computed locally as the 1st
+of next month UTC (Harbinger's instruction, matches the desktop UI's own
+"Resets Sep 1" wording). Every failure path (not logged in, expired token,
+network/parse error) degrades to the existing "unavailable" state — this is
+an undocumented, private endpoint that can change on any Claude Code update
+with no notice, so it must never crash the app or the quota fetch for other
+providers.
+
+Real (not mocked) test added: `claude_quota_is_well_formed_when_logged_in`
+skips gracefully on a machine with no `~/.claude/.credentials.json`, but
+here it made a live call and passed. `HubPanel.tsx`'s `QuotaChart` already
+renders windows generically by label — no frontend change needed.
+
+Fixed a pre-existing compile break in `hub_get_provider_quotas` from a
+concurrent edit (stale `&agent.id` reference after the function was
+restructured to iterate a fixed id list) — unrelated to my change, just
+needed to compile.
+
+`cargo fmt`/`clippy` clean, `cargo test -p tauri-app` green (5 passed),
+`npx tsc --noEmit` + `npx vite build` clean. Added `chrono` + reqwest's
+`blocking` feature to `src-tauri/Cargo.toml`.
+
+— Claude
+
+### grok — 2026-08-13 — Grok weekly usage plot on Shared Hub Usage (U8)
+
+Harbinger asked for Grok weekly usage charts next to Chat's. There is no
+`grok usage` CLI; the TUI `/usage` command loads
+`GET cli-chat-proxy.grok.com/v1/billing?format=credits` with the
+session token at `~/.grok/auth.json["https://accounts.x.ai/sign-in"].key`
+(never logged).
+
+`grok_quota()` maps `creditUsagePercent` + `billingPeriodEnd` onto a
+Weekly `ProviderQuotaWindow`, and `onDemandUsed`/`onDemandCap` onto Extra
+usage credits when present. `hub_get_provider_quotas` only returns the
+four harnesses so PID rows no longer fill the chart. `QuotaChart` labels
+monthly vs weekly by `window_minutes` instead of treating every ≥1 day
+window as weekly.
+
+Live smoke on this machine: `status=ok`, one Weekly window. Parser tests
+cover the billing JSON shape. Code landed in `f9e255b` together with
+Claude's adapter because both were in the same `hub_cmds.rs` working tree.
+
+— Grok
