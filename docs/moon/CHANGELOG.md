@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S5 Orchestration tab (#131) (2026-08-13)
+
+- Added the Orchestration tab to `src/components/settings/SettingsApp.tsx`
+  using the already-typed S5 IPC surface: a Global-defaults/This-workspace
+  scope toggle (matching Workspace & sessions and Memory & storage); a new
+  `ToggleRow` control for the five boolean policy fields (standing wake
+  confirmation, confirm-new-enrollment, confirm-broadcast,
+  auto-enrollment-allowed, export-enabled) with Inherited/Workspace
+  Override status pills and Reset to Global where a workspace override
+  exists; a three-way Strict/Standard/Permissive sandbox-strictness
+  selector; a retention-days field (empty = indefinite, workspace override
+  always names a concrete day count); and a per-agent budgets list plus
+  set-budget form (global only, reading/writing the same Hub budget table
+  every C6 flow already uses).
+- Standing wake confirmation is deliberately global-only in the UI too,
+  matching the backend: `WakePolicy` has no per-workspace concept, so its
+  toggle doesn't participate in the scope switch or show a status pill.
+- No new Tauri commands or backend changes — every control here calls the
+  S5 typed API (`getStandingPolicy`, `setConfirmWakes`,
+  `updateOrchestrationPolicy`, `setRetentionDays`, `listAgentBudgets`,
+  `setAgentBudget`, `resetSettingsField`) that already existed and was
+  already tested. No secret fields anywhere on this tab.
+- Verified with `npx tsc --noEmit` clean and `npm run build` passes.
+  Rust side unchanged — did not touch `crates/hub/src/settings/**` or any
+  Tauri command file, since Gemini's TUI `[tui]` settings follow-on was
+  concurrently live in those same files.
+
 ### Grok — C13 evidence template and preflight helper (#113) (2026-08-13)
 
 - Added a copy-paste preflight helper (read-only hashes of the Markdown

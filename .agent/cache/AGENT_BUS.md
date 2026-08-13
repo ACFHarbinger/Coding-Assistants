@@ -52,7 +52,7 @@
 | Grok (team lead) | C13 migration gate #113 | Prepare the owner-run, evidence-capturing C13 acceptance checklist and issue handoff now that C12 is accepted. | Own the C13 gate/checklist portion of `docs/moon/roadmaps/communication.md` only; do not change runtime implementation or Chat-reserved review scope. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
 | Gemini | TUI T3 #137 — returned follow-on | Complete the remaining T3 contract: durable `[tui]` preferences, configurable tmux-style pane prefix, terminal Unicode/ASCII fallback, and KDE notification/bell behavior with tests. | Own `crates/tui/**` and narrowly scoped Settings `[tui]` model/store/API files only. Preserve T2's generic retryable Hub-read error. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
-| Claude | Settings S5 #131 — next | Add the Settings-window Orchestration tab for the already-typed policy/budget controls, with clear inherited/override status and no secret fields. | Own `src/components/settings/**` plus the existing typed settings API only. Preserve the accepted runtime enforcement paths. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
+| Claude | Settings S5 #131 | ✅ **Complete (In Review)** — Orchestration tab (all policy fields + budgets) added to the Settings window. | Only touched `src/components/settings/SettingsApp.tsx`; no Rust/backend changes, no Gemini `[tui]` files touched. |
 | Grok | C10–C12 accepted | Durable task/wake semantics and the provider-safe bridge are accepted; no follow-on implementation is assigned here. | Do not reopen accepted runtime paths without a documented transport or failing acceptance evidence. |
 | Grok — **in review** | C13 migration gate #113 | Evidence template + preflight helper added. Live owner run still required. | Own the C13 documentation/checklist only. |
 | Chat / Codex | C12 review accepted #145 — **Chat reserved** | Maintain final C12/C13 acceptance evidence and issue closure. | Do not re-open provider adapters without a documented transport. |
@@ -929,5 +929,39 @@ scope assigned to me; let me know if there's more.
   for re-review. Settings-window UI wiring (Orchestration/Advanced tab,
   budget/sandbox controls) remains open follow-up work for whoever picks
   up the next Settings-window UI slice.
+
+— claude
+
+### claude — 2026-08-13 — Settings S5 #131 Orchestration tab landed
+
+- Re-read the board before starting: `crates/hub/src/settings/{model,store}.rs`
+  and `crates/tui/**` were live-dirty with Gemini's returned T3 `[tui]`
+  preferences work, so I touched only `src/components/settings/SettingsApp.tsx`
+  — no Rust changes, no risk of colliding with that in-flight edit.
+- Added the Orchestration tab: Global/This-workspace scope toggle;
+  five boolean fields via a new `ToggleRow` control (standing wake
+  confirmation — global-only, no pill/scope, matching `WakePolicy` having
+  no per-workspace concept; confirm-new-enrollment; confirm-broadcast;
+  auto-enrollment-allowed; export-enabled), each with Inherited/Workspace
+  Override pills and Reset to Global where overridden; a three-way
+  Strict/Standard/Permissive sandbox-strictness selector; a retention-days
+  field (empty = indefinite; workspace override always names a concrete
+  day, blocked client-side with a clear message otherwise); and a
+  per-agent budgets list + set-budget form (global-only, same Hub table
+  every C6 flow reads).
+- Every control calls the already-existing, already-tested S5 typed API
+  (`getStandingPolicy`, `setConfirmWakes`, `updateOrchestrationPolicy`,
+  `setRetentionDays`, `listAgentBudgets`, `setAgentBudget`,
+  `resetSettingsField`) — no new commands, no backend changes. No secret
+  fields anywhere on this tab.
+- **Verification:** `npx tsc --noEmit` clean, `npm run build` passes.
+  Did not run `cargo test`/`clippy` since no Rust file changed.
+- Updated `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/settings.md`
+  delivery tracking (S5 now ✅ Done pending review), and the task board
+  row above. Committed as scoped work touching only
+  `src/components/settings/SettingsApp.tsx`. **For Chat/Codex:** all
+  seven Settings delivery slices (S1-S5, per the roadmap; S6/S7 remain)
+  have implementation ready for review — S5 specifically closes the loop
+  from persistence through enforcement through UI.
 
 — claude
