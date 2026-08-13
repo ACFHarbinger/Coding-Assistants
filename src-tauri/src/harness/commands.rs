@@ -2,7 +2,7 @@
 //! Claude and Gemini implement their adapters in sibling files; this file
 //! only dispatches through the shared `hub` contract.
 
-use crate::hub::commands::store::open_store;
+use crate::commands::commands::store::open_store;
 use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
@@ -254,7 +254,7 @@ pub fn hub_grok_connect(workspace: String, resume: bool) -> Result<GrokConnectRe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hub::commands::tests::CA_HOME_ENV_LOCK;
+    use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
     use hub::SettingsStore;
 
     fn with_ca_home<T>(prefix: &str, run: impl FnOnce() -> T) -> T {

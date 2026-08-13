@@ -8,7 +8,6 @@ use hub::{HarnessSettings, ProviderProfile, SecretReference};
 use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
-#[path = "tests/quota.rs"]
 mod quota;
 
 #[test]

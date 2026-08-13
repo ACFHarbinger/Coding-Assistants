@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 pub(super) fn run_if_requested(
     command: &Command,
-    home: Option<PathBuf>,
+    home: PathBuf,
 ) -> Option<anyhow::Result<()>> {
     match command {
         Command::Preflight {

@@ -419,6 +419,7 @@ impl HubStore {
 
         self.seed_default_channels()?;
         self.ensure_builtin_roles()?;
+        self.ensure_starter_role_defaults()?;
         Ok(())
     }
 }

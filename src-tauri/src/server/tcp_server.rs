@@ -272,7 +272,7 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
             running: true,
             message: "Connected".to_string(),
         },
-        ClientRequest::GetPendingWakes => match crate::hub::commands::store::open_store() {
+        ClientRequest::GetPendingWakes => match crate::commands::commands::store::open_store() {
             Ok(store) => match store.list_wakes(None, true) {
                 Ok(wakes) => ServerResponse::PendingWakesList { wakes },
                 Err(e) => ServerResponse::Error {
@@ -284,7 +284,7 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
             },
         },
         ClientRequest::ResolveWake { wake_id, approve } => {
-            match crate::hub::commands::store::open_store() {
+            match crate::commands::commands::store::open_store() {
                 Ok(store) => {
                     let status = if approve {
                         hub::WakeStatus::Delivered
@@ -303,7 +303,7 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
                 },
             }
         }
-        ClientRequest::GetAgentCards => match crate::hub::commands::store::open_store() {
+        ClientRequest::GetAgentCards => match crate::commands::commands::store::open_store() {
             Ok(store) => match store.list_agents() {
                 Ok(cards) => ServerResponse::AgentCardsList { cards },
                 Err(e) => ServerResponse::Error {
