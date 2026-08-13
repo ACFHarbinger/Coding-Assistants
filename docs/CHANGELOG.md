@@ -5,6 +5,18 @@
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- **Hub-Native Multi-Agent Orchestration (U11–U12, C10–C12)**:
+  - **Create & Load Team Chat (U11)**: Added `Create & Open` and `Load & Open` entry points in Orchestrate view to manage durable work sessions and switch focus to Chat & Memory.
+  - **Recipient Addressing & Intent Tags (U12, C10, C11)**: Added Recipient Mode controls (`All Team`, `Subset`, `Single Agent`) and Intent Tag toggles (`⚡ [TASK]`, `🔔 [WAKE]`), enforcing task-refuse vs wake-enroll semantics with durable per-recipient `SendOutcome` records.
+  - **Bidirectional Harness Adapters (C12)**: Implemented explicit argv start and inject adapters for Grok (`grok --cwd`), OpenAI Codex (`codex exec --cwd`), Anthropic Claude Code (`claude -p`), and Google Antigravity CLI (`agy --cwd`).
+  - **4-Harness Session Capture (C12)**: Added on-disk session transcript reverse-engineering for all four harness identities (`harness_grok.rs`, `harness_codex.rs`, `harness_claude.rs`, `harness_gemini.rs`), with SHA-256 content deduplication and active work session refresh polling.
+  - **CLI Harness Capture & Tagged Dispatch (`ca-cli`)**: Added `ca harness capture` for headless transcript capture and `ca msg tag --dispatch` for CLI-native tagged message injection.
+- **Website Documentation Portal Sync (V1-DOCS-SYNC)**: Regenerated `docs/website/src/data/docs.json` for full capability roadmap, architecture, and changelog alignment.
+
 ---
 
 ## [0.1.0] - 2026-01-31 (Current)
