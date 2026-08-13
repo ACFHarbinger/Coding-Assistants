@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — W2 documentation content pipeline (#118) (2026-08-13) [DRAFT]
+
+- `scripts/build-content.ts` now enumerates the roadmap's exact curated
+  corpus (`docs/*.md`, `docs/adr/**`, `docs/moon/ROADMAP.md`,
+  `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/*.md`) explicitly, instead
+  of walking all of `docs/` — archive/research/reports are excluded by
+  construction, not by convention.
+- Parses optional YAML frontmatter (`gray-matter`): `title`, `description`,
+  `nav_group`, `order`, `draft` — each overriding the existing
+  path-heuristic default. Draft pages fail the build, with every offending
+  file listed.
+- Generates GitHub-style heading anchors (`github-slugger`), replacing a
+  hand-rolled regex — correct duplicate-heading disambiguation
+  (`overview`, `overview-1`, ...).
+- Validates and rewrites internal Markdown links directly in the stored
+  page content: an in-corpus `.md` link becomes a `/#/docs/<slug>`
+  HashRouter path (validating any heading anchor along with it); a link to
+  a real file outside the curated corpus is recorded in a new
+  `manifest.unpublishedLinks` array rather than failing the build; a link
+  to nothing real fails the build with every offender listed.
+- Fixed the slug format to match the roadmap's own locked example
+  (`moon/roadmaps/ui`, not `moon-roadmaps-ui`) — required `DocsLayout.tsx`
+  to read the `/docs/*` splat param for multi-segment slugs.
+- Running this for real against the actual `docs/` tree caught and fixed
+  genuinely broken pre-existing links: `ARCHITECTURE.md`/`SECURITY.md`/
+  `TROUBLESHOOTING.md` linked `ROADMAP.md` instead of `moon/ROADMAP.md`;
+  `TUTORIAL.md` linked `android/README.md` instead of
+  `../android/README.md`; `SECURITY.md`'s license badge linked `LICENSE`
+  instead of `../LICENSE`.
+- `src/content/*.json` were accidentally committed instead of gitignored
+  as the roadmap requires — untracked them and added them to
+  `docs/website/.gitignore`.
+- 15/15 tests (`tsx --test tests/*.test.ts`, matching the `node:test`
+  convention already established by `tests/search-rank.test.ts`).
+  `npx tsc --noEmit` and `npm run build` (prebuild → build-content →
+  Vite) both clean against the real 26-document corpus.
+- Known limitation: the link scanner is a single-pass regex, not a full
+  Markdown AST — nested `[![badge](img)](target)` links (image-in-link,
+  used for README/status badges) are not currently validated or rewritten;
+  they're silently left as-is rather than misclassified. A future pass
+  could move to a proper `remark`/`unist` walk if that coverage matters.
+
+### Chat / Codex — W1 documentation website foundation (#117) (2026-08-13) [DRAFT]
+
+- Replaced the website's Vue entrypoints and configuration with an isolated
+  React 19 + TypeScript + Vite + `HashRouter` foundation, keeping the desktop
+  app package boundary intact.
+- Configured Tailwind with the locked desktop design tokens: slate field
+  `#020617`, indigo `#6366f1`, purple `#a855f7`, 16px glass cards, and 20px
+  blur; the superseded cyan palette is not part of the foundation contract.
+- Added local `@fontsource` Inter and JetBrains Mono bundles plus an inline
+  before-paint theme initializer. The website no longer requests Google Fonts.
+- Replaced the legacy Vue README/configuration/assets with React website
+  guidance. `npm run build` now completes the content build, type check, and
+  static Vite build successfully.
+
+### Grok — W4 landing + W5 search/theme (#120, #121) (2026-08-13) [DRAFT]
+
+- **Product landing (`/#/`).** Product-forward hero, capability grid, v1
+  workflow, local quick-start snippet, docs + GitHub CTAs. Abstract Hub
+  graphic (Grok / Claude / Codex / Gemini satellites) — not a desktop
+  screenshot. Interlocking-circles brand mark recolored to indigo `#6366f1`
+  / purple `#a855f7`.
+- **Offline search.** `Cmd+K` / `Ctrl+K` MiniSearch palette ranks title
+  above summary/body, supports arrow/Enter, and reads the W2
+  `search-index.json` artifact. No external search service.
+- **Zero-flash theme.** Dark default; Dark / Light / System controls persist
+  to `ca-website-theme`. Inline boot script + `ThemeProvider` apply the
+  resolved class before paint. Self-hosted Inter / JetBrains Mono via
+  `@fontsource` (no Google Fonts).
+
 ### Gemini — Documentation Website Foundation, Content Pipeline & Reader (#117, #118, #119) (2026-08-13) [DRAFT]
 
 - **React 19 Website Foundation (W1 / #117)**: Migrated `docs/website` from Vue prototype to React 19 + TypeScript + Vite + Tailwind CSS + HashRouter (`/#/docs/...`). Configured glassmorphism design tokens matching desktop app (`#020617` background, cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography).
