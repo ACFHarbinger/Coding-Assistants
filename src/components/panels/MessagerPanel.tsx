@@ -27,6 +27,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [lastReadAt, setLastReadAt] = useState<Record<string, string>>(loadLastRead);
   const [readMarkers, setReadMarkers] = useState<{ agent_id: string; scope: string; last_read_at: string }[]>([]);
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
@@ -431,16 +432,17 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     });
 
     if (activeChannel.startsWith("dm-")) {
-      return matches;
+      return sortOrder === "asc" ? matches : [...matches].reverse();
     }
 
     const seen = new Set<string>();
-    return matches.filter(msg => {
+    const deduped = matches.filter(msg => {
       const key = channelDedupeKey(msg, activeChannel);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
+    return sortOrder === "asc" ? deduped : [...deduped].reverse();
   })();
 
   const lastThreadId = channelMessages.length > 0 ? channelMessages[channelMessages.length - 1].id : "";
@@ -479,7 +481,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
