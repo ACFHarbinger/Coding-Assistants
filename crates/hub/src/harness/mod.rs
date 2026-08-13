@@ -183,7 +183,6 @@ pub fn gemini_managed_spawn_args(
             args.push(OsString::from(conv_id));
         }
     }
-    args.push(OsString::from("--prompt"));
     args.push(OsString::from(prompt));
     Ok(args)
 }
@@ -402,8 +401,8 @@ mod tests {
         assert_eq!(args[0], "--print");
         assert_eq!(args[1], "--output-format");
         assert_eq!(args[2], "stream-json");
-        assert_eq!(args[3], "--prompt");
-        assert_eq!(args[4], "build feature");
+        assert_eq!(args[3], "build feature");
+        assert_eq!(args.len(), 4);
         assert!(gemini_spawn_args(Path::new("relative"), "x").is_err());
         assert!(gemini_spawn_args(&ws, "   ").is_err());
     }

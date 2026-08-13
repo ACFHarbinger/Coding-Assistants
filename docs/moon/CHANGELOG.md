@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — Antigravity (`agy`) argv prompt repair & TUI 500-LoC refactor (#151, #155) (2026-08-13)
+
+- Corrected Antigravity (`agy`) prompt argument structure in `crates/hub/src/harness/mod.rs` to positional format: `agy --print --output-format stream-json [--conversation <id>] <prompt>`. Removed erroneous `--prompt` flag prefix (`--prompt` in `agy` is an alias for `--print`).
+- Refactored `crates/tui/src/app.rs` (994 LoC) into modular subcomponents under `crates/tui/src/app/` (`mod.rs`, `runner.rs`, `state.rs`, `ui.rs`, `views.rs`), ensuring every file is strictly ≤ 342 lines of code (below the 500-LoC cap).
+- **Verification:** All unit and integration tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+
 ### Code organization — repository-wide 500-line source cap (#158) (2026-08-13)
 
 - Opened a tracked, refactor-only programme to split every production Rust,
