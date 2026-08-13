@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — TUI T2 shared read model & responsive shell (#136) (2026-08-13)
+
+- Implemented `HubReadModel` in `crates/tui/src/model.rs` providing a unified, read-only snapshot of Hub data (work sessions, team roster, channel messages, tasks, settings audit events, effective settings) directly from `HubStore` and `SettingsStore`.
+- Integrated `HubReadModel` into `crates/tui/src/app.rs` with responsive Ratatui views across all desktop-parity tabs (Orchestrate, Chat & Memory, Shared Hub, Settings) and added an `[r]` manual/on-demand read model refresh command.
+- Added unit test `test_hub_read_model_loads_coherent_data` in `crates/tui/tests/model_test.rs`.
+- **Verification:** `cargo test` passes 97 unit and integration tests across all workspace crates; `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+
 ### Grok — Settings S4 typed profile/harness commands (#130) (2026-08-13)
 
 - Added redacted Tauri commands for profile list/upsert/rename/remove,
