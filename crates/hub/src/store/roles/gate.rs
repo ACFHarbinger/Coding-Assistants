@@ -334,5 +334,5 @@ impl HubStore {
 }
 
 #[cfg(test)]
-#[path = "gate/tests.rs"]
-mod tests;
+#[path = "gate_tests.rs"]
+mod gate_tests;

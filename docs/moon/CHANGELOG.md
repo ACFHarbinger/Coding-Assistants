@@ -50,6 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Settings profile/harness tests into a focused test module; the
   remaining Settings test entry is now 440 lines while preserving all test
   coverage.
+- Split the persistent Settings store into general, workspace/profile,
+  persistence, and TOML-document modules. Flattened the interim one-file
+  audit/gate directories and split the remaining Hub agents, audit, role-gate,
+  and role-defaults responsibilities/tests. The source inventory now contains
+  no Rust, TypeScript, or React unit above 500 physical lines.
 
 ### Chat / Codex — messaging-path verification and Codex delivery guidance (#156, #157) (2026-08-13)
 

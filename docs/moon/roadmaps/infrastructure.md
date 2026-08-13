@@ -11,7 +11,7 @@ Keep only infrastructure with a current local or prototype use.
 | I5 | Remove obsolete Kubernetes, Helm, serverless, AWS, Azure Pipelines, WordPress, Webpack, Nginx, and proxy scaffolding | 📋 Pending |
 | I6 | Keep research and reports separate from active implementation roadmaps | 📋 Pending |
 | I7 | Rename crate/package `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (`src-tauri/Cargo.toml`, root `package.json`, `tauri.conf.json`, capability configs, lockfiles) — owner-confirmed 2026-08-10; dropped from the roadmap during the capability-file restructure, re-added here (Claude verification pass) | 📋 Pending |
-| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | 🚧 In progress · 2026-08-13 |
+| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | ✅ Done · 2026-08-13 |
 
 ## I8 — bounded source modules
 
@@ -23,9 +23,10 @@ Keep only infrastructure with a current local or prototype use.
   clear boundary exists.
 - Add a repeatable source-length inventory/check before closing the issue, and
   run the affected crate/frontend/docs test and build commands after each slice.
-- Initial Chat/Codex slice complete: CLI app/command branches, message-query
-  helper, workflow tests, Tauri quota tests, and Settings profile/harness
-  tests are separated. The Settings store remains the next owned split.
+- Completed the inventory: Settings persistence and tests, Hub agents/audit/
+  roles, CLI branches, Tauri quota tests, and frontend/provider slices are
+  split by responsibility. The final source-length inventory has no Rust,
+  TypeScript, or React unit above 500 physical lines.
 - This is a refactor-only programme: behavior changes need their own roadmap
   entry and issue rather than being folded into a mechanical split.
 - **Claude's slice — done:** `crates/hub/src/bridge/claude_channel.rs` (1,069
