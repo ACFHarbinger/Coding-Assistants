@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "../../lib/tauri";
+import { invoke } from "../lib/tauri";
 
 export interface TaskRecord {
   id: string;

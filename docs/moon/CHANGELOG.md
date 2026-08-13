@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Hub test groups. Every Rust source file in `crates/hub/src` and
   `crates/cli/src` is now at or below 500 lines; the public `hub` exports and
   the installed `ca` command interface remain unchanged.
+- **Frontend panel layout.** Split `App`, Config, Hub, and chat-panel code
+  into focused React components and support modules; placed Hub under the
+  panel directory, kept `TaskTab` as a general component, and grouped chat
+  support under `panels/messager`. Every TypeScript/React source file in
+  `src/` is now at or below 500 lines.
 
 ### Added
 

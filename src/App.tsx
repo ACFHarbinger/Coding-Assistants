@@ -2,74 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-import HubPanel from "./components/HubPanel";
+import { PROVIDERS, HubAgent, HubMessage, WorkSession, loadWorkspaceRoot, sameHubAgents, sameHubMessages } from "./app/hubState";
+import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
 import SlackChatPanel from "./components/panels/SlackChatPanel";
 
-const PROVIDERS = {
-  "openai": "OpenAI",
-  "anthropic": "Anthropic",
-  "google": "Google",
-  "xai": "Grok (xAI)",
-  "ollama": "Ollama (Local)",
-  "deepseek": "DeepSeek (OpenCode)",
-  "opencode": "OpenCode",
-  "mistral": "Mistral (Vibe)",
-};
-
-interface HubMessage {
-  id: string;
-  from_agent: string;
-  to_agent: string;
-  body: string;
-  subject: string | null;
-  kind: string;
-  status: string;
-  created_at: string;
-}
-
-interface HubAgent {
-  id: string;
-  display_name: string;
-  team_member?: boolean;
-}
-
-export interface WorkSession {
-  id: string;
-  name: string;
-  created_at: string;
-  member_ids: string[];
-}
-
-function sameHubMessages(left: HubMessage[], right: HubMessage[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((message, index) => {
-    const other = right[index];
-    return message.id === other.id
-      && message.body === other.body
-      && message.status === other.status
-      && message.subject === other.subject;
-  });
-}
-
-function sameHubAgents(left: HubAgent[], right: HubAgent[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((agent, index) => {
-    const other = right[index];
-    return agent.id === other.id
-      && agent.display_name === other.display_name
-      && agent.team_member === other.team_member;
-  });
-}
-
-function loadWorkspaceRoot(): string {
-  try {
-    return localStorage.getItem("ca.workspaceRoot") || "./workspace";
-  } catch {
-    return "./workspace";
-  }
-}
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
