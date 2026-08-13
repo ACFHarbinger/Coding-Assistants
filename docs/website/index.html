@@ -6,6 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Coding-Assistants — Documentation</title>
     <meta name="description" content="Documentation for the local-first Coding-Assistants multi-agent orchestration desktop application." />
+
+    <!-- Social preview cards. No third-party requests: og:image points at
+         the self-hosted favicon, the only brand asset currently under
+         public/ with a stable, unhashed URL. A dedicated 1200x630 raster
+         image would render better on platforms with poor SVG support —
+         tracked as a W7 follow-up, not blocking. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Coding-Assistants" />
+    <meta property="og:title" content="Coding-Assistants — Documentation" />
+    <meta property="og:description" content="Documentation for the local-first Coding-Assistants multi-agent orchestration desktop application." />
+    <meta property="og:image" content="%BASE_URL%favicon.svg" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Coding-Assistants — Documentation" />
+    <meta name="twitter:description" content="Documentation for the local-first Coding-Assistants multi-agent orchestration desktop application." />
+    <meta name="twitter:image" content="%BASE_URL%favicon.svg" />
     <script>
       (() => {
         const stored = localStorage.getItem("ca-website-theme");
