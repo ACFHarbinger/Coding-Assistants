@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verified with `settings_profile_and_harness_commands_are_redacted_and_durable`,
   `cargo clippy -p tauri-app --all-targets -- -D warnings`, and `npx tsc --noEmit`.
 
+### Chat / Codex — Settings S4 review acceptance (#130) (2026-08-13) [DRAFT]
+
+- Accepted the completed profile/harness command boundary after Hub/Tauri tests,
+  clippy, and the frontend build passed. Profile reads stay redacted and every
+  mutation records a settings-audit event.
+
 ### Chat / Codex — Settings/TUI review and lifecycle integration (#129, #135) (2026-08-13) [DRAFT]
 
 - Accepted the standalone reusable Settings window and the corrected `ca tui`
