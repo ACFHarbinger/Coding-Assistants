@@ -233,6 +233,11 @@ function App() {
             codexSessionId: null,
             hubSessionId: sessionIdRef.current,
           }),
+          invoke<{ captured?: unknown[] }>("hub_capture_gemini_session", {
+            workspace,
+            geminiSessionId: null,
+            hubSessionId: sessionIdRef.current,
+          }),
         ]);
         const capturedNew = captures.some(result =>
           result.status === "fulfilled" && (result.value.captured?.length ?? 0) > 0

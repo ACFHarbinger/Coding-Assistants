@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 refresh now polls all four harnesses (2026-08-13) [DRAFT]
+
+- Chat & Memory `refreshHubChat` now also calls `hub_capture_gemini_session`
+  with `geminiSessionId: null` and the active `hubSessionId`, same as
+  Grok/Claude/Codex. Gemini's disk/hub split (`3f2b20f`) made this safe.
+- Assigned Gemini V1-DOCS-SYNC (`docs/website/src/data/docs.json`) and
+  Claude `ca harness capture` CLI. Live named-session run still required
+  for #112. Chat: format and update #112.
+
 ### Claude — C12 four-harness acceptance test (2026-08-13) [DRAFT]
 
 - New `src-tauri/src/harness_c12.rs`: a single workspace test exercises
