@@ -180,6 +180,15 @@ pub struct AgentRecord {
     pub team_member: bool,
 }
 
+/// A named, durable chat scope for one owner-led work session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkSessionRecord {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub member_ids: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryRecord {
     pub id: String,
@@ -662,6 +671,21 @@ impl HubStore {
             CREATE INDEX IF NOT EXISTS idx_wake_target_status
                 ON wake_requests(target_agent, status);
 
+            CREATE TABLE IF NOT EXISTS work_sessions (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS work_session_members (
+                session_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(session_id, agent_id),
+                FOREIGN KEY(session_id) REFERENCES work_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY NOT NULL,
                 title TEXT NOT NULL,
@@ -847,6 +871,108 @@ impl HubStore {
             .into_iter()
             .find(|agent| agent.id == id)
             .ok_or_else(|| HubError::NotFound(id.to_string()))
+    }
+
+    /// Creates a named work-session chat and enrolls the current persisted team.
+    pub fn create_work_session(&self, name: &str) -> Result<WorkSessionRecord, HubError> {
+        let name = name.trim();
+        if name.is_empty() || name.len() > 120 {
+            return Err(HubError::Invalid(
+                "work session name must be between 1 and 120 characters".into(),
+            ));
+        }
+        let id = Uuid::new_v4().to_string();
+        let created_at = Utc::now().to_rfc3339();
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "INSERT INTO work_sessions(id, name, created_at) VALUES (?1, ?2, ?3)",
+            params![id, name, created_at],
+        )?;
+        tx.execute(
+            "INSERT INTO work_session_members(session_id, agent_id, created_at)
+             SELECT ?1, id, ?2 FROM agents WHERE team_member = 1",
+            params![id, created_at],
+        )?;
+        tx.commit()?;
+        self.get_work_session(&id)?
+            .ok_or_else(|| HubError::NotFound(id))
+    }
+
+    pub fn list_work_sessions(&self) -> Result<Vec<WorkSessionRecord>, HubError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, created_at FROM work_sessions ORDER BY created_at DESC")?;
+        let sessions = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        sessions
+            .into_iter()
+            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .collect()
+    }
+
+    pub fn add_work_session_member(
+        &self,
+        session_id: &str,
+        agent_id: &str,
+    ) -> Result<WorkSessionRecord, HubError> {
+        if self.get_work_session(session_id)?.is_none() {
+            return Err(HubError::NotFound(session_id.to_string()));
+        }
+        if !self.list_agents()?.iter().any(|agent| agent.id == agent_id) {
+            return Err(HubError::NotFound(agent_id.to_string()));
+        }
+        self.conn.execute(
+            "INSERT OR IGNORE INTO work_session_members(session_id, agent_id, created_at)
+             VALUES (?1, ?2, ?3)",
+            params![session_id, agent_id, Utc::now().to_rfc3339()],
+        )?;
+        self.get_work_session(session_id)?
+            .ok_or_else(|| HubError::NotFound(session_id.to_string()))
+    }
+
+    fn get_work_session(&self, id: &str) -> Result<Option<WorkSessionRecord>, HubError> {
+        self.conn
+            .query_row(
+                "SELECT id, name, created_at FROM work_sessions WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .transpose()
+    }
+
+    fn work_session_record(
+        &self,
+        id: String,
+        name: String,
+        created_at: String,
+    ) -> Result<WorkSessionRecord, HubError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id FROM work_session_members WHERE session_id = ?1 ORDER BY agent_id",
+        )?;
+        let member_ids = stmt
+            .query_map(params![id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(WorkSessionRecord {
+            id,
+            name,
+            created_at,
+            member_ids,
+        })
     }
 
     /// Wake every enrolled teammate except the sender and `system`.
@@ -3730,5 +3856,36 @@ mod tests {
         let linked = store.list_message_memories(&general.id).unwrap();
         assert_eq!(linked.len(), 1);
         assert_eq!(linked[0].id, memory.id);
+    }
+
+    #[test]
+    fn work_sessions_start_with_the_team_and_accept_later_team_members() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("claude", false).unwrap();
+
+        let session = store.create_work_session("Cloud sync design").unwrap();
+        assert!(session.member_ids.contains(&"human".to_string()));
+        assert!(session.member_ids.contains(&"grok".to_string()));
+        assert!(!session.member_ids.contains(&"claude".to_string()));
+
+        store.set_team_member("claude", true).unwrap();
+        let updated = store
+            .add_work_session_member(&session.id, "claude")
+            .unwrap();
+        assert!(updated.member_ids.contains(&"claude".to_string()));
+
+        let unchanged = store
+            .add_work_session_member(&session.id, "claude")
+            .unwrap();
+        assert_eq!(
+            unchanged
+                .member_ids
+                .iter()
+                .filter(|agent_id| agent_id.as_str() == "claude")
+                .count(),
+            1
+        );
+        assert_eq!(store.list_work_sessions().unwrap()[0].id, session.id);
     }
 }

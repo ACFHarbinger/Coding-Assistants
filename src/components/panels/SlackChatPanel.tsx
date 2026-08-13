@@ -18,6 +18,13 @@ export interface HubAgent {
   team_member?: boolean;
 }
 
+export interface WorkSession {
+  id: string;
+  name: string;
+  created_at: string;
+  member_ids: string[];
+}
+
 export interface MemoryRecord {
   id: string;
   scope: string;
@@ -41,6 +48,9 @@ export interface DetectedProcess {
 export interface SlackChatPanelProps {
   hubMessages: HubMessage[];
   hubAgents: HubAgent[];
+  workSessions: WorkSession[];
+  activeWorkSessionId: string | null;
+  onSelectWorkSession: (sessionId: string | null) => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -166,7 +176,7 @@ function threadRootId(message: HubMessage, channel: string): string | null {
   return rootId || null;
 }
 
-export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: SlackChatPanelProps) {
+export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
   const [targetRecipient, setTargetRecipient] = useState<string>("team");
@@ -177,6 +187,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+  const [sessionWakeTargets, setSessionWakeTargets] = useState<Record<string, boolean>>({});
 
   // Memories side drawer state
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
@@ -199,6 +210,18 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
   const forceScrollRef = useRef(false);
   const prevChannelRef = useRef(activeChannel);
   const [jumpToLatest, setJumpToLatest] = useState(false);
+  const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) || null;
+
+  useEffect(() => {
+    if (!activeWorkSession) return;
+    setSessionWakeTargets(previous => {
+      const next: Record<string, boolean> = {};
+      for (const agentId of activeWorkSession.member_ids) {
+        if (agentId !== "human") next[agentId] = previous[agentId] ?? true;
+      }
+      return next;
+    });
+  }, [activeWorkSessionId, activeWorkSession?.member_ids.join(",")]);
 
   // Close the context menu on outside click or Escape.
   useEffect(() => {
@@ -295,6 +318,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
     if (dmTarget === "human") return;
     setSending(true);
     try {
+      const sessionChannel = activeChannel.startsWith("session:") ? activeChannel : null;
       const subject = dmTarget
         ? `private:${crypto.randomUUID()}`
         : replyTo
@@ -303,26 +327,31 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
       const to = dmTarget
         ? dmTarget
         : (targetRecipient === "team" ? "team" : targetRecipient);
-
-      const sentMsg = await invoke<{ id: string }>("hub_send_message", {
-        args: {
-          from: "human",
-          to,
-          kind: "message",
-          subject,
-          workspace: null,
-          task: null,
-          body: messageInput.trim(),
-        }
-      });
-
-      const wakeTargets = to === "team" ? teamWakeTargets(hubAgents) : [to];
-      await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
-        target,
-        reason: `Slack Chat message in ${activeChannel}`,
-        messageId: sentMsg.id,
-        humanGate: wakePolicyGate
-      })));
+      if (sessionChannel && activeWorkSession) {
+        const recipients = activeWorkSession.member_ids.filter(id => id !== "system");
+        if (recipients.length === 0) throw new Error("The active work session has no members");
+        const messages = await Promise.all(recipients.map(recipient =>
+          invoke<{ id: string }>("hub_send_message", {
+            args: { from: "human", to: recipient, kind: "message", subject, workspace: null, task: null, body: messageInput.trim() }
+          }).then(message => ({ recipient, message }))
+        ));
+        await Promise.all(messages
+          .filter(({ recipient }) => recipient !== "human" && sessionWakeTargets[recipient])
+          .map(({ recipient, message }) => invoke("hub_request_wake", {
+            target: recipient,
+            reason: `Work session: ${activeWorkSession.name}`,
+            messageId: message.id,
+            humanGate: wakePolicyGate
+          })));
+      } else {
+        const sentMsg = await invoke<{ id: string }>("hub_send_message", {
+          args: { from: "human", to, kind: "message", subject, workspace: null, task: null, body: messageInput.trim() }
+        });
+        const wakeTargets = to === "team" ? teamWakeTargets(hubAgents) : [to];
+        await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
+          target, reason: `Slack Chat message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
+        })));
+      }
 
       setMessageInput("");
       setReplyTo(null);
@@ -601,6 +630,25 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
         </div>
 
         {/* Direct Messages Roster */}
+        {workSessions.length > 0 && (
+          <div>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.5rem", paddingLeft: "0.5rem" }}>
+              Work Sessions
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+              {workSessions.map(session => {
+                const channel = `session:${session.id}`;
+                const isActive = activeChannel === channel;
+                return <button key={session.id} onClick={() => { onSelectWorkSession(session.id); setActiveChannel(channel); }} style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "none", background: isActive ? "rgba(6, 182, 212, 0.2)" : "transparent", color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "0.85rem" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>◈ {session.name}</span>
+                  <span style={{ fontSize: "0.72rem" }}>{session.member_ids.length}</span>
+                </button>;
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Direct Messages Roster */}
         <div>
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.5rem", paddingLeft: "0.5rem" }}>
             Direct Messages & Agents
@@ -670,10 +718,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span>{activeChannel.startsWith("dm-") ? `💬 Direct Message: ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}` : `#${activeChannel}`}</span>
+              <span>{activeChannel.startsWith("dm-") ? `💬 Direct Message: ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}` : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `◈ Work session: ${activeWorkSession.name}` : `#${activeChannel}`}</span>
             </h2>
             <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0 0" }}>
-              {DEFAULT_CHANNELS.find(c => c.id === activeChannel)?.topic || "Agent interaction stream"}
+              {activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `${activeWorkSession.member_ids.length} members · messages from the human and agent harnesses` : DEFAULT_CHANNELS.find(c => c.id === activeChannel)?.topic || "Agent interaction stream"}
             </p>
           </div>
 
@@ -990,6 +1038,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
               placeholder={
                 activeChannel.startsWith("dm-")
                   ? `Message ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}… (Enter to send, Shift+Enter for a new line)`
+                  : activeWorkSession && activeChannel === `session:${activeWorkSession.id}`
+                    ? `Message work session ${activeWorkSession.name}… (Enter to send, Shift+Enter for a new line)`
                   : `Message #${activeChannel}… (Enter to send, Shift+Enter for a new line)`
               }
               value={messageInput}
@@ -1019,6 +1069,22 @@ export default function SlackChatPanel({ hubMessages, hubAgents, onRefresh }: Sl
                   <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
                     Direct message to {getAgentInfo(activeChannel.replace("dm-", "")).displayName}
                   </span>
+                ) : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Wake only selected session members:</span>
+                    <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+                      {activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system").map(agentId => (
+                        <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={sessionWakeTargets[agentId] ?? true}
+                            onChange={event => setSessionWakeTargets(previous => ({ ...previous, [agentId]: event.target.checked }))}
+                          />
+                          {getAgentInfo(agentId).displayName}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
                 <select
                   value={targetRecipient}

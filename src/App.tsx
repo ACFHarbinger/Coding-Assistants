@@ -32,6 +32,13 @@ interface HubAgent {
   team_member?: boolean;
 }
 
+export interface WorkSession {
+  id: string;
+  name: string;
+  created_at: string;
+  member_ids: string[];
+}
+
 function sameHubMessages(left: HubMessage[], right: HubMessage[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((message, index) => {
@@ -93,6 +100,8 @@ function App() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
+  const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
+  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadModels() {
@@ -168,12 +177,17 @@ function App() {
   const refreshHubChat = async () => {
     if (!isTauriRuntime()) return;
     try {
-      const [messages, agents] = await Promise.all([
+      const [messages, agents, sessions] = await Promise.all([
         invoke<HubMessage[]>("hub_list_messages", { to: null, status: null }),
-        invoke<HubAgent[]>("hub_list_agents")
+        invoke<HubAgent[]>("hub_list_agents"),
+        invoke<WorkSession[]>("hub_list_work_sessions"),
       ]);
       setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
       setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
+      setWorkSessions(sessions);
+      setActiveWorkSessionId(current => current && sessions.some(session => session.id === current)
+        ? current
+        : (sessions[0]?.id ?? null));
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
     }
@@ -198,10 +212,28 @@ function App() {
       || rosterId === "grok"
       || rosterId === "human";
     if (persistable && isTauriRuntime()) {
-      invoke("hub_set_team_member", { id: rosterId, enrolled: true }).catch(error => {
-        console.error("Failed to persist team enrollment:", error);
-      });
+      void (async () => {
+        try {
+          await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
+          if (activeWorkSessionId) {
+            await invoke("hub_add_work_session_member", {
+              sessionId: activeWorkSessionId,
+              agentId: rosterId,
+            });
+          }
+          await refreshHubChat();
+        } catch (error) {
+          console.error("Failed to persist team/session enrollment:", error);
+        }
+      })();
     }
+  };
+
+  const createWorkSession = async (name: string) => {
+    if (!isTauriRuntime()) throw new Error("Work sessions require the desktop app");
+    const session = await invoke<WorkSession>("hub_create_work_session", { name });
+    setWorkSessions(prev => [session, ...prev.filter(existing => existing.id !== session.id)]);
+    setActiveWorkSessionId(session.id);
   };
 
   const removeAgentFromTeam = (agent: TeamMember) => {
@@ -267,6 +299,9 @@ function App() {
           <SlackChatPanel
             hubMessages={hubMessages}
             hubAgents={hubAgents}
+            workSessions={workSessions}
+            activeWorkSessionId={activeWorkSessionId}
+            onSelectWorkSession={setActiveWorkSessionId}
             onRefresh={refreshHubChat}
           />
         </div>
@@ -285,6 +320,8 @@ function App() {
               teamMemberIds={teamMembers.map(member => member.id)}
               onAddAgent={addAgentToTeam}
               onRemoveAgent={removeAgentFromTeam}
+              onCreateWorkSession={createWorkSession}
+              activeWorkSessionName={workSessions.find(session => session.id === activeWorkSessionId)?.name ?? null}
             />
 
             <RemotePanel

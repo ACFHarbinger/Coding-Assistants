@@ -25,6 +25,13 @@ parity across the desktop and CLI. CA-114 adds contextual replies using the
 same subject namespace (`channel:<name>:thread:<root>:<id>`), preserving
 channel isolation and existing roster wake behavior without a migration.
 
+**2026-08-13:** Named work sessions are durable `work_sessions` plus
+membership records. A session initializes from the persisted team; an agent
+added to the team is also enrolled in the active session. Its chat uses an
+isolated `channel:session:<id>` subject namespace, so messages emitted from a
+human or agent harness render together while per-member wake selection stays
+an explicit delivery decision.
+
 The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
 

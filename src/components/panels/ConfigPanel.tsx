@@ -49,6 +49,8 @@ interface ConfigPanelProps {
   teamMemberIds: string[];
   onAddAgent: (agent: TeamMember) => void;
   onRemoveAgent: (agent: TeamMember) => void;
+  onCreateWorkSession: (name: string) => Promise<void>;
+  activeWorkSessionName: string | null;
 }
 
 export interface DetectedProcess {
@@ -249,12 +251,27 @@ const ModelSelect = ({
   );
 };
 
-export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview, teamMemberIds, onAddAgent, onRemoveAgent }: ConfigPanelProps) {
+export default function ConfigPanel({ config, setConfig, availableModels, resources, PROVIDERS, onPreview, teamMemberIds, onAddAgent, onRemoveAgent, onCreateWorkSession, activeWorkSessionName }: ConfigPanelProps) {
   const [detectedProcesses, setDetectedProcesses] = useState<DetectedProcess[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState("");
   const [hasScanned, setHasScanned] = useState(false);
   const [addedPids, setAddedPids] = useState<number[]>([]);
+  const [workSessionName, setWorkSessionName] = useState("");
+  const [creatingWorkSession, setCreatingWorkSession] = useState(false);
+
+  const createWorkSession = async () => {
+    if (!workSessionName.trim() || creatingWorkSession) return;
+    setCreatingWorkSession(true);
+    try {
+      await onCreateWorkSession(workSessionName.trim());
+      setWorkSessionName("");
+    } catch (error) {
+      alert(`Failed to create work session: ${error}`);
+    } finally {
+      setCreatingWorkSession(false);
+    }
+  };
 
   const detectProcesses = async () => {
     setDetecting(true);
@@ -383,6 +400,28 @@ export default function ConfigPanel({ config, setConfig, availableModels, resour
           {detecting ? "Scanning processes…" : "Detect running agents"}
         </button>
       </div>
+
+      <section style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.5rem', padding: '1rem', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '10px', background: 'rgba(6, 182, 212, 0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <strong style={{ color: 'var(--text-main)' }}>Work session chat</strong>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>Create a named durable chat. New team members join the active session automatically.</div>
+          </div>
+          <span style={{ color: 'var(--accent)', fontSize: '0.8rem' }}>{activeWorkSessionName ? `Active: ${activeWorkSessionName}` : 'No active session'}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <input
+            value={workSessionName}
+            onChange={event => setWorkSessionName(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter') void createWorkSession(); }}
+            placeholder="Session name, e.g. Cloud sync design"
+            style={{ flex: '1 1 260px', padding: '0.6rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+          />
+          <button className="btn-primary" onClick={() => void createWorkSession()} disabled={!workSessionName.trim() || creatingWorkSession}>
+            {creatingWorkSession ? 'Creating…' : 'Create work session chat'}
+          </button>
+        </div>
+      </section>
 
       {detectError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>{detectError}</div>}
       {hasScanned && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.06)' }}>

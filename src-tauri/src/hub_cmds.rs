@@ -427,6 +427,30 @@ pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<ca_hub::AgentRe
 }
 
 #[tauri::command]
+pub fn hub_create_work_session(name: String) -> Result<ca_hub::WorkSessionRecord, String> {
+    open_store()?
+        .create_work_session(&name)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_work_sessions() -> Result<Vec<ca_hub::WorkSessionRecord>, String> {
+    open_store()?
+        .list_work_sessions()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_add_work_session_member(
+    session_id: String,
+    agent_id: String,
+) -> Result<ca_hub::WorkSessionRecord, String> {
+    open_store()?
+        .add_work_session_member(&session_id, &agent_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn hub_request_team_wakes(
     from: String,
     reason: Option<String>,

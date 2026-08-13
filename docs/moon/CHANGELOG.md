@@ -104,6 +104,14 @@ as issue #90, since U10 had no prior issue of its own.
 
 ### Added
 
+- Work sessions: Orchestrate can create a named durable work-session chat.
+  It starts with the current persisted team and adding an eligible agent to the
+  team enrolls it in the active work session. Slack Chat & Memory lists each
+  session, renders human and agent-harness messages in its
+  `channel:session:<id>` scope, and sends only to that session's members.
+  Per-member checkboxes decide which offline agents receive a wake for the
+  next session message without changing durable delivery.
+
 - Cloud Drive sync capability roadmap (`docs/moon/roadmaps/cloud_sync.md`,
   `743000a`): Google Drive first, then Firebase Auth+Storage, then Supabase,
   then OneDrive/Dropbox. Encrypted replica, journal-integrity merge, hashed
