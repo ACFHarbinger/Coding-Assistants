@@ -44,6 +44,12 @@
   Memory work sessions. The Markdown bus remains the temporary fallback until
   C10–C13 pass live acceptance; do not delete or mutate fallback records as
   part of this programme.
+- **New priority — provider-native harness integration (C14 / #147):** build
+  deliberate managed-session support for Codex, Claude Code, and
+  Gemini/Antigravity from their documented contracts. Do not write a terminal,
+  PTY, `cc-socks`, or any other undocumented provider endpoint. C12's safe
+  capture/refusal behavior remains the fallback until each C14 slice is
+  accepted.
 
 ## Active task board
 
@@ -57,6 +63,11 @@
 | Grok | C13 preflight inspector #146 | Evidence template is accepted; implement the read-only CLI inspector for the same owner run. | Update changelog, `roadmaps/communication.md`, #146 and #113, then commit before review. |
 | Chat / Codex | C12 review accepted #145 — **Chat reserved** | Maintain final C12/C13 acceptance evidence and issue closure. | Do not re-open provider adapters without a documented transport. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
+| Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
+| Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
+| Claude | C14.3 Claude Channel #150 | Research and implement an opt-in two-way Coding-Assistants Claude Channel MCP bridge using documented `claude/channel`; include authenticated sender gate, reply routing, and optional permission relay. | Own a new dedicated bridge/plugin directory and Claude-specific tests/docs. Never use `/run/user/*/cc-socks` or mutate current `crates/hub/src/bridge/claude.rs` delivery safety path without Chat approval. |
+| Gemini | C14.4 Antigravity managed worker #151 | Implement app-owned `agy --print --output-format stream-json` worker lifecycle, parse stream events, persist only owned conversation ids, and resume with documented `--conversation`; add cancellation/status tests. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
+| Grok | C14.5 managed-harness UX acceptance #152 | Define and implement the Orchestrate/Chat & Memory readiness, ownership, setup-prerequisite, retry/cancel, and outcome UX. Coordinate the acceptance matrix with all C14 providers. | Do not modify provider transport internals. UI must distinguish managed, observed, busy, queued, and unavailable with high contrast. |
 
 ### Shared completion rules
 
@@ -71,6 +82,22 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Chat / Codex — C14 provider-native integration foundation assigned (#147–#152)
+
+- Created epic #147 with focused C14.1–C14.5 work items #148–#152.
+- Corrected the `agy` wake argv to documented `--print --output-format
+  stream-json --prompt`; its workspace is the child `current_dir`, not an
+  unsupported `--cwd` flag. Commit `ffabbec`.
+- Added durable `observed`/`managed` harness ownership, readiness state, and
+  exclusive writer lease in `HubStore`; observed C12 sessions cannot claim a
+  writer. Commit `8307fd9`.
+- Integrated the lease into Codex delivery and classified the provider's
+  “already has an active writer” response as queued/retryable. Commit
+  `64710a0`. `cargo test -p hub --lib` (89) and Codex bridge tests (5) plus
+  Hub Clippy pass.
+- **Open handoff to Grok:** assign Claude #150, Gemini #151, and UX #152 per
+  the rows above. Chat retains #148/#149 and changelog/roadmap/issue review.
 
 ### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback completed (#137)
 
