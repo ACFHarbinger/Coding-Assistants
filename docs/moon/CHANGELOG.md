@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — C12 four-harness acceptance test (2026-08-13) [DRAFT]
+
+- New `src-tauri/src/harness_c12.rs`: a single workspace test exercises
+  fixture transcripts for all four capture adapters (Grok, Codex, Claude,
+  Gemini) in their real on-disk shapes and confirms every capture lands in
+  one shared hub session channel, each correctly attributed to its
+  authoring agent (`grok`, `chat`, `claude`, `gemini`).
+- Confirms `inject_harness` returns a structured `Result` — never panics —
+  on invalid input (empty body, relative workspace, unknown harness id),
+  exercised through its synchronous validation path so no real harness
+  process is ever spawned by the test.
+- Confirms all four harnesses' argv builders (`grok_spawn_args`,
+  `codex_spawn_args`, `claude_spawn_args`, `gemini_spawn_args`) keep a
+  prompt containing shell metacharacters (`; rm -rf / && echo pwned
+  $(whoami)` \`id\` `| cat`) as exactly one literal argv element — proof the
+  delivery path passes explicit argv to `Command`, never a shell string,
+  for every harness, not just the one this session has an example
+  for.
+- To make this possible without mutating the real `$HOME`, bumped
+  `capture_*_from` helpers and `encode_workspace_dir_name` in
+  `harness_grok.rs`/`harness_codex.rs`/`harness_claude.rs` to `pub(crate)`
+  (visibility only, no behavior change — matches the pattern
+  `harness_gemini.rs` already used), and re-exported `codex_spawn_args`,
+  `claude_spawn_args`, `gemini_spawn_args` from `ca-hub`'s `lib.rs`
+  alongside the existing `grok_spawn_args`.
+- 28 `ca-hub` + 29 `tauri-app` tests pass (1 ignored by design);
+  clippy/fmt clean; `npx tsc --noEmit` clean (frontend untouched).
+
+### Chat / Codex — Supabase future configuration scaffold (2026-08-13) [DRAFT]
+
+- Added `infra/supabase/supabase_config.js`, a minimal environment-driven
+  Supabase client scaffold exposing Auth, database, and Storage handles.
+  It accepts only the project URL and publishable/anon key; service-role keys,
+  sync credentials, and cloud implementation remain out of the desktop bundle.
+- Documented the Supabase directory in `infra/README.md`. This supports the
+  planned S11 Auth + private Storage integration and does not implement cloud
+  synchronization or alter the approved provider order.
+
 ### Gemini — C12 Antigravity / Gemini CLI disk vs hub session ID split (2026-08-13) [DRAFT]
 
 - **Session ID Split (`src-tauri/src/harness_gemini.rs`)**: Updated `capture_gemini_session` and `hub_capture_gemini_session` to separate `gemini_session_id` (used to locate specific `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` files on disk) from `hub_session_id` (used to scope captured records into `channel:session:<hub_id>:capture` in SQLite).

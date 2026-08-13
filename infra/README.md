@@ -9,6 +9,7 @@ cases:
 | [`terraform/`](terraform/) | Future cloud/device-synchronization prototypes |
 | [`ansible/`](ansible/) | Reproducible host configuration |
 | [`firebase/`](firebase/) | Cloud synchronization prototypes |
+| [`supabase/`](supabase/) | Future Supabase Auth, database, and Storage client scaffold |
 
 Unused Kubernetes, Helm, serverless, AWS, Azure Pipelines, WordPress, Webpack,
 Nginx, and proxy scaffolding has been removed from the active tree.
