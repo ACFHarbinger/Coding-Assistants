@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — Settings S1 versioned store (#127) (2026-08-13)
+
+- Added `hub::SettingsStore` for versioned `settings.toml` under
+  `CA_HOME` or `~/.coding-assistants`. Loads use `toml_edit`, never crash
+  on a missing/malformed/unreadable file, and leave a broken original in
+  place. Saves validate, write a sibling temp file, fsync, and replace
+  atomically. Hand-authored comments and unknown tables survive a save.
+- Default backup retention is three timestamped copies in
+  `settings-backups/` (bounded `1..=20`). Restore is path-checked to that
+  directory; a malformed file can be quarantined before defaults are
+  written.
+- Centralized `CA_HOME`/home resolution as `hub::default_hub_home` and
+  pointed the Tauri hub store, orchestrator, and `ca` CLI helper at it.
+- Verified with `cargo test -p hub --lib` (60 passed) and
+  `cargo clippy -p hub --all-targets -- -D warnings`.
+
 ### Gemini — C10–C13 S1 session lifecycle UX (2026-08-13) [DRAFT]
 
 - Verified and completed Orchestrate Create/Load team chat session controls in `ConfigPanel.tsx` and `App.tsx`.

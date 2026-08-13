@@ -2,11 +2,7 @@
 use hub::HubStore;
 use std::path::PathBuf;
 fn default_home() -> PathBuf {
-    if let Ok(home) = std::env::var("CA_HOME") {
-        return PathBuf::from(home);
-    }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".coding-assistants")
+    hub::default_hub_home()
 }
 
 pub fn open_store() -> Result<HubStore, String> {

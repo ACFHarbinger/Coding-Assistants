@@ -59,8 +59,7 @@ pub(crate) fn audit_process_context() -> String {
 // harness capture` run and the desktop's poll converge on the same durable
 // state even though they don't share code across the crate boundary.
 pub(crate) fn default_home() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".coding-assistants")
+    hub::default_hub_home()
 }
 
 /// CA-106/CA-109: only Harbinger may edit/delete a chat message, mirroring

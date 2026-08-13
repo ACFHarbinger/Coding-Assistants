@@ -48,6 +48,7 @@ Complete inventory of all project dependencies, their versions, purposes, and li
 | `async-openai`           | 0.26    | --           | OpenAI-compatible API client                 | MIT           |
 | `dotenv`                 | 0.15    | --           | Load environment variables from `.env` files | MIT           |
 | `walkdir`                | 2       | --           | Recursive directory traversal                | Unlicense/MIT |
+| `toml_edit`              | 0.22    | --           | Comment-preserving `settings.toml` store     | MIT/Apache    |
 
 ### Build Dependencies
 

@@ -487,9 +487,5 @@ impl AgentSystem {
 }
 
 fn default_hub_dir() -> std::path::PathBuf {
-    if let Ok(home) = std::env::var("CA_HOME") {
-        return std::path::PathBuf::from(home);
-    }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::PathBuf::from(home).join(".coding-assistants")
+    hub::default_hub_home()
 }

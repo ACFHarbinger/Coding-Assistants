@@ -7,6 +7,8 @@
 
 mod bridge;
 mod harness;
+mod paths;
+mod settings;
 mod store;
 
 pub use bridge::claude::{
@@ -22,6 +24,11 @@ pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
     inject_harness_with_store, opencode_spawn_args, start_harness, vibe_spawn_args, HarnessId,
     HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+};
+pub use paths::default_hub_home;
+pub use settings::{
+    LoadStatus, SettingsError, SettingsLoad, SettingsSnapshot, SettingsStore,
+    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,

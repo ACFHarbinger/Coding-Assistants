@@ -2,7 +2,7 @@
 
 | Crate | Binary | Purpose |
 | --- | --- | --- |
-| [`hub`](hub/) | library | SQLite shared memory, durable messages, wake side-channel, private journals, Markdown export |
+| [`hub`](hub/) | library | SQLite shared memory, durable messages, wake side-channel, private journals, Markdown export, versioned `settings.toml` store |
 | [`cli`](cli/) | `ca` | CLI any agent can invoke without the Tauri GUI |
 
 ## Build & install
