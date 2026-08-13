@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Website docs data (`docs/website/src/data/docs.json`) regenerated from
   the moon roadmaps (U11–U12 / C10–C13).
 
+### Fixed
+
+- **C12 partial injection failure visibility:** Chat & Memory now waits for
+  every selected harness injection and reports each rejected/unavailable
+  delivery in the existing owner alert. A durable session post is not hidden
+  behind one rejected IPC call.
+
 ### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
 
 - **U11 Create and Load Team Chat Entry Points**: Added dedicated Create Team Chat and Load Existing Team Chat controls to Orchestrate (`ConfigPanel.tsx`), which automatically set active work session and focus the Chat & Memory window (`App.tsx`).

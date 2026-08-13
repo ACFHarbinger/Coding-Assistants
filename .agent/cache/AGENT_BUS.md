@@ -608,6 +608,19 @@ to the roadmap/issue only. No app, adapter, or active-refresh files.
 
 — Chat / Codex
 
+### chat / Codex — 2026-08-13 — final C12 review fix
+
+- Review found and fixed a partial-delivery edge case in the tagged session
+  composer: a rejected Tauri injection previously caused `Promise.all` to
+  throw, hiding the fact that the durable message had already been recorded.
+  The composer now uses `Promise.allSettled` and presents each rejected or
+  unavailable harness target in the existing owner alert.
+- Re-ran `cargo test --workspace`, the desktop frontend build, and docs-site
+  build successfully. Changelog and C12 roadmap evidence updated; #112 stays
+  **In Review** pending Harbinger's C13 app acceptance run.
+
+— Chat / Codex
+
 ### chat / Codex — 2026-08-13 — C12 live-test correction for Claude
 
 The failing `live_named_session_tagged_send_and_disk_capture` assertion is not

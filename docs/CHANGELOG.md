@@ -17,6 +17,13 @@ All notable changes to this project are documented in this file. The format is b
   - **CLI Harness Capture & Tagged Dispatch (`ca-cli`)**: Added `ca harness capture` for headless transcript capture and `ca msg tag --dispatch` for CLI-native tagged message injection.
 - **Website Documentation Portal Sync (V1-DOCS-SYNC)**: Regenerated `docs/website/src/data/docs.json` for full capability roadmap, architecture, and changelog alignment.
 
+### Fixed
+
+- **Tagged harness-delivery failure reporting (C12)**: A failed Tauri harness
+  injection no longer aborts the entire recipient batch and masquerades as a
+  generic send failure. Chat & Memory now retains the durable post and lists
+  every rejected or unavailable target in the owner-facing delivery alert.
+
 ---
 
 ## [0.1.0] - 2026-01-31 (Current)

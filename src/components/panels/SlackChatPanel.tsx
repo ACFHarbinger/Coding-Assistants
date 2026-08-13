@@ -401,7 +401,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
           const outcomes = await invoke<TaggedSendOutcome[]>("hub_send_tagged_message", {
             args: { from: "human", to: targetAgents, isTask: isTaskTag, isWake: isWakeTag, subject, workspace: null, task: isTaskTag ? bodyText : null, sessionId: activeWorkSession.id, body: bodyText }
           });
-          const injections = await Promise.all(
+          const injections = await Promise.allSettled(
             outcomes
               .filter(outcome => outcome.accepted && outcome.message_id)
               .map(outcome => invoke<HarnessInjectResult>("hub_inject_harness", {
@@ -416,7 +416,12 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
           );
           const failures = [
             ...outcomes.filter(outcome => !outcome.accepted).map(outcome => `${outcome.to_agent}: ${outcome.reason || "rejected"}`),
-            ...injections.filter(result => result.status !== "spawned").map(result => `${result.harness}: ${result.detail}`),
+            ...injections.flatMap(result => {
+              if (result.status === "rejected") return [String(result.reason)];
+              return result.value.status === "spawned"
+                ? []
+                : [`${result.value.harness}: ${result.value.detail}`];
+            }),
           ];
           if (failures.length > 0) alert(`Message recorded, but delivery needs attention:\n${failures.join("\n")}`);
         } else {
