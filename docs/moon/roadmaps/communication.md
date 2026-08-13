@@ -18,7 +18,26 @@ communication is reliable.
 | C10 | Session addressing: all, subset, or one | Human and any enrolled agent can send a session message to every member, a named subset, or a single member. Non-targets are not woken or tasked. The session transcript records the explicit `to` list. | 🚧 **In Review** · session sends persist an exact recipient set by subject and reject non-members server-side; Chat & Memory routes all/subset/one through typed session/tagged commands. Agent-harness posting parity remains C12. |
 | C11 | Task vs wake message tags | A message may be tagged **task**, **wake**, both, or neither. **Wake** may launch a new harness instance of that identity and enroll it in the session team. **Task** must target an already-enrolled, currently present member and is refused (no spawn) otherwise. Agents can apply the same tags through the hub API/CLI. | 🚧 **In Review** · `HubStore::send_tagged_message` + `hub_send_tagged_message` + `ca msg tag` enforce task-refuse and wake-enroll, with per-recipient durable outcomes and wake-policy-aware delivery. Chat & Memory now invokes this boundary. "Currently present" = team + (session, if given) membership; actual new-harness-instance launch is C12's typed provider adapter. |
 | C12 | Bidirectional harness capture and inject | The app captures messages agents send inside Grok/Chat/Claude/Gemini harnesses into the session transcript. Hub messages tagged task and/or wake are injected into the target harness so the agent executes them. Builds on C9. | 🚧 **In Progress** · Shared explicit-argv start/inject + Chat tagged-send dispatch are implemented. Durable disk capture adapters now exist for Grok, Claude, Codex, and Gemini/Antigravity; Codex keeps its disk-session id distinct from its CA work-session id. Chat & Memory currently polls Grok and Claude only. Finish polling all four with correctly named disk/hub ids, then run a live end-to-end capture + tagged injection acceptance pass. No TUI attach. |
-| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 Planned · temporary process; do not treat as the product |
+| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · execute the explicit migration gate below only after C12 passes live acceptance; preserve the bus as a read-only fallback until then. |
+
+### C13 migration gate
+
+1. **Preflight:** C10–C12 have passed their live acceptance checks; create or
+   load a named work session with a recorded workspace and enrolled team.
+2. **Hub-native run:** the owner assigns a bounded repository task through
+   Chat & Memory to all, a subset, and one agent. At least two agents must
+   acknowledge, execute/review, and publish their harness-originated result
+   into the same session transcript; include one audited task or wake delivery.
+3. **Reconstruction:** the session transcript, recipient/outcome records, and
+   audit trail independently show assignment, delivery, execution, review,
+   final decision, and handoff. No `.agent/cache/AGENT_BUS.md` or
+   `.agent/messages/*` write is permitted during the run.
+4. **Recovery:** if delivery, capture, or review fails, record the failure in
+   the Hub and resume only through the existing Markdown bus. Do not delete,
+   rewrite, or silently import historical bus/message files.
+5. **Completion:** attach the acceptance evidence to #113, update the
+   changelog/roadmaps and Project 21, then demote the Markdown bus to
+   documented read-only fallback rather than removing it.
 
 **2026-08-12:** CA-102 adds bounded, exact channel queries to the shared
 store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — C13 migration-gate review (2026-08-13) [DRAFT]
+
+- Defined the v1 hub-native orchestration migration gate: C12 must pass live
+  acceptance first; a named work-session must then complete a bounded,
+  multi-agent assignment/review loop entirely in Chat & Memory; and the
+  transcript, outcomes, and audit trail must reconstruct the final handoff.
+- Failure keeps `.agent/cache/AGENT_BUS.md` and `.agent/messages/*` as an
+  explicit read-only historical fallback. The gate prohibits deleting,
+  rewriting, or silently importing those records and requires #113 evidence
+  before the project can mark C13 complete.
+
 ### Chat / Codex — C12 Codex durable transcript capture (2026-08-13) [DRAFT]
 
 - Added `src-tauri/src/harness_codex.rs`, which selects the newest Codex
