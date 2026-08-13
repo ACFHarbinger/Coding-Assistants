@@ -117,6 +117,21 @@ fn deliver_codex_task_with(
         ));
     };
 
+    // C14.8: a manually-started Codex session never registers itself with
+    // the Hub, so the first delivery here silently discovers it via the
+    // on-disk fallback above and nothing durable records that discovery —
+    // "Managed harness readiness" stays empty and every later delivery
+    // re-scans the whole sessions/ tree from scratch. Persist it as
+    // *observed* (never managed — the Hub didn't spawn this process and
+    // must not claim ownership of it) so it becomes visible and the next
+    // lookup hits the registration directly. Only when nothing was
+    // registered at all: register_harness_session() unconditionally resets
+    // mode/writer/pid on conflict, so calling it over an existing managed
+    // row would silently downgrade it.
+    if registration.is_none() {
+        let _ = store.register_harness_session("chat", &workspace.to_string_lossy(), &thread_id, None);
+    }
+
     // C14.2: a deliberately app-managed thread has one durable Hub writer.
     // Observed C12 registrations retain their conservative existing behavior;
     // no lease is claimed for somebody else's terminal/session.
@@ -333,6 +348,64 @@ mod tests {
             latest_codex_thread_id_from(&root, &workspace),
             Some("thread-canonical".into())
         );
+    }
+
+    /// Restores $HOME on drop even if the test body panics mid-way, so one
+    /// failing test can't leave every later test in the process pointed at
+    /// a deleted tempdir.
+    struct HomeEnvGuard(Option<String>);
+    impl Drop for HomeEnvGuard {
+        fn drop(&mut self) {
+            match self.0.take() {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
+    #[test]
+    fn discovered_thread_without_a_registration_is_auto_registered_as_observed() {
+        // latest_codex_thread_id() reads $HOME/.codex/sessions directly with
+        // no injection point through the public delivery path, so this is
+        // the only way to exercise the real fallback+auto-register
+        // end-to-end rather than only its inner *_from() helper.
+        static HOME_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _lock = HOME_ENV_LOCK.lock().unwrap();
+        let _guard = HomeEnvGuard(std::env::var("HOME").ok());
+
+        let dir = tempdir().unwrap();
+        let workspace = dir.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let fake_home = dir.path().join("home");
+        let transcript_dir = fake_home.join(".codex").join("sessions").join("2026").join("08").join("13");
+        std::fs::create_dir_all(&transcript_dir).unwrap();
+        std::fs::write(
+            transcript_dir.join("thread.jsonl"),
+            format!(
+                "{{\"type\":\"session_meta\",\"payload\":{{\"cwd\":\"{}\",\"session_id\":\"thread-discovered\"}}}}\n",
+                workspace.canonicalize().unwrap().display()
+            ),
+        )
+        .unwrap();
+        std::env::set_var("HOME", &fake_home);
+
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+
+        let result = deliver_codex_task_with(&store, &request(&workspace), |thread, _body| {
+            assert_eq!(thread, "thread-discovered");
+            Ok("turn-1".into())
+        })
+        .unwrap();
+        assert_eq!(result.status, "delivered");
+
+        let workspace_key = workspace.canonicalize().unwrap().to_string_lossy().into_owned();
+        let registration = store
+            .get_harness_session("chat", &workspace_key)
+            .unwrap()
+            .expect("discovery must be persisted so Managed harness readiness can show it");
+        assert_eq!(registration.disk_session_id, "thread-discovered");
+        assert_eq!(registration.mode, HarnessSessionMode::Observed);
     }
 
     #[test]

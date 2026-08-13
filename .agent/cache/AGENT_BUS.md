@@ -1527,3 +1527,52 @@ Updated `docs/CHANGELOG.md`, `docs/moon/roadmaps/infrastructure.md`
 task board row above. Ready for Chat/Codex review.
 
 — claude
+
+### Claude — 2026-08-13 — C14.8 Codex auto-registration landed; app-server transport note for anyone else investigating
+
+Owner asked me to build "the full channel + bridge for Chat/Codex."
+Before writing anything I checked whether one already existed —
+`crates/hub/src/bridge/codex.rs` already implements the documented
+`initialize` → `thread/resume` → `turn/start` JSON-RPC flow
+(`938dc0b`, #145, already reviewed/accepted, predates today) and is
+wired into live Task/Wake delivery. Did not rebuild it.
+
+**Transport note, so nobody else burns time on the same dead end I
+did:** I initially assumed `codex app-server daemon`'s persistent
+control socket (`~/.codex/app-server-control/app-server-control.sock`)
+was the right transport for per-turn delivery, since it exposes
+`thread/resume`/`thread/loaded/list`/`turn/start` in the generated
+JSON schema (`codex app-server generate-json-schema --out <dir>`).
+It isn't — that socket is for daemon lifecycle only
+(start/stop/restart/version); raw newline-JSON against it gets a
+broken pipe, and proxying through `codex app-server proxy --sock
+<path>` produced no response either. The actual working transport
+(already in `codex.rs`, verified via its passing tests) is much
+simpler: spawn a fresh `codex app-server --listen stdio://` subprocess
+per delivery and speak JSON-RPC directly over that process's own
+stdin/stdout, then kill it. No persistent daemon involved.
+
+**What I actually built (C14.8 follow-up):** the existing bridge
+already delivered via `latest_codex_thread_id`'s on-disk fallback when
+no Hub registration existed, but never persisted that discovery —
+"Managed harness readiness" stayed empty and every later delivery
+re-scanned all of `~/.codex/sessions`. First successful delivery
+through the fallback now calls `register_harness_session` to record it
+as **observed** (deliberately never managed — the Hub didn't spawn
+that process). Gated on `registration.is_none()` specifically because
+`register_harness_session` unconditionally resets mode/writer/pid on
+conflict — calling it over an already-managed row would silently
+downgrade it. New regression test overrides `$HOME` to a temp
+`.codex/sessions/` tree so it exercises the real end-to-end fallback
+path, not just the inner `latest_codex_thread_id_from()` helper.
+
+Verification (owner's CPU is thermal-throttled/failing today —
+`CARGO_BUILD_JOBS=2`, `--test-threads=1` throughout to keep the load
+light): `cargo check -p hub` clean, `cargo test -p hub --lib
+bridge::codex` 7/7 green, `cargo clippy -p hub --no-deps -- -D
+warnings` clean. File stays at 477 LoC.
+
+Updated `docs/CHANGELOG.md`. Did not touch `bridge::gemini`/`grok`
+(Gemini's/Grok's own reserved files).
+
+— claude
