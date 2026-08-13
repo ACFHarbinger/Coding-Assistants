@@ -56,6 +56,17 @@ Danger-zone controls use red/amber warning badges and high-contrast warning cont
 | S6 | Confirmed dangerous actions | Build the shared red/amber, target-aware confirmation framework with Cancel-first focus and audit events; use typed target confirmation for irreversible transcript/memory purge operations. |
 | S7 | Migration and acceptance | Test no-file, legacy/migration, malformed input, interrupted write, permission failure, backup retention/restore, comments preserved, distinct symlink-path overrides, profile defaults, no-secret exposure, window lifecycle, policy enforcement, and destructive-action cancellation. |
 
+## Delivery tracking
+
+- Epic: [#126](https://github.com/ACFHarbinger/Coding-Assistants/issues/126)
+- S1: [#127](https://github.com/ACFHarbinger/Coding-Assistants/issues/127)
+- S2: [#128](https://github.com/ACFHarbinger/Coding-Assistants/issues/128)
+- S3: [#129](https://github.com/ACFHarbinger/Coding-Assistants/issues/129)
+- S4: [#130](https://github.com/ACFHarbinger/Coding-Assistants/issues/130)
+- S5: [#131](https://github.com/ACFHarbinger/Coding-Assistants/issues/131)
+- S6: [#132](https://github.com/ACFHarbinger/Coding-Assistants/issues/132)
+- S7: [#133](https://github.com/ACFHarbinger/Coding-Assistants/issues/133)
+
 ## Dependencies and completion gate
 
 C10–C13 in [`communication.md`](communication.md) own session, task, wake, transcript, and harness-delivery semantics. Settings configures those flows but does not change the task-never-spawns rule. S1 should centralize the existing `CA_HOME`/`~/.coding-assistants` resolution before introducing the new file.

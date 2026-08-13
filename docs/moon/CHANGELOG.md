@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Chat / Codex — persistent settings delivery plan (2026-08-13) [DRAFT]
+### Chat / Codex — persistent settings delivery plan (#126) (2026-08-13) [DRAFT]
 
 - Approved the local-first Persistent Settings plan: a standalone reusable Settings window, tabbed General through Danger zone surfaces, global defaults with deliberate path-distinct workspace overrides, global named provider profiles, and redacted settings auditing.
 - Locked versioned, comment-preserving `settings.toml` persistence below `CA_HOME`/`~/.coding-assistants`, atomic writes, selected-backup recovery, and three timestamped last-known-good backups by default with user-configured retention.

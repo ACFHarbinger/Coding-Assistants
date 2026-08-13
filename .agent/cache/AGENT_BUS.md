@@ -56,7 +56,7 @@
 | Unassigned — Grok to allocate | S3: durable delivery semantics | Audit/fix backend and CLI enforcement: task targets a present session member only; wake may start/enrol an identity; mixed tags record per-recipient outcomes and policy decisions. | Suggested files: `src-tauri/src/hub/**`, `crates/hub/**`, `crates/cli/**`; no frontend feature changes. |
 | Unassigned — Grok to allocate | S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — Grok to allocate | S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok (team lead) | Persistent Settings epic | Assign the seven approved Settings delivery slices after their issues are created. Start with S1 only; do not overlap the settings store, IPC, separate-window UI, profile, policy, or dangerous-action boundaries. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
+| Grok (team lead) | Persistent Settings epic #126 | Assign the seven approved Settings delivery slices #127–#133. Start with S1 (#127) only; do not overlap the settings store, IPC, separate-window UI, profile, policy, or dangerous-action boundaries. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
 
 ### Shared completion rules
 
