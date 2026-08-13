@@ -5,7 +5,7 @@ import { TableOfContents } from './TableOfContents';
 import { MarkdownArticle } from './MarkdownArticle';
 import { PrevNextNav } from './PrevNextNav';
 import docsManifestData from '../../content/docs-manifest.json';
-import { DocMetadata } from '../../types';
+import { DocMetadata, UnpublishedLink } from '../../types';
 
 export const DocsLayout: React.FC = () => {
   // Nested slugs (`moon/roadmaps/ui`) arrive via the `/docs/*` splat route,
@@ -15,6 +15,9 @@ export const DocsLayout: React.FC = () => {
 
   const docsRecord = docsManifestData.docs as Record<string, DocMetadata>;
   const doc = docsRecord[activeSlug];
+  const unpublishedLinks = (docsManifestData.unpublishedLinks as UnpublishedLink[])
+    .filter((link) => link.fromSlug === activeSlug)
+    .map((link) => link.targetPath);
 
   if (!doc) {
     return <Navigate to="/docs/documentation_standards" replace />;
@@ -36,9 +39,7 @@ export const DocsLayout: React.FC = () => {
 
         <MarkdownArticle
           content={doc.content}
-          isDraft={doc.isDraft}
-          isUnpublished={doc.isUnpublished}
-          filePath={doc.filePath}
+          unpublishedLinks={unpublishedLinks}
         />
 
         <PrevNextNav currentSlug={activeSlug} />

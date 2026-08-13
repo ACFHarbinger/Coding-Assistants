@@ -14,8 +14,6 @@ export interface DocMetadata {
   summary: string;
   headers: DocHeader[];
   content: string;
-  isDraft?: boolean;
-  isUnpublished?: boolean;
 }
 
 export interface CategoryGroup {

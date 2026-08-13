@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — documentation review follow-up (#119, #122) (2026-08-13) [DRAFT]
+
+- Reviewed Gemini's reader migration and completed the manifest integration:
+  public “not published” notices now derive from
+  `manifest.unpublishedLinks` for the page that contains such a link, rather
+  than unreachable draft/unpublished flags on published documents.
+- Removed the obsolete `marked` and `rehype-raw` dependencies. Canonical
+  Markdown is rendered with the locked `react-markdown` + GFM + heading-slug
+  path and does not opt into raw HTML rendering. Code-copy feedback now uses a
+  stable value instead of a freshly random identifier on every render.
+- Added a `pretest` content-generation step so clean CI checkouts generate
+  ignored `src/content/` artifacts before tests import or build the website.
+  Removed duplicate local-font imports from the entrypoint.
+
 ### Claude — W7 polish and release confidence (#123) (2026-08-13) [DRAFT]
 
 - New static regression suite (`tests/privacy-a11y.test.ts`, run as part of
@@ -135,13 +149,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Gemini — Documentation Website Foundation, Content Pipeline & Reader (#117, #118, #119) (2026-08-13) [DRAFT]
 
-- **React 19 Website Foundation (W1 / #117)**: Migrated `docs/website` from Vue prototype to React 19 + TypeScript + Vite + Tailwind CSS + HashRouter (`/#/docs/...`). Configured glassmorphism design tokens matching desktop app (`#020617` background, cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography).
-- **Markdown Content Pipeline (W2 / #118)**: Built `scripts/build-content.ts` parsing canonical `docs/**/*.md` files into `docs-manifest.json` and `search-index.json`. Successfully indexed 30 canonical documents across 4 categories.
-- **Accessible Documentation Reader (W3 / #119)**: Built `DocsLayout`, `DocsSidebar` (grouped categories & active route highlight), `MarkdownArticle` (marked parser, PrismJS syntax highlighting, code copy feedback, and Mermaid.js diagram rendering with graceful fallback), `TableOfContents` (scroll-aware heading tracker), `PrevNextNav` (document pagination), and `CommandPalette` (`Cmd+K` / `Ctrl+K` MiniSearch modal).
+- **React 19 Website Foundation (W1 / #117)**: Migrated `docs/website` from Vue prototype to React 19 + TypeScript + Vite + Tailwind CSS + HashRouter (`/#/docs/...`). Configured the locked slate/indigo/purple glassmorphism tokens and self-hosted Inter & JetBrains Mono typography.
+- **Markdown Content Pipeline (W2 / #118)**: Built `scripts/build-content.ts` for the curated canonical corpus, producing `docs-manifest.json` and `search-index.json` for 26 published documents across 4 categories.
+- **Accessible Documentation Reader (W3 / #119)**: Built `DocsLayout`, `DocsSidebar` (grouped categories & active route highlight), `MarkdownArticle` (`react-markdown`, PrismJS syntax highlighting, stable code-copy feedback, Mermaid.js rendering with graceful fallback, and manifest-driven unpublished-link notices), `TableOfContents` (scroll-aware heading tracker), `PrevNextNav` (document pagination), and `CommandPalette` (`Cmd+K` / `Ctrl+K` search modal).
 
 ### Gemini — Documentation Website Roadmap Approval & Architecture Lock (2026-08-13) [DRAFT]
 
-- **Approved Documentation Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from Draft to Approved. Locked visual aesthetics to glassmorphism (cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` for GitHub Pages subpath stability, and interactive feature scope (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
+- **Approved Documentation Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from Draft to Approved. Locked visual aesthetics to glassmorphism (indigo `#6366f1` & purple `#a855f7` accents, Inter & JetBrains Mono typography), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` for GitHub Pages subpath stability, and interactive feature scope (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
 
 ### Changed
 
