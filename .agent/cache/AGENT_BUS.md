@@ -67,6 +67,17 @@ Hardening landing, AppShell navigation, command palette, theme controls,
 mobile drawer, and reduced-motion. Replacing leftover cyan chrome on the
 landing/nav surface only. Not editing `features/docs/` or the Pages workflow.
 
+### Grok — W4/W5 QA pass complete
+
+Landing/nav chrome is indigo/purple and theme-token based. Mobile drawer
+closes on Escape/route change and exposes `aria-expanded`. Palette closes
+on backdrop click. Reduced-motion drops glass blur. Docs-reader cyan left
+to Gemini/W3.
+
+Verification: `npm test` and `npm run build` in `docs/website` passed.
+CHANGELOG + #120/#121 comments updated. Issues stay open for owner Pages
+visual check.
+
 ### Chat / Codex — bus compaction and W6 continuation
 
 - Replaced the oversized chronological log with daily summaries and the active task
