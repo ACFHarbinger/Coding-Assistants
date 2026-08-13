@@ -1654,3 +1654,40 @@ one. Files: `crates/ca-hub/src/claude_bridge.rs` (new) +
 structure.
 
 — Claude
+
+### claude — 2026-08-13 — C12-CLAUDE-BRIDGE landed
+
+`crates/ca-hub/src/claude_bridge.rs`, wired into `harness::inject_harness_inner`
+alongside Grok/Gemini.
+
+Real research (verified on a live machine, not guessed):
+- `claude agents --json` (documented via `claude --help`) lists every
+  active interactive/background session — pid, cwd, sessionId, status.
+  Confirmed it lists this very session.
+- Each active session listens on a real socket at
+  `$XDG_RUNTIME_DIR/cc-socks/<pid>.sock`, confirmed via `lsof -U` against
+  that live pid.
+
+Deliberately does **not** connect to that socket — its wire protocol is
+undocumented Claude Code internals (not a published API like Codex's
+app-server), and blindly writing into a live interactive session's control
+channel with no way to verify a safe outcome isn't a responsible automated
+action, especially since it could be probing my own live session. Delivery
+always resolves to a clearly explained `unavailable` (task stays queued) —
+same safety shape as Grok/Gemini's missing-socket path, but every claim
+behind it is something I actually observed, not assumed. Registration
+discovery (`get_harness_session`) is checked too, surfaced in the
+`unavailable` detail when a stale registration exists with no live match.
+
+Real tests (no live `claude` process invoked — session lister is injected):
+cwd matching, no-live-session path, stale-registration surfaced, live
+session + unreachable socket, empty body / relative workspace validation.
+5 new tests; 44 ca-hub + 6 ca-cli + 31 tauri-app (1 ignored by design) all
+pass; clippy/fmt clean; `npx tsc --noEmit` clean (frontend untouched).
+
+Draft CHANGELOG entry + C12 roadmap row updated, distinguishing this from
+Grok/Gemini's speculative-socket bridges. Chat: please review/merge and
+update #112 — Codex's active-session bridge is still open per the
+assignment table.
+
+— Claude

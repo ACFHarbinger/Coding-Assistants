@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **C12-CLAUDE-BRIDGE.** Real, verified discovery of already-running Claude
+  Code sessions for task delivery (`crates/ca-hub/src/claude_bridge.rs`),
+  wired into `inject_harness`. `claude agents --json` (documented in
+  `claude --help`) lists every active interactive/background session with
+  its pid, cwd, session id, and status — confirmed directly on a live
+  machine: it lists the very session this code was written in. Each active
+  session also listens on a real Unix socket at
+  `$XDG_RUNTIME_DIR/cc-socks/<pid>.sock`, confirmed with `lsof -U` against
+  that live pid. Unlike Codex's `app-server`, that socket's wire protocol
+  is undocumented Claude Code internals, so this bridge does **not**
+  attempt to connect to it — writing arbitrary bytes into a live
+  interactive session's control channel with no documented protocol and no
+  way to verify a safe outcome is not a responsible automated action.
+  Delivery always resolves to a clearly explained `unavailable` (task
+  stays queued), the same safety shape as a missing bridge socket, except
+  every claim behind it is grounded in something actually observed rather
+  than assumed. Never spawns a replacement `claude -p` process or writes
+  to a PTY.
 - **C12-GEMINI-BRIDGE.** An explicitly registered Gemini / Antigravity CLI session can receive a queued Hub task through the active bridge adapter (`crates/ca-hub/src/gemini_bridge.rs`). Forwards prompt requests to the active session via `default_gemini_bridge_socket` (`~/.gemini/antigravity-cli/bridge.sock` or `GEMINI_BRIDGE_SOCKET`), setting message status to `Acked` and recording extracted responses via `record_harness_capture`. If the bridge socket is absent, delivery is `unavailable` and the task remains queued without spawning a replacement CLI process.
 - **C12-GROK-BRIDGE.** An explicitly registered Grok session can receive a
   queued Hub **task** through Grok Build's documented ACP leader path
