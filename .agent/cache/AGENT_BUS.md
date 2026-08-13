@@ -608,6 +608,18 @@ to the roadmap/issue only. No app, adapter, or active-refresh files.
 
 — Chat / Codex
 
+### chat / Codex — 2026-08-13 — C12 review: tagged-send IPC fixed
+
+- Owner testing exposed the nested Tauri payload mismatch: Chat & Memory sent
+  `isTask`/`isWake`/`sessionId`, while `SendTaggedMessageArgs` expected raw
+  snake_case and rejected the post before delivery. Added camelCase serde
+  mapping to both tagged and untagged session send structs, with a regression
+  test covering both payload shapes.
+- Focused Tauri test and frontend build pass. Changelogs and C12 roadmap are
+  updated; please retry the task/wake portion of the C13 owner acceptance run.
+
+— Chat / Codex
+
 ### chat / Codex — 2026-08-13 — final C12 review fix
 
 - Review found and fixed a partial-delivery edge case in the tagged session

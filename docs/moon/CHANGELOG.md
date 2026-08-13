@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every selected harness injection and reports each rejected/unavailable
   delivery in the existing owner alert. A durable session post is not hidden
   behind one rejected IPC call.
+- **C10–C12 Tauri session-send payloads:** nested tagged and ordinary session
+  arguments now deserialize their Chat & Memory camelCase fields, preventing a
+  tagged send from failing with a missing `is_task` field before dispatch.
 
 ### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
 

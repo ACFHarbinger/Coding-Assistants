@@ -964,6 +964,7 @@ pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> 
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SendTaggedMessageArgs {
     pub from: String,
     pub to: Vec<String>,
@@ -999,6 +1000,7 @@ pub fn hub_send_tagged_message(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SendSessionMessageArgs {
     pub from: String,
     pub session_id: String,
@@ -1479,6 +1481,37 @@ mod tests {
     //! just through the `ca` CLI that shares the same `HubStore`.
     use super::*;
     use std::sync::Mutex;
+
+    #[test]
+    fn tagged_and_session_send_args_accept_tauri_camel_case_payloads() {
+        let tagged: SendTaggedMessageArgs = serde_json::from_value(serde_json::json!({
+            "from": "human",
+            "to": ["grok"],
+            "isTask": true,
+            "isWake": false,
+            "subject": "channel:session:example:task",
+            "workspace": null,
+            "task": "review",
+            "sessionId": "example",
+            "body": "Please review this."
+        }))
+        .unwrap();
+        assert!(tagged.is_task);
+        assert!(!tagged.is_wake);
+        assert_eq!(tagged.session_id.as_deref(), Some("example"));
+
+        let session: SendSessionMessageArgs = serde_json::from_value(serde_json::json!({
+            "from": "human",
+            "sessionId": "example",
+            "to": ["grok"],
+            "subject": "channel:session:example:message",
+            "workspace": null,
+            "task": null,
+            "body": "Status update"
+        }))
+        .unwrap();
+        assert_eq!(session.session_id, "example");
+    }
 
     /// `open_store()` reads the process-global `CA_HOME` env var, so any
     /// test that sets it must not run concurrently with another one doing

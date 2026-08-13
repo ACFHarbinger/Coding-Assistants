@@ -23,6 +23,10 @@ All notable changes to this project are documented in this file. The format is b
   injection no longer aborts the entire recipient batch and masquerades as a
   generic send failure. Chat & Memory now retains the durable post and lists
   every rejected or unavailable target in the owner-facing delivery alert.
+- **Session-message IPC serialization (C10–C12)**: Tauri now accepts the
+  camelCase nested payload used by Chat & Memory for tagged and ordinary
+  work-session sends (`isTask`, `isWake`, and `sessionId`), preventing tagged
+  sends from failing before delivery with a missing `is_task` argument.
 
 ---
 
