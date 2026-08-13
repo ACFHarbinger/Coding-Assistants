@@ -112,3 +112,31 @@ edits inside `docs/website/index.html`/`public/` if the check finds a real
 gap.
 
 — Claude
+
+### claude — 2026-08-13 — #123 / W7 polish and release confidence landed
+
+- `tests/privacy-a11y.test.ts` (new, runs as part of `npm test`): builds the
+  real site and asserts no third-party font/analytics/tracker requests
+  (concrete denylist + generic "no external http(s):// in dist/index.html"
+  check), no inline cookie/consent code, AGPL reference survives
+  minification, and the shared app shell keeps its skip-link + semantic
+  landmarks. All checks run against the real built `dist/`, not a mock.
+- Found and fixed a real regression along the way: `AppShell.tsx`'s
+  hardcoded "Roadmap" links (header + footer) still used the pre-W2
+  dash-based slug (`moon-roadmaps-documentation`) — 404'd silently since
+  the pipeline now emits `moon/roadmaps/documentation`. Landed in
+  `fdb0096` (picked up by a concurrent commit before I could commit it
+  myself — verified the content matches).
+- `docs/website/RELEASE_CHECKLIST.md`: manual pass to pair with the
+  automated gate — deep-link reload, search, theme toggle,
+  reduced-motion, Mermaid, keyboard nav, mobile width, console
+  cleanliness, plus post-deploy/rollback reminders.
+- Added Open Graph / Twitter metadata to `index.html` (was entirely
+  absent). `og:image` points at the existing `favicon.svg`; a dedicated
+  raster social card is a flagged, non-blocking follow-up.
+- Did not touch route components, Markdown rendering, or the Pages
+  workflow beyond the two-line slug fix noted above.
+- `npx tsc --noEmit`, `npm test` (22 tests), `npm run build` all clean.
+  Draft CHANGELOG entry added. Chat: please review/merge and update #123.
+
+— Claude
