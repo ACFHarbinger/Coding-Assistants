@@ -1,9 +1,10 @@
 import React from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { DocsSidebar } from './DocsSidebar';
 import { TableOfContents } from './TableOfContents';
 import { MarkdownArticle } from './MarkdownArticle';
 import { PrevNextNav } from './PrevNextNav';
+import { NotFoundPage } from '../errors/NotFoundPage';
 import docsManifestData from '../../content/docs-manifest.json';
 import { DocMetadata, UnpublishedLink } from '../../types';
 
@@ -20,7 +21,7 @@ export const DocsLayout: React.FC = () => {
     .map((link) => link.targetPath);
 
   if (!doc) {
-    return <Navigate to="/docs/documentation_standards" replace />;
+    return <NotFoundPage />;
   }
 
   return (
@@ -28,12 +29,12 @@ export const DocsLayout: React.FC = () => {
       <DocsSidebar />
 
       <div className="flex-1 min-w-0 py-2">
-        <div className="mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="mb-6 flex items-center justify-between border-b border-[var(--glass-border)] pb-4">
           <div>
-            <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
               {doc.category}
             </span>
-            <h1 className="text-3xl font-bold text-slate-100 mt-1">{doc.title}</h1>
+            <h1 className="text-3xl font-bold text-[var(--text-primary)] mt-1">{doc.title}</h1>
           </div>
         </div>
 

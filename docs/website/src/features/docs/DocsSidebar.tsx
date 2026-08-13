@@ -8,18 +8,18 @@ export const DocsSidebar: React.FC = () => {
   const currentSlug = location.pathname.replace(/^\/docs\/?/, '') || 'documentation_standards';
 
   return (
-    <aside className="w-64 flex-shrink-0 hidden lg:block sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto pr-4 border-r border-slate-800/80">
+    <aside className="w-64 flex-shrink-0 hidden lg:block sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto pr-4 border-r border-[var(--glass-border)]">
       <div className="space-y-6 py-2">
-        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-400 uppercase tracking-wider px-2">
-          <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+        <div className="flex items-center space-x-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider px-2">
+          <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
           <span>Documentation</span>
         </div>
 
         {docsManifestData.categories.map((category) => (
           <div key={category.name} className="space-y-1.5">
-            <h3 className="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <h3 className="px-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex items-center justify-between">
               <span>{category.name}</span>
-              <span className="text-[10px] text-slate-600 font-mono">{category.docs.length}</span>
+              <span className="text-[10px] text-[var(--text-muted)] font-mono">{category.docs.length}</span>
             </h3>
             <div className="space-y-0.5">
               {category.docs.map((doc) => {
@@ -30,14 +30,14 @@ export const DocsSidebar: React.FC = () => {
                     to={`/docs/${doc.slug}`}
                     className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
                       isActive
-                        ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 shadow-sm shadow-indigo-500/10'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-hover)]'
                     }`}
                   >
                     <span className="truncate">{doc.title}</span>
                     <ChevronRight
                       className={`w-3 h-3 transition-transform ${
-                        isActive ? 'text-cyan-400 translate-x-0.5' : 'text-slate-600 opacity-0 group-hover:opacity-100'
+                        isActive ? 'text-indigo-400 translate-x-0.5' : 'text-[var(--text-muted)] opacity-0 group-hover:opacity-100'
                       }`}
                     />
                   </Link>

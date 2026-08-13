@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
+
+- Replaced the reader’s remaining fixed dark/cyan chrome with the shared
+  dark-first indigo theme tokens, so the sidebar, table of contents,
+  pagination, headings, Mermaid fallback, and code-copy controls match the
+  landing-page system in both themes.
+- Prevented React Markdown’s internal `node` value from being forwarded onto
+  rendered `<code>` elements, and routed unknown documentation slugs to the
+  custom error page instead of silently opening the default article.
+- Extended the browser-chrome regression suite to cover reader token use,
+  the safe Markdown code override, and unknown-document recovery. `npm test`
+  (30 tests) and `npm run build` pass locally; the repair is ready for Pages
+  deployment verification.
+
 ### Chat / Codex — public-site acceptance corrections (#120) (2026-08-13) [DRAFT]
 
 - Replaced a public landing-page “Slack-like” reference found during the live
@@ -34,14 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that the catch-all route no longer silently redirects.
 - `npx tsc --noEmit` clean; `npm test` — 29/29 tests pass (up from 22).
 
-### Grok — W4/W5 Pages acceptance standby (#120, #121) (2026-08-13) [DRAFT]
+### Grok — W4/W5 Pages acceptance (#120, #121) (2026-08-13) [DRAFT]
 
-- Public GitHub Pages is **not deployed** (the repository project Pages
-  site on github.io currently returns 404; the Pages API is unset). The
-  React Docs workflow has not produced a successful deploy on `origin/main`
-  yet, so the shared hosted visual pass cannot run.
+- Public GitHub Pages was enabled and the React Docs workflow successfully
+  deployed commit `9fa3bce`. The landing/navigation pass found the expected
+  layout, Hub graphic, navigation, and CTAs; the remaining public legacy-name
+  wording was corrected by Chat/Codex and awaits the next deployment.
 - Added `docs/website/tests/landing-nav-acceptance.test.ts` for the landing/navigation share of acceptance: dark-first theme boot, no Google Fonts in `index.html`, Hub graphic and docs/GitHub CTAs, slash-based Roadmap slug, skip link, mobile-drawer ARIA, Cmd/Ctrl+K MiniSearch, and persisted Dark/Light/System.
-- Hosted Pages visual check remains blocked on W6 owner/deployment verification. No reader, print/404, or workflow files were changed.
+- The follow-up deployment will also confirm the refreshed Messager wording.
+  No reader, print/404, or workflow files were changed.
 
 ### Chat / Codex — documentation review follow-up (#119, #122) (2026-08-13) [DRAFT]
 

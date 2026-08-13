@@ -14,16 +14,16 @@ export const PrevNextNav: React.FC<{ currentSlug: string }> = ({ currentSlug }) 
   const nextDoc = currentIndex < allDocs.length - 1 ? allDocs[currentIndex + 1] : null;
 
   return (
-    <div className="mt-12 pt-6 border-t border-slate-800 flex items-center justify-between gap-4">
+    <div className="mt-12 pt-6 border-t border-[var(--glass-border)] flex items-center justify-between gap-4">
       {prevDoc ? (
         <Link
           to={`/docs/${prevDoc.slug}`}
-          className="group flex flex-col items-start p-3 rounded-lg border border-slate-800/80 hover:border-cyan-500/30 bg-slate-900/40 hover:bg-slate-900/80 transition-all max-w-[48%]"
+          className="group flex flex-col items-start p-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-all max-w-[48%]"
         >
-          <span className="flex items-center text-xs text-slate-500 group-hover:text-cyan-400 mb-1">
+          <span className="flex items-center text-xs text-[var(--text-muted)] group-hover:text-indigo-400 mb-1">
             <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Previous
           </span>
-          <span className="text-sm font-semibold text-slate-200 group-hover:text-white truncate w-full">
+          <span className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-indigo-300 truncate w-full">
             {prevDoc.title}
           </span>
         </Link>
@@ -34,12 +34,12 @@ export const PrevNextNav: React.FC<{ currentSlug: string }> = ({ currentSlug }) 
       {nextDoc ? (
         <Link
           to={`/docs/${nextDoc.slug}`}
-          className="group flex flex-col items-end p-3 rounded-lg border border-slate-800/80 hover:border-cyan-500/30 bg-slate-900/40 hover:bg-slate-900/80 transition-all max-w-[48%] ml-auto text-right"
+          className="group flex flex-col items-end p-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-all max-w-[48%] ml-auto text-right"
         >
-          <span className="flex items-center text-xs text-slate-500 group-hover:text-cyan-400 mb-1">
+          <span className="flex items-center text-xs text-[var(--text-muted)] group-hover:text-indigo-400 mb-1">
             Next <ChevronRight className="w-3.5 h-3.5 ml-1" />
           </span>
-          <span className="text-sm font-semibold text-slate-200 group-hover:text-white truncate w-full">
+          <span className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-indigo-300 truncate w-full">
             {nextDoc.title}
           </span>
         </Link>

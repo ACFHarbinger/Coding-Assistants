@@ -50,7 +50,7 @@ export const MarkdownArticle: React.FC<MarkdownArticleProps> = ({
           .catch((err) => {
             console.error('Mermaid render error:', err);
             const fallback = document.createElement('pre');
-            fallback.className = 'my-4 p-4 rounded-lg bg-slate-900 border border-amber-500/30 text-xs text-amber-200 overflow-x-auto';
+            fallback.className = 'my-4 p-4 rounded-lg bg-[var(--glass-bg)] border border-amber-500/30 text-xs text-amber-200 overflow-x-auto';
             fallback.textContent = `[Mermaid Diagram Source]\n${code}`;
             parent.replaceWith(fallback);
           });
@@ -87,7 +87,8 @@ export const MarkdownArticle: React.FC<MarkdownArticleProps> = ({
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeSlug]}
           components={{
-            code({ className, children, ...props }) {
+            code({ node: _node, className, children, ...props }) {
+              void _node;
               const match = /language-(\w+)/.exec(className || '');
               const isInline = !match && !String(children).includes('\n');
               const codeText = String(children).replace(/\n$/, '');
@@ -104,7 +105,7 @@ export const MarkdownArticle: React.FC<MarkdownArticleProps> = ({
                 <div className="relative group my-4">
                   <button
                     onClick={() => handleCopy(codeText)}
-                    className="absolute top-3 right-3 px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-mono flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    className="absolute top-3 right-3 px-2.5 py-1 rounded-md bg-[var(--bg-secondary)] hover:bg-indigo-500/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--glass-border)] text-[11px] font-mono flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     aria-label="Copy Code"
                   >
                     {copiedCode === codeText ? (
@@ -114,7 +115,7 @@ export const MarkdownArticle: React.FC<MarkdownArticleProps> = ({
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5 text-slate-400" />
+                        <Copy className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
                         <span>Copy</span>
                       </>
                     )}

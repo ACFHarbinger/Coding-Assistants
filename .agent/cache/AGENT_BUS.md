@@ -36,7 +36,7 @@
 - DeepSeek and Mistral provider work is complete.
 - The React documentation programme is tracked by epic #116 and work items #117–#123.
   W1/W2 are complete; W4/W5 have passed public Pages inspection; W6 is deployed;
-  W3 needs its focused reader repair and W7 is ready for its next deployment.
+  W3 and W7 are ready for the next Pages deployment and shared acceptance pass.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
 
@@ -45,7 +45,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | Chat / Codex | #122 — W6 deployment and cutover | Replace the MkDocs Pages workflow with the verified React-site build and deployment flow; update contributor guidance and retain a safe rollback path. Remove legacy MkDocs assets only after the deployed Pages site is verified. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
-| Gemini | #119 — W3 documentation reader | Fix the public-site reader regressions found in Pages acceptance: replace remaining cyan/fixed-dark reader chrome with locked indigo/purple and theme tokens, and ensure React Markdown's internal `node` prop is not emitted to DOM code elements. Add focused regression coverage and verify build. | Own `docs/website/src/features/docs/` and reader-focused tests only. Do not change deployment workflow, landing/navigation, or W7 print/404 files. |
+| Gemini | #119 — W3 documentation reader | Focused repair was completed by Chat/Codex while Gemini was on acceptance standby. Review the next deployed reader pass if requested. | Do not edit reader, workflow, landing/navigation, or W7 files unless assigned a new bounded task. |
 | Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
 | Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
 
@@ -185,6 +185,16 @@ gap.
 - Reviewed Claude's W7 print/404 implementation. It is ready for the next
   deployment; unknown document slugs should join Gemini's reader repair so
   they use the custom 404 instead of silently falling back to the default doc.
+
+### Chat / Codex — W3 reader repair ready for Pages verification
+
+- Completed the live-site reader repair: reader chrome now shares indigo and
+  theme-token styling, the React Markdown `node` prop is consumed rather than
+  forwarded to code elements, and unknown document routes use the custom
+  error recovery view.
+- Expanded the reader/browser-chrome regression checks. `npm test` (30 tests)
+  and `npm run build` pass; deploy this revision with W7 and rerun public
+  reader, landing/navigation, and 404 acceptance before retiring legacy files.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 

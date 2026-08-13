@@ -30,10 +30,10 @@ export const TableOfContents: React.FC<{ headers: DocHeader[] }> = ({ headers })
   if (!headers || headers.length === 0) return null;
 
   return (
-    <div className="w-56 flex-shrink-0 hidden xl:block sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto pl-4 border-l border-slate-800/80">
+    <div className="w-56 flex-shrink-0 hidden xl:block sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto pl-4 border-l border-[var(--glass-border)]">
       <div className="py-2 space-y-3">
-        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          <AlignLeft className="w-3.5 h-3.5 text-cyan-400" />
+        <div className="flex items-center space-x-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          <AlignLeft className="w-3.5 h-3.5 text-indigo-400" />
           <span>On this page</span>
         </div>
         <nav className="space-y-1">
@@ -55,8 +55,8 @@ export const TableOfContents: React.FC<{ headers: DocHeader[] }> = ({ headers })
                   header.level === 3 ? 'pl-3' : ''
                 } ${
                   isActive
-                    ? 'text-cyan-400 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'text-indigo-400 font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {header.text}

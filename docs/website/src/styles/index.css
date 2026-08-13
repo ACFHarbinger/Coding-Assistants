@@ -8,7 +8,7 @@
   --glass-bg: rgba(15, 23, 42, 0.75);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-hover: rgba(255, 255, 255, 0.12);
-  --accent-cyan: #6366f1;
+  --accent-primary: #6366f1;
   --accent-violet: #a855f7;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -21,7 +21,7 @@
   --glass-bg: rgba(255, 255, 255, 0.85);
   --glass-border: rgba(0, 0, 0, 0.08);
   --glass-hover: rgba(0, 0, 0, 0.05);
-  --accent-cyan: #0891b2;
+  --accent-primary: #4f46e5;
   --accent-violet: #7c3aed;
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -116,7 +116,7 @@ code, pre {
 }
 
 .markdown-body a {
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   text-decoration: none;
   font-weight: 500;
   border-bottom: 1px solid transparent;
@@ -124,7 +124,7 @@ code, pre {
 }
 
 .markdown-body a:hover {
-  border-bottom-color: var(--accent-cyan);
+  border-bottom-color: var(--accent-primary);
 }
 
 .markdown-body ul, .markdown-body ol {
@@ -146,7 +146,7 @@ code, pre {
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--accent-cyan);
+  border-left: 3px solid var(--accent-primary);
   padding-left: 1rem;
   margin-left: 0;
   margin-bottom: 1.25rem;
@@ -173,7 +173,7 @@ code, pre {
 
 .markdown-body code:not(pre code) {
   background-color: rgba(36, 200, 216, 0.1);
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
