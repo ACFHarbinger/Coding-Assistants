@@ -120,6 +120,12 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
                 body,
             } => {
                 let kind = MessageKind::parse(&kind)?;
+                if kind.requires_tagged_send() {
+                    anyhow::bail!(
+                        "kind {} must use `ca msg tag --wake` so enrollment and wake policy are recorded",
+                        kind.as_str()
+                    );
+                }
                 if to == "team" {
                     let records = store.send_message_to_team(
                         &from,

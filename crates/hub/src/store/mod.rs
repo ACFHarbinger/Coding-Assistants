@@ -105,6 +105,12 @@ impl MessageKind {
             other => Err(HubError::Invalid(format!("unknown message kind: {other}"))),
         }
     }
+
+    /// Wake (and any future spawn-capable kinds) must go through
+    /// `send_tagged_message` so enrollment and policy are recorded.
+    pub fn requires_tagged_send(self) -> bool {
+        matches!(self, Self::Wake)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -235,6 +241,9 @@ pub struct SendOutcome {
     pub enrolled: bool,
     pub wake_requested: bool,
     pub reason: Option<String>,
+    /// Stable policy token: `task_refused_not_present`, `accepted`,
+    /// `wake_enrolled`, `wake_denied_policy`, or `wake_denied_budget`.
+    pub policy_decision: String,
     pub message_id: Option<String>,
     pub created_at: String,
 }

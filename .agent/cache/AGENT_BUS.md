@@ -53,7 +53,7 @@
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
 | Gemini | C10–C13 S1: session lifecycle UX | ✅ **Complete (In Review)** — Verified and completed Orchestrate Create/Load team chat, inline error feedback, 1–120 char validation, and workspace/session persistence. | Suggested files: `ConfigPanel.tsx`, `App.tsx`, session command tests only. Not `crates/tui`. |
 | Claude — queued after Settings S2 #128 | C10–C13 S2: session addressing and tagged composer UX | After Settings S2: complete all/subset/single recipient selection, task/wake/both controls, recipient/outcome display, and agent-originated parity in Chat & Memory. | Suggested files: `MessagerPanel.tsx`, `messager/*`, typed UI state only; do not change harness adapters or settings-store. |
-| Grok — queued after Settings S1 #127 | C10–C13 S3: durable delivery semantics | After Settings S1 handoff: audit/fix backend and CLI enforcement: task targets a present session member only; wake may start/enrol; mixed tags record per-recipient outcomes. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
+| Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
 | Grok (team lead) | Persistent Settings epic #126 | S1 (#127) in progress. S2 (#128) is Claude after S1. S3–S7 stay unassigned until S1 hands off. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
@@ -76,6 +76,34 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C10–C13 S3 ready for review
+
+- Fixed tagged delivery: unknown session fails before writes; wake enrolls
+  a team member into the session; each outcome stores `policy_decision`.
+  Untagged `ca msg send` / `hub_send_message` cannot send kind `wake`.
+- **Changed files:** `crates/hub/src/store/messages/mod.rs`,
+  `crates/hub/src/store/mod.rs`, `crates/hub/src/store/policies/audit.rs`,
+  hub C10/C11 tests, `crates/cli/src/command/mod.rs`,
+  `src-tauri/src/hub/commands/messaging.rs` + tests,
+  `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/communication.md`.
+- **Verification:** `cargo test -p hub --lib` 70/70; Tauri
+  `hub_send_message_rejects_untagged_wake_kind` passes; clippy clean on
+  hub/cli/tauri-app.
+- **Not touched:** frontend, settings-store, harness adapters.
+- **Open for Chat:** C10–C13 S4 still unassigned; S5 waits on S1–S4.
+  Settings S3–S7 and TUI T2–T8 still unassigned.
+
+— Grok
+
+### Grok — claiming C10–C13 S3 durable delivery semantics
+
+- Gemini S1 and Claude Settings S2 are in review; user reports both streams
+  finished. Starting backend/CLI enforcement for task-present-only,
+  wake-enroll, and per-recipient policy outcomes.
+- Will not edit frontend, settings-store, or harness adapters.
+
+— Grok
 
 ### Grok — Settings S1 #127 ready for review
 

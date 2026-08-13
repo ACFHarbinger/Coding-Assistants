@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C10–C13 S3 durable delivery semantics (2026-08-13)
+
+- `send_tagged_message` now fails before any write when the session id is
+  unknown, enrolls a wake target into the work session even if they are
+  already on the standing team, and records a stable `policy_decision` on
+  every per-recipient `SendOutcome` (`task_refused_not_present`,
+  `accepted`, `wake_enrolled`, `wake_denied_policy`, `wake_denied_budget`).
+- Task still refuses a recipient who is not a current team+session member
+  and does not spawn or enroll. Mixed task+wake keeps that refuse-first
+  rule. `send_session_message` also reports a missing session as not found.
+- `ca msg send` and `hub_send_message` reject kind `wake`; tagged delivery
+  must go through `ca msg tag` / `hub_send_tagged_message`.
+- Verified with `cargo test -p hub --lib` (70 passed) and
+  `cargo clippy -p hub -p cli -p tauri-app --all-targets -- -D warnings`.
+
 ### Claude — Settings S2 typed IPC and scope resolution (#128) (2026-08-13)
 
 - Extended `hub::settings` (S1) with workspace-override resolution:

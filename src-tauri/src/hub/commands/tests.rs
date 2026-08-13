@@ -39,6 +39,30 @@ fn tagged_and_session_send_args_accept_tauri_camel_case_payloads() {
     assert_eq!(session.session_id, "example");
 }
 
+#[test]
+fn hub_send_message_rejects_untagged_wake_kind() {
+    let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "hub-tauri-wake-reject-{}-{}",
+        std::process::id(),
+        now_unix()
+    ));
+    std::env::set_var("CA_HOME", &dir);
+    let error = hub_send_message(SendMessageArgs {
+        from: "human".into(),
+        to: "grok".into(),
+        kind: Some("wake".into()),
+        subject: None,
+        workspace: None,
+        task: None,
+        body: "must not bypass tagged send".into(),
+    })
+    .expect_err("untagged wake must be rejected");
+    assert!(error.contains("hub_send_tagged_message"), "{error}");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::env::remove_var("CA_HOME");
+}
+
 /// `open_store()` reads the process-global `CA_HOME` env var, so any
 /// test that sets it must not run concurrently with another one doing
 /// the same (Rust's default test runner is multi-threaded within one

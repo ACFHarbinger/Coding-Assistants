@@ -20,6 +20,12 @@ pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> 
     let store = open_store()?;
     let kind =
         MessageKind::parse(args.kind.as_deref().unwrap_or("message")).map_err(|e| e.to_string())?;
+    if kind.requires_tagged_send() {
+        return Err(
+            "wake messages must use hub_send_tagged_message so enrollment and policy are recorded"
+                .into(),
+        );
+    }
     if args.to == "team" {
         return store
             .send_message_to_team(

@@ -294,6 +294,7 @@ impl HubStore {
                 enrolled INTEGER NOT NULL DEFAULT 0,
                 wake_requested INTEGER NOT NULL DEFAULT 0,
                 reason TEXT,
+                policy_decision TEXT,
                 message_id TEXT,
                 created_at TEXT NOT NULL
             );
@@ -352,6 +353,7 @@ impl HubStore {
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
             "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE tagged_send_outcomes ADD COLUMN policy_decision TEXT",
         ] {
             let _ = self.conn.execute(ddl, []);
         }

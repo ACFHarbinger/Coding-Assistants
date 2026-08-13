@@ -170,16 +170,18 @@ impl HubStore {
                 "send_tagged_message requires at least one recipient".into(),
             ));
         }
+        if let Some(session_id) = session_id {
+            if self.get_work_session(session_id)?.is_none() {
+                return Err(HubError::NotFound(format!(
+                    "work session {session_id} does not exist"
+                )));
+            }
+        }
         self.record_recipient_set(&subject, session_id, &recipients)?;
 
         let mut outcomes = Vec::with_capacity(recipients.len());
         for recipient in recipients {
-            let present = if let Some(session_id) = session_id {
-                self.is_team_member(&recipient)?
-                    && self.is_session_member(session_id, &recipient)?
-            } else {
-                self.is_team_member(&recipient)?
-            };
+            let present = self.is_currently_present(&recipient, session_id)?;
 
             if is_task && !present {
                 outcomes.push(self.record_send_outcome(
@@ -192,20 +194,17 @@ impl HubStore {
                     false,
                     false,
                     Some("task target is not a current team/session member".into()),
+                    "task_refused_not_present",
                     None,
                 )?);
                 continue;
             }
 
-            let mut enrolled = false;
-            if is_wake && !self.is_team_member(&recipient)? {
-                self.upsert_agent(&recipient, &recipient)?;
-                self.set_team_member(&recipient, true)?;
-                if let Some(session_id) = session_id {
-                    self.add_work_session_member(session_id, &recipient)?;
-                }
-                enrolled = true;
-            }
+            let enrolled = if is_wake {
+                self.enroll_wake_recipient(&recipient, session_id)?
+            } else {
+                false
+            };
 
             let kind = if is_wake {
                 MessageKind::Wake
@@ -224,11 +223,19 @@ impl HubStore {
 
             let mut wake_requested = false;
             let mut reason = None;
+            let mut policy_decision = if enrolled {
+                "wake_enrolled".to_string()
+            } else {
+                "accepted".to_string()
+            };
             if is_wake {
                 let wake_reason = format!("tagged send: {subject}");
                 match self.request_wake(&recipient, Some(&wake_reason), Some(&message.id), false) {
                     Ok(_) => wake_requested = true,
-                    Err(error) => reason = Some(format!("wake request denied: {error}")),
+                    Err(error) => {
+                        reason = Some(format!("wake request denied: {error}"));
+                        policy_decision = wake_denial_policy(&error).to_string();
+                    }
                 }
             }
 
@@ -242,6 +249,7 @@ impl HubStore {
                 enrolled,
                 wake_requested,
                 reason,
+                &policy_decision,
                 Some(message.id),
             )?);
         }
@@ -266,7 +274,11 @@ impl HubStore {
         if body.trim().is_empty() {
             return Err(HubError::Invalid("message body must not be empty".into()));
         }
-        self.get_work_session(session_id)?;
+        if self.get_work_session(session_id)?.is_none() {
+            return Err(HubError::NotFound(format!(
+                "work session {session_id} does not exist"
+            )));
+        }
         let mut recipients = Vec::new();
         for id in to {
             if id != "system" && id != from_agent && !recipients.contains(id) {
@@ -330,6 +342,7 @@ impl HubStore {
         enrolled: bool,
         wake_requested: bool,
         reason: Option<String>,
+        policy_decision: &str,
         message_id: Option<String>,
     ) -> Result<SendOutcome, HubError> {
         let id = Uuid::new_v4().to_string();
@@ -338,8 +351,9 @@ impl HubStore {
             r#"
             INSERT INTO tagged_send_outcomes(
                 id, subject, from_agent, to_agent, is_task, is_wake,
-                accepted, enrolled, wake_requested, reason, message_id, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                accepted, enrolled, wake_requested, reason, policy_decision,
+                message_id, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
             "#,
             params![
                 id,
@@ -352,6 +366,7 @@ impl HubStore {
                 enrolled as i64,
                 wake_requested as i64,
                 reason,
+                policy_decision,
                 message_id,
                 created_at,
             ],
@@ -367,6 +382,7 @@ impl HubStore {
             enrolled,
             wake_requested,
             reason,
+            policy_decision: policy_decision.to_string(),
             message_id,
             created_at,
         })
@@ -376,7 +392,8 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, subject, from_agent, to_agent, is_task, is_wake,
-                   accepted, enrolled, wake_requested, reason, message_id, created_at
+                   accepted, enrolled, wake_requested, reason,
+                   COALESCE(policy_decision, ''), message_id, created_at
             FROM tagged_send_outcomes
             WHERE subject = ?1
             ORDER BY created_at
@@ -394,10 +411,60 @@ impl HubStore {
                 enrolled: row.get::<_, i64>(7)? != 0,
                 wake_requested: row.get::<_, i64>(8)? != 0,
                 reason: row.get(9)?,
-                message_id: row.get(10)?,
-                created_at: row.get(11)?,
+                policy_decision: row.get(10)?,
+                message_id: row.get(11)?,
+                created_at: row.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn is_currently_present(
+        &self,
+        agent_id: &str,
+        session_id: Option<&str>,
+    ) -> Result<bool, HubError> {
+        if !self.is_team_member(agent_id)? {
+            return Ok(false);
+        }
+        match session_id {
+            Some(session_id) => self.is_session_member(session_id, agent_id),
+            None => Ok(true),
+        }
+    }
+
+    fn enroll_wake_recipient(
+        &self,
+        recipient: &str,
+        session_id: Option<&str>,
+    ) -> Result<bool, HubError> {
+        let mut enrolled = false;
+        if !self.is_team_member(recipient)? {
+            self.upsert_agent(recipient, recipient)?;
+            self.set_team_member(recipient, true)?;
+            enrolled = true;
+        }
+        if let Some(session_id) = session_id {
+            if !self.is_session_member(session_id, recipient)? {
+                if !self
+                    .list_agents()?
+                    .iter()
+                    .any(|agent| agent.id == recipient)
+                {
+                    self.upsert_agent(recipient, recipient)?;
+                }
+                self.add_work_session_member(session_id, recipient)?;
+                enrolled = true;
+            }
+        }
+        Ok(enrolled)
+    }
+}
+
+fn wake_denial_policy(error: &HubError) -> &'static str {
+    if error.to_string().contains("budget-paused") {
+        "wake_denied_budget"
+    } else {
+        "wake_denied_policy"
     }
 }

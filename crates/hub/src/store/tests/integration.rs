@@ -35,6 +35,7 @@ fn c11_wake_request_denial_does_not_undo_enrollment_or_delivery() {
     assert!(!store.list_messages(Some("gated"), None).unwrap().is_empty());
     assert!(!outcome.wake_requested);
     assert!(outcome.reason.as_deref().unwrap().contains("denied"));
+    assert_eq!(outcome.policy_decision, "wake_denied_policy");
 }
 
 #[test]
