@@ -195,7 +195,7 @@ pub(crate) enum BudgetCommand {
 pub(crate) enum AgentCommand {
     /// List known agent identities.
     List,
-    /// List agents with persisted Slack/Orchestrate team enrollment.
+    /// List agents with persisted Messager/Orchestrate team enrollment.
     Team,
     /// Enroll an existing agent on the team roster.
     Enroll {
@@ -394,7 +394,7 @@ pub(crate) enum MsgCommand {
         #[arg(long)]
         status: Option<String>,
     },
-    /// List one Slack-style channel (`channel:<name>` messages only).
+    /// List one Messager-style channel (`channel:<name>` messages only).
     Channel {
         channel: String,
         #[arg(long, default_value_t = 100)]

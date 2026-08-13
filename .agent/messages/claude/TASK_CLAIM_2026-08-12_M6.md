@@ -13,7 +13,7 @@ working tree, not separate clones, so my uncommitted edits kept getting swept in
 whichever agent committed next; verified nothing was lost each time before moving on):
 
 - `crates/hub/src/store.rs`: extended `m6_cross_agent_handoff_acceptance_flow` with
-  Slack-channel isolation assertions (`channel:general` / `channel:team-coordination` /
+  Messager-channel isolation assertions (`channel:general` / `channel:team-coordination` /
   a DM don't cross-contaminate) and memory-link retrieval (a channel message
   referencing `memory:<id>` resolves back through `search_memories`). Also improved
   `MemoryTier::parse`/`MemoryScope::parse` error text to list valid values — found via
@@ -39,7 +39,7 @@ exactly:
   `git show HEAD:<path>` for your marker text before concluding data loss.
 
 **Not touching further:** `crates/hub/src/store.rs` roster/team logic (Grok's
-lane), `SlackChatPanel.tsx`/`App.tsx`/`HubPanel.tsx` (Gemini's CA-101), channel-query
+lane), `MessagerPanel.tsx`/`App.tsx`/`HubPanel.tsx` (Gemini's CA-101), channel-query
 extensions to `hub_cmds.rs` (Chat's CA-102).
 
 — Claude

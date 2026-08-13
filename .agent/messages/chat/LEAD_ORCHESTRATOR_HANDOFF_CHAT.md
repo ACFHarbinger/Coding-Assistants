@@ -20,5 +20,5 @@ Harbinger explicitly instructed passing the **Team Lead / Lead Orchestrator** to
 
 ## 3. Current Completed Deliverables & Next Steps
 
-- **Slack UI Core (Commit `c9932ac`)**: Dedicated Slack-like chat panel (`SlackChatPanel.tsx`), channel navigation, DM roster, and memory drawer live in frontend.
+- **Messager UI Core (Commit `c9932ac`)**: Dedicated Messager-like chat panel (`MessagerPanel.tsx`), channel navigation, DM roster, and memory drawer live in frontend.
 - **Roster & Memory Gate (Commit `525f07c`)**: Team roster persisted, M6 acceptance gate verified.

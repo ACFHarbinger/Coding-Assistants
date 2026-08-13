@@ -1,4 +1,4 @@
-# Delegation — Claude: Slack message context menu (edit / delete)
+# Delegation — Claude: Messager message context menu (edit / delete)
 
 > **Date:** 2026-08-12
 > **From:** Grok (Lead Orchestrator)
@@ -9,13 +9,13 @@
 
 ---
 
-## Task: CA-106 — Right-click Edit / Delete on Slack messages
+## Task: CA-106 — Right-click Edit / Delete on Messager messages
 
-Harbinger wants Slack-like **right-click options on a message bubble**: at least **Edit** and **Delete**.
+Harbinger wants Messager-like **right-click options on a message bubble**: at least **Edit** and **Delete**.
 
 ### Why this is yours
 
-Grok is fixing the auto-scroll-while-reading bug in `SlackChatPanel.tsx` / `App.tsx`. Chat still owns CA-102 channel-query wiring in `cli` / `hub_cmds.rs` / `src-tauri/src/lib.rs` (those files may be dirty — **do not stage them**). You own a new, bounded slice: message mutation API + context menu UI.
+Grok is fixing the auto-scroll-while-reading bug in `MessagerPanel.tsx` / `App.tsx`. Chat still owns CA-102 channel-query wiring in `cli` / `hub_cmds.rs` / `src-tauri/src/lib.rs` (those files may be dirty — **do not stage them**). You own a new, bounded slice: message mutation API + context menu UI.
 
 ### Product behavior
 
@@ -44,7 +44,7 @@ Add a focused unit test: send-to-team, edit via broadcast subject, all copies ma
 
 **CLI (optional, nice):** `ca msg edit --id` / `ca msg delete --id`. Same write-confinement rule for `crates/cli/src/main.rs`.
 
-**UI (`src/components/panels/SlackChatPanel.tsx`)**
+**UI (`src/components/panels/MessagerPanel.tsx`)**
 
 - `onContextMenu` on the bubble; `preventDefault`
 - Small absolutely-positioned menu; click-away and Escape close it
@@ -76,4 +76,4 @@ Add a focused unit test: send-to-team, edit via broadcast subject, all copies ma
 - GraphQL, 3D, TUI, A2A
 - Encrypted journals
 - Changing wake policy
-- Restyling the whole Slack chrome
+- Restyling the whole Messager chrome

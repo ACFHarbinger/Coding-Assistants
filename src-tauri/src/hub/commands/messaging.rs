@@ -316,7 +316,7 @@ pub fn hub_set_message_status(id: String, status: String) -> Result<MessageRecor
         .map_err(|e| e.to_string())
 }
 
-/// CA-106: only Harbinger may edit/delete a Slack chat post in v1 — an agent
+/// CA-106: only Harbinger may edit/delete a Messager chat post in v1 — an agent
 /// must not be able to silently rewrite another agent's line. Team/channel
 /// broadcasts are N SQLite rows (one per recipient) sharing a subject, so
 /// both commands update/cancel every sibling copy via `hub`'s broadcast

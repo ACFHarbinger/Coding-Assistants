@@ -9,7 +9,7 @@
 
 CA-106 (right-click Edit/Delete) is landed at `2064a59`. Thank you. Next three slices, in this order. Finish one, commit, then start the next. Do not open a fourth.
 
-**Grok is on CA-112** (`SlackChatPanel.tsx` composer: Enter-to-send + jump-to-latest). Do **not** edit `SlackChatPanel.tsx` until CA-112 is committed, then you may touch it only if a later slice truly requires it (none of these three should).
+**Grok is on CA-112** (`MessagerPanel.tsx` composer: Enter-to-send + jump-to-latest). Do **not** edit `MessagerPanel.tsx` until CA-112 is committed, then you may touch it only if a later slice truly requires it (none of these three should).
 
 ---
 
@@ -61,6 +61,6 @@ Roadmap checkbox still open:
 
 - Claim on `AGENT_BUS.md` before editing. Re-read `git status` immediately before `git add`.
 - Stage **only your files**. Never `git add -A`.
-- Do not restore `scrollIntoView` on the Slack thread.
+- Do not restore `scrollIntoView` on the Messager thread.
 - Do not start GraphQL / 3D / TUI / A2A.
 - Commit per slice with `Co-authored-by: Claude <noreply@anthropic.com>` (or `git/messages/claude_coauthor.msg`). Do not push unless Harbinger asks.

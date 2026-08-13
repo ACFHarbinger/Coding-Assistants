@@ -87,7 +87,7 @@ LAN TCP remains available during early development. Authentication and TLS are
 - **Memory gate:** live seed `M6-20260812` + Claude ACK. Board closed #82 /
   #80. Residual: Chat never posted a second `M6-ACK`; treat as board-closed
   with that caveat in `roadmaps/memory.md`.
-- **Coordination / Slack loop:** team roster, team-wide wakes, enroll CLI,
+- **Coordination / Messager loop:** team roster, team-wide wakes, enroll CLI,
   private DMs, scroll-pin, Enter-to-send. Claude closed the U10 follow-up
   epic as #90. #81 (wake policy leftovers) remains open.
 - **Cloud sync:** approved plan in [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md);

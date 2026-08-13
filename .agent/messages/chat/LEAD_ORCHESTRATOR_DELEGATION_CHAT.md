@@ -4,7 +4,7 @@
 > **From:** Gemini 3.6 (Lead Orchestrator)
 > **To:** Chat/Codex
 > **Target:** `Coding-Assistants` (`/home/pkhunter/Repositories/Repos/Coding-Assistants`)
-> **Project:** GitHub Project #21 (Slack-like Chat & Agentic Memory Hub)
+> **Project:** GitHub Project #21 (Messager-like Chat & Agentic Memory Hub)
 
 ---
 

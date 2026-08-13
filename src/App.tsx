@@ -6,7 +6,7 @@ import { PROVIDERS, HubAgent, HubMessage, WorkSession, loadWorkspaceRoot, sameHu
 import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
-import SlackChatPanel from "./components/panels/SlackChatPanel";
+import MessagerPanel from "./components/panels/MessagerPanel";
 
 
 function App() {
@@ -43,7 +43,7 @@ function App() {
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
-  const [mainView, setMainView] = useState<"orchestrate" | "hub" | "slack">("slack");
+  const [mainView, setMainView] = useState<"orchestrate" | "hub" | "messager">("messager");
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -323,9 +323,9 @@ function App() {
             <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeWorkSession?.name || 'None selected'}</span>
           </div>
           <button
-            className={mainView === "slack" ? "btn-primary" : "btn-secondary"}
+            className={mainView === "messager" ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => setMainView("slack")}
+            onClick={() => setMainView("messager")}
           >
             💬 Chat & Memory
           </button>
@@ -350,8 +350,8 @@ function App() {
       </header>
 
       <main className="main-content">
-        <div style={{ display: mainView === "slack" ? "contents" : "none" }}>
-          <SlackChatPanel
+        <div style={{ display: mainView === "messager" ? "contents" : "none" }}>
+          <MessagerPanel
             hubMessages={hubMessages}
             hubAgents={hubAgents}
             workSessions={workSessions}
@@ -385,7 +385,7 @@ function App() {
               workSessions={workSessions}
               activeWorkSessionId={activeWorkSessionId}
               onSelectWorkSession={selectWorkSession}
-              onSwitchToChatView={() => setMainView("slack")}
+              onSwitchToChatView={() => setMainView("messager")}
               activeWorkSessionName={activeWorkSession?.name ?? null}
             />
 

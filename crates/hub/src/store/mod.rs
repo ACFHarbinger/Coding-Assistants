@@ -174,7 +174,7 @@ pub struct AgentRecord {
     pub created_at: String,
     #[serde(default)]
     pub card_json: Option<String>,
-    /// Explicit Slack-like team enrollment. Process-discovered identities
+    /// Explicit Messager-like team enrollment. Process-discovered identities
     /// and local model runtimes stay addressable but are not implicit members.
     #[serde(default)]
     pub team_member: bool,

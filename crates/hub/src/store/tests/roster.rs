@@ -324,9 +324,9 @@ fn m6_cross_agent_handoff_acceptance_flow() {
     assert!(text.contains("Hub handoff"));
     assert!(text.contains("The shared Hub slice is ready for review."));
 
-    // CA-103: Slack-style channel communication across multiple agent
+    // CA-103: Messager-style channel communication across multiple agent
     // roles must stay isolated per channel at the data layer, since the
-    // desktop SlackChatPanel filters purely by `subject == "channel:<id>"`
+    // desktop MessagerPanel filters purely by `subject == "channel:<id>"`
     // over the full `list_messages` result — a leak here would be
     // invisible in the UI but would surface as one channel seeing
     // another channel's traffic.

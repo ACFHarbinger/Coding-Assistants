@@ -105,7 +105,7 @@ fn ca102_hub_commands_return_only_the_requested_channel_and_linked_memories() {
             Some("human"),
             None,
             Some("Linked chat decision"),
-            "The Slack chat should remain the central conversation surface.",
+            "The Messager chat should remain the central conversation surface.",
             &[],
         )
         .expect("write_memory should succeed");

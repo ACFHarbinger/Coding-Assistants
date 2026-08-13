@@ -72,7 +72,7 @@ impl HubStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Lists one Slack-like channel without exposing similarly named channels.
+    /// Lists one Messager-like channel without exposing similarly named channels.
     /// In addition to the canonical `channel:<name>` subject, a colon-delimited
     /// suffix is accepted for future thread/topic metadata.
     pub fn list_channel_messages(

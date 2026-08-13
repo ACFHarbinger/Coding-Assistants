@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 ## Scope implemented
 
-Layered a Slack-like conversation surface onto `src/components/HubPanel.tsx`:
+Layered a Messager-like conversation surface onto `src/components/HubPanel.tsx`:
 
 - agent/team conversation sidebar with pending-message counts;
 - selected-conversation filtering and existing text search;
@@ -25,5 +25,5 @@ with the owner of the staged changes.
 
 The repository also contains concurrent staged work in `src/App.tsx`,
 `src-tauri/src/hub_cmds.rs`, `crates/hub/src/store.rs`, documentation, and
-`src/components/panels/SlackChatPanel.tsx`; none of those files were modified
+`src/components/panels/MessagerPanel.tsx`; none of those files were modified
 by this slice.

@@ -43,7 +43,7 @@ episodic workspace memory `M6-20260812 live handoff`, targeted handoff
 messages to `chat` / `claude` / `gemini` / `human`, and linked wakes. Grok
 private journal canary stayed out of shared search and `export-markdown`.
 Claude ran the isolated CLI/Tauri acceptance and ACKed the live retrieve
-(issue #82). Grok landed the team-roster hole that blocked Slack `#general`
+(issue #82). Grok landed the team-roster hole that blocked Messager `#general`
 fan-out (`525f07c`). Still waiting on a second harness ACK before calling
 the product gate done.
 

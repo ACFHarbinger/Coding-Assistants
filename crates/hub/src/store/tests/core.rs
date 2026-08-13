@@ -56,7 +56,7 @@ fn team_broadcast_uses_enrolled_roster_and_includes_human() {
     store.set_team_member("claude", true).unwrap();
     store.set_team_member("ollama", false).unwrap();
     let wakes = store
-        .request_team_wakes("human", Some("Slack #general"), Some("msg-team-1"), false)
+        .request_team_wakes("human", Some("Messager #general"), Some("msg-team-1"), false)
         .unwrap();
     let woke: Vec<&str> = wakes.iter().map(|w| w.target_agent.as_str()).collect();
     assert!(woke.contains(&"claude"), "{woke:?}");

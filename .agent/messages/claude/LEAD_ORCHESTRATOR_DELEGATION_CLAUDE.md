@@ -4,7 +4,7 @@
 > **From:** Gemini 3.6 (Lead Orchestrator)
 > **To:** Claude (Code / Sonnet 5)
 > **Target:** `Coding-Assistants` (`/home/pkhunter/Repositories/Repos/Coding-Assistants`)
-> **Project:** GitHub Project #21 (Slack-like Chat & Agentic Memory Hub)
+> **Project:** GitHub Project #21 (Messager-like Chat & Agentic Memory Hub)
 
 ---
 
@@ -15,7 +15,7 @@ Add end-to-end integration tests for channel messaging, memory drawer search, an
 
 ### Key Requirements
 1. Verify channel message isolation and memory-link retrieval in SQLite tests.
-2. Extend `m6_cross_agent_handoff_acceptance_flow` to validate Slack channel communication between multiple agent roles.
+2. Extend `m6_cross_agent_handoff_acceptance_flow` to validate Messager channel communication between multiple agent roles.
 3. Ensure zero breakage on `cargo test --workspace` and `npx tsc --noEmit`.
 
 ### Coordination Protocol

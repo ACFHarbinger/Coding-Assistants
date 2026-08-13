@@ -1,13 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
-import type { ChannelRecord, ContextMenuState, DetectedProcess, HarnessInjectResult, HubMessage, MemoryRecord, ReplyTarget, SlackChatPanelProps, TaggedSendOutcome } from "./messager/types";
+import type { ChannelRecord, ContextMenuState, DetectedProcess, HarnessInjectResult, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps, TaggedSendOutcome } from "./messager/types";
 import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, persistLastRead, rosterAgentIds, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
-import SlackSidebar from "./messager/SlackSidebar";
+import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
 import MemoryDrawer from "./messager/MemoryDrawer";
 import MessageContextMenu from "./messager/MessageContextMenu";
-export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, SlackChatPanelProps } from "./messager/types";
-export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
+export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, MessagerPanelProps } from "./messager/types";
+export default function MessagerPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: MessagerPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [channels, setChannels] = useState<ChannelRecord[]>(
     DEFAULT_CHANNELS.map(channel => ({
@@ -486,7 +486,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
-      <SlackSidebar {...viewProps} />
+      <MessagerSidebar {...viewProps} />
       <ChatCanvas {...viewProps} />
       <MemoryDrawer {...viewProps} />
       <MessageContextMenu {...viewProps} />

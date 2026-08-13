@@ -20,7 +20,7 @@ an experiment.
 | U13 | Create and delete Chat & Memory channels | Owner can add a named durable channel and remove a custom one from the sidebar. Built-in `#general`, `#team-coordination`, `#agent-memory`, and `#wakes-alerts` cannot be deleted. | ✅ **Done** · `chat_channels` in `HubStore`; `hub_list_channels` / `hub_create_channel` / `hub_delete_channel`; Chat & Memory sidebar + / × controls. Board: #114. |
 | U7 | TUI/Ratatui experiment | Built only after the shared client protocol is stable | 💤 Someday/Maybe |
 
-**2026-08-12:** Delivered U10 (Team Chat & Agentic Memory Hub) in `SlackChatPanel.tsx`. Includes channel sidebar, agent presence indicators, message stream, target recipient routing, wake policy controls, and inline memory drawer.
+**2026-08-12:** Delivered U10 (Team Chat & Agentic Memory Hub) in `MessagerPanel.tsx`. Includes channel sidebar, agent presence indicators, message stream, target recipient routing, wake policy controls, and inline memory drawer.
 
 **2026-08-11:** Completed the U1 objective. Extracted `App.tsx` logic into `ConfigPanel`, `ActivityPanel`, `RemotePanel`, and `ApprovalPanel` along with a major glassmorphism redesign for premium aesthetics.
 

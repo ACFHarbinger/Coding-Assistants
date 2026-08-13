@@ -375,7 +375,7 @@ impl HubStore {
     }
 
     /// Wake every enrolled teammate except the sender and `system`.
-    /// Slack/Orchestrate team sends must use this instead of waking a single harness.
+    /// Messager/Orchestrate team sends must use this instead of waking a single harness.
     pub fn request_team_wakes(
         &self,
         from_agent: &str,

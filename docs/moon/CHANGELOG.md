@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panel directory, kept `TaskTab` as a general component, and grouped chat
   support under `panels/messager`. Every TypeScript/React source file in
   `src/` is now at or below 500 lines.
+- **Messager naming.** Renamed the app's former chat-branded panel,
+  navigation state, support modules, storage key, and first-party
+  documentation to Messager/messager.
 
 ### Added
 
@@ -149,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
 
 - **U11 Create and Load Team Chat Entry Points**: Added dedicated Create Team Chat and Load Existing Team Chat controls to Orchestrate (`ConfigPanel.tsx`), which automatically set active work session and focus the Chat & Memory window (`App.tsx`).
-- **U12 / C10 Recipient Selection & Intent Tags**: Added Recipient Mode controls to Chat & Memory composer (`SlackChatPanel.tsx`) supporting `🌐 All Team Members`, `👥 Subset` (interactive agent checkboxes), and `🎯 Single Agent` (dropdown), along with `⚡ [TASK]` and `🔔 WAKE` intent tag toggles.
+- **U12 / C10 Recipient Selection & Intent Tags**: Added Recipient Mode controls to Chat & Memory composer (`MessagerPanel.tsx`) supporting `🌐 All Team Members`, `👥 Subset` (interactive agent checkboxes), and `🎯 Single Agent` (dropdown), along with `⚡ [TASK]` and `🔔 WAKE` intent tag toggles.
 - **C11 Task Tag Team Member Validation**: Implemented pre-flight validation preventing task-tagged messages from targeting non-enrolled agents, ensuring tasks target existing team members while wake-tagged messages can trigger or spawn new agent instances.
 - **Transcript Intent & Recipient Badges**: Added visual badges to transcript message bubbles displaying `⚡ TASK`, `🔔 WAKE`, and `To: <recipient>` header metadata.
 
@@ -218,25 +221,25 @@ then C11, then C12, then C13.
 
 ### Grok session (2026-08-12 → 2026-08-13)
 
-Lead-orchestrator pass on the Slack-like hub after Harbinger's GO (M6 first,
+Lead-orchestrator pass on the Messager-like hub after Harbinger's GO (M6 first,
 then prove the team loop). Commits authored or co-authored in this stretch:
 
 | Commit | What |
 | --- | --- |
 | `525f07c` | Persisted `agents.team_member` roster; team send includes Harbinger and excludes PID identities |
-| `9655e7d` | Slack/Orchestrate team send wakes every enrolled member, not only `chat` |
+| `9655e7d` | Messager/Orchestrate team send wakes every enrolled member, not only `chat` |
 | `c92accf` | `HubStore::request_team_wakes` |
-| `f16e862` | Slack thread no longer creeps down while reading older messages |
+| `f16e862` | Messager thread no longer creeps down while reading older messages |
 | `0dc2f1b` | `ca agent enroll\|unenroll\|team`, `hub_set_team_member`, header **Local hub online** pill |
 | `947a43d` | Enter-to-send, Shift+Enter newline, **Jump to latest** |
-| `2ab31c7` | Slack DMs send only to that agent |
+| `2ab31c7` | Messager DMs send only to that agent |
 | `f9e255b` | Shared Hub Usage plots Grok's weekly pool (`creditUsagePercent`) and extra-usage credits from the TUI `/usage` billing snapshot |
 
 Delegated (not claimed as Grok implementation): CA-106/109/110/111 to Claude,
 CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
 (`ca memory search M6-20260812`); Claude ACKed. Board: #82 and #80 closed;
 U10 follow-through tracked as #90 (closed after CA-106/109/110/111). Grok
-Slack spine commits for #90: `525f07c`, `9655e7d`, `c92accf`, `f16e862`,
+Messager spine commits for #90: `525f07c`, `9655e7d`, `c92accf`, `f16e862`,
 `0dc2f1b`, `947a43d`, `2ab31c7`. Wakes increment: #81 (still open).
 
 **Cloud sync (2026-08-13):** Grok wrote the first `cloud_sync.md` draft from
@@ -255,7 +258,7 @@ configured harness families. This completes the agreed usage-limit scope for
 
 ### Fixed
 
-- Slack channel badges now count **unread** posts only, using the same
+- Messager channel badges now count **unread** posts only, using the same
   membership as the thread (including unprefixed `#general` history).
   Opening a channel marks those posts read. Existing history is not treated
   as unread on first launch, which is why `#general` had no number while
@@ -271,32 +274,32 @@ configured harness families. This completes the agreed usage-limit scope for
   `e.stopPropagation()` in `openMessageMenu` fixes both the new button and
   the pre-existing right-click path.
 
-- Slack **Direct Messages** now send only to that agent. Opening a DM no
+- Messager **Direct Messages** now send only to that agent. Opening a DM no
   longer keeps "Broadcast to Team" as the recipient, so a private thread
   cannot fan out to the whole roster.
 
-- Slack composer sends on **Enter**; **Shift+Enter** inserts a newline.
+- Messager composer sends on **Enter**; **Shift+Enter** inserts a newline.
   While reading older messages, a **Jump to latest** chip appears instead of
   yanking the viewport.
 
-- Header chrome no longer shows a second Slack-looking control. The purple
-  **Slack Multi-Agent Hub** badge is now a green **Local hub online** status
-  pill so it cannot be mistaken for another Slack tab.
+- Header chrome no longer shows a second Messager-looking control. The purple
+  **Messager Multi-Agent Hub** badge is now a green **Local hub online** status
+  pill so it cannot be mistaken for another Messager tab.
 
 - Simplified the **Orchestrate** window to team/role configuration (including
   workspace and MCP settings) plus Remote Control. Its duplicate composer,
-  Team Chat, and Messages feed were removed; Slack Chat & Memory is now the
+  Team Chat, and Messages feed were removed; Messager Chat & Memory is now the
   single desktop surface for human/agent communication.
 
-- Slack `#general` no longer creeps downward while Harbinger reads older
+- Messager `#general` no longer creeps downward while Harbinger reads older
   messages. The 1.5s hub poll was calling `scrollIntoView({ behavior:
   "smooth" })` on every refresh. The thread now stays put unless the view
   is already near the bottom, the channel changed, or Harbinger sent a
   message. Team fan-out copies of one post are shown once.
 
-- Slack/Orchestrate team sends now wake every persisted roster member
+- Messager/Orchestrate team sends now wake every persisted roster member
   (`hub_list_agents` + `hub_request_wake`) instead of only `chat`. Direct
-  messages still wake the selected recipient. The Slack DM list follows
+  messages still wake the selected recipient. The Messager DM list follows
   `team_member` enrollment and role labels match the Grok-lead / Chat-co-lead
   split.
 
@@ -306,8 +309,8 @@ configured harness families. This completes the agreed usage-limit scope for
   and `grok`. Process-discovered PID identities and local model runtimes stay
   privately addressable. `cargo test -p hub` (12 passed).
 
-- Fixed the Slack Chat window going blank a few hundred milliseconds after
-  first paint. `SlackChatPanel.tsx` declared its own `DetectedProcess` shape
+- Fixed the Messager Chat window going blank a few hundred milliseconds after
+  first paint. `MessagerPanel.tsx` declared its own `DetectedProcess` shape
   (`agent_id`, `executable`) that never matched what `detect_agent_processes`
   actually serializes (`agent`, `provider`, `model`, `command`, `pid`) —
   `ConfigPanel.tsx` already had the correct shape. As soon as the 4s presence
@@ -337,7 +340,7 @@ configured harness families. This completes the agreed usage-limit scope for
 
 - Work sessions: Orchestrate can create a named durable work-session chat.
   It starts with the current persisted team and adding an eligible agent to the
-  team enrolls it in the active work session. Slack Chat & Memory lists each
+  team enrolls it in the active work session. Messager Chat & Memory lists each
   session, renders human and agent-harness messages in its
   `channel:session:<id>` scope, and sends only to that session's members.
   Per-member checkboxes decide which offline agents receive a wake for the
@@ -352,19 +355,19 @@ configured harness families. This completes the agreed usage-limit scope for
 - CA-114: channel messages can now be replied to in context. Replies retain a
   stable root message in the existing `channel:<name>:thread:<root>:<id>`
   subject namespace, so they remain isolated to the channel and keep normal
-  team fan-out/wake behavior. The Slack composer shows the selected parent
+  team fan-out/wake behavior. The Messager composer shows the selected parent
   with a cancel control, while rendered replies identify their parent without
   requiring a schema migration.
 
-- CA-106: right-click **Edit** / **Delete** on Slack message bubbles
-  (`SlackChatPanel.tsx`). Only Harbinger's own posts (`from_agent ===
+- CA-106: right-click **Edit** / **Delete** on Messager message bubbles
+  (`MessagerPanel.tsx`). Only Harbinger's own posts (`from_agent ===
   "human"`) show the menu; `hub_update_message` / `hub_delete_message`
   enforce the same rule server-side. Team/channel broadcasts are N SQLite
   rows sharing a subject, so both commands resolve and mutate every sibling
   copy via `hub::update_broadcast` / `delete_broadcast` — new posts group
   by the exact `channel:<name>:<uuid>` subject, legacy posts fall back to
   `(from_agent, body, subject, created-at-to-the-second)`. Delete is a soft
-  cancel (`status = cancelled`); the Slack view hides cancelled rows while
+  cancel (`status = cancelled`); the Messager view hides cancelled rows while
   the audit trail (`hub_list_messages`) still returns them. `cargo test -p
   hub` (15 passed).
 
@@ -388,7 +391,7 @@ configured harness families. This completes the agreed usage-limit scope for
   `hub_list_audit_events`, `hub_approve_audit`, `hub_quarantine_audit` wrap
   the existing `hub::HubStore` audit API; no new privileged adapter.
 
-- Persisted Orchestrate **Add to team** onto the Slack roster for stable
+- Persisted Orchestrate **Add to team** onto the Messager roster for stable
   harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
   `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:
   `hub_set_team_member`, `hub_list_team_members`, `hub_request_team_wakes`.
@@ -402,7 +405,7 @@ configured harness families. This completes the agreed usage-limit scope for
   Store and Tauri command coverage verifies both channel isolation and linked
   memory resolution.
 
-- Added dedicated **Slack-like Multi-Agent Chat Interface & Agentic Memory Hub** (`SlackChatPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Slack formatting, and an expandable Agentic Memory Hub side drawer.
+- Added dedicated **Messager-like Multi-Agent Chat Interface & Agentic Memory Hub** (`MessagerPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Messager formatting, and an expandable Agentic Memory Hub side drawer.
 - Established Lead Orchestration task allocation across Gemini (Lead Orchestrator), Grok (Build), Chat/Codex (Chat), and Claude (Code) on `.agent/cache/AGENT_BUS.md` and per-agent delegation files in `.agent/messages/`.
 
 - Private hub messages addressed to Harbinger now display their contents in

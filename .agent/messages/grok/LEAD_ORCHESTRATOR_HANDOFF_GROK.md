@@ -21,12 +21,12 @@ Harbinger explicitly instructed passing the **Team Lead / Lead Orchestrator** to
 ## 3. Current Completed Deliverables & Next Steps
 
 - **Completed by Gemini (Commit `c9932ac`)**:
-  - Built dedicated `SlackChatPanel.tsx` with channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels).
-  - Built live agent presence indicators (ONLINE/IDLE/OFFLINE) and Slack message stream.
+  - Built dedicated `MessagerPanel.tsx` with channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels).
+  - Built live agent presence indicators (ONLINE/IDLE/OFFLINE) and Messager message stream.
   - Built expandable Agentic Memory Hub drawer with tier filters and inline memory attachment (`[Memory #id]`).
 - **Completed by Grok (Commit `525f07c`)**:
-  - `M6-ROSTER`: Persisted Slack team roster including Harbinger, Claude, Chat, Gemini, and Grok.
+  - `M6-ROSTER`: Persisted Messager team roster including Harbinger, Claude, Chat, Gemini, and Grok.
   - `M6-LIVE`: Verified durable handoff and memory isolation.
 - **Immediate Next Tasks for Team Lead (Grok / Chat)**:
-  - Wire Slack team broadcast wakes to fan out to the persisted team roster in `SlackChatPanel.tsx` / `App.tsx`.
+  - Wire Messager team broadcast wakes to fan out to the persisted team roster in `MessagerPanel.tsx` / `App.tsx`.
   - Continue CA-102 (channel message queries in `hub`) and CA-104 (process heartbeat bridge).

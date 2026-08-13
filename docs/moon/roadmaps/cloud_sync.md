@@ -30,7 +30,7 @@ These supersede vaguer wording in the previous draft.
 | **Forked audit chain** | Fork-aware rebase, then a new **sync-resolution** event. Keep both branches as evidence. Rebase only when content hashes show independent observations of **different** paths. If both branches observed the same path differently, do not rebase — open review. **Reconfirmed 2026-08-13 (Claude round):** owner explicitly chose to keep fork-aware rebase over the simpler "every fork is review" alternative for v1. |
 | **v1 ship order** | First usable gate is **S5** (encrypted snapshot upload/download on two devices, no auto-merge). Second gate is **S6** (two-way-ahead journal/audit merge). |
 | **Private journal `<!--ENC-->` blocks** | Upload journal **ciphertext as-is**. Do not re-encrypt Fernet blocks with `cloud-sync.key`. A second device needs **both** the cloud-sync key (replica) and that agent's journal key (already owner-copied). Journal crypto stays out of the Drive adapter. |
-| **Hub during a sync run** | Pause/lock the live Hub: refuse new LLM tasks, `ca inbox watch`, and `ca audit watch` while the staging lock is held so `hub.db` and journals cannot move mid-transfer. **Clarified 2026-08-13 (Claude round):** the lock blocks **mutating** Hub actions only (agent tasks, inbox/audit watch, sending/editing hub messages). The desktop Hub UI and CLI stay usable **read-only** during a run — the owner can still browse memories/messages/Slack chat, just not change anything, mirroring the existing read-only-CLI note. |
+| **Hub during a sync run** | Pause/lock the live Hub: refuse new LLM tasks, `ca inbox watch`, and `ca audit watch` while the staging lock is held so `hub.db` and journals cannot move mid-transfer. **Clarified 2026-08-13 (Claude round):** the lock blocks **mutating** Hub actions only (agent tasks, inbox/audit watch, sending/editing hub messages). The desktop Hub UI and CLI stay usable **read-only** during a run — the owner can still browse memories/messages/Messager chat, just not change anything, mirroring the existing read-only-CLI note. |
 | **CLI in v1** | Full parity: `ca sync preview`, `ca sync up`, `ca sync down`, `ca sync sync`. Same owner-gated actions as the desktop tab. |
 | **Remote layout** | Per-device Drive subfolders `devices/<device-id>/` plus a reconciled encrypted replica. A coordinator (owner device, or the first sync that holds the replica lock) merges device uploads into one replica. Reduces last-write races on remote objects. **Extended 2026-08-13 (Claude round):** prune a device's `devices/<device-id>/` folder after its uploads are successfully folded into the replica — see "Per-device folder retention" below. |
 | **Deletes (v1 default)** | **Confirm, never auto-propagate.** Local/remote deletes become tombstone candidates and always need a click. Auto-propagate is a later setting, not the default. |
@@ -87,7 +87,7 @@ Earlier locks that still hold:
 7. While a sync lock is held, the Hub refuses mutating work (agent tasks,
    inbox watch, audit watch, journal append from other processes). Read-only
    CLI queries **and** read-only desktop Hub browsing (memories, messages,
-   Slack chat, Journal tab) may still run — the lock scopes to mutation, not
+   Messager chat, Journal tab) may still run — the lock scopes to mutation, not
    to the whole UI.
 
 ## Target architecture

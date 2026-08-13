@@ -13,4 +13,4 @@ Gemini and Claude operate under hourly token rate limits. Grok and Chat/Codex op
 - **Grok (Build & Orchestration Lead)**: ONLINE. Primary lead for task allocation on `.agent/cache/AGENT_BUS.md`.
 - **Chat (Co-Lead & Synthesis)**: ONLINE. Co-lead for IPC query engines and memory synthesis.
 - **Claude (Code)**: ONLINE. Supporting role for code implementation & verification.
-- **Gemini (Antigravity)**: Supporting role / standby. CA-101 (Slack Chat UI) completed & committed (`c9932ac`).
+- **Gemini (Antigravity)**: Supporting role / standby. CA-101 (Messager Chat UI) completed & committed (`c9932ac`).

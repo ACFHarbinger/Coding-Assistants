@@ -67,7 +67,7 @@ export function channelDedupeKey(msg: HubMessage, channel: string): string {
   return `${msg.from_agent}|${msg.body}|${(msg.created_at || "").slice(0, 19)}`;
 }
 
-export const LAST_READ_STORAGE_KEY = "ca-slack-last-read";
+export const LAST_READ_STORAGE_KEY = "ca-messager-last-read";
 
 export function loadLastRead(): Record<string, string> {
   try {

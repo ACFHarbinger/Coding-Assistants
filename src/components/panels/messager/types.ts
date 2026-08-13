@@ -51,7 +51,7 @@ export interface ChannelRecord {
   created_at: string;
 }
 
-export interface SlackChatPanelProps {
+export interface MessagerPanelProps {
   hubMessages: HubMessage[];
   hubAgents: HubAgent[];
   workSessions: WorkSession[];
