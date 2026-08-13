@@ -3,7 +3,7 @@ import { invoke, isTauriRuntime } from "../../lib/tauri";
 import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps } from "./messager/types";
 import { deliverTaggedSession } from "./messager/sendTagged";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
-import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
+import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
 import MemoryDrawer from "./messager/MemoryDrawer";
@@ -432,7 +432,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     });
 
     if (activeChannel.startsWith("dm-")) {
-      return sortOrder === "asc" ? matches : [...matches].reverse();
+      return sortByCreatedAt(matches, sortOrder);
     }
 
     const seen = new Set<string>();
@@ -442,7 +442,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       seen.add(key);
       return true;
     });
-    return sortOrder === "asc" ? deduped : [...deduped].reverse();
+    return sortByCreatedAt(deduped, sortOrder);
   })();
 
   const lastThreadId = channelMessages.length > 0 ? channelMessages[channelMessages.length - 1].id : "";

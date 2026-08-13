@@ -58,6 +58,24 @@ export function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
 }
 
+/** Sorts by actual `created_at` timestamp — never assume the caller's
+ * array is already in any particular order (the Hub's own message
+ * queries return newest-first, `ORDER BY created_at DESC`). Ties (equal
+ * timestamps, e.g. a team broadcast fan-out) preserve their relative
+ * input order (stable sort). */
+export function sortByCreatedAt<T extends { created_at: string }>(
+  messages: T[],
+  order: "asc" | "desc",
+): T[] {
+  const withIndex = messages.map((msg, index) => ({ msg, index }));
+  withIndex.sort((a, b) => {
+    const diff = Date.parse(a.msg.created_at) - Date.parse(b.msg.created_at);
+    if (diff !== 0) return order === "asc" ? diff : -diff;
+    return a.index - b.index;
+  });
+  return withIndex.map(({ msg }) => msg);
+}
+
 /** Whichever scroll edge the newest message currently renders at: the
  * bottom when oldest-first (ascending), the top when newest-first
  * (descending). */
