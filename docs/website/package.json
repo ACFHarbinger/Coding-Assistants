@@ -1,24 +1,35 @@
 {
-  "name": "website",
+  "name": "coding-assistants-website",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "prebuild": "tsx scripts/build-content.ts",
+    "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "marked": "^18.0.9",
-    "vue": "^3.5.40"
+    "lucide-react": "^0.475.0",
+    "marked": "^15.0.7",
+    "mermaid": "^11.4.1",
+    "minisearch": "^7.1.1",
+    "prismjs": "^1.29.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/marked": "^5.0.2",
-    "@types/node": "^24.13.3",
-    "@vitejs/plugin-vue": "^6.0.8",
-    "@vue/tsconfig": "^0.9.1",
-    "typescript": "~6.0.2",
-    "vite": "^8.2.0",
-    "vue-tsc": "^3.3.8"
+    "@types/node": "^22.13.1",
+    "@types/prismjs": "^1.26.5",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
   }
 }

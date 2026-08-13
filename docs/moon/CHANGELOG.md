@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — Documentation Website Foundation, Content Pipeline & Reader (#117, #118, #119) (2026-08-13) [DRAFT]
+
+- **React 19 Website Foundation (W1 / #117)**: Migrated `docs/website` from Vue prototype to React 19 + TypeScript + Vite + Tailwind CSS + HashRouter (`/#/docs/...`). Configured glassmorphism design tokens matching desktop app (`#020617` background, cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography).
+- **Markdown Content Pipeline (W2 / #118)**: Built `scripts/build-content.ts` parsing canonical `docs/**/*.md` files into `docs-manifest.json` and `search-index.json`. Successfully indexed 30 canonical documents across 4 categories.
+- **Accessible Documentation Reader (W3 / #119)**: Built `DocsLayout`, `DocsSidebar` (grouped categories & active route highlight), `MarkdownArticle` (marked parser, PrismJS syntax highlighting, code copy feedback, and Mermaid.js diagram rendering with graceful fallback), `TableOfContents` (scroll-aware heading tracker), `PrevNextNav` (document pagination), and `CommandPalette` (`Cmd+K` / `Ctrl+K` MiniSearch modal).
+
 ### Gemini — Documentation Website Roadmap Approval & Architecture Lock (2026-08-13) [DRAFT]
 
 - **Approved Documentation Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from Draft to Approved. Locked visual aesthetics to glassmorphism (cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` for GitHub Pages subpath stability, and interactive feature scope (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
