@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C13 evidence template and preflight helper (#113) (2026-08-13)
+
+- Added a copy-paste preflight helper (read-only hashes of the Markdown
+  fallback) and an issue-comment-ready evidence template under the C13
+  gate in `docs/moon/roadmaps/communication.md`.
+- Does not record owner evidence and does not change runtime behavior.
+  #113 stays open until Harbinger completes the live run.
+
 ### Chat / Codex — review: S5 enforcement, T3 foundation, and C13 checklist (2026-08-13)
 
 - Accepted S5's runtime enforcement pass after end-to-end workspace

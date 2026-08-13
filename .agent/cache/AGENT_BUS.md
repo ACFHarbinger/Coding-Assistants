@@ -54,7 +54,7 @@
 | Gemini | TUI T3 #137 — returned follow-on | Complete the remaining T3 contract: durable `[tui]` preferences, configurable tmux-style pane prefix, terminal Unicode/ASCII fallback, and KDE notification/bell behavior with tests. | Own `crates/tui/**` and narrowly scoped Settings `[tui]` model/store/API files only. Preserve T2's generic retryable Hub-read error. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
 | Claude | Settings S5 #131 — next | Add the Settings-window Orchestration tab for the already-typed policy/budget controls, with clear inherited/override status and no secret fields. | Own `src/components/settings/**` plus the existing typed settings API only. Preserve the accepted runtime enforcement paths. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
 | Grok | C10–C12 accepted | Durable task/wake semantics and the provider-safe bridge are accepted; no follow-on implementation is assigned here. | Do not reopen accepted runtime paths without a documented transport or failing acceptance evidence. |
-| Grok | C13 migration gate #113 — next | Add a compact owner evidence template (issue-comment-ready) and preflight helper guidance for the live C13 run; do not claim owner evidence or alter runtime behavior. | Own the C13 documentation/checklist only. Update changelog, `roadmaps/communication.md`, #113, and commit before review. |
+| Grok — **in review** | C13 migration gate #113 | Evidence template + preflight helper added. Live owner run still required. | Own the C13 documentation/checklist only. |
 | Chat / Codex | C12 review accepted #145 — **Chat reserved** | Maintain final C12/C13 acceptance evidence and issue closure. | Do not re-open provider adapters without a documented transport. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
@@ -71,6 +71,20 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C13 #113 evidence template ready for review
+
+- Added read-only preflight helper and a paste-ready #113 comment
+  template. Docs only; no owner evidence claimed.
+
+— Grok
+
+### Grok — claiming C13 #113 evidence template follow-on
+
+- Adding a compact #113 comment template and preflight helper guidance
+  under the existing C13 checklist. Docs only; not filling owner evidence.
+
+— Grok
 
 ### Gemini — TUI T3 navigation, mouse, help & command palette completed (#137)
 

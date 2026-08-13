@@ -18,7 +18,7 @@ communication is reliable.
 | C10 | Session addressing: all, subset, or one | Human and any enrolled agent can send a session message to every member, a named subset, or a single member. Non-targets are not woken or tasked. The session transcript records the explicit `to` list. | ✅ **Done** · #109. Session sends persist an exact recipient set by subject and reject non-members server-side; Chat & Memory routes all/subset/one through typed session/tagged commands. |
 | C11 | Task vs wake message tags | A message may be tagged **task**, **wake**, both, or neither. **Wake** may launch a new harness instance of that identity and enroll it in the session team. **Task** must target an already-enrolled, currently present member and is refused (no spawn) otherwise. Agents can apply the same tags through the hub API/CLI. | ✅ **Done** · #111. `HubStore::send_tagged_message` + `hub_send_tagged_message` + `ca msg tag` enforce task-refuse and wake-enroll. Presence is team membership plus session membership when a session is given. A wake enrolls a missing team or session member. Mixed tags still refuse the whole recipient when the task check fails. Each recipient gets a durable `SendOutcome` including `policy_decision`. Untagged `ca msg send` / `hub_send_message` cannot use kind `wake`. |
 | C12 | Bidirectional harness capture and inject | The app captures messages agents send inside Grok/Chat/Claude/Gemini harnesses into the session transcript. Hub messages tagged task and/or wake are injected into the target harness so the agent executes them. Builds on C9. | ✅ **Done** · #145. Capture polls all four. Grok task delivery uses the registered ACP leader path. Codex/Chat task delivery uses documented `codex app-server` `thread/resume` + `turn/start` when a persisted thread is registered or found on disk; otherwise `unavailable` and queued. Claude and Gemini capture/discovery are real; their control transports stay `unavailable` and queued. Task-only inject never spawns a replacement process. No PTY writes or fabricated sockets. Wake may still spawn. |
-| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · C12 accepted (#145). Owner-run checklist below is ready. Live owner evidence is still required before the Markdown bus is demoted. |
+| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · C12 accepted (#145). Owner-run checklist and #113 evidence template are ready. Live owner evidence is still required before the Markdown bus is demoted. |
 
 ### C13 migration gate
 
@@ -132,6 +132,94 @@ in the named session, one audited task or wake delivery.
 **Fail:** any Markdown-bus write during the run; task-only spawn; fabricated
 delivery; fewer than two harness-originated session messages; missing
 all/subset/one coverage.
+
+#### Preflight helper (copy into a terminal at the repo root)
+
+This only **reads** the fallback files and prints paste-ready hashes. It does
+not start the app, register sessions, or write `.agent/**`.
+
+```bash
+# C13 preflight — run from the repository root before the live loop.
+set -eu
+printf 'C13 preflight %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+printf 'cwd %s\n' "$(pwd)"
+if [ -f .agent/cache/AGENT_BUS.md ]; then
+  sha256sum .agent/cache/AGENT_BUS.md
+else
+  echo 'MISSING .agent/cache/AGENT_BUS.md'
+fi
+if [ -d .agent/messages ]; then
+  find .agent/messages -type f -print0 | sort -z | xargs -0 -r sha256sum
+else
+  echo 'NO .agent/messages directory (treat as empty set)'
+fi
+# Optional Hub peek; skip if `ca` is not on PATH.
+if command -v ca >/dev/null 2>&1; then
+  echo '--- ca agent team ---'
+  ca agent team || true
+fi
+```
+
+After the run, execute the same hash commands again. Every digest must match
+the **before** block. Paste both blocks into the template below.
+
+#### Evidence template (paste into a #113 comment)
+
+Do not submit this template until the live run is finished. Leave unused
+rows as `not run` rather than inventing ids.
+
+~~~~markdown
+## C13 live run — owner evidence
+
+- **Date (UTC):**
+- **Machine / OS:**
+- **Workspace root (absolute):**
+- **Named session id / title:**
+- **Enrolled team:**
+- **Result:** pass / fail / recovered-via-markdown-bus
+
+### A. Preflight hashes
+
+**Before**
+
+    (paste sha256 lines)
+
+**After**
+
+    (paste sha256 lines)
+
+Hashes unchanged? yes / no
+
+### B. Addressing and tags
+
+| Step | Recipients | Tags | Outcome ids / policy_decision | Inject status |
+| --- | --- | --- | --- | --- |
+| B1 all |  | neither |  | n/a |
+| B2 subset |  | task |  |  |
+| B3 one |  | wake or both |  |  |
+| B4 unsupported task |  | task |  | unavailable/queued |
+
+### C. Harness results (need two)
+
+| Harness | Capture or inject | Message id | Notes |
+| --- | --- | --- | --- |
+| grok / chat / … |  |  |  |
+| grok / chat / … |  |  |  |
+
+### D. Reconstruction (no Markdown bus as source)
+
+- Transcript shows B1–B3 and both harness results? yes / no
+- Recipient sets match the table? yes / no
+- Audit/journal shows the human send and any wake decision? yes / no
+
+### E. If failed
+
+- Hub failure record (outcome / inject detail / session note):
+- Resumed on existing Markdown bus without rewriting history? yes / no / n/a
+
+This comment is **not** a C13 pass by itself. Chat/Codex closes #113 only
+after reviewing these fields.
+~~~~
 
 **2026-08-12:** CA-102 adds bounded, exact channel queries to the shared
 store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).
