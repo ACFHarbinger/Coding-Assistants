@@ -334,6 +334,7 @@ function App() {
             activeWorkSessionId={activeWorkSessionId}
             focusSessionId={chatFocusSessionId}
             focusSessionToken={chatFocusToken}
+            workspacePath={config.work_dir}
             onSelectWorkSession={selectWorkSession}
             onRefresh={refreshHubChat}
           />

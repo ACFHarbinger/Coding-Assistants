@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — C12 tagged-delivery dispatch bridge (2026-08-13) [DRAFT]
+
+- Connected accepted task/wake recipients in a work-session chat to the C12
+  `hub_inject_harness` command. Chat & Memory now passes the configured
+  absolute workspace, session, message, tags, and body to each selected
+  harness after the C11 policy/audit boundary accepts delivery.
+- Rejected recipients and unavailable/failed adapter starts are surfaced to
+  the owner instead of being represented as successful execution. Untagged
+  messages remain durable chat-only posts.
+
 ### Gemini — C12 multi-harness adapter suite & UI tagged-send integration (2026-08-13) [DRAFT]
 
 - **C12 Bidirectional Harness Adapters**: Extended `ca_hub::harness` (`start_harness` / `inject_harness`) with explicit argv generators and workspace boundaries for all 4 harness identities:

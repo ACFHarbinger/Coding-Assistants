@@ -52,8 +52,22 @@ export interface SlackChatPanelProps {
   activeWorkSessionId: string | null;
   focusSessionId?: string | null;
   focusSessionToken?: number;
+  workspacePath: string;
   onSelectWorkSession: (sessionId: string | null) => void;
   onRefresh: () => Promise<void>;
+}
+
+interface TaggedSendOutcome {
+  to_agent: string;
+  accepted: boolean;
+  message_id?: string | null;
+  reason?: string | null;
+}
+
+interface HarnessInjectResult {
+  harness: string;
+  status: string;
+  detail: string;
 }
 
 const AGENT_COLORS: Record<string, { bg: string; text: string; role: string }> = {
@@ -178,7 +192,7 @@ function threadRootId(message: HubMessage, channel: string): string | null {
   return rootId || null;
 }
 
-export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
+export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
@@ -381,9 +395,30 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
       if (sessionChannel && activeWorkSession) {
         if (targetAgents.length === 0) throw new Error("The active work session has no members");
         if (isTaskTag || isWakeTag) {
-          await invoke("hub_send_tagged_message", {
+          if (!workspacePath.startsWith("/")) {
+            throw new Error("Tagged delivery requires an absolute Workspace Root in Orchestrate");
+          }
+          const outcomes = await invoke<TaggedSendOutcome[]>("hub_send_tagged_message", {
             args: { from: "human", to: targetAgents, isTask: isTaskTag, isWake: isWakeTag, subject, workspace: null, task: isTaskTag ? bodyText : null, sessionId: activeWorkSession.id, body: bodyText }
           });
+          const injections = await Promise.all(
+            outcomes
+              .filter(outcome => outcome.accepted && outcome.message_id)
+              .map(outcome => invoke<HarnessInjectResult>("hub_inject_harness", {
+                harness: outcome.to_agent,
+                workspace: workspacePath,
+                sessionId: activeWorkSession.id,
+                messageId: outcome.message_id,
+                body: bodyText,
+                isTask: isTaskTag,
+                isWake: isWakeTag,
+              }))
+          );
+          const failures = [
+            ...outcomes.filter(outcome => !outcome.accepted).map(outcome => `${outcome.to_agent}: ${outcome.reason || "rejected"}`),
+            ...injections.filter(result => result.status !== "spawned").map(result => `${result.harness}: ${result.detail}`),
+          ];
+          if (failures.length > 0) alert(`Message recorded, but delivery needs attention:\n${failures.join("\n")}`);
         } else {
           await invoke("hub_send_session_message", {
             args: { from: "human", sessionId: activeWorkSession.id, to: targetAgents, subject, workspace: null, task: null, body: bodyText }
