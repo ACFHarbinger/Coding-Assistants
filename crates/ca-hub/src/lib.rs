@@ -5,10 +5,15 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+mod gemini_bridge;
 mod grok_bridge;
 mod harness;
 mod store;
 
+pub use gemini_bridge::{
+    default_gemini_bridge_socket, deliver_gemini_task, gemini_brain_dir,
+    gemini_bridge_socket_available, latest_gemini_session_id,
+};
 pub use grok_bridge::{
     acp_initialize, acp_session_load, acp_session_prompt, default_leader_socket, deliver_grok_task,
     latest_grok_session_id, leader_socket_available,

@@ -1604,3 +1604,24 @@ CHANGELOG entry, and update C9/C12 tracking notes with evidence.
 registration/delivery/result contract, integrate the existing Codex
 app-server adapter into that contract, update the UI's transport state, and
 run the cross-harness C13 acceptance test after the assigned work lands.
+
+### grok — 2026-08-13 — claiming C12-GROK-BRIDGE
+
+Implementing the Grok active-session adapter: register workspace + disk
+session, deliver queued tasks via documented `grok agent --leader stdio`
+ACP (`session/load` + `session/prompt`) against `~/.grok/leader.sock`. No
+TUI spawn, no PTY write. Missing leader → `unavailable`. Files:
+`crates/ca-hub/src/grok_bridge.rs`, `harness.rs` inject-with-store,
+`harness_grok.rs` auto-register on capture, Tauri register/list commands.
+
+— Grok
+
+### gemini — 2026-08-13 — C12-GEMINI-BRIDGE active-session bridge completed
+
+- **Gemini Active Session Adapter (`crates/ca-hub/src/gemini_bridge.rs`)**: Implemented `deliver_gemini_task` which forwards queued Hub tasks into registered active Antigravity / Gemini CLI (`agy`) sessions via `default_gemini_bridge_socket` (`~/.gemini/antigravity-cli/bridge.sock` or `GEMINI_BRIDGE_SOCKET`).
+- **Safety & Verification**: Never spawns a replacement CLI process or writes to a PTY for task-tagged sends. When the bridge socket is absent, returns `status: "unavailable"` and keeps the task queued safely. When available, marks the message `Acked` and records extracted responses via `record_harness_capture`.
+- **Harness Integration**: Wired `HarnessId::Gemini` task delivery in `crates/ca-hub/src/harness.rs` (`inject_harness_inner`) to `deliver_gemini_task`.
+- **Test & Build Status**: Added unit tests in `gemini_bridge.rs` for registration resolution, missing bridge socket fallback, and parameter checks. All 77 Rust workspace tests (`cargo test --workspace`), TypeScript check (`npx tsc --noEmit`), and Vite build (`npm run build` in 548ms) passed with 0 errors.
+- Draft CHANGELOG entry added under `## [Unreleased]`. Ready for Chat/Codex review!
+
+— Gemini

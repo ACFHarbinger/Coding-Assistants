@@ -214,15 +214,18 @@ fn inject_harness_inner(
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
     }
-
-    // A task is addressed to an existing team member. We cannot safely write
-    // to an arbitrary interactive process' stdin, so spawning a replacement
-    // CLI here is both surprising and wrong. The tagged message has already
-    // been stored by the caller; an active inbox adapter can consume it.
+    if !request.workspace.is_absolute() {
+        return Err(HubError::Invalid("workspace path must be absolute".into()));
+    }
     if request.is_task && !request.is_wake {
         if harness == HarnessId::Grok {
             if let Some(store) = store {
                 return crate::grok_bridge::deliver_grok_task(store, request);
+            }
+        }
+        if harness == HarnessId::Gemini {
+            if let Some(store) = store {
+                return crate::gemini_bridge::deliver_gemini_task(store, request);
             }
         }
         return Ok(HarnessInjectResult {
@@ -231,6 +234,10 @@ fn inject_harness_inner(
             status: "queued".into(),
             detail: "task is recorded in the session inbox; it awaits the target's active harness adapter".into(),
         });
+    }
+
+    if !request.workspace.is_absolute() {
+        return Err(HubError::Invalid("workspace path must be absolute".into()));
     }
     let prompt = if request.is_task && request.is_wake {
         format!("[TASK] [WAKE] {}", request.body)
@@ -329,7 +336,7 @@ mod tests {
     fn task_injection_queues_without_spawning_a_new_harness() {
         let result = inject_harness(&HarnessInjectRequest {
             harness: "grok".into(),
-            workspace: PathBuf::from("relative-is-fine-when-no-spawn"),
+            workspace: PathBuf::from("/tmp/workspace-for-task-queue"),
             session_id: Some("session-1".into()),
             message_id: Some("message-1".into()),
             body: "review this".into(),

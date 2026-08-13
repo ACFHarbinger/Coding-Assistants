@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **C12-GEMINI-BRIDGE.** An explicitly registered Gemini / Antigravity CLI session can receive a queued Hub task through the active bridge adapter (`crates/ca-hub/src/gemini_bridge.rs`). Forwards prompt requests to the active session via `default_gemini_bridge_socket` (`~/.gemini/antigravity-cli/bridge.sock` or `GEMINI_BRIDGE_SOCKET`), setting message status to `Acked` and recording extracted responses via `record_harness_capture`. If the bridge socket is absent, delivery is `unavailable` and the task remains queued without spawning a replacement CLI process.
 - **C12-GROK-BRIDGE.** An explicitly registered Grok session can receive a
   queued Hub **task** through Grok Build's documented ACP leader path
   (`grok agent --leader stdio` → `session/load` + `session/prompt` on
