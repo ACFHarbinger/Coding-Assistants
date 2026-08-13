@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — messaging-path verification and Codex delivery guidance (#156, #157) (2026-08-13)
+
+- Exercised the real Hub/CLI message flow in an isolated data directory:
+  plain persistence, all/subset task sends, one wake send, durable outcomes,
+  and read markers all pass. The desktop builds on the same typed commands and
+  renders failed injection details in its high-contrast retry banner.
+- Fixed a durable recipient-set collision found by that exercise. Repeated
+  tagged sends that reuse a channel/session subject now retain the group prefix
+  and receive a UUID suffix for the later fan-out, so each post can persist its
+  own recipient set and audit outcomes (#157).
+- Hardened Codex persisted-thread discovery to compare canonical workspace
+  paths. When no thread is registered/found, the actionable unavailable detail
+  now explains that the owner must register the persisted thread in Managed
+  harness readiness; a separately opened Codex terminal remains observed-only
+  because the app never writes its TUI or undocumented IPC (#156).
+
 ### Claude — C14.3 Channel workspace registry + Shared Hub management (#150) (2026-08-13)
 
 - Renamed the `crates/claude-channel` crate to `crates/claude` (`git mv`;

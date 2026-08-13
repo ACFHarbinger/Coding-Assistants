@@ -109,6 +109,46 @@ fn c10_session_send_persists_the_explicit_recipient_set() {
 }
 
 #[test]
+fn repeated_tagged_channel_subjects_remain_distinct_fan_outs() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_team_member("claude", true).unwrap();
+
+    let first = store
+        .send_tagged_message(
+            "human",
+            &["claude".to_string()],
+            true,
+            false,
+            "first task",
+            Some("channel:general"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    let second = store
+        .send_tagged_message(
+            "human",
+            &["claude".to_string()],
+            true,
+            false,
+            "second task",
+            Some("channel:general"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(first.len(), 1);
+    assert_eq!(second.len(), 1);
+    assert_eq!(first[0].subject, "channel:general");
+    assert!(second[0].subject.starts_with("channel:general:"));
+    assert_ne!(first[0].subject, second[0].subject);
+}
+
+#[test]
 fn harness_capture_dedups_the_same_body() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
@@ -213,7 +253,10 @@ fn managed_harness_writer_lease_is_exclusive_and_released_truthfully() {
         .unwrap_err();
     assert!(busy.to_string().contains("active writer"));
 
-    let held = store.get_harness_session("chat", workspace).unwrap().unwrap();
+    let held = store
+        .get_harness_session("chat", workspace)
+        .unwrap()
+        .unwrap();
     assert_eq!(held.state, HarnessSessionState::Busy);
     assert_eq!(held.writer_owner.as_deref(), Some("turn:one"));
 
@@ -223,7 +266,10 @@ fn managed_harness_writer_lease_is_exclusive_and_released_truthfully() {
     store
         .release_harness_writer("chat", workspace, "turn:one", HarnessSessionState::Ready)
         .unwrap();
-    let released = store.get_harness_session("chat", workspace).unwrap().unwrap();
+    let released = store
+        .get_harness_session("chat", workspace)
+        .unwrap()
+        .unwrap();
     assert_eq!(released.state, HarnessSessionState::Ready);
     assert!(released.writer_owner.is_none());
 }

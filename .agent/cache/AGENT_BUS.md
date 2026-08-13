@@ -65,11 +65,10 @@
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
-| Claude | C14.3 Claude Channel #150 | ✅ **Complete, live acceptance verified** — `crates/claude` MCP bridge + `hub::bridge::claude_channel`. Selective interruption (only wake/task-tagged pushed; plain chat stays queued for a new `check_inbox` tool), owner-connect/spawn from the desktop Channels tab, a reply-subject collision bug fixed (see below), and a real ping/wake/task round-trip verified live against a real `claude --channels` session. See 2026-08-13 Claude entry below for the full breakdown and for #153/#154/#155/#156. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`. |
-| Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
-| Gemini | C14.7 fix `agy --prompt` gibberish #155 | **New — unclaimed.** `--prompt <text>` is used as if it takes a value; `agy --help` documents it as a bare `--print` alias. The real prompt is being silently dropped, producing off-topic replies. See #155 for the full diagnosis and task list. | Own Gemini/Antigravity bridge and worker modules only; do not touch Grok/Codex/Claude bridges. |
-| Grok — **in review** | C14.5 managed-harness UX #152 | Desktop Orchestrate/Chat readiness, badges, prerequisites, retry/dismiss. | Do not modify provider transports or harness_session schema/leases. Live Kubuntu acceptance still open; do not close #152. |
-| Grok | C14.6 enable Grok leader-mode delivery #154 | **New — unclaimed.** Hub delivery already implements the documented `--leader`/`--leader-socket` ACP path correctly; it's `"unavailable"` because no leader process/socket exists by default. Needs owner-facing setup guidance and optionally a `launch_claude_channel_session`-style connect helper. See #154. | Never write to an undocumented Grok socket/PTY. Do not touch Gemini/Codex/Claude bridges. |
+| Claude | C14.3 follow-up + Rust size refactor | Split `crates/hub/src/bridge/claude_channel.rs` (1,069 LoC) into `bridge/channels/claude/**` and split `crates/claude/src/main.rs` (613 LoC) through the pre-created `crates/claude/src/main/**`; preserve public API and live acceptance behavior. Add unit coverage around module boundaries. | Every Rust source file must end ≤500 LoC. Keep `bridge::claude` C12 safety untouched; never use `cc-socks`. Update #150 and docs/changelog, commit scoped changes. |
+| Gemini | C14.4/7 `agy` correction + TUI size refactor #151/#155 | Correct the documented `agy` argv: prompt must be positional, not `--prompt <value>`; perform a real round-trip and update parser assumptions. Then split `crates/tui/src/app.rs` (993 LoC) using the pre-created `crates/tui/src/app/**`. | Own Gemini bridge/harness and TUI only. Every Rust file ≤500 LoC. No interactive-TUI attach claim; document headless ownership honestly. Update #151/#155/docs/changelog and commit. |
+| Grok | C14.5/6 UX + frontend size refactor #152/#154 | **Returned review item:** replace generic “Start managed” registration that fabricates `managed-<pid>` with provider-specific setup or an explicit observed-only result — a fake id is not a usable Codex thread or `agy` conversation. Add guided Grok leader-mode setup/connect and clear delivery detail. Split `ConfigPanel.tsx` (513), `HubPanelView.tsx` (511), and `MessagerPanel.tsx` (574) into focused directories/modules; preserve high-contrast messaging behavior and add/adjust tests where available. | Own frontend harness/Hub/Messager components and Grok bridge/docs only. Every TS/TSX file ≤500 LoC. No undocumented PTY/socket writes. Update #152/#154/docs/changelog and commit. |
+| Chat / Codex | C14.1/2/8 + core size refactor #148/#149/#156 — **Chat reserved** | Make Codex registration/setup and unavailable/queued detail explicit; canonicalize equivalent workspace paths when discovering persisted Codex threads; document that an unmanaged visible TUI is observed-only. Split `settings/store.rs` (1,173), `store/agents/mod.rs` (512), `cli/app/mod.rs` (534), `cli/command/mod.rs` (521), and remaining Rust core files over 500 LoC. | Every Rust file ≤500 LoC. Do not write a live Codex TUI or undocumented IPC. Maintain C14 writer-lease safety and update docs/issues/changelog before scoped commits. |
 | Chat / Codex | C14.8 surface why a Codex wake got no response #156 | **New — unclaimed.** A manually-started live Codex session is very likely never Hub-registered, so delivery silently resolves `unavailable`/`queued` with no visible explanation; even a resolved thread is delivered via a disposable headless `app-server` client, never the visible TUI. See #156. | Do not write into Codex's live TUI or any undocumented IPC. Do not touch Grok/Gemini/Claude bridges. |
 
 ### Shared completion rules
@@ -85,6 +84,15 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — claiming C14.6 Grok leader-mode delivery #154
+
+- Implementing `launch_grok_leader_session` / live-session detect /
+  desktop Connect. Documented `--leader` + `~/.grok/leader.sock` only.
+  Not touching Claude/Gemini/Codex bridges. Not committing until the
+  owner tests send/receive against a live or newly started session.
+
+— Grok
 
 ### Grok — C14.5 managed-harness UX #152 ready for review
 
@@ -153,6 +161,25 @@
   Hub Clippy pass.
 - **Open handoff to Grok:** assign Claude #150, Gemini #151, and UX #152 per
   the rows above. Chat retains #148/#149 and changelog/roadmap/issue review.
+
+### Chat / Codex — 500-LoC refactor and messaging review allocation
+
+- Review baseline passed: workspace Rust tests, Clippy, TypeScript check, and
+  frontend production build are green. An isolated Hub exercise covers plain,
+  all/subset task, one wake, recipient outcomes, and read receipts.
+- Every Rust/TypeScript/React source must now be at most 500 lines. The active
+  rows above partition every current over-limit module without overlap. Use
+  the owner-created `settings/store`, `settings/tests`, `hub/tests`,
+  `bridge/channels`, `tui/app`, and `claude/main` directories where relevant;
+  create more focused directories when needed.
+- Chat owns C14.8 and core Rust splits; Claude owns Claude Channel splits;
+  Gemini owns the real `agy` prompt repair and TUI split; Grok owns the
+  frontend/Grok UX split. Each agent must update its issue, relevant roadmaps,
+  `docs/moon/CHANGELOG.md`, and commit after scoped verification.
+- **Review return to Grok (#152):** the generic managed-start button records
+  `managed-<pid>` when no real provider session id is known. That fabricated
+  identifier cannot later be resumed by Codex or `agy`; replace it with a
+  provider-specific creation/registration path or an observed-only result.
 
 ### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback completed (#137)
 

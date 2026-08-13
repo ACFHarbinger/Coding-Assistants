@@ -26,7 +26,6 @@ fn codex_sessions_dir() -> PathBuf {
 }
 
 fn latest_codex_thread_id_from(sessions_root: &Path, workspace: &Path) -> Option<String> {
-    let workspace = workspace.to_string_lossy();
     let mut best: Option<(std::time::SystemTime, String)> = None;
     let years = std::fs::read_dir(sessions_root).ok()?;
     for year in years.filter_map(Result::ok) {
@@ -43,7 +42,7 @@ fn latest_codex_thread_id_from(sessions_root: &Path, workspace: &Path) -> Option
                     let Some((cwd, session_id)) = session_meta(&path) else {
                         continue;
                     };
-                    if cwd != workspace {
+                    if !same_workspace(Path::new(&cwd), workspace) {
                         continue;
                     }
                     let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
@@ -55,6 +54,17 @@ fn latest_codex_thread_id_from(sessions_root: &Path, workspace: &Path) -> Option
         }
     }
     best.map(|(_, id)| id)
+}
+
+/// Codex persists a literal cwd in its transcript. Match it by canonical path
+/// when both paths exist, so a symlink, `.` segment, or trailing separator
+/// cannot make a real thread invisible to the Hub. Fall back to the literal
+/// comparison only when the historical workspace no longer exists.
+fn same_workspace(recorded: &Path, selected: &Path) -> bool {
+    match (recorded.canonicalize(), selected.canonicalize()) {
+        (Ok(recorded), Ok(selected)) => recorded == selected,
+        _ => recorded == selected,
+    }
 }
 
 fn session_meta(path: &Path) -> Option<(String, String)> {
@@ -103,7 +113,7 @@ fn deliver_codex_task_with(
         .or_else(|| latest_codex_thread_id(&workspace));
     let Some(thread_id) = thread_id else {
         return Ok(unavailable(
-            "no registered or on-disk Codex thread for this workspace; register one with hub_register_harness_session (diskSessionId = thread id). Task stays queued.",
+            "no registered or on-disk Codex thread for this workspace. Register the persisted thread id in Managed harness readiness before task delivery; a separately opened Codex terminal is observed-only and cannot be written directly. Task stays queued.",
         ));
     };
 
@@ -118,7 +128,9 @@ fn deliver_codex_task_with(
         .as_ref()
         .is_some_and(|row| row.mode == HarnessSessionMode::Managed);
     if has_managed_lease {
-        if let Err(error) = store.acquire_harness_writer("chat", &workspace.to_string_lossy(), &writer_owner) {
+        if let Err(error) =
+            store.acquire_harness_writer("chat", &workspace.to_string_lossy(), &writer_owner)
+        {
             return Ok(queued(&format!(
                 "Codex managed thread {thread_id} is busy; task stays queued for retry: {error}"
             )));
@@ -301,6 +313,29 @@ mod tests {
     }
 
     #[test]
+    fn persisted_thread_matches_an_equivalent_canonical_workspace_path() {
+        let dir = tempdir().unwrap();
+        let workspace = dir.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let root = dir.path().join("sessions");
+        let transcript_dir = root.join("2026").join("08").join("13");
+        std::fs::create_dir_all(&transcript_dir).unwrap();
+        std::fs::write(
+            transcript_dir.join("thread.jsonl"),
+            format!(
+                "{{\"type\":\"session_meta\",\"payload\":{{\"cwd\":\"{}/.\",\"session_id\":\"thread-canonical\"}}}}\n",
+                workspace.display()
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            latest_codex_thread_id_from(&root, &workspace),
+            Some("thread-canonical".into())
+        );
+    }
+
+    #[test]
     fn registered_thread_is_delivered_through_injected_app_server() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
@@ -332,10 +367,11 @@ mod tests {
         store
             .acquire_harness_writer("chat", "/tmp/c12-codex", "other-turn")
             .unwrap();
-        let result = deliver_codex_task_with(&store, &request(Path::new("/tmp/c12-codex")), |_, _| {
-            panic!("a second managed writer must not contact app-server")
-        })
-        .unwrap();
+        let result =
+            deliver_codex_task_with(&store, &request(Path::new("/tmp/c12-codex")), |_, _| {
+                panic!("a second managed writer must not contact app-server")
+            })
+            .unwrap();
         assert_eq!(result.status, "queued");
         assert!(result.detail.contains("busy"));
     }

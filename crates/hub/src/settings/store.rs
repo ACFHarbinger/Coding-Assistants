@@ -246,7 +246,9 @@ impl SettingsStore {
     pub fn set_tui_prefix_chord(&mut self, chord: &str) -> Result<(), SettingsError> {
         let trimmed = chord.trim().to_lowercase();
         if trimmed.is_empty() {
-            return Err(SettingsError::Invalid("prefix_chord must not be empty".into()));
+            return Err(SettingsError::Invalid(
+                "prefix_chord must not be empty".into(),
+            ));
         }
         self.snapshot.tui.prefix_chord = trimmed;
         write_snapshot_fields(&mut self.document, &self.snapshot);

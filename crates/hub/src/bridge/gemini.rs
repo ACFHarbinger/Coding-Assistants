@@ -151,9 +151,7 @@ pub fn deliver_gemini_task_with(
         )));
     }
 
-    let conversation_id = registration
-        .as_ref()
-        .map(|row| row.disk_session_id.clone());
+    let conversation_id = registration.as_ref().map(|row| row.disk_session_id.clone());
 
     let run_res = runner(&workspace, &request.body, conversation_id.as_deref());
 
@@ -281,7 +279,10 @@ mod tests {
         let line = r#"{"source":"MODEL","type":"PLANNER_RESPONSE","content":"Analyzed codebase","conversation_id":"conv-123"}"#;
         let parsed = parse_agy_stream_line(line).unwrap();
         assert_eq!(parsed.conversation_id.as_deref(), Some("conv-123"));
-        assert_eq!(parsed.assistant_texts, vec!["Analyzed codebase".to_string()]);
+        assert_eq!(
+            parsed.assistant_texts,
+            vec!["Analyzed codebase".to_string()]
+        );
     }
 
     #[test]
@@ -320,7 +321,10 @@ mod tests {
         assert_eq!(result.status, "ok");
         assert_eq!(result.pid, Some(1234));
 
-        let sess = store.get_harness_session("gemini", &ws_str).unwrap().unwrap();
+        let sess = store
+            .get_harness_session("gemini", &ws_str)
+            .unwrap()
+            .unwrap();
         assert_eq!(sess.state, HarnessSessionState::Ready);
         assert!(sess.writer_owner.is_none());
     }

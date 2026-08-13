@@ -273,7 +273,8 @@ impl HubStore {
         disk_session_id: &str,
         managed_pid: u32,
     ) -> Result<HarnessSessionRegistration, HubError> {
-        let mut registration = self.register_harness_session(harness, workspace, disk_session_id, None)?;
+        let mut registration =
+            self.register_harness_session(harness, workspace, disk_session_id, None)?;
         self.conn.execute(
             "UPDATE harness_session_registrations
              SET mode = 'managed', state = 'ready', managed_pid = ?3
@@ -296,7 +297,9 @@ impl HubStore {
     ) -> Result<(), HubError> {
         let owner = owner.trim();
         if owner.is_empty() {
-            return Err(HubError::Invalid("harness writer owner must not be empty".into()));
+            return Err(HubError::Invalid(
+                "harness writer owner must not be empty".into(),
+            ));
         }
         let changed = self.conn.execute(
             "UPDATE harness_session_registrations
@@ -310,7 +313,9 @@ impl HubStore {
         }
         let registration = self.get_harness_session(harness, workspace)?;
         match registration {
-            None => Err(HubError::NotFound(format!("{harness} harness session at {workspace}"))),
+            None => Err(HubError::NotFound(format!(
+                "{harness} harness session at {workspace}"
+            ))),
             Some(session) if session.mode != HarnessSessionMode::Managed => Err(HubError::Invalid(
                 "cannot acquire a writer for an observed harness session".into(),
             )),
@@ -341,7 +346,9 @@ impl HubStore {
         if changed == 1 {
             Ok(())
         } else {
-            Err(HubError::Invalid("harness writer lease is not held by this owner".into()))
+            Err(HubError::Invalid(
+                "harness writer lease is not held by this owner".into(),
+            ))
         }
     }
 
@@ -364,10 +371,12 @@ impl HubStore {
                         disk_session_id: row.get(2)?,
                         leader_socket: row.get(3)?,
                         registered_at: row.get(4)?,
-                        mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?)
-                            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
-                        state: HarnessSessionState::parse(&row.get::<_, String>(6)?)
-                            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
+                        mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?).map_err(
+                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
+                        )?,
+                        state: HarnessSessionState::parse(&row.get::<_, String>(6)?).map_err(
+                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
+                        )?,
                         managed_pid: row.get(7)?,
                         writer_owner: row.get(8)?,
                         writer_acquired_at: row.get(9)?,
