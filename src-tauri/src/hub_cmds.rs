@@ -2,9 +2,9 @@
 //! Same data directory as the `ca` CLI (`$CA_HOME` or `~/.coding-assistants`).
 
 use ca_hub::{
-    AuditEvent, BudgetPauseOutcome, BudgetStatus, CompactReport, GitExportOutcome, HubStore,
-    MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, TaskRecord,
-    TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
+    AuditEvent, BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, GitExportOutcome,
+    HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
+    TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
 };
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -1059,6 +1059,27 @@ pub fn hub_list_messages(
     store
         .list_messages(to.as_deref(), status)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_channels() -> Result<Vec<ChannelRecord>, String> {
+    open_store()?
+        .list_channels()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_create_channel(name: String, topic: Option<String>) -> Result<ChannelRecord, String> {
+    open_store()?
+        .create_channel(&name, topic.as_deref())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_delete_channel(id: String) -> Result<(), String> {
+    open_store()?
+        .delete_channel(&id)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -450,6 +450,17 @@ pub struct AuditEvent {
     pub status: String,
 }
 
+/// A Chat & Memory channel (`#general`, custom names). Work sessions and
+/// DMs are not stored here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelRecord {
+    pub id: String,
+    pub name: String,
+    pub topic: Option<String>,
+    pub builtin: bool,
+    pub created_at: String,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -458,6 +469,39 @@ pub struct HubStore {
 fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn slug_channel_id(name: &str) -> Result<String, HubError> {
+    let trimmed = name.trim().trim_start_matches('#');
+    let mut slug = String::new();
+    let mut last_dash = false;
+    for ch in trimmed.chars() {
+        let mapped = if ch.is_ascii_alphanumeric() {
+            last_dash = false;
+            Some(ch.to_ascii_lowercase())
+        } else if ch == ' ' || ch == '-' || ch == '_' {
+            if last_dash || slug.is_empty() {
+                None
+            } else {
+                last_dash = true;
+                Some('-')
+            }
+        } else {
+            None
+        };
+        if let Some(mapped) = mapped {
+            slug.push(mapped);
+        }
+    }
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() || slug.len() > 40 {
+        return Err(HubError::Invalid(
+            "channel name must be 1–40 letters, numbers, or hyphens".into(),
+        ));
+    }
+    Ok(slug)
 }
 
 fn audit_event_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditEvent> {
@@ -798,6 +842,15 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_harness_captures_session
                 ON harness_captures(session_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS chat_channels (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                topic TEXT,
+                builtin INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT
+            );
             "#,
         )?;
 
@@ -871,6 +924,7 @@ impl HubStore {
             )?;
         }
 
+        self.seed_default_channels()?;
         Ok(())
     }
 
@@ -974,6 +1028,128 @@ impl HubStore {
             .into_iter()
             .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
             .collect()
+    }
+
+    const BUILTIN_CHANNELS: &[(&str, &str)] = &[
+        ("general", "Team-wide coordination and announcement hub"),
+        (
+            "team-coordination",
+            "Inter-agent task claims, handoffs, and bus updates",
+        ),
+        (
+            "agent-memory",
+            "Shared memory insights, context tags, and audit events",
+        ),
+        (
+            "wakes-alerts",
+            "System wake requests and human approval gates",
+        ),
+    ];
+
+    fn seed_default_channels(&self) -> Result<(), HubError> {
+        let now = Utc::now().to_rfc3339();
+        for (id, topic) in Self::BUILTIN_CHANNELS {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO chat_channels(id, name, topic, builtin, created_at, deleted_at)
+                 VALUES (?1, ?2, ?3, 1, ?4, NULL)",
+                params![id, format!("#{id}"), topic, now],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn list_channels(&self) -> Result<Vec<ChannelRecord>, HubError> {
+        self.seed_default_channels()?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, topic, builtin, created_at FROM chat_channels
+             WHERE deleted_at IS NULL
+             ORDER BY builtin DESC, created_at ASC, id ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ChannelRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                topic: row.get(2)?,
+                builtin: row.get::<_, i64>(3)? != 0,
+                created_at: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn create_channel(
+        &self,
+        name: &str,
+        topic: Option<&str>,
+    ) -> Result<ChannelRecord, HubError> {
+        let id = slug_channel_id(name)?;
+        if Self::BUILTIN_CHANNELS
+            .iter()
+            .any(|(builtin, _)| *builtin == id)
+        {
+            return Err(HubError::Invalid(format!(
+                "#{id} is a built-in channel and already exists"
+            )));
+        }
+        if id.starts_with("session-") || id.starts_with("dm-") {
+            return Err(HubError::Invalid(
+                "channel names cannot start with session or dm".into(),
+            ));
+        }
+        let existing: Option<Option<String>> = self
+            .conn
+            .query_row(
+                "SELECT deleted_at FROM chat_channels WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let now = Utc::now().to_rfc3339();
+        let display = format!("#{id}");
+        let topic = topic.map(str::trim).filter(|value| !value.is_empty());
+        match existing {
+            Some(None) => {
+                return Err(HubError::Invalid(format!("#{id} already exists")));
+            }
+            Some(Some(_)) => {
+                self.conn.execute(
+                    "UPDATE chat_channels SET name = ?1, topic = ?2, deleted_at = NULL, created_at = ?3
+                     WHERE id = ?4",
+                    params![display, topic, now, id],
+                )?;
+            }
+            None => {
+                self.conn.execute(
+                    "INSERT INTO chat_channels(id, name, topic, builtin, created_at, deleted_at)
+                     VALUES (?1, ?2, ?3, 0, ?4, NULL)",
+                    params![id, display, topic, now],
+                )?;
+            }
+        }
+        self.list_channels()?
+            .into_iter()
+            .find(|channel| channel.id == id)
+            .ok_or_else(|| HubError::NotFound(id))
+    }
+
+    pub fn delete_channel(&self, id: &str) -> Result<(), HubError> {
+        let id = slug_channel_id(id)?;
+        if Self::BUILTIN_CHANNELS
+            .iter()
+            .any(|(builtin, _)| *builtin == id)
+        {
+            return Err(HubError::Invalid(
+                "built-in channels cannot be deleted".into(),
+            ));
+        }
+        let updated = self.conn.execute(
+            "UPDATE chat_channels SET deleted_at = ?1 WHERE id = ?2 AND builtin = 0 AND deleted_at IS NULL",
+            params![Utc::now().to_rfc3339(), id],
+        )?;
+        if updated == 0 {
+            return Err(HubError::NotFound(id));
+        }
+        Ok(())
     }
 
     pub fn add_work_session_member(
@@ -4578,5 +4754,33 @@ mod tests {
             .unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].from_agent, "grok");
+    }
+
+    #[test]
+    fn chat_channels_can_be_created_and_deleted_but_builtins_remain() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let listed = store.list_channels().unwrap();
+        assert!(listed
+            .iter()
+            .any(|channel| channel.id == "general" && channel.builtin));
+        let created = store
+            .create_channel("#Design Review", Some("UI and docs"))
+            .unwrap();
+        assert_eq!(created.id, "design-review");
+        assert_eq!(created.name, "#design-review");
+        assert!(!created.builtin);
+        assert!(store.create_channel("design review", None).is_err());
+        assert!(store.delete_channel("general").is_err());
+        store.delete_channel("design-review").unwrap();
+        assert!(!store
+            .list_channels()
+            .unwrap()
+            .iter()
+            .any(|channel| channel.id == "design-review"));
+        let restored = store
+            .create_channel("design-review", Some("again"))
+            .unwrap();
+        assert_eq!(restored.id, "design-review");
     }
 }

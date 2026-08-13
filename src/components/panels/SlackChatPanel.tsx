@@ -45,6 +45,14 @@ export interface DetectedProcess {
   command: string;
 }
 
+export interface ChannelRecord {
+  id: string;
+  name: string;
+  topic?: string | null;
+  builtin: boolean;
+  created_at: string;
+}
+
 export interface SlackChatPanelProps {
   hubMessages: HubMessage[];
   hubAgents: HubAgent[];
@@ -194,6 +202,18 @@ function threadRootId(message: HubMessage, channel: string): string | null {
 
 export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
+  const [channels, setChannels] = useState<ChannelRecord[]>(
+    DEFAULT_CHANNELS.map(channel => ({
+      id: channel.id,
+      name: channel.name,
+      topic: channel.topic,
+      builtin: true,
+      created_at: "",
+    }))
+  );
+  const [creatingChannel, setCreatingChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [channelActionError, setChannelActionError] = useState("");
   const [messageInput, setMessageInput] = useState<string>("");
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
@@ -259,6 +279,8 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
     async function loadHubData() {
       if (!isTauriRuntime()) return;
       try {
+        const listed = await invoke<ChannelRecord[]>("hub_list_channels");
+        if (listed.length > 0) setChannels(listed);
         const mems = await invoke<MemoryRecord[]>("hub_list_memories", { scope: null, tier: null });
         setMemories(mems);
       } catch (err) {
@@ -294,7 +316,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
     setLastReadAt(prev => {
       let changed = false;
       const next = { ...prev };
-      for (const channel of DEFAULT_CHANNELS) {
+      for (const channel of channels) {
         if (next[channel.id]) continue;
         const latest = latestCreatedAt(uniqueChannelPosts(hubMessages, channel.id));
         if (!latest) continue;
@@ -303,7 +325,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
       }
       return changed ? persistLastRead(next) : prev;
     });
-  }, [hubMessages]);
+  }, [hubMessages, channels]);
 
   // Channel views use the bounded Hub query instead of filtering the entire
   // transcript in the renderer. DMs stay local because their privacy predicate
@@ -418,7 +440,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
             ...outcomes.filter(outcome => !outcome.accepted).map(outcome => `${outcome.to_agent}: ${outcome.reason || "rejected"}`),
             ...injections.flatMap(result => {
               if (result.status === "rejected") return [String(result.reason)];
-              return result.value.status === "spawned"
+              return result.value.status === "spawned" || result.value.status === "queued"
                 ? []
                 : [`${result.value.harness}: ${result.value.detail}`];
             }),
@@ -474,6 +496,38 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
       fromAgent: message.from_agent,
       preview: message.body,
     });
+  };
+
+  const createChannel = async () => {
+    if (!newChannelName.trim() || !isTauriRuntime()) return;
+    try {
+      const created = await invoke<ChannelRecord>("hub_create_channel", {
+        name: newChannelName.trim(),
+        topic: null,
+      });
+      setChannels(prev => prev.some(channel => channel.id === created.id)
+        ? prev.map(channel => channel.id === created.id ? created : channel)
+        : [...prev, created]);
+      setNewChannelName("");
+      setCreatingChannel(false);
+      setChannelActionError("");
+      setActiveChannel(created.id);
+    } catch (error) {
+      setChannelActionError(String(error));
+    }
+  };
+
+  const deleteChannel = async (channel: ChannelRecord) => {
+    if (channel.builtin || !isTauriRuntime()) return;
+    if (!window.confirm(`Delete #${channel.id}? Messages stay in the hub but the channel leaves the sidebar.`)) return;
+    try {
+      await invoke("hub_delete_channel", { id: channel.id });
+      setChannels(prev => prev.filter(item => item.id !== channel.id));
+      setChannelActionError("");
+      if (activeChannel === channel.id) setActiveChannel("general");
+    } catch (error) {
+      setChannelActionError(String(error));
+    }
   };
 
   const openMessageMenu = (e: React.MouseEvent, msg: HubMessage) => {
@@ -679,11 +733,38 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
 
         {/* Channels List */}
         <div>
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.5rem", paddingLeft: "0.5rem" }}>
-            Channels
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem", paddingLeft: "0.5rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Channels
+            </div>
+            <button
+              className="btn-secondary"
+              onClick={() => { setCreatingChannel(open => !open); setChannelActionError(""); }}
+              style={{ padding: "0.15rem 0.45rem", fontSize: "0.75rem" }}
+              title="Create a channel"
+            >
+              +
+            </button>
           </div>
+          {creatingChannel && (
+            <div style={{ display: "flex", gap: "0.35rem", marginBottom: "0.45rem" }}>
+              <input
+                value={newChannelName}
+                onChange={event => setNewChannelName(event.target.value)}
+                onKeyDown={event => { if (event.key === "Enter") void createChannel(); }}
+                placeholder="new-channel"
+                style={{ flex: 1, padding: "0.4rem 0.55rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)", outline: "none", fontSize: "0.8rem" }}
+              />
+              <button className="btn-primary" onClick={() => void createChannel()} disabled={!newChannelName.trim()} style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem" }}>
+                Add
+              </button>
+            </div>
+          )}
+          {channelActionError && (
+            <div style={{ color: "#fca5a5", fontSize: "0.72rem", marginBottom: "0.4rem", paddingLeft: "0.5rem" }}>{channelActionError}</div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            {DEFAULT_CHANNELS.map(ch => {
+            {channels.map(ch => {
               const isActive = activeChannel === ch.id;
               const unreadCount = isActive
                 ? 0
@@ -693,39 +774,51 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                     lastReadAt[ch.id]
                   ).length;
               return (
-                <button
-                  key={ch.id}
-                  onClick={() => setActiveChannel(ch.id)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: isActive ? "rgba(99, 102, 241, 0.2)" : "transparent",
-                    color: isActive ? "#fff" : "var(--text-muted)",
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: "0.875rem",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.15s ease"
-                  }}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.name}</span>
-                  {unreadCount > 0 && (
-                    <span style={{
-                      background: isActive ? "var(--primary)" : "rgba(255, 255, 255, 0.1)",
-                      color: "#fff",
-                      fontSize: "0.7rem",
-                      padding: "0.15rem 0.45rem",
-                      borderRadius: "10px",
-                      fontWeight: 600
-                    }}>
-                      {unreadCount}
-                    </span>
+                <div key={ch.id} style={{ display: "flex", alignItems: "center", gap: "0.2rem" }}>
+                  <button
+                    onClick={() => setActiveChannel(ch.id)}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.5rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: isActive ? "rgba(99, 102, 241, 0.2)" : "transparent",
+                      color: isActive ? "#fff" : "var(--text-muted)",
+                      fontWeight: isActive ? 600 : 400,
+                      fontSize: "0.875rem",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.name}</span>
+                    {unreadCount > 0 && (
+                      <span style={{
+                        background: isActive ? "var(--primary)" : "rgba(255, 255, 255, 0.1)",
+                        color: "#fff",
+                        fontSize: "0.7rem",
+                        padding: "0.15rem 0.45rem",
+                        borderRadius: "10px",
+                        fontWeight: 600
+                      }}>
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  {!ch.builtin && (
+                    <button
+                      className="btn-secondary"
+                      title={`Delete ${ch.name}`}
+                      onClick={() => void deleteChannel(ch)}
+                      style={{ padding: "0.25rem 0.4rem", fontSize: "0.7rem" }}
+                    >
+                      ×
+                    </button>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -823,7 +916,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
               <span>{activeChannel.startsWith("dm-") ? `💬 Direct Message: ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}` : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `◈ Work session: ${activeWorkSession.name}` : `#${activeChannel}`}</span>
             </h2>
             <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0 0" }}>
-              {activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `${activeWorkSession.member_ids.length} members · messages from the human and agent harnesses` : DEFAULT_CHANNELS.find(c => c.id === activeChannel)?.topic || "Agent interaction stream"}
+              {activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `${activeWorkSession.member_ids.length} members · messages from the human and agent harnesses` : channels.find(c => c.id === activeChannel)?.topic || "Agent interaction stream"}
             </p>
           </div>
 

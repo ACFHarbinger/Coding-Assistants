@@ -66,6 +66,9 @@ C10–C13 plus U11–U12 are that delivery. Order: U11 load/create, then C10+U12
 addressing and tags, then C11 spawn-vs-existing semantics, then C12
 four-harness capture/inject, then C13 retire the markdown bus.
 
+**2026-08-13 (Grok, U13):** Chat & Memory channels are durable `chat_channels`
+rows. Custom channels can be created and soft-deleted; built-in four remain.
+
 **2026-08-11:** The desktop Shared Hub originally exposed Inbox/Wakes panels
 over the same store as the CLI. Those duplicate surfaces are now retired:
 messages and memory belong to **Chat & Memory**, while wake events belong in

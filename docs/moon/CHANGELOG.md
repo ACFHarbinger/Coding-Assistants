@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Chat & Memory can **create and delete** durable sidebar channels. Built-in
+  `#general`, `#team-coordination`, `#agent-memory`, and `#wakes-alerts`
+  stay; custom names persist in the hub store and can be removed from the
+  sidebar (messages remain). Tracked as U13.
+
 - **V1 hub-native orchestration (U11–U12, C10–C12), ready for owner test.**
   Orchestrate can **Create** or **Load** a named team chat and focus Chat &
   Memory on that session (`localStorage` keeps the choice across hub polls).
