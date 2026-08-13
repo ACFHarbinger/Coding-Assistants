@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S5 orchestration and storage policy backend (#131) (2026-08-13)
+
+- Added `hub::settings::OrchestrationPolicy` (global) and
+  `OrchestrationOverride` (per-workspace), following the same
+  merge/inheritance pattern as `backup_retention`: confirm-new-enrollment,
+  confirm-broadcast, auto-enrollment-allowed, `SandboxStrictness`
+  (strict/standard/permissive — a coarse ordinary-tier control; per-tool
+  allow/deny lists are Advanced-tier future work), retention-days
+  (`None` = indefinite), and export-enabled. Persisted as a new
+  `[orchestration]` table plus an inline `orchestration = { ... }` table
+  inside each `[[workspace]]` entry. `EffectiveSettings.orchestration` now
+  carries the merged view with per-field Inherited/Override status.
+- Deliberately did **not** move `WakePolicy`'s existing
+  `default_requires_human_gate` storage out of `HubStore` — every C10-C13
+  wake path already reads it there, and migrating it would mean touching
+  every one of those call sites instead of composing at the IPC layer.
+  Settings still becomes the sole *editor*: `settings_get_standing_policy`
+  and `settings_set_confirm_wakes` (`src-tauri/src/hub/commands/settings.rs`)
+  compose the new orchestration policy with the existing `WakePolicy`.
+- Exposed per-agent budgets through Settings' typed command surface
+  (`settings_list_agent_budgets`, `settings_set_agent_budget`) without
+  duplicating storage: added `HubStore::list_agent_budgets` (a small
+  additive read over the existing `agent_budgets` table) and delegated the
+  setter to the existing `set_agent_budget`.
+- New typed commands: `settings_update_orchestration` (global or
+  workspace-scoped patch, audits each changed field),
+  `settings_set_retention_days` (global accepts `None` to mean
+  indefinite; a workspace override always names a concrete day count —
+  `settings_reset_field` clears it instead).
+- Frontend contract only (`src/components/settings/{types,api}.ts`) — no
+  Settings-window UI. Wiring an Orchestration/Advanced tab, and budget/
+  sandbox controls into the window, is follow-up work for whichever slice
+  picks up the Settings-window UI next.
+- Verified with `cargo test -p hub --lib` (85/85, +5 new: 4 orchestration-
+  policy tests plus `list_agent_budgets_returns_every_configured_agent`),
+  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean,
+  `cargo check --workspace` clean, `cargo fmt --check` clean, `npx tsc
+  --noEmit` clean, `npm run build` passes.
+
 ### Grok — C12 provider-safe harness bridge (#145) (2026-08-13)
 
 - Added `hub::deliver_codex_task`: task-only Chat/Codex delivery uses the

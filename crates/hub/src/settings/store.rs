@@ -1,6 +1,7 @@
 use super::model::{
-    EffectiveHarnessSettings, EffectiveSettings, FieldStatus, HarnessSettings, ProfileSnapshot,
-    ProviderProfile, SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
+    HarnessSettings, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot, ProviderProfile,
+    SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride,
     CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };
 use super::profiles::{
@@ -155,6 +156,8 @@ impl SettingsStore {
             &self.profiles,
             over.map(|o| &o.default_profiles),
         );
+        let orchestration =
+            effective_orchestration(&self.snapshot.orchestration, over.map(|o| &o.orchestration));
         EffectiveSettings {
             schema_version: self.snapshot.schema_version,
             workspace: workspace.map(str::to_string),
@@ -166,6 +169,7 @@ impl SettingsStore {
             default_session_status,
             profiles,
             harnesses,
+            orchestration,
         }
     }
 
@@ -196,6 +200,48 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_confirm_new_enrollment(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.confirm_new_enrollment = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_confirm_broadcast(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.confirm_broadcast = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_auto_enrollment_allowed(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.auto_enrollment_allowed = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_sandbox_strictness(
+        &mut self,
+        value: SandboxStrictness,
+    ) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.sandbox_strictness = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_retention_days(&mut self, days: Option<u32>) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.orchestration.clone();
+        next.retention_days = days;
+        next.validate()?;
+        self.snapshot.orchestration = next;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_export_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.export_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
     /// Set a workspace-local override. Does not save; call [`Self::save`]
     /// to persist and pick up atomic-write/backup handling.
     pub fn set_workspace_backup_retention(
@@ -221,6 +267,85 @@ impl SettingsStore {
         let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
         over.default_session = session.map(str::to_string);
         over.validate()?;
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_confirm_new_enrollment(
+        &mut self,
+        workspace: &str,
+        value: bool,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.confirm_new_enrollment = Some(value);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_confirm_broadcast(
+        &mut self,
+        workspace: &str,
+        value: bool,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.confirm_broadcast = Some(value);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_auto_enrollment_allowed(
+        &mut self,
+        workspace: &str,
+        value: bool,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.auto_enrollment_allowed = Some(value);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_sandbox_strictness(
+        &mut self,
+        workspace: &str,
+        value: SandboxStrictness,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.sandbox_strictness = Some(value);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_retention_days(
+        &mut self,
+        workspace: &str,
+        days: u32,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.retention_days = Some(days);
+        over.validate()?;
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_export_enabled(
+        &mut self,
+        workspace: &str,
+        value: bool,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.export_enabled = Some(value);
         self.workspaces.insert(workspace, over);
         write_workspace_fields(&mut self.document, &self.workspaces);
         Ok(())
@@ -387,6 +512,16 @@ impl SettingsStore {
                 SettingsField::BackupRetention => over.backup_retention = None,
                 SettingsField::DefaultWorkspace => {}
                 SettingsField::DefaultSession => over.default_session = None,
+                SettingsField::ConfirmNewEnrollment => {
+                    over.orchestration.confirm_new_enrollment = None
+                }
+                SettingsField::ConfirmBroadcast => over.orchestration.confirm_broadcast = None,
+                SettingsField::AutoEnrollmentAllowed => {
+                    over.orchestration.auto_enrollment_allowed = None
+                }
+                SettingsField::SandboxStrictness => over.orchestration.sandbox_strictness = None,
+                SettingsField::RetentionDays => over.orchestration.retention_days = None,
+                SettingsField::ExportEnabled => over.orchestration.export_enabled = None,
             }
             if over.is_empty() {
                 self.workspaces.remove(&workspace);
@@ -592,6 +727,25 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
     {
         document["general"]["default_session"] = Item::None;
     }
+
+    if !document.contains_key("orchestration") {
+        document["orchestration"] = Item::Table(Table::new());
+    }
+    let orch = &snapshot.orchestration;
+    document["orchestration"]["confirm_new_enrollment"] = value(orch.confirm_new_enrollment);
+    document["orchestration"]["confirm_broadcast"] = value(orch.confirm_broadcast);
+    document["orchestration"]["auto_enrollment_allowed"] = value(orch.auto_enrollment_allowed);
+    document["orchestration"]["sandbox_strictness"] = value(orch.sandbox_strictness.as_str());
+    document["orchestration"]["export_enabled"] = value(orch.export_enabled);
+    if let Some(days) = orch.retention_days {
+        document["orchestration"]["retention_days"] = value(i64::from(days));
+    } else if document
+        .get("orchestration")
+        .and_then(Item::as_table)
+        .is_some_and(|t| t.contains_key("retention_days"))
+    {
+        document["orchestration"]["retention_days"] = Item::None;
+    }
 }
 
 /// Rebuild the `[[workspace]]` array-of-tables from `workspaces` on every
@@ -617,9 +771,135 @@ fn write_workspace_fields(
             table["default_session"] = value(sess.as_str());
         }
         write_default_profiles(&mut table, &over.default_profiles);
+        write_orchestration_override(&mut table, &over.orchestration);
         array.push(table);
     }
     document["workspace"] = Item::ArrayOfTables(array);
+}
+
+/// Merge global orchestration policy with an optional workspace override.
+fn effective_orchestration(
+    global: &OrchestrationPolicy,
+    over: Option<&OrchestrationOverride>,
+) -> EffectiveOrchestrationPolicy {
+    fn merge<T: Copy>(global: T, over: Option<T>) -> (T, FieldStatus) {
+        match over {
+            Some(value) => (value, FieldStatus::Override),
+            None => (global, FieldStatus::Inherited),
+        }
+    }
+    let (confirm_new_enrollment, confirm_new_enrollment_status) = merge(
+        global.confirm_new_enrollment,
+        over.and_then(|o| o.confirm_new_enrollment),
+    );
+    let (confirm_broadcast, confirm_broadcast_status) = merge(
+        global.confirm_broadcast,
+        over.and_then(|o| o.confirm_broadcast),
+    );
+    let (auto_enrollment_allowed, auto_enrollment_allowed_status) = merge(
+        global.auto_enrollment_allowed,
+        over.and_then(|o| o.auto_enrollment_allowed),
+    );
+    let (sandbox_strictness, sandbox_strictness_status) = merge(
+        global.sandbox_strictness,
+        over.and_then(|o| o.sandbox_strictness),
+    );
+    let (retention_days, retention_days_status) = match over.and_then(|o| o.retention_days) {
+        Some(value) => (Some(value), FieldStatus::Override),
+        None => (global.retention_days, FieldStatus::Inherited),
+    };
+    let (export_enabled, export_enabled_status) =
+        merge(global.export_enabled, over.and_then(|o| o.export_enabled));
+    EffectiveOrchestrationPolicy {
+        confirm_new_enrollment,
+        confirm_new_enrollment_status,
+        confirm_broadcast,
+        confirm_broadcast_status,
+        auto_enrollment_allowed,
+        auto_enrollment_allowed_status,
+        sandbox_strictness,
+        sandbox_strictness_status,
+        retention_days,
+        retention_days_status,
+        export_enabled,
+        export_enabled_status,
+    }
+}
+
+fn write_orchestration_override(table: &mut Table, over: &OrchestrationOverride) {
+    if over.is_empty() {
+        table.remove("orchestration");
+        return;
+    }
+    let mut inline = toml_edit::InlineTable::new();
+    if let Some(v) = over.confirm_new_enrollment {
+        inline.insert("confirm_new_enrollment", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.confirm_broadcast {
+        inline.insert("confirm_broadcast", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.auto_enrollment_allowed {
+        inline.insert("auto_enrollment_allowed", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.sandbox_strictness {
+        inline.insert(
+            "sandbox_strictness",
+            value(v.as_str()).into_value().unwrap(),
+        );
+    }
+    if let Some(v) = over.retention_days {
+        inline.insert("retention_days", value(i64::from(v)).into_value().unwrap());
+    }
+    if let Some(v) = over.export_enabled {
+        inline.insert("export_enabled", value(v).into_value().unwrap());
+    }
+    table["orchestration"] = Item::Value(toml_edit::Value::InlineTable(inline));
+}
+
+fn orchestration_override_from_table(
+    table: &Table,
+) -> Result<OrchestrationOverride, SettingsError> {
+    let Some(inner) = table.get("orchestration").and_then(Item::as_inline_table) else {
+        if table.get("orchestration").is_some() {
+            return Err(SettingsError::Invalid(
+                "orchestration override must be an inline table".into(),
+            ));
+        }
+        return Ok(OrchestrationOverride::default());
+    };
+    let confirm_new_enrollment = inner
+        .get("confirm_new_enrollment")
+        .and_then(|v| v.as_bool());
+    let confirm_broadcast = inner.get("confirm_broadcast").and_then(|v| v.as_bool());
+    let auto_enrollment_allowed = inner
+        .get("auto_enrollment_allowed")
+        .and_then(|v| v.as_bool());
+    let sandbox_strictness = match inner.get("sandbox_strictness").and_then(|v| v.as_str()) {
+        Some(raw) => Some(SandboxStrictness::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.sandbox_strictness {raw:?} is unknown"
+            ))
+        })?),
+        None => None,
+    };
+    let retention_days = match inner.get("retention_days") {
+        Some(v) => Some(u32_from_i64(
+            v.as_integer().ok_or_else(|| {
+                SettingsError::Invalid("orchestration.retention_days must be an integer".into())
+            })?,
+            "orchestration.retention_days",
+        )?),
+        None => None,
+    };
+    let export_enabled = inner.get("export_enabled").and_then(|v| v.as_bool());
+    Ok(OrchestrationOverride {
+        confirm_new_enrollment,
+        confirm_broadcast,
+        auto_enrollment_allowed,
+        sandbox_strictness,
+        retention_days,
+        export_enabled,
+    })
 }
 
 fn normalize_workspace(workspace: &str) -> Result<String, SettingsError> {
@@ -694,6 +974,8 @@ fn workspaces_from_document(
             .and_then(Item::as_str)
             .map(str::to_string);
         let default_profiles = default_profiles_from_table(table)?;
+        let orchestration = orchestration_override_from_table(table)
+            .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
         if map
             .insert(
                 path.clone(),
@@ -701,6 +983,7 @@ fn workspaces_from_document(
                     backup_retention,
                     default_session,
                     default_profiles,
+                    orchestration,
                 },
             )
             .is_some()
@@ -731,12 +1014,70 @@ fn snapshot_from_document(document: &DocumentMut) -> Result<SettingsSnapshot, Se
         .and_then(Item::as_str)
         .map(str::to_string);
 
+    let orchestration = document
+        .get("orchestration")
+        .and_then(Item::as_table)
+        .map(orchestration_policy_from_table)
+        .transpose()?
+        .unwrap_or_default();
+
     Ok(SettingsSnapshot {
         schema_version: u32_from_i64(schema_version, "schema_version")?,
         backup_retention: u32_from_i64(backup_retention, "storage.backup_retention")?,
         default_workspace,
         default_session,
+        orchestration,
     })
+}
+
+fn orchestration_policy_from_table(table: &Table) -> Result<OrchestrationPolicy, SettingsError> {
+    let defaults = OrchestrationPolicy::default();
+    let confirm_new_enrollment = bool_key_or(
+        table,
+        "confirm_new_enrollment",
+        defaults.confirm_new_enrollment,
+    )?;
+    let confirm_broadcast = bool_key_or(table, "confirm_broadcast", defaults.confirm_broadcast)?;
+    let auto_enrollment_allowed = bool_key_or(
+        table,
+        "auto_enrollment_allowed",
+        defaults.auto_enrollment_allowed,
+    )?;
+    let export_enabled = bool_key_or(table, "export_enabled", defaults.export_enabled)?;
+    let sandbox_strictness = match table.get("sandbox_strictness").and_then(Item::as_str) {
+        Some(raw) => SandboxStrictness::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.sandbox_strictness {raw:?} is unknown"
+            ))
+        })?,
+        None => defaults.sandbox_strictness,
+    };
+    let retention_days = match table.get("retention_days") {
+        Some(item) => Some(u32_from_i64(
+            item.as_integer().ok_or_else(|| {
+                SettingsError::Invalid("orchestration.retention_days must be an integer".into())
+            })?,
+            "orchestration.retention_days",
+        )?),
+        None => None,
+    };
+    Ok(OrchestrationPolicy {
+        confirm_new_enrollment,
+        confirm_broadcast,
+        auto_enrollment_allowed,
+        sandbox_strictness,
+        retention_days,
+        export_enabled,
+    })
+}
+
+fn bool_key_or(table: &Table, key: &str, fallback: bool) -> Result<bool, SettingsError> {
+    match table.get(key) {
+        Some(item) => item.as_bool().ok_or_else(|| {
+            SettingsError::Invalid(format!("orchestration.{key} must be a boolean"))
+        }),
+        None => Ok(fallback),
+    }
 }
 
 fn integer_key(table: &Table, key: &str) -> Result<i64, SettingsError> {

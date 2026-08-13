@@ -6,8 +6,8 @@
 //! mutation is recorded on the dedicated settings audit stream, which is a
 //! typed filter over the same Hub audit chain other commands already read.
 use hub::{
-    EffectiveHarnessSettings, EffectiveSettings, HarnessSettings, LoadStatus, ProfileSnapshot,
-    ProviderProfile, SettingsField, SettingsStore,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, HarnessSettings,
+    LoadStatus, ProfileSnapshot, ProviderProfile, SandboxStrictness, SettingsField, SettingsStore,
 };
 
 fn open_settings_store() -> SettingsStore {
@@ -19,6 +19,12 @@ fn settings_field_name(field: SettingsField) -> &'static str {
         SettingsField::BackupRetention => "storage.backup_retention",
         SettingsField::DefaultWorkspace => "general.default_workspace",
         SettingsField::DefaultSession => "general.default_session",
+        SettingsField::ConfirmNewEnrollment => "orchestration.confirm_new_enrollment",
+        SettingsField::ConfirmBroadcast => "orchestration.confirm_broadcast",
+        SettingsField::AutoEnrollmentAllowed => "orchestration.auto_enrollment_allowed",
+        SettingsField::SandboxStrictness => "orchestration.sandbox_strictness",
+        SettingsField::RetentionDays => "orchestration.retention_days",
+        SettingsField::ExportEnabled => "orchestration.export_enabled",
     }
 }
 
@@ -263,4 +269,187 @@ pub fn settings_update_harness(settings: HarnessSettings) -> Result<HarnessSetti
     store
         .harness_settings(&settings.harness)
         .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------
+// Orchestration and storage policy (Settings S5 / #131)
+// ---------------------------------------------------------------------
+
+/// Orchestration policy partial update. `retention_days` is intentionally
+/// excluded — see `settings_set_retention_days`, which needs a three-state
+/// (untouched / set / cleared) contract this patch can't express.
+#[derive(Debug, serde::Deserialize)]
+pub struct OrchestrationPatch {
+    pub confirm_new_enrollment: Option<bool>,
+    pub confirm_broadcast: Option<bool>,
+    pub auto_enrollment_allowed: Option<bool>,
+    pub sandbox_strictness: Option<SandboxStrictness>,
+    pub export_enabled: Option<bool>,
+}
+
+/// `workspace: None` updates the global default; `Some(path)` sets a
+/// workspace-local override. Each changed field gets its own audit row.
+#[tauri::command]
+pub fn settings_update_orchestration(
+    workspace: Option<String>,
+    patch: OrchestrationPatch,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    let mut changed_fields: Vec<&'static str> = Vec::new();
+
+    if let Some(v) = patch.confirm_new_enrollment {
+        match workspace.as_deref() {
+            None => store
+                .set_confirm_new_enrollment(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_confirm_new_enrollment(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.confirm_new_enrollment");
+    }
+    if let Some(v) = patch.confirm_broadcast {
+        match workspace.as_deref() {
+            None => store.set_confirm_broadcast(v).map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_confirm_broadcast(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.confirm_broadcast");
+    }
+    if let Some(v) = patch.auto_enrollment_allowed {
+        match workspace.as_deref() {
+            None => store
+                .set_auto_enrollment_allowed(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_auto_enrollment_allowed(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.auto_enrollment_allowed");
+    }
+    if let Some(v) = patch.sandbox_strictness {
+        match workspace.as_deref() {
+            None => store.set_sandbox_strictness(v).map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_sandbox_strictness(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.sandbox_strictness");
+    }
+    if let Some(v) = patch.export_enabled {
+        match workspace.as_deref() {
+            None => store.set_export_enabled(v).map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_export_enabled(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.export_enabled");
+    }
+
+    if !changed_fields.is_empty() {
+        store.save().map_err(|e| e.to_string())?;
+        let scope = workspace.as_deref().unwrap_or("global");
+        for field in changed_fields {
+            record_settings_audit(field, scope, "update")?;
+        }
+    }
+    Ok(store.effective(workspace.as_deref()))
+}
+
+/// `workspace: None` sets the global retention window (`days: None` keeps
+/// records indefinitely). `Some(path)` sets that workspace's override,
+/// which always names a concrete day count — clear an override with
+/// `settings_reset_field` instead of passing `days: None` here.
+#[tauri::command]
+pub fn settings_set_retention_days(
+    workspace: Option<String>,
+    days: Option<u32>,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    match workspace.as_deref() {
+        None => store.set_retention_days(days).map_err(|e| e.to_string())?,
+        Some(ws) => {
+            let days = days.ok_or_else(|| {
+                "a workspace override needs a concrete retention day count; use settings_reset_field to clear it".to_string()
+            })?;
+            store
+                .set_workspace_retention_days(ws, days)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    store.save().map_err(|e| e.to_string())?;
+    let scope = workspace.as_deref().unwrap_or("global");
+    record_settings_audit("orchestration.retention_days", scope, "update")?;
+    Ok(store.effective(workspace.as_deref()))
+}
+
+/// Composes Settings' orchestration policy with the Hub's existing
+/// `WakePolicy` into one typed view, so Settings is the sole *editor* of
+/// standing policy even though the wake-gate bit's storage deliberately
+/// stays in `HubStore` — every C10-C13 wake path already reads it there,
+/// so moving it would mean touching every one of those call sites instead
+/// of composing at the IPC layer.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StandingPolicySnapshot {
+    /// Mirrors `hub::WakePolicy::default_requires_human_gate`.
+    pub confirm_wakes: bool,
+    pub orchestration: EffectiveOrchestrationPolicy,
+}
+
+#[tauri::command]
+pub fn settings_get_standing_policy(
+    workspace: Option<String>,
+) -> Result<StandingPolicySnapshot, String> {
+    let orchestration = open_settings_store()
+        .effective(workspace.as_deref())
+        .orchestration;
+    let wake_policy = super::store::open_store()?
+        .get_wake_policy()
+        .map_err(|e| e.to_string())?;
+    Ok(StandingPolicySnapshot {
+        confirm_wakes: wake_policy.default_requires_human_gate,
+        orchestration,
+    })
+}
+
+/// Global only: the wake human-gate is not a per-workspace concept in
+/// today's `WakePolicy`.
+#[tauri::command]
+pub fn settings_set_confirm_wakes(value: bool) -> Result<StandingPolicySnapshot, String> {
+    let hub_store = super::store::open_store()?;
+    let mut policy = hub_store.get_wake_policy().map_err(|e| e.to_string())?;
+    policy.default_requires_human_gate = value;
+    hub_store
+        .set_wake_policy(&policy)
+        .map_err(|e| e.to_string())?;
+    record_settings_audit("orchestration.confirm_wakes", "global", "update")?;
+    let orchestration = open_settings_store().effective(None).orchestration;
+    Ok(StandingPolicySnapshot {
+        confirm_wakes: value,
+        orchestration,
+    })
+}
+
+/// Per-agent budgets, exposed through Settings' typed command surface.
+/// Storage stays in `HubStore`'s existing `agent_budgets` table — every C6
+/// budget flow already reads/writes it — rather than duplicating it in
+/// `settings.toml`.
+#[tauri::command]
+pub fn settings_list_agent_budgets() -> Result<Vec<hub::BudgetStatus>, String> {
+    super::store::open_store()?
+        .list_agent_budgets()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn settings_set_agent_budget(
+    agent_id: String,
+    limit_units: f64,
+) -> Result<hub::BudgetStatus, String> {
+    let status = super::store::open_store()?
+        .set_agent_budget(&agent_id, limit_units)
+        .map_err(|e| e.to_string())?;
+    record_settings_audit("orchestration.agent_budget", &agent_id, "update")?;
+    Ok(status)
 }

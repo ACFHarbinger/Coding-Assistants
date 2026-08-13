@@ -79,6 +79,26 @@ impl HubStore {
             .map_err(HubError::from)
     }
 
+    /// All configured agent budgets. Read-only view for Settings' typed
+    /// command surface (S5 / #131) — budget storage stays here, in the
+    /// table every C6 budget flow already reads and writes.
+    pub fn list_agent_budgets(&self) -> Result<Vec<BudgetStatus>, HubError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id, limit_units, spent_units, paused, updated_at \
+             FROM agent_budgets ORDER BY agent_id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(BudgetStatus {
+                agent_id: r.get(0)?,
+                limit_units: r.get(1)?,
+                spent_units: r.get(2)?,
+                paused: r.get::<_, i64>(3)? != 0,
+                updated_at: r.get(4)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(HubError::from)
+    }
+
     pub fn list_agent_metrics(&self) -> Result<Vec<AgentMetrics>, HubError> {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id, lines_written, tokens_used, tokens_cached, provider_calls, output_chars, updated_at

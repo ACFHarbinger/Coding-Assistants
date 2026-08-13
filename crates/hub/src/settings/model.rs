@@ -28,6 +28,7 @@ pub struct SettingsSnapshot {
     pub backup_retention: u32,
     pub default_workspace: Option<String>,
     pub default_session: Option<String>,
+    pub orchestration: OrchestrationPolicy,
 }
 
 impl Default for SettingsSnapshot {
@@ -37,6 +38,7 @@ impl Default for SettingsSnapshot {
             backup_retention: DEFAULT_BACKUP_RETENTION,
             default_workspace: None,
             default_session: None,
+            orchestration: OrchestrationPolicy::default(),
         }
     }
 }
@@ -55,6 +57,7 @@ impl SettingsSnapshot {
                 self.backup_retention
             )));
         }
+        self.orchestration.validate()?;
         Ok(())
     }
 }
@@ -68,14 +71,19 @@ pub enum FieldStatus {
     Override,
 }
 
-/// Fields a workspace override may set. One variant today; later slices add
-/// more without changing the patch/reset contract.
+/// Fields a workspace override may set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsField {
     BackupRetention,
     DefaultWorkspace,
     DefaultSession,
+    ConfirmNewEnrollment,
+    ConfirmBroadcast,
+    AutoEnrollmentAllowed,
+    SandboxStrictness,
+    RetentionDays,
+    ExportEnabled,
 }
 
 /// Per-workspace overrides. Only fields present here differ from the global
@@ -90,6 +98,8 @@ pub struct WorkspaceOverride {
     /// fields; it only selects a named default.
     #[serde(default)]
     pub default_profiles: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub orchestration: OrchestrationOverride,
 }
 
 impl WorkspaceOverride {
@@ -97,6 +107,7 @@ impl WorkspaceOverride {
         self.backup_retention.is_none()
             && self.default_session.is_none()
             && self.default_profiles.is_empty()
+            && self.orchestration.is_empty()
     }
 
     pub fn validate(&self) -> Result<(), SettingsError> {
@@ -107,8 +118,134 @@ impl WorkspaceOverride {
                 )));
             }
         }
+        self.orchestration.validate()?;
         Ok(())
     }
+}
+
+/// Sandbox strictness for tool execution. A coarse, ordinary-tier control;
+/// per-tool allow/deny lists are Advanced-tier future work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SandboxStrictness {
+    Strict,
+    #[default]
+    Standard,
+    Permissive,
+}
+
+impl SandboxStrictness {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Strict => "strict",
+            Self::Standard => "standard",
+            Self::Permissive => "permissive",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "strict" => Some(Self::Strict),
+            "standard" => Some(Self::Standard),
+            "permissive" => Some(Self::Permissive),
+            _ => None,
+        }
+    }
+}
+
+/// Standing orchestration policy (S5 / #131), owned by Settings. Wake
+/// human-gate approval (`allow_auto_wake` / `default_requires_human_gate`)
+/// deliberately stays in `HubStore`'s existing `WakePolicy` — every
+/// C10-C13 wake path already reads it — rather than being duplicated here;
+/// Settings composes both into one typed command surface (see
+/// `src-tauri/src/hub/commands/settings.rs`) so it remains the sole editor
+/// without a risky storage migration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrchestrationPolicy {
+    /// Confirm before enrolling a not-yet-team agent identity via a wake.
+    pub confirm_new_enrollment: bool,
+    /// Confirm before a broadcast (all/team) send.
+    pub confirm_broadcast: bool,
+    /// Whether a wake may auto-enroll any supported harness identity at all.
+    pub auto_enrollment_allowed: bool,
+    pub sandbox_strictness: SandboxStrictness,
+    /// Transcript/memory retention in days. `None` keeps records indefinitely.
+    pub retention_days: Option<u32>,
+    /// Whether non-destructive export actions are available.
+    pub export_enabled: bool,
+}
+
+impl Default for OrchestrationPolicy {
+    fn default() -> Self {
+        Self {
+            confirm_new_enrollment: true,
+            confirm_broadcast: true,
+            auto_enrollment_allowed: true,
+            sandbox_strictness: SandboxStrictness::Standard,
+            retention_days: None,
+            export_enabled: true,
+        }
+    }
+}
+
+impl OrchestrationPolicy {
+    pub fn validate(&self) -> Result<(), SettingsError> {
+        if self.retention_days == Some(0) {
+            return Err(SettingsError::Invalid(
+                "orchestration.retention_days must be greater than 0 when set".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Per-workspace override of [`OrchestrationPolicy`]. Same "absent field
+/// means inherited" contract as [`WorkspaceOverride`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrchestrationOverride {
+    pub confirm_new_enrollment: Option<bool>,
+    pub confirm_broadcast: Option<bool>,
+    pub auto_enrollment_allowed: Option<bool>,
+    pub sandbox_strictness: Option<SandboxStrictness>,
+    pub retention_days: Option<u32>,
+    pub export_enabled: Option<bool>,
+}
+
+impl OrchestrationOverride {
+    pub fn is_empty(&self) -> bool {
+        self.confirm_new_enrollment.is_none()
+            && self.confirm_broadcast.is_none()
+            && self.auto_enrollment_allowed.is_none()
+            && self.sandbox_strictness.is_none()
+            && self.retention_days.is_none()
+            && self.export_enabled.is_none()
+    }
+
+    pub fn validate(&self) -> Result<(), SettingsError> {
+        if self.retention_days == Some(0) {
+            return Err(SettingsError::Invalid(
+                "orchestration.retention_days must be greater than 0 when set".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// [`OrchestrationPolicy`] merged with an optional workspace override.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectiveOrchestrationPolicy {
+    pub confirm_new_enrollment: bool,
+    pub confirm_new_enrollment_status: FieldStatus,
+    pub confirm_broadcast: bool,
+    pub confirm_broadcast_status: FieldStatus,
+    pub auto_enrollment_allowed: bool,
+    pub auto_enrollment_allowed_status: FieldStatus,
+    pub sandbox_strictness: SandboxStrictness,
+    pub sandbox_strictness_status: FieldStatus,
+    pub retention_days: Option<u32>,
+    pub retention_days_status: FieldStatus,
+    pub export_enabled: bool,
+    pub export_enabled_status: FieldStatus,
 }
 
 /// Global defaults merged with an optional workspace override — the typed,
@@ -128,6 +265,7 @@ pub struct EffectiveSettings {
     pub profiles: Vec<ProfileSnapshot>,
     #[serde(default)]
     pub harnesses: Vec<EffectiveHarnessSettings>,
+    pub orchestration: EffectiveOrchestrationPolicy,
 }
 
 /// How a profile obtains credentials. Never carries a secret value.

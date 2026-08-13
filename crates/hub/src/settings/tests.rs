@@ -531,3 +531,112 @@ fn workspace_default_profile_is_a_name_reference_not_a_copy() {
         Some("grok-4.1")
     );
 }
+
+#[test]
+fn orchestration_policy_defaults_are_safe() {
+    let dir = tempdir().unwrap();
+    let store = SettingsStore::open(dir.path());
+    let effective = store.effective(None).orchestration;
+    assert!(effective.confirm_new_enrollment);
+    assert!(effective.confirm_broadcast);
+    assert!(effective.auto_enrollment_allowed);
+    assert_eq!(effective.sandbox_strictness, SandboxStrictness::Standard);
+    assert_eq!(effective.retention_days, None);
+    assert!(effective.export_enabled);
+    assert_eq!(
+        effective.confirm_new_enrollment_status,
+        FieldStatus::Inherited
+    );
+}
+
+#[test]
+fn global_orchestration_fields_round_trip_and_validate() {
+    let dir = tempdir().unwrap();
+    let mut store = SettingsStore::open(dir.path());
+    store.set_confirm_new_enrollment(false).unwrap();
+    store.set_confirm_broadcast(false).unwrap();
+    store.set_auto_enrollment_allowed(false).unwrap();
+    store
+        .set_sandbox_strictness(SandboxStrictness::Strict)
+        .unwrap();
+    store.set_retention_days(Some(30)).unwrap();
+    store.set_export_enabled(false).unwrap();
+    store.save().unwrap();
+
+    assert!(store.set_retention_days(Some(0)).is_err());
+
+    let reloaded = SettingsStore::open(dir.path());
+    let effective = reloaded.effective(None).orchestration;
+    assert!(!effective.confirm_new_enrollment);
+    assert!(!effective.confirm_broadcast);
+    assert!(!effective.auto_enrollment_allowed);
+    assert_eq!(effective.sandbox_strictness, SandboxStrictness::Strict);
+    assert_eq!(effective.retention_days, Some(30));
+    assert!(!effective.export_enabled);
+
+    let raw = fs::read_to_string(reloaded.path()).unwrap();
+    assert!(raw.contains("sandbox_strictness = \"strict\""), "{raw}");
+}
+
+#[test]
+fn workspace_orchestration_override_wins_and_resets_to_inherited() {
+    let dir = tempdir().unwrap();
+    let mut store = SettingsStore::open(dir.path());
+    store
+        .set_workspace_confirm_broadcast("/home/user/project", false)
+        .unwrap();
+    store
+        .set_workspace_sandbox_strictness("/home/user/project", SandboxStrictness::Permissive)
+        .unwrap();
+    store
+        .set_workspace_retention_days("/home/user/project", 14)
+        .unwrap();
+    store.save().unwrap();
+
+    let effective = store.effective(Some("/home/user/project")).orchestration;
+    assert!(!effective.confirm_broadcast);
+    assert_eq!(effective.confirm_broadcast_status, FieldStatus::Override);
+    assert_eq!(effective.sandbox_strictness, SandboxStrictness::Permissive);
+    assert_eq!(effective.retention_days, Some(14));
+    // Untouched fields still inherit the global default.
+    assert!(effective.confirm_new_enrollment);
+    assert_eq!(
+        effective.confirm_new_enrollment_status,
+        FieldStatus::Inherited
+    );
+
+    store
+        .reset_workspace_field("/home/user/project", SettingsField::ConfirmBroadcast)
+        .unwrap();
+    store.save().unwrap();
+    let after_reset = store.effective(Some("/home/user/project")).orchestration;
+    assert!(after_reset.confirm_broadcast);
+    assert_eq!(after_reset.confirm_broadcast_status, FieldStatus::Inherited);
+    // Other overrides on the same workspace remain.
+    assert_eq!(
+        after_reset.sandbox_strictness,
+        SandboxStrictness::Permissive
+    );
+}
+
+#[test]
+fn orchestration_workspace_override_survives_hand_authored_comments() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("settings.toml"),
+        "schema_version = 1\n\n[storage]\nbackup_retention = 3\n\n\
+         [orchestration]\n# standing policy\nconfirm_new_enrollment = true\n\
+         confirm_broadcast = true\nauto_enrollment_allowed = true\n\
+         sandbox_strictness = \"standard\"\nexport_enabled = true\n\n\
+         [[workspace]]\npath = \"/home/user/project\"\n\
+         orchestration = { confirm_broadcast = false, retention_days = 7 }\n",
+    )
+    .unwrap();
+
+    let store = SettingsStore::open(dir.path());
+    assert_eq!(store.load().status, LoadStatus::Loaded);
+    let effective = store.effective(Some("/home/user/project")).orchestration;
+    assert!(!effective.confirm_broadcast);
+    assert_eq!(effective.retention_days, Some(7));
+    assert!(effective.auto_enrollment_allowed);
+}

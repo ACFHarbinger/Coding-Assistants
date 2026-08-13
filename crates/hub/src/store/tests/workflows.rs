@@ -96,6 +96,22 @@ fn c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes() {
 }
 
 #[test]
+fn list_agent_budgets_returns_every_configured_agent() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    assert!(store.list_agent_budgets().unwrap().is_empty());
+
+    store.set_agent_budget("claude", 10.0).unwrap();
+    store.set_agent_budget("grok", 5.0).unwrap();
+
+    let budgets = store.list_agent_budgets().unwrap();
+    assert_eq!(budgets.len(), 2);
+    let ids: Vec<_> = budgets.iter().map(|b| b.agent_id.as_str()).collect();
+    assert!(ids.contains(&"claude"));
+    assert!(ids.contains(&"grok"));
+}
+
+#[test]
 fn c6_shutdown_records_reviewable_handoff() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

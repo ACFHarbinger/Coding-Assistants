@@ -4,7 +4,19 @@ import type { AuditEvent } from "../panels/hub/types";
 export type SettingsFieldStatus = "inherited" | "override";
 
 // Mirrors `hub::SettingsField`.
-export type SettingsField = "backup_retention" | "default_workspace" | "default_session";
+export type SettingsField =
+  | "backup_retention"
+  | "default_workspace"
+  | "default_session"
+  | "confirm_new_enrollment"
+  | "confirm_broadcast"
+  | "auto_enrollment_allowed"
+  | "sandbox_strictness"
+  | "retention_days"
+  | "export_enabled";
+
+// Mirrors `hub::SandboxStrictness`.
+export type SandboxStrictness = "strict" | "standard" | "permissive";
 
 // Mirrors `hub::SecretSourceKind`. Never a credential value.
 export type SecretSourceKind = "keychain" | "env_var" | "provider_login";
@@ -68,6 +80,50 @@ export interface EffectiveSettings {
   default_session_status: SettingsFieldStatus;
   profiles: ProfileSnapshot[];
   harnesses: EffectiveHarnessSettings[];
+  orchestration: EffectiveOrchestrationPolicy;
+}
+
+// Mirrors `hub::EffectiveOrchestrationPolicy` (Settings S5 / #131).
+export interface EffectiveOrchestrationPolicy {
+  confirm_new_enrollment: boolean;
+  confirm_new_enrollment_status: SettingsFieldStatus;
+  confirm_broadcast: boolean;
+  confirm_broadcast_status: SettingsFieldStatus;
+  auto_enrollment_allowed: boolean;
+  auto_enrollment_allowed_status: SettingsFieldStatus;
+  sandbox_strictness: SandboxStrictness;
+  sandbox_strictness_status: SettingsFieldStatus;
+  retention_days: number | null;
+  retention_days_status: SettingsFieldStatus;
+  export_enabled: boolean;
+  export_enabled_status: SettingsFieldStatus;
+}
+
+// Partial update sent to `settings_update_orchestration`. `retention_days`
+// is excluded there — see `setRetentionDays` in `api.ts`.
+export interface OrchestrationPatch {
+  confirm_new_enrollment?: boolean;
+  confirm_broadcast?: boolean;
+  auto_enrollment_allowed?: boolean;
+  sandbox_strictness?: SandboxStrictness;
+  export_enabled?: boolean;
+}
+
+// Composes the orchestration policy above with the Hub's existing
+// WakePolicy human-gate bit, so Settings reads/writes standing policy as
+// one view even though wake-gate storage stays in HubStore.
+export interface StandingPolicySnapshot {
+  confirm_wakes: boolean;
+  orchestration: EffectiveOrchestrationPolicy;
+}
+
+// Mirrors `hub::BudgetStatus`.
+export interface BudgetStatus {
+  agent_id: string;
+  limit_units: number;
+  spent_units: number;
+  paused: boolean;
+  updated_at: string;
 }
 
 // Partial update sent to `settings_update`. `undefined` fields are left

@@ -28,8 +28,9 @@ pub use harness::{
 };
 pub use paths::default_hub_home;
 pub use settings::{
-    EffectiveHarnessSettings, EffectiveSettings, FieldStatus, HarnessSettings, LoadStatus,
-    ProfileSnapshot, ProviderProfile, SecretReference, SecretSourceKind, SettingsError,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
+    HarnessSettings, LoadStatus, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot,
+    ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind, SettingsError,
     SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore, WorkspaceOverride,
     CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };

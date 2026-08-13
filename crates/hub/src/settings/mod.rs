@@ -12,8 +12,9 @@ mod profiles;
 mod store;
 
 pub use model::{
-    EffectiveHarnessSettings, EffectiveSettings, FieldStatus, HarnessSettings, ProfileSnapshot,
-    ProviderProfile, SecretReference, SecretSourceKind, SettingsError, SettingsField,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
+    HarnessSettings, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot, ProviderProfile,
+    SandboxStrictness, SecretReference, SecretSourceKind, SettingsError, SettingsField,
     SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
     MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };

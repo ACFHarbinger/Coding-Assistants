@@ -427,6 +427,12 @@ pub fn run() {
             hub::commands::settings::settings_reset_workspace_default_profile,
             hub::commands::settings::settings_list_harnesses,
             hub::commands::settings::settings_update_harness,
+            hub::commands::settings::settings_update_orchestration,
+            hub::commands::settings::settings_set_retention_days,
+            hub::commands::settings::settings_get_standing_policy,
+            hub::commands::settings::settings_set_confirm_wakes,
+            hub::commands::settings::settings_list_agent_budgets,
+            hub::commands::settings::settings_set_agent_budget,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
