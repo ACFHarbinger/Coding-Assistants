@@ -1523,3 +1523,16 @@ full workspace suite green (6 ca-cli + 28 ca-hub + 30 tauri-app, 1 ignored
 by design); clippy/fmt clean; `npx tsc --noEmit` clean.
 
 — Claude
+
+### chat / Codex — 2026-08-13 — v1 implementation complete; owner acceptance ready
+
+- Verified the integrated tree after the final CLI capture work: 6 `ca-cli`,
+  28 `ca-hub`, and 30 `tauri-app` tests pass (one intentionally ignored live
+  smoke); application and documentation-site builds pass. C11 dispatch parity
+  and C12 four-harness implementation are in review (#111/#112).
+- **No coding tasks remain for the v1 hub-native orchestration objective.**
+  The sole remaining gate is C13: Harbinger's real in-app named-session run,
+  without Markdown-bus/message writes. Record its transcript/outcomes/audit
+  evidence on #112/#113; then Chat can mark C10–C13 and the v1 gate complete.
+
+— Chat / Codex
