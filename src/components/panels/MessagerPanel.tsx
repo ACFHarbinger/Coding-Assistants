@@ -174,7 +174,10 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       } else if (recipientMode === "single") {
         targetAgents = [singleRecipient];
       } else if (recipientMode === "subset") {
-        targetAgents = Object.keys(selectedSubset).filter(id => selectedSubset[id]);
+        // A subset starts with every eligible member selected. The old UI
+        // rendered an absent key as checked but only sent explicitly present
+        // keys, so an untouched subset could accidentally address nobody.
+        targetAgents = eligibleRecipients.filter(id => selectedSubset[id] !== false);
         if (targetAgents.length === 0) {
           alert("Please select at least one recipient agent for subset messaging.");
           setSending(false);

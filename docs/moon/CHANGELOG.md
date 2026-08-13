@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — Chat composer recipient and delivery clarity (2026-08-13)
+
+- Fixed subset recipient selection so its default checked state matches the
+  actual send list; multiple recipient choices persist independently instead
+  of an untouched subset resolving to no recipients.
+- Replaced low-contrast native checkbox controls with high-contrast,
+  accessible pressed-state chips for recipient mode, subset members, task,
+  wake, and human-approval intent.
+- Clarified that an untagged message is recorded in the session transcript
+  only. Harness execution is requested only through **TASK** and/or **WAKE**;
+  an unsupported or inactive adapter still reports a truthful queued or
+  unavailable outcome.
+
 ### Claude — Settings S5 final relocation (#131) (2026-08-13)
 
 - Review returned S5 once more: a legacy Shared Hub → Policy tab still

@@ -1,6 +1,24 @@
 // @ts-nocheck
 export default function MessageComposer(props: any) {
   const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending } = props;
+  const recipients = (activeWorkSession && activeChannel === `session:${activeWorkSession.id}`
+    ? activeWorkSession.member_ids
+    : rosterAgentIds(hubAgents)
+  ).filter((id: string) => id !== "human" && id !== "system");
+  const selectionStyle = (active: boolean, accent: "violet" | "teal" | "amber" = "violet"): React.CSSProperties => {
+    const colors = accent === "amber"
+      ? { border: "#facc15", background: "#854d0e", text: "#fefce8" }
+      : accent === "teal"
+        ? { border: "#5eead4", background: "#065f46", text: "#ecfdf5" }
+        : { border: "#c4b5fd", background: "#6d28d9", text: "#fff" };
+    return {
+      padding: "0.4rem 0.75rem", borderRadius: "7px",
+      border: active ? `2px solid ${colors.border}` : "1px solid #475569",
+      background: active ? colors.background : "#111827", color: active ? colors.text : "#cbd5e1",
+      boxShadow: active ? `0 0 0 2px ${colors.border}33` : "none",
+      fontSize: "0.8rem", cursor: "pointer", fontWeight: active ? 800 : 600,
+    };
+  };
   return (
         <div style={{
           padding: "1.25rem 1.5rem",
@@ -76,64 +94,37 @@ export default function MessageComposer(props: any) {
                     <button
                       type="button"
                       onClick={() => setRecipientMode("all")}
-                      style={{
-                        padding: "0.3rem 0.65rem",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border-color)",
-                        background: recipientMode === "all" ? "var(--primary)" : "rgba(0,0,0,0.3)",
-                        color: "#fff",
-                        fontSize: "0.78rem",
-                        cursor: "pointer",
-                        fontWeight: recipientMode === "all" ? 700 : 400
-                      }}
+                      aria-pressed={recipientMode === "all"}
+                      style={selectionStyle(recipientMode === "all")}
                     >
                       🌐 All Team
                     </button>
                     <button
                       type="button"
                       onClick={() => setRecipientMode("subset")}
-                      style={{
-                        padding: "0.3rem 0.65rem",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border-color)",
-                        background: recipientMode === "subset" ? "var(--primary)" : "rgba(0,0,0,0.3)",
-                        color: "#fff",
-                        fontSize: "0.78rem",
-                        cursor: "pointer",
-                        fontWeight: recipientMode === "subset" ? 700 : 400
-                      }}
+                      aria-pressed={recipientMode === "subset"}
+                      style={selectionStyle(recipientMode === "subset")}
                     >
                       👥 Subset
                     </button>
                     <button
                       type="button"
                       onClick={() => setRecipientMode("single")}
-                      style={{
-                        padding: "0.3rem 0.65rem",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border-color)",
-                        background: recipientMode === "single" ? "var(--primary)" : "rgba(0,0,0,0.3)",
-                        color: "#fff",
-                        fontSize: "0.78rem",
-                        cursor: "pointer",
-                        fontWeight: recipientMode === "single" ? 700 : 400
-                      }}
+                      aria-pressed={recipientMode === "single"}
+                      style={selectionStyle(recipientMode === "single")}
                     >
                       🎯 Single Agent
                     </button>
 
                     {recipientMode === "subset" && (
-                      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", background: "rgba(0,0,0,0.3)", padding: "0.35rem 0.65rem", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                        {(activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? activeWorkSession.member_ids : rosterAgentIds(hubAgents)).filter(id => id !== "human" && id !== "system").map(agentId => (
-                          <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-main)", cursor: "pointer" }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedSubset[agentId] ?? true}
-                              onChange={e => setSelectedSubset(prev => ({ ...prev, [agentId]: e.target.checked }))}
-                            />
-                            {getAgentInfo(agentId).displayName}
-                          </label>
-                        ))}
+                      <div aria-label="Subset recipients" style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", background: "#020617", padding: "0.45rem", borderRadius: "8px", border: "1px solid #334155" }}>
+                        {recipients.map((agentId: string) => {
+                          const selected = selectedSubset[agentId] !== false;
+                          return <button key={agentId} type="button" aria-pressed={selected}
+                            onClick={() => setSelectedSubset((prev: Record<string, boolean>) => ({ ...prev, [agentId]: !selected }))}
+                            style={selectionStyle(selected, "teal")}
+                          >{selected ? "✓ " : "○ "}{getAgentInfo(agentId).displayName}</button>;
+                        })}
                       </div>
                     )}
 
@@ -151,7 +142,7 @@ export default function MessageComposer(props: any) {
                           outline: "none"
                         }}
                       >
-                        {(activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? activeWorkSession.member_ids : rosterAgentIds(hubAgents)).filter(id => id !== "human" && id !== "system").map(agentId => (
+                        {recipients.map((agentId: string) => (
                           <option key={agentId} value={agentId}>
                             {getAgentInfo(agentId).displayName} ({getAgentInfo(agentId).role})
                           </option>
@@ -177,16 +168,8 @@ export default function MessageComposer(props: any) {
                 <button
                   type="button"
                   onClick={() => setIsTaskTag(prev => !prev)}
-                  style={{
-                    padding: "0.3rem 0.65rem",
-                    borderRadius: "6px",
-                    border: isTaskTag ? "1px solid #eab308" : "1px solid var(--border-color)",
-                    background: isTaskTag ? "rgba(234, 179, 8, 0.25)" : "rgba(0,0,0,0.3)",
-                    color: isTaskTag ? "#fef08a" : "var(--text-muted)",
-                    fontSize: "0.78rem",
-                    cursor: "pointer",
-                    fontWeight: isTaskTag ? 700 : 400
-                  }}
+                  aria-pressed={isTaskTag}
+                  style={selectionStyle(isTaskTag, "amber")}
                   title="Mark as Task execution request (targets existing team members only)"
                 >
                   ⚡ [TASK]
@@ -194,30 +177,23 @@ export default function MessageComposer(props: any) {
                 <button
                   type="button"
                   onClick={() => setIsWakeTag(prev => !prev)}
-                  style={{
-                    padding: "0.3rem 0.65rem",
-                    borderRadius: "6px",
-                    border: isWakeTag ? "1px solid #10b981" : "1px solid var(--border-color)",
-                    background: isWakeTag ? "rgba(16, 185, 129, 0.25)" : "rgba(0,0,0,0.3)",
-                    color: isWakeTag ? "#a7f3d0" : "var(--text-muted)",
-                    fontSize: "0.78rem",
-                    cursor: "pointer",
-                    fontWeight: isWakeTag ? 700 : 400
-                  }}
+                  aria-pressed={isWakeTag}
+                  style={selectionStyle(isWakeTag, "teal")}
                   title="Mark as Wake request (can wake/spawn team instances)"
                 >
                   🔔 [WAKE]
                 </button>
 
-                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer", marginLeft: "auto" }}>
-                  <input
-                    type="checkbox"
-                    checked={wakePolicyGate}
-                    onChange={e => setWakePolicyGate(e.target.checked)}
-                  />
-                  Require Human Approval Gate
-                </label>
+                <button type="button" aria-pressed={wakePolicyGate}
+                  onClick={() => setWakePolicyGate((previous: boolean) => !previous)}
+                  style={{ ...selectionStyle(wakePolicyGate, "amber"), marginLeft: "auto" }}
+                >{wakePolicyGate ? "✓ " : "○ "}Require Human Approval Gate</button>
               </div>
+              {!isTaskTag && !isWakeTag && (
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.76rem", lineHeight: 1.4 }}>
+                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>TASK</strong> to request delivery to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
+                </p>
+              )}
             </div>
           </div>
         </div>
