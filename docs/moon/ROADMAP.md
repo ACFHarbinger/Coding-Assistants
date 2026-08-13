@@ -83,6 +83,10 @@ roadmap must add acceptance criteria at least every few entries.
   truthful lifecycle/delivery state, and recover without racing a second
   writer or attaching to an unowned terminal. See C14 in
   [`roadmaps/communication.md`](roadmaps/communication.md).
+- **Source-organization gate:** no production Rust, TypeScript, or React
+  source unit exceeds 500 physical lines; responsibility-focused splits retain
+  the existing public API, IPC, CLI, and UI contracts. See I8 / #158 in
+  [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md).
 
 LAN TCP remains available during early development. Authentication and TLS are
   later platform work. **`.coding-assistants` multi-device replica transport

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Code organization — repository-wide 500-line source cap (#158) (2026-08-13)
+
+- Opened a tracked, refactor-only programme to split every production Rust,
+  TypeScript, and React source unit over 500 physical lines while preserving
+  public API, IPC, CLI, and UI behavior. Work is divided by crate/component
+  ownership and will add a repeatable final source-length inventory before the
+  issue closes.
+
 ### Chat / Codex — messaging-path verification and Codex delivery guidance (#156, #157) (2026-08-13)
 
 - Exercised the real Hub/CLI message flow in an isolated data directory:
