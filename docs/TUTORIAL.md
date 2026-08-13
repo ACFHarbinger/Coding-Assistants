@@ -52,6 +52,8 @@ Click the **Provider** dropdown for the default role. Choose from:
 | Provider         | Requirements                              |
 | ---------------- | ----------------------------------------- |
 | OpenCode Zen     | `opencode` CLI installed                  |
+| DeepSeek         | `opencode` CLI; `opencode models` lists `deepseek/*` |
+| Mistral (Vibe)   | `vibe` CLI installed; run `vibe --setup`  |
 | Google           | `GOOGLE_GENAI_API_KEY` in `env/.env`      |
 | Anthropic        | API key configured                        |
 | OpenAI           | `OPENAI_API_KEY` in `env/.env`            |

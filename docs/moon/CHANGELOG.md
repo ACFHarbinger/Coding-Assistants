@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Hub/CLI source layout.** Split the Hub store and `ca` CLI implementation
+  into responsibility-focused Rust modules, including independently compiled
+  Hub test groups. Every Rust source file in `crates/hub/src` and
+  `crates/cli/src` is now at or below 500 lines; the public `hub` exports and
+  the installed `ca` command interface remain unchanged.
+
 ### Added
 
+- **DeepSeek through OpenCode.** Orchestrate provider/model selection includes
+  DeepSeek. Model IDs come from `opencode models` (`deepseek/*`); the run path
+  is `opencode run <prompt> -m deepseek/<model> --dir <abs>`. Missing
+  `opencode` returns a clear unavailable error. No API keys are hardcoded or
+  read from OpenCode config.
+- **Mistral through Vibe.** Orchestrate includes Mistral (Vibe). Programmatic
+  runs use explicit argv (`vibe -p <prompt> --workdir <abs> --trust --output
+  text --auto-approve`) after `vibe --help` confirms those flags. Missing
+  install, unsupported vibe builds, and missing auth (`MISTRAL_API_KEY` or
+  `~/.vibe/.env` presence only; `vibe --setup`) return unavailable. Selected
+  model is passed as `VIBE_ACTIVE_MODEL` (vibe has no `--model` flag). Wake
+  inject may spawn `opencode`/`vibe`; task-only inject still queues.
 - **Tauri backend layout.** Reorganized `src-tauri/src` by responsibility:
   `agent/` contains orchestration, `client/` external model clients,
   `harness/` capture and delivery adapters, `hub/` desktop Hub commands,
