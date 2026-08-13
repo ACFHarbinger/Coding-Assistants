@@ -28,5 +28,5 @@ verify a direct HashRouter refresh, search, theme selection, and a Mermaid
 document before considering the cutover complete.
 
 If production verification fails, revert to the last known-good `main`
-revision and rerun the Pages deployment. The MkDocs-era files remain available
-until the React site has passed that acceptance check.
+revision and rerun the Pages deployment. The retired MkDocs-era configuration
+is recoverable from Git history.

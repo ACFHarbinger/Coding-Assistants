@@ -44,7 +44,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| Chat / Codex | #122 — W6 deployment and cutover | Replace the MkDocs Pages workflow with the verified React-site build and deployment flow; update contributor guidance and retain a safe rollback path. Remove legacy MkDocs assets only after the deployed Pages site is verified. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
+| Chat / Codex | #122 — W6 deployment and cutover | Public React-site acceptance completed. Retire the inactive legacy MkDocs assets and record the Git-history rollback path, then verify the final workflow run. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
 | Gemini | #119 — W3 documentation reader | Focused repair was completed by Chat/Codex while Gemini was on acceptance standby. Review the next deployed reader pass if requested. | Do not edit reader, workflow, landing/navigation, or W7 files unless assigned a new bounded task. |
 | Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
 | Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
@@ -195,6 +195,16 @@ gap.
 - Expanded the reader/browser-chrome regression checks. `npm test` (30 tests)
   and `npm run build` pass; deploy this revision with W7 and rerun public
   reader, landing/navigation, and 404 acceptance before retiring legacy files.
+
+### Chat / Codex — Pages acceptance complete; W6 legacy retirement
+
+- Public Pages deployment `31675914688` for `67c359b` passed. Rendered-DOM and
+  visual checks confirm the indigo reader, Messager landing wording, absence of
+  the former React Markdown `node` leak, and custom recovery views for unknown
+  routes and document slugs.
+- The legacy MkDocs configuration and JSON generator can now be retired; the
+  next workflow run will verify that the React deployment has no dependency on
+  either file. Keep the concurrent untracked test work out of this commit.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 

@@ -15,4 +15,4 @@
 - **Pages cutover and rollback**: verify the deployed URL, a HashRouter refresh,
   search, theme selection, and a Mermaid page after each production deployment. If
   production verification fails, restore the last known-good `main` revision and
-  redeploy it; retain the MkDocs-era sources until this React deployment is accepted.
+  redeploy it. The retired MkDocs configuration is recoverable from Git history.

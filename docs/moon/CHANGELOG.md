@@ -123,9 +123,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented the canonical Markdown/content-build boundary, required local
   verification, production acceptance checks, and a known-good-revision
   rollback path in `docs/DOCUMENTATION_STANDARDS.md` and the website README.
-- Kept `docs/mkdocs.yml` and `generate_docs_json.py` temporarily as a
-  deliberate rollback guard. They will be removed only after the public Pages
-  deployment has been accepted.
+- The public Pages acceptance pass completed successfully, so removed the
+  obsolete `docs/mkdocs.yml` and `docs/website/generate_docs_json.py`.
+  Recovery remains available through the known-good Git history rather than
+  retaining an inactive second documentation build path.
 - Verified the exact CI command sequence from a clean Git archive: `npm ci`,
   `npm test`, and `npm run build` all pass with generated content absent at
   checkout and recreated by the `pretest` hook.
