@@ -7,291 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Claude — `ca harness capture` CLI (2026-08-13) [DRAFT]
+### Added
 
-- New `ca harness capture --harness grok|claude|chat|gemini --workspace PATH
-  [--disk-session ID] [--hub-session ID]`. Lets a C13 live acceptance run
-  (or any headless script) capture a harness's on-disk session transcript
-  into the shared hub without the Tauri desktop app open.
-- `ca-cli` only depends on `ca-hub`, not `tauri-app`, so it cannot literally
-  call the desktop's `harness_*.rs` capture adapters — they live in a
-  different crate. This reimplements the same four on-disk transcript
-  formats independently in `crates/ca-cli/src/main.rs` (Grok
-  `chat_history.jsonl`, Claude `<disk-session>.jsonl`, Codex
-  date-partitioned `rollout.jsonl` + `session_meta`, Gemini
-  `transcript.jsonl`), all converging on the same
-  `HubStore::record_harness_capture` content-hash dedup path the desktop
-  poll uses — a headless CLI run and the desktop's poll produce identical
-  durable state even without shared code across the crate boundary.
-- Added `serde`'s derive feature (for the JSON output struct) and a
-  `tempfile` dev-dependency to `crates/ca-cli/Cargo.toml`.
-- 6 new tests (per-harness path/parsing extraction, dedup, unknown-harness
-  rejection); full workspace suite green (6 ca-cli + 28 ca-hub + 30
-  tauri-app, 1 ignored by design); clippy/fmt clean; `npx tsc --noEmit`
-  clean (frontend untouched).
-
-### Grok — C12 live named-session capture (2026-08-13) [DRAFT]
-
-- Added `live_named_session_tagged_send_and_disk_capture`: throwaway
-  HubStore, task-tagged send to an enrolled `grok` (outsider rejected), then
-  live disk capture for all four harnesses against this checkout.
-- Result on this machine (bodies omitted): grok 11, claude 52, chat 25,
-  gemini 247 new rows. U11–U12 / C10–C12 are ready for Harbinger to
-  exercise in the desktop app. C13 is that owner run.
-
-### Chat / Codex — C11 CLI tagged-delivery dispatch parity (2026-08-13) [DRAFT]
-
-- Added `ca msg tag --dispatch`: agents using the CLI can now route each
-  policy-accepted task/wake target through the same explicit-argv harness
-  injector used by Chat & Memory. Durable tagged-send outcomes remain the
-  command's compatible JSON stdout; one structured dispatch result per target
-  is emitted to stderr for harness execution diagnostics.
-- Dispatch is deliberate and authority-safe: it requires an absolute
-  `--workspace`, never infers a working directory, and never runs for a
-  rejected task target. The existing `ca msg tag` behavior remains durable-only
-  unless `--dispatch` is supplied.
-
-### Gemini — V1-DOCS-SYNC website documentation data synchronization (2026-08-13) [DRAFT]
-
-- **Documentation Parity (`docs/website/src/data/docs.json`)**: Regenerated `docs/website/src/data/docs.json` via `generate_docs_json.py`, syncing the canonical roadmap items (`U11`–`U12` / `C10`–`C13` from `docs/moon/roadmaps/communication.md`), architecture, and changelog into the documentation portal data.
-- **Verification**: Built `docs/website` (`vue-tsc -b && vite build`) cleanly in 133ms with 0 errors.
-
-### Grok — C12 refresh now polls all four harnesses (2026-08-13) [DRAFT]
-
-- Chat & Memory `refreshHubChat` now also calls `hub_capture_gemini_session`
-  with `geminiSessionId: null` and the active `hubSessionId`, same as
-  Grok/Claude/Codex. Gemini's disk/hub split (`3f2b20f`) made this safe.
-- Assigned Gemini V1-DOCS-SYNC (`docs/website/src/data/docs.json`) and
-  Claude `ca harness capture` CLI. Live named-session run still required
-  for #112. Chat: format and update #112.
-
-### Claude — C12 four-harness acceptance test (2026-08-13) [DRAFT]
-
-- New `src-tauri/src/harness_c12.rs`: a single workspace test exercises
-  fixture transcripts for all four capture adapters (Grok, Codex, Claude,
-  Gemini) in their real on-disk shapes and confirms every capture lands in
-  one shared hub session channel, each correctly attributed to its
-  authoring agent (`grok`, `chat`, `claude`, `gemini`).
-- Confirms `inject_harness` returns a structured `Result` — never panics —
-  on invalid input (empty body, relative workspace, unknown harness id),
-  exercised through its synchronous validation path so no real harness
-  process is ever spawned by the test.
-- Confirms all four harnesses' argv builders (`grok_spawn_args`,
-  `codex_spawn_args`, `claude_spawn_args`, `gemini_spawn_args`) keep a
-  prompt containing shell metacharacters (`; rm -rf / && echo pwned
-  $(whoami)` \`id\` `| cat`) as exactly one literal argv element — proof the
-  delivery path passes explicit argv to `Command`, never a shell string,
-  for every harness, not just the one this session has an example
-  for.
-- To make this possible without mutating the real `$HOME`, bumped
-  `capture_*_from` helpers and `encode_workspace_dir_name` in
-  `harness_grok.rs`/`harness_codex.rs`/`harness_claude.rs` to `pub(crate)`
-  (visibility only, no behavior change — matches the pattern
-  `harness_gemini.rs` already used), and re-exported `codex_spawn_args`,
-  `claude_spawn_args`, `gemini_spawn_args` from `ca-hub`'s `lib.rs`
-  alongside the existing `grok_spawn_args`.
-- 28 `ca-hub` + 29 `tauri-app` tests pass (1 ignored by design);
-  clippy/fmt clean; `npx tsc --noEmit` clean (frontend untouched).
-
-### Chat / Codex — Supabase future configuration scaffold (2026-08-13) [DRAFT]
-
-- Added `infra/supabase/supabase_config.js`, a minimal environment-driven
-  Supabase client scaffold exposing Auth, database, and Storage handles.
-  It accepts only the project URL and publishable/anon key; service-role keys,
-  sync credentials, and cloud implementation remain out of the desktop bundle.
-- Documented the Supabase directory in `infra/README.md`. This supports the
-  planned S11 Auth + private Storage integration and does not implement cloud
-  synchronization or alter the approved provider order.
-
-### Gemini — C12 Antigravity / Gemini CLI disk vs hub session ID split (2026-08-13) [DRAFT]
-
-- **Session ID Split (`src-tauri/src/harness_gemini.rs`)**: Updated `capture_gemini_session` and `hub_capture_gemini_session` to separate `gemini_session_id` (used to locate specific `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` files on disk) from `hub_session_id` (used to scope captured records into `channel:session:<hub_id>:capture` in SQLite).
-- **Unit Coverage**: Added `gemini_session_id_and_hub_session_id_serve_distinct_purposes` test verifying discrete disk transcript matching and hub channel scoping (55 total workspace tests passed).
-
-### Grok — C12 refresh polls Grok, Claude, and Codex (2026-08-13) [DRAFT]
-
-- Chat & Memory refresh now calls `hub_capture_grok_session`,
-  `hub_capture_claude_session`, and `hub_capture_codex_session` with
-  disk-session `null` and `hubSessionId` set to the active work session.
-- If any capture returns new rows, the message list is reloaded in the
-  same tick so the transcript does not wait for the next poll.
-- Gemini is not polled yet (disk/hub ids still conflated). Assigned Gemini
-  that split and Claude a four-harness C12 acceptance test. Chat: format
-  and update #112.
-
-### Chat / Codex — C13 migration-gate review (2026-08-13) [DRAFT]
-
-- Defined the v1 hub-native orchestration migration gate: C12 must pass live
-  acceptance first; a named work-session must then complete a bounded,
-  multi-agent assignment/review loop entirely in Chat & Memory; and the
-  transcript, outcomes, and audit trail must reconstruct the final handoff.
-- Failure keeps `.agent/cache/AGENT_BUS.md` and `.agent/messages/*` as an
-  explicit read-only historical fallback. The gate prohibits deleting,
-  rewriting, or silently importing those records and requires #113 evidence
-  before the project can mark C13 complete.
-
-### Chat / Codex — C12 Codex durable transcript capture (2026-08-13) [DRAFT]
-
-- Added `src-tauri/src/harness_codex.rs`, which selects the newest Codex
-  rollout transcript for the configured workspace from
-  `~/.codex/sessions/YYYY/MM/DD`. It validates the transcript's `session_meta`
-  workspace before reading it and can target an explicit Codex disk-session id.
-- Captures only assistant `output_text` blocks into the work-session transcript
-  as the `chat` agent, keeping user, developer, reasoning, tool, and system
-  records out. Repeated polls are content-hash deduplicated by the Hub store.
-- Exposed the typed `hub_capture_codex_session` Tauri command with separate
-  Codex disk-session and CA hub work-session identifiers. Focused adapter tests
-  cover workspace/session selection, assistant-only filtering, and dedup.
-
-### Gemini — C12 Antigravity / Gemini CLI session capture adapter (2026-08-13) [DRAFT]
-
-- **Gemini Session Capture (`src-tauri/src/harness_gemini.rs`)**: Implemented `capture_gemini_session` to reverse-engineer on-disk Antigravity CLI session logs from `~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`.
-- **Text & Deduplication Filtering**: Extracts model text responses, filtering out tool calls and JSON blocks, and records each response as a harness capture via `hub_record_harness_capture("gemini", ...)`.
-- **Tauri Command**: Exposed `hub_capture_gemini_session` command in `harness_cmds.rs` and registered in `lib.rs`.
-- **Unit & Integration Coverage**: Added unit tests verifying model text extraction, most-recent session selection, and repeat-poll content-hash deduplication (51 total tests passed).
-
-### Grok — C12 Grok transcript capture + refresh poll (2026-08-13) [DRAFT]
-
-- Assigned Claude to split Claude disk-session vs hub work-session ids, and
-  Gemini to add Antigravity capture (`harness_gemini.rs`).
-- Added `hub_capture_grok_session`: reads
-  `~/.grok/sessions/<percent-encoded-workspace>/<id>/chat_history.jsonl`,
-  keeps `type: assistant` text only, and records via capture dedup.
-- Chat & Memory's 1.5s refresh now polls Grok and Claude capture commands
-  without blocking the message list. Chat: format and update #112.
-
-### Claude — C12 Claude harness capture adapter (2026-08-13) [DRAFT]
-
-- Grok's shared `ca_hub::harness` contract already covers Claude start/inject
-  generically (`claude_spawn_args` + explicit `-p <prompt>` argv, no shell,
-  no TUI attach) — nothing Claude-specific was needed there.
-- The real gap was **capture**: unlike Codex's `app-server` JSONL-RPC stream,
-  Claude Code has no live query surface, but it does write its own session
-  transcript to `~/.claude/projects/<workspace-with-slashes-as-dashes>/
-  <session-id>.jsonl` — the same directory the official `claude` CLI itself
-  reads to render `/resume`. Reverse-engineered this the same way as the
-  Claude Code usage-quota endpoint: real on-disk data, not a mock.
-- New `src-tauri/src/harness_claude.rs`: `capture_claude_session` finds the
-  most recently modified transcript for a workspace (or an explicit
-  `session_id`), extracts only final assistant **text** replies (skipping
-  `thinking`/`tool_use` blocks, which aren't authored messages to the team),
-  and records each through the existing `hub_record_harness_capture`
-  content-hash dedup — safe to call repeatedly (e.g. on every "Refresh")
-  rather than needing a background watcher. Exposed as
-  `hub_capture_claude_session`.
-- Real (not mocked) tests: workspace-path encoding matches the official
-  CLI's own scheme, text-vs-thinking/tool_use filtering, most-recent-file
-  selection, explicit session-id override, repeat-poll dedup, and a
-  missing-transcript no-op. Plus a `#[ignore]`d manual smoke test (same
-  pattern as the Claude Code quota adapter's live test) that ran for real
-  against this machine's actual `~/.claude/projects` data: found and
-  captured 40 real assistant text replies from this session's own
-  transcript.
-- 28 `ca-hub` + 16 `tauri-app` tests pass (1 ignored by design);
-  clippy/fmt clean.
-- Not wired into the UI yet — `hub_capture_claude_session` needs a caller
-  (e.g. a periodic poll or a "Refresh" action in the session view) to
-  actually feed captures into the transcript live; that's C12's remaining
-  UI-integration slice, alongside Gemini's Antigravity adapter and Chat's
-  Codex wrap/audit pass.
-
-### Chat / Codex — C12 tagged-delivery dispatch bridge (2026-08-13) [DRAFT]
-
-- Connected accepted task/wake recipients in a work-session chat to the C12
-  `hub_inject_harness` command. Chat & Memory now passes the configured
-  absolute workspace, session, message, tags, and body to each selected
-  harness after the C11 policy/audit boundary accepts delivery.
-- Rejected recipients and unavailable/failed adapter starts are surfaced to
-  the owner instead of being represented as successful execution. Untagged
-  messages remain durable chat-only posts.
-
-### Gemini — C12 multi-harness adapter suite & UI tagged-send integration (2026-08-13) [DRAFT]
-
-- **C12 Bidirectional Harness Adapters**: Extended `ca_hub::harness` (`start_harness` / `inject_harness`) with explicit argv generators and workspace boundaries for all 4 harness identities:
-  - **xAI Grok Build**: `grok --cwd <abs-workspace> <prompt>`
-  - **OpenAI Codex**: `codex exec --cwd <abs-workspace> <prompt>`
-  - **Anthropic Claude Code**: `claude -p <prompt>` (executed inside target workspace)
-  - **Google Antigravity CLI**: `agy --cwd <abs-workspace> <prompt>`
-- **UI Tagged Send Integration**: Updated `SlackChatPanel.tsx` composer to call `hub_send_tagged_message` for both session and non-session tagged sends (`⚡ [TASK]`, `🔔 [WAKE]`), producing per-recipient durable `SendOutcome` records.
-- Verification: 38 Rust unit/integration tests passed, TypeScript check clean, Vite production build clean (610ms).
-
-### Grok — C12 contract + Grok spawn adapter (2026-08-13) [DRAFT]
-
-- Assigned Claude the Claude harness adapter and Gemini the Gemini/Antigravity
-  adapter on `AGENT_BUS.md`. Chat keeps Codex wrap + audit; C13 stays blocked.
-- Added the shared C12 types in `ca_hub::harness` (`start_harness` /
-  `inject_harness`) and Tauri commands `hub_start_harness`,
-  `hub_inject_harness`, `hub_record_harness_capture`.
-- Grok wake/task inject spawns `grok --cwd <abs-workspace> <prompt>` with
-  explicit argv (no shell, no TUI attach). Other harness IDs return
-  `unsupported` until their owners land adapters.
-- Harness captures persist to the session transcript and ignore duplicate
-  polls of the same body. Chat: please format and update #112.
-
-### Chat / Codex — C10 recipient routing and typed UI bridge (2026-08-13) [DRAFT]
-
-- Added a durable `message_recipient_sets` record for each work-session send;
-  the exact recipient list is stored once by message subject rather than
-  inferred from fan-out rows. `hub_send_session_message` rejects non-members
-  at the Hub boundary.
-- Session composers now offer all/subset/single selection against that
-  session's own members. Tagged posts call `hub_send_tagged_message`, so the
-  UI uses C11's audited task/wake policy path; untagged posts use the new
-  typed session-send command. The obsolete session-only wake checkboxes were
-  removed in favor of the canonical recipient/tag controls.
-- Added C10 coverage for persisted recipient sets, selected-only delivery,
-  and non-member rejection. `npm run build`, `cargo test -p ca-hub` (22),
-  and `cargo test -p tauri-app` (10) pass.
-
-### Claude — C11 backend task/wake enforcement (2026-08-13) [DRAFT]
-
-- `ca-hub`: new `HubStore::send_tagged_message` is the single typed
-  boundary both the human UI and agents go through for task/wake-tagged
-  sends (Hub API + CLI parity, per #111's acceptance criteria). Presence is
-  defined as enrolled team membership, plus session membership when a
-  session is given — there's no live-heartbeat signal in this schema yet.
-  - **Task**-tagged recipients who are not currently present are rejected:
-    no message is sent, no membership is mutated.
-  - **Wake**-tagged recipients who are not yet a team member are enrolled
-    (and added to the session, if any) before delivery, then routed through
-    the existing `request_wake` policy/budget/human-gate path — a wake
-    denial there does not undo the enrollment or the message.
-  - Both tags on one recipient apply the task check first: an absent
-    recipient is rejected even if also wake-tagged (no accidental spawn via
-    a combined tag).
-  - Every recipient gets a durable, queryable `tagged_send_outcomes` row
-    (`list_tagged_send_outcomes`) whether accepted or rejected, satisfying
-    the "auditable per recipient" acceptance bar.
-- Tauri: `hub_send_tagged_message` / `hub_list_tagged_send_outcomes`.
-- CLI: `ca msg tag --from <id> --to a,b,c [--task] [--wake] [--session <id>] <body>`.
-- Fixed two bugs found while starting U11 (before Grok/Gemini's concurrent
-  work landed first): an orphaned duplicate `subject` declaration that broke
-  the build, and `kind: "task"` being sent to `hub_send_message`, which
-  `ca-hub`'s `MessageKind` enum doesn't accept (task intent now rides the
-  existing `task` field, subject suffix, and `[TASK]` body prefix instead).
-- Real (not mocked) tests: `cargo test -p ca-hub` covers task-only rejection
-  (no side effects), wake-only enrollment + wake request, both tags on one
-  recipient, wake-policy denial without undoing enrollment/delivery, and the
-  argument-validation edge cases. 26 `ca-hub` tests + 10 `tauri-app` tests
-  pass; `npx tsc --noEmit` / `npx vite build` clean.
-- Not yet wired: `SlackChatPanel.tsx`'s composer still calls plain
-  `hub_send_message` with a client-only task check (Gemini, `46b1ba4`).
-  Pointing it at `hub_send_tagged_message` so the UI gets the same durable
-  audit trail and policy-aware wake path is follow-up work — flagging here
-  so it isn't lost, since #111's acceptance also expects Store/Tauri tests
-  for "partial recipient failure" once the UI sends true multi-recipient
-  batches instead of one `hub_send_message` call per member.
-
-### Grok — U11 session focus and persist (2026-08-13) [DRAFT]
-
-- Orchestrate Create/Load now keep the chosen work session through hub
-  refreshes (`localStorage` `ca.activeWorkSessionId`) instead of falling
-  back to the newest session on every poll.
-- Opening a session from Orchestrate (including Load of the already-active
-  one) focuses Chat & Memory on `session:<id>` via a focus token, so the
-  transcript actually switches.
-- Does not change session membership. Chat: please format this under U11
-  / #108 and mark the issue when you agree.
+- **V1 hub-native orchestration (U11–U12, C10–C12), ready for owner test.**
+  Orchestrate can **Create** or **Load** a named team chat and focus Chat &
+  Memory on that session (`localStorage` keeps the choice across hub polls).
+  The composer addresses all / a subset / one session member and can mark
+  posts **task** and/or **wake**. Task-tagged sends to non-members are
+  refused; wake-tagged sends may enroll a new identity. Tagged delivery
+  goes through `hub_send_tagged_message` / `ca msg tag` and, when accepted,
+  `hub_inject_harness` or `ca msg tag --dispatch` (explicit argv, no shell,
+  no TUI attach).
+- **C12 four-harness capture.** Disk adapters record assistant text from
+  Grok (`~/.grok/sessions/<pct-workspace>/<id>/chat_history.jsonl`), Claude
+  Code (`~/.claude/projects/...jsonl`), Codex (`~/.codex/sessions/...`), and
+  Gemini/Antigravity (`transcript.jsonl`). Each adapter keeps a **disk
+  session id** separate from the **hub work-session id**. Duplicate polls
+  are content-hash deduplicated. Chat & Memory refresh polls all four and
+  reloads the transcript when new rows appear. Headless: `ca harness capture
+  --harness grok|claude|chat|gemini --workspace PATH`.
+- Live named-session check on this checkout (throwaway HubStore, no write
+  to `~/.coding-assistants`, no spawn): task-tagged send to enrolled `grok`
+  accepted, outsider rejected; disk capture found grok 11 / claude 52 /
+  chat 25 / gemini 247 assistant rows. C13 is Harbinger running that loop
+  in the app; the markdown bus stays as fallback until then.
+- C13 migration gate is specified (C12 live acceptance, named-session
+  assign/review/capture, reconstruct from hub records only, #113 evidence).
+- `infra/supabase/supabase_config.js` scaffold for later S11 Auth + Storage
+  (no sync implementation).
+- Website docs data (`docs/website/src/data/docs.json`) regenerated from
+  the moon roadmaps (U11–U12 / C10–C13).
 
 ### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
 
@@ -304,9 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reviewed Grok's U11–U12 / C10–C13 hub-native orchestration plan and filed
   the six implementation issues (#108–#113), each linked to its roadmap row
-  and the v1 gate with acceptance criteria and dependencies. All are in
-  Project 21 **Ready** awaiting the Gemini/Claude review and Grok's task
-  assignment; no implementation is claimed by this entry.
+  and the v1 gate. Implementation of U11–C12 has since landed; C13 is the
+  owner live loop.
 
 ### Grok — v1 hub-native orchestration spec (2026-08-13)
 
