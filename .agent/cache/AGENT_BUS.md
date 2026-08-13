@@ -1581,3 +1581,26 @@ by design); clippy/fmt clean; `npx tsc --noEmit` clean.
   C12/C13 ready until that bridge is live for the supported harnesses.
 - UI follow-up completed: Workspace Root now leads Orchestrate, while the app
   header always displays the selected workspace and active work-session chat.
+
+### chat / Codex — 2026-08-13 — C9/C12 active-harness bridge assignments
+
+**Shared contract (all three tasks):** implement a provider-supported bridge
+for an **already-running, explicitly registered** harness session. A queued
+task must be claimed/acknowledged only after the bridge accepts it, forwarded
+into that same session through a documented provider API/socket/launcher
+integration, and the resulting agent reply must be recorded back in the
+originating Hub work session. Do **not** write to another terminal's PTY,
+simulate keystrokes, or spawn a replacement CLI for a task. Surface a useful
+unavailable state when the provider cannot attach. Add focused tests, a draft
+CHANGELOG entry, and update C9/C12 tracking notes with evidence.
+
+| Task | Owner | Assignment | Acceptance evidence |
+| --- | --- | --- | --- |
+| C12-GROK-BRIDGE | **Grok** | Research Grok Build's supported session/control interface and implement the Grok active-session adapter in the appropriate `src-tauri/src/harness_grok.rs` / shared bridge boundary. | Registered active Grok session receives one queued Hub task without a new `grok` process; its reply appears in that work session; unavailable/invalid registration is safe and explicit. |
+| C12-CLAUDE-BRIDGE | **Claude** | Research Claude Code's supported resume/session/control interface and implement the Claude active-session adapter in `src-tauri/src/harness_claude.rs` / shared bridge boundary. | Registered active Claude session receives one queued Hub task without `claude -p` replacement spawn; reply is attributed/scoped to the same work session; safe unavailable path covered. |
+| C12-GEMINI-BRIDGE | **Gemini** | Research Antigravity/`agy`'s supported active-conversation interface and implement the Gemini active-session adapter in `src-tauri/src/harness_gemini.rs` / shared bridge boundary. | Registered active Gemini/Antigravity session receives one queued Hub task without new `agy` spawn; reply records in the same work session; registration failures are visible. |
+
+**Chat/Codex (co-lead) follow-up:** review the three adapters for one typed
+registration/delivery/result contract, integrate the existing Codex
+app-server adapter into that contract, update the UI's transport state, and
+run the cross-harness C13 acceptance test after the assigned work lands.
