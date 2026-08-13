@@ -219,6 +219,9 @@ gap.
   runnable lint command. The supplied Next.js re-export/stack was removed:
   it referenced absent Next application files and dependencies, while Vite is
   the locked build and Pages deployment path.
+- Added root-level `docs:*` proxies for dev, build, test, lint, Cypress, and
+  TypeDoc so contributors can operate the isolated website package without
+  changing directories.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 

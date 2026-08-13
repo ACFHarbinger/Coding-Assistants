@@ -12,12 +12,21 @@ npm install
 npm run dev
 ```
 
+From the repository root, use `npm run docs:dev` instead. The root also
+proxies `docs:build`, `docs:test`, `docs:lint`, `docs:e2e`, and `docs:api`.
+
 `npm run build` generates documentation content artifacts, type-checks the
 website, and produces the static GitHub Pages-compatible build in `dist/`.
 
 The site uses `HashRouter` so deep links remain reliable under the repository
 GitHub Pages subpath. Fonts are bundled through `@fontsource`; no Google Fonts
 request is made at runtime.
+
+## Generated TypeScript API reference
+
+`npm run docs:api` generates a local Markdown TypeDoc reference for the
+website’s shared content types and search API in `api/typescript/`. It is a
+developer artifact, ignored by Git, and is not a second publishing pipeline.
 
 ## Continuous deployment
 

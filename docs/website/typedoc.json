@@ -1,0 +1,15 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/types.ts",
+    "src/features/navigation/searchIndex.ts"
+  ],
+  "out": "api/typescript",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "entryFileName": "README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "githubPages": false,
+  "name": "Coding-Assistants Documentation Website API"
+}

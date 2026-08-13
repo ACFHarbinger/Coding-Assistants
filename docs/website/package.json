@@ -14,6 +14,7 @@
     "test:integration": "vitest run tests/integration",
     "test:watch": "vitest",
     "lint": "eslint .",
+    "docs:api": "typedoc --options typedoc.json",
     "cypress:run": "cypress run --config-file tests/cypress/cypress.config.js",
     "cypress:smoke": "cypress run --config-file tests/cypress/cypress.config.js --spec 'tests/cypress/smoke/**/*.cy.js'"
   },
@@ -48,6 +49,8 @@
     "globals": "^16.3.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.12.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.1.0",

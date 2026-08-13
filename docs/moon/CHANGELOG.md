@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   globals and a runnable `npm run lint` script. Removed the incompatible
   unused Next.js re-export/stack: this site has no Next application or Next
   dependency, and its supported build and Pages path is Vite.
+- Replaced borrowed TypeDoc simulation entry points and Mobile Fortress naming
+  with the website’s shared types and search API. `npm run docs:api` now emits
+  an ignored local Markdown reference rather than creating a competing Pages
+  output.
+- Added root-package `docs:*` command proxies, including `npm run docs:dev`,
+  so the isolated Vite website can be launched and verified from the repository
+  root without mixing it with the desktop app toolchain.
 
 ### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
 

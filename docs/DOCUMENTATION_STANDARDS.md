@@ -11,7 +11,9 @@
   do not edit generated files under `docs/website/src/content/`.
 - **Website verification**: before changing published documentation, run `npm ci`,
   `npm test`, and `npm run build` from `docs/website`. The Pages workflow runs the
-  same commands and deploys only `docs/website/dist` from `main`.
+  same commands and deploys only `docs/website/dist` from `main`. Root-level
+  convenience commands (`npm run docs:dev`, `docs:build`, `docs:test`,
+  `docs:lint`, `docs:e2e`, and `docs:api`) proxy to this isolated package.
 - **Pages cutover and rollback**: verify the deployed URL, a HashRouter refresh,
   search, theme selection, and a Mermaid page after each production deployment. If
   production verification fails, restore the last known-good `main` revision and
