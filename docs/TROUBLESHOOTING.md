@@ -73,14 +73,15 @@ Common issues and their solutions when developing or running Coding Assistants.
 **Solutions**:
 
 1. Check the terminal for frontend compilation errors
-2. Verify the Vite dev server is running on port 1420:
+2. Verify the Vite dev server is running on the configured development port
+   (1420 by default):
    ```bash
-   curl http://localhost:1420
+   curl "localhost:${VITE_PORT:-1420}"
    ```
 3. Open DevTools (right-click -> Inspect in debug builds) and check the console for JavaScript errors
 4. Ensure `devUrl` in `tauri.conf.json` matches the Vite port:
    ```json
-   "devUrl": "http://localhost:1420"
+   "devUrl": "<local Vite server URL>"
    ```
 
 ### `invoke` calls fail with "command not found"
@@ -280,7 +281,7 @@ Common issues and their solutions when developing or running Coding Assistants.
 **Solutions**:
 
 1. This typically happens when many events accumulate. The event log grows unbounded during long tasks.
-2. Large agent responses can cause render bottlenecks. This is a known area for improvement (see [ROADMAP.md](ROADMAP.md)).
+2. Large agent responses can cause render bottlenecks. This is a known area for improvement (see [ROADMAP.md](moon/ROADMAP.md)).
 3. Avoid running agents with extremely verbose output settings.
 
 ### High memory usage
@@ -313,7 +314,9 @@ xattr -cr /path/to/Coding\ Assistants.app
 
 ### Windows: WebView2 missing
 
-Install Microsoft Edge WebView2 Runtime from [developer.microsoft.com](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+Install the Microsoft Edge WebView2 Runtime from Microsoft's official download
+page. Search for **Microsoft Edge WebView2 Runtime** if the vendor's download
+URL redirects in your browser or network environment.
 
 ---
 

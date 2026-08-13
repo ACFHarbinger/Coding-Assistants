@@ -139,11 +139,11 @@ docs/website/
 
 | # | Milestone | Scope | Exit criteria |
 | --- | --- | --- | --- |
-| W1 | Foundation and React setup | Replace Vue tooling with React 19 + TypeScript + Vite in isolated `docs/website`. HashRouter, Tailwind configured with desktop design tokens, self-hosted fonts, Vite Pages base. | `npm run build` succeeds; no Vue / `marked` / Google Fonts remain; dark shell renders with indigo/purple glass via Tailwind utilities. |
-| W2 | Content inventory & build script | `scripts/build-content.ts` parses the curated corpus (not all of `docs/**`), validates internal links and headings, builds MiniSearch JSON, fails on draft-in-production or broken nav links. | Deterministic content build; unpublished trees stay out of the manifest. |
-| W3 | Documentation reading experience | Glass sidebar, `react-markdown` article, scroll-aware TOC, heading anchors, prev/next, code copy, syntax highlighting, Mermaid.js. | All published docs render; keyboard nav and code copy work offline. |
-| W4 | Product landing page | Product-forward landing: hero with the abstract multi-agent architecture graphic, quick-start snippet, capability grid, docs + GitHub CTAs. Docs reader stays one click away. | Landing matches desktop glass theme, is fluidly responsive, and links into `/#/docs`. |
-| W5 | Search palette & theme toggle | `Cmd+K` / `Ctrl+K` MiniSearch palette; Dark/Light (optional System) toggle with persisted choice and zero theme flash. | Offline search ranks titles, headings, and body; theme works on every route; reduced-motion is honored. |
+| W1 | Foundation and React setup | Replace Vue tooling with React 19 + TypeScript + Vite in isolated `docs/website`. HashRouter, Tailwind configured with desktop design tokens, self-hosted fonts, Vite Pages base. | 🚧 **Partial** · React/Vite, HashRouter, Tailwind desktop tokens, local fonts, and before-paint theme boot are in place. The legacy `marked` renderer remains until W3 completes the locked React Markdown migration. |
+| W2 | Content inventory & build script | `scripts/build-content.ts` parses the curated corpus (not all of `docs/**`), validates internal links and headings, builds MiniSearch JSON, fails on draft-in-production or broken nav links. | ✅ **Done** · curated corpus, frontmatter, GitHub-compatible anchors, link validation/rewrites, unpublished-link records, and deterministic manifest/search artifacts are verified. |
+| W3 | Documentation reading experience | Glass sidebar, `react-markdown` article, scroll-aware TOC, heading anchors, prev/next, code copy, syntax highlighting, Mermaid.js. | 🚧 **Partial** · reader, navigation, TOC, copy controls, Prism highlighting, and Mermaid fallback exist. Replace `marked`/direct HTML with the locked `react-markdown` pipeline and render the public not-published notice before closing. |
+| W4 | Product landing page | Product-forward landing: hero with the abstract multi-agent architecture graphic, quick-start snippet, capability grid, docs + GitHub CTAs. Docs reader stays one click away. | 🚧 **In review (Grok)** · landing modules, Hub graphic, and indigo/purple brand mark landed. Pages visual QA remains. |
+| W5 | Search palette & theme toggle | `Cmd+K` / `Ctrl+K` MiniSearch palette; Dark/Light (optional System) toggle with persisted choice and zero theme flash. | 🚧 **In review (Grok)** · MiniSearch title-boost + keyboard palette; Dark/Light/System toggle; before-paint boot script; `@fontsource` fonts. |
 | W6 | CI/CD Pages deployment & cutover | Update `.github/workflows/docs.yml` to `npm ci` in `docs/website`, run content build + Vite, deploy `dist/`. Update contributor docs; retire MkDocs and `generate_docs_json.py`. | Site live on GitHub Pages; direct loads, refreshes, search, theme, and Mermaid verified. |
 | W7 | Polish | Social cards, recolored-mark favicon set, skip-link audit, mobile drawer, print stylesheet for articles, 404, AGPL footer. Optional later: Docker preview aligned with I1. | WCAG AA spot-check on landing + one long doc; no third-party network on first load. |
 
@@ -190,5 +190,3 @@ docs/website/
 | Theme & motion | Dark is default; light persists; first paint is not unstyled light; reduced-motion removes glow animation. |
 | Privacy | Built `index.html` / JS has no Google Fonts, analytics, or cookie banner. |
 | Deployment | GitHub Actions deploys static output to GitHub Pages. |
-
----
