@@ -24,7 +24,7 @@ export function LandingPage() {
             Coding-Assistants
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
-            A Slack-like hub on your machine for you and the coding agents you already run.
+            A local Messager hub on your machine for you and the coding agents you already run.
             Grok, Codex, Claude, and Gemini stay in one work session — no markdown bus required.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">

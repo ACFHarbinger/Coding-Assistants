@@ -35,9 +35,8 @@
   gate; do not represent a real harness delivery as verified without that exercise.
 - DeepSeek and Mistral provider work is complete.
 - The React documentation programme is tracked by epic #116 and work items #117–#123.
-  W1/W2 are complete; W3–W5 have passed local review and await shared Pages
-  acceptance; W6 awaits deployment verification; W7 is completing its print/404
-  follow-up.
+  W1/W2 are complete; W4/W5 have passed public Pages inspection; W6 is deployed;
+  W3 needs its focused reader repair and W7 is ready for its next deployment.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
 
@@ -46,7 +45,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | Chat / Codex | #122 — W6 deployment and cutover | Replace the MkDocs Pages workflow with the verified React-site build and deployment flow; update contributor guidance and retain a safe rollback path. Remove legacy MkDocs assets only after the deployed Pages site is verified. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
-| Gemini | #119 — W3 documentation reader | Review complete; remain available for the shared Pages acceptance pass and address only reader defects discovered there. | Do not change deployment workflow or shared shell without a new assignment. |
+| Gemini | #119 — W3 documentation reader | Fix the public-site reader regressions found in Pages acceptance: replace remaining cyan/fixed-dark reader chrome with locked indigo/purple and theme tokens, and ensure React Markdown's internal `node` prop is not emitted to DOM code elements. Add focused regression coverage and verify build. | Own `docs/website/src/features/docs/` and reader-focused tests only. Do not change deployment workflow, landing/navigation, or W7 print/404 files. |
 | Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
 | Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
 
@@ -168,13 +167,32 @@ gap.
 - Assigned Claude the remaining W7 print and custom-404 scope. Gemini and Grok
   are on focused Pages-acceptance standby to avoid overlapping changes.
 
+### Chat / Codex — Pages deployment and W3 live-site regression handoff
+
+- Enabled workflow-backed GitHub Pages and deployed commit `9fa3bce`; the React
+  workflow passed build, test, artifact upload, and deployment. The public URL
+  serves the expected title and relative asset paths.
+- Public rendered-DOM inspection found remaining reader cyan/fixed-dark chrome
+  plus React Markdown leaking an internal `node` prop onto code elements.
+  Assigned Gemini the focused W3 repair; W4/W5 and W7 ownership remains
+  unchanged.
+
+### Chat / Codex — public landing acceptance correction
+
+- Confirmed the deployed landing layout, Hub graphic, navigation, and CTAs at
+  desktop width. Replaced the remaining public “Slack-like” wording with
+  Messager and added a landing regression test.
+- Reviewed Claude's W7 print/404 implementation. It is ready for the next
+  deployment; unknown document slugs should join Gemini's reader repair so
+  they use the custom 404 instead of silently falling back to the default doc.
+
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 
 Per Chat's review: taking the two remaining W7 items — a print stylesheet
 for doc articles and a custom 404 recovery page (the roadmap's `*` route
 currently just redirects to `/`, no dedicated not-found experience). Files:
 `docs/website/src/styles/` (print rules), a new
-`docs/website/src/features/not-found/` page, and `main.tsx`'s `*` route
+`docs/website/src/features/errors/` page, and `main.tsx`'s `*` route
 only (swapping the blind `<Navigate to="/" />` for the new page) — not
 touching docs reader internals, landing/nav chrome, or the Pages workflow.
 
@@ -190,7 +208,7 @@ Both remaining W7 items from Chat's review, in `91076ed` (docs in `8e17bb2`):
   light background regardless of on-screen theme, avoids page breaks
   inside code/tables/blockquotes/images, appends external link URLs after
   link text, hides copy buttons.
-- **Custom 404**: `src/features/not-found/NotFoundPage.tsx` replaces the
+- **Custom 404**: `src/features/errors/NotFoundPage.tsx` replaces the
   old blind `<Navigate to="/" replace />` on the `*` route (necessary
   since HashRouter never round-trips a bad path to a server). Shows the
   attempted path, a Cmd+K/Ctrl+K search hint, and Home/Docs/GitHub links.

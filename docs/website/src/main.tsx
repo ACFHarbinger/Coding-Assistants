@@ -11,7 +11,7 @@ import { AppShell } from "./app/AppShell";
 import { ThemeProvider } from "./app/ThemeProvider";
 import { DocsLayout } from "./features/docs/DocsLayout";
 import { LandingPage } from "./features/landing/LandingPage";
-import { NotFoundPage } from "./features/not-found/NotFoundPage";
+import { NotFoundPage } from "./features/errors/NotFoundPage";
 import "./styles/index.css";
 
 const root = document.getElementById("root");

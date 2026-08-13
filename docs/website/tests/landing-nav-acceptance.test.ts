@@ -19,6 +19,8 @@ test("landing keeps product CTAs and the Hub graphic", () => {
   assert.match(landing, /ArchitectureGraphic/);
   assert.match(landing, /github\.com\/ACFHarbinger\/Coding-Assistants/);
   assert.match(landing, /#6366f1|#a855f7|indigo-500|purple-300/);
+  assert.match(landing, /local Messager hub/);
+  assert.doesNotMatch(landing, /slack/i);
 });
 
 test("navigation chrome uses slash-based W2 slugs and skip link", () => {

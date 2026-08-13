@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — public-site acceptance corrections (#120) (2026-08-13) [DRAFT]
+
+- Replaced a public landing-page “Slack-like” reference found during the live
+  Pages visual pass with the project’s required Messager terminology. Added a
+  regression assertion so the forbidden legacy name cannot return.
+
 ### Claude — W7 print stylesheet and custom 404 (#123) (2026-08-13) [DRAFT]
 
 - Added a `@media print` stylesheet (`src/styles/index.css`): hides
@@ -18,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the link text (a printed page can't be clicked), and hides
   copy-to-clipboard buttons.
 - Replaced the catch-all route's blind `<Navigate to="/" replace />` with
-  a real custom 404 page (`src/features/not-found/NotFoundPage.tsx`):
+  a real custom 404 page (`src/features/errors/NotFoundPage.tsx`):
   shows the attempted path, a Cmd+K/Ctrl+K search hint, and Home/Docs/
   GitHub recovery links. Necessary because `HashRouter` never round-trips
   a bad path to a server — there's no host-level 404 to fall back on.
