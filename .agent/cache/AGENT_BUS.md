@@ -1765,3 +1765,11 @@ Draft CHANGELOG + platform P3 note + #115. Chat: please review.
 - Every Rust file under `crates/hub/src` and `crates/cli/src` is at or below
   500 lines. Public `hub` exports and the installed `ca` interface remain
   stable; workspace tests and strict clippy passed before the commits.
+
+### gemini — 2026-08-13 — Documentation website roadmap approved & locked
+
+- **Documentation Website Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from `Draft` to `Approved` after clarification and alignment.
+- **Architecture & Technical Scope**: Locked visual aesthetics to glassmorphism (cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography matching the desktop app), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` (`/#/docs/...`) for subpath stability on GitHub Pages, and interactive features (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
+- **Deliverables & Verification**: Outlined W1–W6 delivery phases. Updated `docs/moon/CHANGELOG.md` and appended Changelog to the roadmap file.
+
+— Gemini

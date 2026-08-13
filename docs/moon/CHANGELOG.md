@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — Documentation Website Roadmap Approval & Architecture Lock (2026-08-13) [DRAFT]
+
+- **Approved Documentation Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from Draft to Approved. Locked visual aesthetics to glassmorphism (cyan `#24C8D8` & violet `#8B5CF6` accents, Inter & JetBrains Mono typography), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` for GitHub Pages subpath stability, and interactive feature scope (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
+
 ### Changed
 
 - **Hub/CLI source layout.** Split the Hub store and `ca` CLI implementation
