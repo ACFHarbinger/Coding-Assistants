@@ -13,7 +13,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Docs', path: '/docs' },
-    { label: 'Roadmap', path: '/docs/moon-roadmaps-documentation' },
+    { label: 'Roadmap', path: '/docs/moon/roadmaps/documentation' },
     { label: 'Changelog', path: '/docs/changelog' },
   ];
 
@@ -119,7 +119,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           <p>© 2026 Coding-Assistants. Licensed under <a className="underline hover:text-indigo-300" href="https://github.com/ACFHarbinger/Coding-Assistants/blob/main/LICENSE">AGPL-3.0</a>.</p>
           <div className="flex items-center space-x-4">
             <Link to="/docs" className="hover:text-cyan-400 transition-colors">Documentation</Link>
-            <Link to="/docs/moon-roadmaps-communication" className="hover:text-cyan-400 transition-colors">Roadmap</Link>
+            <Link to="/docs/moon/roadmaps/communication" className="hover:text-cyan-400 transition-colors">Roadmap</Link>
             <a href="https://github.com/ACFHarbinger/Coding-Assistants" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">GitHub</a>
           </div>
         </div>
