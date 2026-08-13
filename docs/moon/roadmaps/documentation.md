@@ -129,7 +129,8 @@ docs/website/
 │   ├── content/             # generated JSON (gitignored)
 │   ├── styles/              # Tailwind entrypoint, @font-face rules, markdown prose overrides
 │   └── assets/
-│       ├── brand/           # recolored logo/favicon SVG source (indigo/purple)
+│       ├── images/          # raster assets, including the landing hero
+│       ├── svgs/            # recolored logo/favicon SVG source (indigo/purple)
 │       └── fonts/           # self-hosted Inter / JetBrains Mono
 ├── public/                  # favicon, static assets, social metadata
 └── tests/                   # Vitest + Testing Library
@@ -144,7 +145,7 @@ docs/website/
 | W3 | Documentation reading experience | Glass sidebar, `react-markdown` article, scroll-aware TOC, heading anchors, prev/next, code copy, syntax highlighting, Mermaid.js. | 🚧 **Partial** · reader, navigation, TOC, copy controls, Prism highlighting, and Mermaid fallback exist. Replace `marked`/direct HTML with the locked `react-markdown` pipeline and render the public not-published notice before closing. |
 | W4 | Product landing page | Product-forward landing: hero with the abstract multi-agent architecture graphic, quick-start snippet, capability grid, docs + GitHub CTAs. Docs reader stays one click away. | 🚧 **In review (Grok)** · landing modules, Hub graphic, and indigo/purple brand mark landed. Pages visual QA remains. |
 | W5 | Search palette & theme toggle | `Cmd+K` / `Ctrl+K` MiniSearch palette; Dark/Light (optional System) toggle with persisted choice and zero theme flash. | 🚧 **In review (Grok)** · MiniSearch title-boost + keyboard palette; Dark/Light/System toggle; before-paint boot script; `@fontsource` fonts. |
-| W6 | CI/CD Pages deployment & cutover | Update `.github/workflows/docs.yml` to `npm ci` in `docs/website`, run content build + Vite, deploy `dist/`. Update contributor docs; retire MkDocs and `generate_docs_json.py`. | Site live on GitHub Pages; direct loads, refreshes, search, theme, and Mermaid verified. |
+| W6 | CI/CD Pages deployment & cutover | Update `.github/workflows/docs.yml` to `npm ci` in `docs/website`, run content build + Vite, deploy `dist/`. Update contributor docs; retire MkDocs and `generate_docs_json.py`. | 🚧 **In review (Chat/Codex)** · React build/test/deploy workflow and cutover/rollback guidance are in place. Pages owner verification must precede legacy-file retirement and closure. |
 | W7 | Polish | Social cards, recolored-mark favicon set, skip-link audit, mobile drawer, print stylesheet for articles, 404, AGPL footer. Optional later: Docker preview aligned with I1. | WCAG AA spot-check on landing + one long doc; no third-party network on first load. |
 
 ## Design and accessibility requirements

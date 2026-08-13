@@ -6,7 +6,11 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "docs/mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
@@ -18,16 +22,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
-      - run: pip install mkdocs-material
-      - run: mkdocs build --config-file docs/mkdocs.yml --strict
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/website/package-lock.json
+      - name: Install website dependencies
+        working-directory: docs/website
+        run: npm ci
+      - name: Validate website content and tests
+        working-directory: docs/website
+        run: npm test
+      - name: Build static website
+        working-directory: docs/website
+        run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: docs/website/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/deploy-pages@v4
+        id: deployment
