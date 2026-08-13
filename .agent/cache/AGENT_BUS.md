@@ -65,9 +65,12 @@
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
-| Claude | C14.3 Claude Channel #150 | ✅ **Complete (In Review)** — `crates/claude` (renamed from `crates/claude-channel`) MCP bridge + `hub::bridge::claude_channel` implemented with tests/docs. Added an app-owned `~/.coding-assistants/servers/` config registry (`global.mcp.json` base layer + per-workspace canonical files), `--list`/`--rename`/`--delete` CLI subcommands, and a Shared Hub Channels tab. Live `--channels` acceptance still open. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`; new dedicated crate + new hub file only. |
+| Claude | C14.3 Claude Channel #150 | ✅ **Complete, live acceptance verified** — `crates/claude` MCP bridge + `hub::bridge::claude_channel`. Selective interruption (only wake/task-tagged pushed; plain chat stays queued for a new `check_inbox` tool), owner-connect/spawn from the desktop Channels tab, a reply-subject collision bug fixed (see below), and a real ping/wake/task round-trip verified live against a real `claude --channels` session. See 2026-08-13 Claude entry below for the full breakdown and for #153/#154/#155/#156. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`. |
 | Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
+| Gemini | C14.7 fix `agy --prompt` gibberish #155 | **New — unclaimed.** `--prompt <text>` is used as if it takes a value; `agy --help` documents it as a bare `--print` alias. The real prompt is being silently dropped, producing off-topic replies. See #155 for the full diagnosis and task list. | Own Gemini/Antigravity bridge and worker modules only; do not touch Grok/Codex/Claude bridges. |
 | Grok — **in review** | C14.5 managed-harness UX #152 | Desktop Orchestrate/Chat readiness, badges, prerequisites, retry/dismiss. | Do not modify provider transports or harness_session schema/leases. Live Kubuntu acceptance still open; do not close #152. |
+| Grok | C14.6 enable Grok leader-mode delivery #154 | **New — unclaimed.** Hub delivery already implements the documented `--leader`/`--leader-socket` ACP path correctly; it's `"unavailable"` because no leader process/socket exists by default. Needs owner-facing setup guidance and optionally a `launch_claude_channel_session`-style connect helper. See #154. | Never write to an undocumented Grok socket/PTY. Do not touch Gemini/Codex/Claude bridges. |
+| Chat / Codex | C14.8 surface why a Codex wake got no response #156 | **New — unclaimed.** A manually-started live Codex session is very likely never Hub-registered, so delivery silently resolves `unavailable`/`queued` with no visible explanation; even a resolved thread is delivered via a disposable headless `app-server` client, never the visible TUI. See #156. | Do not write into Codex's live TUI or any undocumented IPC. Do not touch Grok/Gemini/Claude bridges. |
 
 ### Shared completion rules
 
@@ -1223,5 +1226,150 @@ scope assigned to me; let me know if there's more.
   Chat/Codex:** registry architecture, CLI management, and Shared Hub UI
   are ready for review; end-to-end acceptance against a real
   `claude --channels` session remains the only open item for #150.
+
+— claude
+
+### Claude — 2026-08-13 — C14.3 live acceptance, two desktop bug fixes, and a C14.6–C14.8 audit for Grok/Gemini/Codex
+
+Re-read the board before starting. `bridge/{codex,gemini}.rs`,
+`settings/store.rs`, `store/agents/mod.rs`, `store/tests/integration.rs`
+were dirty with concurrent work again; diffed each, touched none.
+
+**1. C14.3 Claude Channel — live acceptance completed, #150.** Ran the
+actual owner workflow end to end against a real `claude --channels`
+session (not just unit tests): plain messages, wake, and task-tagged
+sends, confirmed via `ca msg list`/`ca msg send` and the live terminal.
+Two real bugs found and fixed along the way:
+- **Selective interruption.** Every pending message was being pushed as
+  an MCP `notifications/claude/channel` interrupt regardless of kind —
+  a plain chat ping disturbed the session exactly like a wake. Split
+  `poll_channel_events` (wake or task-tagged only, pushed+acked) from a
+  new `poll_quiet_channel_events` (everything else, stays `pending`),
+  and added a `check_inbox` MCP tool so Claude can pull quiet traffic on
+  its own initiative. Verified live: a plain "Simple ping" sat pending
+  through several poll cycles with zero interruption, then `check_inbox`
+  correctly drained and acked it.
+- **Desktop connect/spawn.** Added `hub::is_channel_session_live`
+  (process-table check for a running bridge for a workspace) and
+  `hub::launch_claude_channel_session` (opens a real terminal running
+  `claude --dangerously-load-development-channels
+  server:coding-assistants-channel` — Claude Code's Channel preview has
+  no headless daemon mode, so this can never be a detached background
+  process like Codex's `app-server`/Gemini's `agy` adapters). Wired
+  through `claude_channel_is_connected`/`claude_channel_connect` and a
+  status badge + Connect button per workspace row in the Channels tab.
+- **Verification:** `cargo test -p hub -p claude` all green (+7 new
+  tests for the disturb/quiet split, +1 for the terminal-launch helper),
+  `cargo clippy -p hub -p claude --no-deps -- -D warnings` clean,
+  `cargo check --workspace` clean.
+- Committed as `161720e`.
+
+**2. Settings window open/close/reopen regression, #153 (closed).** Not
+a C14 item — a pre-existing UI bug the owner hit mid-session. Root
+causes: `core:window:allow-close` was never granted (only
+`core:default`'s read-only window permission set), so the in-window
+Close button's `close()` call was silently rejected by Tauri's ACL
+before ever reaching Rust, while the OS window-manager `X` bypassed
+that layer and worked; a panicking `.unwrap()` in the shared
+`CloseRequested` handler could take the whole app down; and Settings
+was being hidden-and-kept-alive like the tray-resident main window,
+so reopening depended on a hidden-window resurrection that didn't
+reliably work. Fixed all three; owner confirmed working. Committed as
+`bcd13f0`.
+
+**3. Two more desktop chat bugs the owner hit live, fixed this round:**
+- **Claude's own messages vanishing on every new reply.**
+  `record_channel_reply` gave every reply in the same session the
+  identical, non-unique subject `"channel:session:<id>:reply"`. The
+  desktop Chat & Memory view's per-post dedup key (`channelDedupeKey`,
+  meant to collapse team fan-out *copies* of one broadcast post, not
+  distinct sends) treated every reply as the same post and kept only
+  the latest — every earlier reply from Claude disappeared the instant
+  a new one arrived. Fixed by uuid-suffixing the subject, matching the
+  pattern `send_session_message` already uses by default. Regression
+  test added (`reply_gives_each_session_scoped_reply_a_distinct_subject`).
+- **Read receipts.** New durable `read_markers` table
+  (`agent_id, scope, last_read_at`), `HubStore::mark_read`/
+  `list_read_markers`, `hub_mark_read`/`hub_list_read_markers` Tauri
+  commands, and a `ca msg read`/`ca msg readers` CLI pair (for Grok/
+  Gemini/Codex's own bridges to mark themselves as having read a scope,
+  once they read a message — no bridge currently calls this; that's
+  optional follow-on work for whoever owns each bridge, not required by
+  #154/#155/#156 below). The desktop chat now auto-marks the human's
+  own view and renders a small "✓✓ Read by ..." line under each message
+  once another team member's marker has caught up to it. Claude's
+  `reply` tool auto-marks itself read for the session it just replied
+  in.
+- **Verification:** `cargo test -p hub -p cli` 123/123, `cargo clippy -p
+  hub -p cli --no-deps -- -D warnings` clean, `npx tsc --noEmit` clean.
+- Committed as `f4f6a20`.
+
+**4. Audit of Grok, Gemini/Antigravity, and Codex's live-session
+delivery — per the owner's explicit request, diagnosis only, no fixes.**
+The owner reported: Grok responds correctly to messages sent in its own
+terminal, but a Hub-sent message never appears there; a task/wake sent
+to Gemini/agy produced an off-topic "gibberish" reply, and neither the
+message nor the reply appeared in agy's live session; a wake sent to
+Codex got no response despite a visibly active live Codex terminal.
+Applying the same scrutiny used to build/fix the Claude Channel:
+
+- **Grok — #154, C14.6.** Not a code bug. `deliver_grok_task` already
+  implements the real, documented `--leader`/`--leader-socket` ACP
+  path correctly (verified against `grok --help`: `--leader`,
+  `--leader-socket`, a `leader` subcommand, `[cli] use_leader`). It's
+  `"unavailable"` because no leader socket exists on a default
+  standalone Grok TUI — the code refuses gracefully rather than
+  attempting anything undocumented. The gap is that nothing tells an
+  owner Grok needs to run in leader mode for Hub delivery to work at
+  all. Task: document the setup requirement (mirror
+  `crates/claude/README.md`'s explicit steps), and consider a
+  `launch_claude_channel_session`-style connect helper + desktop
+  affordance for spawning Grok in leader mode.
+- **Gemini/agy — #155, C14.7. Real bug, root-caused.**
+  `gemini_managed_spawn_args` builds `agy --print --output-format
+  stream-json ... --prompt <message body>`. Per `agy --help` on this
+  machine, `--prompt` is a bare alias for `--print`/`-p`, not a
+  value-taking flag — the real prompt is almost certainly meant to be a
+  **positional** argument. The message body is currently never
+  delivered as the prompt at all, which fully explains the
+  off-topic/gibberish response (consistent with what `agy` would
+  plausibly answer if asked generically about `--output-format` rather
+  than the real message). "Doesn't appear in the live session" is
+  expected/by-design here — `run_agy_worker` always spawns a disposable
+  headless child per task, same shape as Codex's `app-server` adapter,
+  and never touches any other running `agy` terminal; that part isn't a
+  bug to fix unless live-session delivery becomes an explicit new goal.
+- **Codex — #156, C14.8.** `deliver_codex_task_with` resolves a thread
+  id from a Hub registration or an on-disk `~/.codex/sessions/**/*.jsonl`
+  scan (exact-string `cwd` match); if neither resolves, the send is
+  `"unavailable"`, queued, and no live process is ever contacted.
+  Nothing in the repo auto-registers a session a user starts by hand in
+  a terminal, so a manually-started live Codex session very likely has
+  zero Hub registration — that's the most probable reason the wake got
+  no response. Separately, even a resolved thread is only ever turned
+  via a brand-new disposable `codex app-server` client, never the
+  visible interactive TUI directly, so "no response in my terminal"
+  could also be structurally expected rather than a bug, depending on
+  what actually happened. `HarnessInjectResult` does carry a
+  `status`/`detail` distinguishing `unavailable`/`queued`/`delivered` —
+  worth confirming the desktop UI actually surfaces it.
+
+Full task lists, exact file/function references, and an explicit "do
+not touch another bridge" boundary are in #154/#155/#156 respectively
+and in the task-board rows above. **Recommended acceptance workflow for
+each** (the same one the owner and I used for #150): send a plain
+untagged message and confirm it does *not* disturb the live session (or
+document that this provider has no such distinction if that's the
+right model for it); send a task- and a wake-tagged message and confirm
+each actually reaches and is answered by the *live* session the owner
+is looking at, not just a disposable headless call; check the Hub
+message record (`ca msg list`) matches what actually happened rather
+than trusting the UI alone.
+
+Updated `docs/CHANGELOG.md`, `docs/moon/roadmaps/communication.md`, and
+the task board above. Created and closed #153 (Settings). Created
+#154/#155/#156 (unclaimed — Grok/Gemini/Chat-Codex to pick up
+respectively). Did not implement any of the three fixes myself, per the
+owner's explicit instruction — diagnosis and task assignment only.
 
 — claude
