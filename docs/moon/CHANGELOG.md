@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — C12 Claude harness capture adapter (2026-08-13) [DRAFT]
+
+- Grok's shared `ca_hub::harness` contract already covers Claude start/inject
+  generically (`claude_spawn_args` + explicit `-p <prompt>` argv, no shell,
+  no TUI attach) — nothing Claude-specific was needed there.
+- The real gap was **capture**: unlike Codex's `app-server` JSONL-RPC stream,
+  Claude Code has no live query surface, but it does write its own session
+  transcript to `~/.claude/projects/<workspace-with-slashes-as-dashes>/
+  <session-id>.jsonl` — the same directory the official `claude` CLI itself
+  reads to render `/resume`. Reverse-engineered this the same way as the
+  Claude Code usage-quota endpoint: real on-disk data, not a mock.
+- New `src-tauri/src/harness_claude.rs`: `capture_claude_session` finds the
+  most recently modified transcript for a workspace (or an explicit
+  `session_id`), extracts only final assistant **text** replies (skipping
+  `thinking`/`tool_use` blocks, which aren't authored messages to the team),
+  and records each through the existing `hub_record_harness_capture`
+  content-hash dedup — safe to call repeatedly (e.g. on every "Refresh")
+  rather than needing a background watcher. Exposed as
+  `hub_capture_claude_session`.
+- Real (not mocked) tests: workspace-path encoding matches the official
+  CLI's own scheme, text-vs-thinking/tool_use filtering, most-recent-file
+  selection, explicit session-id override, repeat-poll dedup, and a
+  missing-transcript no-op. Plus a `#[ignore]`d manual smoke test (same
+  pattern as the Claude Code quota adapter's live test) that ran for real
+  against this machine's actual `~/.claude/projects` data: found and
+  captured 40 real assistant text replies from this session's own
+  transcript.
+- 28 `ca-hub` + 16 `tauri-app` tests pass (1 ignored by design);
+  clippy/fmt clean.
+- Not wired into the UI yet — `hub_capture_claude_session` needs a caller
+  (e.g. a periodic poll or a "Refresh" action in the session view) to
+  actually feed captures into the transcript live; that's C12's remaining
+  UI-integration slice, alongside Gemini's Antigravity adapter and Chat's
+  Codex wrap/audit pass.
+
 ### Chat / Codex — C12 tagged-delivery dispatch bridge (2026-08-13) [DRAFT]
 
 - Connected accepted task/wake recipients in a work-session chat to the C12
