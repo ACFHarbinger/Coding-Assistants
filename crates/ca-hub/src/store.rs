@@ -904,7 +904,9 @@ impl HubStore {
             }
         }
 
-        // One-time default roster after agents exist. Later enroll/unenroll persists.
+        // Team membership is an explicit user action. A fresh Hub starts with
+        // only its human owner; agents become session members through the
+        // Orchestrate "Add to team" control or an explicit wake.
         let roster_seeded: Option<String> = self
             .conn
             .query_row(
@@ -915,11 +917,37 @@ impl HubStore {
             .optional()?;
         if roster_seeded.is_none() {
             self.conn.execute(
-                "UPDATE agents SET team_member = 1 WHERE id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                "UPDATE agents SET team_member = CASE WHEN id = 'human' THEN 1 ELSE 0 END",
                 [],
             )?;
             self.conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '1')",
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '2')",
+                [],
+            )?;
+        } else if roster_seeded.as_deref() == Some("1") {
+            // Version 1 silently seeded every primary agent. Migrate only the
+            // exact untouched legacy default, preserving any roster that a
+            // user has actually changed.
+            let legacy_default_count: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM agents
+                 WHERE team_member = 1 AND id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                [],
+                |row| row.get(0),
+            )?;
+            let custom_member_count: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM agents
+                 WHERE team_member = 1 AND id NOT IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                [],
+                |row| row.get(0),
+            )?;
+            if legacy_default_count == 5 && custom_member_count == 0 {
+                self.conn.execute(
+                    "UPDATE agents SET team_member = CASE WHEN id = 'human' THEN 1 ELSE 0 END",
+                    [],
+                )?;
+            }
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '2')",
                 [],
             )?;
         }
@@ -3520,9 +3548,49 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn fresh_and_untouched_legacy_rosters_require_explicit_agent_enrollment() {
+        let fresh_dir = tempdir().unwrap();
+        let fresh = HubStore::open(fresh_dir.path()).unwrap();
+        let fresh_members: Vec<_> = fresh
+            .list_team_members()
+            .unwrap()
+            .into_iter()
+            .map(|agent| agent.id)
+            .collect();
+        assert_eq!(fresh_members, vec!["human"]);
+
+        let legacy_dir = tempdir().unwrap();
+        let legacy = HubStore::open(legacy_dir.path()).unwrap();
+        legacy
+            .conn
+            .execute(
+                "UPDATE agents SET team_member = 1 WHERE id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
+                [],
+            )
+            .unwrap();
+        legacy
+            .conn
+            .execute(
+                "UPDATE meta SET value = '1' WHERE key = 'team_roster_seeded'",
+                [],
+            )
+            .unwrap();
+        drop(legacy);
+        let migrated = HubStore::open(legacy_dir.path()).unwrap();
+        let migrated_members: Vec<_> = migrated
+            .list_team_members()
+            .unwrap()
+            .into_iter()
+            .map(|agent| agent.id)
+            .collect();
+        assert_eq!(migrated_members, vec!["human"]);
+    }
+
+    #[test]
     fn memory_message_wake_roundtrip() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("claude", true).unwrap();
 
         let mem = store
             .write_memory(
@@ -3880,6 +3948,9 @@ mod tests {
     fn team_broadcast_uses_enrolled_roster_and_includes_human() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        for agent in ["claude", "chat", "gemini", "grok"] {
+            store.set_team_member(agent, true).unwrap();
+        }
 
         store.upsert_agent("process:1", "Codex · PID 1").unwrap();
         store.upsert_agent("a2a-peer", "a2a-peer").unwrap();
@@ -4483,7 +4554,7 @@ mod tests {
     fn work_sessions_start_with_the_team_and_accept_later_team_members() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
-        store.set_team_member("claude", false).unwrap();
+        store.set_team_member("grok", true).unwrap();
 
         let session = store.create_work_session("Cloud sync design").unwrap();
         assert!(session.member_ids.contains(&"human".to_string()));
@@ -4514,6 +4585,7 @@ mod tests {
     fn c11_task_tag_rejects_absent_recipient_without_side_effects() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("grok", true).unwrap();
         // "outsider" has never been seen, so it starts out absent.
         let outcomes = store
             .send_tagged_message(
@@ -4591,6 +4663,7 @@ mod tests {
     fn c11_task_and_wake_together_apply_both_rules_per_recipient() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("grok", true).unwrap();
         let session = store.create_work_session("Cloud sync design").unwrap();
 
         let outcomes = store
@@ -4682,6 +4755,8 @@ mod tests {
     fn c10_session_send_persists_the_explicit_recipient_set() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("grok", true).unwrap();
+        store.set_team_member("claude", true).unwrap();
         let session = store.create_work_session("C10 recipients").unwrap();
         let recipients = vec!["grok".to_string(), "claude".to_string()];
         let messages = store

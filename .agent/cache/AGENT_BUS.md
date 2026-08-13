@@ -1571,6 +1571,9 @@ by design); clippy/fmt clean; `npx tsc --noEmit` clean.
   Grok-only reply: the prior injector had launched a new Grok process; it had
   not attached to the already-running Grok session. Explicit wakes still
   spawn by design.
+- Corrected the implicit roster seed: fresh hubs and untouched legacy default
+  rosters now retain only `human`. Any agent must be explicitly added before
+  it is a valid task target; customized legacy rosters are preserved.
 - **Available for Grok allocation:** complete C9/C12's missing active-harness
   delivery bridge. It needs an explicit per-harness registration/adapter
   contract that receives a queued task from the Hub and forwards it into the

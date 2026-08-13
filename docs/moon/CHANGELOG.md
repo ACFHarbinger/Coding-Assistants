@@ -51,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   harness adapter must consume them. Explicit wake posts retain spawn
   behavior. Gemini/Antigravity now launches the installed `agy` executable,
   rather than the nonexistent `gemini` binary.
+- **Explicit team enrollment:** new hubs now start with the human owner only.
+  An untouched legacy default roster is migrated the same way, so agents must
+  be deliberately added to the team/session before task delivery is accepted.
 - **C12 partial injection failure visibility:** Chat & Memory now waits for
   every selected harness injection and reports each rejected/unavailable
   delivery in the existing owner alert. A durable session post is not hidden
