@@ -69,7 +69,9 @@ fn hub_send_message_rejects_untagged_wake_kind() {
 /// test that sets it must not run concurrently with another one doing
 /// the same (Rust's default test runner is multi-threaded within one
 /// binary). Every test below acquires this before touching `CA_HOME`.
-static CA_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
+/// `pub(crate)` so other `#[cfg(test)]` modules touching `CA_HOME` (e.g.
+/// `crate::harness::commands::tests`) coordinate on the same lock.
+pub(crate) static CA_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn tauri_hub_commands_retrieve_what_the_store_wrote() {
@@ -484,6 +486,58 @@ fn settings_profile_and_harness_commands_are_redacted_and_durable() {
         inject_permission: true,
     });
     assert!(rejected_shell.is_err(), "{rejected_shell:?}");
+
+    std::env::remove_var("CA_HOME");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// S5 / #131: `hub_export_markdown`/`hub_export_markdown_git` must consume
+/// the persisted `export_enabled` orchestration policy, not just store it.
+#[test]
+fn export_commands_honor_the_persisted_export_enabled_policy() {
+    let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "hub-tauri-export-policy-{}-{}",
+        std::process::id(),
+        now_unix()
+    ));
+    std::env::set_var("CA_HOME", &dir);
+
+    // Export is enabled by default: a fresh install must not be blocked.
+    settings_update_orchestration(
+        None,
+        OrchestrationPatch {
+            confirm_new_enrollment: None,
+            confirm_broadcast: None,
+            auto_enrollment_allowed: None,
+            sandbox_strictness: None,
+            export_enabled: Some(false),
+        },
+    )
+    .expect("disable export via Settings");
+
+    let blocked = hub_export_markdown();
+    assert!(blocked.is_err(), "{blocked:?}");
+    assert!(blocked
+        .unwrap_err()
+        .contains("disabled by orchestration policy"));
+
+    let blocked_git = hub_export_markdown_git(None);
+    assert!(blocked_git.is_err(), "{blocked_git:?}");
+
+    settings_update_orchestration(
+        None,
+        OrchestrationPatch {
+            confirm_new_enrollment: None,
+            confirm_broadcast: None,
+            auto_enrollment_allowed: None,
+            sandbox_strictness: None,
+            export_enabled: Some(true),
+        },
+    )
+    .expect("re-enable export via Settings");
+
+    hub_export_markdown().expect("export must succeed once re-enabled");
 
     std::env::remove_var("CA_HOME");
     let _ = std::fs::remove_dir_all(&dir);

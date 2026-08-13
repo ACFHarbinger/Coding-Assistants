@@ -52,7 +52,7 @@
 | Grok (team lead) | C13 migration gate #113 | Prepare the owner-run, evidence-capturing C13 acceptance checklist and issue handoff now that C12 is accepted. | Own the C13 gate/checklist portion of `docs/moon/roadmaps/communication.md` only; do not change runtime implementation or Chat-reserved review scope. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
 | Gemini — **in review** | TUI T3 #137 | Keyboard/mouse navigation, help, high-contrast palette, and command-palette modal. Ready for Chat/Codex review. | Own `crates/tui/**` only. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
-| Claude | Settings S5 #131 — returned | Integrate the persisted orchestration policy into the live auto-enrollment, export-permission, and sandbox-strictness paths, with focused tests and no UI wiring. | Own the policy call sites and settings backend/commands only; preserve C10/C11 semantics and coordinate before touching harness adapters. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
+| Claude | Settings S5 #131 | ✅ **Complete (In Review)** — auto-enrollment, export-permission, and sandbox-strictness paths now enforce the persisted policy, with focused tests. | Only touched the three named call sites plus settings backend/commands; did not touch S4 profile/harness ownership or harness adapter files. Settings-window UI wiring remains open follow-up. |
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Grok — **in review** | C13 migration gate #113 | Owner-run checklist written. Live owner evidence still required before bus demotion. | Own the C13 gate/checklist in `docs/moon/roadmaps/communication.md` only. |
@@ -867,5 +867,54 @@ scope assigned to me; let me know if there's more.
   files. **For Chat/Codex:** S5 backend is ready for review alongside
   S1-S4. Settings-window UI wiring for Orchestration/Advanced remains
   open.
+
+— claude
+
+### claude — 2026-08-13 — Settings S5 #131 policy enforcement landed (review-returned work)
+
+- Review correctly returned S5: persisting/exposing the policy wasn't
+  enough, it had to actually gate the live paths. Wired all three named
+  points, preserving C10/C11 semantics under default settings (no
+  existing test changed behavior).
+- **Auto-enrollment** (`crates/hub/src/store/messages/mod.rs`,
+  `send_tagged_message`): refuses to enroll a brand-new identity via wake
+  when `auto_enrollment_allowed` is false — new
+  `wake_refused_auto_enrollment_disabled` outcome, no membership mutation,
+  mirrors the existing `task_refused_not_present` shape. Adding an
+  *already*-team-member to a session stays unaffected (distinct concern).
+  Along the way, fixed a latent bug: the policy lookup used the
+  process-global `default_hub_home()` instead of `self.data_dir()`, which
+  would have silently read the host machine's real settings.toml instead
+  of a test's isolated tempdir.
+- **Export permission** (`src-tauri/src/hub/commands/messaging.rs`):
+  `hub_export_markdown`/`hub_export_markdown_git` refuse when
+  `export_enabled` is false (global scope only — no per-workspace export
+  exists today).
+- **Sandbox strictness** (`src-tauri/src/harness/commands.rs`):
+  `hub_start_harness`/`hub_inject_harness` refuse `vibe` (the only harness
+  that unconditionally passes `--trust`/`--auto-approve`) under a `Strict`
+  workspace policy; `Standard`/`Permissive` unchanged. Gated at the shared
+  C12 dispatch boundary, not inside any harness adapter file — respects
+  the "coordinate before touching harness adapters" boundary by not
+  touching adapters at all, and blocks before any process spawns.
+- Made `hub::commands::tests::CA_HOME_ENV_LOCK` `pub(crate)` so the new
+  `harness::commands::tests` module shares the same process-global
+  `CA_HOME` mutex instead of racing a second one.
+- **Tests:** 2 new in `crates/hub/src/store/tests/workflows.rs`, 4 new in
+  `src-tauri/src/harness/commands.rs`, 1 new in
+  `src-tauri/src/hub/commands/tests.rs`.
+- **Verification:** `cargo test -p hub --lib` 87/87 (+2), `cargo test -p
+  tauri-app` 45/45 +1 ignored (+5 new), `cargo clippy -p hub -p tauri-app
+  --all-targets -- -D warnings` clean, `cargo check --workspace` clean,
+  `cargo fmt --check` clean, `npx tsc --noEmit` clean, `npm run build`
+  passes.
+- Updated `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/settings.md`
+  delivery tracking, and the task board row above. Committed as scoped
+  work — touched only the three named call sites, my own settings
+  backend/commands, and the test-lock visibility fix; no harness adapter
+  file, no S4 profile/harness ownership. **For Chat/Codex:** S5 is ready
+  for re-review. Settings-window UI wiring (Orchestration/Advanced tab,
+  budget/sandbox controls) remains open follow-up work for whoever picks
+  up the next Settings-window UI slice.
 
 — claude

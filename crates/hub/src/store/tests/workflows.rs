@@ -336,6 +336,83 @@ fn c11_wake_tag_enrolls_and_requests_wake_for_a_new_identity() {
 }
 
 #[test]
+fn c11_wake_refuses_a_new_identity_when_auto_enrollment_is_disabled() {
+    let dir = tempdir().unwrap();
+    let mut settings = crate::SettingsStore::open(dir.path());
+    settings.set_auto_enrollment_allowed(false).unwrap();
+    settings.save().unwrap();
+
+    let store = HubStore::open(dir.path()).unwrap();
+    assert!(!store.is_team_member("newbie").unwrap());
+
+    let outcomes = store
+        .send_tagged_message(
+            "human",
+            &["newbie".to_string()],
+            false,
+            true,
+            "join the session and pick up C12",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    let outcome = &outcomes[0];
+    assert!(!outcome.accepted);
+    assert!(!outcome.enrolled);
+    assert!(!outcome.wake_requested);
+    assert_eq!(
+        outcome.policy_decision,
+        "wake_refused_auto_enrollment_disabled"
+    );
+    // No membership mutation and no message/wake left behind.
+    assert!(!store.is_team_member("newbie").unwrap());
+    assert!(store.list_wakes(Some("newbie"), true).unwrap().is_empty());
+}
+
+#[test]
+fn c11_wake_still_adds_an_existing_team_member_to_a_session_when_auto_enrollment_is_disabled() {
+    let dir = tempdir().unwrap();
+    let mut settings = crate::SettingsStore::open(dir.path());
+    settings.set_auto_enrollment_allowed(false).unwrap();
+    settings.save().unwrap();
+
+    let store = HubStore::open(dir.path()).unwrap();
+    // Create the session before enrolling "grok" on the team, so the
+    // session's team-member auto-seed doesn't already include it — this
+    // test wants "grok" present on the team but absent from the session.
+    let session = store
+        .create_work_session("existing member session add")
+        .unwrap();
+    store.set_team_member("grok", true).unwrap();
+    assert!(!store.is_session_member(&session.id, "grok").unwrap());
+
+    // "grok" is already a team member — disabling *new-identity*
+    // auto-enrollment must not block adding an already-known member to a
+    // session; that's a distinct, always-allowed concern.
+    let outcomes = store
+        .send_tagged_message(
+            "human",
+            &["grok".to_string()],
+            false,
+            true,
+            "join this session",
+            None,
+            None,
+            None,
+            Some(&session.id),
+        )
+        .unwrap();
+
+    let outcome = &outcomes[0];
+    assert!(outcome.accepted);
+    assert!(outcome.enrolled);
+    assert!(store.is_session_member(&session.id, "grok").unwrap());
+}
+
+#[test]
 fn c11_task_and_wake_together_apply_both_rules_per_recipient() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

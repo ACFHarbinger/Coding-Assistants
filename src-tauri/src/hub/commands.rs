@@ -13,4 +13,4 @@ pub mod store;
 pub mod workflow;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

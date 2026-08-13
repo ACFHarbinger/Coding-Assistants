@@ -179,6 +179,16 @@ impl HubStore {
         }
         self.record_recipient_set(&subject, session_id, &recipients)?;
 
+        // S5 / #131: a wake may only enroll a brand-new (not-yet-team-member)
+        // identity when Settings' orchestration policy allows it. Resolved
+        // once per send, not per recipient — it's the same policy value
+        // either way. Adding an *existing* team member to a session is a
+        // separate, always-allowed concern (not "auto-enrollment").
+        let auto_enrollment_allowed = crate::SettingsStore::open(self.data_dir())
+            .effective(workspace_path)
+            .orchestration
+            .auto_enrollment_allowed;
+
         let mut outcomes = Vec::with_capacity(recipients.len());
         for recipient in recipients {
             let present = self.is_currently_present(&recipient, session_id)?;
@@ -195,6 +205,23 @@ impl HubStore {
                     false,
                     Some("task target is not a current team/session member".into()),
                     "task_refused_not_present",
+                    None,
+                )?);
+                continue;
+            }
+
+            if is_wake && !self.is_team_member(&recipient)? && !auto_enrollment_allowed {
+                outcomes.push(self.record_send_outcome(
+                    &subject,
+                    from_agent,
+                    &recipient,
+                    is_task,
+                    is_wake,
+                    false,
+                    false,
+                    false,
+                    Some("auto-enrollment is disabled by orchestration policy".into()),
+                    "wake_refused_auto_enrollment_disabled",
                     None,
                 )?);
                 continue;

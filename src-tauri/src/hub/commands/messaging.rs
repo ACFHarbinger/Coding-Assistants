@@ -2,8 +2,18 @@
 use super::store::open_store;
 use hub::{
     AuditEvent, ChannelRecord, GitExportOutcome, HubStore, MemoryRecord, MessageKind,
-    MessageRecord, MessageStatus, WakePolicy, WakeRecord, WakeStatus,
+    MessageRecord, MessageStatus, SettingsStore, WakePolicy, WakeRecord, WakeStatus,
 };
+
+/// S5 / #131: exports are gated by Settings' global `export_enabled` policy.
+/// There is no per-workspace export scope today, so this resolves the
+/// global default only.
+fn export_enabled() -> bool {
+    SettingsStore::open(hub::default_hub_home())
+        .effective(None)
+        .orchestration
+        .export_enabled
+}
 #[derive(serde::Deserialize)]
 pub struct SendMessageArgs {
     pub from: String,
@@ -272,6 +282,9 @@ pub fn hub_list_wakes(
 
 #[tauri::command]
 pub fn hub_export_markdown() -> Result<String, String> {
+    if !export_enabled() {
+        return Err("export is disabled by orchestration policy".to_string());
+    }
     let path = open_store()?
         .export_markdown(None)
         .map_err(|e| e.to_string())?;
@@ -282,6 +295,9 @@ pub fn hub_export_markdown() -> Result<String, String> {
 /// (M3). Never fails solely because there's no repo there — see `detail`.
 #[tauri::command]
 pub fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+    if !export_enabled() {
+        return Err("export is disabled by orchestration policy".to_string());
+    }
     open_store()?
         .export_markdown_git(None, message.as_deref())
         .map_err(|e| e.to_string())

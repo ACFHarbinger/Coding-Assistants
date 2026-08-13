@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S5 policy enforcement (#131 returned) (2026-08-13)
+
+- Review returned S5 for runtime enforcement: the persisted orchestration
+  policy needed to actually gate the live auto-enrollment, export, and
+  sandbox-strictness paths, not just be stored/exposed. Wired all three,
+  preserving C10/C11 semantics under default settings (auto_enrollment_allowed
+  and export_enabled both default `true`) — no existing test's behavior
+  changed.
+- **Auto-enrollment** (`crates/hub/src/store/messages/mod.rs`,
+  `send_tagged_message`): a wake refuses to enroll a brand-new (not-yet-
+  team-member) identity when `orchestration.auto_enrollment_allowed` is
+  false, recording a `wake_refused_auto_enrollment_disabled` outcome with
+  no membership mutation — mirroring the existing `task_refused_not_present`
+  shape. Adding an *already*-team-member to a session is a distinct,
+  always-allowed concern and stays unaffected. Fixed the policy lookup to
+  resolve against `self.data_dir()` rather than the process-global
+  `default_hub_home()`, so a `HubStore` opened at an arbitrary path (every
+  hub-crate unit test) reads its own co-located `settings.toml`.
+- **Export permission** (`src-tauri/src/hub/commands/messaging.rs`):
+  `hub_export_markdown`/`hub_export_markdown_git` refuse with a clear
+  error when `orchestration.export_enabled` is false (global scope — there
+  is no per-workspace export today).
+- **Sandbox strictness** (`src-tauri/src/harness/commands.rs`):
+  `hub_start_harness`/`hub_inject_harness` refuse the `vibe` harness (the
+  only identity that unconditionally passes `--trust`/`--auto-approve` —
+  see `crates/hub/src/harness/mod.rs::vibe_spawn_args`) when the target
+  workspace's effective `sandbox_strictness` is `Strict`; `Standard`/
+  `Permissive` are unchanged. Gated at the shared C12 dispatch boundary
+  (`hub_start_harness`/`hub_inject_harness`) rather than inside any harness
+  adapter file, so no adapter was touched and the block happens before any
+  process ever spawns.
+- Made `crate::hub::commands::tests::CA_HOME_ENV_LOCK` `pub(crate)` so the
+  new `harness::commands::tests` module coordinates on the same
+  process-global `CA_HOME` mutex instead of racing a second one.
+- Added focused tests: two in `crates/hub/src/store/tests/workflows.rs`
+  (refusal on a new identity; unaffected session-add for an existing
+  member), four in `src-tauri/src/harness/commands.rs` (strict blocks only
+  `vibe`; standard/permissive never block; a workspace override can relax
+  a strict global default; `hub_start_harness` rejects before spawning),
+  one in `src-tauri/src/hub/commands/tests.rs` (export commands honor the
+  policy both ways).
+- Verified with `cargo test -p hub --lib` (87/87, +2 new), `cargo test -p
+  tauri-app` (45/45 +1 ignored, +5 new), `cargo clippy -p hub -p
+  tauri-app --all-targets -- -D warnings` clean, `cargo check --workspace`
+  clean, `cargo fmt --check` clean, `npx tsc --noEmit` clean, `npm run
+  build` passes.
+
 ### Gemini — TUI T3 navigation, mouse, help & command palette (#137) (2026-08-13)
 
 - Implemented conventional and Vim-style navigation (`Tab`/`Shift+Tab`, `h`/`j`/`k`/`l`, `Left`/`Right`/`Up`/`Down`, `g`/`G`) and list scrolling in `crates/tui/src/app.rs`.
