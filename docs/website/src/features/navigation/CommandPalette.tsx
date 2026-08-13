@@ -90,7 +90,7 @@ export function CommandPalette({ isOpen, onClose, onOpen }: CommandPaletteProps)
               }
             }}
             placeholder="Search titles, headings, and body"
-            className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
             aria-controls="search-results"
           />
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:text-white" aria-label="Close search">
@@ -111,8 +111,8 @@ export function CommandPalette({ isOpen, onClose, onOpen }: CommandPaletteProps)
                   }`}
                 >
                   <p className="text-xs font-medium text-indigo-300">{String(item.category)}</p>
-                  <p className="text-sm font-semibold text-slate-100">{String(item.title)}</p>
-                  <p className="line-clamp-1 text-xs text-slate-400">{String(item.summary)}</p>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">{String(item.title)}</p>
+                  <p className="line-clamp-1 text-xs text-[var(--text-secondary)]">{String(item.summary)}</p>
                 </button>
               </li>
             ))

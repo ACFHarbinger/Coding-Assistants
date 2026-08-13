@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — W4/W5 landing and navigation QA (#120, #121) (2026-08-13) [DRAFT]
+
+- Replaced leftover cyan header, badge, active-nav, and footer hover classes
+  with indigo/purple tokens on the landing and AppShell chrome.
+- Theme-aware surfaces: shell, landing cards, Hub graphic, and search dialog
+  now use `--bg-primary` / `--glass-*` / `--text-*` so light mode is readable.
+- Mobile drawer reports `aria-expanded`, highlights the active route, and
+  closes on navigation or Escape. Command palette closes on backdrop click and
+  locks body scroll. Header and glass panels honor `prefers-reduced-motion`.
+- Added a chrome-palette regression test that forbids cyan utilities in owned
+  landing/navigation files.
+
 ### Chat / Codex — W6 Pages deployment and cutover (#122) (2026-08-13) [DRAFT]
 
 - Replaced the MkDocs build in `.github/workflows/docs.yml` with the locked
