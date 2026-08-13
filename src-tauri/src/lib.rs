@@ -345,6 +345,7 @@ pub fn run() {
             hub_cmds::hub_promote_memory,
             hub_cmds::hub_compact_short_term,
             hub_cmds::hub_send_message,
+            hub_cmds::hub_send_session_message,
             hub_cmds::hub_send_tagged_message,
             hub_cmds::hub_list_tagged_send_outcomes,
             hub_cmds::hub_poll_messages,

@@ -188,8 +188,6 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
-  const [sessionWakeTargets, setSessionWakeTargets] = useState<Record<string, boolean>>({});
-
   // Canonical U12 / C10 recipient selection & intent tag state
   const [recipientMode, setRecipientMode] = useState<"all" | "subset" | "single">("all");
   const [selectedSubset, setSelectedSubset] = useState<Record<string, boolean>>({});
@@ -224,17 +222,6 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
     if (!focusSessionId) return;
     setActiveChannel(`session:${focusSessionId}`);
   }, [focusSessionId, focusSessionToken]);
-
-  useEffect(() => {
-    if (!activeWorkSession) return;
-    setSessionWakeTargets(previous => {
-      const next: Record<string, boolean> = {};
-      for (const agentId of activeWorkSession.member_ids) {
-        if (agentId !== "human") next[agentId] = previous[agentId] ?? true;
-      }
-      return next;
-    });
-  }, [activeWorkSessionId, activeWorkSession?.member_ids.join(",")]);
 
   // Close the context menu on outside click or Escape.
   useEffect(() => {
@@ -335,11 +322,12 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
       let bodyText = messageInput.trim();
       const enrolledRoster = rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
 
+      const eligibleRecipients = sessionChannel && activeWorkSession
+        ? activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system")
+        : enrolledRoster;
       let targetAgents: string[] = [];
       if (dmTarget) {
         targetAgents = [dmTarget];
-      } else if (sessionChannel && activeWorkSession) {
-        targetAgents = activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system");
       } else if (recipientMode === "single") {
         targetAgents = [singleRecipient];
       } else if (recipientMode === "subset") {
@@ -350,7 +338,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
           return;
         }
       } else {
-        targetAgents = enrolledRoster;
+        targetAgents = eligibleRecipients;
       }
 
       // C11 Validation: Task-tagged messages MUST target existing team members
@@ -392,19 +380,15 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
 
       if (sessionChannel && activeWorkSession) {
         if (targetAgents.length === 0) throw new Error("The active work session has no members");
-        const messages = await Promise.all(targetAgents.map(recipient =>
-          invoke<{ id: string }>("hub_send_message", {
-            args: { from: "human", to: recipient, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
-          }).then(message => ({ recipient, message }))
-        ));
-        await Promise.all(messages
-          .filter(({ recipient }) => recipient !== "human" && (isWakeTag || sessionWakeTargets[recipient]))
-          .map(({ recipient, message }) => invoke("hub_request_wake", {
-            target: recipient,
-            reason: `Work session: ${activeWorkSession.name}`,
-            messageId: message.id,
-            humanGate: wakePolicyGate
-          })));
+        if (isTaskTag || isWakeTag) {
+          await invoke("hub_send_tagged_message", {
+            args: { from: "human", to: targetAgents, isTask: isTaskTag, isWake: isWakeTag, subject, workspace: null, task: isTaskTag ? bodyText : null, sessionId: activeWorkSession.id, body: bodyText }
+          });
+        } else {
+          await invoke("hub_send_session_message", {
+            args: { from: "human", sessionId: activeWorkSession.id, to: targetAgents, subject, workspace: null, task: null, body: bodyText }
+          });
+        }
       } else {
         const sentMsg = await invoke<{ id: string }>("hub_send_message", {
           args: { from: "human", to: toField, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
@@ -1176,22 +1160,6 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                   <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 600 }}>
                     Direct message to {getAgentInfo(activeChannel.replace("dm-", "")).displayName}
                   </span>
-                ) : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Wake selected session members:</span>
-                    <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-                      {activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system").map(agentId => (
-                        <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={sessionWakeTargets[agentId] ?? true}
-                            onChange={event => setSessionWakeTargets(previous => ({ ...previous, [agentId]: event.target.checked }))}
-                          />
-                          {getAgentInfo(agentId).displayName}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                 ) : (
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Recipients:</span>
@@ -1246,7 +1214,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
 
                     {recipientMode === "subset" && (
                       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", background: "rgba(0,0,0,0.3)", padding: "0.35rem 0.65rem", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                        {rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system").map(agentId => (
+                        {(activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? activeWorkSession.member_ids : rosterAgentIds(hubAgents)).filter(id => id !== "human" && id !== "system").map(agentId => (
                           <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-main)", cursor: "pointer" }}>
                             <input
                               type="checkbox"
@@ -1273,7 +1241,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                           outline: "none"
                         }}
                       >
-                        {rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system").map(agentId => (
+                        {(activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? activeWorkSession.member_ids : rosterAgentIds(hubAgents)).filter(id => id !== "human" && id !== "system").map(agentId => (
                           <option key={agentId} value={agentId}>
                             {getAgentInfo(agentId).displayName} ({getAgentInfo(agentId).role})
                           </option>

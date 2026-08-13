@@ -776,6 +776,13 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_tagged_send_outcomes_subject
                 ON tagged_send_outcomes(subject, created_at);
+
+            CREATE TABLE IF NOT EXISTS message_recipient_sets (
+                subject TEXT PRIMARY KEY NOT NULL,
+                session_id TEXT,
+                recipient_ids_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             "#,
         )?;
 
@@ -1544,6 +1551,7 @@ impl HubStore {
                 "send_tagged_message requires at least one recipient".into(),
             ));
         }
+        self.record_recipient_set(&subject, session_id, &recipients)?;
 
         let mut outcomes = Vec::with_capacity(recipients.len());
         for recipient in recipients {
@@ -1620,6 +1628,65 @@ impl HubStore {
         }
 
         Ok(outcomes)
+    }
+
+    /// C10: send an untagged work-session post to an explicit recipient set.
+    /// The set is recorded once by subject, rather than reconstructed later
+    /// from fan-out rows.
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_session_message(
+        &self,
+        from_agent: &str,
+        session_id: &str,
+        to: &[String],
+        body: &str,
+        subject: Option<&str>,
+        workspace_path: Option<&str>,
+        task_id: Option<&str>,
+    ) -> Result<Vec<MessageRecord>, HubError> {
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid("message body must not be empty".into()));
+        }
+        self.get_work_session(session_id)?;
+        let mut recipients = Vec::new();
+        for id in to {
+            if id != "system" && id != from_agent && !recipients.contains(id) {
+                if !self.is_session_member(session_id, id)? {
+                    return Err(HubError::Invalid(format!(
+                        "recipient {id} is not a member of work session {session_id}"
+                    )));
+                }
+                recipients.push(id.clone());
+            }
+        }
+        if recipients.is_empty() {
+            return Err(HubError::Invalid("session message requires at least one recipient".into()));
+        }
+        let subject = subject
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("channel:session:{session_id}:{}", Uuid::new_v4()));
+        self.record_recipient_set(&subject, Some(session_id), &recipients)?;
+        recipients
+            .iter()
+            .map(|recipient| self.send_message(
+                from_agent, recipient, MessageKind::Message, body, Some(&subject), workspace_path, task_id,
+            ))
+            .collect()
+    }
+
+    fn record_recipient_set(
+        &self,
+        subject: &str,
+        session_id: Option<&str>,
+        recipients: &[String],
+    ) -> Result<(), HubError> {
+        let recipient_ids_json = serde_json::to_string(recipients)
+            .map_err(|error| HubError::Invalid(format!("recipient set serialize: {error}")))?;
+        self.conn.execute(
+            "INSERT INTO message_recipient_sets(subject, session_id, recipient_ids_json, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![subject, session_id, recipient_ids_json, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4330,6 +4397,47 @@ mod tests {
             .is_err());
         assert!(store
             .send_tagged_message("human", &[], true, false, "body", None, None, None, None)
+            .is_err());
+    }
+
+    #[test]
+    fn c10_session_send_persists_the_explicit_recipient_set() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("C10 recipients").unwrap();
+        let recipients = vec!["grok".to_string(), "claude".to_string()];
+        let messages = store
+            .send_session_message(
+                "human",
+                &session.id,
+                &recipients,
+                "review this routing",
+                Some("channel:session:c10-test"),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(messages.len(), 2);
+        assert!(messages.iter().all(|message| recipients.contains(&message.to_agent)));
+        let recorded: String = store
+            .conn
+            .query_row(
+                "SELECT recipient_ids_json FROM message_recipient_sets WHERE subject = ?1",
+                params!["channel:session:c10-test"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(serde_json::from_str::<Vec<String>>(&recorded).unwrap(), recipients);
+        assert!(store
+            .send_session_message(
+                "human",
+                &session.id,
+                &["outsider".to_string()],
+                "must fail",
+                None,
+                None,
+                None,
+            )
             .is_err());
     }
 }

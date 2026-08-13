@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — C10 recipient routing and typed UI bridge (2026-08-13) [DRAFT]
+
+- Added a durable `message_recipient_sets` record for each work-session send;
+  the exact recipient list is stored once by message subject rather than
+  inferred from fan-out rows. `hub_send_session_message` rejects non-members
+  at the Hub boundary.
+- Session composers now offer all/subset/single selection against that
+  session's own members. Tagged posts call `hub_send_tagged_message`, so the
+  UI uses C11's audited task/wake policy path; untagged posts use the new
+  typed session-send command. The obsolete session-only wake checkboxes were
+  removed in favor of the canonical recipient/tag controls.
+- Added C10 coverage for persisted recipient sets, selected-only delivery,
+  and non-member rejection. `npm run build`, `cargo test -p ca-hub` (22),
+  and `cargo test -p tauri-app` (10) pass.
+
 ### Claude — C11 backend task/wake enforcement (2026-08-13) [DRAFT]
 
 - `ca-hub`: new `HubStore::send_tagged_message` is the single typed

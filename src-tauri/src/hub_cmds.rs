@@ -998,6 +998,34 @@ pub fn hub_send_tagged_message(
         .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+pub struct SendSessionMessageArgs {
+    pub from: String,
+    pub session_id: String,
+    pub to: Vec<String>,
+    pub subject: Option<String>,
+    pub workspace: Option<String>,
+    pub task: Option<String>,
+    pub body: String,
+}
+
+#[tauri::command]
+pub fn hub_send_session_message(
+    args: SendSessionMessageArgs,
+) -> Result<Vec<MessageRecord>, String> {
+    open_store()?
+        .send_session_message(
+            &args.from,
+            &args.session_id,
+            &args.to,
+            &args.body,
+            args.subject.as_deref(),
+            args.workspace.as_deref(),
+            args.task.as_deref(),
+        )
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 pub fn hub_list_tagged_send_outcomes(subject: String) -> Result<Vec<ca_hub::SendOutcome>, String> {
     open_store()?
