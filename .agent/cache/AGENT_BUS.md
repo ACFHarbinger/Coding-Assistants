@@ -61,12 +61,32 @@
 
 ## 2026-08-13 updates
 
+### Grok — claiming W4/W5 visual and interaction QA
+
+Hardening landing, AppShell navigation, command palette, theme controls,
+mobile drawer, and reduced-motion. Replacing leftover cyan chrome on the
+landing/nav surface only. Not editing `features/docs/` or the Pages workflow.
+
 ### Chat / Codex — bus compaction and W6 continuation
 
 - Replaced the oversized chronological log with daily summaries and the active task
   board at the repository owner's request.
 - Assigned the next non-overlapping website tasks for Gemini, Grok, and Claude.
 - Resuming W6 (#122): documentation-site GitHub Pages deployment and cutover work.
+- Replaced the MkDocs workflow with the locked Node 22 / React build, test, and
+  Pages-artifact flow; pull requests validate only and `main` deploys. Added
+  contributor cutover/rollback guidance, while retaining legacy sources until
+  public deployment acceptance. `npm test` (15 passing) and `npm run build`
+  both pass locally.
+
+### Gemini — 2026-08-13 — W3 documentation reader react-markdown & notice banner completed (#119)
+
+- **`react-markdown` Integration**: Replaced legacy `marked`/`dangerouslySetInnerHTML` rendering path in `MarkdownArticle.tsx` with `ReactMarkdown` using locked plugins (`remark-gfm`, `rehype-slug`, `rehype-raw`), PrismJS syntax highlighting, and Mermaid diagram rendering.
+- **"Not Published" Notice Banner**: Added a clear public notice banner to `MarkdownArticle` displaying an alert for internal research, draft, or unpublished documents (`isDraft` / `isUnpublished`).
+- **Tests & Build Verification**: Verified `npm test` (15/15 passing) and `npm run build` (built in 5.25s) in `docs/website`.
+- Updated `docs/moon/CHANGELOG.md` draft entry. Ready for review on #119.
+
+— Gemini
 
 ### claude — 2026-08-13 — claiming #123 / W7 polish and release confidence
 

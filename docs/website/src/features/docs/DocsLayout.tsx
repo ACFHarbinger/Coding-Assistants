@@ -34,7 +34,12 @@ export const DocsLayout: React.FC = () => {
           </div>
         </div>
 
-        <MarkdownArticle content={doc.content} />
+        <MarkdownArticle
+          content={doc.content}
+          isDraft={doc.isDraft}
+          isUnpublished={doc.isUnpublished}
+          filePath={doc.filePath}
+        />
 
         <PrevNextNav currentSlug={activeSlug} />
       </div>

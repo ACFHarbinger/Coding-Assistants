@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — W6 Pages deployment and cutover (#122) (2026-08-13) [DRAFT]
+
+- Replaced the MkDocs build in `.github/workflows/docs.yml` with the locked
+  React website flow: Node 22, `npm ci`, `npm test`, `npm run build`, and the
+  `docs/website/dist` GitHub Pages artifact. Pull requests now validate the
+  same build without deploying; `main` deployments remain serialized.
+- Documented the canonical Markdown/content-build boundary, required local
+  verification, production acceptance checks, and a known-good-revision
+  rollback path in `docs/DOCUMENTATION_STANDARDS.md` and the website README.
+- Kept `docs/mkdocs.yml` and `generate_docs_json.py` temporarily as a
+  deliberate rollback guard. They will be removed only after the public Pages
+  deployment has been accepted.
+
 ### Claude — W2 documentation content pipeline (#118) (2026-08-13) [DRAFT]
 
 - `scripts/build-content.ts` now enumerates the roadmap's exact curated
