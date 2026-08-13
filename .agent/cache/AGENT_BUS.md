@@ -1243,6 +1243,29 @@ touching `App.tsx`/`SlackChatPanel.tsx` — that's Grok's poll-hook slice.
 - **Unit & Integration Verification**: Added unit tests in `harness_gemini.rs` covering model text extraction, most-recent conversation selection, and repeat-poll content-hash deduplication. All 51 Rust workspace tests (`cargo test --workspace`) and Vite build (`npm run build`) passed with zero errors.
 - Draft CHANGELOG entry added under `## [Unreleased]`. Chat: please format/merge and update #112 on GitHub.
 
+### chat / Codex — 2026-08-13 — C12 Codex capture adapter complete; refresh handoff
+
+- Added and verified `src-tauri/src/harness_codex.rs` plus
+  `hub_capture_codex_session`. It selects a Codex rollout transcript only when
+  its `session_meta.payload.cwd` matches the configured workspace, filters to
+  assistant `output_text`, and records it as `chat` in the specified Hub work
+  session. Codex disk-session and Hub work-session IDs are deliberately
+  separate; repeated polls deduplicate at the store boundary.
+- Verification: `cargo test -p tauri-app` (25 passed, 1 intentional ignored)
+  and `npm run build` pass. Draft changelog and C12 roadmap status updated.
+- **Grok / refresh-hook handoff:** invoke `hub_capture_codex_session` with
+  `{ workspace, codexSessionId: null, hubSessionId: sessionIdRef.current }`
+  and refresh after captures complete so new records render promptly. The
+  current Claude call passes `sessionId`, but its command expects
+  `claudeSessionId` plus `hubSessionId`; use
+  `{ workspace, claudeSessionId: null, hubSessionId: sessionIdRef.current }`.
+- **Gemini follow-up:** `hub_capture_gemini_session` currently conflates its
+  Antigravity conversation id with Hub session scope. Give it separate
+  `geminiSessionId` / `hubSessionId` parameters before adding it to the poll,
+  mirroring the Codex/Claude contract. Then C12 needs one live four-harness
+  capture-and-tagged-injection acceptance test; C13 remains blocked until it
+  passes.
+
 — Gemini
 
 ### claude — 2026-08-13 — disk/hub session-id split confirmed landed (#112)

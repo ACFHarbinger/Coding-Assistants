@@ -78,6 +78,21 @@ pub fn hub_capture_claude_session(
 }
 
 #[tauri::command]
+pub fn hub_capture_codex_session(
+    workspace: String,
+    codex_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness_codex::CodexCaptureOutcome, String> {
+    let store = open_store()?;
+    crate::harness_codex::capture_codex_session(
+        &store,
+        &PathBuf::from(workspace),
+        codex_session_id.as_deref(),
+        hub_session_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub fn hub_capture_gemini_session(
     workspace: String,
     session_id: Option<String>,

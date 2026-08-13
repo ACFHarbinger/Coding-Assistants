@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — C12 Codex durable transcript capture (2026-08-13) [DRAFT]
+
+- Added `src-tauri/src/harness_codex.rs`, which selects the newest Codex
+  rollout transcript for the configured workspace from
+  `~/.codex/sessions/YYYY/MM/DD`. It validates the transcript's `session_meta`
+  workspace before reading it and can target an explicit Codex disk-session id.
+- Captures only assistant `output_text` blocks into the work-session transcript
+  as the `chat` agent, keeping user, developer, reasoning, tool, and system
+  records out. Repeated polls are content-hash deduplicated by the Hub store.
+- Exposed the typed `hub_capture_codex_session` Tauri command with separate
+  Codex disk-session and CA hub work-session identifiers. Focused adapter tests
+  cover workspace/session selection, assistant-only filtering, and dedup.
+
 ### Gemini — C12 Antigravity / Gemini CLI session capture adapter (2026-08-13) [DRAFT]
 
 - **Gemini Session Capture (`src-tauri/src/harness_gemini.rs`)**: Implemented `capture_gemini_session` to reverse-engineer on-disk Antigravity CLI session logs from `~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`.

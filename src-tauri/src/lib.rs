@@ -2,6 +2,7 @@ mod agents;
 mod file_tools;
 mod harness_claude;
 mod harness_cmds;
+mod harness_codex;
 mod harness_gemini;
 mod harness_grok;
 mod hub_cmds;
@@ -367,6 +368,7 @@ pub fn run() {
             harness_cmds::hub_inject_harness,
             harness_cmds::hub_record_harness_capture,
             harness_cmds::hub_capture_claude_session,
+            harness_cmds::hub_capture_codex_session,
             harness_cmds::hub_capture_gemini_session,
             harness_cmds::hub_capture_grok_session,
             hub_cmds::hub_list_wakes,
