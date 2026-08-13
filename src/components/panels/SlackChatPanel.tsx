@@ -445,7 +445,16 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                 : [`${result.value.harness}: ${result.value.detail}`];
             }),
           ];
-          if (failures.length > 0) alert(`Message recorded, but delivery needs attention:\n${failures.join("\n")}`);
+          const queued = injections.flatMap(result =>
+            result.status === "fulfilled" && result.value.status === "queued"
+              ? [`${result.value.harness}: ${result.value.detail}`]
+              : []
+          );
+          if (failures.length > 0) {
+            alert(`Message recorded, but delivery needs attention:\n${failures.join("\n")}`);
+          } else if (queued.length > 0) {
+            alert(`Task recorded, awaiting active harness delivery:\n${queued.join("\n")}`);
+          }
         } else {
           await invoke("hub_send_session_message", {
             args: { from: "human", sessionId: activeWorkSession.id, to: targetAgents, subject, workspace: null, task: null, body: bodyText }

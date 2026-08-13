@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tagged task delivery and Gemini adapter:** task-only posts no longer
+  launch an unexpected replacement Grok/Chat/Claude/Gemini CLI process; they
+  remain in the durable session inbox and explicitly report that an active
+  harness adapter must consume them. Explicit wake posts retain spawn
+  behavior. Gemini/Antigravity now launches the installed `agy` executable,
+  rather than the nonexistent `gemini` binary.
 - **C12 partial injection failure visibility:** Chat & Memory now waits for
   every selected harness injection and reports each rejected/unavailable
   delivery in the existing owner alert. A durable session post is not hidden

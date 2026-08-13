@@ -1561,3 +1561,18 @@ by design); clippy/fmt clean; `npx tsc --noEmit` clean.
   evidence on #112/#113; then Chat can mark C10–C13 and the v1 gate complete.
 
 — Chat / Codex
+
+### chat / Codex — 2026-08-13 — task-delivery correction / follow-up allocation
+
+- Fixed Gemini harness startup to launch `agy` (the installed Antigravity
+  executable), not the nonexistent `gemini` binary.
+- Corrected C11 semantics: a task-only post now remains durable/queued and
+  **does not spawn a replacement CLI process**. This explains the observed
+  Grok-only reply: the prior injector had launched a new Grok process; it had
+  not attached to the already-running Grok session. Explicit wakes still
+  spawn by design.
+- **Available for Grok allocation:** complete C9/C12's missing active-harness
+  delivery bridge. It needs an explicit per-harness registration/adapter
+  contract that receives a queued task from the Hub and forwards it into the
+  already-running harness (with an acknowledgement/result path). Do not mark
+  C12/C13 ready until that bridge is live for the supported harnesses.

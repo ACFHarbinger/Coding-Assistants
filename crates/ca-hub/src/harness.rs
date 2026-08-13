@@ -1,9 +1,10 @@
 //! C12 typed harness boundary: start, inject, and capture.
 //!
 //! Adapters must pass explicit argv (no shell strings) and must not attach
-//! to an already-running interactive TUI. Wake may spawn a new process.
-//! Task inject may also spawn a new process of an already-enrolled identity
-//! when no attach API exists.
+//! to an already-running interactive TUI. Only an explicit wake may spawn a
+//! new process. Task delivery remains in the durable Hub inbox until an
+//! active-harness adapter consumes it; it must never silently create a second
+//! agent instance.
 
 use crate::HubError;
 use serde::{Deserialize, Serialize};
@@ -47,7 +48,8 @@ impl HarnessId {
             Self::Grok => "grok",
             Self::Chat => "codex",
             Self::Claude => "claude",
-            Self::Gemini => "gemini",
+            // Gemini is provided locally by the Antigravity CLI.
+            Self::Gemini => "agy",
         }
     }
 }
@@ -196,6 +198,19 @@ pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectRes
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
     }
+
+    // A task is addressed to an existing team member. We cannot safely write
+    // to an arbitrary interactive process' stdin, so spawning a replacement
+    // CLI here is both surprising and wrong. The tagged message has already
+    // been stored by the caller; an active inbox adapter can consume it.
+    if request.is_task && !request.is_wake {
+        return Ok(HarnessInjectResult {
+            harness: harness.as_str().into(),
+            pid: None,
+            status: "queued".into(),
+            detail: "task is recorded in the session inbox; it awaits the target's active harness adapter".into(),
+        });
+    }
     let prompt = if request.is_task && request.is_wake {
         format!("[TASK] [WAKE] {}", request.body)
     } else if request.is_task {
@@ -282,5 +297,26 @@ mod tests {
         assert_eq!(HarnessId::parse("claude").unwrap(), HarnessId::Claude);
         assert_eq!(HarnessId::parse("agy").unwrap(), HarnessId::Gemini);
         assert!(HarnessId::parse("ollama").is_err());
+    }
+
+    #[test]
+    fn gemini_uses_the_installed_antigravity_executable() {
+        assert_eq!(HarnessId::Gemini.executable(), "agy");
+    }
+
+    #[test]
+    fn task_injection_queues_without_spawning_a_new_harness() {
+        let result = inject_harness(&HarnessInjectRequest {
+            harness: "grok".into(),
+            workspace: PathBuf::from("relative-is-fine-when-no-spawn"),
+            session_id: Some("session-1".into()),
+            message_id: Some("message-1".into()),
+            body: "review this".into(),
+            is_task: true,
+            is_wake: false,
+        })
+        .unwrap();
+        assert_eq!(result.status, "queued");
+        assert_eq!(result.pid, None);
     }
 }
