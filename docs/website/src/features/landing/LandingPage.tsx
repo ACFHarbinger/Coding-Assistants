@@ -1,164 +1,72 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Terminal,
-  Cpu,
-  Bot,
-  Zap,
-  Shield,
-  ArrowRight,
-  CheckCircle2,
-  Code2,
-  Workflow,
-  Sparkles,
-} from 'lucide-react';
+import { Link } from "react-router-dom";
+import { ArchitectureGraphic } from "./ArchitectureGraphic";
+import { CapabilityGrid } from "./CapabilityGrid";
+import { QuickStart } from "./QuickStart";
 
-export const LandingPage: React.FC = () => {
-  const features = [
-    {
-      icon: <Bot className="w-6 h-6 text-cyan-400" />,
-      title: 'Multi-Agent Team Orchestration',
-      description:
-        'Coordinate OpenAI Codex, Anthropic Claude Code, xAI Grok, and Google Antigravity CLI in one unified, local-first team session.',
-    },
-    {
-      icon: <Cpu className="w-6 h-6 text-violet-400" />,
-      title: 'Local-First Hub & Memory',
-      description:
-        'SQLite-backed shared memory store (`ca-hub`) with durable memory promotion, age-out retention, and audit trailing.',
-    },
-    {
-      icon: <Zap className="w-6 h-6 text-amber-400" />,
-      title: 'Bidirectional Harness Adapters',
-      description:
-        'Direct process spawning & active-session IPC sockets (`grok`, `codex`, `claude`, `agy`) with SHA-256 deduplicated transcript capture.',
-    },
-    {
-      icon: <Workflow className="w-6 h-6 text-emerald-400" />,
-      title: 'Intent Tags & Addressing',
-      description:
-        'Precision message addressing (`🌐 All Team`, `👥 Subset`, `🎯 Single Agent`) and intent tags (`⚡ [TASK]`, `🔔 [WAKE]`).',
-    },
-    {
-      icon: <Shield className="w-6 h-6 text-blue-400" />,
-      title: 'Budget & Policy Control',
-      description:
-        'Per-agent budget enforcement, automatic exhaustion pause, durable Markdown handoffs, and human-in-the-loop wake policy gates.',
-    },
-    {
-      icon: <Code2 className="w-6 h-6 text-rose-400" />,
-      title: 'Rust & React 19 Architecture',
-      description:
-        'High-performance Tauri 2 desktop app pairing Rust backend efficiency with React 19 glassmorphism UI elegance.',
-    },
-  ];
-
+export function LandingPage() {
   return (
-    <div className="space-y-24 pb-20">
-      <section className="relative pt-20 pb-16 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-tr from-cyan-500/20 to-violet-600/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="relative overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 motion-reduce:hidden"
+        style={{
+          background:
+            "radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.18) 0%, transparent 46%), radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.16) 0%, transparent 48%)",
+        }}
+      />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-800/50 text-cyan-300 text-xs font-semibold mb-8 backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>v0.1.0 Hub-Native Release Available</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-100 tracking-tight max-w-4xl mx-auto leading-tight">
-            Local-First Multi-Agent <br />
-            <span className="bg-gradient-to-r from-cyan-400 via-teal-300 to-violet-400 bg-clip-text text-transparent">
-              Coding Assistant Orchestration
-            </span>
-          </h1>
-
-          <p className="mt-6 text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Orchestrate Anthropic Claude, OpenAI Codex, xAI Grok, and Google Antigravity CLI side-by-side with durable local memory, recipient addressing, and bidirectional process capture.
+      <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 lg:grid-cols-2 lg:py-24">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-300">
+            Local-first · desktop
           </p>
-
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-50 sm:text-5xl">
+            Coding-Assistants
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+            A Slack-like hub on your machine for you and the coding agents you already run.
+            Grok, Codex, Claude, and Gemini stay in one work session — no markdown bus required.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
             <Link
               to="/docs"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-white font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-[1.02] transition-all flex items-center justify-center space-x-2"
+              className="rounded-lg bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
             >
-              <span>Explore Documentation</span>
-              <ArrowRight className="w-4 h-4" />
+              Read the docs
             </Link>
             <a
               href="https://github.com/ACFHarbinger/Coding-Assistants"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl glass-panel text-slate-200 hover:text-white hover:bg-slate-800/80 font-semibold transition-all flex items-center justify-center space-x-2"
+              className="rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
             >
-              <Terminal className="w-4 h-4 text-cyan-400" />
-              <span>View Source on GitHub</span>
+              View GitHub
             </a>
           </div>
         </div>
+        <ArchitectureGraphic className="mx-auto w-full max-w-md" />
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="glass-panel rounded-2xl p-8 border border-slate-800/80 bg-slate-900/60 shadow-2xl relative overflow-hidden">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="space-y-4 max-w-md">
-              <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">
-                Architecture Overview
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-100">
-                Hub-Native Desktop Spine
-              </h2>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Coding-Assistants pairs Tauri 2 and Rust backend efficiency with a React 19 frontend. System calls, process monitoring, LLM SDKs, and SQLite hub storage live securely in Rust, exposing typed commands over Tauri IPC.
-              </p>
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center space-x-2 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>IPC Commands & Tauri Event Streaming</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>SQLite Hub Memory & Audit Event Hash Chains</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>On-Disk Harness Session Transcript Parsing</span>
-                </div>
-              </div>
-            </div>
+      <CapabilityGrid />
+      <QuickStart />
 
-            <div className="w-full md:w-1/2 p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-2">
-              <div className="text-slate-500 border-b border-slate-800 pb-2 flex items-center justify-between">
-                <span>ca-hub :: harness_bridge.rs</span>
-                <span className="text-cyan-400">ACTIVE</span>
-              </div>
-              <p><span className="text-violet-400">Grok:</span> grok --cwd /repo (ACP leader.sock)</p>
-              <p><span className="text-cyan-400">Claude:</span> claude -p &quot;[TASK] review PR&quot;</p>
-              <p><span className="text-emerald-400">Codex:</span> codex exec --cwd /repo</p>
-              <p><span className="text-amber-400">Gemini:</span> agy agent --bridge-socket bridge.sock</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center space-y-3 mb-12">
-          <h2 className="text-3xl font-bold text-slate-100">Key Capabilities</h2>
-          <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Everything you need to orchestrate autonomous coding agents locally on your machine.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((f, i) => (
-            <div key={i} className="glass-card p-6 rounded-xl space-y-3">
-              <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 w-fit">
-                {f.icon}
-              </div>
-              <h3 className="text-base font-semibold text-slate-100">{f.title}</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{f.description}</p>
-            </div>
-          ))}
-        </div>
+      <section aria-labelledby="workflow-heading" className="mx-auto max-w-6xl px-4 pb-20">
+        <h2 id="workflow-heading" className="text-2xl font-bold text-slate-100">
+          The v1 loop
+        </h2>
+        <ol className="mt-6 grid gap-4 md:grid-cols-3">
+          <li className="rounded-2xl border border-white/10 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">1. Session</p>
+            <p className="mt-2 text-sm text-slate-300">Create or load a named team chat. The roster is explicit.</p>
+          </li>
+          <li className="rounded-2xl border border-white/10 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">2. Address</p>
+            <p className="mt-2 text-sm text-slate-300">All, a subset, or one member. Mark task and/or wake.</p>
+          </li>
+          <li className="rounded-2xl border border-white/10 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">3. Capture</p>
+            <p className="mt-2 text-sm text-slate-300">Harness replies return to the same transcript. Tasks queue if no bridge.</p>
+          </li>
+        </ol>
       </section>
     </div>
   );
-};
+}

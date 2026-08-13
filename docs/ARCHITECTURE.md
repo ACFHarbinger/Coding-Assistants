@@ -376,4 +376,4 @@ See [SECURITY.md](SECURITY.md) for the complete security policy.
 - **Plugin system** -- Abstract LLM providers behind a trait for cleaner extensibility.
 - **State management** -- Consider `useReducer` or a lightweight state library if state complexity increases.
 
-See [ROADMAP.md](ROADMAP.md) for planned features.
+See [ROADMAP.md](moon/ROADMAP.md) for planned features.

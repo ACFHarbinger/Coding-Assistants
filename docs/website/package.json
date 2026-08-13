@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "prebuild": "tsx scripts/build-content.ts",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.1.1",
+    "@fontsource/jetbrains-mono": "^5.1.1",
+    "github-slugger": "^2.0.0",
+    "gray-matter": "^4.0.3",
     "lucide-react": "^0.475.0",
     "marked": "^15.0.7",
     "mermaid": "^11.4.1",
@@ -20,14 +25,15 @@
     "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "@types/marked": "^5.0.2",
     "@types/node": "^22.13.1",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
-    "tailwindcss": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.1.0"

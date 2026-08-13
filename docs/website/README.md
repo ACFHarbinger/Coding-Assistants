@@ -1,5 +1,20 @@
-# Vue 3 + TypeScript + Vite
+# Coding-Assistants Documentation Website
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+This isolated React 19 + TypeScript + Vite application publishes the
+Coding-Assistants product site and documentation reader. Markdown under
+`../` remains canonical; the build-time content script emits local artifacts
+for the website.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Local development
+
+```sh
+npm install
+npm run dev
+```
+
+`npm run build` generates documentation content artifacts, type-checks the
+website, and produces the static GitHub Pages-compatible build in `dist/`.
+
+The site uses `HashRouter` so deep links remain reliable under the repository
+GitHub Pages subpath. Fonts are bundled through `@fontsource`; no Google Fonts
+request is made at runtime.

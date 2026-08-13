@@ -1,149 +1,117 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, X, ChevronRight } from 'lucide-react';
-import MiniSearch from 'minisearch';
-import searchIndexData from '../../content/search-index.json';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search, X } from "lucide-react";
+import searchIndexData from "../../content/search-index.json";
+import { createDocSearch, rankQuery, type SearchDoc } from "./searchIndex";
 
-interface SearchDoc {
-  id: string;
-  title: string;
-  category: string;
-  summary: string;
-  content: string;
+interface CommandPaletteProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onOpen?: () => void;
 }
 
-interface SearchResultItem {
-  id: string;
-  title: string;
-  category: string;
-  summary: string;
-  score: number;
-}
-
-export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResultItem[]>([]);
-  const [miniSearch, setMiniSearch] = useState<MiniSearch<SearchDoc> | null>(null);
+export function CommandPalette({ isOpen, onClose, onOpen }: CommandPaletteProps) {
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const miniSearch = useMemo(
+    () => createDocSearch(searchIndexData as SearchDoc[]),
+    [],
+  );
+  const results = useMemo(() => rankQuery(miniSearch, query), [miniSearch, query]);
 
   useEffect(() => {
-    const search = new MiniSearch<SearchDoc>({
-      fields: ['title', 'category', 'summary', 'content'],
-      storeFields: ['title', 'category', 'summary'],
-      searchOptions: {
-        fuzzy: 0.2,
-        prefix: true,
-      },
-    });
-
-    search.addAll(searchIndexData as SearchDoc[]);
-    setMiniSearch(search);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (isOpen) {
-          onClose();
-        } else {
-          const btn = document.querySelector('[aria-label="Search Documentation"]') as HTMLButtonElement;
-          if (btn) btn.click();
-        }
-      } else if (e.key === 'Escape' && isOpen) {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (isOpen) onClose();
+        else onOpen?.();
+      } else if (event.key === "Escape" && isOpen) {
         onClose();
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose, onOpen]);
 
   useEffect(() => {
-    if (!query.trim() || !miniSearch) {
-      setResults([]);
-      return;
+    if (isOpen) {
+      setQuery("");
+      setActive(0);
+      inputRef.current?.focus();
     }
-
-    const searchResults = miniSearch.search(query).slice(0, 8);
-    setResults(
-      searchResults.map((r) => ({
-        id: r.id as string,
-        title: r.title as string,
-        category: r.category as string,
-        summary: r.summary as string,
-        score: r.score,
-      }))
-    );
-  }, [query, miniSearch]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSelect = (slug: string) => {
+  const select = (id: string) => {
     onClose();
-    navigate(`/docs/${slug}`);
+    navigate(`/docs/${id}`);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl glass-panel rounded-xl border border-slate-800 bg-slate-900/95 shadow-2xl overflow-hidden">
-        <div className="flex items-center px-4 py-3.5 border-b border-slate-800">
-          <Search className="w-5 h-5 text-cyan-400 mr-3 flex-shrink-0" />
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#020617]/80 px-4 pt-24 backdrop-blur-sm motion-reduce:backdrop-blur-none">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search documentation"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[rgba(15,23,42,0.96)] shadow-2xl"
+      >
+        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+          <Search className="h-5 w-5 shrink-0 text-indigo-300" aria-hidden="true" />
           <input
-            type="text"
+            ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search documentation, guides, roadmaps..."
-            className="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm focus:outline-none"
-            autoFocus
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActive(0);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActive((index) => Math.min(index + 1, Math.max(results.length - 1, 0)));
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActive((index) => Math.max(index - 1, 0));
+              } else if (event.key === "Enter" && results[active]) {
+                event.preventDefault();
+                select(String(results[active].id));
+              }
+            }}
+            placeholder="Search titles, headings, and body"
+            className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            aria-controls="search-results"
           />
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:text-white" aria-label="Close search">
+            <X className="h-4 w-4" />
           </button>
         </div>
-
-        <div className="max-h-96 overflow-y-auto p-2">
+        <ul id="search-results" role="listbox" className="max-h-96 overflow-y-auto p-2">
           {query.trim() && results.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">
-              No matching documentation found for &quot;<span className="text-slate-300">{query}</span>&quot;
-            </div>
-          ) : results.length > 0 ? (
-            <div className="space-y-1">
-              {results.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelect(item.id)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-slate-800/70 border border-transparent hover:border-cyan-500/20 group transition-all"
-                >
-                  <div className="flex items-center justify-between text-xs text-cyan-400 font-medium mb-1">
-                    <span>{item.category}</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-cyan-400 transition-colors" />
-                  </div>
-                  <h4 className="text-sm font-semibold text-slate-200 group-hover:text-white mb-0.5">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 line-clamp-1">{item.summary}</p>
-                </button>
-              ))}
-            </div>
+            <li className="px-3 py-8 text-center text-sm text-slate-500">No matches for “{query}”.</li>
           ) : (
-            <div className="p-6 text-center text-slate-500 text-xs">
-              Type keywords to search across all canonical Markdown documentation.
-            </div>
+            results.map((item, index) => (
+              <li key={String(item.id)} role="option" aria-selected={index === active}>
+                <button
+                  type="button"
+                  onClick={() => select(String(item.id))}
+                  className={`w-full rounded-lg px-3 py-2.5 text-left ${
+                    index === active ? "bg-indigo-500/15 ring-1 ring-indigo-400/30" : "hover:bg-white/5"
+                  }`}
+                >
+                  <p className="text-xs font-medium text-indigo-300">{String(item.category)}</p>
+                  <p className="text-sm font-semibold text-slate-100">{String(item.title)}</p>
+                  <p className="line-clamp-1 text-xs text-slate-400">{String(item.summary)}</p>
+                </button>
+              </li>
+            ))
           )}
-        </div>
-
-        <div className="px-4 py-2.5 bg-slate-950/60 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-          <span>Search index updated build-time</span>
-          <div className="flex items-center space-x-2">
-            <span>Navigate <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">↵</kbd></span>
-            <span>Close <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">ESC</kbd></span>
-          </div>
-        </div>
+        </ul>
+        <p className="border-t border-white/10 px-4 py-2 text-[11px] text-slate-500">
+          Title ranks above headings and body. Offline MiniSearch index. Esc closes.
+        </p>
       </div>
     </div>
   );
-};
+}

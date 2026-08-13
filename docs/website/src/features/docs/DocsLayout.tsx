@@ -8,8 +8,10 @@ import docsManifestData from '../../content/docs-manifest.json';
 import { DocMetadata } from '../../types';
 
 export const DocsLayout: React.FC = () => {
-  const { slug } = useParams<{ slug?: string }>();
-  const activeSlug = slug || 'documentation_standards';
+  // Nested slugs (`moon/roadmaps/ui`) arrive via the `/docs/*` splat route,
+  // not a named `:slug` param — react-router puts wildcard matches in `*`.
+  const params = useParams();
+  const activeSlug = params.slug || params['*'] || 'documentation_standards';
 
   const docsRecord = docsManifestData.docs as Record<string, DocMetadata>;
   const doc = docsRecord[activeSlug];

@@ -1,6 +1,6 @@
 # Security Policy
 
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](../LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app)
 
 Security considerations, policies, and guidelines for the Coding Assistants application.
@@ -110,7 +110,7 @@ The TCP server (`tcp_server.rs`) listens on `0.0.0.0:5555` for remote control co
 - Ensure your local network is trusted
 - Consider using a VPN for remote access
 
-**Planned improvements** (see [ROADMAP.md](ROADMAP.md)):
+**Planned improvements** (see [ROADMAP.md](moon/ROADMAP.md)):
 - Token-based authentication
 - TLS encryption
 - Connection allowlisting
