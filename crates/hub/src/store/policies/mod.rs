@@ -1,6 +1,7 @@
 use super::*;
 
 mod audit;
+mod settings_audit;
 impl HubStore {
     pub fn get_wake_policy(&self) -> Result<WakePolicy, HubError> {
         let raw: Option<String> = self

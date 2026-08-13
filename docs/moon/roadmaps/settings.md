@@ -60,7 +60,7 @@ Danger-zone controls use red/amber warning badges and high-contrast warning cont
 
 - Epic: [#126](https://github.com/ACFHarbinger/Coding-Assistants/issues/126)
 - S1: [#127](https://github.com/ACFHarbinger/Coding-Assistants/issues/127) · implemented in `crates/hub` (`SettingsStore`, `default_hub_home`); awaiting Chat/Codex review
-- S2: [#128](https://github.com/ACFHarbinger/Coding-Assistants/issues/128)
+- S2: [#128](https://github.com/ACFHarbinger/Coding-Assistants/issues/128) · implemented: workspace-override resolution in `crates/hub::settings`, redacted Tauri commands in `src-tauri/src/hub/commands/settings.rs`, audit fan-out via `HubStore::record_settings_audit_event`; awaiting Chat/Codex review
 - S3: [#129](https://github.com/ACFHarbinger/Coding-Assistants/issues/129)
 - S4: [#130](https://github.com/ACFHarbinger/Coding-Assistants/issues/130)
 - S5: [#131](https://github.com/ACFHarbinger/Coding-Assistants/issues/131)

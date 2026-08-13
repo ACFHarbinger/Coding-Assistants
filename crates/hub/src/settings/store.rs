@@ -1,11 +1,13 @@
 use super::model::{
-    SettingsError, SettingsSnapshot, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    EffectiveSettings, FieldStatus, SettingsError, SettingsField, SettingsSnapshot,
+    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };
 use chrono::Utc;
+use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use toml_edit::{value, DocumentMut, Item, Table};
+use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
 const SETTINGS_FILE: &str = "settings.toml";
 const TMP_FILE: &str = "settings.toml.tmp";
@@ -31,6 +33,7 @@ pub struct SettingsStore {
     home: PathBuf,
     document: DocumentMut,
     snapshot: SettingsSnapshot,
+    workspaces: BTreeMap<String, WorkspaceOverride>,
     load: SettingsLoad,
 }
 
@@ -43,6 +46,7 @@ impl SettingsStore {
                 home,
                 document: default_document(),
                 snapshot: SettingsSnapshot::default(),
+                workspaces: BTreeMap::new(),
                 load: SettingsLoad {
                     path,
                     status: LoadStatus::Missing,
@@ -52,6 +56,7 @@ impl SettingsStore {
                 home,
                 document: default_document(),
                 snapshot: SettingsSnapshot::default(),
+                workspaces: BTreeMap::new(),
                 load: SettingsLoad {
                     path,
                     status: LoadStatus::Unreadable {
@@ -60,10 +65,11 @@ impl SettingsStore {
                 },
             },
             Ok(raw) => match parse_document(&raw) {
-                Ok((document, snapshot)) => Self {
+                Ok((document, snapshot, workspaces)) => Self {
                     home,
                     document,
                     snapshot,
+                    workspaces,
                     load: SettingsLoad {
                         path,
                         status: LoadStatus::Loaded,
@@ -73,6 +79,7 @@ impl SettingsStore {
                     home,
                     document: default_document(),
                     snapshot: SettingsSnapshot::default(),
+                    workspaces: BTreeMap::new(),
                     load: SettingsLoad {
                         path,
                         status: LoadStatus::Invalid {
@@ -100,12 +107,69 @@ impl SettingsStore {
         &self.snapshot
     }
 
+    pub fn workspace_override(&self, workspace: &str) -> Option<&WorkspaceOverride> {
+        self.workspaces.get(workspace)
+    }
+
+    /// Merge the global snapshot with `workspace`'s override, if any. `None`
+    /// resolves the global-only view. The caller decides which workspace
+    /// identity string to pass; this never resolves symlinks itself.
+    pub fn effective(&self, workspace: Option<&str>) -> EffectiveSettings {
+        let over = workspace.and_then(|w| self.workspaces.get(w));
+        let (backup_retention, backup_retention_status) =
+            match over.and_then(|o| o.backup_retention) {
+                Some(value) => (value, FieldStatus::Override),
+                None => (self.snapshot.backup_retention, FieldStatus::Inherited),
+            };
+        EffectiveSettings {
+            schema_version: self.snapshot.schema_version,
+            workspace: workspace.map(str::to_string),
+            backup_retention,
+            backup_retention_status,
+        }
+    }
+
     pub fn set_backup_retention(&mut self, retention: u32) -> Result<(), SettingsError> {
         let mut next = self.snapshot.clone();
         next.backup_retention = retention;
         next.validate()?;
         self.snapshot = next;
         write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Set a workspace-local override. Does not save; call [`Self::save`]
+    /// to persist and pick up atomic-write/backup handling.
+    pub fn set_workspace_backup_retention(
+        &mut self,
+        workspace: &str,
+        retention: u32,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.backup_retention = Some(retention);
+        over.validate()?;
+        self.workspaces.insert(workspace, over);
+        Ok(())
+    }
+
+    /// Clear one field of a workspace override, falling back to the global
+    /// default. Removes the workspace entry entirely once it has no
+    /// overridden fields left. Does not save.
+    pub fn reset_workspace_field(
+        &mut self,
+        workspace: &str,
+        field: SettingsField,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        if let Some(over) = self.workspaces.get_mut(&workspace) {
+            match field {
+                SettingsField::BackupRetention => over.backup_retention = None,
+            }
+            if over.is_empty() {
+                self.workspaces.remove(&workspace);
+            }
+        }
         Ok(())
     }
 
@@ -183,17 +247,23 @@ impl SettingsStore {
             ));
         }
         let raw = fs::read_to_string(&backup_canon)?;
-        let (document, snapshot) = parse_document(&raw)?;
+        let (document, snapshot, workspaces) = parse_document(&raw)?;
         snapshot.validate()?;
         self.document = document;
         self.snapshot = snapshot;
+        self.workspaces = workspaces;
         self.load.status = LoadStatus::Loaded;
         self.write_atomically(false)
     }
 
     fn write_atomically(&mut self, backup_current: bool) -> Result<(), SettingsError> {
         self.snapshot.validate()?;
+        for (path, over) in &self.workspaces {
+            over.validate()
+                .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
+        }
         write_snapshot_fields(&mut self.document, &self.snapshot);
+        write_workspace_fields(&mut self.document, &self.workspaces);
         fs::create_dir_all(&self.home)?;
         if backup_current
             && self.load.path.exists()
@@ -265,13 +335,102 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
     document["storage"]["backup_retention"] = value(i64::from(snapshot.backup_retention));
 }
 
-fn parse_document(raw: &str) -> Result<(DocumentMut, SettingsSnapshot), SettingsError> {
+/// Rebuild the `[[workspace]]` array-of-tables from `workspaces` on every
+/// save, mirroring how `write_snapshot_fields` unconditionally overwrites
+/// `[storage]`. Comments inside a rewritten workspace block do not survive a
+/// save that touches it; top-level document comments are unaffected.
+fn write_workspace_fields(
+    document: &mut DocumentMut,
+    workspaces: &BTreeMap<String, WorkspaceOverride>,
+) {
+    if workspaces.is_empty() {
+        document.remove("workspace");
+        return;
+    }
+    let mut array = ArrayOfTables::new();
+    for (path, over) in workspaces {
+        let mut table = Table::new();
+        table["path"] = value(path.as_str());
+        if let Some(retention) = over.backup_retention {
+            table["backup_retention"] = value(i64::from(retention));
+        }
+        array.push(table);
+    }
+    document["workspace"] = Item::ArrayOfTables(array);
+}
+
+fn normalize_workspace(workspace: &str) -> Result<String, SettingsError> {
+    let trimmed = workspace.trim();
+    if trimmed.is_empty() {
+        return Err(SettingsError::Invalid(
+            "workspace path must not be empty".into(),
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn parse_document(
+    raw: &str,
+) -> Result<
+    (
+        DocumentMut,
+        SettingsSnapshot,
+        BTreeMap<String, WorkspaceOverride>,
+    ),
+    SettingsError,
+> {
     let document = raw
         .parse::<DocumentMut>()
         .map_err(|err| SettingsError::Invalid(err.to_string()))?;
     let snapshot = snapshot_from_document(&document)?;
     snapshot.validate()?;
-    Ok((document, snapshot))
+    let workspaces = workspaces_from_document(&document)?;
+    for (path, over) in &workspaces {
+        over.validate()
+            .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
+    }
+    Ok((document, snapshot, workspaces))
+}
+
+fn workspaces_from_document(
+    document: &DocumentMut,
+) -> Result<BTreeMap<String, WorkspaceOverride>, SettingsError> {
+    let mut map = BTreeMap::new();
+    let Some(array) = document.get("workspace").and_then(Item::as_array_of_tables) else {
+        return Ok(map);
+    };
+    for table in array.iter() {
+        let path = table
+            .get("path")
+            .and_then(Item::as_str)
+            .ok_or_else(|| SettingsError::Invalid("workspace entry missing path".into()))?
+            .to_string();
+        if path.trim().is_empty() {
+            return Err(SettingsError::Invalid(
+                "workspace path must not be empty".into(),
+            ));
+        }
+        let backup_retention = match table.get("backup_retention") {
+            Some(item) => Some(u32_from_i64(
+                item.as_integer().ok_or_else(|| {
+                    SettingsError::Invalid(format!(
+                        "workspace {path} backup_retention must be an integer"
+                    ))
+                })?,
+                "workspace.backup_retention",
+            )?),
+            None => None,
+        };
+        if map
+            .insert(path.clone(), WorkspaceOverride { backup_retention })
+            .is_some()
+        {
+            return Err(SettingsError::Invalid(format!(
+                "duplicate workspace override for {path}"
+            )));
+        }
+    }
+    Ok(map)
 }
 
 fn snapshot_from_document(document: &DocumentMut) -> Result<SettingsSnapshot, SettingsError> {

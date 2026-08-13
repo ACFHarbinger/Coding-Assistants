@@ -404,6 +404,11 @@ pub fn run() {
             hub::commands::workflow::hub_resume_agent,
             hub::commands::workflow::hub_pause_for_budget,
             hub::commands::workflow::hub_record_shutdown,
+            hub::commands::settings::settings_get_effective,
+            hub::commands::settings::settings_get_load_status,
+            hub::commands::settings::settings_update,
+            hub::commands::settings::settings_reset_field,
+            hub::commands::settings::settings_list_audit_events,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

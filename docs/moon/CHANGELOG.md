@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S2 typed IPC and scope resolution (#128) (2026-08-13)
+
+- Extended `hub::settings` (S1) with workspace-override resolution:
+  `WorkspaceOverride`, `FieldStatus` (`Inherited`/`Override`),
+  `EffectiveSettings`, and `SettingsField`. `SettingsStore::effective`
+  deterministically merges the global default with a workspace's override;
+  `set_workspace_backup_retention`/`reset_workspace_field` mutate it.
+  Workspace identity is the exact path string given — never
+  symlink-resolved — so distinct paths to one repository keep separate
+  overrides. Overrides persist as a `[[workspace]]` array-of-tables,
+  rewritten on save alongside the existing `[storage]` handling.
+- Added redacted Tauri commands in `src-tauri/src/hub/commands/settings.rs`:
+  `settings_get_effective`, `settings_get_load_status`, `settings_update`,
+  `settings_reset_field`, `settings_list_audit_events`. None return a
+  filesystem path; `settings_get_load_status` mirrors `LoadStatus` with its
+  path stripped.
+- Added `HubStore::record_settings_audit_event` /
+  `list_settings_audit_events` (`crates/hub/src/store/policies/settings_audit.rs`):
+  a dedicated, redacted settings-audit view (`root_path == "settings"`,
+  `process_json` carries only `field`/`scope`) that is a typed filter over
+  the same hash-chained `audit_events` table other Hub consumers already
+  read, not a second table. Settings changes are recorded and immediately
+  marked `approved` since the IPC call itself is the confirmation.
+- Added frontend typed IPC client `src/components/settings/{types,api}.ts`
+  mirroring the Rust DTOs, for the S3 Settings window to consume.
+- Backup listing/restore IPC is intentionally deferred to S3 so it can pair
+  the "restore last known good" action with real UI rather than exposing a
+  bare-path or backup-id surface ahead of that need.
+- Verified with `cargo test -p hub --lib` (67 passed, up from 60),
+  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`,
+  `cargo check --workspace`, `npx tsc --noEmit`, and `npm run build`.
+
 ### Grok — Settings S1 versioned store (#127) (2026-08-13)
 
 - Added `hub::SettingsStore` for versioned `settings.toml` under

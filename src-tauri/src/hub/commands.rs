@@ -8,6 +8,7 @@ mod quota_claude;
 mod quota_codex;
 mod quota_grok;
 pub mod quotas;
+pub mod settings;
 pub mod store;
 pub mod workflow;
 
