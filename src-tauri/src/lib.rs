@@ -1,5 +1,6 @@
 mod agents;
 mod file_tools;
+mod harness_claude;
 mod harness_cmds;
 mod hub_cmds;
 mod llm_client;
@@ -363,6 +364,7 @@ pub fn run() {
             harness_cmds::hub_start_harness,
             harness_cmds::hub_inject_harness,
             harness_cmds::hub_record_harness_capture,
+            harness_cmds::hub_capture_claude_session,
             hub_cmds::hub_list_wakes,
             hub_cmds::hub_export_markdown,
             hub_cmds::hub_export_markdown_git,

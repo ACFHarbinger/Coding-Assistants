@@ -48,6 +48,19 @@ pub fn hub_inject_harness(
 }
 
 #[tauri::command]
+pub fn hub_capture_claude_session(
+    workspace: String,
+    session_id: Option<String>,
+) -> Result<crate::harness_claude::ClaudeCaptureOutcome, String> {
+    let store = open_store()?;
+    crate::harness_claude::capture_claude_session(
+        &store,
+        &PathBuf::from(workspace),
+        session_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub fn hub_record_harness_capture(
     harness: String,
     agent_id: String,

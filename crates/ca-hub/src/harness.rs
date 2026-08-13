@@ -132,10 +132,7 @@ pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
             "Claude spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![
-        OsString::from("-p"),
-        OsString::from(prompt),
-    ])
+    Ok(vec![OsString::from("-p"), OsString::from(prompt)])
 }
 
 /// Explicit argv for a Google Antigravity CLI (agy) wake/task spawn.
@@ -155,7 +152,11 @@ pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
     ])
 }
 
-fn spawn_explicit(program: &str, workspace: &Path, args: &[OsString]) -> Result<HarnessStartResult, HubError> {
+fn spawn_explicit(
+    program: &str,
+    workspace: &Path,
+    args: &[OsString],
+) -> Result<HarnessStartResult, HubError> {
     match Command::new(program)
         .current_dir(workspace)
         .args(args)
