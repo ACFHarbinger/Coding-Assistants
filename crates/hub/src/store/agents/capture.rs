@@ -106,7 +106,15 @@ impl HubStore {
             return Ok(None);
         }
 
-        let subject = session_id.map(|id| format!("channel:session:{id}:capture"));
+        // Each capture needs its own unique subject — a fixed
+        // "channel:session:<id>:capture" for every captured chunk, from
+        // every harness/agent, collided with itself in the desktop chat's
+        // per-post dedup (meant to collapse team fan-out *copies* of one
+        // broadcast, not distinct sends): only the most recently captured
+        // chunk ever displayed, so one agent's capture appeared to
+        // overwrite another's. Mirrors the same fix already applied to
+        // `record_channel_reply`'s subject.
+        let subject = session_id.map(|id| format!("channel:session:{id}:capture:{}", Uuid::new_v4()));
         let to_agent = session_id
             .map(|id| format!("session:{id}"))
             .unwrap_or_else(|| "team".into());
@@ -139,5 +147,47 @@ impl HubStore {
             ],
         )?;
         Ok(Some(message))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn distinct_captures_in_the_same_session_get_distinct_subjects() {
+        // Regression: a fixed "channel:session:<id>:capture" subject for
+        // every captured chunk, from every harness/agent, collided with
+        // itself in the desktop chat's per-post dedup — one agent's
+        // capture appeared to overwrite another's as soon as a second
+        // capture (from any harness) landed in the same session.
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("capture regression").unwrap();
+
+        let grok_capture = store
+            .record_harness_capture("grok", "grok", Some(&session.id), "grok's update", None)
+            .unwrap()
+            .expect("distinct body is captured");
+        let claude_capture = store
+            .record_harness_capture(
+                "claude",
+                "claude",
+                Some(&session.id),
+                "claude's update",
+                None,
+            )
+            .unwrap()
+            .expect("distinct body from a distinct agent is captured");
+
+        assert_ne!(grok_capture.subject, claude_capture.subject);
+
+        let listed = store
+            .list_channel_messages(&format!("session:{}", session.id), 20)
+            .unwrap();
+        assert_eq!(listed.len(), 2, "both captures must remain visible");
+        assert!(listed.iter().any(|m| m.from_agent == "grok"));
+        assert!(listed.iter().any(|m| m.from_agent == "claude"));
     }
 }
