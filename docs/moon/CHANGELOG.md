@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serialized the two production-output Vitest suites and set their explicit
   30-second hook budget after GitHub’s clean runner showed concurrent Vite
   builds exceeding Vitest’s default 10-second hook timeout.
+- Verified the stabilization in clean GitHub Pages workflow `31676870915`
+  (install, test, build, artifact upload, and deployment all passed), then
+  closed documentation epic #116 and its completed W1–W7 issues #117–#123.
 
 ### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
 

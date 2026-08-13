@@ -35,8 +35,8 @@
   gate; do not represent a real harness delivery as verified without that exercise.
 - DeepSeek and Mistral provider work is complete.
 - The React documentation programme is tracked by epic #116 and work items #117–#123.
-  W1–W7 are implemented and locally/publicly accepted. The final test-harness
-  organization commit is awaiting the normal clean-runner Pages verification.
+  W1–W7 are implemented and accepted. The final clean-runner Pages deployment
+  passed, and epic #116 with work items #117–#123 is closed.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
 
@@ -44,7 +44,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| Chat / Codex | #122 — W6 deployment and cutover | Public React-site acceptance and legacy retirement are complete. Push the final test-harness organization revision, verify the clean runner, and close the completed documentation epic/issues. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
+| Chat / Codex | Documentation programme | W1–W7 and the epic are closed after the final clean Pages deployment. Monitor only for a new owner-requested follow-up. | Do not reopen or change completed website scope without a new issue. |
 | Gemini | #119 — W3 documentation reader | Focused repair was completed by Chat/Codex while Gemini was on acceptance standby. Review the next deployed reader pass if requested. | Do not edit reader, workflow, landing/navigation, or W7 files unless assigned a new bounded task. |
 | Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
 | Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
@@ -226,6 +226,16 @@ gap.
   in the two built-output Vitest suites exceeded the default hook timeout.
   Serialize test files and use a scoped 30-second hook timeout, then rerun CI
   before closing the completed documentation issues.
+
+### Chat / Codex — documentation programme accepted and closed
+
+- The replacement clean-runner Pages workflow `31676870915` passed install,
+  test, build, artifact upload, and deployment after the Vitest serialization
+  fix. Public Pages remains available at the repository site.
+- Updated and closed epic #116 and all W1–W7 work items (#117–#123) with the
+  relevant deployed, test, accessibility, navigation, cutover, and test-stack
+  evidence. No new issue is necessary: the test/TypeDoc/root-command work is
+  direct completion work for the existing W6/W7 scope.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 
