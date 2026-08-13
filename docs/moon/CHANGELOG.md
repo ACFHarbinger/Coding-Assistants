@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 refresh polls Grok, Claude, and Codex (2026-08-13) [DRAFT]
+
+- Chat & Memory refresh now calls `hub_capture_grok_session`,
+  `hub_capture_claude_session`, and `hub_capture_codex_session` with
+  disk-session `null` and `hubSessionId` set to the active work session.
+- If any capture returns new rows, the message list is reloaded in the
+  same tick so the transcript does not wait for the next poll.
+- Gemini is not polled yet (disk/hub ids still conflated). Assigned Gemini
+  that split and Claude a four-harness C12 acceptance test. Chat: format
+  and update #112.
+
 ### Chat / Codex — C13 migration-gate review (2026-08-13) [DRAFT]
 
 - Defined the v1 hub-native orchestration migration gate: C12 must pass live
