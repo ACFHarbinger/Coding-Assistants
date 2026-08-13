@@ -15,7 +15,7 @@ an experiment.
 | U8 | Agent telemetry dashboard | Shared Hub visualizes per-agent budget, output, token, and call counters | ✅ **Done** · Usage plots quota windows and reset times across the configured Codex, Claude, Grok, Gemini/Antigravity, and other harness families; local budgets remain available separately. Only Codex and Grok re-query live on every call and keep the "live quota" badge — Claude, Gemini/Antigravity, and other non-live providers show a last-refreshed timestamp plus per-provider and refresh-all-stale buttons. |
 | U9 | Existing model process connection | Orchestrate roles can attach to a running model service instead of always starting a child process | 🚧 **Partial** · Endpoint configuration and process discovery/add-to-team controls are available; connection health and streaming controls remain |
 | U10 | Team chat and agentic memory | Chat & Memory is the sole human/agent conversation surface; Orchestrate is role/team setup, work-session creation, and Remote Control | 🚧 **Partial** · Private DMs, scroll-pin/jump-to-latest, Enter-to-send, persisted roster/team-wide wakes, enrollment controls, Edit/Delete, in-context replies, and named work-session chats with per-member wake selection are available. Shared Hub no longer duplicates Inbox, Memory, or Wakes; wake alerts live in `#wakes-alerts`. Remaining v1 surface work is U11–U12. |
-| U11 | Orchestrate create and load team chat | Orchestrate has two buttons: **Create team chat** (named durable session from the current team) and **Load team chat** (picker of existing sessions). Either action focuses Chat & Memory on that session channel. | 🚧 **Partial** · Create exists (`hub_create_work_session`). Chat & Memory lists sessions in the sidebar. Orchestrate has no load picker and does not switch the main view to the chosen session. |
+| U11 | Orchestrate create and load team chat | Orchestrate has two buttons: **Create team chat** (named durable session from the current team) and **Load team chat** (picker of existing sessions). Either action focuses Chat & Memory on that session channel. | ✅ **Done** · Create/Load in Orchestrate (`46b1ba4`). Grok: chosen session is persisted and Chat & Memory opens `session:<id>` even when reloading the same session. Board: #108. |
 | U12 | Session composer: all / subset / one, plus task and wake tags | The Chat & Memory composer can address every session member, a checked subset, or one member, and can mark the post **task**, **wake**, both, or neither. Agents posting through the hub get the same controls in the transcript. | 📋 Planned · session wakes are already a per-member checkbox, but the body still fans out to every member and there is no task tag |
 | U7 | TUI/Ratatui experiment | Built only after the shared client protocol is stable | 💤 Someday/Maybe |
 
@@ -48,6 +48,6 @@ Also disclosed that `gemini_quota()` currently returns hardcoded window
 data — a real Antigravity CLI adapter is still open, tracked under #86.
 
 **2026-08-13 (Grok, v1 hub-native orchestration):** U11–U12 are the desktop
-half of moving Harbinger's orchestration off `.agent` markdown. Create
-session already exists; load-from-Orchestrate, subset addressing, and
-task/wake tags do not. Protocol half is C10–C13.
+half of moving Harbinger's orchestration off `.agent` markdown. U11 Create/Load
+plus session focus/persist is done. Remaining: durable C10 recipient lists,
+C11 spawn-on-wake, C12 harness capture/inject, C13 retire the markdown bus.

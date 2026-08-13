@@ -108,7 +108,23 @@ function App() {
       return null;
     }
   });
-  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(null);
+  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("ca.activeWorkSessionId");
+    } catch {
+      return null;
+    }
+  });
+  const [chatFocusToken, setChatFocusToken] = useState(0);
+
+  useEffect(() => {
+    try {
+      if (activeWorkSessionId) localStorage.setItem("ca.activeWorkSessionId", activeWorkSessionId);
+      else localStorage.removeItem("ca.activeWorkSessionId");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [activeWorkSessionId]);
 
   useEffect(() => {
     async function loadModels() {
@@ -192,18 +208,9 @@ function App() {
       setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
       setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
       setWorkSessions(sessions);
-      setActiveWorkSessionId(current => {
-        const next = current && sessions.some(session => session.id === current)
-          ? current
-          : current;
-        try {
-          if (next) localStorage.setItem("ca.activeWorkSessionId", next);
-          else localStorage.removeItem("ca.activeWorkSessionId");
-        } catch {
-          /* ignore quota / private mode */
-        }
-        return next;
-      });
+      setActiveWorkSessionId(current =>
+        current && sessions.some(session => session.id === current) ? current : current
+      );
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
     }
@@ -249,11 +256,7 @@ function App() {
     setActiveWorkSessionId(sessionId);
     if (sessionId) {
       setChatFocusSessionId(sessionId);
-      try {
-        localStorage.setItem("ca.activeWorkSessionId", sessionId);
-      } catch {
-        /* ignore quota / private mode */
-      }
+      setChatFocusToken(token => token + 1);
     }
   };
 
@@ -330,6 +333,7 @@ function App() {
             workSessions={workSessions}
             activeWorkSessionId={activeWorkSessionId}
             focusSessionId={chatFocusSessionId}
+            focusSessionToken={chatFocusToken}
             onSelectWorkSession={selectWorkSession}
             onRefresh={refreshHubChat}
           />

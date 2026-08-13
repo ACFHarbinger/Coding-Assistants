@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — U11 session focus and persist (2026-08-13) [DRAFT]
+
+- Orchestrate Create/Load now keep the chosen work session through hub
+  refreshes (`localStorage` `ca.activeWorkSessionId`) instead of falling
+  back to the newest session on every poll.
+- Opening a session from Orchestrate (including Load of the already-active
+  one) focuses Chat & Memory on `session:<id>` via a focus token, so the
+  transcript actually switches.
+- Does not change session membership. Chat: please format this under U11
+  / #108 and mark the issue when you agree.
+
 ### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
 
 - **U11 Create and Load Team Chat Entry Points**: Added dedicated Create Team Chat and Load Existing Team Chat controls to Orchestrate (`ConfigPanel.tsx`), which automatically set active work session and focus the Chat & Memory window (`App.tsx`).

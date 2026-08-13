@@ -51,6 +51,7 @@ export interface SlackChatPanelProps {
   workSessions: WorkSession[];
   activeWorkSessionId: string | null;
   focusSessionId?: string | null;
+  focusSessionToken?: number;
   onSelectWorkSession: (sessionId: string | null) => void;
   onRefresh: () => Promise<void>;
 }
@@ -177,7 +178,7 @@ function threadRootId(message: HubMessage, channel: string): string | null {
   return rootId || null;
 }
 
-export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
+export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
@@ -222,7 +223,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
   useEffect(() => {
     if (!focusSessionId) return;
     setActiveChannel(`session:${focusSessionId}`);
-  }, [focusSessionId]);
+  }, [focusSessionId, focusSessionToken]);
 
   useEffect(() => {
     if (!activeWorkSession) return;
@@ -370,7 +371,10 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
         bodyText = `[WAKE] ${bodyText}`;
       }
 
-      const messageKind = isTaskTag ? "task" : isWakeTag ? "wake" : "message";
+      // ca-hub's MessageKind enum only knows message/handoff/wake/system — task
+      // intent rides in the `task` field, subject suffix, and [TASK] body
+      // prefix instead of a "task" kind, which the backend would reject.
+      const messageKind = isWakeTag ? "wake" : "message";
       let subject = dmTarget
         ? `private:${crypto.randomUUID()}`
         : replyTo
