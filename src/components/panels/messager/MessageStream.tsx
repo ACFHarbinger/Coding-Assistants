@@ -1,6 +1,7 @@
 // @ts-nocheck
+import { isNearNewestEdge, newestEdgeScrollTop } from "./utils";
 export default function MessageStream(props: any) {
-  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
+  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
   return (
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div
@@ -8,7 +9,7 @@ export default function MessageStream(props: any) {
           onScroll={() => {
             const el = scrollBoxRef.current;
             if (!el) return;
-            const near = isNearBottom(el);
+            const near = isNearNewestEdge(el, sortOrder);
             stickToBottomRef.current = near;
             if (near) setJumpToLatest(false);
           }}
@@ -302,7 +303,7 @@ export default function MessageStream(props: any) {
             className="btn-primary"
             onClick={() => {
               const el = scrollBoxRef.current;
-              if (el) el.scrollTop = el.scrollHeight;
+              if (el) el.scrollTop = newestEdgeScrollTop(el, sortOrder);
               stickToBottomRef.current = true;
               forceScrollRef.current = false;
               setJumpToLatest(false);

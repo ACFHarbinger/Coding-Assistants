@@ -58,6 +58,18 @@ export function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
 }
 
+/** Whichever scroll edge the newest message currently renders at: the
+ * bottom when oldest-first (ascending), the top when newest-first
+ * (descending). */
+export function isNearNewestEdge(el: HTMLElement, sortOrder: "asc" | "desc"): boolean {
+  return sortOrder === "desc" ? el.scrollTop <= NEAR_BOTTOM_PX : isNearBottom(el);
+}
+
+/** The scrollTop value that pins the view to the newest message. */
+export function newestEdgeScrollTop(el: HTMLElement, sortOrder: "asc" | "desc"): number {
+  return sortOrder === "desc" ? 0 : el.scrollHeight;
+}
+
 /** Collapse team fan-out copies of one post without merging later distinct sends. */
 export function channelDedupeKey(msg: HubMessage, channel: string): string {
   const prefix = `channel:${channel}`;

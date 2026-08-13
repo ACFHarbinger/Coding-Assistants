@@ -3,7 +3,7 @@ import { invoke, isTauriRuntime } from "../../lib/tauri";
 import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps } from "./messager/types";
 import { deliverTaggedSession } from "./messager/sendTagged";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
-import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, persistLastRead, rosterAgentIds, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
+import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
 import MemoryDrawer from "./messager/MemoryDrawer";
@@ -27,7 +27,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [lastReadAt, setLastReadAt] = useState<Record<string, string>>(loadLastRead);
   const [readMarkers, setReadMarkers] = useState<{ agent_id: string; scope: string; last_read_at: string }[]>([]);
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
@@ -472,14 +472,14 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     const channelChanged = prevChannelRef.current !== activeChannel;
     prevChannelRef.current = activeChannel;
     if (channelChanged || forceScrollRef.current || stickToBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = newestEdgeScrollTop(el, sortOrder);
       stickToBottomRef.current = true;
       forceScrollRef.current = false;
       setJumpToLatest(false);
     } else {
       setJumpToLatest(true);
     }
-  }, [threadKey, activeChannel]);
+  }, [threadKey, activeChannel, sortOrder]);
 
   const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
 
