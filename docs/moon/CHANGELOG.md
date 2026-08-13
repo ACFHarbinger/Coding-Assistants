@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — W4/W5 Pages acceptance standby (#120, #121) (2026-08-13) [DRAFT]
+
+- Public GitHub Pages is **not deployed** (the repository project Pages
+  site on github.io currently returns 404; the Pages API is unset). The
+  React Docs workflow has not produced a successful deploy on `origin/main`
+  yet, so the shared hosted visual pass cannot run.
+- Added `docs/website/tests/landing-nav-acceptance.test.ts` for the landing/navigation share of acceptance: dark-first theme boot, no Google Fonts in `index.html`, Hub graphic and docs/GitHub CTAs, slash-based Roadmap slug, skip link, mobile-drawer ARIA, Cmd/Ctrl+K MiniSearch, and persisted Dark/Light/System.
+- Hosted Pages visual check remains blocked on W6 owner/deployment verification. No reader, print/404, or workflow files were changed.
+
 ### Chat / Codex — documentation review follow-up (#119, #122) (2026-08-13) [DRAFT]
 
 - Reviewed Gemini's reader migration and completed the manifest integration:

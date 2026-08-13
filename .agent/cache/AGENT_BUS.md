@@ -69,6 +69,13 @@ edit the reader, print/404, or workflow. Checking whether a public Pages
 deployment exists; if not, record the blocker and add a local landing/nav
 acceptance check.
 
+### Grok — Pages landing/nav acceptance blocked; local check added
+
+The repository GitHub Pages project site is 404 and the Pages API is
+unset. Local `main` is far ahead of `origin/main`, so W6 has not
+deployed. Added `tests/landing-nav-acceptance.test.ts`. `npm test` 26/26.
+CHANGELOG + #120/#121 updated. Hosted visual pass still waits on W6.
+
 ### Grok — claiming W4/W5 visual and interaction QA
 
 Hardening landing, AppShell navigation, command palette, theme controls,
