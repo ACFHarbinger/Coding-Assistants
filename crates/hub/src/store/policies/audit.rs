@@ -339,6 +339,11 @@ impl HubStore {
                 disk_session_id TEXT NOT NULL,
                 leader_socket TEXT,
                 registered_at TEXT NOT NULL,
+                mode TEXT NOT NULL DEFAULT 'observed',
+                state TEXT NOT NULL DEFAULT 'ready',
+                managed_pid INTEGER,
+                writer_owner TEXT,
+                writer_acquired_at TEXT,
                 PRIMARY KEY (harness, workspace)
             );
             "#,
@@ -354,6 +359,11 @@ impl HubStore {
             "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
             "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE tagged_send_outcomes ADD COLUMN policy_decision TEXT",
+            "ALTER TABLE harness_session_registrations ADD COLUMN mode TEXT NOT NULL DEFAULT 'observed'",
+            "ALTER TABLE harness_session_registrations ADD COLUMN state TEXT NOT NULL DEFAULT 'ready'",
+            "ALTER TABLE harness_session_registrations ADD COLUMN managed_pid INTEGER",
+            "ALTER TABLE harness_session_registrations ADD COLUMN writer_owner TEXT",
+            "ALTER TABLE harness_session_registrations ADD COLUMN writer_acquired_at TEXT",
         ] {
             let _ = self.conn.execute(ddl, []);
         }

@@ -235,7 +235,12 @@ impl HubStore {
              ON CONFLICT(harness, workspace) DO UPDATE SET
                 disk_session_id = excluded.disk_session_id,
                 leader_socket = excluded.leader_socket,
-                registered_at = excluded.registered_at",
+                registered_at = excluded.registered_at,
+                mode = 'observed',
+                state = 'ready',
+                managed_pid = NULL,
+                writer_owner = NULL,
+                writer_acquired_at = NULL",
             params![
                 harness,
                 workspace,
@@ -250,7 +255,94 @@ impl HubStore {
             disk_session_id: disk_session_id.into(),
             leader_socket: leader_socket.map(str::to_string),
             registered_at,
+            mode: HarnessSessionMode::Observed,
+            state: HarnessSessionState::Ready,
+            managed_pid: None,
+            writer_owner: None,
+            writer_acquired_at: None,
         })
+    }
+
+    /// Register a process/session deliberately launched and owned by the Hub.
+    /// Ownership is explicit; discovery must continue to use
+    /// [`register_harness_session`] and therefore stays observed.
+    pub fn register_managed_harness_session(
+        &self,
+        harness: &str,
+        workspace: &str,
+        disk_session_id: &str,
+        managed_pid: u32,
+    ) -> Result<HarnessSessionRegistration, HubError> {
+        let mut registration = self.register_harness_session(harness, workspace, disk_session_id, None)?;
+        self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET mode = 'managed', state = 'ready', managed_pid = ?3
+             WHERE harness = ?1 AND workspace = ?2",
+            params![harness.trim(), workspace.trim(), managed_pid],
+        )?;
+        registration.mode = HarnessSessionMode::Managed;
+        registration.managed_pid = Some(managed_pid);
+        Ok(registration)
+    }
+
+    /// Acquire the only writer lease for a managed provider session.
+    /// A live lease is never stolen: callers must surface it as busy/queued or
+    /// release it after completion/cancellation.
+    pub fn acquire_harness_writer(
+        &self,
+        harness: &str,
+        workspace: &str,
+        owner: &str,
+    ) -> Result<(), HubError> {
+        let owner = owner.trim();
+        if owner.is_empty() {
+            return Err(HubError::Invalid("harness writer owner must not be empty".into()));
+        }
+        let changed = self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET writer_owner = ?3, writer_acquired_at = ?4, state = 'busy'
+             WHERE harness = ?1 AND workspace = ?2
+               AND mode = 'managed' AND writer_owner IS NULL",
+            params![harness, workspace, owner, Utc::now().to_rfc3339()],
+        )?;
+        if changed == 1 {
+            return Ok(());
+        }
+        let registration = self.get_harness_session(harness, workspace)?;
+        match registration {
+            None => Err(HubError::NotFound(format!("{harness} harness session at {workspace}"))),
+            Some(session) if session.mode != HarnessSessionMode::Managed => Err(HubError::Invalid(
+                "cannot acquire a writer for an observed harness session".into(),
+            )),
+            Some(session) => Err(HubError::Invalid(format!(
+                "harness session already has an active writer{}",
+                session
+                    .writer_owner
+                    .as_deref()
+                    .map(|value| format!(" ({value})"))
+                    .unwrap_or_default()
+            ))),
+        }
+    }
+
+    pub fn release_harness_writer(
+        &self,
+        harness: &str,
+        workspace: &str,
+        owner: &str,
+        next_state: HarnessSessionState,
+    ) -> Result<(), HubError> {
+        let changed = self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET writer_owner = NULL, writer_acquired_at = NULL, state = ?4
+             WHERE harness = ?1 AND workspace = ?2 AND writer_owner = ?3",
+            params![harness, workspace, owner.trim(), next_state.as_str()],
+        )?;
+        if changed == 1 {
+            Ok(())
+        } else {
+            Err(HubError::Invalid("harness writer lease is not held by this owner".into()))
+        }
     }
 
     pub fn get_harness_session(
@@ -260,7 +352,8 @@ impl HubStore {
     ) -> Result<Option<HarnessSessionRegistration>, HubError> {
         self.conn
             .query_row(
-                "SELECT harness, workspace, disk_session_id, leader_socket, registered_at
+                "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
+                        mode, state, managed_pid, writer_owner, writer_acquired_at
                  FROM harness_session_registrations
                  WHERE harness = ?1 AND workspace = ?2",
                 params![harness, workspace],
@@ -271,6 +364,13 @@ impl HubStore {
                         disk_session_id: row.get(2)?,
                         leader_socket: row.get(3)?,
                         registered_at: row.get(4)?,
+                        mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?)
+                            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
+                        state: HarnessSessionState::parse(&row.get::<_, String>(6)?)
+                            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
+                        managed_pid: row.get(7)?,
+                        writer_owner: row.get(8)?,
+                        writer_acquired_at: row.get(9)?,
                     })
                 },
             )
@@ -280,7 +380,8 @@ impl HubStore {
 
     pub fn list_harness_sessions(&self) -> Result<Vec<HarnessSessionRegistration>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT harness, workspace, disk_session_id, leader_socket, registered_at
+            "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
+                    mode, state, managed_pid, writer_owner, writer_acquired_at
              FROM harness_session_registrations
              ORDER BY registered_at DESC",
         )?;
@@ -291,6 +392,13 @@ impl HubStore {
                 disk_session_id: row.get(2)?,
                 leader_socket: row.get(3)?,
                 registered_at: row.get(4)?,
+                mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?)
+                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
+                state: HarnessSessionState::parse(&row.get::<_, String>(6)?)
+                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
+                managed_pid: row.get(7)?,
+                writer_owner: row.get(8)?,
+                writer_acquired_at: row.get(9)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and issues [#148](https://github.com/ACFHarbinger/Coding-Assistants/issues/148)–[#152](https://github.com/ACFHarbinger/Coding-Assistants/issues/152).
   The existing C12 safe capture/refusal boundary remains in force until their
   individual acceptance tests pass.
+- Started C14.1's Hub foundation: every registered harness session now records
+  an explicit **observed** or **managed** mode plus truthful readiness state.
+  Only a deliberately managed session can acquire the durable, exclusive
+  owner-labelled writer lease; the lease prevents a second turn from racing
+  the active provider writer and only its owner can release it. Existing C12
+  registration paths stay observed by default.
 
 ### Chat / Codex — Chat composer recipient and delivery clarity (2026-08-13)
 

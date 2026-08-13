@@ -176,7 +176,75 @@ pub struct ChannelRecord {
     pub created_at: String,
 }
 
-/// An explicitly registered already-running harness session (C12 bridge).
+/// Whether the Hub owns the provider process/session or only observes it.
+///
+/// Observed sessions retain C12's conservative safety boundary: they may be
+/// captured and, only where the provider publishes a safe bridge, messaged.
+/// Managed sessions are explicitly created by Coding-Assistants and may claim
+/// the per-session writer lease required by C14.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionMode {
+    Observed,
+    Managed,
+}
+
+impl HarnessSessionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Observed => "observed",
+            Self::Managed => "managed",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "observed" => Ok(Self::Observed),
+            "managed" => Ok(Self::Managed),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session mode: {other}"
+            ))),
+        }
+    }
+}
+
+/// Truthful provider readiness used by managed-session UI and delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionState {
+    Ready,
+    Busy,
+    Queued,
+    Unavailable,
+    Stopped,
+}
+
+impl HarnessSessionState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Busy => "busy",
+            Self::Queued => "queued",
+            Self::Unavailable => "unavailable",
+            Self::Stopped => "stopped",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "ready" => Ok(Self::Ready),
+            "busy" => Ok(Self::Busy),
+            "queued" => Ok(Self::Queued),
+            "unavailable" => Ok(Self::Unavailable),
+            "stopped" => Ok(Self::Stopped),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session state: {other}"
+            ))),
+        }
+    }
+}
+
+/// An explicitly registered harness session (C12 / C14 bridge).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HarnessSessionRegistration {
     pub harness: String,
@@ -184,4 +252,9 @@ pub struct HarnessSessionRegistration {
     pub disk_session_id: String,
     pub leader_socket: Option<String>,
     pub registered_at: String,
+    pub mode: HarnessSessionMode,
+    pub state: HarnessSessionState,
+    pub managed_pid: Option<u32>,
+    pub writer_owner: Option<String>,
+    pub writer_acquired_at: Option<String>,
 }

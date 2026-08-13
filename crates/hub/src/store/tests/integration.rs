@@ -189,4 +189,54 @@ fn harness_session_registration_is_upserted_per_workspace() {
         .unwrap();
     assert_eq!(loaded.disk_session_id, "session-b");
     assert!(loaded.leader_socket.is_none());
+    assert_eq!(loaded.mode, HarnessSessionMode::Observed);
+    assert_eq!(loaded.state, HarnessSessionState::Ready);
+    assert!(loaded.writer_owner.is_none());
+}
+
+#[test]
+fn managed_harness_writer_lease_is_exclusive_and_released_truthfully() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let workspace = "/tmp/ca-managed-codex";
+    let managed = store
+        .register_managed_harness_session("chat", workspace, "thread-owned-by-ca", 4242)
+        .unwrap();
+    assert_eq!(managed.mode, HarnessSessionMode::Managed);
+    assert_eq!(managed.managed_pid, Some(4242));
+
+    store
+        .acquire_harness_writer("chat", workspace, "turn:one")
+        .unwrap();
+    let busy = store
+        .acquire_harness_writer("chat", workspace, "turn:two")
+        .unwrap_err();
+    assert!(busy.to_string().contains("active writer"));
+
+    let held = store.get_harness_session("chat", workspace).unwrap().unwrap();
+    assert_eq!(held.state, HarnessSessionState::Busy);
+    assert_eq!(held.writer_owner.as_deref(), Some("turn:one"));
+
+    assert!(store
+        .release_harness_writer("chat", workspace, "turn:two", HarnessSessionState::Ready)
+        .is_err());
+    store
+        .release_harness_writer("chat", workspace, "turn:one", HarnessSessionState::Ready)
+        .unwrap();
+    let released = store.get_harness_session("chat", workspace).unwrap().unwrap();
+    assert_eq!(released.state, HarnessSessionState::Ready);
+    assert!(released.writer_owner.is_none());
+}
+
+#[test]
+fn observed_harness_session_cannot_claim_a_managed_writer_lease() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .register_harness_session("claude", "/tmp/ca-observed-claude", "disk-session", None)
+        .unwrap();
+    let error = store
+        .acquire_harness_writer("claude", "/tmp/ca-observed-claude", "turn:one")
+        .unwrap_err();
+    assert!(error.to_string().contains("observed"));
 }
