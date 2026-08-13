@@ -11,16 +11,16 @@ mod paths;
 mod settings;
 mod store;
 
-pub use bridge::claude::{
-    claude_control_socket_path, deliver_claude_task, find_active_claude_session,
-    list_active_claude_sessions, ClaudeAgentSession,
-};
-pub use bridge::claude_channel::{
+pub use bridge::channels::claude::{
     delete_channel_workspace, get_permission_request, is_channel_session_live,
     launch_claude_channel_session, list_channel_workspaces, poll_channel_events,
     poll_quiet_channel_events, record_channel_reply, record_permission_request,
     rename_channel_workspace, resolve_permission_request, setup_claude_channel, ChannelEvent,
     ChannelWorkspace, PermissionVerdict, CLAUDE_AGENT_ID,
+};
+pub use bridge::claude::{
+    claude_control_socket_path, deliver_claude_task, find_active_claude_session,
+    list_active_claude_sessions, ClaudeAgentSession,
 };
 pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
