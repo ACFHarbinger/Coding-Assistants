@@ -14,7 +14,11 @@ communication is reliable.
 | C6 | Budget exhaustion pause, Markdown handoff summary, delegation, and shutdown | No uncontrolled provider calls continue after a configured limit | ✅ **Done** · Tauri `AgentSystem`, CLI `budget consume`, Tauri commands, and Shared Hub Usage tab enforce configured limits; shutdown hooks exposed via `ca shutdown` and `hub_record_shutdown` |
 | C7 | **Next major milestone:** A2A-compatible discovery, Agent Cards, and horizontal delegation | Local workflows interoperate with an A2A peer while preserving identity, approval, budget, and audit policy | ✅ **Done** · `AgentCard` schema and storage in `ca-hub`, `ca agent register-card` in CLI, `hub_upsert_agent_card` in Tauri, and `GetAgentCards` over `TcpServer` |
 | C8 | Fully parallel execution from session start | Concurrent work has conflict detection, task isolation, and deterministic recovery | 📋 Pending · later |
-| C9 | Agent inbox bridge process | A long-lived adapter can consume one agent's hub messages as a stable stream, acknowledge them, and honor wake gates | 🚧 **In Progress** · `ca inbox watch --agent <id>` emits JSONL, resolves accepted wakes, forwards to an adapter stdin, and includes a Codex app-server thread adapter with persisted-thread discovery and hub reply routing; direct attachment to an existing interactive TUI remains open |
+| C9 | Agent inbox bridge process | A long-lived adapter can consume one agent's hub messages as a stable stream, acknowledge them, and honor wake gates | 🚧 **In Progress** · `ca inbox watch --agent <id>` emits JSONL, resolves accepted wakes, forwards to an adapter stdin, and includes a Codex app-server thread adapter with persisted-thread discovery and hub reply routing; direct attachment to an existing interactive TUI remains open. C12 completes this for all four harnesses. |
+| C10 | Session addressing: all, subset, or one | Human and any enrolled agent can send a session message to every member, a named subset, or a single member. Non-targets are not woken or tasked. The session transcript records the explicit `to` list. | 📋 Planned · today: team broadcast or one recipient; work-session wakes can be a subset but the body still fans out to every member |
+| C11 | Task vs wake message tags | A message may be tagged **task**, **wake**, both, or neither. **Wake** may launch a new harness instance of that identity and enroll it in the session team. **Task** must target an already-enrolled, currently present member and is refused (no spawn) otherwise. Agents can apply the same tags through the hub API/CLI. | 📋 Planned · current wakes are delivery pokes only; they do not spawn; there is no task tag |
+| C12 | Bidirectional harness capture and inject | The app captures messages agents send inside Grok/Chat/Claude/Gemini harnesses into the session transcript. Hub messages tagged task and/or wake are injected into the target harness so the agent executes them. Builds on C9. | 📋 Planned · Codex `ca inbox watch` is the only inject path; no automatic capture from any TUI |
+| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 Planned · temporary process; do not treat as the product |
 
 **2026-08-12:** CA-102 adds bounded, exact channel queries to the shared
 store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).
@@ -32,8 +36,16 @@ isolated `channel:session:<id>` subject namespace, so messages emitted from a
 human or agent harness render together while per-member wake selection stays
 an explicit delivery decision.
 
-The `.agent/reports` and `.agent/messages` conventions are temporary process
-artifacts, not the long-term communication protocol.
+The `.agent/reports`, `.agent/messages`, and `.agent/cache/AGENT_BUS.md`
+conventions are temporary process artifacts, not the long-term communication
+protocol. Until C10–C13 ship, Grok and Chat still coordinate sub-task
+allocation on `AGENT_BUS.md`.
+
+**2026-08-13 (Grok, v1 hub-native orchestration):** Harbinger's remaining
+workload is to run the team from the CA app instead of per-repo markdown.
+C10–C13 plus U11–U12 are that delivery. Order: U11 load/create, then C10+U12
+addressing and tags, then C11 spawn-vs-existing semantics, then C12
+four-harness capture/inject, then C13 retire the markdown bus.
 
 **2026-08-11:** The desktop Shared Hub originally exposed Inbox/Wakes panels
 over the same store as the CLI. Those duplicate surfaces are now retired:

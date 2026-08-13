@@ -67,6 +67,13 @@ roadmap must add acceptance criteria at least every few entries.
 - **V1 gate:** the owner and multiple agents complete a meaningful task on a
   repository such as Project-Mobile-Fortress with quality matching or exceeding
   a single contributor.
+- **V1 hub-native orchestration gate:** Harbinger creates or loads a team
+  chat from Orchestrate, addresses all / a subset / one agent, and marks
+  posts as **task** (existing member only) and/or **wake** (may spawn a new
+  instance that joins the team). Agents can do the same. The app captures
+  harness-side messages and injects tagged hub messages into the harnesses.
+  That loop does not require `.agent/cache/AGENT_BUS.md`. Slices: U11, U12,
+  C10, C11, C12, C13.
 
 LAN TCP remains available during early development. Authentication and TLS are
   later platform work. **`.coding-assistants` multi-device replica transport
@@ -86,5 +93,8 @@ LAN TCP remains available during early development. Authentication and TLS are
 - **Cloud sync:** approved plan in [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md);
   GitHub S1–S13 are #91–#103. Not implemented yet.
 - **U8 Usage quotas:** live remaining bars for Codex, Claude, and Grok
-  (Grok weekly pool after `grok login`, `f9e255b`). #86 stays open for
-  Gemini and historical/exportable telemetry.
+  (Grok weekly pool after `grok login`, `f9e255b`). Gemini/Antigravity
+  plots exist; a real Antigravity adapter is still disclosed as open.
+- **V1 hub-native orchestration (next):** specified 2026-08-13 as U11–U12
+  and C10–C13. Chat files GitHub issues. Until those ship, Grok assigns
+  and Chat reviews on `.agent/cache/AGENT_BUS.md`.

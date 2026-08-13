@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — v1 hub-native orchestration spec (2026-08-13)
+
+Specified the remaining work to run the whole team from the CA app instead
+of per-repo `.agent` markdown. New roadmap slices:
+
+- **U11** Orchestrate **Create** and **Load** team chat (create already exists)
+- **U12** Composer: all / subset / one, plus optional task and wake tags
+- **C10** Same addressing from human and enrolled agents
+- **C11** Wake may spawn a new instance that joins the team; task must target
+  an existing member
+- **C12** Capture harness-side messages and inject tagged hub messages
+- **C13** Retire `AGENT_BUS.md` as the live protocol once C10–C12 work
+
+Chat files the GitHub issues. Implementation order is U11, then C10+U12,
+then C11, then C12, then C13.
+
 ### Claude session (2026-08-13)
 
 - Usage tab no longer labels every successful provider quota fetch as **live
