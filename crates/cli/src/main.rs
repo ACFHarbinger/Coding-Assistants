@@ -4,6 +4,7 @@ mod command;
 mod harness;
 mod helpers;
 mod io;
+mod preflight;
 
 use clap::Parser;
 

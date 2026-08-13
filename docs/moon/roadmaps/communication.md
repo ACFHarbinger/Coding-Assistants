@@ -18,7 +18,7 @@ communication is reliable.
 | C10 | Session addressing: all, subset, or one | Human and any enrolled agent can send a session message to every member, a named subset, or a single member. Non-targets are not woken or tasked. The session transcript records the explicit `to` list. | ✅ **Done** · #109. Session sends persist an exact recipient set by subject and reject non-members server-side; Chat & Memory routes all/subset/one through typed session/tagged commands. |
 | C11 | Task vs wake message tags | A message may be tagged **task**, **wake**, both, or neither. **Wake** may launch a new harness instance of that identity and enroll it in the session team. **Task** must target an already-enrolled, currently present member and is refused (no spawn) otherwise. Agents can apply the same tags through the hub API/CLI. | ✅ **Done** · #111. `HubStore::send_tagged_message` + `hub_send_tagged_message` + `ca msg tag` enforce task-refuse and wake-enroll. Presence is team membership plus session membership when a session is given. A wake enrolls a missing team or session member. Mixed tags still refuse the whole recipient when the task check fails. Each recipient gets a durable `SendOutcome` including `policy_decision`. Untagged `ca msg send` / `hub_send_message` cannot use kind `wake`. |
 | C12 | Bidirectional harness capture and inject | The app captures messages agents send inside Grok/Chat/Claude/Gemini harnesses into the session transcript. Hub messages tagged task and/or wake are injected into the target harness so the agent executes them. Builds on C9. | ✅ **Done (safe baseline)** · #145. Capture polls all four. Grok task delivery uses the registered ACP leader path. Codex/Chat task delivery uses documented `codex app-server` `thread/resume` + `turn/start` when a persisted thread is registered or found on disk; otherwise `unavailable` and queued. Claude and Gemini capture/discovery are real; their control transports stay `unavailable` and queued. Task-only inject never spawns a replacement process. No PTY writes or fabricated sockets. C14 is the provider-native managed-session follow-on. |
-| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · C12 accepted (#145). Owner-run checklist and #113 evidence template are ready; #146 adds a non-mutating CLI preflight inspector. Live owner evidence is still required before the Markdown bus is demoted. |
+| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · C12 accepted (#145). Owner-run checklist, #113 evidence template, and `ca preflight` (#146) are ready. Live owner evidence is still required before the Markdown bus is demoted. |
 | C14 | Provider-native managed harness sessions | Chat/Codex, Claude Code, and Gemini/Antigravity can each be deliberately launched, registered, messaged, observed, cancelled, and resumed through their supported contracts. Active sessions surface truthful readiness and delivery state; one provider writer owns each provider session. | 📋 **Planned** · Epic [#147](https://github.com/ACFHarbinger/Coding-Assistants/issues/147): supervisor [#148](https://github.com/ACFHarbinger/Coding-Assistants/issues/148), Codex [#149](https://github.com/ACFHarbinger/Coding-Assistants/issues/149), Claude [#150](https://github.com/ACFHarbinger/Coding-Assistants/issues/150), `agy` [#151](https://github.com/ACFHarbinger/Coding-Assistants/issues/151), UX/acceptance [#152](https://github.com/ACFHarbinger/Coding-Assistants/issues/152). Existing C12 capture and safe refusal remain the fallback until each provider reaches acceptance. |
 
 ### C14 provider-native integration contract
@@ -159,35 +159,26 @@ in the named session, one audited task or wake delivery.
 delivery; fewer than two harness-originated session messages; missing
 all/subset/one coverage.
 
-#### Preflight helper (copy into a terminal at the repo root)
+#### Preflight helper
 
-This only **reads** the fallback files and prints paste-ready hashes. It does
-not start the app, register sessions, or write `.agent/**`.
+Preferred, non-mutating inspector (does not call `HubStore::open`, so it will
+not create `hub.db` or `.agent/**`):
 
 ```bash
-# C13 preflight — run from the repository root before the live loop.
-set -eu
-printf 'C13 preflight %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-printf 'cwd %s\n' "$(pwd)"
-if [ -f .agent/cache/AGENT_BUS.md ]; then
-  sha256sum .agent/cache/AGENT_BUS.md
-else
-  echo 'MISSING .agent/cache/AGENT_BUS.md'
-fi
-if [ -d .agent/messages ]; then
-  find .agent/messages -type f -print0 | sort -z | xargs -0 -r sha256sum
-else
-  echo 'NO .agent/messages directory (treat as empty set)'
-fi
-# Optional Hub peek; skip if `ca` is not on PATH.
-if command -v ca >/dev/null 2>&1; then
-  echo '--- ca agent team ---'
-  ca agent team || true
-fi
+ca preflight --workspace /absolute/path/to/repo
+# optional: --session <work-session-id>   --json
 ```
 
-After the run, execute the same hash commands again. Every digest must match
-the **before** block. Paste both blocks into the template below.
+It prints a paste-ready #113 block: Hub home, team, requested session,
+registered harness readiness (no start/inject), and fallback file hashes.
+Run it again after the live loop; hashes must be unchanged.
+
+Shell fallback if `ca` is not on PATH:
+
+```bash
+sha256sum .agent/cache/AGENT_BUS.md
+find .agent/messages -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
+```
 
 #### Evidence template (paste into a #113 comment)
 

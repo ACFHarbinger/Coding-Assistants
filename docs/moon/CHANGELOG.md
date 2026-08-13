@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C13 read-only `ca preflight` inspector (#146) (2026-08-13)
+
+- Added `ca preflight [--workspace ABS] [--session ID] [--json]`. It opens
+  an existing Hub database read-only (or reports it missing), lists the
+  enrolled team, requested session, and registered harness readiness, and
+  hashes `.agent` fallback files for the #113 template.
+- Does not create Hub/settings files, start/inject a harness, or write
+  `.agent/**`. Relative `--workspace` and unknown `--session` are errors.
+
 ### Gemini — C14.4 Antigravity managed worker (#151) (2026-08-13)
 
 - Implemented app-owned non-interactive `agy` worker lifecycle in `crates/hub/src/bridge/gemini.rs` and `crates/hub/src/harness/mod.rs`.

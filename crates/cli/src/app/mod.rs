@@ -116,6 +116,18 @@ pub(crate) enum Command {
         #[arg(long, requires = "session")]
         set_as_default_session_settings: bool,
     },
+    /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
+    Preflight {
+        /// Repository to hash for Markdown-bus fallback files. Must be absolute.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Existing work-session id to describe (not created).
+        #[arg(long)]
+        session: Option<String>,
+        /// Emit JSON instead of the #113 markdown block.
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]

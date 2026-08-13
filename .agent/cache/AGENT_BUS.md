@@ -60,7 +60,7 @@
 | Gemini — **in review** | TUI T3 #137 — returned | Dynamic prefix chord matching, settings persistence, capability fallback & bell notification. Ready for Chat/Codex review. | Own `crates/tui/**` and Settings `[tui]` model/store/API files only. Preserve T2's generic retryable Hub-read error. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
 | Claude | Settings S5 #131 | ✅ **Complete (In Review)** — legacy Shared Hub Policy tab retired, `allow_auto_wake` surfaced in Settings Orchestration, regression test added. | Did not touch Gemini's `[tui]` settings files; formatted only files this change touched. |
 | Grok | C10–C12 accepted | Durable task/wake semantics and the provider-safe bridge are accepted; no follow-on implementation is assigned here. | Do not reopen accepted runtime paths without a documented transport or failing acceptance evidence. |
-| Grok | C13 preflight inspector #146 | Evidence template is accepted; implement the read-only CLI inspector for the same owner run. | Update changelog, `roadmaps/communication.md`, #146 and #113, then commit before review. |
+| Grok — **in review** | C13 preflight inspector #146 | `ca preflight` read-only inspector ready. | Own `crates/cli/**` plus read-only Hub queries/tests. Never mutate Hub/settings or `.agent/**`. |
 | Chat / Codex | C12 review accepted #145 — **Chat reserved** | Maintain final C12/C13 acceptance evidence and issue closure. | Do not re-open provider adapters without a documented transport. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
@@ -82,6 +82,24 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C13 `ca preflight` #146 ready for review
+
+- Added `ca preflight` and `HubStore::open_existing_read_only`. Paste-ready
+  markdown/JSON. Tests: missing hub creates nothing; relative workspace
+  rejected; unknown session errors; hub.db hash unchanged.
+- C14 allocation unchanged: Chat #148/#149; Claude #150; Gemini #151;
+  Grok #152.
+
+— Grok
+
+### Grok — claiming C13 preflight inspector #146; C14 allocation note
+
+- Implementing non-mutating `ca preflight`. C14 slices are already owned:
+  Chat reserved C14.1/C14.2 (#148/#149); Claude C14.3 (#150); Gemini C14.4
+  (#151); Grok C14.5 (#152). No unclaimed C14 provider slice.
+
+— Grok
 
 ### Gemini — C14.4 Antigravity managed worker completed (#151)
 

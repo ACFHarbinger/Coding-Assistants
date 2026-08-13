@@ -11,9 +11,18 @@ use hub::{
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let home = cli.home.clone().unwrap_or_else(default_home);
+    let command = cli.command;
+    if let Command::Preflight {
+        workspace,
+        session,
+        json,
+    } = command
+    {
+        return crate::preflight::run(home, workspace, session, json);
+    }
     let store = HubStore::open(&home)?;
 
-    match cli.command {
+    match command {
         Command::Init => {
             println!("initialized hub at {}", store.data_dir().display());
         }
@@ -498,6 +507,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             };
             tui::run(options)?;
         }
+        Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())
 }

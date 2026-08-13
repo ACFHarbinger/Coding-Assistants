@@ -15,6 +15,24 @@ impl HubStore {
         Ok(store)
     }
 
+    /// Open an existing Hub database without creating directories, applying
+    /// migrations, or writing WAL sidecars beyond SQLite's read-only open.
+    pub fn open_existing_read_only(data_dir: impl AsRef<Path>) -> Result<Self, HubError> {
+        let data_dir = data_dir.as_ref().to_path_buf();
+        let db_path = data_dir.join("hub.db");
+        if !db_path.is_file() {
+            return Err(HubError::NotFound(format!(
+                "no hub.db under {}",
+                data_dir.display()
+            )));
+        }
+        let conn = Connection::open_with_flags(
+            &db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        Ok(Self { conn, data_dir })
+    }
+
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
