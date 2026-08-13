@@ -146,7 +146,8 @@ function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
   const windowName = (window: ProviderQuotaWindow) => {
     if (!window.window_minutes) return window.label;
     if (window.window_minutes <= 360) return `${window.label} · hourly window`;
-    if (window.window_minutes >= 24 * 60) return `${window.label} · weekly window`;
+    if (window.window_minutes >= 28 * 24 * 60) return `${window.label} · monthly window`;
+    if (window.window_minutes >= 6 * 24 * 60) return `${window.label} · weekly window`;
     return `${window.label} · ${window.window_minutes} min`;
   };
   return (

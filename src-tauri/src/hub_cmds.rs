@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct ProviderQuotaWindow {
     pub label: String,
     pub used_percent: i32,
@@ -156,32 +156,474 @@ fn codex_quota() -> ProviderQuota {
     }
 }
 
-#[tauri::command]
-pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
-    let agents = open_store()?
-        .list_agents()
-        .map_err(|error| error.to_string())?;
-    Ok(agents
-        .into_iter()
-        .map(|agent| match agent.id.as_str() {
-            "chat" => codex_quota(),
-            "claude" => unavailable_quota(
+#[derive(serde::Deserialize)]
+struct ClaudeCredentialsFile {
+    #[serde(rename = "claudeAiOauth")]
+    claude_ai_oauth: ClaudeOauthTokens,
+}
+
+#[derive(serde::Deserialize)]
+struct ClaudeOauthTokens {
+    #[serde(rename = "accessToken")]
+    access_token: String,
+    #[serde(rename = "expiresAt")]
+    expires_at: i64,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct ClaudeUtilizationWindow {
+    utilization: Option<f64>,
+    resets_at: Option<String>,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct ClaudeExtraUsage {
+    utilization: Option<f64>,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct ClaudeUsageResponse {
+    five_hour: Option<ClaudeUtilizationWindow>,
+    seven_day: Option<ClaudeUtilizationWindow>,
+    extra_usage: Option<ClaudeExtraUsage>,
+}
+
+fn claude_home() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".claude")
+}
+
+/// The `extra_usage` ("Usage credits") window has no `resets_at` in the
+/// response — it's a monthly cap that resets on the 1st of each calendar
+/// month (matches the desktop `/usage` UI's "Resets Sep 1" wording), so
+/// compute it locally instead of guessing at an undocumented field name.
+fn next_month_first_utc() -> Option<i64> {
+    use chrono::{Datelike, TimeZone, Utc};
+    let now = Utc::now();
+    let (year, month) = if now.month() == 12 {
+        (now.year() + 1, 1)
+    } else {
+        (now.year(), now.month() + 1)
+    };
+    Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0)
+        .single()
+        .map(|dt| dt.timestamp())
+}
+
+fn push_claude_window(
+    windows: &mut Vec<ProviderQuotaWindow>,
+    label: &str,
+    window: ClaudeUtilizationWindow,
+) {
+    let Some(used) = window.utilization else {
+        return;
+    };
+    let used = used.clamp(0.0, 100.0);
+    let resets_at = window
+        .resets_at
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.timestamp());
+    windows.push(ProviderQuotaWindow {
+        label: label.into(),
+        used_percent: used.round() as i32,
+        remaining_percent: (100.0 - used).round() as i32,
+        resets_at,
+        window_minutes: None,
+    });
+}
+
+/// Anthropic publishes no stable API for a Claude Code subscription's
+/// session/weekly message-limit percentages (distinct from the per-API-key
+/// `anthropic-ratelimit-*` headers, which are a token-billing concept, not
+/// a subscription-plan one). This calls the same endpoint the official
+/// `claude` CLI itself calls to render `/usage` — found by driving an
+/// interactive `claude --debug` session and reading the debug log
+/// (`fetchUtilization: GET /api/oauth/usage`), then verified directly with
+/// the OAuth token from `~/.claude/.credentials.json`. It is undocumented
+/// and can change or disappear on any Claude Code update with no notice —
+/// every failure path below degrades to `unavailable_quota`, never a panic
+/// or a raw error surfaced to the UI.
+fn claude_quota() -> ProviderQuota {
+    let creds_path = claude_home().join(".credentials.json");
+    let bytes = match std::fs::read(&creds_path) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return unavailable_quota(
                 "claude",
                 "anthropic",
-                "Claude Code exposes no local quota snapshot command",
-            ),
+                "Not logged in to Claude Code (no ~/.claude/.credentials.json)",
+            )
+        }
+    };
+    let creds: ClaudeCredentialsFile = match serde_json::from_slice(&bytes) {
+        Ok(creds) => creds,
+        Err(error) => {
+            return unavailable_quota(
+                "claude",
+                "anthropic",
+                format!("Could not parse Claude Code credentials: {error}"),
+            )
+        }
+    };
+    if creds.claude_ai_oauth.expires_at <= now_unix() * 1000 {
+        return unavailable_quota(
+            "claude",
+            "anthropic",
+            "Claude Code OAuth token expired; run `claude` to refresh login",
+        );
+    }
+
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            return unavailable_quota("claude", "anthropic", format!("HTTP client error: {error}"))
+        }
+    };
+    let response = client
+        .get("https://api.anthropic.com/api/oauth/usage")
+        .bearer_auth(&creds.claude_ai_oauth.access_token)
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .send();
+    let response = match response {
+        Ok(response) => response,
+        Err(error) => {
+            return unavailable_quota("claude", "anthropic", format!("request failed: {error}"))
+        }
+    };
+    if !response.status().is_success() {
+        let status = response.status();
+        return unavailable_quota(
+            "claude",
+            "anthropic",
+            format!("Claude usage endpoint returned {status}"),
+        );
+    }
+    let usage: ClaudeUsageResponse = match response.json() {
+        Ok(usage) => usage,
+        Err(error) => {
+            return unavailable_quota(
+                "claude",
+                "anthropic",
+                format!("Unexpected response shape from Claude usage endpoint: {error}"),
+            )
+        }
+    };
+
+    let mut windows = Vec::new();
+    if let Some(window) = usage.five_hour {
+        push_claude_window(&mut windows, "Session", window);
+    }
+    if let Some(window) = usage.seven_day {
+        push_claude_window(&mut windows, "Weekly (all models)", window);
+    }
+    if let Some(used) = usage.extra_usage.and_then(|extra| extra.utilization) {
+        let used = used.clamp(0.0, 100.0);
+        windows.push(ProviderQuotaWindow {
+            label: "Usage credits".into(),
+            used_percent: used.round() as i32,
+            remaining_percent: (100.0 - used).round() as i32,
+            resets_at: next_month_first_utc(),
+            window_minutes: None,
+        });
+    }
+
+    ProviderQuota {
+        agent_id: "claude".into(),
+        provider: "anthropic".into(),
+        status: if windows.is_empty() {
+            "unavailable"
+        } else {
+            "ok"
+        }
+        .into(),
+        detail: if windows.is_empty() {
+            Some("Claude usage endpoint returned no recognizable windows".into())
+        } else {
+            None
+        },
+        windows,
+        fetched_at: now_unix(),
+    }
+}
+
+fn grok_home() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".grok")
+}
+
+/// Grok CLI stores the session token at
+/// `auth.json["https://accounts.x.ai/sign-in"].key` (same path `/usage` uses).
+/// Never log this value.
+fn grok_bearer_token() -> Result<String, String> {
+    let auth_path = grok_home().join("auth.json");
+    let raw = std::fs::read_to_string(&auth_path).map_err(|_| {
+        "Not logged in to Grok (no ~/.grok/auth.json). Run `grok login`, then refresh quotas."
+            .to_string()
+    })?;
+    let value: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|error| format!("Could not parse Grok credentials: {error}"))?;
+    grok_token_from_auth(&value).ok_or_else(|| {
+        "Grok is signed in but ~/.grok/auth.json has no session token. Run `grok login`."
+            .to_string()
+    })
+}
+
+fn long_secret(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|token| token.len() > 16)
+        .map(|token| token.to_string())
+}
+
+fn token_from_scope(scope: &serde_json::Value) -> Option<String> {
+    if let Some(token) = long_secret(scope) {
+        return Some(token);
+    }
+    let serde_json::Value::Object(map) = scope else {
+        return None;
+    };
+    for key in [
+        "key",
+        "access_token",
+        "accessToken",
+        "id_token",
+        "idToken",
+        "token",
+        "bearer",
+    ] {
+        if let Some(token) = map.get(key).and_then(long_secret) {
+            return Some(token);
+        }
+    }
+    None
+}
+
+fn grok_token_from_auth(value: &serde_json::Value) -> Option<String> {
+    const SCOPES: &[&str] = &[
+        "https://accounts.x.ai/sign-in",
+        "https://auth.x.ai",
+        "https://accounts.x.ai",
+    ];
+    for scope in SCOPES {
+        if let Some(token) = value.get(*scope).and_then(token_from_scope) {
+            return Some(token);
+        }
+    }
+    if let serde_json::Value::Object(map) = value {
+        for (key, scope) in map {
+            if key.starts_with("https://") {
+                if let Some(token) = token_from_scope(scope) {
+                    return Some(token);
+                }
+            }
+        }
+    }
+    extract_bearer(value)
+}
+
+fn extract_bearer(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::Object(map) => {
+            for key in [
+                "access_token",
+                "accessToken",
+                "id_token",
+                "idToken",
+                "token",
+                "bearer",
+            ] {
+                if let Some(serde_json::Value::String(token)) = map.get(key) {
+                    if token.len() > 16 {
+                        return Some(token.clone());
+                    }
+                }
+            }
+            map.values().find_map(extract_bearer)
+        }
+        serde_json::Value::Array(items) => items.iter().find_map(extract_bearer),
+        _ => None,
+    }
+}
+
+fn json_i64(value: &serde_json::Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().map(|n| n as i64))
+        .or_else(|| value.as_f64().map(|n| n.round() as i64))
+}
+
+fn json_f64(value: &serde_json::Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_i64().map(|n| n as f64))
+        .or_else(|| value.as_u64().map(|n| n as f64))
+}
+
+fn json_percent(value: &serde_json::Value) -> Option<i32> {
+    json_f64(value).map(|used| used.clamp(0.0, 100.0).round() as i32)
+}
+
+fn json_time(value: &serde_json::Value) -> Option<i64> {
+    if let Some(n) = json_i64(value) {
+        return Some(if n > 10_000_000_000 { n / 1000 } else { n });
+    }
+    let text = value.as_str()?;
+    chrono::DateTime::parse_from_rfc3339(text)
+        .ok()
+        .map(|dt| dt.timestamp())
+}
+
+fn grok_fetch_json(token: &str, url: &str) -> Result<serde_json::Value, String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|error| format!("HTTP client error: {error}"))?;
+    let response = client
+        .get(url)
+        .bearer_auth(token)
+        .header("Accept", "application/json")
+        .header("X-XAI-Token-Auth", "xai-grok-cli")
+        .header("x-grok-client-mode", "cli")
+        .header("x-grok-client-identifier", "coding-assistants")
+        .header("x-grok-client-version", "1.0.3")
+        .send()
+        .map_err(|error| format!("request failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("{url} returned {status}"));
+    }
+    response
+        .json()
+        .map_err(|error| format!("Unexpected response shape from Grok billing: {error}"))
+}
+
+fn grok_windows_from_value(value: &serde_json::Value) -> Vec<ProviderQuotaWindow> {
+    let mut windows = Vec::new();
+    collect_grok_windows(value, &mut windows);
+    let mut seen = std::collections::BTreeSet::new();
+    windows.retain(|window| seen.insert(window.label.clone()));
+    windows
+}
+
+fn collect_grok_windows(value: &serde_json::Value, out: &mut Vec<ProviderQuotaWindow>) {
+    match value {
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_grok_windows(item, out);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            if let Some(used) = map
+                .get("creditUsagePercent")
+                .or_else(|| map.get("usedPercent"))
+                .or_else(|| map.get("used_percent"))
+                .and_then(json_percent)
+            {
+                let period = map
+                    .get("currentPeriod")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| map.get("billingCycle").and_then(|v| v.as_str()))
+                    .unwrap_or("WEEKLY");
+                let weekly = period.to_ascii_uppercase().contains("WEEK");
+                let label = if weekly { "Weekly" } else { "Monthly" };
+                let window_minutes = if weekly { 7 * 24 * 60 } else { 30 * 24 * 60 };
+                let period_start = map
+                    .get("billingPeriodStart")
+                    .or_else(|| map.get("currentPeriodStart"))
+                    .and_then(json_time);
+                let resets_at = map
+                    .get("billingPeriodEnd")
+                    .or_else(|| map.get("resetsAt"))
+                    .or_else(|| map.get("resets_at"))
+                    .and_then(json_time)
+                    .or_else(|| period_start.map(|start| start + window_minutes * 60));
+                out.push(ProviderQuotaWindow {
+                    label: label.into(),
+                    used_percent: used,
+                    remaining_percent: 100 - used,
+                    resets_at,
+                    window_minutes: Some(window_minutes),
+                });
+            }
+            if let (Some(used), Some(cap)) = (
+                map.get("onDemandUsed").and_then(json_f64),
+                map.get("onDemandCap").and_then(json_f64),
+            ) {
+                if cap > 0.0 {
+                    let used_percent = ((used / cap) * 100.0).clamp(0.0, 100.0).round() as i32;
+                    out.push(ProviderQuotaWindow {
+                        label: "Extra usage credits".into(),
+                        used_percent,
+                        remaining_percent: 100 - used_percent,
+                        resets_at: None,
+                        window_minutes: None,
+                    });
+                }
+            }
+            for (key, child) in map {
+                if key == "history" {
+                    continue;
+                }
+                collect_grok_windows(child, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Same snapshot the Grok TUI `/usage` command loads:
+/// `GET {cli-chat-proxy}/billing?format=credits`.
+fn grok_quota() -> ProviderQuota {
+    let token = match grok_bearer_token() {
+        Ok(token) => token,
+        Err(detail) => return unavailable_quota("grok", "xai", detail),
+    };
+    const URLS: &[&str] = &[
+        "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+        "https://grok.com/rest/billing?format=credits",
+    ];
+    let mut last_error = "Grok billing snapshot returned no weekly window".to_string();
+    for url in URLS {
+        match grok_fetch_json(&token, url) {
+            Ok(payload) => {
+                let windows = grok_windows_from_value(&payload);
+                if !windows.is_empty() {
+                    return ProviderQuota {
+                        agent_id: "grok".into(),
+                        provider: "xai".into(),
+                        status: "ok".into(),
+                        detail: None,
+                        windows,
+                        fetched_at: now_unix(),
+                    };
+                }
+                last_error = format!("{url} returned no recognizable weekly/monthly windows");
+            }
+            Err(error) => last_error = error,
+        }
+    }
+    unavailable_quota("grok", "xai", last_error)
+}
+
+#[tauri::command]
+pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
+    Ok(["chat", "claude", "gemini", "grok"]
+        .into_iter()
+        .map(|id| match id {
+            "chat" => codex_quota(),
+            "claude" => claude_quota(),
             "gemini" => unavailable_quota(
                 "gemini",
                 "google",
                 "Gemini CLI exposes no local quota snapshot command",
             ),
-            "grok" => unavailable_quota(
-                "grok",
-                "xai",
-                "Grok CLI exposes usage telemetry, not account quota windows",
-            ),
-            _ => unavailable_quota(
-                &agent.id,
+            "grok" => grok_quota(),
+            other => unavailable_quota(
+                other,
                 "unknown",
                 "No quota adapter is configured for this agent",
             ),
@@ -1048,5 +1490,112 @@ mod tests {
 
         std::env::remove_var("CA_HOME");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Real (not mocked) smoke test against the live, undocumented Claude
+    /// usage endpoint — skips instead of failing when this machine has no
+    /// logged-in Claude Code CLI, since that's real environment-dependent
+    /// state, not something to fake. Where it *can* run, it must never
+    /// panic and must return a well-formed struct even if the private
+    /// endpoint's shape has drifted since this was written.
+    #[test]
+    fn claude_quota_is_well_formed_when_logged_in() {
+        if !claude_home().join(".credentials.json").exists() {
+            eprintln!("skipping: no ~/.claude/.credentials.json on this machine");
+            return;
+        }
+        let quota = claude_quota();
+        assert_eq!(quota.agent_id, "claude");
+        assert_eq!(quota.provider, "anthropic");
+        match quota.status.as_str() {
+            "ok" => {
+                assert!(!quota.windows.is_empty(), "status ok but no windows");
+                for window in &quota.windows {
+                    assert!(
+                        (0..=100).contains(&window.used_percent),
+                        "{window:?} out of range"
+                    );
+                    assert_eq!(window.used_percent + window.remaining_percent, 100);
+                }
+            }
+            "unavailable" => {
+                assert!(quota.detail.is_some(), "unavailable status with no detail");
+            }
+            other => panic!("unexpected status: {other}"),
+        }
+    }
+
+    #[test]
+    fn grok_token_prefers_accounts_sign_in_key() {
+        let auth = serde_json::json!({
+            "https://accounts.x.ai/sign-in": {
+                "key": "session-token-from-grok-login-xyz"
+            },
+            "access_token": "should-not-win-over-sign-in-key"
+        });
+        assert_eq!(
+            grok_token_from_auth(&auth).as_deref(),
+            Some("session-token-from-grok-login-xyz")
+        );
+        let alt = serde_json::json!({
+            "https://auth.x.ai/callback": { "access_token": "oidc-access-token-value-xx" }
+        });
+        assert_eq!(
+            grok_token_from_auth(&alt).as_deref(),
+            Some("oidc-access-token-value-xx")
+        );
+    }
+
+    #[test]
+    fn grok_windows_parse_weekly_credit_snapshot() {
+        let payload = serde_json::json!({
+            "isUnifiedBillingUser": true,
+            "creditUsagePercent": 37.4,
+            "currentPeriod": "WEEKLY",
+            "billingPeriodStart": "2026-08-10T00:00:00Z",
+            "billingPeriodEnd": "2026-08-17T00:00:00Z",
+            "onDemandUsed": 2.5,
+            "onDemandCap": 10.0,
+            "history": [
+                { "creditUsagePercent": 99, "currentPeriod": "WEEKLY" }
+            ]
+        });
+        let windows = grok_windows_from_value(&payload);
+        assert_eq!(windows.len(), 2, "{windows:?}");
+        assert_eq!(windows[0].label, "Weekly");
+        assert_eq!(windows[0].used_percent, 37);
+        assert_eq!(windows[0].remaining_percent, 63);
+        assert_eq!(windows[0].window_minutes, Some(7 * 24 * 60));
+        assert_eq!(windows[0].resets_at, Some(1_786_924_800));
+        assert_eq!(windows[1].label, "Extra usage credits");
+        assert_eq!(windows[1].used_percent, 25);
+        assert_eq!(windows[1].remaining_percent, 75);
+    }
+
+    #[test]
+    fn grok_quota_is_well_formed_when_logged_in() {
+        if !grok_home().join("auth.json").exists() {
+            eprintln!("skipping: no ~/.grok/auth.json on this machine");
+            return;
+        }
+        let quota = grok_quota();
+        assert_eq!(quota.agent_id, "grok");
+        assert_eq!(quota.provider, "xai");
+        match quota.status.as_str() {
+            "ok" => {
+                assert!(!quota.windows.is_empty(), "status ok but no windows");
+                for window in &quota.windows {
+                    assert!(
+                        (0..=100).contains(&window.used_percent),
+                        "{window:?} out of range"
+                    );
+                    assert_eq!(window.used_percent + window.remaining_percent, 100);
+                }
+            }
+            "unavailable" => {
+                assert!(quota.detail.is_some(), "unavailable status with no detail");
+            }
+            other => panic!("unexpected status: {other}"),
+        }
     }
 }

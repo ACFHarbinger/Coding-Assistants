@@ -104,6 +104,22 @@ as issue #90, since U10 had no prior issue of its own.
 
 ### Added
 
+- Claude Code now reports **live session/weekly/monthly-credit quota
+  windows** in the Usage tab, matching Chat's Codex quota bar. Anthropic
+  publishes no stable API for a subscription's usage-limit percentages
+  (`anthropic-ratelimit-*` headers are a separate, per-API-key billing
+  concept); found the endpoint the official `claude` CLI itself calls to
+  render `/usage` by driving an interactive `claude --debug` session and
+  reading its debug log, then verified directly against it —
+  `GET api.anthropic.com/api/oauth/usage` (Bearer-authenticated with the
+  OAuth token from `~/.claude/.credentials.json`). It is undocumented and can
+  change on any Claude Code update with no notice; every failure path
+  (not logged in, expired token, network error, unrecognized response
+  shape) degrades to the existing "unavailable" state rather than
+  crashing. The "Usage credits" monthly window has no `resets_at` in the
+  response, so its reset date is computed locally as the 1st of next
+  month UTC, matching the desktop `/usage` UI's own wording.
+
 - Work sessions: Orchestrate can create a named durable work-session chat.
   It starts with the current persisted team and adding an eligible agent to the
   team enrolls it in the active work session. Slack Chat & Memory lists each
@@ -190,6 +206,15 @@ as issue #90, since U10 had no prior issue of its own.
   bridge error, and Tauri event listeners are skipped outside the desktop app.
 
 ### Added
+
+- Shared Hub Usage now plots Grok's weekly subscription pool the same way
+  it plots Codex windows. The adapter reads the Grok CLI session token from
+  `~/.grok/auth.json` (never logged) and fetches the same
+  `GET /v1/billing?format=credits` snapshot the TUI `/usage` command uses,
+  then maps `creditUsagePercent` / `billingPeriodEnd` onto a Weekly bar.
+  Extra usage credits (`onDemandUsed` / `onDemandCap`) appear as a second
+  bar when present. Quota rows are limited to the four harnesses so PID
+  identities no longer clutter the chart.
 
 - Added provider-quota plots to the Shared Hub Usage tab. Codex is queried
   through its local app-server account rate-limit endpoint and displays each
