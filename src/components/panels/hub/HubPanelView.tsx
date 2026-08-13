@@ -4,7 +4,7 @@ import DashboardPanel from "../DashboardPanel";
 import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 
 export default function HubPanelView(props: any) {
-  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces } = props;
+  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace } = props;
 
 
   return (
@@ -462,8 +462,34 @@ export default function HubPanelView(props: any) {
                   <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={workspace.workspace}>
                     {workspace.workspace}
                   </div>
+                  <span
+                    className="status-badge"
+                    style={{
+                      display: "inline-block",
+                      marginTop: "0.35rem",
+                      padding: "0.15rem 0.6rem",
+                      borderRadius: "999px",
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      ...(channelConnected[workspace.workspace]
+                        ? { background: "rgba(16, 185, 129, 0.15)", color: "#6ee7b7", border: "1px solid rgba(16, 185, 129, 0.3)" }
+                        : { background: "rgba(148, 163, 184, 0.12)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }),
+                    }}
+                  >
+                    {channelConnected[workspace.workspace] ? "● Session connected" : "○ No live session"}
+                  </span>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  {!channelConnected[workspace.workspace] && (
+                    <button
+                      className="btn-secondary"
+                      disabled={!!channelConnecting[workspace.workspace]}
+                      onClick={() => connectChannelWorkspace(workspace.workspace)}
+                      title="Open a terminal running `claude --dangerously-load-development-channels server:coding-assistants-channel` in this workspace"
+                    >
+                      {channelConnecting[workspace.workspace] ? "Connecting…" : "Connect"}
+                    </button>
+                  )}
                   <input
                     type="text"
                     value={channelRenameDrafts[workspace.workspace] ?? workspace.display_name}

@@ -49,6 +49,8 @@ export default function HubPanel() {
 
   const [channelWorkspaces, setChannelWorkspaces] = useState<ChannelWorkspace[]>([]);
   const [channelRenameDrafts, setChannelRenameDrafts] = useState<Record<string, string>>({});
+  const [channelConnected, setChannelConnected] = useState<Record<string, boolean>>({});
+  const [channelConnecting, setChannelConnecting] = useState<Record<string, boolean>>({});
 
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setError("");
@@ -132,6 +134,20 @@ export default function HubPanel() {
     if (list) setAuditEvents(list);
   }, [run, auditShowAll]);
 
+  const refreshChannelStatus = useCallback(async (workspaces: ChannelWorkspace[]) => {
+    const entries = await Promise.all(
+      workspaces.map(async (w): Promise<[string, boolean]> => {
+        try {
+          const connected = await invoke<boolean>("claude_channel_is_connected", { workspace: w.workspace });
+          return [w.workspace, connected];
+        } catch {
+          return [w.workspace, false];
+        }
+      })
+    );
+    setChannelConnected(Object.fromEntries(entries));
+  }, []);
+
   const refreshChannelWorkspaces = useCallback(async () => {
     const list = await run("Channel workspaces refreshed", () =>
       invoke<ChannelWorkspace[]>("claude_channel_list_workspaces")
@@ -139,8 +155,27 @@ export default function HubPanel() {
     if (list) {
       setChannelWorkspaces(list);
       setChannelRenameDrafts(Object.fromEntries(list.map((w) => [w.workspace, w.display_name])));
+      void refreshChannelStatus(list);
     }
-  }, [run]);
+  }, [run, refreshChannelStatus]);
+
+  const connectChannelWorkspace = async (workspace: string) => {
+    setChannelConnecting((prev) => ({ ...prev, [workspace]: true }));
+    try {
+      await run("Launching a Claude Code terminal for this workspace", () =>
+        invoke("claude_channel_connect", { workspace })
+      );
+      // The terminal needs a few seconds to start Claude Code and load the
+      // Channel MCP server before the bridge process it spawns shows up.
+      window.setTimeout(() => {
+        void invoke<boolean>("claude_channel_is_connected", { workspace })
+          .then((connected) => setChannelConnected((prev) => ({ ...prev, [workspace]: connected })))
+          .finally(() => setChannelConnecting((prev) => ({ ...prev, [workspace]: false })));
+      }, 4000);
+    } catch {
+      setChannelConnecting((prev) => ({ ...prev, [workspace]: false }));
+    }
+  };
 
   const renameChannelWorkspace = async (workspace: string) => {
     const name = (channelRenameDrafts[workspace] ?? "").trim();
@@ -344,5 +379,5 @@ export default function HubPanel() {
     }
   };
 
-  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces }} />;
+  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace }} />;
 }

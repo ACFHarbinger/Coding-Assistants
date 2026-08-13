@@ -5,9 +5,10 @@
 use crate::hub::commands::store::open_store;
 use hub::{
     default_leader_socket, delete_channel_workspace, inject_harness_with_store,
-    latest_grok_session_id, list_channel_workspaces, rename_channel_workspace, start_harness,
-    ChannelWorkspace, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
-    HarnessStartRequest, HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
+    is_channel_session_live, latest_grok_session_id, launch_claude_channel_session,
+    list_channel_workspaces, rename_channel_workspace, start_harness, ChannelWorkspace,
+    HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,
+    HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
 };
 use std::path::{Path, PathBuf};
 
@@ -208,6 +209,25 @@ pub fn claude_channel_rename_workspace(workspace: String, name: String) -> Resul
 pub fn claude_channel_delete_workspace(workspace: String) -> Result<(), String> {
     delete_channel_workspace(&open_store()?, Path::new(&workspace))
         .map_err(|error| error.to_string())
+}
+
+/// Whether a live Claude Code session already has the Channel bridge
+/// loaded for `workspace` — see `hub::is_channel_session_live`. The
+/// Shared Hub Channels tab polls this to show a connected/not-connected
+/// status per configured workspace.
+#[tauri::command]
+pub fn claude_channel_is_connected(workspace: String) -> Result<bool, String> {
+    is_channel_session_live(Path::new(&workspace))
+}
+
+/// Launches a terminal running `claude` with the Channel bridge loaded for
+/// `workspace`, for when no live session is already connected. Claude
+/// Code's Channel research preview is an interactive TUI with no headless
+/// daemon mode, so this always opens a real terminal window rather than a
+/// detached background process — see `hub::launch_claude_channel_session`.
+#[tauri::command]
+pub fn claude_channel_connect(workspace: String) -> Result<(), String> {
+    launch_claude_channel_session(Path::new(&workspace))
 }
 
 #[cfg(test)]

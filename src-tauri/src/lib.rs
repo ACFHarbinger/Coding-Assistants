@@ -385,6 +385,8 @@ pub fn run() {
             harness::commands::claude_channel_list_workspaces,
             harness::commands::claude_channel_rename_workspace,
             harness::commands::claude_channel_delete_workspace,
+            harness::commands::claude_channel_is_connected,
+            harness::commands::claude_channel_connect,
             hub::commands::messaging::hub_list_wakes,
             hub::commands::messaging::hub_export_markdown,
             hub::commands::messaging::hub_export_markdown_git,

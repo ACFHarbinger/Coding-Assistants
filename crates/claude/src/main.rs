@@ -31,8 +31,8 @@
 
 use hub::{
     delete_channel_workspace, get_permission_request, list_channel_workspaces, poll_channel_events,
-    record_channel_reply, record_permission_request, rename_channel_workspace,
-    setup_claude_channel, HubStore, PermissionVerdict,
+    poll_quiet_channel_events, record_channel_reply, record_permission_request,
+    rename_channel_workspace, setup_claude_channel, ChannelEvent, HubStore, PermissionVerdict,
 };
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -256,7 +256,11 @@ fn handle_request(
             if let Some(id) = id {
                 write_message(
                     stdout,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": [reply_tool_schema()] } }),
+                    &json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": { "tools": [reply_tool_schema(), check_inbox_tool_schema()] },
+                    }),
                 );
             }
         }
@@ -264,26 +268,36 @@ fn handle_request(
             let Some(id) = id else { return };
             let params = request.get("params").cloned().unwrap_or(Value::Null);
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-            if name != "reply" {
-                write_message(
-                    stdout,
-                    &json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": { "code": -32601, "message": format!("unknown tool {name}") },
-                    }),
-                );
-                return;
+            match name {
+                "reply" => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    let text = arguments.get("text").and_then(Value::as_str).unwrap_or("");
+                    let in_reply_to = arguments.get("in_reply_to").and_then(Value::as_str);
+                    let session_id = arguments.get("session_id").and_then(Value::as_str);
+                    let result = {
+                        let store = store.lock().expect("hub store mutex poisoned");
+                        record_channel_reply(&store, in_reply_to, session_id, text)
+                    };
+                    write_message(stdout, &tool_call_response(id, result));
+                }
+                "check_inbox" => {
+                    let result = {
+                        let store = store.lock().expect("hub store mutex poisoned");
+                        poll_quiet_channel_events(&store)
+                    };
+                    write_message(stdout, &check_inbox_response(id, result));
+                }
+                _ => {
+                    write_message(
+                        stdout,
+                        &json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "error": { "code": -32601, "message": format!("unknown tool {name}") },
+                        }),
+                    );
+                }
             }
-            let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-            let text = arguments.get("text").and_then(Value::as_str).unwrap_or("");
-            let in_reply_to = arguments.get("in_reply_to").and_then(Value::as_str);
-            let session_id = arguments.get("session_id").and_then(Value::as_str);
-            let result = {
-                let store = store.lock().expect("hub store mutex poisoned");
-                record_channel_reply(&store, in_reply_to, session_id, text)
-            };
-            write_message(stdout, &tool_call_response(id, result));
         }
         "notifications/claude/channel/permission_request" => {
             let params = request.get("params").cloned().unwrap_or(Value::Null);
@@ -337,6 +351,43 @@ fn reply_tool_schema() -> Value {
             "required": ["text"],
         },
     })
+}
+
+fn check_inbox_tool_schema() -> Value {
+    json!({
+        "name": "check_inbox",
+        "description": "Read and ack quieter Hub chat traffic addressed to this session — plain messages and handoffs that were deliberately *not* pushed as an interruption (only wakes and task-tagged sends are pushed proactively). Call this whenever you want to catch up; nothing is lost by not calling it, it just waits here.",
+        "inputSchema": { "type": "object", "properties": {} },
+    })
+}
+
+/// Renders drained quiet events as one line each, so Claude sees exactly
+/// what a `notifications/claude/channel` push would have shown, just
+/// pulled instead of pushed.
+fn format_quiet_events(events: &[ChannelEvent]) -> String {
+    if events.is_empty() {
+        return "No new messages.".to_string();
+    }
+    events
+        .iter()
+        .map(|event| format!("[{}] {}: {}", event.kind, event.from_agent, event.body))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn check_inbox_response(id: Value, result: Result<Vec<ChannelEvent>, hub::HubError>) -> Value {
+    match result {
+        Ok(events) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "content": [{ "type": "text", "text": format_quiet_events(&events) }] },
+        }),
+        Err(error) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "content": [{ "type": "text", "text": format!("failed to check inbox: {error}") }], "isError": true },
+        }),
+    }
 }
 
 fn tool_call_response(id: Value, result: Result<hub::MessageRecord, hub::HubError>) -> Value {
@@ -489,6 +540,51 @@ mod tests {
     fn reply_tool_schema_requires_text_only() {
         let schema = reply_tool_schema();
         assert_eq!(schema["inputSchema"]["required"], json!(["text"]));
+    }
+
+    #[test]
+    fn check_inbox_tool_schema_takes_no_arguments() {
+        let schema = check_inbox_tool_schema();
+        assert_eq!(schema["name"], "check_inbox");
+        assert_eq!(schema["inputSchema"]["properties"], json!({}));
+    }
+
+    fn sample_event(kind: &str, from: &str, body: &str) -> ChannelEvent {
+        ChannelEvent {
+            message_id: "msg-1".into(),
+            from_agent: from.into(),
+            session_id: None,
+            kind: kind.into(),
+            task_id: None,
+            body: body.into(),
+        }
+    }
+
+    #[test]
+    fn format_quiet_events_reports_when_nothing_is_waiting() {
+        assert_eq!(format_quiet_events(&[]), "No new messages.");
+    }
+
+    #[test]
+    fn format_quiet_events_renders_one_line_per_message() {
+        let events = vec![
+            sample_event("message", "grok", "hey"),
+            sample_event("handoff", "gemini", "handing this off"),
+        ];
+        assert_eq!(
+            format_quiet_events(&events),
+            "[message] grok: hey\n[handoff] gemini: handing this off"
+        );
+    }
+
+    #[test]
+    fn check_inbox_response_reports_success_and_failure_distinctly() {
+        let ok = check_inbox_response(json!(1), Ok(vec![sample_event("message", "grok", "hi")]));
+        assert_eq!(ok["result"]["isError"], Value::Null);
+        assert_eq!(ok["result"]["content"][0]["text"], "[message] grok: hi");
+
+        let err = check_inbox_response(json!(2), Err(hub::HubError::Invalid("bad".into())));
+        assert_eq!(err["result"]["isError"], json!(true));
     }
 
     #[test]

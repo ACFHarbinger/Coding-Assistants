@@ -164,6 +164,19 @@ impl HubStore {
         Ok(resolved)
     }
 
+    /// Acks exactly one message by id, returning the updated record (or
+    /// `None` if it no longer exists). Used where a caller needs to
+    /// selectively ack a subset of a recipient's pending messages rather
+    /// than the all-or-nothing sweep [`poll_messages`] performs.
+    pub fn ack_message(&self, id: &str) -> Result<Option<MessageRecord>, HubError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE messages SET status = ?1, acked_at = ?2 WHERE id = ?3",
+            params![MessageStatus::Acked.as_str(), now, id],
+        )?;
+        self.get_message(id)
+    }
+
     pub fn poll_messages(
         &self,
         to_agent: &str,
