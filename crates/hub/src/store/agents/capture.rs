@@ -114,7 +114,8 @@ impl HubStore {
         // chunk ever displayed, so one agent's capture appeared to
         // overwrite another's. Mirrors the same fix already applied to
         // `record_channel_reply`'s subject.
-        let subject = session_id.map(|id| format!("channel:session:{id}:capture:{}", Uuid::new_v4()));
+        let subject =
+            session_id.map(|id| format!("channel:session:{id}:capture:{}", Uuid::new_v4()));
         let to_agent = session_id
             .map(|id| format!("session:{id}"))
             .unwrap_or_else(|| "team".into());
