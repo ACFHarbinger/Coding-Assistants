@@ -4,13 +4,13 @@ use crate::model::HubReadModel;
 use crate::options::TuiOptions;
 use crate::terminal::{init_terminal, restore_terminal};
 use anyhow::{bail, Result};
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind};
 use hub::HubStore;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Tabs, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap},
     Frame,
 };
 use std::path::PathBuf;
@@ -66,6 +66,11 @@ pub struct AppState {
     pub status_message: String,
     pub should_quit: bool,
     pub read_model: HubReadModel,
+    pub is_help_open: bool,
+    pub is_command_palette_open: bool,
+    pub command_input: String,
+    pub scroll_offset: usize,
+    pub selected_index: usize,
 }
 
 impl AppState {
@@ -91,7 +96,7 @@ impl AppState {
             .or_else(|| Some("general".to_string()));
 
         let mut status_message =
-            String::from("Ready. Press Tab to switch tabs, r to refresh, q to exit.");
+            String::from("Ready. Press [Tab] to switch, [/] palette, [?] help, [r] refresh, [q] exit.");
         if options.set_as_default_workspace_settings {
             status_message = format!("Persisted default workspace setting: {:?}", workspace_path);
         }
@@ -111,6 +116,11 @@ impl AppState {
             status_message,
             should_quit: false,
             read_model,
+            is_help_open: false,
+            is_command_palette_open: false,
+            command_input: String::new(),
+            scroll_offset: 0,
+            selected_index: 0,
         }
     }
 
@@ -124,9 +134,46 @@ impl AppState {
                 self.read_model = model;
                 self.status_message = String::from("Refreshed Hub read model.");
             }
-            Err(_) => {
-                self.status_message =
-                    String::from("Hub data is temporarily unavailable; press r to retry.");
+            Err(err) => {
+                self.status_message = format!("Refresh failed: {err}");
+            }
+        }
+    }
+
+    pub fn execute_command(&mut self) {
+        let input = self.command_input.trim().to_lowercase();
+        self.command_input.clear();
+        self.is_command_palette_open = false;
+
+        match input.as_str() {
+            "1" | "orchestrate" => {
+                self.active_tab = TabIndex::Orchestrate;
+                self.status_message = String::from("Navigated to Orchestrate panel.");
+            }
+            "2" | "chat" | "chat & memory" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.status_message = String::from("Navigated to Chat & Memory panel.");
+            }
+            "3" | "hub" | "shared hub" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.status_message = String::from("Navigated to Shared Hub panel.");
+            }
+            "4" | "settings" => {
+                self.active_tab = TabIndex::Settings;
+                self.status_message = String::from("Navigated to Settings panel.");
+            }
+            "r" | "refresh" => {
+                self.refresh();
+            }
+            "?" | "help" => {
+                self.is_help_open = true;
+            }
+            "q" | "quit" | "exit" => {
+                self.should_quit = true;
+            }
+            "" => {}
+            other => {
+                self.status_message = format!("Unknown command: '{other}'. Press [?] for help.");
             }
         }
     }
@@ -171,27 +218,21 @@ pub fn run(options: TuiOptions) -> Result<()> {
         .or_else(|| effective.default_session.clone())
         .or_else(|| Some("general".to_string()));
 
-    let initial_read =
-        HubReadModel::load(&home_dir, workspace_path.as_deref(), session_id.as_deref());
-    let (read_model, initial_read_failed) = match initial_read {
-        Ok(model) => (model, false),
-        Err(_) => (
-            HubReadModel {
-                work_sessions: vec![],
-                team_members: vec![],
-                channel_messages: vec![],
-                tasks: vec![],
-                audit_events: vec![],
-                effective_settings: effective.clone(),
-            },
-            true,
-        ),
-    };
+    let read_model = HubReadModel::load(
+        &home_dir,
+        workspace_path.as_deref(),
+        session_id.as_deref(),
+    )
+    .unwrap_or_else(|_| HubReadModel {
+        work_sessions: vec![],
+        team_members: vec![],
+        channel_messages: vec![],
+        tasks: vec![],
+        audit_events: vec![],
+        effective_settings: effective.clone(),
+    });
 
     let mut app = AppState::new(&options, home_dir, &effective, read_model);
-    if initial_read_failed {
-        app.status_message = String::from("Hub data is temporarily unavailable; press r to retry.");
-    }
     let mut terminal = init_terminal()?;
 
     let loop_result = run_loop(&mut terminal, &mut app);
@@ -274,29 +315,127 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
         terminal.draw(|frame| draw_ui(frame, app))?;
 
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                match (key.code, key.modifiers) {
-                    (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                        app.should_quit = true;
+            match event::read()? {
+                Event::Key(key) => {
+                    if app.is_command_palette_open {
+                        match key.code {
+                            KeyCode::Esc => {
+                                app.is_command_palette_open = false;
+                                app.command_input.clear();
+                            }
+                            KeyCode::Enter => {
+                                app.execute_command();
+                            }
+                            KeyCode::Backspace => {
+                                app.command_input.pop();
+                            }
+                            KeyCode::Char(c) => {
+                                app.command_input.push(c);
+                            }
+                            _ => {}
+                        }
+                    } else if app.is_help_open {
+                        match key.code {
+                            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
+                                app.is_help_open = false;
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match (key.code, key.modifiers) {
+                            (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                                app.should_quit = true;
+                            }
+                            (KeyCode::Char('/'), _)
+                            | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
+                                app.is_command_palette_open = true;
+                                app.command_input.clear();
+                            }
+                            (KeyCode::Char('?'), _) | (KeyCode::F(1), _) => {
+                                app.is_help_open = !app.is_help_open;
+                            }
+                            (KeyCode::Char('r'), _) => {
+                                app.refresh();
+                            }
+                            (KeyCode::Tab, KeyModifiers::NONE)
+                            | (KeyCode::Char('l'), KeyModifiers::NONE)
+                            | (KeyCode::Right, KeyModifiers::NONE) => {
+                                app.active_tab = app.active_tab.next();
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::BackTab, _)
+                            | (KeyCode::Tab, KeyModifiers::SHIFT)
+                            | (KeyCode::Char('h'), KeyModifiers::NONE)
+                            | (KeyCode::Left, KeyModifiers::NONE) => {
+                                app.active_tab = app.active_tab.prev();
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::Char('j'), KeyModifiers::NONE)
+                            | (KeyCode::Down, KeyModifiers::NONE) => {
+                                app.scroll_offset = app.scroll_offset.saturating_add(1);
+                                app.selected_index = app.selected_index.saturating_add(1);
+                            }
+                            (KeyCode::Char('k'), KeyModifiers::NONE)
+                            | (KeyCode::Up, KeyModifiers::NONE) => {
+                                app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                                app.selected_index = app.selected_index.saturating_sub(1);
+                            }
+                            (KeyCode::Char('g'), KeyModifiers::NONE)
+                            | (KeyCode::Home, KeyModifiers::NONE) => {
+                                app.scroll_offset = 0;
+                                app.selected_index = 0;
+                            }
+                            (KeyCode::Char('G'), KeyModifiers::NONE)
+                            | (KeyCode::End, KeyModifiers::NONE) => {
+                                app.scroll_offset = 100;
+                            }
+                            (KeyCode::Char('1'), _) => {
+                                app.active_tab = TabIndex::Orchestrate;
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::Char('2'), _) => {
+                                app.active_tab = TabIndex::ChatAndMemory;
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::Char('3'), _) => {
+                                app.active_tab = TabIndex::SharedHub;
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::Char('4'), _) => {
+                                app.active_tab = TabIndex::Settings;
+                                app.scroll_offset = 0;
+                            }
+                            (KeyCode::Esc, _) => {
+                                app.should_quit = true;
+                            }
+                            _ => {}
+                        }
                     }
-                    (KeyCode::Char('r'), _) => {
-                        app.refresh();
+                }
+                Event::Mouse(mouse_event) => match mouse_event.kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        if mouse_event.row == 3 || mouse_event.row == 4 {
+                            if mouse_event.column < 16 {
+                                app.active_tab = TabIndex::Orchestrate;
+                            } else if mouse_event.column < 34 {
+                                app.active_tab = TabIndex::ChatAndMemory;
+                            } else if mouse_event.column < 50 {
+                                app.active_tab = TabIndex::SharedHub;
+                            } else {
+                                app.active_tab = TabIndex::Settings;
+                            }
+                            app.scroll_offset = 0;
+                        }
                     }
-                    (KeyCode::Tab, KeyModifiers::NONE) => {
-                        app.active_tab = app.active_tab.next();
+                    MouseEventKind::ScrollDown => {
+                        app.scroll_offset = app.scroll_offset.saturating_add(1);
                     }
-                    (KeyCode::BackTab, _) | (KeyCode::Tab, KeyModifiers::SHIFT) => {
-                        app.active_tab = app.active_tab.prev();
-                    }
-                    (KeyCode::Char('1'), _) => app.active_tab = TabIndex::Orchestrate,
-                    (KeyCode::Char('2'), _) => app.active_tab = TabIndex::ChatAndMemory,
-                    (KeyCode::Char('3'), _) => app.active_tab = TabIndex::SharedHub,
-                    (KeyCode::Char('4'), _) => app.active_tab = TabIndex::Settings,
-                    (KeyCode::Esc, _) => {
-                        app.should_quit = true;
+                    MouseEventKind::ScrollUp => {
+                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
                     }
                     _ => {}
-                }
+                },
+                _ => {}
             }
         }
     }
@@ -318,6 +457,14 @@ fn draw_ui(frame: &mut Frame, app: &AppState) {
     draw_tabs(frame, chunks[1], app);
     draw_body(frame, chunks[2], app);
     draw_footer(frame, chunks[3], app);
+
+    if app.is_help_open {
+        draw_help_modal(frame, frame.area());
+    }
+
+    if app.is_command_palette_open {
+        draw_command_palette_modal(frame, frame.area(), app);
+    }
 }
 
 fn draw_header(frame: &mut Frame, area: Rect) {
@@ -480,7 +627,7 @@ fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
     if app.read_model.channel_messages.is_empty() {
         text.push(Line::from(" [System] No messages in this channel yet. Send a message via CLI or Desktop to start."));
     } else {
-        for msg in app.read_model.channel_messages.iter().take(15) {
+        for msg in app.read_model.channel_messages.iter().skip(app.scroll_offset).take(15) {
             let sender = if msg.from_agent.is_empty() {
                 "system"
             } else {
@@ -496,7 +643,7 @@ fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" Chat & Memory Panel ");
+        .title(format!(" Chat & Memory Panel (Scroll: {}) ", app.scroll_offset));
     let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
     frame.render_widget(paragraph, area);
 }
@@ -531,7 +678,7 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
             "Recent Tasks:",
             Style::default().fg(Color::Cyan),
         )));
-        for task in app.read_model.tasks.iter().take(5) {
+        for task in app.read_model.tasks.iter().skip(app.scroll_offset).take(5) {
             text.push(Line::from(format!("  [{:?}] {}", task.status, task.id)));
         }
     }
@@ -542,7 +689,7 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
             "Recent Settings Audit Events:",
             Style::default().fg(Color::Cyan),
         )));
-        for event in app.read_model.audit_events.iter().take(5) {
+        for event in app.read_model.audit_events.iter().skip(app.scroll_offset).take(5) {
             text.push(Line::from(format!(
                 "  [{}] {} ({})",
                 event.operation, event.path, event.status
@@ -552,7 +699,7 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" Shared Hub Panel ");
+        .title(format!(" Shared Hub Panel (Scroll: {}) ", app.scroll_offset));
     let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
     frame.render_widget(paragraph, area);
 }
@@ -626,7 +773,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &AppState) {
     let status = Line::from(vec![
         Span::styled("Nav: ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            "[Tab] Switch Tab | [1-4] Jump Tab | [r] Refresh | [q/Esc] Quit  │  ",
+            "[Tab/h/l] Tabs | [j/k] Scroll | [/] Palette | [?] Help | [r] Refresh | [q] Quit │ ",
             Style::default().fg(Color::White),
         ),
         Span::styled(&app.status_message, Style::default().fg(Color::Green)),
@@ -637,4 +784,86 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &AppState) {
         .title(" Controls & Status ");
     let paragraph = Paragraph::new(status).block(block);
     frame.render_widget(paragraph, area);
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
+}
+
+fn draw_help_modal(frame: &mut Frame, area: Rect) {
+    let popup_area = centered_rect(65, 55, area);
+    frame.render_widget(Clear, popup_area);
+
+    let help_text = vec![
+        Line::from(Span::styled(
+            "⚡ Navigation & Keybindings Cheat-Sheet",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from("  Tab / l / Right    : Switch to Next Tab"),
+        Line::from("  Shift+Tab / h / Left: Switch to Previous Tab"),
+        Line::from("  1 .. 4             : Direct Jump to Tab (1:Orchestrate, 2:Chat, 3:Hub, 4:Settings)"),
+        Line::from("  j / Down           : Scroll Down"),
+        Line::from("  k / Up             : Scroll Up"),
+        Line::from("  g / Home           : Scroll to Top"),
+        Line::from("  G / End            : Scroll to Bottom"),
+        Line::from("  / or Ctrl+P        : Open Command Palette Overlay"),
+        Line::from("  r                  : Refresh Hub Read Model"),
+        Line::from("  ? or F1            : Toggle Help Modal"),
+        Line::from("  q or Esc           : Close Modal / Exit Application"),
+        Line::from("  Mouse Left Click   : Click Tab Header to select"),
+        Line::from("  Mouse Scroll       : Scroll view content up/down"),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Help Modal (Press Esc or ? to Close) ")
+        .style(Style::default().bg(Color::Reset).fg(Color::Yellow));
+    let paragraph = Paragraph::new(help_text).block(block).wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, popup_area);
+}
+
+fn draw_command_palette_modal(frame: &mut Frame, area: Rect, app: &AppState) {
+    let popup_area = centered_rect(70, 25, area);
+    frame.render_widget(Clear, popup_area);
+
+    let text = vec![
+        Line::from(Span::styled(
+            "Command Palette — type a command and press Enter:",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(vec![
+            Span::styled("> ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::raw(&app.command_input),
+            Span::styled("█", Style::default().fg(Color::Green)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Commands: 1:orchestrate | 2:chat | 3:hub | 4:settings | refresh | help | quit",
+            Style::default().fg(Color::DarkGray),
+        )),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Command Palette (Press Esc to Cancel) ")
+        .style(Style::default().bg(Color::Reset).fg(Color::Cyan));
+    let paragraph = Paragraph::new(text).block(block);
+    frame.render_widget(paragraph, popup_area);
 }

@@ -51,7 +51,7 @@
 | --- | --- | --- | --- |
 | Grok (team lead) | C13 migration gate #113 | Prepare the owner-run, evidence-capturing C13 acceptance checklist and issue handoff now that C12 is accepted. | Own the C13 gate/checklist portion of `docs/moon/roadmaps/communication.md` only; do not change runtime implementation or Chat-reserved review scope. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
-| Gemini | TUI T3 #137 | Implement keyboard/mouse navigation, help, high-contrast palette, and command-palette foundation in the existing `crates/tui` shell. Keep Settings persistence out of scope for this pass. | Own `crates/tui/**` only. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
+| Gemini — **in review** | TUI T3 #137 | Keyboard/mouse navigation, help, high-contrast palette, and command-palette modal. Ready for Chat/Codex review. | Own `crates/tui/**` only. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
 | Claude | Settings S5 #131 — returned | Integrate the persisted orchestration policy into the live auto-enrollment, export-permission, and sandbox-strictness paths, with focused tests and no UI wiring. | Own the policy call sites and settings backend/commands only; preserve C10/C11 semantics and coordinate before touching harness adapters. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
@@ -72,6 +72,17 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Gemini — TUI T3 navigation, mouse, help & command palette completed (#137)
+
+- Implemented conventional and Vim-style navigation (`Tab`/`Shift+Tab`, `h`/`j`/`k`/`l`, `Left`/`Right`/`Up`/`Down`, `g`/`G`) and view scrolling in `crates/tui/src/app.rs`.
+- Added mouse click hit-target tab selection and wheel scrolling support via Crossterm mouse capture.
+- Created Help Cheat-Sheet modal (`?` or `F1`) and Command Palette modal (`/` or `Ctrl+P`) with command execution (`1:orchestrate`, `2:chat`, `3:hub`, `4:settings`, `refresh`, `help`, `quit`).
+- Added unit test `test_tui_app_state_navigation_and_command_palette` in `crates/tui/tests/navigation_test.rs`.
+- **Verification:** `cargo test` passes 131 unit and integration tests across all workspace crates; `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+- **Changed files:** `crates/tui/src/app.rs`, `crates/tui/tests/navigation_test.rs`, `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/ui.md`, `.agent/cache/AGENT_BUS.md`.
+
+— Gemini
 
 ### Grok — C13 #113 owner-run checklist ready for review
 
