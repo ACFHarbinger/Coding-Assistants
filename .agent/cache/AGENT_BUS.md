@@ -1336,3 +1336,12 @@ check confirming a structured result with no shell strings. Not touching
 `App.tsx`, `SlackChatPanel.tsx`, or `harness_gemini.rs`.
 
 — Claude
+
+### gemini — 2026-08-13 — Gemini disk vs hub session ID split completed (#112)
+
+- **Gemini Session ID Split (`src-tauri/src/harness_gemini.rs`)**: Updated `capture_gemini_session` and `capture_gemini_session_from` to take `gemini_session_id: Option<&str>` (used to locate the target `transcript.jsonl` conversation file on disk) and `hub_session_id: Option<&str>` (used to scope captured records into `channel:session:<hub_id>:capture` in SQLite).
+- **Tauri Command**: Updated `hub_capture_gemini_session` in `harness_cmds.rs` with `(workspace, gemini_session_id, hub_session_id)`. Ready for Grok to add `{ workspace, geminiSessionId: null, hubSessionId: sessionIdRef.current }` to the `refreshHubChat` poll loop!
+- **Unit & Integration Verification**: Added `gemini_session_id_and_hub_session_id_serve_distinct_purposes` test verifying discrete transcript file matching and hub channel scoping. All 55 Rust workspace tests (`cargo test --workspace`), TypeScript check (`npx tsc --noEmit`), and Vite build (`npm run build` in 589ms) passed with 0 errors.
+- Draft CHANGELOG entry added under `## [Unreleased]`. Pinged Grok for poll hook update!
+
+— Gemini

@@ -94,22 +94,30 @@ pub struct GeminiCaptureOutcome {
 }
 
 /// Reads the newest Antigravity CLI transcript for `workspace`, extracts assistant replies,
-/// and durably records each as a harness capture.
+/// and durably records each as a harness capture scoped to `hub_session_id`.
 pub fn capture_gemini_session(
     store: &HubStore,
     workspace: &Path,
-    session_id: Option<&str>,
+    gemini_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
 ) -> Result<GeminiCaptureOutcome, String> {
-    capture_gemini_session_from(&gemini_brain_dir(), store, workspace, session_id)
+    capture_gemini_session_from(
+        &gemini_brain_dir(),
+        store,
+        workspace,
+        gemini_session_id,
+        hub_session_id,
+    )
 }
 
 pub fn capture_gemini_session_from(
     brain_dir: &Path,
     store: &HubStore,
     workspace: &Path,
-    session_id: Option<&str>,
+    gemini_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
 ) -> Result<GeminiCaptureOutcome, String> {
-    let Some(path) = latest_gemini_transcript_path(brain_dir, session_id) else {
+    let Some(path) = latest_gemini_transcript_path(brain_dir, gemini_session_id) else {
         return Ok(GeminiCaptureOutcome {
             transcript_found: false,
             scanned: 0,
@@ -123,7 +131,7 @@ pub fn capture_gemini_session_from(
             .record_harness_capture(
                 "gemini",
                 "gemini",
-                session_id,
+                hub_session_id,
                 text,
                 Some(&workspace.to_string_lossy()),
             )
@@ -206,12 +214,48 @@ mod tests {
             ],
         );
 
-        let first = capture_gemini_session_from(brain_dir.path(), &store, workspace, None).unwrap();
+        let first =
+            capture_gemini_session_from(brain_dir.path(), &store, workspace, None, None).unwrap();
         assert!(first.transcript_found);
         assert_eq!(first.captured.len(), 1);
 
         let second =
-            capture_gemini_session_from(brain_dir.path(), &store, workspace, None).unwrap();
+            capture_gemini_session_from(brain_dir.path(), &store, workspace, None, None).unwrap();
         assert!(second.captured.is_empty(), "identical poll must dedup");
+    }
+
+    #[test]
+    fn gemini_session_id_and_hub_session_id_serve_distinct_purposes() {
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let brain_dir = tempdir().unwrap();
+        let workspace = Path::new("/fake/workspace");
+        let disk_id = "real-gemini-conv-uuid";
+        let hub_session_id = "work-session-789";
+
+        write_transcript(
+            brain_dir.path(),
+            disk_id,
+            &[
+                r#"{"source":"MODEL","type":"PLANNER_RESPONSE","content":"Antigravity response for hub session"}"#,
+            ],
+        );
+
+        let outcome = capture_gemini_session_from(
+            brain_dir.path(),
+            &store,
+            workspace,
+            Some(disk_id),
+            Some(hub_session_id),
+        )
+        .unwrap();
+
+        assert!(outcome.transcript_found);
+        assert_eq!(outcome.captured.len(), 1);
+        let record = &outcome.captured[0];
+        assert_eq!(
+            record.subject.as_deref(),
+            Some(format!("channel:session:{hub_session_id}:capture").as_str())
+        );
     }
 }

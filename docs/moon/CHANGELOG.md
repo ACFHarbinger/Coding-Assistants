@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — C12 Antigravity / Gemini CLI disk vs hub session ID split (2026-08-13) [DRAFT]
+
+- **Session ID Split (`src-tauri/src/harness_gemini.rs`)**: Updated `capture_gemini_session` and `hub_capture_gemini_session` to separate `gemini_session_id` (used to locate specific `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` files on disk) from `hub_session_id` (used to scope captured records into `channel:session:<hub_id>:capture` in SQLite).
+- **Unit Coverage**: Added `gemini_session_id_and_hub_session_id_serve_distinct_purposes` test verifying discrete disk transcript matching and hub channel scoping (55 total workspace tests passed).
+
 ### Grok — C12 refresh polls Grok, Claude, and Codex (2026-08-13) [DRAFT]
 
 - Chat & Memory refresh now calls `hub_capture_grok_session`,

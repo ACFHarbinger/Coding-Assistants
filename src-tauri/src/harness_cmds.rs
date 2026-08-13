@@ -95,13 +95,15 @@ pub fn hub_capture_codex_session(
 #[tauri::command]
 pub fn hub_capture_gemini_session(
     workspace: String,
-    session_id: Option<String>,
+    gemini_session_id: Option<String>,
+    hub_session_id: Option<String>,
 ) -> Result<crate::harness_gemini::GeminiCaptureOutcome, String> {
     let store = open_store()?;
     crate::harness_gemini::capture_gemini_session(
         &store,
         &PathBuf::from(workspace),
-        session_id.as_deref(),
+        gemini_session_id.as_deref(),
+        hub_session_id.as_deref(),
     )
 }
 
