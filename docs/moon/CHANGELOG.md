@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was empty; `code` is a snap); launched `just start` and confirmed the
   WebKitNetworkProcess crash signature did not recur.
 
+### Hub — resume any harness in a real terminal from Orchestrate (#152) (2026-08-13)
+
+- Added `hub::relaunch_harness_in_terminal` (`crates/hub/src/bridge/relaunch.rs`):
+  kill an optional managed pid, resolve the latest on-disk session id for
+  Claude / Grok / Codex / Gemini, and open a real terminal running that
+  harness's interactive CLI (not the headless one-shot spawn path).
+- Exposed it as the Tauri command `hub_relaunch_harness_in_terminal` and
+  wired Orchestrate's **Harness interfaces** panel with a **Resume in
+  terminal** control per selected harness and per registered session.
+- **Verification:** `cargo check -p hub -p cli -p tauri-app`;
+  `npx tsc --noEmit`. Test suites were not executed.
+
 ### Gemini — Antigravity (`agy`) kill → capture → relaunch channel bridge (#151) (2026-08-13)
 
 - Implemented managed Gemini (`agy`) process kill -> capture -> relaunch channel bridge under `crates/hub/src/bridge/channels/gemini/` (`mod.rs`, `relaunch.rs`).

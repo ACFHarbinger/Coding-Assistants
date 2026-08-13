@@ -14,6 +14,13 @@ export interface HarnessSessionRegistration {
   writer_acquired_at: string | null;
 }
 
+export interface RelaunchOutcome {
+  harness: string;
+  killed_pid: number | null;
+  resumed_session_id: string | null;
+  detail: string;
+}
+
 export interface HarnessDeliveryNotice {
   harness: string;
   status: string;

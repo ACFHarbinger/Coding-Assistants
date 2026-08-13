@@ -7,9 +7,10 @@ use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
     launch_claude_channel_session, list_active_grok_sessions, list_channel_workspaces,
-    rename_channel_workspace, start_harness, ActiveGrokSession, ChannelWorkspace,
-    GrokConnectResult, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
-    HarnessStartRequest, HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
+    relaunch_harness_in_terminal, rename_channel_workspace, start_harness, ActiveGrokSession,
+    ChannelWorkspace, GrokConnectResult, HarnessInjectRequest, HarnessInjectResult,
+    HarnessSessionRegistration, HarnessStartRequest, HarnessStartResult, MessageRecord,
+    RelaunchOutcome, SandboxStrictness, SettingsStore,
 };
 use std::path::{Path, PathBuf};
 
@@ -47,6 +48,19 @@ pub fn hub_start_harness(
         prompt,
     })
     .map_err(|error| error.to_string())
+}
+
+/// Kill an optional managed pid, then open a real terminal running this
+/// harness's interactive CLI (resumed from the latest on-disk session
+/// when one exists). This is the human-attended path, not the headless
+/// one-shot spawn used by `hub_start_harness`.
+#[tauri::command]
+pub fn hub_relaunch_harness_in_terminal(
+    harness: String,
+    workspace: String,
+    existing_pid: Option<u32>,
+) -> Result<RelaunchOutcome, String> {
+    relaunch_harness_in_terminal(&harness, Path::new(&workspace), existing_pid)
 }
 
 #[tauri::command]

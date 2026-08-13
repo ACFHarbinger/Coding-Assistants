@@ -1,0 +1,220 @@
+//! Generic kill -> resume-in-a-real-terminal flow for any harness's
+//! *interactive* session, backing the Orchestrate "Harness Interfaces"
+//! panel. Unlike the headless task/wake `harness::*_spawn_args` (one
+//! prompt in, the process exits), this opens a real terminal running the
+//! harness's interactive CLI — the same shape as
+//! `bridge::channels::claude::terminal::launch_claude_channel_session` —
+//! because the human wants to sit in the resumed session, not have the app
+//! deliver a single message and exit.
+
+use crate::harness::HarnessId;
+use std::path::Path;
+use std::process::Command;
+
+/// Terminal emulators to try, in order. Duplicated from
+/// `bridge::channels::claude::terminal` rather than shared — that module is
+/// Claude-Channel-specific and reserved to Claude's ownership; this one is
+/// generic across all four harnesses.
+const TERMINAL_CANDIDATES: &[&str] = &["x-terminal-emulator", "konsole", "gnome-terminal", "xterm"];
+
+fn terminal_exec_prefix(terminal: &str) -> &'static [&'static str] {
+    if terminal == "gnome-terminal" {
+        &["--"]
+    } else {
+        &["-e"]
+    }
+}
+
+/// True if a process with this pid currently exists.
+pub fn is_pid_running(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
+/// SIGTERM, then SIGKILL if it's still alive after a short grace period.
+/// Returns `false` when the pid was already gone (nothing to kill).
+pub fn kill_pid(pid: u32) -> bool {
+    if !is_pid_running(pid) {
+        return false;
+    }
+    let _ = Command::new("kill")
+        .args(["-15", &pid.to_string()])
+        .output();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    if is_pid_running(pid) {
+        let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    true
+}
+
+/// The most recent on-disk session/thread/conversation id this harness has
+/// for `workspace`, read from each harness's own C12 capture bridge —
+/// never guessed from a killed process's stdout. Only Antigravity's exit
+/// message has actually been reverse-engineered in this codebase (see
+/// `bridge::channels::gemini::relaunch::parse_agy_resume_conversation_id`);
+/// the other three harnesses don't have a verified stdout resume-hint
+/// format, so this deliberately reads durable on-disk state instead of
+/// guessing one.
+pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String> {
+    match harness {
+        HarnessId::Claude => {
+            let sessions = crate::bridge::claude::list_active_claude_sessions().ok()?;
+            crate::bridge::claude::find_active_claude_session(&sessions, workspace)
+                .map(|session| session.session_id)
+        }
+        HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
+        HarnessId::Chat => crate::bridge::codex::latest_codex_thread_id(workspace),
+        HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
+        HarnessId::OpenCode | HarnessId::Vibe => None,
+    }
+}
+
+/// Interactive argv for resuming `harness` at `session_id`, or a fresh
+/// session with no resume flag when `session_id` is `None`.
+///
+/// `--leader`/`--resume` (Grok) and `--conversation` (Gemini/`agy`) are
+/// flags already relied on elsewhere in this codebase (`GrokLeaderCard`,
+/// `gemini_managed_spawn_args`); `claude --resume` and `codex resume` are
+/// each CLI's own documented resume convention but have not been
+/// independently re-verified against a live process here the way `agy`'s
+/// was.
+pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> Vec<String> {
+    match (harness, session_id) {
+        (HarnessId::Grok, Some(id)) => vec!["--leader".into(), "--resume".into(), id.into()],
+        (HarnessId::Grok, None) => vec!["--leader".into()],
+        (HarnessId::Claude, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Claude, None) => vec![],
+        (HarnessId::Chat, Some(id)) => vec!["resume".into(), id.into()],
+        (HarnessId::Chat, None) => vec![],
+        (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
+        (HarnessId::Gemini, None) => vec![],
+        (HarnessId::OpenCode, _) | (HarnessId::Vibe, _) => vec![],
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RelaunchOutcome {
+    pub harness: String,
+    pub killed_pid: Option<u32>,
+    pub resumed_session_id: Option<String>,
+    pub detail: String,
+}
+
+/// Kills `existing_pid` if given and still alive, resolves a resume
+/// session id from disk, then opens a real terminal running the harness's
+/// interactive CLI — resumed if an id was found, fresh otherwise. Never a
+/// detached headless `Command`; the human is meant to sit in this session,
+/// same as the Claude Channel "Connect" terminal.
+pub fn relaunch_harness_in_terminal(
+    harness_id: &str,
+    workspace: &Path,
+    existing_pid: Option<u32>,
+) -> Result<RelaunchOutcome, String> {
+    let harness = HarnessId::parse(harness_id).map_err(|error| error.to_string())?;
+    if !workspace.is_absolute() {
+        return Err("workspace must be an absolute path".into());
+    }
+
+    let killed_pid = existing_pid.filter(|&pid| kill_pid(pid));
+    // Give the process a moment to flush any exit-time state to disk
+    // (transcript files) before we go looking for it.
+    if killed_pid.is_some() {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+
+    let resumed_session_id = latest_session_id(harness, workspace);
+    let args = interactive_resume_args(harness, resumed_session_id.as_deref());
+    let program = harness.executable();
+
+    let mut errors = Vec::new();
+    for terminal in TERMINAL_CANDIDATES {
+        let mut command = Command::new(terminal);
+        command
+            .current_dir(workspace)
+            .args(terminal_exec_prefix(terminal))
+            .arg(program)
+            .args(&args);
+        match command.spawn() {
+            Ok(_) => {
+                let detail = match &resumed_session_id {
+                    Some(id) => {
+                        format!("Relaunched {program} in a new terminal, resuming session {id}")
+                    }
+                    None => format!(
+                        "Launched a fresh {program} session in a new terminal (no prior session found to resume)"
+                    ),
+                };
+                return Ok(RelaunchOutcome {
+                    harness: harness.as_str().into(),
+                    killed_pid,
+                    resumed_session_id,
+                    detail,
+                });
+            }
+            Err(error) => errors.push(format!("{terminal}: {error}")),
+        }
+    }
+    Err(format!(
+        "could not find a terminal emulator to launch (tried {}): {}",
+        TERMINAL_CANDIDATES.join(", "),
+        errors.join("; ")
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interactive_resume_args_match_each_harness_documented_flag() {
+        assert_eq!(
+            interactive_resume_args(HarnessId::Grok, Some("abc")),
+            vec!["--leader", "--resume", "abc"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Grok, None),
+            vec!["--leader"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Claude, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Claude, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Chat, Some("abc")),
+            vec!["resume", "abc"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Gemini, Some("abc")),
+            vec!["--conversation", "abc"]
+        );
+    }
+
+    #[test]
+    fn is_pid_running_is_false_for_an_implausible_pid() {
+        assert!(!is_pid_running(u32::MAX));
+    }
+
+    #[test]
+    fn kill_pid_is_a_harmless_noop_for_an_already_dead_pid() {
+        assert!(!kill_pid(u32::MAX));
+    }
+
+    #[test]
+    fn relaunch_rejects_a_relative_workspace() {
+        let err =
+            relaunch_harness_in_terminal("claude", Path::new("relative/path"), None).unwrap_err();
+        assert!(err.contains("absolute"), "{err}");
+    }
+
+    #[test]
+    fn relaunch_rejects_an_unknown_harness() {
+        let err = relaunch_harness_in_terminal("not-a-harness", Path::new("/abs/repo"), None)
+            .unwrap_err();
+        assert!(err.contains("unknown harness"), "{err}");
+    }
+}

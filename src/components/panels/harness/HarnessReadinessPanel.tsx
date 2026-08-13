@@ -2,16 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
-import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration } from "./types";
+import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration, type RelaunchOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
 
 export default function HarnessReadinessPanel({ workspace }: { workspace: string }) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
   const [error, setError] = useState("");
+  const [detail, setDetail] = useState("");
   const [diskId, setDiskId] = useState("");
   const [harness, setHarness] = useState<string>("grok");
   const [busy, setBusy] = useState(false);
+  const [relaunching, setRelaunching] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -49,6 +51,27 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       setError(String(cause).replace(/^Error:\s*/, ""));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const relaunchInTerminal = async (target: string, existingPid: number | null) => {
+    setBusy(true);
+    setRelaunching(target);
+    try {
+      requireWorkspace();
+      const outcome = await invoke<RelaunchOutcome>("hub_relaunch_harness_in_terminal", {
+        harness: target,
+        workspace,
+        existingPid,
+      });
+      setDetail(outcome.detail);
+      setError("");
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+      setRelaunching(null);
     }
   };
 
@@ -90,9 +113,9 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     <section style={{ marginBottom: "1.5rem", padding: "1.25rem", border: "1px solid rgba(251, 191, 36, 0.35)", borderRadius: "12px", background: "rgba(251, 191, 36, 0.06)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
         <div>
-          <strong style={{ color: "var(--text-main)" }}>Managed harness readiness</strong>
+          <strong style={{ color: "var(--text-main)" }}>Harness interfaces</strong>
           <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.25rem" }}>
-            Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Never attach to an undocumented socket or TTY.
+            Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Resume in terminal kills an optional managed pid and opens a real interactive CLI — it does not attach to an undocumented socket or TTY.
           </div>
         </div>
         <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy}>
@@ -109,6 +132,11 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       {error && (
         <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.14)", border: "1px solid rgba(248, 113, 113, 0.55)", color: "#fecaca", fontSize: "0.85rem" }}>
           {error}
+        </div>
+      )}
+      {detail && !error && (
+        <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.35)", color: "#a7f3d0", fontSize: "0.85rem" }}>
+          {detail}
         </div>
       )}
 
@@ -129,6 +157,16 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         </button>
         <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void startManaged()}>
           Start managed
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ marginTop: 0 }}
+          disabled={busy}
+          title="Opens a real terminal for this harness, resuming the latest on-disk session when one exists."
+          onClick={() => void relaunchInTerminal(harness, sessions.find((row) => row.harness === harness)?.managed_pid ?? null)}
+        >
+          {relaunching === harness ? "Opening terminal…" : "Resume in terminal"}
         </button>
       </div>
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
@@ -157,7 +195,19 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
                 {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
               </div>
             </div>
-            <HarnessBadge mode={row.mode} state={row.state} />
+            <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+              <HarnessBadge mode={row.mode} state={row.state} />
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ marginTop: 0 }}
+                disabled={busy}
+                title="Kill the managed pid if one is registered, then resume this harness in a real terminal."
+                onClick={() => void relaunchInTerminal(row.harness, row.managed_pid)}
+              >
+                {relaunching === row.harness ? "Opening…" : "Resume in terminal"}
+              </button>
+            </div>
           </div>
         ))}
       </div>

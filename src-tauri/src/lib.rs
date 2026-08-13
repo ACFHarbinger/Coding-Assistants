@@ -375,6 +375,7 @@ pub fn run() {
             commands::commands::messaging::hub_list_work_sessions,
             commands::commands::messaging::hub_add_work_session_member,
             harness::commands::hub_start_harness,
+            harness::commands::hub_relaunch_harness_in_terminal,
             harness::commands::hub_inject_harness,
             harness::commands::hub_register_harness_session,
             harness::commands::hub_list_harness_sessions,

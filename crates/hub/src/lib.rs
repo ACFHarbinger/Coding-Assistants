@@ -30,6 +30,7 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
+pub use bridge::relaunch::{relaunch_harness_in_terminal, RelaunchOutcome};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,
@@ -47,10 +48,9 @@ pub use settings::{
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
     BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
-    GateVerdict,
-    GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
-    HubError, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord,
-    MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault, SendOutcome,
-    ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord,
-    WorkflowStep,
+    GateVerdict, GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration,
+    HarnessSessionState, HubError, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
+    MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault,
+    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
+    WorkSessionRecord, WorkflowStep,
 };
