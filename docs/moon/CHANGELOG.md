@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 Grok transcript capture + refresh poll (2026-08-13) [DRAFT]
+
+- Assigned Claude to split Claude disk-session vs hub work-session ids, and
+  Gemini to add Antigravity capture (`harness_gemini.rs`).
+- Added `hub_capture_grok_session`: reads
+  `~/.grok/sessions/<percent-encoded-workspace>/<id>/chat_history.jsonl`,
+  keeps `type: assistant` text only, and records via capture dedup.
+- Chat & Memory's 1.5s refresh now polls Grok and Claude capture commands
+  without blocking the message list. Chat: format and update #112.
+
 ### Claude — C12 Claude harness capture adapter (2026-08-13) [DRAFT]
 
 - Grok's shared `ca_hub::harness` contract already covers Claude start/inject

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
@@ -116,6 +116,10 @@ function App() {
     }
   });
   const [chatFocusToken, setChatFocusToken] = useState(0);
+  const workDirRef = useRef(config.work_dir);
+  const sessionIdRef = useRef(activeWorkSessionId);
+  workDirRef.current = config.work_dir;
+  sessionIdRef.current = activeWorkSessionId;
 
   useEffect(() => {
     try {
@@ -211,6 +215,20 @@ function App() {
       setActiveWorkSessionId(current =>
         current && sessions.some(session => session.id === current) ? current : current
       );
+      const workspace = workDirRef.current;
+      if (workspace) {
+        void Promise.allSettled([
+          invoke("hub_capture_grok_session", {
+            workspace,
+            grokSessionId: null,
+            hubSessionId: sessionIdRef.current,
+          }),
+          invoke("hub_capture_claude_session", {
+            workspace,
+            sessionId: null,
+          }),
+        ]);
+      }
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
     }

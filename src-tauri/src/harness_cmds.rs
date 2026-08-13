@@ -48,6 +48,21 @@ pub fn hub_inject_harness(
 }
 
 #[tauri::command]
+pub fn hub_capture_grok_session(
+    workspace: String,
+    grok_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness_grok::GrokCaptureOutcome, String> {
+    let store = open_store()?;
+    crate::harness_grok::capture_grok_session(
+        &store,
+        &PathBuf::from(workspace),
+        grok_session_id.as_deref(),
+        hub_session_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub fn hub_capture_claude_session(
     workspace: String,
     session_id: Option<String>,
