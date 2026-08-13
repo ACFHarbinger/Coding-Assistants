@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   owner-labelled writer lease; the lease prevents a second turn from racing
   the active provider writer and only its owner can release it. Existing C12
   registration paths stay observed by default.
+- Started C14.2's safe Codex delivery transition: a Hub-managed Codex session
+  claims that writer lease before app-server delivery and releases it to a
+  ready or queued state afterward. A competing Hub lease, or Codex's reported
+  `already has an active writer` error, now returns a truthful **queued**
+  retryable outcome rather than a misleading unavailable/delivered result.
 
 ### Chat / Codex — Chat composer recipient and delivery clarity (2026-08-13)
 

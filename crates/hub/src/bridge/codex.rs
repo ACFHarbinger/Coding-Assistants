@@ -7,7 +7,10 @@
 //! inject. Without a registered or on-disk thread id the task stays
 //! `unavailable` / queued.
 
-use crate::{HarnessInjectRequest, HarnessInjectResult, HubError, HubStore};
+use crate::{
+    HarnessInjectRequest, HarnessInjectResult, HarnessSessionMode, HarnessSessionState, HubError,
+    HubStore,
+};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -104,7 +107,40 @@ fn deliver_codex_task_with(
         ));
     };
 
-    match send_turn(&thread_id, &request.body) {
+    // C14.2: a deliberately app-managed thread has one durable Hub writer.
+    // Observed C12 registrations retain their conservative existing behavior;
+    // no lease is claimed for somebody else's terminal/session.
+    let writer_owner = format!(
+        "codex-turn:{}",
+        request.message_id.as_deref().unwrap_or("untracked")
+    );
+    let has_managed_lease = registration
+        .as_ref()
+        .is_some_and(|row| row.mode == HarnessSessionMode::Managed);
+    if has_managed_lease {
+        if let Err(error) = store.acquire_harness_writer("chat", &workspace.to_string_lossy(), &writer_owner) {
+            return Ok(queued(&format!(
+                "Codex managed thread {thread_id} is busy; task stays queued for retry: {error}"
+            )));
+        }
+    }
+
+    let sent = send_turn(&thread_id, &request.body);
+    if has_managed_lease {
+        let next_state = if sent.is_ok() {
+            HarnessSessionState::Ready
+        } else {
+            HarnessSessionState::Queued
+        };
+        let _ = store.release_harness_writer(
+            "chat",
+            &workspace.to_string_lossy(),
+            &writer_owner,
+            next_state,
+        );
+    }
+
+    match sent {
         Ok(turn) => {
             if let Some(message_id) = request.message_id.as_deref() {
                 let _ = store.set_message_status(message_id, crate::MessageStatus::Acked);
@@ -116,6 +152,9 @@ fn deliver_codex_task_with(
                 detail: format!("forwarded to Codex thread {thread_id} via app-server ({turn})"),
             })
         }
+        Err(error) if error.contains("already has an active writer") => Ok(queued(&format!(
+            "Codex thread {thread_id} already has an external active writer; task stays queued for retry. {error}"
+        ))),
         Err(error) => Ok(unavailable(&error)),
     }
 }
@@ -217,6 +256,15 @@ fn unavailable(detail: &str) -> HarnessInjectResult {
     }
 }
 
+fn queued(detail: &str) -> HarnessInjectResult {
+    HarnessInjectResult {
+        harness: "chat".into(),
+        pid: None,
+        status: "queued".into(),
+        detail: detail.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +320,39 @@ mod tests {
         assert_eq!(result.status, "delivered");
         assert_eq!(result.pid, None);
         assert!(result.detail.contains("thread-abc"));
+    }
+
+    #[test]
+    fn managed_thread_with_an_existing_hub_writer_is_queued_without_app_server_io() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .register_managed_harness_session("chat", "/tmp/c12-codex", "thread-abc", 77)
+            .unwrap();
+        store
+            .acquire_harness_writer("chat", "/tmp/c12-codex", "other-turn")
+            .unwrap();
+        let result = deliver_codex_task_with(&store, &request(Path::new("/tmp/c12-codex")), |_, _| {
+            panic!("a second managed writer must not contact app-server")
+        })
+        .unwrap();
+        assert_eq!(result.status, "queued");
+        assert!(result.detail.contains("busy"));
+    }
+
+    #[test]
+    fn external_codex_writer_error_is_queued_for_retry() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .register_harness_session("chat", "/tmp/c12-codex", "thread-abc", None)
+            .unwrap();
+        let result = deliver_codex_task_with(&store, &request(Path::new("/tmp/c12-codex")), |_, _| {
+            Err("codex app-server error: {\"code\":-32600,\"message\":\"thread x already has an active writer\"}".into())
+        })
+        .unwrap();
+        assert_eq!(result.status, "queued");
+        assert!(result.detail.contains("external active writer"));
     }
 
     #[test]
