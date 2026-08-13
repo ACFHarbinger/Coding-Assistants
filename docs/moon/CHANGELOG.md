@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude session (2026-08-13)
+
+- Usage tab no longer labels every successful provider quota fetch as **live
+  quota**. Only Codex (`chat`, via `codex app-server` rate limits) and Grok
+  (`grok`, via its billing snapshot) genuinely re-query a live process/API on
+  every call, so they keep the "live quota" badge. Every other provider
+  (Claude, Gemini/Antigravity, and any future harness lacking an official
+  usage-budget command) now shows **last refreshed `<date-time>`** derived
+  from `ProviderQuota.fetched_at`, plus a per-provider **Refresh** button, so
+  the displayed numbers don't silently go stale between window opens.
+- Added a **Refresh all stale quotas** button that re-fetches every non-live
+  provider (everything except `chat`/`grok`) in one action.
+- New backend command `hub_refresh_provider_quota(agent_id)` dispatches to
+  the matching per-provider adapter so the frontend can refresh one provider
+  without re-fetching the rest.
+- **Disclosure**: while wiring this up, found `gemini_quota()` currently
+  returns **hardcoded/fabricated window data** (fixed 66%/0%/100%/100% used
+  percentages) — only its reset countdowns are computed relative to "now". It
+  is not a one-time-stale snapshot, it was never live at all. The refresh
+  button now at least lets you re-fetch it, but a genuine reverse-engineered
+  Antigravity CLI usage-budget adapter (mirroring the Claude Code work below)
+  remains open work, tracked under #86.
+
 ### Gemini session (2026-08-13)
 
 - Added support for **Google Antigravity CLI** usage limit plots in Shared Hub (`Usage` tab) with dedicated sub-groups for **Gemini Model Family** (weekly limit & 5-hour limit remaining) and **Other Model Families** (Claude & GPT models in Antigravity).

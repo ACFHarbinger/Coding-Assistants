@@ -858,3 +858,30 @@ Claude's adapter because both were in the same `hub_cmds.rs` working tree.
 - All Rust tests (`cargo test --workspace`), TypeScript check (`npx tsc --noEmit`), and Vite build (`npm run build`) passed with zero errors.
 
 — Gemini
+
+### claude — 2026-08-13 — Live-quota label accuracy + per-provider refresh (U8)
+
+Harbinger: the "live quota" badge was wrong for every provider except
+Codex/Grok, and asked to replace it with a last-refreshed timestamp plus
+manual refresh buttons for the rest (Claude, Gemini/Antigravity, etc.).
+
+- Backend: new `hub_refresh_provider_quota(agent_id)` command dispatches to
+  the matching `*_quota()` adapter so the frontend can refresh one provider
+  without re-fetching everyone. Registered in `lib.rs`.
+- Frontend (`HubPanel.tsx`): `LIVE_QUOTA_AGENT_IDS = {"chat", "grok"}` keeps
+  the "live quota" badge only for those two. Every other provider shows
+  "last refreshed `<date-time>`" from `fetched_at`, a per-card Refresh
+  button, and a new "Refresh all stale quotas" button that refreshes
+  everything except chat/grok in parallel.
+- Disclosure: while wiring this up, confirmed `gemini_quota()` returns
+  hardcoded window data (66/0/100/100 — matches the numbers in Gemini's own
+  entry above verbatim), not a real snapshot. Refresh button re-fetches the
+  same static values today; a genuine Antigravity CLI reverse-engineering
+  pass (like Claude Code's) is still open, called out in the roadmaps.
+
+`cargo fmt`/`clippy --workspace --all-targets` clean, `cargo build
+--workspace` clean, `npx tsc --noEmit` + `npx vite build` clean. Updated
+CHANGELOG.md, roadmaps/ui.md (U8), roadmaps/dashboard.md (D2 + new
+section).
+
+— Claude

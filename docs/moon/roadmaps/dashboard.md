@@ -5,7 +5,7 @@ Prefer useful 2D observability before any 3D visualization.
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | D1 | Agent/task timeline and 2D collaboration DAG | User can trace messages, wake-ups, tool calls, and state transitions | 🚧 Partial · Dashboard now summarizes tasks, messages, wakes, and pending wakes; task event timeline remains |
-| D2 | Provider token, cost, latency, and error telemetry | Metrics are persisted with provider/session provenance | 🚧 Partial · local token/call/output counters are persisted; Usage now plots live provider quota remaining for Codex, Claude, and Grok. Exact token/cost/latency adapters and Gemini remain |
+| D2 | Provider token, cost, latency, and error telemetry | Metrics are persisted with provider/session provenance | 🚧 Partial · local token/call/output counters are persisted; Usage now plots provider quota remaining for Codex, Claude, Grok, and Gemini/Antigravity (only Codex/Grok are truly live; others refresh on demand). Exact token/cost/latency adapters and a real Gemini/Antigravity data source remain |
 | D3 | Usage view with soft warnings and optional hard stop | User can see used/available budget and why execution paused | ✅ Done · Shared Hub Dashboard and Usage tab show per-agent utilization bars, pause state, and provider-quota remaining bars |
 | D4 | Tool and workspace activity views | User can identify files, commands, and agents involved in a task | 📋 Pending |
 | D5 | Project-specific external metrics adapters | Social, app-store, engagement, and monetization metrics can be added without coupling them to the core hub | 📋 Pending |
@@ -26,6 +26,19 @@ Prefer useful 2D observability before any 3D visualization.
 - Shared Hub Usage **Refresh provider quotas** plots remaining bars from each
   harness's own snapshot: Codex via `codex app-server` rate limits, Claude via
   `/api/oauth/usage`, Grok via `GET /v1/billing?format=credits` after
-  `grok login`. Gemini still has no local snapshot.
+  `grok login`. Gemini/Antigravity has an adapter, but see the caveat below.
 - This is account-limit remaining, separate from local Shared Hub budgets.
 - Tracked as U8 / GitHub #86. Historical series and cost/latency stay open.
+
+### Live vs. refresh-on-demand quotas (2026-08-13)
+
+- Only Codex and Grok genuinely re-query a live process/API on every call, so
+  only their cards keep the **live quota** badge. Claude, Gemini/Antigravity,
+  and any other provider without an official usage-budget command instead
+  show **last refreshed `<date-time>`** (from `ProviderQuota.fetched_at`), a
+  per-provider **Refresh** button, and a **Refresh all stale quotas** button
+  (backend: `hub_refresh_provider_quota(agent_id)`).
+- Caveat: `gemini_quota()` currently returns hardcoded/fabricated window data
+  — only its reset countdowns move. The refresh button re-fetches that same
+  static data today; a real Antigravity CLI usage-budget adapter (reverse-
+  engineered the way Claude Code's was) is still open, tracked under #86.

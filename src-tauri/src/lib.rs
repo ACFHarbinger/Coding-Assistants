@@ -383,6 +383,7 @@ pub fn run() {
             hub_cmds::hub_list_agent_metrics,
             hub_cmds::hub_record_agent_metrics,
             hub_cmds::hub_get_provider_quotas,
+            hub_cmds::hub_refresh_provider_quota,
             hub_cmds::hub_record_budget_usage,
             hub_cmds::hub_consume_budget,
             hub_cmds::hub_resume_agent,

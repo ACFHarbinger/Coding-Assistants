@@ -761,6 +761,26 @@ pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
     ])
 }
 
+/// `chat` (Codex) and `grok` fetch a live process/API on every call with no
+/// staleness risk, so the frontend keeps their "live quota" label and skips
+/// the refresh button. Every other provider gets a "last refreshed" label and
+/// a manual refresh control (some, like Claude Code and Antigravity CLI,
+/// expose no official usage-budget command, so their snapshot can only be
+/// updated by an explicit refresh).
+#[tauri::command]
+pub fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuota, String> {
+    Ok(match agent_id.as_str() {
+        "claude" => claude_quota(),
+        "grok" => grok_quota(),
+        "chat" | "codex" => codex_quota(),
+        "gemini" => gemini_quota(),
+        "opencode" => opencode_quota(),
+        "llamacpp" => llamacpp_quota(),
+        "ollama" => ollama_quota(),
+        other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
+    })
+}
+
 fn default_home() -> PathBuf {
     if let Ok(home) = std::env::var("CA_HOME") {
         return PathBuf::from(home);

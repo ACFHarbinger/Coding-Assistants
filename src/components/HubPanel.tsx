@@ -89,6 +89,15 @@ interface ProviderQuota {
 
 type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "policy" | "usage" | "journal";
 
+/**
+ * Providers whose adapter queries a live process/API on every call with no
+ * staleness risk (Codex's `codex app-server` rate limits, Grok's billing
+ * snapshot). Every other provider — including Claude Code and Antigravity
+ * CLI, which expose no official usage-budget command — shows a last-refreshed
+ * timestamp and a manual refresh control instead.
+ */
+const LIVE_QUOTA_AGENT_IDS = new Set(["chat", "grok"]);
+
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
   borderRadius: "12px",
@@ -171,10 +180,20 @@ function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
   );
 }
 
-function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
+function QuotaChart({
+  quotas,
+  refreshingIds,
+  onRefreshOne,
+}: {
+  quotas: ProviderQuota[];
+  refreshingIds: Set<string>;
+  onRefreshOne: (agentId: string) => void;
+}) {
   const formatReset = (timestamp?: number | null) => timestamp
     ? `resets ${new Date(timestamp * 1000).toLocaleString()}`
     : "reset time unavailable";
+  const formatFetchedAt = (timestamp: number) =>
+    `last refreshed ${new Date(timestamp * 1000).toLocaleString()}`;
   const windowName = (window: ProviderQuotaWindow) => {
     if (!window.window_minutes) return window.label;
     if (window.window_minutes <= 360) return `${window.label} · hourly window`;
@@ -206,9 +225,23 @@ function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
                 <strong style={{ color: "var(--primary)", fontSize: "1.02rem" }}>
                   {quota.harness_title || `${quota.agent_id} · ${quota.provider}`}
                 </strong>
-                <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem", fontWeight: 500 }}>
-                  {quota.status === "ok" ? "live quota" : "unavailable"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem", fontWeight: 500 }}>
+                    {LIVE_QUOTA_AGENT_IDS.has(quota.agent_id)
+                      ? (quota.status === "ok" ? "live quota" : "unavailable")
+                      : formatFetchedAt(quota.fetched_at)}
+                  </span>
+                  {!LIVE_QUOTA_AGENT_IDS.has(quota.agent_id) && (
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: "0.25rem 0.6rem", fontSize: "0.78rem" }}
+                      disabled={refreshingIds.has(quota.agent_id)}
+                      onClick={() => onRefreshOne(quota.agent_id)}
+                    >
+                      {refreshingIds.has(quota.agent_id) ? "Refreshing…" : "Refresh"}
+                    </button>
+                  )}
+                </div>
               </div>
               {quota.windows.length === 0 ? (
                 <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
@@ -308,6 +341,7 @@ export default function HubPanel() {
   const [wakePolicy, setWakePolicy] = useState<WakePolicy | null>(null);
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [quotas, setQuotas] = useState<ProviderQuota[]>([]);
+  const [refreshingQuotaIds, setRefreshingQuotaIds] = useState<Set<string>>(new Set());
   const [budgetAgent, setBudgetAgent] = useState("");
   const [budgetLimit, setBudgetLimit] = useState("100");
   const [budgetSpend, setBudgetSpend] = useState("1");
@@ -370,6 +404,31 @@ export default function HubPanel() {
     );
     if (statuses) setQuotas(statuses);
   }, [run]);
+
+  const refreshSingleQuota = useCallback(async (agentId: string) => {
+    setRefreshingQuotaIds((prev) => new Set(prev).add(agentId));
+    try {
+      const updated = await run(`${agentId} quota refreshed`, () =>
+        invoke<ProviderQuota>("hub_refresh_provider_quota", { agentId })
+      );
+      if (updated) {
+        setQuotas((prev) => prev.map((q) => (q.agent_id === agentId ? updated : q)));
+      }
+    } finally {
+      setRefreshingQuotaIds((prev) => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
+  }, [run]);
+
+  const refreshStaleQuotas = useCallback(async () => {
+    const staleIds = quotas
+      .map((q) => q.agent_id)
+      .filter((id) => !LIVE_QUOTA_AGENT_IDS.has(id));
+    await Promise.all(staleIds.map((id) => refreshSingleQuota(id)));
+  }, [quotas, refreshSingleQuota]);
 
   const refreshAuditEvents = useCallback(async () => {
     const list = await run("audit events refreshed", () =>
@@ -1012,10 +1071,11 @@ export default function HubPanel() {
               <button className="btn-primary" onClick={setBudget} disabled={!budgetAgent}>Set / reset budget</button>
               <button className="btn-secondary" onClick={refreshBudgets}>Refresh</button>
               <button className="btn-secondary" onClick={refreshQuotas}>Refresh provider quotas</button>
+              <button className="btn-secondary" onClick={refreshStaleQuotas}>Refresh all stale quotas</button>
             </div>
           </div>
           <UsageChart budgets={budgets} />
-          <QuotaChart quotas={quotas} />
+          <QuotaChart quotas={quotas} refreshingIds={refreshingQuotaIds} onRefreshOne={refreshSingleQuota} />
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {budgets.length === 0 && <p style={{ color: "var(--text-muted)" }}>No budgets configured.</p>}
             {budgets.map((budget) => (
