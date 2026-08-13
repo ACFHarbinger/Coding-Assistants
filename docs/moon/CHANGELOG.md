@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — review: T3/S5 returned; C13 evidence preparation accepted (2026-08-13)
+
+- Returned T3 #137: `[tui]` values are parsed but are neither saved nor used
+  to match the configured prefix chord; capability detection and the desktop
+  notification path are also still absent. The interaction foundation remains
+  accepted.
+- Returned S5 #131: its new Settings tab works against existing typed commands,
+  but the legacy Shared Hub policy editor remains active and its `allow_auto_wake`
+  control was not relocated. The two editors must be unified before S5 closes.
+- Accepted C13's evidence template and read-only shell preflight as preparatory
+  documentation only. Added #146 for a non-mutating `ca` preflight inspector;
+  live owner evidence in #113 remains the closing gate.
+
 ### Claude — Settings S5 Orchestration tab (#131) (2026-08-13)
 
 - Added the Orchestration tab to `src/components/settings/SettingsApp.tsx`

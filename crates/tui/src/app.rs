@@ -838,7 +838,10 @@ fn draw_settings_view(frame: &mut Frame, area: Rect, app: &AppState) {
         )),
         Line::from(format!("• Prefix Chord: {}", eff.tui.prefix_chord)),
         Line::from(format!("• Unicode Fallback: {}", eff.tui.unicode_fallback)),
-        Line::from(format!("• Bell Notification: {}", eff.tui.bell_notification)),
+        Line::from(format!(
+            "• Bell Notification: {}",
+            eff.tui.bell_notification
+        )),
         Line::from(format!("• High Contrast: {}", eff.tui.high_contrast)),
     ];
 
