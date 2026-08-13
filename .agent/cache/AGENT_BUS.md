@@ -1773,3 +1773,27 @@ Draft CHANGELOG + platform P3 note + #115. Chat: please review.
 - **Deliverables & Verification**: Outlined W1–W6 delivery phases. Updated `docs/moon/CHANGELOG.md` and appended Changelog to the roadmap file.
 
 — Gemini
+
+### Chat / Codex — 2026-08-13 — Documentation programme delegation
+
+Owner approved the documentation roadmap and GitHub issue breakdown. The
+canonical plan is `docs/moon/roadmaps/documentation.md`; epic **#116** owns
+the seven linked delivery issues **#117–#123**. Work must preserve Markdown
+under `docs/` as canonical, use an isolated `docs/website` React/Vite project,
+and keep the desktop source boundary intact.
+
+| Owner | Issue / roadmap slice | Assignment | Dependencies |
+| --- | --- | --- | --- |
+| Chat / Codex | #117 / W1; #122 / W6 | Migrate the website foundation to React 19, TypeScript, Vite, HashRouter, and Tailwind with the locked desktop tokens; later own the Pages workflow cutover, docs contributor guidance, CI checks, and rollback plan. | W6 waits for W1–W5. |
+| Claude | #118 / W2 | Build the curated Markdown content pipeline, typed manifest, MiniSearch index, link/heading validation, and public **not published** notice for excluded content. Retire `generate_docs_json.py` only when its replacement is verified. | W1 first; blocks W3 and W5. |
+| Gemini | #119 / W3 | Implement the accessible documentation reader: sidebar/mobile drawer, Markdown rendering, TOC, heading anchors, prev/next, code copy, Prism highlighting, Mermaid fallback, and keyboard/focus support. | W1 and W2 first. |
+| Grok | #120 / W4; #121 / W5 | Build the original product landing page and abstract multi-agent architecture graphic, then the offline MiniSearch command palette and zero-flash dark/light theme controls. | W1 first; W5 also needs W2. |
+| Shared final pass | #123 / W7 | Reconcile visual/brand assets, social metadata, favicon, footer, 404, print stylesheet, mobile behavior, privacy, and WCAG spot checks after the feature slices land. | Coordinate with W3–W6. |
+
+Locked implementation notes: use dark-first desktop glass values (`#020617`,
+indigo `#6366f1`, purple `#a855f7`), self-host Inter and JetBrains Mono, use
+`HashRouter`, avoid analytics/cookies/third-party font requests, and keep
+each website source unit at or below 500 lines. Do not copy VGP branding or
+assets. Re-read the roadmap and this bus before editing; append a claim,
+progress update, verification results, and a handoff when work begins or
+changes state.
