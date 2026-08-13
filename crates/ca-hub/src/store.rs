@@ -783,6 +783,21 @@ impl HubStore {
                 recipient_ids_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS harness_captures (
+                id TEXT PRIMARY KEY NOT NULL,
+                harness TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                session_id TEXT,
+                content_hash TEXT NOT NULL,
+                message_id TEXT,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(harness, agent_id, session_id, content_hash)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_harness_captures_session
+                ON harness_captures(session_id, created_at);
             "#,
         )?;
 
@@ -1660,7 +1675,9 @@ impl HubStore {
             }
         }
         if recipients.is_empty() {
-            return Err(HubError::Invalid("session message requires at least one recipient".into()));
+            return Err(HubError::Invalid(
+                "session message requires at least one recipient".into(),
+            ));
         }
         let subject = subject
             .map(str::to_owned)
@@ -1668,9 +1685,17 @@ impl HubStore {
         self.record_recipient_set(&subject, Some(session_id), &recipients)?;
         recipients
             .iter()
-            .map(|recipient| self.send_message(
-                from_agent, recipient, MessageKind::Message, body, Some(&subject), workspace_path, task_id,
-            ))
+            .map(|recipient| {
+                self.send_message(
+                    from_agent,
+                    recipient,
+                    MessageKind::Message,
+                    body,
+                    Some(&subject),
+                    workspace_path,
+                    task_id,
+                )
+            })
             .collect()
     }
 
@@ -3234,6 +3259,83 @@ impl HubStore {
             })
         }
     }
+
+    /// Record a harness-authored message into the session transcript.
+    /// Duplicate polls of the same (harness, agent, session, body) are no-ops.
+    pub fn record_harness_capture(
+        &self,
+        harness: &str,
+        agent_id: &str,
+        session_id: Option<&str>,
+        body: &str,
+        workspace_path: Option<&str>,
+    ) -> Result<Option<MessageRecord>, HubError> {
+        if harness.trim().is_empty() || agent_id.trim().is_empty() {
+            return Err(HubError::Invalid(
+                "harness capture requires harness and agent_id".into(),
+            ));
+        }
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid(
+                "harness capture body must not be empty".into(),
+            ));
+        }
+        let content_hash = sha256_hex(
+            format!(
+                "{harness}\0{agent_id}\0{}\0{body}",
+                session_id.unwrap_or("")
+            )
+            .as_bytes(),
+        );
+        let existing: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT id FROM harness_captures
+                 WHERE harness = ?1 AND agent_id = ?2
+                   AND IFNULL(session_id, '') = IFNULL(?3, '')
+                   AND content_hash = ?4",
+                params![harness, agent_id, session_id, content_hash],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if existing.is_some() {
+            return Ok(None);
+        }
+
+        let subject = session_id.map(|id| format!("channel:session:{id}:capture"));
+        let to_agent = session_id
+            .map(|id| format!("session:{id}"))
+            .unwrap_or_else(|| "team".into());
+        let message = self.send_message(
+            agent_id,
+            &to_agent,
+            MessageKind::Message,
+            body,
+            subject.as_deref(),
+            workspace_path,
+            None,
+        )?;
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO harness_captures(
+                id, harness, agent_id, session_id, content_hash, message_id, body, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "#,
+            params![
+                id,
+                harness,
+                agent_id,
+                session_id,
+                content_hash,
+                message.id,
+                body,
+                now
+            ],
+        )?;
+        Ok(Some(message))
+    }
 }
 
 #[cfg(test)]
@@ -4418,7 +4520,9 @@ mod tests {
             )
             .unwrap();
         assert_eq!(messages.len(), 2);
-        assert!(messages.iter().all(|message| recipients.contains(&message.to_agent)));
+        assert!(messages
+            .iter()
+            .all(|message| recipients.contains(&message.to_agent)));
         let recorded: String = store
             .conn
             .query_row(
@@ -4427,7 +4531,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(serde_json::from_str::<Vec<String>>(&recorded).unwrap(), recipients);
+        assert_eq!(
+            serde_json::from_str::<Vec<String>>(&recorded).unwrap(),
+            recipients
+        );
         assert!(store
             .send_session_message(
                 "human",
@@ -4439,5 +4546,37 @@ mod tests {
                 None,
             )
             .is_err());
+    }
+
+    #[test]
+    fn harness_capture_dedups_the_same_body() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("C12 capture").unwrap();
+        let first = store
+            .record_harness_capture(
+                "grok",
+                "grok",
+                Some(&session.id),
+                "working on the inject path",
+                None,
+            )
+            .unwrap();
+        assert!(first.is_some());
+        let second = store
+            .record_harness_capture(
+                "grok",
+                "grok",
+                Some(&session.id),
+                "working on the inject path",
+                None,
+            )
+            .unwrap();
+        assert!(second.is_none());
+        let listed = store
+            .list_channel_messages(&format!("session:{}", session.id), 20)
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].from_agent, "grok");
     }
 }

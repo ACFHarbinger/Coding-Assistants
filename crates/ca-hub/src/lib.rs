@@ -5,8 +5,13 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+mod harness;
 mod store;
 
+pub use harness::{
+    grok_spawn_args, inject_harness, start_harness, HarnessId, HarnessInjectRequest,
+    HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+};
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,
     BudgetStatus, CompactReport, GitExportOutcome, HubError, HubStore, MemoryRecord, MemoryScope,

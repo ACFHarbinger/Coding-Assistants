@@ -1,5 +1,6 @@
 mod agents;
 mod file_tools;
+mod harness_cmds;
 mod hub_cmds;
 mod llm_client;
 mod process_detector;
@@ -359,6 +360,9 @@ pub fn run() {
             hub_cmds::hub_create_work_session,
             hub_cmds::hub_list_work_sessions,
             hub_cmds::hub_add_work_session_member,
+            harness_cmds::hub_start_harness,
+            harness_cmds::hub_inject_harness,
+            harness_cmds::hub_record_harness_capture,
             hub_cmds::hub_list_wakes,
             hub_cmds::hub_export_markdown,
             hub_cmds::hub_export_markdown_git,

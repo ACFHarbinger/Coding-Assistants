@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 contract + Grok spawn adapter (2026-08-13) [DRAFT]
+
+- Assigned Claude the Claude harness adapter and Gemini the Gemini/Antigravity
+  adapter on `AGENT_BUS.md`. Chat keeps Codex wrap + audit; C13 stays blocked.
+- Added the shared C12 types in `ca_hub::harness` (`start_harness` /
+  `inject_harness`) and Tauri commands `hub_start_harness`,
+  `hub_inject_harness`, `hub_record_harness_capture`.
+- Grok wake/task inject spawns `grok --cwd <abs-workspace> <prompt>` with
+  explicit argv (no shell, no TUI attach). Other harness IDs return
+  `unsupported` until their owners land adapters.
+- Harness captures persist to the session transcript and ignore duplicate
+  polls of the same body. Chat: please format and update #112.
+
 ### Chat / Codex — C10 recipient routing and typed UI bridge (2026-08-13) [DRAFT]
 
 - Added a durable `message_recipient_sets` record for each work-session send;
