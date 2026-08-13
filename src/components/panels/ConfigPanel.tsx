@@ -308,6 +308,12 @@ export default function ConfigPanel({
   };
 
   const detectProcesses = async () => {
+    if (hasScanned) {
+      setHasScanned(false);
+      setDetectedProcesses([]);
+      setDetectError("");
+      return;
+    }
     setDetecting(true);
     setDetectError("");
     try {
@@ -430,8 +436,13 @@ export default function ConfigPanel({
     <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
         <h2 style={{ margin: 0 }}>Agent Team Configuration</h2>
-        <button className="btn-secondary" onClick={detectProcesses} disabled={detecting}>
-          {detecting ? "Scanning processes…" : "Detect running agents"}
+        <button
+          className={hasScanned ? "btn-primary" : "btn-secondary"}
+          onClick={detectProcesses}
+          disabled={detecting}
+          style={hasScanned ? { background: 'rgba(168, 85, 247, 0.92)' } : undefined}
+        >
+          {detecting ? "Scanning processes…" : hasScanned ? "Hide detected agents" : "Detect running agents"}
         </button>
       </div>
 
@@ -533,14 +544,14 @@ export default function ConfigPanel({
 
       {detectError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>{detectError}</div>}
       {hasScanned && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.06)' }}>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Detected local agent processes. Selecting one adds its identity to the team; it does not take ownership of or terminate the process.</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Detected local agent processes. Selecting one adds its identity to the team; it does not take ownership of or terminate the process. Detection confirms presence only; a task executes automatically only when that provider has a registered, supported active-session bridge.</div>
         {detectedProcesses.map(process => <div key={process.pid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.65rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)' }}>
           <div style={{ minWidth: 0 }}><strong style={{ color: 'var(--primary)' }}>{process.agent}</strong><span style={{ color: 'var(--text-muted)', marginLeft: '0.6rem', fontSize: '0.8rem' }}>PID {process.pid}</span><div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'min(65vw, 680px)' }}>{process.command}</div></div>
           <button
-            className={addedPids.includes(process.pid) ? "btn-secondary" : "btn-primary"}
-            onClick={() => addedPids.includes(process.pid) ? removeDetectedProcess(process) : addDetectedProcess(process)}
+            className={addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? "btn-secondary" : "btn-primary"}
+            onClick={() => addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? removeDetectedProcess(process) : addDetectedProcess(process)}
           >
-            {addedPids.includes(process.pid) ? "Remove from team" : "Add to team"}
+            {addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? "Remove from team" : "Add to team"}
           </button>
         </div>)}
         {detectedProcesses.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No supported agent processes found.</span>}
@@ -562,7 +573,7 @@ export default function ConfigPanel({
             PROVIDERS={PROVIDERS}
             onAddToTeam={() => addSpawnedRole(index, role)}
             onRemoveFromTeam={() => removeSpawnedRole(index, role)}
-            isOnTeam={teamMemberIds.includes(role.process_pid ? `process:${role.process_pid}` : `role:${index}`)}
+            isOnTeam={teamMemberIds.includes(spawnedRoleTeamMember(index, role).target_id)}
           />
         ))}
 

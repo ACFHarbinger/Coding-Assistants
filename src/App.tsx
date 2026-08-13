@@ -60,6 +60,14 @@ function sameHubAgents(left: HubAgent[], right: HubAgent[]): boolean {
   });
 }
 
+function loadWorkspaceRoot(): string {
+  try {
+    return localStorage.getItem("ca.workspaceRoot") || "./workspace";
+  } catch {
+    return "./workspace";
+  }
+}
+
 function App() {
   const [config, setConfig] = useState<AgentConfig>({
     roles: [
@@ -67,7 +75,7 @@ function App() {
       { name: "Developer", config: { provider: "openai", model: "gpt-4o-mini" } },
       { name: "Reviewer", config: { provider: "openai", model: "gpt-4o" } },
     ],
-    work_dir: "./workspace",
+    work_dir: loadWorkspaceRoot(),
     mcp_config: `{
   "mcpServers": {
     "sequential-thinking": {
@@ -130,6 +138,15 @@ function App() {
       /* ignore quota / private mode */
     }
   }, [activeWorkSessionId]);
+
+  useEffect(() => {
+    try {
+      if (config.work_dir) localStorage.setItem("ca.workspaceRoot", config.work_dir);
+      else localStorage.removeItem("ca.workspaceRoot");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [config.work_dir]);
 
   useEffect(() => {
     async function loadModels() {
@@ -212,6 +229,27 @@ function App() {
       ]);
       setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
       setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
+      setTeamMembers(previous => {
+        const persisted = agents
+          .filter(agent => agent.team_member)
+          .map(agent => ({
+            id: agent.id,
+            target_id: agent.id,
+            name: agent.display_name,
+            provider: "",
+            model: "",
+            origin: "existing" as const,
+          }));
+        const persistedIds = new Set(persisted.map(agent => agent.target_id));
+        const transient = previous.filter(agent =>
+          !persistedIds.has(agent.target_id)
+          && (agent.target_id.startsWith("role:") || agent.target_id.startsWith("process:"))
+        );
+        const next = [...persisted, ...transient];
+        const unchanged = next.length === previous.length
+          && next.every((agent, index) => agent.id === previous[index]?.id && agent.target_id === previous[index]?.target_id);
+        return unchanged ? previous : next;
+      });
       setWorkSessions(sessions);
       setActiveWorkSessionId(current =>
         current && sessions.some(session => session.id === current) ? current : current
@@ -396,7 +434,10 @@ function App() {
               resources={resources}
               PROVIDERS={PROVIDERS}
               onPreview={fetchPreview}
-              teamMemberIds={teamMembers.map(member => member.id)}
+              teamMemberIds={[...new Set([
+                ...teamMembers.flatMap(member => [member.id, member.target_id]),
+                ...hubAgents.filter(agent => agent.team_member).map(agent => agent.id),
+              ])]}
               onAddAgent={addAgentToTeam}
               onRemoveAgent={removeAgentFromTeam}
               onCreateWorkSession={createWorkSession}

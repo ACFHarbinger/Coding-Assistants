@@ -395,7 +395,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
         bodyText = `[WAKE] ${bodyText}`;
       }
 
-      // ca-hub's MessageKind enum only knows message/handoff/wake/system — task
+      // hub's MessageKind enum only knows message/handoff/wake/system — task
       // intent rides in the `task` field, subject suffix, and [TASK] body
       // prefix instead of a "task" kind, which the backend would reject.
       const messageKind = isWakeTag ? "wake" : "message";
