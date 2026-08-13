@@ -51,17 +51,41 @@ install-ca:
 # WEBKIT_DISABLE_DMABUF_RENDERER=1 — Belt-and-suspenders: even under X11,
 # newer WebKitGTK may probe for DMA-BUF. Keep it off.
 #
-# Snap library-path leak — VS Code and other snaps often prepend
-# `/snap/core20/...` onto LD_LIBRARY_PATH / GTK_PATH / related linker
-# vars. WebKitGTK's NetworkProcess then dlopens snap's libpthread against
-# the system glibc and dies with:
+# Snap library-path leak — VS Code's snap wrapper rewrites GTK_PATH,
+# GTK_EXE_PREFIX, GTK_IM_MODULE_FILE, GSETTINGS_SCHEMA_DIR, LOCPATH,
+# XDG_DATA_DIRS/XDG_DATA_HOME, GIO_MODULE_DIR, etc. to point at
+# /snap/code/<rev>/... and ~/snap/code/<rev>/... before spawning its
+# integrated terminal — so a `LD_LIBRARY_PATH`-only, `/snap/`-prefix-only
+# filter misses both the actual affected variable set and the
+# `$HOME/snap/...` path shape entirely. WebKitGTK's NetworkProcess then
+# dlopens a snap-scoped libpthread against the system glibc and dies with:
 #   undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
-# Filter those entries here so `just start` is safe even when launched
-# from a snap-contaminated terminal. Non-snap entries are kept.
+#
+# The robust fix: VS Code's snap wrapper saves the pre-snap value of every
+# variable it touches into a `<VAR>_VSCODE_SNAP_ORIG` sibling (empty string
+# if it was originally unset) before overriding it. Restore from those
+# directly — exact and complete, no guessing at variable names — then, as
+# a fallback for non-VS-Code snap contamination (any other snap-launched
+# terminal), also strip `/snap/*` and `$HOME/snap/*` entries from a
+# smaller set of known linker/module-path vars.
 [no-cd]
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
+    while IFS='=' read -r -d '' entry; do
+        name="${entry%%=*}"
+        case "${name}" in
+            *_VSCODE_SNAP_ORIG)
+                base="${name%_VSCODE_SNAP_ORIG}"
+                value="${entry#*=}"
+                if [[ -n "${value}" ]]; then
+                    export "${base}=${value}"
+                else
+                    unset "${base}"
+                fi
+                ;;
+        esac
+    done < <(env -0)
     filter_snap_paths() {
         local value="${1-}"
         local out=""
@@ -71,7 +95,7 @@ dev:
         local p
         for p in "${parts[@]}"; do
             [[ -z "${p}" ]] && continue
-            [[ "${p}" == /snap/* ]] && continue
+            [[ "${p}" == /snap/* || "${p}" == "${HOME}/snap/"* ]] && continue
             if [[ -z "${out}" ]]; then
                 out="${p}"
             else
@@ -80,7 +104,9 @@ dev:
         done
         printf '%s' "${out}"
     }
-    for var in LD_LIBRARY_PATH GTK_PATH GI_TYPELIB_PATH GIO_MODULE_DIR LD_PRELOAD; do
+    for var in LD_LIBRARY_PATH GTK_PATH GI_TYPELIB_PATH GIO_MODULE_DIR LD_PRELOAD \
+        GTK_EXE_PREFIX GTK_IM_MODULE_FILE GSETTINGS_SCHEMA_DIR LOCPATH \
+        XDG_DATA_DIRS XDG_DATA_HOME; do
         if [[ -n "${!var-}" ]]; then
             filtered="$(filter_snap_paths "${!var}")"
             if [[ -n "${filtered}" ]]; then
