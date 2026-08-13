@@ -231,6 +231,15 @@ fn work_sessions_start_with_the_team_and_accept_later_team_members() {
 }
 
 #[test]
+fn work_sessions_reject_empty_or_oversized_name() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    assert!(store.create_work_session("   ").is_err());
+    let long_name = "a".repeat(121);
+    assert!(store.create_work_session(&long_name).is_err());
+}
+
+#[test]
 fn c11_task_tag_rejects_absent_recipient_without_side_effects() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

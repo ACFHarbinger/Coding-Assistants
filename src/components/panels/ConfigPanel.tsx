@@ -97,16 +97,24 @@ export default function ConfigPanel({
   const [addedPids, setAddedPids] = useState<number[]>([]);
   const [workSessionName, setWorkSessionName] = useState("");
   const [creatingWorkSession, setCreatingWorkSession] = useState(false);
+  const [sessionError, setSessionError] = useState("");
 
   const createWorkSession = async () => {
-    if (!workSessionName.trim() || creatingWorkSession) return;
+    const trimmed = workSessionName.trim();
+    if (!trimmed || creatingWorkSession) return;
+    if (trimmed.length > 120) {
+      setSessionError("Work session name must be between 1 and 120 characters.");
+      return;
+    }
     setCreatingWorkSession(true);
+    setSessionError("");
     try {
-      await onCreateWorkSession(workSessionName.trim());
+      await onCreateWorkSession(trimmed);
       setWorkSessionName("");
       if (onSwitchToChatView) onSwitchToChatView();
     } catch (error) {
-      alert(`Failed to create work session: ${error}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      setSessionError(msg.replace(/^Error:\s*/, ""));
     } finally {
       setCreatingWorkSession(false);
     }
@@ -114,8 +122,14 @@ export default function ConfigPanel({
 
   const loadWorkSession = (sessionId: string) => {
     if (!sessionId) return;
-    if (onSelectWorkSession) onSelectWorkSession(sessionId);
-    if (onSwitchToChatView) onSwitchToChatView();
+    setSessionError("");
+    try {
+      if (onSelectWorkSession) onSelectWorkSession(sessionId);
+      if (onSwitchToChatView) onSwitchToChatView();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setSessionError(msg.replace(/^Error:\s*/, ""));
+    }
   };
 
   const detectProcesses = async () => {
@@ -305,6 +319,13 @@ export default function ConfigPanel({
             {activeWorkSessionName ? `Active: ${activeWorkSessionName}` : 'No active session'}
           </span>
         </div>
+
+        {sessionError && (
+          <div style={{ padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>⚠️ {sessionError}</span>
+            <button type="button" onClick={() => setSessionError("")} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '0.9rem' }}>×</button>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.25rem' }}>
           {/* Create New Team Chat */}

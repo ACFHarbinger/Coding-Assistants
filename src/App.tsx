@@ -278,7 +278,11 @@ function App() {
 
   const createWorkSession = async (name: string) => {
     if (!isTauriRuntime()) throw new Error("Work sessions require the desktop app");
-    const session = await invoke<WorkSession>("hub_create_work_session", { name });
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length > 120) {
+      throw new Error("Work session name must be between 1 and 120 characters");
+    }
+    const session = await invoke<WorkSession>("hub_create_work_session", { name: trimmed });
     setWorkSessions(prev => [session, ...prev.filter(existing => existing.id !== session.id)]);
     selectWorkSession(session.id);
   };

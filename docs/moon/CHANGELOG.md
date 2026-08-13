@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — C10–C13 S1 session lifecycle UX (2026-08-13) [DRAFT]
+
+- Verified and completed Orchestrate Create/Load team chat session controls in `ConfigPanel.tsx` and `App.tsx`.
+- Replaced browser `alert()` popups with inline error feedback banners and name validation (1 to 120 characters) for work session creation and loading.
+- Preserved workspace root (`ca.workspaceRoot`) and active work session (`ca.activeWorkSessionId`) persistence across app reloads.
+- Added `work_sessions_reject_empty_or_oversized_name` unit test in `crates/hub/src/store/tests/workflows.rs`.
+
 ### Gemini — TUI T1 foundation (#135) (2026-08-13) [DRAFT]
 
 - Implemented `crates/tui` crate and `ca tui` subcommand entrypoint in `crates/cli` (U7 deliverable T1 / #135).
