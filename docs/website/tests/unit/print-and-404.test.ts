@@ -2,15 +2,15 @@
 // against the real built dist/ output, matching the pattern established in
 // privacy-a11y.test.ts — no headless browser, no mocking.
 import assert from "node:assert/strict";
-import test from "node:test";
+import { beforeAll, test } from "vitest";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const ROOT = path.resolve(import.meta.dirname, "../..");
 const DIST = path.join(ROOT, "dist");
 
-test.before(() => {
+beforeAll(() => {
   execFileSync("npx", ["vite", "build"], { cwd: ROOT, stdio: "inherit" });
 });
 

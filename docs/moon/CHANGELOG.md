@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — documentation website test organization (#123) (2026-08-13) [DRAFT]
+
+- Moved the website unit suites to `docs/website/tests/unit/` and migrated
+  them from the Node test runner to the project’s configured Vitest harness.
+  Added an integration check that joins the generated documentation manifest,
+  MiniSearch index, and canonical roadmap instead of a borrowed fake health
+  API/MSW fixture.
+- Replaced borrowed Cypress assumptions with Coding-Assistants HashRouter
+  smoke and E2E flows for the landing CTAs, docs reader, command-palette
+  navigation, and persisted light-theme selection. Added documented commands
+  for unit, integration, and Cypress runs.
+- `npm test` passes 32 Vitest tests; `npm run build` passes; and Cypress 14.5.4
+  passes all four local Chrome smoke/E2E flows.
+- Kept and aligned the new Vitest configuration with the Vite project, and
+  turned the new ESLint entrypoint into a local flat config with Cypress
+  globals and a runnable `npm run lint` script. Removed the incompatible
+  unused Next.js re-export/stack: this site has no Next application or Next
+  dependency, and its supported build and Pages path is Vite.
+
 ### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
 
 - Replaced the reader’s remaining fixed dark/cyan chrome with the shared

@@ -5,17 +5,17 @@
 // deterministically in CI. They complement, not replace, a manual WCAG
 // spot-check (see docs/website/RELEASE_CHECKLIST.md).
 import assert from "node:assert/strict";
-import test from "node:test";
+import { beforeAll, test } from "vitest";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const ROOT = path.resolve(import.meta.dirname, "../..");
 const DIST = path.join(ROOT, "dist");
 
 // Building once for the whole file keeps this fast; every test below reads
 // the same already-built dist/ output.
-test.before(() => {
+beforeAll(() => {
   execFileSync("npx", ["vite", "build"], { cwd: ROOT, stdio: "inherit" });
 });
 

@@ -35,8 +35,8 @@
   gate; do not represent a real harness delivery as verified without that exercise.
 - DeepSeek and Mistral provider work is complete.
 - The React documentation programme is tracked by epic #116 and work items #117–#123.
-  W1/W2 are complete; W4/W5 have passed public Pages inspection; W6 is deployed;
-  W3 and W7 are ready for the next Pages deployment and shared acceptance pass.
+  W1–W7 are implemented and locally/publicly accepted. The final test-harness
+  organization commit is awaiting the normal clean-runner Pages verification.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
 
@@ -44,7 +44,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| Chat / Codex | #122 — W6 deployment and cutover | Public React-site acceptance completed. Retire the inactive legacy MkDocs assets and record the Git-history rollback path, then verify the final workflow run. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
+| Chat / Codex | #122 — W6 deployment and cutover | Public React-site acceptance and legacy retirement are complete. Push the final test-harness organization revision, verify the clean runner, and close the completed documentation epic/issues. | Own `.github/workflows/docs.yml`, documentation deployment guidance, and cutover validation. |
 | Gemini | #119 — W3 documentation reader | Focused repair was completed by Chat/Codex while Gemini was on acceptance standby. Review the next deployed reader pass if requested. | Do not edit reader, workflow, landing/navigation, or W7 files unless assigned a new bounded task. |
 | Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
 | Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
@@ -205,6 +205,20 @@ gap.
 - The legacy MkDocs configuration and JSON generator can now be retired; the
   next workflow run will verify that the React deployment has no dependency on
   either file. Keep the concurrent untracked test work out of this commit.
+
+### Chat / Codex — website test harness organization complete
+
+- Moved the project’s unit checks to `docs/website/tests/unit/`, adopted a
+  focused Node-environment Vitest configuration, and replaced an irrelevant
+  MSW `/api/health` fixture with manifest/search/Markdown integration checks.
+- Reworked borrowed Cypress specs for Coding-Assistants: landing CTAs, docs
+  HashRouter navigation, command-palette result navigation, and persisted
+  theme choice. Local verification passes: 32 Vitest tests, production build,
+  and 4/4 headless-Chrome Cypress flows.
+- Aligned the new Vitest and ESLint entrypoints with the Vite site and added a
+  runnable lint command. The supplied Next.js re-export/stack was removed:
+  it referenced absent Next application files and dependencies, while Vite is
+  the locked build and Pages deployment path.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 

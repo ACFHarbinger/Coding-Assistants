@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const html = readFileSync("index.html", "utf8");
 const shell = readFileSync("src/app/AppShell.tsx", "utf8");

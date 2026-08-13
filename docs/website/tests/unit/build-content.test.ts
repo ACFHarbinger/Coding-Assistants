@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -13,7 +13,7 @@ import {
   validateAndRewriteLinks,
   makeFileExistsChecker,
   type ParsedDoc,
-} from "../scripts/build-content.ts";
+} from "../../scripts/build-content.ts";
 
 function makeFixtureDocsRoot(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ca-docs-fixture-"));
