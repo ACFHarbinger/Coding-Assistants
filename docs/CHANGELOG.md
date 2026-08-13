@@ -12,6 +12,9 @@ All notable changes to this project are documented in this file. The format is b
 - **Tauri backend organization:** `src-tauri/src` is grouped into `agent`,
   `client`, `harness`, `hub`, `server`, `core`, and `main` modules without
   changing the public IPC command contract.
+- **Hub command organization:** the Tauri Hub boundary is split into focused
+  store, memory, messaging, workflow, quota, and test modules. All public IPC
+  command names and payload contracts remain stable.
 - **Crate naming:** workspace packages are `hub` and `cli`; the installed
   binary remains `ca`.
 - **Hub-Native Multi-Agent Orchestration (U11–U12, C10–C12)**:

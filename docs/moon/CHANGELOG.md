@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `server/` local TCP services, `core/` filesystem/process utilities, and
   `main/` the binary entry point. Module names and Tauri IPC command names are
   unchanged.
+- **Hub command decomposition.** Split the former 1,875-line Tauri Hub
+  command module into bounded store, memory, messaging, workflow, quota, and
+  test modules (all at or below 500 lines). The registered IPC command names
+  and their JSON payloads are unchanged.
 - **C12-CLAUDE-BRIDGE.** Real, verified discovery of already-running Claude
   Code sessions for task delivery (`crates/hub/src/claude_bridge.rs`),
   wired into `inject_harness`. `claude agents --json` (documented in

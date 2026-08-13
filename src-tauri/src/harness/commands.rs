@@ -2,7 +2,7 @@
 //! Claude and Gemini implement their adapters in sibling files; this file
 //! only dispatches through the shared `hub` contract.
 
-use crate::hub::commands::open_store;
+use crate::hub::commands::store::open_store;
 use hub::{
     default_leader_socket, inject_harness_with_store, latest_grok_session_id, start_harness,
     HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,

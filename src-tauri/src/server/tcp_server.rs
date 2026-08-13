@@ -272,7 +272,7 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
             running: true,
             message: "Connected".to_string(),
         },
-        ClientRequest::GetPendingWakes => match crate::hub::commands::open_store() {
+        ClientRequest::GetPendingWakes => match crate::hub::commands::store::open_store() {
             Ok(store) => match store.list_wakes(None, true) {
                 Ok(wakes) => ServerResponse::PendingWakesList { wakes },
                 Err(e) => ServerResponse::Error {
@@ -283,26 +283,27 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
                 message: e.to_string(),
             },
         },
-        ClientRequest::ResolveWake { wake_id, approve } => match crate::hub::commands::open_store()
-        {
-            Ok(store) => {
-                let status = if approve {
-                    hub::WakeStatus::Delivered
-                } else {
-                    hub::WakeStatus::Cancelled
-                };
-                match store.set_wake_status(&wake_id, status) {
-                    Ok(_) => ServerResponse::WakeResolved { wake_id },
-                    Err(e) => ServerResponse::Error {
-                        message: e.to_string(),
-                    },
+        ClientRequest::ResolveWake { wake_id, approve } => {
+            match crate::hub::commands::store::open_store() {
+                Ok(store) => {
+                    let status = if approve {
+                        hub::WakeStatus::Delivered
+                    } else {
+                        hub::WakeStatus::Cancelled
+                    };
+                    match store.set_wake_status(&wake_id, status) {
+                        Ok(_) => ServerResponse::WakeResolved { wake_id },
+                        Err(e) => ServerResponse::Error {
+                            message: e.to_string(),
+                        },
+                    }
                 }
+                Err(e) => ServerResponse::Error {
+                    message: e.to_string(),
+                },
             }
-            Err(e) => ServerResponse::Error {
-                message: e.to_string(),
-            },
-        },
-        ClientRequest::GetAgentCards => match crate::hub::commands::open_store() {
+        }
+        ClientRequest::GetAgentCards => match crate::hub::commands::store::open_store() {
             Ok(store) => match store.list_agents() {
                 Ok(cards) => ServerResponse::AgentCardsList { cards },
                 Err(e) => ServerResponse::Error {
