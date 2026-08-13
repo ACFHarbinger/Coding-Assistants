@@ -109,6 +109,36 @@ const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.2s'
 };
 
+function WakePolicyCheckbox({
+  checked,
+  onChange,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <label style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem", cursor: "pointer", padding: "0.8rem", borderRadius: "10px", border: checked ? "1px solid #a78bfa" : "1px solid rgba(100, 116, 139, 0.65)", background: checked ? "rgba(124, 58, 237, 0.18)" : "rgba(15, 23, 42, 0.58)", transition: "background 0.15s ease, border-color 0.15s ease" }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        style={{ position: "absolute", opacity: 0, width: 1, height: 1 }}
+      />
+      <span aria-hidden="true" style={{ display: "grid", placeItems: "center", flex: "0 0 auto", width: "1.35rem", height: "1.35rem", marginTop: "0.1rem", borderRadius: "0.35rem", border: checked ? "2px solid #c4b5fd" : "2px solid #64748b", background: checked ? "#7c3aed" : "#0f172a", color: "#fff", fontSize: "0.95rem", fontWeight: 800, boxShadow: checked ? "0 0 0 3px rgba(167, 139, 250, 0.24)" : "inset 0 0 0 1px rgba(255, 255, 255, 0.04)", transition: "background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease" }}>
+        {checked ? "✓" : ""}
+      </span>
+      <span>
+        <span style={{ display: "block", fontSize: "1rem", fontWeight: 600, color: checked ? "#ede9fe" : "var(--text-main)", marginBottom: "0.25rem" }}>{title}</span>
+        <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.45 }}>{description}</span>
+      </span>
+    </label>
+  );
+}
+
 function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
   if (budgets.length === 0) return null;
   const chartWidth = 760;
@@ -244,7 +274,7 @@ function QuotaChart({ quotas }: { quotas: ProviderQuota[] }) {
 }
 
 export default function HubPanel() {
-  const [hubTab, setHubTab] = useState<HubTab>("memory");
+  const [hubTab, setHubTab] = useState<HubTab>("dashboard");
   const [dataDir, setDataDir] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [status, setStatus] = useState<string>("");
@@ -473,9 +503,15 @@ export default function HubPanel() {
 
   const updatePolicy = async (updates: Partial<WakePolicy>) => {
     if (!wakePolicy) return;
-    const newPolicy = { ...wakePolicy, ...updates };
-    await run("policy updated", () => invoke("hub_set_wake_policy", { policy: newPolicy }));
+    const previousPolicy = wakePolicy;
+    const newPolicy = { ...previousPolicy, ...updates };
+    // Update immediately so this controlled input never snaps back while IPC
+    // persists the choice. Roll back only when persistence actually fails.
     setWakePolicy(newPolicy);
+    const savedPolicy = await run("policy updated", () =>
+      invoke<WakePolicy>("hub_set_wake_policy", { policy: newPolicy })
+    );
+    setWakePolicy(savedPolicy ?? previousPolicy);
   };
 
   const setBudget = async () => {
@@ -549,10 +585,7 @@ export default function HubPanel() {
           Shared Hub
         </h2>
         <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px" }}>
-          {tabBtn("memory", "Memory")}
           {tabBtn("dashboard", "Dashboard")}
-          {tabBtn("inbox", "Inbox")}
-          {tabBtn("wakes", "Wakes")}
           {tabBtn("tasks", "Tasks")}
           {tabBtn("policy", "Policy")}
           {tabBtn("usage", "Usage")}
@@ -945,32 +978,19 @@ export default function HubPanel() {
               Configure standing policies for agent-to-agent wakeups. This policy applies to all agents operating within the local hub.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginTop: "0.5rem" }}>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: "1rem", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={wakePolicy.default_requires_human_gate}
-                  onChange={(e) => updatePolicy({ default_requires_human_gate: e.target.checked })}
-                  style={{ marginTop: "0.25rem", width: "1.2rem", height: "1.2rem", accentColor: "var(--primary)" }}
-                />
-                <div>
-                  <div style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-main)", marginBottom: "0.25rem" }}>Require Human Gate by Default</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>If enabled, all incoming wake requests must be manually approved by the human owner before the target agent is launched.</div>
-                </div>
-              </label>
-
-              <label style={{ display: "flex", alignItems: "flex-start", gap: "1rem", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={wakePolicy.allow_auto_wake}
-                  onChange={(e) => updatePolicy({ allow_auto_wake: e.target.checked })}
-                  style={{ marginTop: "0.25rem", width: "1.2rem", height: "1.2rem", accentColor: "var(--primary)" }}
-                />
-                <div>
-                  <div style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-main)", marginBottom: "0.25rem" }}>Allow Auto-Wake Requests</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>If disabled, any attempt to bypass the human gate (auto-wake) will be outright rejected. Overrides agent-specific delegations.</div>
-                </div>
-              </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+              <WakePolicyCheckbox
+                checked={wakePolicy.default_requires_human_gate}
+                onChange={(checked) => updatePolicy({ default_requires_human_gate: checked })}
+                title="Require Human Gate by Default"
+                description="If enabled, all incoming wake requests must be manually approved by the human owner before the target agent is launched."
+              />
+              <WakePolicyCheckbox
+                checked={wakePolicy.allow_auto_wake}
+                onChange={(checked) => updatePolicy({ allow_auto_wake: checked })}
+                title="Allow Auto-Wake Requests"
+                description="If disabled, any attempt to bypass the human gate (auto-wake) will be outright rejected. Overrides agent-specific delegations."
+              />
             </div>
           </div>
         </div>

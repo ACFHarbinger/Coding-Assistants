@@ -12,21 +12,27 @@ an experiment.
 | U4 | Configurable policy controls for tool execution, sandbox strictness, wake gates, and budgets | Settings are persisted per task/workspace and reflected in audit events | 🚧 **Partial** · Wake policy integrated into Shared Hub Policy tab; tool sandbox UI still open |
 | U5 | Android monitoring and approval client | Mobile can watch events and send approved messages without configuring full tasks | ✅ **Done** · Added DashboardScreen to Android app for viewing events and approving/rejecting wakes via TCP |
 | U6 | Project creation wizard | Simple flow to bootstrap `.agent/` directories in new workspaces | ✅ **Done** · Added `bootstrap_workspace` command and UI button to initialize `.agent/` skeleton in workspaces |
-| U8 | Agent telemetry dashboard | Shared Hub visualizes per-agent budget, output, token, and call counters | 🚧 **Partial** · Dashboard tab and persisted local counters are available; Usage now plots provider-exact Codex, Claude, and Grok quota windows with reset times (Grok weekly `creditUsagePercent` from the TUI `/usage` billing snapshot). Gemini adapter and historical charts remain |
+| U8 | Agent telemetry dashboard | Shared Hub visualizes per-agent budget, output, token, and call counters | ✅ **Done** · Usage plots live quota windows and reset times across the configured Codex, Claude, Grok, Gemini/Antigravity, and other harness families; local budgets remain available separately. |
 | U9 | Existing model process connection | Orchestrate roles can attach to a running model service instead of always starting a child process | 🚧 **Partial** · Endpoint configuration and process discovery/add-to-team controls are available; connection health and streaming controls remain |
-| U10 | Slack team chat | Slack Chat & Memory is the sole human/agent conversation surface; Orchestrate is role/team setup, work-session creation, and Remote Control | 🚧 **Partial** · Panel in `c9932ac`; private DMs, scroll-pin/jump-to-latest, Enter-to-send, persisted roster/team-wide wakes, enrollment controls, Edit/Delete, in-context replies, and named work-session chats with per-member wake selection are available. Live presence polish and dedicated thread views remain. |
+| U10 | Team chat and agentic memory | Chat & Memory is the sole human/agent conversation surface; Orchestrate is role/team setup, work-session creation, and Remote Control | 🚧 **Partial** · Private DMs, scroll-pin/jump-to-latest, Enter-to-send, persisted roster/team-wide wakes, enrollment controls, Edit/Delete, in-context replies, and named work-session chats with per-member wake selection are available. Shared Hub no longer duplicates Inbox, Memory, or Wakes; wake alerts live in `#wakes-alerts`. Live presence polish and dedicated thread views remain. |
 | U7 | TUI/Ratatui experiment | Built only after the shared client protocol is stable | 💤 Someday/Maybe |
 
-**2026-08-12:** Delivered U10 (Slack Team Chat & Agentic Memory Hub) in `SlackChatPanel.tsx`. Includes channel sidebar, agent presence indicators, Slack message stream, target recipient routing, wake policy controls, and inline memory drawer.
+**2026-08-12:** Delivered U10 (Team Chat & Agentic Memory Hub) in `SlackChatPanel.tsx`. Includes channel sidebar, agent presence indicators, message stream, target recipient routing, wake policy controls, and inline memory drawer.
 
 **2026-08-11:** Completed the U1 objective. Extracted `App.tsx` logic into `ConfigPanel`, `ActivityPanel`, `RemotePanel`, and `ApprovalPanel` along with a major glassmorphism redesign for premium aesthetics.
 
-**2026-08-13 (Grok):** Slack is the only conversation surface. Header badge is
-**Local hub online** (not a second Slack tab). DMs cannot team-broadcast.
+**2026-08-13:** Chat & Memory is the only conversation surface. Header badge is
+**Local hub online** (not a second chat tab). DMs cannot team-broadcast.
 Scroll stays put while reading. Enter sends. Journal tab (CA-111, Claude)
 covers the audit-on-open checkpoint.
 
 **2026-08-13 (Grok, U8):** Usage plots Grok's weekly subscription pool next to
 Chat/Codex and Claude. The adapter uses the signed-in Grok CLI session and
 the TUI `/usage` billing snapshot (`creditUsagePercent`, `billingPeriodEnd`).
-Gemini and historical charts remain. Board: #86.
+Gemini and Antigravity support now land alongside the other configured
+harnesses. Board: #86 closed.
+
+**2026-08-13 (Shared Hub):** Retired the duplicate Inbox, Memory, and Wakes
+tabs in favor of Chat & Memory and its `#wakes-alerts` channel. Policy
+checkboxes persist optimistically and use an explicit high-contrast checked
+state.

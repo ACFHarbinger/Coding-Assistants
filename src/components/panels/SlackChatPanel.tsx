@@ -349,7 +349,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
         });
         const wakeTargets = to === "team" ? teamWakeTargets(hubAgents) : [to];
         await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
-          target, reason: `Slack Chat message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
+          target, reason: `Chat & Memory message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
         })));
       }
 

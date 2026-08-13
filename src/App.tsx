@@ -272,7 +272,7 @@ function App() {
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
             onClick={() => setMainView("slack")}
           >
-            💬 Slack Chat & Memory
+            💬 Chat & Memory
           </button>
           <button
             className={mainView === "orchestrate" ? "btn-primary" : "btn-secondary"}

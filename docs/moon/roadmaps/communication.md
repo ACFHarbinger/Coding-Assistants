@@ -35,10 +35,12 @@ an explicit delivery decision.
 The `.agent/reports` and `.agent/messages` conventions are temporary process
 artifacts, not the long-term communication protocol.
 
-**2026-08-11:** Desktop Shared Hub Inbox/Wakes panels use the same store as CLI.
-Wake resolution and persisted `WakePolicy` are fully integrated into the Shared
-Hub UI (Wakes and Policy tabs); per-task policy is available through CLI/Tauri
-task creation, while desktop task-creation controls remain open. A2A
+**2026-08-11:** The desktop Shared Hub originally exposed Inbox/Wakes panels
+over the same store as the CLI. Those duplicate surfaces are now retired:
+messages and memory belong to **Chat & Memory**, while wake events belong in
+`#wakes-alerts`. Persisted `WakePolicy` remains in the Shared Hub Policy tab;
+per-task policy is available through CLI/Tauri task creation, while desktop
+task-creation controls remain open. A2A
 Agent Card discovery and delegation payloads are implemented via `AgentCard` in `ca-hub`, exposed via `ca agent register-card` and `GetAgentCards` in the `TcpServer`.
 
 The C5 task schema and dispatch path now persist retry counters,
@@ -63,14 +65,14 @@ The remaining workflow gap is fully parallel session startup under C8.
 
 **2026-08-12:** Team fan-out now uses an explicit persisted roster
 (`agents.team_member`) instead of every row in `agents`. Default members:
-`human`, `claude`, `chat`, `gemini`, `grok`. Harbinger is included so Slack-like
-`#general` is visible to the owner. Slack/Orchestrate team sends wake that
+`human`, `claude`, `chat`, `gemini`, `grok`. Harbinger is included so
+`#general` is visible to the owner. Chat & Memory/Orchestrate team sends wake that
 roster with `hub_request_wake` per enrolled member (`HubStore::request_team_wakes`,
 `hub_request_team_wakes`). Enrollment: `ca agent enroll\|unenroll\|team` and
 `hub_set_team_member`. Chat's CA-102 channel-query work owns
 `list_channel_messages` in the same store.
 
-**2026-08-13:** Slack DMs no longer inherit the team-broadcast recipient
+**2026-08-13:** Chat & Memory DMs no longer inherit the team-broadcast recipient
 (`2ab31c7`). Composer is Enter-to-send with a jump-to-latest chip while
 reading history (`947a43d`). Thread replies (CA-114, Chat) stay in the
 `channel:<name>:thread:` subject namespace.

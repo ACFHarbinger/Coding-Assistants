@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded provider quota charts to group and display harness titles (`Anthropic Claude Code`, `xAI Grok Build`, `OpenAI Codex`, `Google Antigravity CLI`, `Anomaly Opencode`, `Local Llama.cpp`, `Local Ollama`) with model family subtitles (`Claude Model Family`, `Grok Model Family`, `Chat Model Family`, `Gemini Model Family`, `Other Model Families`).
 - Endorsed `cloud_sync.md` architecture design with zero-trust local-first encrypted replica model, mutation-only Hub lock during sync runs, and 30-day manual conflict retention.
 
+### Shared Hub consolidation (2026-08-13)
+
+- Renamed the desktop conversation surface to **Chat & Memory**. It is now the
+  single user-facing location for team messages, agentic memory, and
+  `#wakes-alerts`; the duplicate Shared Hub **Inbox**, **Memory**, and
+  **Wakes** navigation entries were retired.
+- Wake-policy controls now apply their selected value optimistically while the
+  persisted policy update is in flight, reverting only on an error. Their
+  custom checkbox treatment uses a bright checked state, tick, border, and
+  focus halo so selected and unselected policies are plainly distinguishable.
+
 ### Grok session (2026-08-12 → 2026-08-13)
 
 Lead-orchestrator pass on the Slack-like hub after Harbinger's GO (M6 first,
@@ -45,11 +56,10 @@ no-key-envelope caveats recorded in that file. Issues #91–#103.
 (`2064a59`, `09d3533`, `bec7454`, `ca40e46`) shipped and are tracked/closed
 as issue #90, since U10 had no prior issue of its own.
 
-**U8 quota (2026-08-13):** Shared Hub Usage now plots live Grok weekly
-remaining (same `GET /v1/billing?format=credits` snapshot as TUI `/usage`,
-session from `grok login`). Claude's session/weekly/credits bars landed in
-the same `hub_cmds.rs` commit (`f9e255b`). Tracked on #86; Gemini adapter
-and historical charts remain.
+**U8 quota (2026-08-13):** Shared Hub Usage now plots live provider quota
+windows for Codex, Claude, Grok, Gemini/Antigravity, and the remaining
+configured harness families. This completes the agreed usage-limit scope for
+#86.
 
 ### Fixed
 
