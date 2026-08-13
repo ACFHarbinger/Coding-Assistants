@@ -435,6 +435,42 @@ export default function ConfigPanel({
         </button>
       </div>
 
+      <section style={{ marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(16, 185, 129, 0.32)', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.06)' }}>
+        <label className="label" style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'block' }}>Workspace Root</label>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>All team sessions, harness capture, and task delivery use this absolute repository path.</div>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <input
+            style={{ flex: '1 1 420px', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+            placeholder="/absolute/path/to/workspace"
+            value={config.work_dir}
+            onChange={e => setConfig({ ...config, work_dir: e.target.value })}
+          />
+          <button
+            className="btn-secondary"
+            onClick={async () => {
+              const selected = await open({ directory: true, multiple: false });
+              if (selected) setConfig({ ...config, work_dir: selected as string });
+            }}
+          >
+            Browse
+          </button>
+          <button
+            className="btn-secondary"
+            style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+            onClick={async () => {
+              try {
+                await invoke("bootstrap_workspace", { workDir: config.work_dir });
+                alert(`Successfully bootstrapped .agent/ in ${config.work_dir}`);
+              } catch (err) {
+                alert(`Failed to bootstrap: ${err}`);
+              }
+            }}
+          >
+            Initialize .agent/
+          </button>
+        </div>
+      </section>
+
       <section style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
@@ -559,43 +595,6 @@ export default function ConfigPanel({
         >
           <span style={{ fontSize: '2.5rem', color: 'var(--text-muted)', lineHeight: 1 }}>+</span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Add New Role</span>
-        </div>
-
-        <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-          <label className="label" style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'block' }}>Workspace Root</label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <input
-              style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
-              placeholder="./workspace"
-              value={config.work_dir}
-              onChange={e => setConfig({ ...config, work_dir: e.target.value })}
-            />
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                const selected = await open({ directory: true, multiple: false });
-                if (selected) {
-                  setConfig({ ...config, work_dir: selected as string });
-                }
-              }}
-            >
-              Browse
-            </button>
-            <button
-              className="btn-secondary"
-              style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-              onClick={async () => {
-                try {
-                  await invoke("bootstrap_workspace", { workDir: config.work_dir });
-                  alert(`Successfully bootstrapped .agent/ in ${config.work_dir}`);
-                } catch (err) {
-                  alert(`Failed to bootstrap: ${err}`);
-                }
-              }}
-            >
-              Initialize .agent/
-            </button>
-          </div>
         </div>
 
         <div style={{ gridColumn: '1 / -1' }}>

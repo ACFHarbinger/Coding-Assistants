@@ -116,6 +116,7 @@ function App() {
     }
   });
   const [chatFocusToken, setChatFocusToken] = useState(0);
+  const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) ?? null;
   const workDirRef = useRef(config.work_dir);
   const sessionIdRef = useRef(activeWorkSessionId);
   workDirRef.current = config.work_dir;
@@ -334,6 +335,14 @@ function App() {
           Coding Assistants
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div title={config.work_dir || 'Workspace root is not set'} style={{ maxWidth: '260px', padding: '0.42rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.1)', color: '#a7f3d0', fontSize: '0.74rem', lineHeight: 1.25 }}>
+            <strong style={{ display: 'block', color: '#6ee7b7' }}>Workspace root</strong>
+            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{config.work_dir || 'Not set'}</span>
+          </div>
+          <div title={activeWorkSession?.name || 'No active team chat'} style={{ maxWidth: '210px', padding: '0.42rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'rgba(6, 182, 212, 0.1)', color: '#cffafe', fontSize: '0.74rem', lineHeight: 1.25 }}>
+            <strong style={{ display: 'block', color: '#67e8f9' }}>Active team chat</strong>
+            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeWorkSession?.name || 'None selected'}</span>
+          </div>
           <button
             className={mainView === "slack" ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
@@ -395,7 +404,7 @@ function App() {
               activeWorkSessionId={activeWorkSessionId}
               onSelectWorkSession={selectWorkSession}
               onSwitchToChatView={() => setMainView("slack")}
-              activeWorkSessionName={workSessions.find(session => session.id === activeWorkSessionId)?.name ?? null}
+              activeWorkSessionName={activeWorkSession?.name ?? null}
             />
 
             <RemotePanel

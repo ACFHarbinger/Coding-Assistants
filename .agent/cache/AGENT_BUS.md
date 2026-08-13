@@ -1579,3 +1579,5 @@ by design); clippy/fmt clean; `npx tsc --noEmit` clean.
   contract that receives a queued task from the Hub and forwards it into the
   already-running harness (with an acknowledgement/result path). Do not mark
   C12/C13 ready until that bridge is live for the supported harnesses.
+- UI follow-up completed: Workspace Root now leads Orchestrate, while the app
+  header always displays the selected workspace and active work-session chat.

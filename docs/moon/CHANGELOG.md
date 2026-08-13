@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The app header now continuously shows the selected **Workspace root** and
+  **Active team chat**. Orchestrate places the editable Workspace Root control
+  at the top, before team/session configuration.
 - Chat & Memory can **create and delete** durable sidebar channels. Built-in
   `#general`, `#team-coordination`, `#agent-memory`, and `#wakes-alerts`
   stay; custom names persist in the hub store and can be removed from the
