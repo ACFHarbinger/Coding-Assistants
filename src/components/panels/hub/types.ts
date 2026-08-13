@@ -77,4 +77,10 @@ export interface ProviderQuota {
   fetched_at: number;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal";
+export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels";
+
+// Mirrors `hub::ChannelWorkspace` (C14.3 / #150).
+export interface ChannelWorkspace {
+  workspace: string;
+  display_name: string;
+}

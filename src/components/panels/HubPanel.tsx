@@ -2,7 +2,7 @@ import { startTransition, useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/tauri";
 import { LIVE_QUOTA_AGENT_IDS } from "./hub/HubCharts";
 import HubPanelView from "./hub/HubPanelView";
-import type { AgentRecord, AuditEvent, BudgetStatus, HubTab, MemoryRecord, MessageRecord, ProviderQuota, WakeRecord } from "./hub/types";
+import type { AgentRecord, AuditEvent, BudgetStatus, ChannelWorkspace, HubTab, MemoryRecord, MessageRecord, ProviderQuota, WakeRecord } from "./hub/types";
 
 export default function HubPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("dashboard");
@@ -46,6 +46,9 @@ export default function HubPanel() {
   const [editingMemory, setEditingMemory] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+
+  const [channelWorkspaces, setChannelWorkspaces] = useState<ChannelWorkspace[]>([]);
+  const [channelRenameDrafts, setChannelRenameDrafts] = useState<Record<string, string>>({});
 
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setError("");
@@ -129,6 +132,32 @@ export default function HubPanel() {
     if (list) setAuditEvents(list);
   }, [run, auditShowAll]);
 
+  const refreshChannelWorkspaces = useCallback(async () => {
+    const list = await run("Channel workspaces refreshed", () =>
+      invoke<ChannelWorkspace[]>("claude_channel_list_workspaces")
+    );
+    if (list) {
+      setChannelWorkspaces(list);
+      setChannelRenameDrafts(Object.fromEntries(list.map((w) => [w.workspace, w.display_name])));
+    }
+  }, [run]);
+
+  const renameChannelWorkspace = async (workspace: string) => {
+    const name = (channelRenameDrafts[workspace] ?? "").trim();
+    if (!name) return;
+    await run("Channel workspace renamed", () =>
+      invoke("claude_channel_rename_workspace", { workspace, name })
+    );
+    await refreshChannelWorkspaces();
+  };
+
+  const deleteChannelWorkspace = async (workspace: string) => {
+    await run("Channel workspace removed", () =>
+      invoke("claude_channel_delete_workspace", { workspace })
+    );
+    await refreshChannelWorkspaces();
+  };
+
   const approveAudit = async (id: string) => {
     await run("audit event approved", () => invoke("hub_approve_audit", { id }));
     await refreshAuditEvents();
@@ -167,7 +196,8 @@ export default function HubPanel() {
       refreshQuotas();
     }
     else if (hubTab === "journal") refreshAuditEvents();
-  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshBudgets, refreshQuotas, refreshAuditEvents]);
+    else if (hubTab === "channels") refreshChannelWorkspaces();
+  }, [hubTab, refreshMemories, refreshMessages, refreshWakes, refreshBudgets, refreshQuotas, refreshAuditEvents, refreshChannelWorkspaces]);
 
   useEffect(() => {
     if (hubTab !== "inbox") return;
@@ -314,5 +344,5 @@ export default function HubPanel() {
     }
   };
 
-  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget }} />;
+  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces }} />;
 }

@@ -4,11 +4,12 @@
 
 use crate::hub::commands::store::open_store;
 use hub::{
-    default_leader_socket, inject_harness_with_store, latest_grok_session_id, start_harness,
-    HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,
-    HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
+    default_leader_socket, delete_channel_workspace, inject_harness_with_store,
+    latest_grok_session_id, list_channel_workspaces, rename_channel_workspace, start_harness,
+    ChannelWorkspace, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
+    HarnessStartRequest, HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// S5 / #131: `vibe` unconditionally passes `--trust`/`--auto-approve`
 /// (`crates/hub/src/harness/mod.rs::vibe_spawn_args`) — the one harness
@@ -183,6 +184,32 @@ pub fn hub_capture_gemini_session(
     )
 }
 
+/// C14.3: every workspace previously configured with `--setup` for the
+/// Claude Channel bridge (`crates/claude`), for a Shared Hub management
+/// panel. Pure filesystem scan over `~/.coding-assistants/servers/` — see
+/// `hub::list_channel_workspaces`.
+#[tauri::command]
+pub fn claude_channel_list_workspaces() -> Result<Vec<ChannelWorkspace>, String> {
+    list_channel_workspaces(&open_store()?).map_err(|error| error.to_string())
+}
+
+/// Updates only the cosmetic display name; the workspace path and the
+/// Hub-managed session registration are unaffected.
+#[tauri::command]
+pub fn claude_channel_rename_workspace(workspace: String, name: String) -> Result<(), String> {
+    rename_channel_workspace(&open_store()?, Path::new(&workspace), &name)
+        .map_err(|error| error.to_string())
+}
+
+/// Removes the canonical Channel config and downgrades the Hub
+/// registration back to `observed`. Does not touch the workspace's own
+/// `.mcp.json` — see `hub::delete_channel_workspace`.
+#[tauri::command]
+pub fn claude_channel_delete_workspace(workspace: String) -> Result<(), String> {
+    delete_channel_workspace(&open_store()?, Path::new(&workspace))
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,6 +370,36 @@ mod tests {
             )
             .expect_err("strict policy must reject vibe before delivery");
             assert!(error.contains("strict sandbox policy"), "{error}");
+        });
+    }
+
+    #[test]
+    fn claude_channel_workspace_commands_list_rename_and_delete() {
+        with_ca_home("claude-channel-workspace-mgmt", || {
+            let dir = tempfile::tempdir().unwrap();
+            let workspace = dir.path().join("repo");
+            std::fs::create_dir_all(&workspace).unwrap();
+            let workspace = workspace.to_string_lossy().to_string();
+
+            hub::setup_claude_channel(
+                &open_store().unwrap(),
+                std::path::Path::new(&workspace),
+                std::path::Path::new("bridge"),
+            )
+            .expect("setup");
+
+            let listed = claude_channel_list_workspaces().expect("list");
+            assert_eq!(listed.len(), 1);
+            assert_eq!(listed[0].workspace, workspace);
+
+            claude_channel_rename_workspace(workspace.clone(), "My Repo".into()).expect("rename");
+            let renamed = claude_channel_list_workspaces().expect("list after rename");
+            assert_eq!(renamed[0].display_name, "My Repo");
+
+            claude_channel_delete_workspace(workspace).expect("delete");
+            assert!(claude_channel_list_workspaces()
+                .expect("list after delete")
+                .is_empty());
         });
     }
 }

@@ -25,6 +25,7 @@ dist-ssr
 
 # MCP
 mcp.json
+.mcp.json
 
 # Build
 target

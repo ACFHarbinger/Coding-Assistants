@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — C14.3 Channel workspace registry + Shared Hub management (#150) (2026-08-13)
+
+- Renamed the `crates/claude-channel` crate to `crates/claude` (`git mv`;
+  the `coding-assistants-claude-channel` binary name is unchanged) and
+  updated the workspace `Cargo.toml` members list, `crates/README.md`,
+  and every internal import accordingly.
+- Replaced the earlier design (a single `.mcp.json` entry written
+  directly into the workspace, with no durable app-side record of which
+  workspaces were configured) with an app-owned registry under
+  `~/.coding-assistants/servers/`: a `global.mcp.json` base layer shared
+  by every workspace, and one canonical
+  `<repo-dir-name>-<4-byte-sha256-hex>.mcp.json` file per workspace
+  (the hash suffix keeps two differently-located repos that share a
+  directory name from colliding — proven by a dedicated test). `--setup`
+  now merges the global layer and the per-workspace entry into the
+  workspace's own `.mcp.json` without disturbing other servers already
+  configured there; bookkeeping metadata (`_workspace`, `_display_name`)
+  lives only in the canonical registry file and is never merged into
+  that output.
+- Added `--list`, `--rename --workspace <path> --name <name>`, and
+  `--delete --workspace <path>` CLI subcommands
+  (`hub::{list,rename,delete}_channel_workspace`). Delete removes the
+  canonical registry file and downgrades the workspace's Hub harness
+  registration back to `observed` (reusing the existing C14.1 supervisor
+  state machine) but deliberately leaves the workspace's own `.mcp.json`
+  untouched.
+- Added a Shared Hub **Channels** tab (`HubPanel.tsx` /
+  `HubPanelView.tsx`) listing every configured workspace with inline
+  rename and remove, backed by three new Tauri commands
+  (`claude_channel_list_workspaces`, `claude_channel_rename_workspace`,
+  `claude_channel_delete_workspace`) in `src-tauri/src/harness/commands.rs`.
+- Added `.mcp.json` to `.gitignore` (it embeds a machine-local absolute
+  binary path).
+- Verified with `cargo test -p hub --lib` (110/110, +6 new),
+  `cargo test -p tauri-app` (all green, +1 new), `cargo test -p claude`
+  (7/7), `cargo clippy -p hub -p tauri-app -p claude --all-targets -- -D
+  warnings` clean, `cargo check --workspace` clean, `cargo fmt --check`
+  clean (scoped to files this change touched), `npx tsc --noEmit` clean,
+  `npm run build` clean. Manually end-to-end verified `--setup`/`--list`/
+  `--rename` against the real repo workspace.
+- **Open for #150 acceptance:** end-to-end verification against a real
+  `claude --channels` session is still needed — unchanged from the prior
+  entry below.
+
 ### Grok — C14.5 managed harness readiness UX (#152) (2026-08-13)
 
 - Orchestrate now has a readiness panel that lists Hub harness rows with

@@ -16,9 +16,10 @@ pub use bridge::claude::{
     list_active_claude_sessions, ClaudeAgentSession,
 };
 pub use bridge::claude_channel::{
-    get_permission_request, poll_channel_events, record_channel_reply, record_permission_request,
-    resolve_permission_request, setup_claude_channel, ChannelEvent, PermissionVerdict,
-    CLAUDE_AGENT_ID,
+    delete_channel_workspace, get_permission_request, list_channel_workspaces, poll_channel_events,
+    record_channel_reply, record_permission_request, rename_channel_workspace,
+    resolve_permission_request, setup_claude_channel, ChannelEvent, ChannelWorkspace,
+    PermissionVerdict, CLAUDE_AGENT_ID,
 };
 pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};

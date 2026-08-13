@@ -65,7 +65,7 @@
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
-| Claude | C14.3 Claude Channel #150 | ✅ **Complete (In Review)** — `crates/claude-channel` MCP bridge + `hub::bridge::claude_channel` implemented with tests/docs. Live `--channels` acceptance still open. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`; new dedicated crate + new hub file only. |
+| Claude | C14.3 Claude Channel #150 | ✅ **Complete (In Review)** — `crates/claude` (renamed from `crates/claude-channel`) MCP bridge + `hub::bridge::claude_channel` implemented with tests/docs. Added an app-owned `~/.coding-assistants/servers/` config registry (`global.mcp.json` base layer + per-workspace canonical files), `--list`/`--rename`/`--delete` CLI subcommands, and a Shared Hub Channels tab. Live `--channels` acceptance still open. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`; new dedicated crate + new hub file only. |
 | Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
 | Grok — **in review** | C14.5 managed-harness UX #152 | Desktop Orchestrate/Chat readiness, badges, prerequisites, retry/dismiss. | Do not modify provider transports or harness_session schema/leases. Live Kubuntu acceptance still open; do not close #152. |
 
@@ -1161,5 +1161,67 @@ scope assigned to me; let me know if there's more.
   unit coverage are ready for review; end-to-end acceptance against a
   real `claude --channels` session is still open and needs the owner's
   Claude Code 2.1.231+ environment.
+
+— claude
+
+### claude — 2026-08-13 — C14.3 registry, crate rename, Shared Hub Channels tab
+
+- User feedback on the prior round (a single `.mcp.json` write with no
+  durable app-side record) asked for: an app-owned `servers` registry
+  under `~/.coding-assistants/` holding a `global.mcp.json` base layer
+  plus one file per workspace, and a Shared Hub list with rename/delete.
+  Separately asked mid-turn to rename `crates/claude-channel` to
+  `crates/claude`. Both done this round.
+- **Crate rename:** `git mv crates/claude-channel crates/claude`; binary
+  name (`coding-assistants-claude-channel`) unchanged. Updated the
+  workspace `Cargo.toml` members list, `crates/README.md`, and the
+  crate's own `Cargo.toml`/`README.md`.
+- **Registry architecture** (`hub::bridge::claude_channel`,
+  store-relative via `store.data_dir()` — not the process-global
+  `default_hub_home()`, to keep tests isolated, same fix pattern as
+  Settings S5): `servers_dir`/`global_servers_path`/
+  `workspace_servers_path` (`<repo-dir-name>-<4-byte-sha256-hex>.mcp.json`,
+  hash suffix proven collision-proof for same-named repos in different
+  locations by a dedicated test); `setup_claude_channel` now writes the
+  canonical per-workspace file (with `_workspace`/`_display_name`
+  bookkeeping metadata that a merge test proves never leaks into the
+  workspace's actual `.mcp.json`) and merges `global.mcp.json` + the
+  per-workspace entry into it; `list_channel_workspaces`,
+  `rename_channel_workspace`, `delete_channel_workspace` added — delete
+  removes the canonical file and downgrades the Hub registration to
+  `observed` (reusing the existing C14.1 supervisor state machine) but
+  leaves the workspace's own `.mcp.json` untouched.
+- **CLI:** added `--list`, `--rename --workspace <path> --name <name>`,
+  `--delete --workspace <path>` subcommands alongside the existing
+  `--setup`; all three share a `canonical_workspace_arg` helper for
+  consistent path canonicalization/lookup.
+- **Tauri + UI:** three new commands
+  (`claude_channel_list_workspaces`/`_rename_workspace`/`_delete_workspace`)
+  in `src-tauri/src/harness/commands.rs`, registered in `lib.rs`; a new
+  Shared Hub **Channels** tab (`HubPanel.tsx`/`HubPanelView.tsx`) lists
+  every configured workspace with an inline rename field and a remove
+  button.
+- Added `.mcp.json` to `.gitignore` (embeds a machine-local absolute
+  binary path; the pre-existing entry only covered the extensionless
+  `mcp.json`).
+- Re-read the board before starting: `bridge/{codex,gemini}.rs`,
+  `settings/store.rs`, `store/agents/mod.rs`,
+  `store/tests/integration.rs` were dirty with concurrent work again;
+  diffed each, touched none.
+- **Verification:** `cargo test -p hub --lib` 110/110 (+6 new),
+  `cargo test -p tauri-app` all green (+1 new), `cargo test -p claude`
+  7/7, `cargo clippy -p hub -p tauri-app -p claude --all-targets -- -D
+  warnings` clean, `cargo check --workspace` clean, `cargo fmt --check`
+  clean (`rustfmt` run only on files I authored, not the concurrent
+  diffs above), `npx tsc --noEmit` clean, `npm run build` clean (68
+  modules). Manually ran `--setup`/`--list`/`--rename` against this
+  repo's real workspace and confirmed the registry files and `--list`
+  output matched.
+- Updated `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/communication.md`,
+  `crates/claude/README.md`, and the task board row above. Committed as
+  scoped work — no other agent's in-flight files touched. **For
+  Chat/Codex:** registry architecture, CLI management, and Shared Hub UI
+  are ready for review; end-to-end acceptance against a real
+  `claude --channels` session remains the only open item for #150.
 
 — claude

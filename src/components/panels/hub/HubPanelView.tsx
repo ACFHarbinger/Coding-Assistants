@@ -4,7 +4,7 @@ import DashboardPanel from "../DashboardPanel";
 import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 
 export default function HubPanelView(props: any) {
-  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget } = props;
+  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces } = props;
 
 
   return (
@@ -17,6 +17,7 @@ export default function HubPanelView(props: any) {
           {tabBtn("dashboard", "Dashboard")}
           {tabBtn("tasks", "Tasks")}
           {tabBtn("usage", "Usage")}
+          {tabBtn("channels", "Channels")}
           {tabBtn("journal", "Journal", auditEvents.filter((e) => e.status === "pending").length)}
         </div>
       </div>
@@ -433,6 +434,44 @@ export default function HubPanelView(props: any) {
                   <input type="number" min="0" step="1" value={budgetSpend} onChange={(e) => setBudgetSpend(e.target.value)} style={{ ...inputStyle, width: 90 }} />
                   <button className="btn-secondary" onClick={() => recordSpend(budget.agent_id)}>Record usage</button>
                   {budget.paused && <button className="btn-primary" onClick={() => resumeBudget(budget.agent_id)}>Resume</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hubTab === "channels" && (
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-main)" }}>Claude Channel workspaces</h3>
+            <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
+              Every workspace configured for the opt-in Claude Code Channel bridge (C14.3). Configs live under{" "}
+              <code style={{ background: "rgba(0,0,0,0.3)", padding: "0.1rem 0.4rem", borderRadius: "4px" }}>~/.coding-assistants/servers/</code>{" "}
+              — run <code style={{ background: "rgba(0,0,0,0.3)", padding: "0.1rem 0.4rem", borderRadius: "4px" }}>coding-assistants-claude-channel --setup --workspace &lt;abs path&gt;</code> to add one.
+            </p>
+            <button className="btn-secondary" onClick={refreshChannelWorkspaces} style={{ alignSelf: "flex-start" }}>Refresh</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {channelWorkspaces.length === 0 && (
+              <p style={{ color: "var(--text-muted)" }}>No Claude Channel workspaces configured yet.</p>
+            )}
+            {channelWorkspaces.map((workspace) => (
+              <div key={workspace.workspace} style={{ ...cardStyle, display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={workspace.workspace}>
+                    {workspace.workspace}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={channelRenameDrafts[workspace.workspace] ?? workspace.display_name}
+                    onChange={(e) => setChannelRenameDrafts((prev: Record<string, string>) => ({ ...prev, [workspace.workspace]: e.target.value }))}
+                    style={{ ...inputStyle, width: 200 }}
+                  />
+                  <button className="btn-secondary" onClick={() => renameChannelWorkspace(workspace.workspace)}>Rename</button>
+                  <button className="btn-secondary" style={{ color: "#fca5a5", borderColor: "rgba(248, 113, 113, 0.45)" }} onClick={() => deleteChannelWorkspace(workspace.workspace)}>Remove</button>
                 </div>
               </div>
             ))}
