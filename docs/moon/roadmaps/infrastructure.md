@@ -25,3 +25,21 @@ Keep only infrastructure with a current local or prototype use.
   run the affected crate/frontend/docs test and build commands after each slice.
 - This is a refactor-only programme: behavior changes need their own roadmap
   entry and issue rather than being folded into a mechanical split.
+- **Claude's slice — done:** `crates/hub/src/bridge/claude_channel.rs` (1,069
+  LoC) split into `bridge/channels/claude/{mod,workspaces,events,reply,
+  permissions,terminal}.rs` (largest: 394); `crates/claude/src/main.rs` (613
+  LoC) split into `src/main.rs` (thin `#[path]` entry point) plus
+  `src/main/{cli,protocol,server}.rs` (largest: 307);
+  `src/components/settings/SettingsApp.tsx` (812 LoC) split by tab into
+  `settings/tabs/{shared,GeneralTab,WorkspaceTab,MemoryTab,
+  OrchestrationTab}.tsx` (largest: 242), with `SettingsApp.tsx` itself down
+  to 457. Public API, MCP protocol, CLI subcommands, and Settings UI/state
+  behavior all preserved — see the C14.3 roadmap entry and #150 for the
+  Claude Channel side. All existing tests still pass; added a few
+  module-boundary tests (`terminal_exec_prefix_*`, `handle_request_*`).
+- **Grok's frontend/Grok slice — done:** `ConfigPanel.tsx` (513) split into
+  `config/{types,WorkSessionSection}.tsx` (now 394); `MessagerPanel.tsx`
+  (574) split into `messager/{sendTagged,useHarnessDelivery}.ts` (now 492);
+  Channels UI extracted to `hub/ChannelsTab.tsx`. `bridge::grok` is the
+  C12 adapter; C14 connect/spawn lives in `bridge::channels::grok`.
+  Owned TS/TSX and Grok Rust files are ≤500 LoC.

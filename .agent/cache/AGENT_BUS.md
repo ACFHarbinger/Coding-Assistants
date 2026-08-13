@@ -65,9 +65,9 @@
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
-| Claude | C14.3 follow-up + Rust/Settings UI size refactor | Split `crates/hub/src/bridge/claude_channel.rs` (1,069 LoC) into `bridge/channels/claude/**`, split `crates/claude/src/main.rs` (613 LoC) through the pre-created `crates/claude/src/main/**`, and split `src/components/settings/SettingsApp.tsx` (812 LoC) by settings tab/section. Preserve public API and live acceptance behavior. Add boundary coverage where applicable. | Every Rust/TS/TSX source file must end ≤500 LoC. Keep `bridge::claude` C12 safety untouched; never use `cc-socks`. Update #150/#158 and docs/changelog, commit scoped changes. |
+| Claude — **ready for review** | C14.3 follow-up + Rust/Settings UI size refactor #150/#158 | Split `claude_channel.rs` (1,069) into `bridge/channels/claude/{mod,workspaces,events,reply,permissions,terminal}.rs` (largest 394); `crates/claude/src/main.rs` (613) into `main.rs` (thin `#[path]` entry) + `main/{cli,protocol,server}.rs` (largest 307); `SettingsApp.tsx` (812) into `settings/tabs/{shared,GeneralTab,WorkspaceTab,MemoryTab,OrchestrationTab}.tsx` (largest 242), `SettingsApp.tsx` now 457. Also fixed a cross-agent chat-overwrite bug found live: `record_harness_capture` gave every captured chunk in a session the same fixed subject regardless of which agent authored it — any agent's new capture appeared to overwrite the previous one's, same root cause as the reply-subject bug already fixed. | Every Rust/TS/TSX source file ≤500 LoC. Kept `bridge::claude` C12 untouched; no `cc-socks`. Merged cleanly alongside Grok's concurrent `bridge::grok` → `bridge::channels::grok` move (same `channels/mod.rs`/`lib.rs` — verified no collisions, full workspace build+test green throughout). |
 | Gemini — **in review** | C14.4/7 `agy` correction + TUI size refactor #151/#155 | Corrected positional `agy` prompt argument; refactored `crates/tui/src/app.rs` into submodules under `crates/tui/src/app/` (all ≤342 lines). Ready for Chat/Codex review. | Own Gemini bridge/harness and TUI only. Every Rust file ≤500 LoC. No interactive-TUI attach claim; document headless ownership honestly. Update #151/#155/docs/changelog and commit. |
-| Grok — **implementing** | C14.5/6 UX + frontend size refactor #152/#154 | Guided Grok leader connect/spawn + no fake `managed-<pid>` ids. File splits stay in this slice after a live send/receive test. | Own frontend harness/Hub/Messager and Grok bridge/docs only. Every TS/TSX file ≤500 LoC. No undocumented PTY/socket writes. Changelog/roadmap/issue/commit wait for owner test. |
+| Grok — **in review** | C14.5/6 UX + frontend size refactor #152/#154/#158 | Leader connect, no fake managed ids, Config/Messager/Channels ≤500 LoC. | Own frontend harness/Hub/Messager and Grok bridge/docs only. Every TS/TSX file ≤500 LoC. Do not close #152/#154 without remaining live matrix. |
 | Chat / Codex | C14.1/2/8 + core size refactor #148/#149/#156/#158 — **Chat reserved** | Make Codex registration/setup and unavailable/queued detail explicit; canonicalize equivalent workspace paths when discovering persisted Codex threads; document that an unmanaged visible TUI is observed-only. Split `settings/store.rs` (1,173), `settings/tests.rs` (642), `store/messages/mod.rs` (517), `store/agents/mod.rs` (512), `store/tests/workflows.rs` (540), `cli/app/mod.rs` (534), `cli/command/mod.rs` (521), and `src-tauri/src/hub/commands/tests.rs` (584). | Every Rust file must end ≤500 LoC. Do not write a live Codex TUI or undocumented IPC. Maintain C14 writer-lease safety and update docs/issues/changelog before scoped commits. |
 | Chat / Codex | C14.8 surface why a Codex wake got no response #156 | **New — unclaimed.** A manually-started live Codex session is very likely never Hub-registered, so delivery silently resolves `unavailable`/`queued` with no visible explanation; even a resolved thread is delivered via a disposable headless `app-server` client, never the visible TUI. See #156. | Do not write into Codex's live TUI or any undocumented IPC. Do not touch Grok/Gemini/Claude bridges. |
 
@@ -84,6 +84,22 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C14.5/6 + frontend 500-LoC split ready for review (#152/#154/#158)
+
+- Leader connect/spawn, no `managed-<pid>` ids, Config/Messager/Channels
+  split ≤500 LoC. Live Hub task ping reached Grok. Changelog/roadmaps
+  updated. #152/#154 stay open for remaining Kubuntu matrix.
+
+— Grok
+
+### Grok — claiming frontend size split #152/#154/#158
+
+- Splitting ConfigPanel and MessagerPanel to ≤500 LoC. Grok leader
+  connect already landed uncommitted. Will changelog/roadmap/issues
+  and commit only Grok-owned files.
+
+— Grok
 
 ### Grok — claiming C14.6 Grok leader-mode delivery #154
 
@@ -1398,5 +1414,75 @@ the task board above. Created and closed #153 (Settings). Created
 #154/#155/#156 (unclaimed — Grok/Gemini/Chat-Codex to pick up
 respectively). Did not implement any of the three fixes myself, per the
 owner's explicit instruction — diagnosis and task assignment only.
+
+— claude
+
+### Claude — 2026-08-13 — size-refactor slice ready for review (#150/#158) + a second cross-agent capture bug found and fixed
+
+Re-read the board before starting: `bridge/{codex,gemini}.rs`,
+`settings/store.rs`, `store/agents/mod.rs`, `store/tests/integration.rs`
+were dirty with concurrent work again; diffed each, touched none. Grok
+was concurrently moving `bridge/grok.rs` into `bridge/channels/grok/**`
+in the same `bridge/channels/mod.rs` and `lib.rs` I was editing —
+re-checked both files after each of my edits and after each of theirs
+landed; every combination merged cleanly (both `pub mod claude;`/`pub
+mod grok;` present, both `pub use bridge::channels::{claude,grok}::{...}`
+present), full workspace build+test stayed green throughout.
+
+**Rust/TS size refactor (#158):**
+- `crates/hub/src/bridge/claude_channel.rs` (1,069 LoC) →
+  `hub::bridge::channels::claude::{workspaces,events,reply,permissions,
+  terminal}` (largest 394 LoC). `bridge/mod.rs`: `claude_channel` →
+  `channels`. `lib.rs`: `bridge::claude_channel::{...}` →
+  `bridge::channels::claude::{...}` — same re-exported symbol set, so
+  every external caller (`crates/claude`, `src-tauri`) needed zero
+  changes beyond the one import path.
+- `crates/claude/src/main.rs` (613 LoC) → thin `main.rs` (module docs +
+  `#[path = "main/cli.rs"] mod cli;` etc. + `fn main` dispatch) plus
+  `main/{cli,protocol,server}.rs` (largest 307). A binary crate's
+  `main.rs` can't resolve `mod foo;` into a same-named `main/` directory
+  implicitly (that convention only works for `lib.rs`/named module
+  files), so this uses explicit `#[path]` attributes — the one file in
+  this split that isn't the default zero-config module layout.
+- `src/components/settings/SettingsApp.tsx` (812 LoC) → split by tab:
+  `settings/tabs/shared.tsx` (StatusPill/FieldRow/ToggleRow + small
+  constants/helpers used across tabs), `GeneralTab.tsx`,
+  `WorkspaceTab.tsx`, `MemoryTab.tsx`, `OrchestrationTab.tsx` (largest,
+  242 — toggles, sandbox strictness, retention, per-agent budgets).
+  `SettingsApp.tsx` itself keeps all state/effects/mutation handlers
+  (moving those out too would be a redesign, not a behavior-preserving
+  split) and now renders each tab as a component with explicit props;
+  down to 457 LoC.
+- Added a few module-boundary tests: `terminal_exec_prefix_*` (already
+  existed, moved), `handle_request_initialize_declares_both_channel_capabilities`
+  and `handle_request_records_a_permission_request_exactly_once` (new,
+  in `main/server.rs`) exercising the dispatch path end-to-end with a
+  real temp `HubStore` rather than only the pure protocol-shaping
+  functions.
+- **Verification:** `cargo test --workspace` all green (131 hub + 13
+  claude + 50 tauri-app + others, no regressions); `cargo clippy -p hub
+  -p claude --no-deps -- -D warnings` clean; `cargo build --workspace`
+  clean; `npx tsc --noEmit` clean; `npm run build` clean (75 modules).
+
+**Second cross-agent chat-overwrite bug, found live by the owner and
+fixed (not originally in scope, same root cause as the #150 reply-
+subject bug fixed earlier today):** the owner reported a message from
+Grok visibly disappearing/getting replaced the moment I (Claude) sent a
+new session message. Traced to `record_harness_capture`
+(`store/agents/capture.rs`) — the C12 poller every harness's on-disk-
+transcript capture goes through — giving every captured chunk in a
+session the same fixed, non-unique subject `channel:session:<id>:capture`
+**regardless of which agent authored it**. Same desktop per-post dedup
+collapse as the reply bug, but across agents this time: any agent's
+fresh capture made the previous capture (from any other agent) vanish.
+Fixed the same way — uuid-suffixed subject. One pre-existing test in
+`src-tauri/src/harness/gemini.rs` asserted the exact old fixed-string
+subject; updated it to assert the new prefix instead of exact equality.
+Added a regression test in `capture.rs` proving two distinct agents'
+captures in the same session both stay visible with distinct subjects.
+
+Updated `docs/CHANGELOG.md`, `docs/moon/roadmaps/infrastructure.md`
+(I8), and `docs/moon/roadmaps/communication.md` (C14.3, C12), plus the
+task board row above. Ready for Chat/Codex review.
 
 — claude

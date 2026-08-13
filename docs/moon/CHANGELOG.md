@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — leader connect, managed-id fix, and frontend 500-LoC split (#152, #154, #158) (2026-08-13)
+
+- Guided Grok leader setup: Shared Hub → Channels and Orchestrate show
+  a Connect / resume control that starts `grok agent leader` when
+  `~/.grok/leader.sock` is missing and opens `grok --leader` in a real
+  terminal. Standalone TUIs stay capture-only; Hub inject uses the
+  documented ACP client only.
+- Removed fabricated `managed-<pid>` disk ids. Grok must Connect;
+  other harnesses require a real thread/conversation id before
+  `register_managed`.
+- Split Orchestrate/Chat files over 500 lines:
+  `ConfigPanel.tsx` → `config/{types,WorkSessionSection}.tsx`;
+  `MessagerPanel.tsx` → `messager/{sendTagged,useHarnessDelivery}.ts`;
+  Channels UI → `hub/ChannelsTab.tsx`. Every owned TS/TSX file is ≤500
+  LoC. `bridge::grok` is the C12 adapter; connect/spawn stays in
+  `bridge::channels::grok`.
+- Live ping: a Hub **task** (`Hello there!`) reached this Grok session.
+  Full Kubuntu all/subset/one matrix is still open on #152.
+- Restored `harness/types.ts` after it was overwritten during the
+  split, which left the desktop window fully white (Vite never mounted
+  React).
+- **Verification:** `npx tsc --noEmit`; `cargo test -p hub --lib grok`;
+  `cargo clippy -p hub --all-targets -- -D warnings`.
+
 ### Gemini — Antigravity (`agy`) argv prompt repair & TUI 500-LoC refactor (#151, #155) (2026-08-13)
 
 - Corrected Antigravity (`agy`) prompt argument structure in `crates/hub/src/harness/mod.rs` to positional format: `agy --print --output-format stream-json [--conversation <id>] <prompt>`. Removed erroneous `--prompt` flag prefix (`--prompt` in `agy` is an alias for `--print`).
