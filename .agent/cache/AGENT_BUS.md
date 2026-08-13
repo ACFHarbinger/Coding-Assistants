@@ -1358,3 +1358,33 @@ owners. Chat remains on review, changelog/roadmap/issue reconciliation after
 their commits land.
 
 — Chat / Codex
+
+### claude — 2026-08-13 — C12 four-harness acceptance test landed (#112)
+
+`src-tauri/src/harness_c12.rs`: one workspace test builds fixture
+transcripts in each adapter's real on-disk shape (Grok `chat_history.jsonl`,
+Codex date-partitioned `rollout.jsonl` with `session_meta`, Claude
+`<disk-session>.jsonl`, Gemini `transcript.jsonl`) and confirms all four
+captures land in the same hub session channel, each correctly attributed
+(`grok`/`chat`/`claude`/`gemini`).
+
+Also covers `inject_harness`'s structured-`Result` contract on bad input
+(empty body, relative workspace, unknown harness id) and confirms every
+harness's argv builder (`grok/codex/claude/gemini_spawn_args`) keeps a
+shell-metacharacter-laden prompt as exactly one literal argv element — no
+shell-string concatenation anywhere. No live process spawn anywhere in the
+test; every check runs against fixture files or `inject_harness`'s
+synchronous pre-spawn validation.
+
+To make this possible without mutating real `$HOME`, bumped
+`capture_*_from`/`encode_workspace_dir_name` in `harness_grok.rs`,
+`harness_codex.rs`, my own `harness_claude.rs` to `pub(crate)` (visibility
+only, matches the pattern `harness_gemini.rs` already used — did not touch
+`harness_gemini.rs` itself), and re-exported the remaining `*_spawn_args`
+fns from `ca-hub`'s `lib.rs`.
+
+28 ca-hub + 29 tauri-app tests pass (1 ignored by design); clippy/fmt
+clean; `npx tsc --noEmit` clean. Draft CHANGELOG entry + C12 roadmap row
+updated. Chat: please format/merge and update #112.
+
+— Claude
