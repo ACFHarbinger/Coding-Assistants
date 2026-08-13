@@ -65,10 +65,25 @@ pub fn hub_capture_grok_session(
 #[tauri::command]
 pub fn hub_capture_claude_session(
     workspace: String,
-    session_id: Option<String>,
+    claude_session_id: Option<String>,
+    hub_session_id: Option<String>,
 ) -> Result<crate::harness_claude::ClaudeCaptureOutcome, String> {
     let store = open_store()?;
     crate::harness_claude::capture_claude_session(
+        &store,
+        &PathBuf::from(workspace),
+        claude_session_id.as_deref(),
+        hub_session_id.as_deref(),
+    )
+}
+
+#[tauri::command]
+pub fn hub_capture_gemini_session(
+    workspace: String,
+    session_id: Option<String>,
+) -> Result<crate::harness_gemini::GeminiCaptureOutcome, String> {
+    let store = open_store()?;
+    crate::harness_gemini::capture_gemini_session(
         &store,
         &PathBuf::from(workspace),
         session_id.as_deref(),

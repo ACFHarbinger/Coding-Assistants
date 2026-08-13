@@ -121,16 +121,33 @@ pub struct ClaudeCaptureOutcome {
 /// capture (deduped on content hash by the store, so this is safe to call
 /// repeatedly / on every "Refresh" click rather than needing a background
 /// watcher).
+///
+/// Two distinct identifiers are involved here and must not be conflated:
+/// - `disk_session_id`: the Claude Code CLI's own transcript filename
+///   (`<disk_session_id>.jsonl` under the workspace's project directory).
+///   Optional — when absent, the most recently modified transcript is used,
+///   which is what an active session is currently writing to anyway.
+/// - `hub_session_id`: the Chat & Memory work-session uuid this capture
+///   should be attributed to (`channel:session:<hub_session_id>:capture`).
+///   Optional — when absent, the capture lands in the team-wide feed instead
+///   of a specific session channel.
+///
+/// Passing the hub session id where the disk id was expected (or vice
+/// versa) either silently misses the real transcript file or mislabels the
+/// capture into the wrong — or no — session channel, since the two ids come
+/// from entirely different systems and have no reason to match.
 pub fn capture_claude_session(
     store: &HubStore,
     workspace: &Path,
-    session_id: Option<&str>,
+    disk_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
 ) -> Result<ClaudeCaptureOutcome, String> {
     capture_claude_session_from(
         &claude_home().join("projects"),
         store,
         workspace,
-        session_id,
+        disk_session_id,
+        hub_session_id,
     )
 }
 
@@ -138,9 +155,10 @@ fn capture_claude_session_from(
     projects_dir: &Path,
     store: &HubStore,
     workspace: &Path,
-    session_id: Option<&str>,
+    disk_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
 ) -> Result<ClaudeCaptureOutcome, String> {
-    let Some(path) = latest_transcript_path(projects_dir, workspace, session_id) else {
+    let Some(path) = latest_transcript_path(projects_dir, workspace, disk_session_id) else {
         return Ok(ClaudeCaptureOutcome {
             transcript_found: false,
             scanned: 0,
@@ -154,7 +172,7 @@ fn capture_claude_session_from(
             .record_harness_capture(
                 "claude",
                 "claude",
-                session_id,
+                hub_session_id,
                 text,
                 Some(&workspace.to_string_lossy()),
             )
@@ -249,13 +267,14 @@ mod tests {
             ],
         );
 
-        let first =
-            capture_claude_session_from(projects_dir.path(), &store, workspace, None).unwrap();
+        let first = capture_claude_session_from(projects_dir.path(), &store, workspace, None, None)
+            .unwrap();
         assert!(first.transcript_found);
         assert_eq!(first.captured.len(), 1);
 
         let second =
-            capture_claude_session_from(projects_dir.path(), &store, workspace, None).unwrap();
+            capture_claude_session_from(projects_dir.path(), &store, workspace, None, None)
+                .unwrap();
         assert!(second.captured.is_empty(), "identical poll must dedup");
     }
 
@@ -269,10 +288,57 @@ mod tests {
             &store,
             Path::new("/nonexistent/workspace"),
             None,
+            None,
         )
         .unwrap();
         assert!(!outcome.transcript_found);
         assert!(outcome.captured.is_empty());
+    }
+
+    #[test]
+    fn disk_session_id_and_hub_session_id_serve_distinct_purposes() {
+        // The disk session id picks a specific transcript file; the hub
+        // session id scopes where the capture is filed. A hub work-session
+        // uuid must never be used to look up a transcript filename, and a
+        // disk transcript filename must never be used as the hub channel id.
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let projects_dir = tempdir().unwrap();
+        let workspace = Path::new("/fake/workspace");
+        let session_dir = session_transcript_dir(projects_dir.path(), workspace);
+        // The real Claude Code transcript file is named after its own disk
+        // session id, which looks nothing like a hub work-session uuid.
+        write_transcript(
+            &session_dir,
+            "claude-cli-own-session-id",
+            &[
+                r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"scoped to a hub session"}]}}"#,
+            ],
+        );
+
+        let hub_session_id = "11111111-2222-3333-4444-555555555555";
+        let outcome = capture_claude_session_from(
+            projects_dir.path(),
+            &store,
+            workspace,
+            Some("claude-cli-own-session-id"),
+            Some(hub_session_id),
+        )
+        .unwrap();
+        assert!(
+            outcome.transcript_found,
+            "disk session id must resolve the real file"
+        );
+        assert_eq!(outcome.captured.len(), 1);
+
+        let recorded = store
+            .list_channel_messages(&format!("session:{hub_session_id}"), 10)
+            .unwrap();
+        assert_eq!(
+            recorded.len(),
+            1,
+            "capture must land in the hub session's own channel, not the disk session id's"
+        );
     }
 }
 
@@ -290,7 +356,7 @@ mod manual_smoke {
             .parent()
             .unwrap()
             .to_path_buf();
-        let outcome = capture_claude_session(&store, &workspace, None).unwrap();
+        let outcome = capture_claude_session(&store, &workspace, None, None).unwrap();
         eprintln!(
             "transcript_found={} scanned={} captured={}",
             outcome.transcript_found,

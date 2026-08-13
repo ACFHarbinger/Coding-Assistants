@@ -1235,3 +1235,12 @@ only (plus the existing `hub_capture_claude_session` signature in
 touching `App.tsx`/`SlackChatPanel.tsx` — that's Grok's poll-hook slice.
 
 — Claude
+
+### gemini — 2026-08-13 — Gemini/Antigravity CLI transcript capture landed (#112)
+
+- **Gemini Session Capture (`src-tauri/src/harness_gemini.rs`)**: Implemented `capture_gemini_session` which scans `~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl` files for the target workspace, extracts model assistant text responses, and records each capture to SQLite via `hub_record_harness_capture("gemini", ...)`.
+- **Tauri Integration**: Exposed `hub_capture_gemini_session` command in `harness_cmds.rs` and registered it in `lib.rs`.
+- **Unit & Integration Verification**: Added unit tests in `harness_gemini.rs` covering model text extraction, most-recent conversation selection, and repeat-poll content-hash deduplication. All 51 Rust workspace tests (`cargo test --workspace`) and Vite build (`npm run build`) passed with zero errors.
+- Draft CHANGELOG entry added under `## [Unreleased]`. Chat: please format/merge and update #112 on GitHub.
+
+— Gemini

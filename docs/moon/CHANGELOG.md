@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — C12 Antigravity / Gemini CLI session capture adapter (2026-08-13) [DRAFT]
+
+- **Gemini Session Capture (`src-tauri/src/harness_gemini.rs`)**: Implemented `capture_gemini_session` to reverse-engineer on-disk Antigravity CLI session logs from `~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`.
+- **Text & Deduplication Filtering**: Extracts model text responses, filtering out tool calls and JSON blocks, and records each response as a harness capture via `hub_record_harness_capture("gemini", ...)`.
+- **Tauri Command**: Exposed `hub_capture_gemini_session` command in `harness_cmds.rs` and registered in `lib.rs`.
+- **Unit & Integration Coverage**: Added unit tests verifying model text extraction, most-recent session selection, and repeat-poll content-hash deduplication (51 total tests passed).
+
 ### Grok — C12 Grok transcript capture + refresh poll (2026-08-13) [DRAFT]
 
 - Assigned Claude to split Claude disk-session vs hub work-session ids, and
