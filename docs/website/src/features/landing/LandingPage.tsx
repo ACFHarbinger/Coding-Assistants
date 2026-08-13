@@ -20,10 +20,10 @@ export function LandingPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-300">
             Local-first · desktop
           </p>
-          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-50 sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-5xl">
             Coding-Assistants
           </h1>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
             A Slack-like hub on your machine for you and the coding agents you already run.
             Grok, Codex, Claude, and Gemini stay in one work session — no markdown bus required.
           </p>
@@ -36,7 +36,7 @@ export function LandingPage() {
             </Link>
             <a
               href="https://github.com/ACFHarbinger/Coding-Assistants"
-              className="rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
+              className="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-indigo-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
             >
               View GitHub
             </a>
@@ -49,21 +49,21 @@ export function LandingPage() {
       <QuickStart />
 
       <section aria-labelledby="workflow-heading" className="mx-auto max-w-6xl px-4 pb-20">
-        <h2 id="workflow-heading" className="text-2xl font-bold text-slate-100">
+        <h2 id="workflow-heading" className="text-2xl font-bold text-[var(--text-primary)]">
           The v1 loop
         </h2>
         <ol className="mt-6 grid gap-4 md:grid-cols-3">
-          <li className="rounded-2xl border border-white/10 p-5">
+          <li className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">1. Session</p>
-            <p className="mt-2 text-sm text-slate-300">Create or load a named team chat. The roster is explicit.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Create or load a named team chat. The roster is explicit.</p>
           </li>
-          <li className="rounded-2xl border border-white/10 p-5">
+          <li className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">2. Address</p>
-            <p className="mt-2 text-sm text-slate-300">All, a subset, or one member. Mark task and/or wake.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">All, a subset, or one member. Mark task and/or wake.</p>
           </li>
-          <li className="rounded-2xl border border-white/10 p-5">
+          <li className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">3. Capture</p>
-            <p className="mt-2 text-sm text-slate-300">Harness replies return to the same transcript. Tasks queue if no bridge.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Harness replies return to the same transcript. Tasks queue if no bridge.</p>
           </li>
         </ol>
       </section>

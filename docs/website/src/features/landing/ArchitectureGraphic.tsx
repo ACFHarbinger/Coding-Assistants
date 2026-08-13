@@ -35,12 +35,12 @@ export function ArchitectureGraphic({ className = "" }: { className?: string }) 
             strokeDasharray="5 6"
           />
         ))}
-        <circle cx="200" cy="200" r="42" fill="rgba(15, 23, 42, 0.92)" stroke="#6366f1" strokeWidth="2.5" />
+        <circle cx="200" cy="200" r="42" fill="var(--glass-bg)" stroke="#6366f1" strokeWidth="2.5" />
         <text
           x="200"
           y="204"
           textAnchor="middle"
-          fill="#f8fafc"
+          fill="var(--text-primary)"
           fontSize="14"
           fontWeight="700"
           fontFamily="Inter, system-ui, sans-serif"
@@ -49,12 +49,12 @@ export function ArchitectureGraphic({ className = "" }: { className?: string }) 
         </text>
         {AGENTS.map((agent) => (
           <g key={agent.id}>
-            <circle cx={agent.cx} cy={agent.cy} r="28" fill="rgba(15, 23, 42, 0.92)" stroke="#a855f7" strokeWidth="2" />
+            <circle cx={agent.cx} cy={agent.cy} r="28" fill="var(--glass-bg)" stroke="#a855f7" strokeWidth="2" />
             <text
               x={agent.cx}
               y={agent.cy + 4}
               textAnchor="middle"
-              fill="#e2e8f0"
+              fill="var(--text-primary)"
               fontSize="11"
               fontWeight="600"
               fontFamily="Inter, system-ui, sans-serif"

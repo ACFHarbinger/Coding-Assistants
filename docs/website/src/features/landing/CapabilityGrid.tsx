@@ -28,20 +28,20 @@ const CAPABILITIES = [
 export function CapabilityGrid() {
   return (
     <section aria-labelledby="capabilities-heading" className="mx-auto max-w-6xl px-4 py-16">
-      <h2 id="capabilities-heading" className="text-2xl font-bold tracking-tight text-slate-100">
+      <h2 id="capabilities-heading" className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
         What the desktop app actually does
       </h2>
-      <p className="mt-2 max-w-2xl text-slate-400">
+      <p className="mt-2 max-w-2xl text-[var(--text-secondary)]">
         A glass-morphism control surface for a human owner and the coding agents already on the machine.
       </p>
       <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CAPABILITIES.map((item) => (
           <li
             key={item.title}
-            className="rounded-2xl border border-white/10 bg-[rgba(15,23,42,0.92)] p-5 shadow-xl backdrop-blur-[20px] motion-reduce:backdrop-blur-none"
+            className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-xl backdrop-blur-[20px] motion-reduce:backdrop-blur-none"
           >
-            <h3 className="text-base font-semibold text-indigo-300">{item.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-400">{item.body}</p>
+            <h3 className="text-base font-semibold text-indigo-400">{item.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{item.body}</p>
           </li>
         ))}
       </ul>

@@ -40,7 +40,13 @@ export function CommandPalette({ isOpen, onClose, onOpen }: CommandPaletteProps)
       setQuery("");
       setActive(0);
       inputRef.current?.focus();
+      const previous = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previous;
+      };
     }
+    return undefined;
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -51,12 +57,16 @@ export function CommandPalette({ isOpen, onClose, onOpen }: CommandPaletteProps)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#020617]/80 px-4 pt-24 backdrop-blur-sm motion-reduce:backdrop-blur-none">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--bg-primary)]/80 px-4 pt-24 backdrop-blur-sm motion-reduce:backdrop-blur-none"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Search documentation"
-        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[rgba(15,23,42,0.96)] shadow-2xl"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
           <Search className="h-5 w-5 shrink-0 text-indigo-300" aria-hidden="true" />

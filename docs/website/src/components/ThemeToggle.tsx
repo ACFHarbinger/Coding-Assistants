@@ -14,7 +14,7 @@ export function ThemeToggle() {
     <div
       role="radiogroup"
       aria-label="Color theme"
-      className="inline-flex rounded-lg border border-white/10 bg-slate-950/70 p-0.5"
+      className="inline-flex rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-0.5"
     >
       {OPTIONS.map((option) => {
         const Icon = option.icon;

@@ -61,8 +61,20 @@ code, pre {
 }
 
 .glass-card:hover {
-  border-color: rgba(36, 200, 216, 0.3);
-  box-shadow: 0 4px 20px -2px rgba(36, 200, 216, 0.15);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-panel,
+  .glass-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .glass-card {
+    transition: none;
+  }
 }
 
 /* Markdown Rendering Styles */
