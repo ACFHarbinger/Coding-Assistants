@@ -4,11 +4,12 @@
 
 use crate::hub::commands::store::open_store;
 use hub::{
-    default_leader_socket, delete_channel_workspace, inject_harness_with_store,
-    is_channel_session_live, latest_grok_session_id, launch_claude_channel_session,
-    list_channel_workspaces, rename_channel_workspace, start_harness, ChannelWorkspace,
-    HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,
-    HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
+    connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
+    grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
+    launch_claude_channel_session, list_active_grok_sessions, list_channel_workspaces,
+    rename_channel_workspace, start_harness, ActiveGrokSession, ChannelWorkspace,
+    GrokConnectResult, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
+    HarnessStartRequest, HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
 };
 use std::path::{Path, PathBuf};
 
@@ -228,6 +229,26 @@ pub fn claude_channel_is_connected(workspace: String) -> Result<bool, String> {
 #[tauri::command]
 pub fn claude_channel_connect(workspace: String) -> Result<(), String> {
     launch_claude_channel_session(Path::new(&workspace))
+}
+
+/// Whether `~/.grok/leader.sock` (or `$GROK_LEADER_SOCKET`) exists, plus
+/// any live Grok TUI listed for `workspace`.
+#[tauri::command]
+pub fn hub_grok_leader_status(workspace: Option<String>) -> GrokConnectResult {
+    grok_leader_status(workspace.as_deref().map(Path::new))
+}
+
+#[tauri::command]
+pub fn hub_grok_list_live_sessions() -> Vec<ActiveGrokSession> {
+    list_active_grok_sessions()
+}
+
+/// Start or attach to a documented Grok leader for `workspace`.
+/// `resume` opens `grok --leader --resume <live-or-latest session>`.
+#[tauri::command]
+pub fn hub_grok_connect(workspace: String, resume: bool) -> Result<GrokConnectResult, String> {
+    connect_grok_leader_session(&open_store()?, Path::new(&workspace), resume)
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
