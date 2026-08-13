@@ -314,16 +314,18 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // The main window is tray-resident and normally hides instead
-                // of exiting. Settings is an independent window while main is
-                // visible, but must not remain visible once main is closed.
+                // Only the main window is tray-resident (hide instead of
+                // exit). Settings is a plain utility dialog: let it actually
+                // close so its label frees up and `openSettingsWindow`'s
+                // getByLabel/create dance doesn't depend on a hidden window
+                // resurrecting correctly on reuse.
                 if window.label() == "main" {
                     if let Some(settings) = window.app_handle().get_webview_window("settings") {
-                        let _ = settings.hide();
+                        let _ = settings.close();
                     }
+                    let _ = window.hide();
+                    api.prevent_close();
                 }
-                window.hide().unwrap();
-                api.prevent_close();
             }
         })
         .invoke_handler(tauri::generate_handler![

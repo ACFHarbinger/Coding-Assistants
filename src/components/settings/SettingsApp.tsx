@@ -68,7 +68,11 @@ async function closeSettingsWindow(): Promise<void> {
     return;
   }
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  await getCurrentWindow().close();
+  try {
+    await getCurrentWindow().close();
+  } catch (error) {
+    console.error("Failed to close the Settings window:", error);
+  }
 }
 
 function StatusPill({ status }: { status: SettingsFieldStatus }) {

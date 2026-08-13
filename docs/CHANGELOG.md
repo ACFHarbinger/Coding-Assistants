@@ -44,6 +44,15 @@ All notable changes to this project are documented in this file. The format is b
   camelCase nested payload used by Chat & Memory for tagged and ordinary
   work-session sends (`isTask`, `isWake`, and `sessionId`), preventing tagged
   sends from failing before delivery with a missing `is_task` argument.
+- **Standalone Settings window reliability (regression on S3 / #129, #153)**:
+  the Settings window now reliably opens (explicit focus on first creation),
+  closes (`core:window:allow-close` was missing from the app's capability,
+  so the in-window Close button's `close()` call was silently rejected by
+  Tauri's permission system while the OS window-manager `X` bypassed it), and
+  reopens repeatedly within the same app run without requiring a restart
+  (Settings is no longer hidden-and-kept-alive like the tray-resident main
+  window). Also replaced a panicking `.unwrap()` in the shared window-close
+  handler that could take down the whole app.
 
 ---
 
