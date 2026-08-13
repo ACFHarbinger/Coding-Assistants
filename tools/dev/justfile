@@ -49,8 +49,47 @@ install-ca:
 # over the session default.
 #
 # WEBKIT_DISABLE_DMABUF_RENDERER=1 — Belt-and-suspenders: even under X11,
-
 # newer WebKitGTK may probe for DMA-BUF. Keep it off.
+#
+# Snap library-path leak — VS Code and other snaps often prepend
+# `/snap/core20/...` onto LD_LIBRARY_PATH / GTK_PATH / related linker
+# vars. WebKitGTK's NetworkProcess then dlopens snap's libpthread against
+# the system glibc and dies with:
+#   undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
+# Filter those entries here so `just start` is safe even when launched
+# from a snap-contaminated terminal. Non-snap entries are kept.
 [no-cd]
 dev:
-    GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
+    #!/usr/bin/env bash
+    set -euo pipefail
+    filter_snap_paths() {
+        local value="${1-}"
+        local out=""
+        local IFS=':'
+        local -a parts
+        read -ra parts <<< "${value}"
+        local p
+        for p in "${parts[@]}"; do
+            [[ -z "${p}" ]] && continue
+            [[ "${p}" == /snap/* ]] && continue
+            if [[ -z "${out}" ]]; then
+                out="${p}"
+            else
+                out="${out}:${p}"
+            fi
+        done
+        printf '%s' "${out}"
+    }
+    for var in LD_LIBRARY_PATH GTK_PATH GI_TYPELIB_PATH GIO_MODULE_DIR LD_PRELOAD; do
+        if [[ -n "${!var-}" ]]; then
+            filtered="$(filter_snap_paths "${!var}")"
+            if [[ -n "${filtered}" ]]; then
+                export "${var}=${filtered}"
+            else
+                unset "${var}"
+            fi
+        fi
+    done
+    export GDK_BACKEND=x11
+    export WEBKIT_DISABLE_DMABUF_RENDERER=1
+    npm run tauri dev

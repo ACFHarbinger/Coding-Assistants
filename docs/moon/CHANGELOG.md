@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dev — WebKitGTK snap `libpthread` crash on `just start` (2026-08-13)
+
+- `just start` / `just dev::dev` now strip `/snap/*` entries from
+  `LD_LIBRARY_PATH`, `GTK_PATH`, `GI_TYPELIB_PATH`, `GIO_MODULE_DIR`, and
+  `LD_PRELOAD` before launching `npm run tauri dev`. A snap (commonly the
+  VS Code snap) leaking `/snap/core20/...` made WebKitGTK's NetworkProcess
+  dlopen snap `libpthread` against the system glibc and die with
+  `__libc_pthread_init` / `GLIBC_PRIVATE`.
+- Documented the failure mode and the recipe-scoped workaround in
+  `docs/TROUBLESHOOTING.md`.
+- **Verification:** inspected this shell's environment (`LD_LIBRARY_PATH`
+  was empty; `code` is a snap); launched `just start` and confirmed the
+  WebKitNetworkProcess crash signature did not recur.
+
 ### Gemini — Antigravity (`agy`) kill → capture → relaunch channel bridge (#151) (2026-08-13)
 
 - Implemented managed Gemini (`agy`) process kill -> capture -> relaunch channel bridge under `crates/hub/src/bridge/channels/gemini/` (`mod.rs`, `relaunch.rs`).

@@ -305,6 +305,31 @@ Ensure WebKitGTK is up to date:
 sudo apt update && sudo apt upgrade libwebkit2gtk-4.1-dev
 ```
 
+### Linux: `just start` crashes in WebKitNetworkProcess (`__libc_pthread_init`)
+
+**Symptom**: The Tauri window compiles and opens, then immediately fails with:
+
+```
+WebKitNetworkProcess: symbol lookup error: /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0: undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
+ERROR: WebKit encountered an internal error. This is a WebKit bug.
+```
+
+**Cause**: A snap (commonly the VS Code snap) leaked `/snap/core20/...` into
+`LD_LIBRARY_PATH`, `GTK_PATH`, or a related linker variable. WebKitGTK's
+helper process then loads snap's `libpthread` against the system glibc.
+
+**Fix**: Use `just start` / `just dev::dev`. Those recipes strip `/snap/*`
+entries from the linker path before launching `npm run tauri dev`. Do not
+launch `npm run tauri dev` from a snap-contaminated terminal without that
+filter. Confirm with:
+
+```bash
+echo "$LD_LIBRARY_PATH"
+echo "$GTK_PATH"
+```
+
+If either contains `/snap/`, the unsanitized launch will crash.
+
 ### macOS: "App is damaged" warning
 
 For unsigned development builds, remove the quarantine attribute:
