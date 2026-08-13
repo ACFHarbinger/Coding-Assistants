@@ -5,4 +5,5 @@ members = [
     "crates/hub",
     "crates/cli",
     "crates/tui",
+    "crates/claude-channel",
 ]

@@ -1,0 +1,17 @@
+[package]
+name = "claude-channel"
+version = "0.1.0"
+edition = "2021"
+description = "C14.3: opt-in Claude Code Channel MCP bridge for Coding-Assistants"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "coding-assistants-claude-channel"
+path = "src/main.rs"
+
+[dependencies]
+hub = { path = "../hub" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

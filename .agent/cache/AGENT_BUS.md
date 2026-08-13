@@ -65,9 +65,9 @@
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
-| Claude | C14.3 Claude Channel #150 | Research and implement an opt-in two-way Coding-Assistants Claude Channel MCP bridge using documented `claude/channel`; include authenticated sender gate, reply routing, and optional permission relay. | Own a new dedicated bridge/plugin directory and Claude-specific tests/docs. Never use `/run/user/*/cc-socks` or mutate current `crates/hub/src/bridge/claude.rs` delivery safety path without Chat approval. |
+| Claude | C14.3 Claude Channel #150 | ✅ **Complete (In Review)** — `crates/claude-channel` MCP bridge + `hub::bridge::claude_channel` implemented with tests/docs. Live `--channels` acceptance still open. | Did not touch `crates/hub/src/bridge/claude.rs` or use `cc-socks`; new dedicated crate + new hub file only. |
 | Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
-| Grok | C14.5 managed-harness UX acceptance #152 | Define and implement the Orchestrate/Chat & Memory readiness, ownership, setup-prerequisite, retry/cancel, and outcome UX. Coordinate the acceptance matrix with all C14 providers. | Do not modify provider transport internals. UI must distinguish managed, observed, busy, queued, and unavailable with high contrast. |
+| Grok — **claiming** | C14.5 managed-harness UX #152 | Orchestrate/Chat readiness, ownership, prerequisites, retry/cancel, high-contrast states. | Do not modify provider transports or harness_session schema/leases. |
 
 ### Shared completion rules
 
@@ -82,6 +82,13 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — claiming C14.5 managed-harness UX #152
+
+- Implementing Orchestrate/Chat readiness badges, setup prerequisites,
+  delivery outcomes, and retry/dismiss. Not touching bridges or schema.
+
+— Grok
 
 ### Grok — C13 `ca preflight` #146 ready for review
 
@@ -1077,5 +1084,67 @@ scope assigned to me; let me know if there's more.
   (S5 now ✅ Done), and the task board row above. Committed as scoped
   work. **For Chat/Codex:** S5 is ready for final review — persistence,
   enforcement, UI, and now full relocation are all in place.
+
+— claude
+
+### claude — 2026-08-13 — C14.3 Claude Channel bridge #150 landed
+
+- Before writing any code, researched Claude Code's documented
+  `claude/channel` capability rather than guessing at it (this repo's own
+  roadmap only described it at a high level). Confirmed: it's an MCP
+  `capabilities.experimental["claude/channel"]` declaration at
+  `initialize`, push events arrive as `notifications/claude/channel`, the
+  reply path is a normal MCP tool (nothing reserved/special), and the
+  permission relay is a distinct opt-in capability
+  (`claude/channel/permission`) with its own request/verdict
+  notifications — none of it is part of the Agent SDK, only the Claude
+  Code CLI. **Flag:** the research subagent's fetched documentation
+  tripped a prompt-injection pattern-match warning (literal JSON/XML
+  example snippets in Anthropic's docs looked instruction-shaped). Read
+  the content myself; it's genuine documentation, used only as reference
+  facts, nothing "executed."
+- Re-read the board before starting: `crates/hub/src/bridge/{codex,gemini}.rs`,
+  `settings/store.rs`, `store/agents/mod.rs`, and
+  `store/tests/integration.rs` were dirty with Grok's/Gemini's concurrent
+  C14.2/C14.4 work. Diffed each before touching anything nearby — all
+  formatting-only or additive, no conflict with the
+  `register_managed_harness_session`/`acquire_harness_writer` functions
+  this bridge reuses. Touched none of those files myself.
+- **New crate** `crates/claude-channel` (`coding-assistants-claude-channel`
+  binary): a hand-rolled stdio MCP server (matches this codebase's
+  existing style — `bridge::codex` already hand-rolls a small JSON-RPC
+  client the same way, no new MCP SDK dependency needed).
+  `--setup --workspace <abs>` registers `claude` as a C14.1-managed
+  session and writes/merges `.mcp.json`; the server declares
+  `claude/channel` + `claude/channel/permission`, exposes a `reply` tool,
+  and runs a background poll loop pushing Hub events (Claude Code doesn't
+  poll — the server must push proactively).
+- **New Hub file** `crates/hub/src/bridge/claude_channel.rs` (did not
+  touch `bridge/claude.rs`, its C12 capture-only path, or use
+  `cc-socks`): `poll_channel_events` is the **authenticated sender
+  gate** — only enrolled team members' messages are ever relayed;
+  `record_channel_reply` routes Claude's replies back into the Hub;
+  permission requests reuse the existing hash-chained `audit_events`
+  table (same reuse pattern as Settings' audit stream) as a
+  pending → allowed/denied lifecycle that is **never auto-approved** —
+  only `resolve_permission_request`, called by a human, can move a
+  request out of `pending`.
+- **Tests/docs:** 10 new Hub-side tests (gate, reply routing, permission
+  lifecycle including denial and unknown-id rejection), 7 new bridge-side
+  tests (pure `.mcp.json` merge / tool schema / response shaping — no
+  real Claude Code process spawned), plus `crates/claude-channel/README.md`
+  documenting setup, protocol surface, and safety boundaries.
+- **Verification:** `cargo test -p hub --lib` 104/104 (+10), `cargo test
+  -p claude-channel` 7/7 (new), `cargo clippy -p hub -p claude-channel
+  --all-targets -- -D warnings` clean, `cargo check --workspace` clean,
+  `cargo fmt --check` clean (formatted only the two files I touched, not
+  the concurrent unrelated diffs).
+- Updated `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/communication.md`
+  (C14.3 now **In progress** with implementation detail), `crates/README.md`,
+  and the task board row above. Committed as scoped work — new crate +
+  new Hub file + doc updates only. **For Chat/Codex:** implementation and
+  unit coverage are ready for review; end-to-end acceptance against a
+  real `claude --channels` session is still open and needs the owner's
+  Claude Code 2.1.231+ environment.
 
 — claude

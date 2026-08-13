@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — C14.3 Claude Code Channel MCP bridge (#150) (2026-08-13)
+
+- Added a new `crates/claude-channel` binary crate
+  (`coding-assistants-claude-channel`) implementing a plain stdio MCP
+  server for Claude Code's documented, research-preview `claude/channel`
+  capability (Claude Code 2.1.231+). It never uses the undocumented
+  internal `cc-socks` control socket, and never touches
+  `hub::bridge::claude`'s C12 capture-only delivery path — that bridge
+  keeps serving sessions that haven't opted into a Channel.
+- `--setup --workspace <abs>` registers `claude` as a Hub-managed harness
+  session for that workspace (reusing the existing C14.1 single-writer
+  lease) and writes/merges a `coding-assistants-channel` entry into that
+  workspace's `.mcp.json` without disturbing any other configured server.
+- The server declares `claude/channel` and `claude/channel/permission` at
+  `initialize`, exposes one `reply` tool, and runs a background poll loop
+  that proactively pushes Hub events as `notifications/claude/channel`
+  (Claude Code doesn't poll the server — events must be pushed).
+- Added `hub::bridge::claude_channel` (new file — `bridge/claude.rs` is
+  untouched): `poll_channel_events` is the **authenticated sender gate**
+  — only messages from an *enrolled team member* are ever relayed into a
+  live session; `record_channel_reply` routes Claude's `reply` tool calls
+  back into the Hub, addressed to the original sender (or `human` when
+  there isn't one); `record_permission_request`/`resolve_permission_request`/
+  `get_permission_request` implement the permission relay as a **never
+  auto-approved** pending → allowed/denied lifecycle, reusing the
+  existing hash-chained `audit_events` table instead of a new one (same
+  reuse pattern as Settings' audit stream).
+- Verified with `cargo test -p hub --lib` (104/104, +10 new),
+  `cargo test -p claude-channel` (7/7 new — pure `.mcp.json` merge, tool
+  schema, and response-shaping tests, no real Claude Code process
+  spawned), `cargo clippy -p hub -p claude-channel --all-targets -- -D
+  warnings` clean, `cargo check --workspace` clean, `cargo fmt --check`
+  clean (formatted only the two files this change touched).
+- **Open for #150 acceptance:** end-to-end verification against a real
+  `claude --channels` session (research preview; requires Claude Code
+  2.1.231+, Anthropic auth, and
+  `--dangerously-load-development-channels` until this bridge is
+  allowlisted) is still needed — this pass is the bridge implementation
+  and its Hub-side unit coverage, not a live acceptance run.
+
 ### Grok — C13 read-only `ca preflight` inspector (#146) (2026-08-13)
 
 - Added `ca preflight [--workspace ABS] [--session ID] [--json]`. It opens

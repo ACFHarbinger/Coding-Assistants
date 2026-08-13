@@ -4,6 +4,7 @@
 | --- | --- | --- |
 | [`hub`](hub/) | library | SQLite shared memory, durable messages, wake side-channel, private journals, Markdown export, versioned `settings.toml` store |
 | [`cli`](cli/) | `ca` | CLI any agent can invoke without the Tauri GUI |
+| [`claude-channel`](claude-channel/) | `coding-assistants-claude-channel` | C14.3: opt-in Claude Code Channel MCP bridge — see its own [README](claude-channel/README.md) |
 
 ## Build & install
 

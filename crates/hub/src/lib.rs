@@ -15,6 +15,11 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
+pub use bridge::claude_channel::{
+    get_permission_request, poll_channel_events, record_channel_reply, record_permission_request,
+    resolve_permission_request, setup_claude_channel, ChannelEvent, PermissionVerdict,
+    CLAUDE_AGENT_ID,
+};
 pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
@@ -23,9 +28,9 @@ pub use bridge::grok::{
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args,
-    start_harness, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
-    HarnessStartRequest, HarnessStartResult,
+    grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,
+    vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
+    HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use settings::{
@@ -38,8 +43,7 @@ pub use settings::{
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,
     BudgetStatus, ChannelRecord, CompactReport, GitExportOutcome, HarnessSessionMode,
-    HarnessSessionRegistration, HarnessSessionState, HubError, HubStore, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, SendOutcome,
-    ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
-    WorkSessionRecord, WorkflowStep,
+    HarnessSessionRegistration, HarnessSessionState, HubError, HubStore, MemoryRecord, MemoryScope,
+    MemoryTier, MessageKind, MessageRecord, MessageStatus, SendOutcome, ShutdownOutcome,
+    TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep,
 };
