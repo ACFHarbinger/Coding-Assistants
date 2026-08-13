@@ -106,7 +106,7 @@ static `dist/` deployed via GitHub Actions to GitHub Pages
 | Hero visual | Abstract multi-agent architecture graphic (SVG/inline component: radial glow, Hub node, Grok/Claude/Codex/Gemini satellite nodes) — not a desktop screenshot. Reused/linked from the docs architecture page for consistency. |
 | Brand mark | Recolored `src-tauri/icons/` interlocking-circles mark (indigo `#6366f1` / purple `#a855f7`) as the header logo and favicon set; source SVGs live under `docs/website/src/assets/svgs/` so they can be recolored without re-exporting from the original design tool. |
 | Generated content | Build artifacts in `docs/website/src/content/`; gitignore them. CI always runs `build-content.ts` before Vite. |
-| Tests | Vitest unit and integration suites under `docs/website/tests/`; Cypress smoke/E2E flows under `tests/cypress/`. Validate the content pipeline, reader/landing invariants, HashRouter navigation, local search, and theme persistence. |
+| Tests | Vitest unit and integration suites under `docs/website/tests/`; Cypress smoke/E2E flows under `tests/cypress/`. Validate the content pipeline, reader/landing invariants, HashRouter navigation, local search, and theme persistence. Built-output suites run serially with an explicit clean-runner-safe hook budget. |
 | Developer API reference | Optional local TypeDoc Markdown from `src/types.ts` and `features/navigation/searchIndex.ts`, generated to ignored `docs/website/api/typescript/`; it is not a second deployed site. |
 | Privacy | No analytics, no cookies, no third-party requests at runtime except GitHub Pages itself. |
 | License | Persistent footer: AGPL-3.0, link to repo `LICENSE`. |

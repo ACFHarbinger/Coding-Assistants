@@ -222,6 +222,10 @@ gap.
 - Added root-level `docs:*` proxies for dev, build, test, lint, Cypress, and
   TypeDoc so contributors can operate the isolated website package without
   changing directories.
+- Clean-runner follow-up: Pages run `31676704320` found concurrent Vite builds
+  in the two built-output Vitest suites exceeded the default hook timeout.
+  Serialize test files and use a scoped 30-second hook timeout, then rerun CI
+  before closing the completed documentation issues.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 

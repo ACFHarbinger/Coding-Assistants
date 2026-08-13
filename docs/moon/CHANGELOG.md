@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added root-package `docs:*` command proxies, including `npm run docs:dev`,
   so the isolated Vite website can be launched and verified from the repository
   root without mixing it with the desktop app toolchain.
+- Serialized the two production-output Vitest suites and set their explicit
+  30-second hook budget after GitHub’s clean runner showed concurrent Vite
+  builds exceeding Vitest’s default 10-second hook timeout.
 
 ### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
 
