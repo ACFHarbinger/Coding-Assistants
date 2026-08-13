@@ -2,51 +2,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { invoke } from "../../lib/tauri";
 import { ModelSelect } from "./config/ModelSelect";
+import WorkSessionSection from "./config/WorkSessionSection";
+import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
+import { processTargetId } from "./config/types";
 import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
 
-export interface ModelConfig {
-  provider: string;
-  model: string;
-  endpoint?: string;
-  prompt_file?: string;
-  rule_file?: string;
-  workflow_file?: string;
-}
-
-export interface RoleConfig {
-  name: string;
-  config: ModelConfig;
-  origin?: "spawned" | "existing";
-  process_pid?: number;
-}
-
-export interface AgentConfig {
-  roles: RoleConfig[];
-  work_dir: string;
-  mcp_config: string;
-}
-
-export interface AgentResources {
-  prompts: string[];
-  rules: string[];
-  workflows: string[];
-}
-
-export interface TeamMember {
-  id: string;
-  target_id: string;
-  name: string;
-  provider: string;
-  model: string;
-  origin: "spawned" | "existing";
-}
-
-export interface WorkSession {
-  id: string;
-  name: string;
-  created_at: string;
-  member_ids: string[];
-}
+export type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 
 interface ConfigPanelProps {
   config: AgentConfig;
@@ -64,14 +25,6 @@ interface ConfigPanelProps {
   onSelectWorkSession?: (sessionId: string | null) => void;
   onSwitchToChatView?: () => void;
   activeWorkSessionName: string | null;
-}
-
-export interface DetectedProcess {
-  pid: number;
-  agent: string;
-  provider: string;
-  model: string;
-  command: string;
 }
 
 export default function ConfigPanel({
@@ -310,82 +263,19 @@ export default function ConfigPanel({
 
       <HarnessReadinessPanel workspace={config.work_dir} />
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-          <div>
-            <strong style={{ color: 'var(--text-main)', fontSize: '1.05rem' }}>💬 Team Work Session Chat</strong>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.2rem' }}>
-              Create a new team chat or load an existing work session. Focuses the Chat & Memory window automatically.
-            </div>
-          </div>
-          <span style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600 }}>
-            {activeWorkSessionName ? `Active: ${activeWorkSessionName}` : 'No active session'}
-          </span>
-        </div>
-
-        {sessionError && (
-          <div style={{ padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>⚠️ {sessionError}</span>
-            <button type="button" onClick={() => setSessionError("")} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '0.9rem' }}>×</button>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.25rem' }}>
-          {/* Create New Team Chat */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>➕ Create New Team Chat</span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                value={workSessionName}
-                onChange={event => setWorkSessionName(event.target.value)}
-                onKeyDown={event => { if (event.key === 'Enter') void createWorkSession(); }}
-                placeholder="Session name, e.g. Cloud sync design"
-                style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
-              />
-              <button className="btn-primary" onClick={() => void createWorkSession()} disabled={!workSessionName.trim() || creatingWorkSession} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                {creatingWorkSession ? 'Creating…' : 'Create & Open'}
-              </button>
-            </div>
-          </div>
-
-          {/* Load Existing Team Chat */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent)' }}>📂 Load Existing Team Chat</span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <select
-                value={activeWorkSessionId || ""}
-                onChange={e => loadWorkSession(e.target.value)}
-                style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
-              >
-                <option value="" disabled>-- Select a Team Chat --</option>
-                {workSessions.map(session => (
-                  <option key={session.id} value={session.id}>
-                    {session.name} ({session.member_ids.length} members)
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn-secondary"
-                onClick={() => { if (activeWorkSessionId) loadWorkSession(activeWorkSessionId); }}
-                disabled={!activeWorkSessionId}
-                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
-              >
-                Load & Open
-              </button>
-              {activeWorkSessionId && (
-                <button
-                  className="btn-secondary"
-                  onClick={() => { if (onSelectWorkSession) onSelectWorkSession(null); }}
-                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', whiteSpace: 'nowrap', opacity: 0.85 }}
-                  title="Deselect active work session and return to general channels"
-                >
-                  Clear Selection
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+      <WorkSessionSection
+        workSessions={workSessions}
+        activeWorkSessionId={activeWorkSessionId}
+        activeWorkSessionName={activeWorkSessionName}
+        workSessionName={workSessionName}
+        setWorkSessionName={setWorkSessionName}
+        creatingWorkSession={creatingWorkSession}
+        sessionError={sessionError}
+        setSessionError={setSessionError}
+        createWorkSession={() => void createWorkSession()}
+        loadWorkSession={loadWorkSession}
+        onSelectWorkSession={onSelectWorkSession}
+      />
 
       {detectError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>{detectError}</div>}
       {hasScanned && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.06)' }}>
@@ -501,13 +391,4 @@ export default function ConfigPanel({
       </div>
     </div>
   );
-}
-
-function processTargetId(process: Pick<DetectedProcess, "agent" | "pid">): string {
-  const normalized = process.agent.toLowerCase();
-  if (normalized === "codex" || normalized === "chatgpt") return "chat";
-  if (normalized === "claude") return "claude";
-  if (normalized === "gemini") return "gemini";
-  if (normalized === "grok") return "grok";
-  return `process:${process.pid}`;
 }

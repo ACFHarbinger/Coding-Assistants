@@ -1,4 +1,4 @@
-import { ModelConfig, RoleConfig, AgentResources } from "../ConfigPanel";
+import { ModelConfig, RoleConfig, AgentResources } from "./types";
 
 export const ModelSelect = ({
   index,
@@ -189,4 +189,3 @@ export const ModelSelect = ({
     </div>
   );
 };
-
