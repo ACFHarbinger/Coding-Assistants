@@ -64,8 +64,12 @@ fn test_set_as_default_workspace_and_session_settings_persistence_and_audit() {
     let reloaded_settings = SettingsStore::open(&home_path);
     let effective = reloaded_settings.effective(Some(&ws_str));
 
-    assert_eq!(effective.default_workspace.unwrap(), ws_str);
-    assert_eq!(effective.default_session.unwrap(), "feature_session");
+    assert_eq!(effective.default_workspace.as_deref().unwrap(), ws_str);
+    assert_eq!(effective.default_session.as_deref().unwrap(), "feature_session");
+
+    let app = tui::app::AppState::new(&opts, home_path, &effective);
+    assert!(app.is_default_workspace_persisted);
+    assert!(app.is_default_session_persisted);
 
     // Audit event check
     let audit_events = store.list_settings_audit_events().unwrap();
