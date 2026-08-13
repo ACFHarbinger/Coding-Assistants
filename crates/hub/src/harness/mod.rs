@@ -146,6 +146,12 @@ pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
 }
 
 /// Explicit argv for a Google Antigravity CLI (agy) wake/task spawn.
+///
+/// `agy` uses the process working directory as its workspace; unlike Codex it
+/// does not support a `--cwd` option.  Its documented non-interactive
+/// contract is `--print` with an optional machine-readable output format.
+/// A future managed-session adapter may add `--conversation <id>` when it
+/// owns that session, but a wake must never guess an existing conversation.
 pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Gemini spawn requires a prompt".into()));
@@ -156,8 +162,10 @@ pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
         ));
     }
     Ok(vec![
-        OsString::from("--cwd"),
-        workspace.as_os_str().to_os_string(),
+        OsString::from("--print"),
+        OsString::from("--output-format"),
+        OsString::from("stream-json"),
+        OsString::from("--prompt"),
         OsString::from(prompt),
     ])
 }
@@ -373,9 +381,11 @@ mod tests {
     fn gemini_argv_is_explicit_and_rejects_relative_workspace() {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
         let args = gemini_spawn_args(&ws, "build feature").unwrap();
-        assert_eq!(args[0], "--cwd");
-        assert_eq!(args[1], ws.as_os_str());
-        assert_eq!(args[2], "build feature");
+        assert_eq!(args[0], "--print");
+        assert_eq!(args[1], "--output-format");
+        assert_eq!(args[2], "stream-json");
+        assert_eq!(args[3], "--prompt");
+        assert_eq!(args[4], "build feature");
         assert!(gemini_spawn_args(Path::new("relative"), "x").is_err());
         assert!(gemini_spawn_args(&ws, "   ").is_err());
     }

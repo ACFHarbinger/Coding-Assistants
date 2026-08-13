@@ -77,6 +77,12 @@ roadmap must add acceptance criteria at least every few entries.
   harness-side messages and injects tagged hub messages into the harnesses.
   That loop does not require `.agent/cache/AGENT_BUS.md`. Slices: U11, U12,
   C10, C11, C12, C13.
+- **Provider-native harness gate:** an explicitly managed Codex, Claude Code,
+  or Antigravity session can receive a Hub task through its documented
+  provider contract, return its response to the same transcript, show a
+  truthful lifecycle/delivery state, and recover without racing a second
+  writer or attaching to an unowned terminal. See C14 in
+  [`roadmaps/communication.md`](roadmaps/communication.md).
 
 LAN TCP remains available during early development. Authentication and TLS are
   later platform work. **`.coding-assistants` multi-device replica transport

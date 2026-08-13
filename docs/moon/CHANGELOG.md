@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — provider-native harness integration foundation (2026-08-13)
+
+- Added C14, the managed-session programme for full Codex, Claude Code, and
+  Gemini/Antigravity integration. It makes ownership, serial writer control,
+  status/cancellation, capture, and provider-specific opt-in contracts
+  explicit instead of treating discovered terminal processes as writable.
+- Corrected the Antigravity (`agy`) wake launcher to its installed documented
+  one-shot contract: `--print --output-format stream-json --prompt <text>`.
+  `agy` has no `--cwd` option; `Command::current_dir` supplies the workspace.
+  A future managed worker will use `--conversation` only for a conversation it
+  created and owns.
+- Defined implementation slices for a long-lived Codex app-server writer
+  broker, an opt-in two-way Claude Channel MCP bridge, and app-owned resumable
+  `agy` workers, tracked in C14 epic [#147](https://github.com/ACFHarbinger/Coding-Assistants/issues/147)
+  and issues [#148](https://github.com/ACFHarbinger/Coding-Assistants/issues/148)–[#152](https://github.com/ACFHarbinger/Coding-Assistants/issues/152).
+  The existing C12 safe capture/refusal boundary remains in force until their
+  individual acceptance tests pass.
+
 ### Chat / Codex — Chat composer recipient and delivery clarity (2026-08-13)
 
 - Fixed subset recipient selection so its default checked state matches the
