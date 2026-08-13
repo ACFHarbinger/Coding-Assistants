@@ -1,6 +1,6 @@
 //! C12 Claude adapter.
 //!
-//! Start/inject reuse the shared `ca_hub::harness` contract (explicit argv,
+//! Start/inject reuse the shared `hub::harness` contract (explicit argv,
 //! no shell strings, no TUI attach) — nothing Claude-specific is needed
 //! there. The real gap this file closes is **capture**: Claude Code has no
 //! app-server/JSONL-RPC stream to poll like Codex, but it does write its own
@@ -14,7 +14,7 @@
 //! `tool_use` blocks) — those are Claude's actual authored messages to a
 //! human/team, which is what the session transcript in the hub wants.
 
-use ca_hub::HubStore;
+use hub::HubStore;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -113,7 +113,7 @@ fn recent_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> {
 pub struct ClaudeCaptureOutcome {
     pub transcript_found: bool,
     pub scanned: usize,
-    pub captured: Vec<ca_hub::MessageRecord>,
+    pub captured: Vec<hub::MessageRecord>,
 }
 
 /// Reads the newest Claude Code session transcript for `workspace`, extracts

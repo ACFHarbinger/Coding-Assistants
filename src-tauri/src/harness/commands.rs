@@ -1,9 +1,9 @@
 //! C12 Tauri surface for harness start / inject / capture.
 //! Claude and Gemini implement their adapters in sibling files; this file
-//! only dispatches through the shared `ca_hub` contract.
+//! only dispatches through the shared `hub` contract.
 
-use crate::hub_cmds::open_store;
-use ca_hub::{
+use crate::hub::commands::open_store;
+use hub::{
     default_leader_socket, inject_harness_with_store, latest_grok_session_id, start_harness,
     HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,
     HarnessStartResult, MessageRecord,
@@ -89,9 +89,9 @@ pub fn hub_capture_grok_session(
     workspace: String,
     grok_session_id: Option<String>,
     hub_session_id: Option<String>,
-) -> Result<crate::harness_grok::GrokCaptureOutcome, String> {
+) -> Result<crate::harness::grok::GrokCaptureOutcome, String> {
     let store = open_store()?;
-    crate::harness_grok::capture_grok_session(
+    crate::harness::grok::capture_grok_session(
         &store,
         &PathBuf::from(workspace),
         grok_session_id.as_deref(),
@@ -104,9 +104,9 @@ pub fn hub_capture_claude_session(
     workspace: String,
     claude_session_id: Option<String>,
     hub_session_id: Option<String>,
-) -> Result<crate::harness_claude::ClaudeCaptureOutcome, String> {
+) -> Result<crate::harness::claude::ClaudeCaptureOutcome, String> {
     let store = open_store()?;
-    crate::harness_claude::capture_claude_session(
+    crate::harness::claude::capture_claude_session(
         &store,
         &PathBuf::from(workspace),
         claude_session_id.as_deref(),
@@ -119,9 +119,9 @@ pub fn hub_capture_codex_session(
     workspace: String,
     codex_session_id: Option<String>,
     hub_session_id: Option<String>,
-) -> Result<crate::harness_codex::CodexCaptureOutcome, String> {
+) -> Result<crate::harness::codex::CodexCaptureOutcome, String> {
     let store = open_store()?;
-    crate::harness_codex::capture_codex_session(
+    crate::harness::codex::capture_codex_session(
         &store,
         &PathBuf::from(workspace),
         codex_session_id.as_deref(),
@@ -134,9 +134,9 @@ pub fn hub_capture_gemini_session(
     workspace: String,
     gemini_session_id: Option<String>,
     hub_session_id: Option<String>,
-) -> Result<crate::harness_gemini::GeminiCaptureOutcome, String> {
+) -> Result<crate::harness::gemini::GeminiCaptureOutcome, String> {
     let store = open_store()?;
-    crate::harness_gemini::capture_gemini_session(
+    crate::harness::gemini::capture_gemini_session(
         &store,
         &PathBuf::from(workspace),
         gemini_session_id.as_deref(),

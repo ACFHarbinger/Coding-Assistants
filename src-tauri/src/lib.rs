@@ -1,24 +1,18 @@
-mod agents;
-mod file_tools;
-mod harness_c12;
-mod harness_claude;
-mod harness_cmds;
-mod harness_codex;
-mod harness_gemini;
-mod harness_grok;
-mod hub_cmds;
-mod llm_client;
-mod process_detector;
-mod tcp_server;
+mod agent;
+mod client;
+mod core;
+mod harness;
+mod hub;
+mod server;
 
-use agents::{AgentConfig, AgentSystem};
+use agent::{AgentConfig, AgentSystem};
+use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State};
-use tcp_server::TcpServer;
 use tokio::sync::mpsc;
 
 struct AppState {
@@ -120,8 +114,8 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
 }
 
 #[tauri::command]
-fn detect_agent_processes() -> Result<Vec<process_detector::DetectedProcess>, String> {
-    process_detector::detect_agent_processes()
+fn detect_agent_processes() -> Result<Vec<core::process_detector::DetectedProcess>, String> {
+    core::process_detector::detect_agent_processes()
 }
 
 #[tauri::command]
@@ -197,7 +191,7 @@ async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> 
     // Accessing state.agents might be empty if no task ran yet.
     // Better: LLMClient::new().list_models().await
 
-    let client = crate::llm_client::LLMClient::new();
+    let client = crate::client::llm::LLMClient::new();
     let models_list = client.list_models().await?;
     let mut models_map: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -337,79 +331,79 @@ pub fn run() {
             start_tcp_server,
             stop_tcp_server,
             get_server_ip,
-            // Shared hub (ca-hub) — same store as the `ca` CLI
-            hub_cmds::hub_init,
-            hub_cmds::hub_data_dir,
-            hub_cmds::hub_list_agents,
-            hub_cmds::hub_upsert_agent_card,
-            hub_cmds::hub_write_memory,
-            hub_cmds::hub_update_memory,
-            hub_cmds::hub_list_memories,
-            hub_cmds::hub_search_memories,
-            hub_cmds::hub_mark_memory_stale,
-            hub_cmds::hub_delete_memory,
-            hub_cmds::hub_promote_memory,
-            hub_cmds::hub_compact_short_term,
-            hub_cmds::hub_send_message,
-            hub_cmds::hub_send_session_message,
-            hub_cmds::hub_send_tagged_message,
-            hub_cmds::hub_list_tagged_send_outcomes,
-            hub_cmds::hub_poll_messages,
-            hub_cmds::hub_list_messages,
-            hub_cmds::hub_list_channels,
-            hub_cmds::hub_create_channel,
-            hub_cmds::hub_delete_channel,
-            hub_cmds::hub_list_channel_messages,
-            hub_cmds::hub_list_message_memories,
-            hub_cmds::hub_request_wake,
-            hub_cmds::hub_request_team_wakes,
-            hub_cmds::hub_list_team_members,
-            hub_cmds::hub_set_team_member,
-            hub_cmds::hub_create_work_session,
-            hub_cmds::hub_list_work_sessions,
-            hub_cmds::hub_add_work_session_member,
-            harness_cmds::hub_start_harness,
-            harness_cmds::hub_inject_harness,
-            harness_cmds::hub_register_harness_session,
-            harness_cmds::hub_list_harness_sessions,
-            harness_cmds::hub_record_harness_capture,
-            harness_cmds::hub_capture_claude_session,
-            harness_cmds::hub_capture_codex_session,
-            harness_cmds::hub_capture_gemini_session,
-            harness_cmds::hub_capture_grok_session,
-            hub_cmds::hub_list_wakes,
-            hub_cmds::hub_export_markdown,
-            hub_cmds::hub_export_markdown_git,
-            hub_cmds::hub_append_journal,
-            hub_cmds::hub_purge_stale_memories,
-            hub_cmds::hub_age_out_short_term,
-            hub_cmds::hub_set_message_status,
-            hub_cmds::hub_update_message,
-            hub_cmds::hub_delete_message,
-            hub_cmds::hub_resolve_wake,
-            hub_cmds::hub_list_audit_events,
-            hub_cmds::hub_approve_audit,
-            hub_cmds::hub_quarantine_audit,
-            hub_cmds::hub_get_wake_policy,
-            hub_cmds::hub_set_wake_policy,
-            hub_cmds::hub_create_task,
-            hub_cmds::hub_list_tasks,
-            hub_cmds::hub_get_task,
-            hub_cmds::hub_advance_task,
-            hub_cmds::hub_cancel_task,
-            hub_cmds::hub_complete_parallel_member,
-            hub_cmds::hub_retry_task,
-            hub_cmds::hub_set_agent_budget,
-            hub_cmds::hub_get_budget,
-            hub_cmds::hub_list_agent_metrics,
-            hub_cmds::hub_record_agent_metrics,
-            hub_cmds::hub_get_provider_quotas,
-            hub_cmds::hub_refresh_provider_quota,
-            hub_cmds::hub_record_budget_usage,
-            hub_cmds::hub_consume_budget,
-            hub_cmds::hub_resume_agent,
-            hub_cmds::hub_pause_for_budget,
-            hub_cmds::hub_record_shutdown,
+            // Shared hub (`hub`) — same store as the `ca` CLI
+            hub::commands::hub_init,
+            hub::commands::hub_data_dir,
+            hub::commands::hub_list_agents,
+            hub::commands::hub_upsert_agent_card,
+            hub::commands::hub_write_memory,
+            hub::commands::hub_update_memory,
+            hub::commands::hub_list_memories,
+            hub::commands::hub_search_memories,
+            hub::commands::hub_mark_memory_stale,
+            hub::commands::hub_delete_memory,
+            hub::commands::hub_promote_memory,
+            hub::commands::hub_compact_short_term,
+            hub::commands::hub_send_message,
+            hub::commands::hub_send_session_message,
+            hub::commands::hub_send_tagged_message,
+            hub::commands::hub_list_tagged_send_outcomes,
+            hub::commands::hub_poll_messages,
+            hub::commands::hub_list_messages,
+            hub::commands::hub_list_channels,
+            hub::commands::hub_create_channel,
+            hub::commands::hub_delete_channel,
+            hub::commands::hub_list_channel_messages,
+            hub::commands::hub_list_message_memories,
+            hub::commands::hub_request_wake,
+            hub::commands::hub_request_team_wakes,
+            hub::commands::hub_list_team_members,
+            hub::commands::hub_set_team_member,
+            hub::commands::hub_create_work_session,
+            hub::commands::hub_list_work_sessions,
+            hub::commands::hub_add_work_session_member,
+            harness::commands::hub_start_harness,
+            harness::commands::hub_inject_harness,
+            harness::commands::hub_register_harness_session,
+            harness::commands::hub_list_harness_sessions,
+            harness::commands::hub_record_harness_capture,
+            harness::commands::hub_capture_claude_session,
+            harness::commands::hub_capture_codex_session,
+            harness::commands::hub_capture_gemini_session,
+            harness::commands::hub_capture_grok_session,
+            hub::commands::hub_list_wakes,
+            hub::commands::hub_export_markdown,
+            hub::commands::hub_export_markdown_git,
+            hub::commands::hub_append_journal,
+            hub::commands::hub_purge_stale_memories,
+            hub::commands::hub_age_out_short_term,
+            hub::commands::hub_set_message_status,
+            hub::commands::hub_update_message,
+            hub::commands::hub_delete_message,
+            hub::commands::hub_resolve_wake,
+            hub::commands::hub_list_audit_events,
+            hub::commands::hub_approve_audit,
+            hub::commands::hub_quarantine_audit,
+            hub::commands::hub_get_wake_policy,
+            hub::commands::hub_set_wake_policy,
+            hub::commands::hub_create_task,
+            hub::commands::hub_list_tasks,
+            hub::commands::hub_get_task,
+            hub::commands::hub_advance_task,
+            hub::commands::hub_cancel_task,
+            hub::commands::hub_complete_parallel_member,
+            hub::commands::hub_retry_task,
+            hub::commands::hub_set_agent_budget,
+            hub::commands::hub_get_budget,
+            hub::commands::hub_list_agent_metrics,
+            hub::commands::hub_record_agent_metrics,
+            hub::commands::hub_get_provider_quotas,
+            hub::commands::hub_refresh_provider_quota,
+            hub::commands::hub_record_budget_usage,
+            hub::commands::hub_consume_budget,
+            hub::commands::hub_resume_agent,
+            hub::commands::hub_pause_for_budget,
+            hub::commands::hub_record_shutdown,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

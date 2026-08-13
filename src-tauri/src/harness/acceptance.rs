@@ -13,7 +13,7 @@
 
 #[cfg(test)]
 mod tests {
-    use ca_hub::{
+    use hub::{
         claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
         HarnessInjectRequest, HubStore,
     };
@@ -26,7 +26,7 @@ mod tests {
 
     fn write_grok_fixture(root: &Path, workspace: &Path, disk_session_id: &str) {
         let dir = root
-            .join(crate::harness_grok::encode_workspace_dir_name(workspace))
+            .join(crate::harness::grok::encode_workspace_dir_name(workspace))
             .join(disk_session_id);
         fs::create_dir_all(&dir).unwrap();
         let mut file = fs::File::create(dir.join("chat_history.jsonl")).unwrap();
@@ -58,7 +58,7 @@ mod tests {
     }
 
     fn write_claude_fixture(root: &Path, workspace: &Path, disk_session_id: &str) {
-        let dir = root.join(crate::harness_claude::encode_workspace_dir_name(workspace));
+        let dir = root.join(crate::harness::claude::encode_workspace_dir_name(workspace));
         fs::create_dir_all(&dir).unwrap();
         let mut file = fs::File::create(dir.join(format!("{disk_session_id}.jsonl"))).unwrap();
         writeln!(
@@ -95,7 +95,7 @@ mod tests {
         let grok_root = tempdir().unwrap();
         let grok_workspace = PathBuf::from("/tmp/c12-acceptance-grok");
         write_grok_fixture(grok_root.path(), &grok_workspace, "grok-disk-session");
-        let grok_outcome = crate::harness_grok::capture_grok_session_from(
+        let grok_outcome = crate::harness::grok::capture_grok_session_from(
             grok_root.path(),
             &store,
             &grok_workspace,
@@ -107,7 +107,7 @@ mod tests {
         let codex_root = tempdir().unwrap();
         let codex_workspace = PathBuf::from("/tmp/c12-acceptance-codex");
         write_codex_fixture(codex_root.path(), &codex_workspace, "codex-disk-session");
-        let codex_outcome = crate::harness_codex::capture_codex_session_from(
+        let codex_outcome = crate::harness::codex::capture_codex_session_from(
             codex_root.path(),
             &store,
             &codex_workspace,
@@ -119,7 +119,7 @@ mod tests {
         let claude_root = tempdir().unwrap();
         let claude_workspace = PathBuf::from("/tmp/c12-acceptance-claude");
         write_claude_fixture(claude_root.path(), &claude_workspace, "claude-disk-session");
-        let claude_outcome = crate::harness_claude::capture_claude_session_from(
+        let claude_outcome = crate::harness::claude::capture_claude_session_from(
             claude_root.path(),
             &store,
             &claude_workspace,
@@ -131,7 +131,7 @@ mod tests {
         let gemini_root = tempdir().unwrap();
         let gemini_workspace = PathBuf::from("/tmp/c12-acceptance-gemini");
         write_gemini_fixture(gemini_root.path(), "gemini-disk-session");
-        let gemini_outcome = crate::harness_gemini::capture_gemini_session_from(
+        let gemini_outcome = crate::harness::gemini::capture_gemini_session_from(
             gemini_root.path(),
             &store,
             &gemini_workspace,
@@ -302,23 +302,23 @@ mod tests {
         assert!(!store.is_team_member("outsider").unwrap());
 
         let grok =
-            crate::harness_grok::capture_grok_session(&store, &workspace, None, Some(&session.id))
+            crate::harness::grok::capture_grok_session(&store, &workspace, None, Some(&session.id))
                 .unwrap();
-        let claude = crate::harness_claude::capture_claude_session(
+        let claude = crate::harness::claude::capture_claude_session(
             &store,
             &workspace,
             None,
             Some(&session.id),
         )
         .unwrap();
-        let chat = crate::harness_codex::capture_codex_session(
+        let chat = crate::harness::codex::capture_codex_session(
             &store,
             &workspace,
             None,
             Some(&session.id),
         )
         .unwrap();
-        let gemini = crate::harness_gemini::capture_gemini_session(
+        let gemini = crate::harness::gemini::capture_gemini_session(
             &store,
             &workspace,
             None,

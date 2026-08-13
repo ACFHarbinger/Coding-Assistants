@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 gh issue comment 47 --body "## Progress 2026-08-11 — memory compaction / wake dedup
 
-Implemented on local hub (\`ca-hub\`):
+Implemented on local hub (\`hub\`):
 
 - \`compact_short_term\` / \`promote_memory\` with \`source_event_id\` provenance
 - Pending **wake deduplication** (same target+message+reason)

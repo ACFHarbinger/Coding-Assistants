@@ -4,7 +4,7 @@
 //! into the durable hub transcript. Reads on-disk session logs from
 //! `~/.gemini/antigravity-cli/brain/<conversation-id>/.system_generated/logs/transcript.jsonl`.
 
-use ca_hub::HubStore;
+use hub::HubStore;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -90,7 +90,7 @@ fn recent_gemini_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> 
 pub struct GeminiCaptureOutcome {
     pub transcript_found: bool,
     pub scanned: usize,
-    pub captured: Vec<ca_hub::MessageRecord>,
+    pub captured: Vec<hub::MessageRecord>,
 }
 
 /// Reads the newest Antigravity CLI transcript for `workspace`, extracts assistant replies,

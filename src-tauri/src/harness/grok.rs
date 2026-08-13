@@ -1,11 +1,11 @@
 //! C12 Grok adapter — capture.
 //!
-//! Start/inject already live in `ca_hub::harness` (`grok --cwd <abs> <prompt>`).
+//! Start/inject already live in `hub::harness` (`grok --cwd <abs> <prompt>`).
 //! Capture reads the same on-disk session the Grok TUI writes:
 //! `~/.grok/sessions/<percent-encoded-abs-workspace>/<session-id>/chat_history.jsonl`.
 //! Only `type: "assistant"` text is recorded (not reasoning or tool results).
 
-use ca_hub::HubStore;
+use hub::HubStore;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -92,7 +92,7 @@ fn recent_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> {
 pub struct GrokCaptureOutcome {
     pub transcript_found: bool,
     pub scanned: usize,
-    pub captured: Vec<ca_hub::MessageRecord>,
+    pub captured: Vec<hub::MessageRecord>,
 }
 
 pub fn capture_grok_session(
@@ -128,7 +128,7 @@ pub(crate) fn capture_grok_session_from(
         });
     };
     if let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) {
-        let socket = ca_hub::default_leader_socket();
+        let socket = hub::default_leader_socket();
         let _ = store.register_harness_session(
             "grok",
             &workspace.to_string_lossy(),

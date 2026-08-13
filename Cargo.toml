@@ -2,6 +2,6 @@
 resolver = "2"
 members = [
     "src-tauri",
-    "crates/ca-hub",
-    "crates/ca-cli",
+    "crates/hub",
+    "crates/cli",
 ]

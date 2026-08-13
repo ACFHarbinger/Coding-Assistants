@@ -85,10 +85,11 @@ pub fn deliver_grok_task(
         .canonicalize()
         .unwrap_or_else(|_| request.workspace.clone());
     let registration = store.get_harness_session("grok", &workspace.to_string_lossy())?;
-    let session_id = request
-        .session_id
-        .clone()
-        .or_else(|| registration.as_ref().map(|row| row.disk_session_id.clone()))
+    // `request.session_id` is the Hub work-session id, not Grok's disk/ACP
+    // session id. Never pass it to `session/load`.
+    let session_id = registration
+        .as_ref()
+        .map(|row| row.disk_session_id.clone())
         .or_else(|| latest_grok_session_id(&workspace));
     let Some(session_id) = session_id else {
         return Ok(unavailable(

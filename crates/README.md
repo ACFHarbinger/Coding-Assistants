@@ -2,8 +2,8 @@
 
 | Crate | Binary | Purpose |
 | --- | --- | --- |
-| [`ca-hub`](ca-hub/) | library | SQLite shared memory, durable messages, wake side-channel, private journals, Markdown export |
-| [`ca-cli`](ca-cli/) | `ca` | CLI any agent can invoke without the Tauri GUI |
+| [`hub`](hub/) | library | SQLite shared memory, durable messages, wake side-channel, private journals, Markdown export |
+| [`cli`](cli/) | `ca` | CLI any agent can invoke without the Tauri GUI |
 
 ## Build & install
 
@@ -11,7 +11,7 @@
 
 ```bash
 # Build
-cargo build -p ca-cli
+cargo build -p cli
 
 # Option A — run via path (always works)
 ./target/debug/ca --help
@@ -25,7 +25,7 @@ hash -r
 ca --help
 
 # Option C — cargo run (no install)
-cargo run -q -p ca-cli -- --help
+cargo run -q -p cli -- --help
 ```
 
 Optional data dir (defaults to `~/.coding-assistants`):
@@ -125,5 +125,5 @@ Roadmap refs: `docs/moon/roadmaps/memory.md` (M1–M5), `docs/moon/roadmaps/comm
 ## Tests
 
 ```bash
-cargo test -p ca-hub
+cargo test -p hub
 ```

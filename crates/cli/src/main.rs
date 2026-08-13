@@ -3,13 +3,13 @@
 //! Lets any of the external agent tool-calling loops (Claude Code, Codex,
 //! Gemini/Antigravity, Grok Build, ...) read/write the shared hub without
 //! depending on the Tauri desktop process being open. Backed by
-//! `ca_hub::HubStore`; command surface matches `crates/README.md`.
+//! `hub::HubStore`; command surface matches `crates/README.md`.
 
-use ca_hub::{
+use clap::{ArgAction, Parser, Subcommand};
+use hub::{
     inject_harness_with_store, HarnessInjectRequest, HubStore, MemoryScope, MemoryTier,
     MessageKind, MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
 };
-use clap::{ArgAction, Parser, Subcommand};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -505,7 +505,8 @@ fn default_home() -> PathBuf {
 }
 
 /// CA-106/CA-109: only Harbinger may edit/delete a chat message, mirroring
-/// the desktop `require_human_authored` check in `src-tauri/src/hub_cmds.rs`.
+/// the desktop `require_human_authored` check in
+/// `src-tauri/src/hub/commands.rs`.
 /// Checked against both the caller-supplied `--from` and the message's
 /// actual `from_agent`, since only the latter is authoritative.
 fn require_human_authored(store: &HubStore, from: &str, message_id: &str) -> anyhow::Result<()> {
@@ -550,7 +551,7 @@ fn main() -> anyhow::Result<()> {
             }
             AgentCommand::RegisterCard { agent, path } => {
                 let json = std::fs::read_to_string(&path)?;
-                let card: ca_hub::AgentCard = serde_json::from_str(&json)?;
+                let card: hub::AgentCard = serde_json::from_str(&json)?;
                 store.upsert_agent_card(&agent, &card)?;
                 println!("registered card for {}", agent);
             }
@@ -1152,7 +1153,7 @@ fn audit_process_context() -> String {
 // this CLI does not and should not depend on). To make C13's "hub-native run
 // without the desktop app" requirement possible, this re-implements the same
 // four on-disk transcript formats independently here, against the shared
-// `ca_hub::HubStore::record_harness_capture` dedup path — so a headless `ca
+// `hub::HubStore::record_harness_capture` dedup path — so a headless `ca
 // harness capture` run and the desktop's poll converge on the same durable
 // state even though they don't share code across the crate boundary.
 
@@ -1161,7 +1162,7 @@ struct HarnessCaptureOutcome {
     harness: String,
     transcript_found: bool,
     scanned: usize,
-    captured: Vec<ca_hub::MessageRecord>,
+    captured: Vec<hub::MessageRecord>,
 }
 
 fn home_dir() -> PathBuf {
@@ -1529,7 +1530,7 @@ mod tests {
         let sessions_root = tempfile::tempdir().unwrap();
         let store_dir = tempfile::tempdir().unwrap();
         let store = HubStore::open(store_dir.path()).unwrap();
-        let workspace = Path::new("/tmp/ca-cli-c12-grok");
+        let workspace = Path::new("/tmp/cli-c12-grok");
         let dir = sessions_root
             .path()
             .join(grok_encode_workspace(workspace))
@@ -1580,7 +1581,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let day_dir = root.path().join("2026").join("08").join("13");
         std::fs::create_dir_all(&day_dir).unwrap();
-        let workspace = Path::new("/tmp/ca-cli-c12-codex");
+        let workspace = Path::new("/tmp/cli-c12-codex");
         std::fs::write(
             day_dir.join("rollout.jsonl"),
             format!(

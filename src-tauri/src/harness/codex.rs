@@ -6,7 +6,7 @@
 //! a terminal or scraping a UI.  Only assistant `output_text` blocks enter the
 //! hub transcript; user, developer, tool, and reasoning records stay local.
 
-use ca_hub::HubStore;
+use hub::HubStore;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -124,7 +124,7 @@ fn recent_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> {
 pub struct CodexCaptureOutcome {
     pub transcript_found: bool,
     pub scanned: usize,
-    pub captured: Vec<ca_hub::MessageRecord>,
+    pub captured: Vec<hub::MessageRecord>,
 }
 
 /// Captures Codex's assistant-authored session transcript into the selected

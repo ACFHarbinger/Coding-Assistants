@@ -15,10 +15,7 @@ pub use claude_bridge::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
-pub use gemini_bridge::{
-    default_gemini_bridge_socket, deliver_gemini_task, gemini_brain_dir,
-    gemini_bridge_socket_available, latest_gemini_session_id,
-};
+pub use gemini_bridge::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use grok_bridge::{
     acp_initialize, acp_session_load, acp_session_prompt, default_leader_socket, deliver_grok_task,
     latest_grok_session_id, leader_socket_available,

@@ -1,6 +1,6 @@
-use crate::file_tools::FileTools;
-use crate::llm_client::{LLMClient, ModelConfig};
-use ca_hub::HubStore;
+use crate::client::llm::{LLMClient, ModelConfig};
+use crate::core::file_tools::FileTools;
+use hub::HubStore;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

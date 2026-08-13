@@ -1,7 +1,7 @@
-//! Tauri commands that expose `ca_hub::HubStore` to the desktop UI.
+//! Tauri commands that expose `hub::HubStore` to the desktop UI.
 //! Same data directory as the `ca` CLI (`$CA_HOME` or `~/.coding-assistants`).
 
-use ca_hub::{
+use hub::{
     AuditEvent, BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, GitExportOutcome,
     HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
     TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkflowStep,
@@ -800,12 +800,12 @@ pub fn hub_init() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn hub_list_agents() -> Result<Vec<ca_hub::AgentRecord>, String> {
+pub fn hub_list_agents() -> Result<Vec<hub::AgentRecord>, String> {
     open_store()?.list_agents().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn hub_upsert_agent_card(agent: String, card: ca_hub::AgentCard) -> Result<(), String> {
+pub fn hub_upsert_agent_card(agent: String, card: hub::AgentCard) -> Result<(), String> {
     open_store()?
         .upsert_agent_card(&agent, &card)
         .map_err(|e| e.to_string())
@@ -983,7 +983,7 @@ pub struct SendTaggedMessageArgs {
 #[tauri::command]
 pub fn hub_send_tagged_message(
     args: SendTaggedMessageArgs,
-) -> Result<Vec<ca_hub::SendOutcome>, String> {
+) -> Result<Vec<hub::SendOutcome>, String> {
     open_store()?
         .send_tagged_message(
             &args.from,
@@ -1029,7 +1029,7 @@ pub fn hub_send_session_message(
 }
 
 #[tauri::command]
-pub fn hub_list_tagged_send_outcomes(subject: String) -> Result<Vec<ca_hub::SendOutcome>, String> {
+pub fn hub_list_tagged_send_outcomes(subject: String) -> Result<Vec<hub::SendOutcome>, String> {
     open_store()?
         .list_tagged_send_outcomes(&subject)
         .map_err(|e| e.to_string())
@@ -1100,26 +1100,26 @@ pub fn hub_list_message_memories(message_id: String) -> Result<Vec<MemoryRecord>
 }
 
 #[tauri::command]
-pub fn hub_list_team_members() -> Result<Vec<ca_hub::AgentRecord>, String> {
+pub fn hub_list_team_members() -> Result<Vec<hub::AgentRecord>, String> {
     open_store()?.list_team_members().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<ca_hub::AgentRecord, String> {
+pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<hub::AgentRecord, String> {
     open_store()?
         .set_team_member(&id, enrolled)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn hub_create_work_session(name: String) -> Result<ca_hub::WorkSessionRecord, String> {
+pub fn hub_create_work_session(name: String) -> Result<hub::WorkSessionRecord, String> {
     open_store()?
         .create_work_session(&name)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn hub_list_work_sessions() -> Result<Vec<ca_hub::WorkSessionRecord>, String> {
+pub fn hub_list_work_sessions() -> Result<Vec<hub::WorkSessionRecord>, String> {
     open_store()?
         .list_work_sessions()
         .map_err(|e| e.to_string())
@@ -1129,7 +1129,7 @@ pub fn hub_list_work_sessions() -> Result<Vec<ca_hub::WorkSessionRecord>, String
 pub fn hub_add_work_session_member(
     session_id: String,
     agent_id: String,
-) -> Result<ca_hub::WorkSessionRecord, String> {
+) -> Result<hub::WorkSessionRecord, String> {
     open_store()?
         .add_work_session_member(&session_id, &agent_id)
         .map_err(|e| e.to_string())
@@ -1234,7 +1234,7 @@ pub fn hub_set_message_status(id: String, status: String) -> Result<MessageRecor
 /// CA-106: only Harbinger may edit/delete a Slack chat post in v1 — an agent
 /// must not be able to silently rewrite another agent's line. Team/channel
 /// broadcasts are N SQLite rows (one per recipient) sharing a subject, so
-/// both commands update/cancel every sibling copy via `ca_hub`'s broadcast
+/// both commands update/cancel every sibling copy via `hub`'s broadcast
 /// grouping, not just the row the caller happened to have in view.
 fn require_human_authored(store: &HubStore, message_id: &str) -> Result<(), String> {
     let message = store
@@ -1277,7 +1277,7 @@ pub fn hub_resolve_wake(id: String, status: String) -> Result<(), String> {
 }
 
 /// CA-111: pending audit events surfaced when the desktop Journal/Audit tab
-/// opens (`ca_hub::HubStore::list_audit_events`, already implemented — this
+/// opens (`hub::HubStore::list_audit_events`, already implemented — this
 /// just exposes it, plus approve/quarantine, to the Tauri IPC boundary).
 #[tauri::command]
 pub fn hub_list_audit_events(pending_only: Option<bool>) -> Result<Vec<AuditEvent>, String> {
@@ -1403,7 +1403,7 @@ pub fn hub_get_budget(agent: String) -> Result<Option<BudgetStatus>, String> {
 }
 
 #[tauri::command]
-pub fn hub_list_agent_metrics() -> Result<Vec<ca_hub::AgentMetrics>, String> {
+pub fn hub_list_agent_metrics() -> Result<Vec<hub::AgentMetrics>, String> {
     open_store()?
         .list_agent_metrics()
         .map_err(|e| e.to_string())
@@ -1416,7 +1416,7 @@ pub fn hub_record_agent_metrics(
     tokens_used: i64,
     tokens_cached: i64,
     output_chars: i64,
-) -> Result<ca_hub::AgentMetrics, String> {
+) -> Result<hub::AgentMetrics, String> {
     open_store()?
         .record_agent_metrics(
             &agent,
@@ -1483,7 +1483,7 @@ pub struct RecordShutdownArgs {
 }
 
 #[tauri::command]
-pub fn hub_record_shutdown(args: RecordShutdownArgs) -> Result<ca_hub::ShutdownOutcome, String> {
+pub fn hub_record_shutdown(args: RecordShutdownArgs) -> Result<hub::ShutdownOutcome, String> {
     open_store()?
         .record_shutdown(
             &args.agent,
@@ -1544,7 +1544,7 @@ mod tests {
     fn tauri_hub_commands_retrieve_what_the_store_wrote() {
         let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
-            "ca-hub-tauri-test-{}-{}",
+            "hub-tauri-test-{}-{}",
             std::process::id(),
             now_unix()
         ));
@@ -1586,7 +1586,7 @@ mod tests {
     fn ca102_hub_commands_return_only_the_requested_channel_and_linked_memories() {
         let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
-            "ca-hub-tauri-ca102-{}-{}",
+            "hub-tauri-ca102-{}-{}",
             std::process::id(),
             now_unix()
         ));
@@ -1645,7 +1645,7 @@ mod tests {
     fn ca106_hub_commands_edit_delete_every_copy_and_reject_non_human_authors() {
         let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
-            "ca-hub-tauri-ca106-{}-{}",
+            "hub-tauri-ca106-{}-{}",
             std::process::id(),
             now_unix()
         ));
@@ -1658,7 +1658,7 @@ mod tests {
         let posted = store
             .send_message_to_team(
                 "human",
-                ca_hub::MessageKind::Message,
+                hub::MessageKind::Message,
                 "hi",
                 Some("channel:general:22222222-2222-2222-2222-222222222222"),
                 None,
@@ -1684,7 +1684,7 @@ mod tests {
             .send_message(
                 "grok",
                 "human",
-                ca_hub::MessageKind::Message,
+                hub::MessageKind::Message,
                 "not yours",
                 None,
                 None,
@@ -1710,7 +1710,7 @@ mod tests {
     fn ca111_audit_tab_lists_pending_and_can_approve_or_quarantine() {
         let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
         let dir = std::env::temp_dir().join(format!(
-            "ca-hub-tauri-ca111-{}-{}",
+            "hub-tauri-ca111-{}-{}",
             std::process::id(),
             now_unix()
         ));

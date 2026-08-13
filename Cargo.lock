@@ -437,35 +437,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ca-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ca-hub",
- "chrono",
- "clap",
- "notify",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "ca-hub"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 1.0.69",
- "uuid",
-]
-
-[[package]]
 name = "cairo-rs"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -632,6 +603,21 @@ name = "clap_lex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+
+[[package]]
+name = "cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "hub",
+ "notify",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
 
 [[package]]
 name = "colorchoice"
@@ -1880,6 +1866,20 @@ name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
+name = "hub"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 1.0.69",
+ "uuid",
+]
 
 [[package]]
 name = "hyper"
@@ -4541,10 +4541,10 @@ name = "tauri-app"
 version = "0.1.0"
 dependencies = [
  "async-openai",
- "ca-hub",
  "chrono",
  "dotenv",
  "governor",
+ "hub",
  "reqwest",
  "serde",
  "serde_json",

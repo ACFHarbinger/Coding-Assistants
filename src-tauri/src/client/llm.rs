@@ -1,4 +1,4 @@
-use crate::agents::AgentEvent;
+use crate::agent::AgentEvent;
 use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
