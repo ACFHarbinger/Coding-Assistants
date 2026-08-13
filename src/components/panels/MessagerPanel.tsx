@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
-import type { ChannelRecord, ContextMenuState, DetectedProcess, HarnessInjectResult, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps, TaggedSendOutcome } from "./messager/types";
-import type { HarnessDeliveryNotice, HarnessSessionRegistration } from "./harness/types";
-import { injectNotice, isSuccessfulInject } from "./harness/types";
+import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps } from "./messager/types";
+import { deliverTaggedSession } from "./messager/sendTagged";
+import { useHarnessDelivery } from "./messager/useHarnessDelivery";
 import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, persistLastRead, rosterAgentIds, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
@@ -36,8 +36,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [recipientMode, setRecipientMode] = useState<"all" | "subset" | "single">("all");
   const [selectedSubset, setSelectedSubset] = useState<Record<string, boolean>>({});
   const [singleRecipient, setSingleRecipient] = useState<string>("grok");
-  const [harnessSessions, setHarnessSessions] = useState<HarnessSessionRegistration[]>([]);
-  const [deliveryNotices, setDeliveryNotices] = useState<HarnessDeliveryNotice[]>([]);
+  const { harnessSessions, deliveryNotices, setDeliveryNotices, refreshHarnessSessions, retryDelivery, dismissDelivery } = useHarnessDelivery(workspacePath, activeWorkSessionId);
   const [isTaskTag, setIsTaskTag] = useState<boolean>(false);
   const [isWakeTag, setIsWakeTag] = useState<boolean>(false);
 
@@ -110,46 +109,6 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     const interval = setInterval(loadHubData, 4000);
     return () => clearInterval(interval);
   }, []);
-
-  const refreshHarnessSessions = async () => {
-    if (!isTauriRuntime()) return;
-    try {
-      const listed = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
-      setHarnessSessions(listed);
-    } catch (error) {
-      console.error("Failed to list harness sessions:", error);
-    }
-  };
-
-  useEffect(() => {
-    void refreshHarnessSessions();
-    const interval = setInterval(() => void refreshHarnessSessions(), 5000);
-    return () => clearInterval(interval);
-  }, [workspacePath]);
-
-  const retryDelivery = async (notice: HarnessDeliveryNotice) => {
-    if (!notice.messageId || !notice.body) return;
-    try {
-      const result = await invoke<HarnessInjectResult>("hub_inject_harness", {
-        harness: notice.harness,
-        workspace: workspacePath,
-        sessionId: activeWorkSessionId,
-        messageId: notice.messageId,
-        body: notice.body,
-        isTask: notice.isTask ?? false,
-        isWake: notice.isWake ?? false,
-      });
-      const next = injectNotice(result.status, result.detail);
-      setDeliveryNotices(current => current.map(item => item.harness === notice.harness
-        ? { ...item, status: result.status, detail: result.detail, retryable: next.retryable }
-        : item));
-      await refreshHarnessSessions();
-    } catch (error) {
-      setDeliveryNotices(current => current.map(item => item.harness === notice.harness
-        ? { ...item, status: "unavailable", detail: String(error), retryable: true }
-        : item));
-    }
-  };
 
   useEffect(() => {
     const pool = activeChannel.startsWith("dm-")
@@ -290,56 +249,15 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
           if (!workspacePath.startsWith("/")) {
             throw new Error("Tagged delivery requires an absolute Workspace Root in Orchestrate");
           }
-          const outcomes = await invoke<TaggedSendOutcome[]>("hub_send_tagged_message", {
-            args: { from: "human", to: targetAgents, isTask: isTaskTag, isWake: isWakeTag, subject, workspace: null, task: isTaskTag ? bodyText : null, sessionId: activeWorkSession.id, body: bodyText }
-          });
-          const accepted = outcomes.filter(outcome => outcome.accepted && outcome.message_id);
-          const injections = await Promise.allSettled(
-            accepted.map(outcome => invoke<HarnessInjectResult>("hub_inject_harness", {
-              harness: outcome.to_agent,
-              workspace: workspacePath,
-              sessionId: activeWorkSession.id,
-              messageId: outcome.message_id,
-              body: bodyText,
-              isTask: isTaskTag,
-              isWake: isWakeTag,
-            }))
-          );
-          const notices: HarnessDeliveryNotice[] = [
-            ...outcomes.filter(outcome => !outcome.accepted).map(outcome => ({
-              harness: outcome.to_agent,
-              status: "unavailable",
-              detail: outcome.reason || "rejected",
-              retryable: false,
-            })),
-            ...injections.map((result, index) => {
-              const target = accepted[index];
-              if (result.status === "rejected") {
-                return {
-                  harness: target?.to_agent ?? "harness",
-                  status: "unavailable",
-                  detail: String(result.reason),
-                  retryable: true,
-                  messageId: target?.message_id,
-                  body: bodyText,
-                  isTask: isTaskTag,
-                  isWake: isWakeTag,
-                };
-              }
-              const notice = injectNotice(result.value.status, result.value.detail);
-              return {
-                harness: result.value.harness,
-                status: result.value.status,
-                detail: result.value.detail,
-                retryable: notice.retryable,
-                messageId: target?.message_id,
-                body: bodyText,
-                isTask: isTaskTag,
-                isWake: isWakeTag,
-              };
-            }),
-          ];
-          setDeliveryNotices(notices.filter(notice => !isSuccessfulInject(notice.status)));
+          setDeliveryNotices(await deliverTaggedSession({
+            targetAgents,
+            isTaskTag,
+            isWakeTag,
+            subject,
+            bodyText,
+            workspacePath,
+            sessionId: activeWorkSession.id,
+          }));
           void refreshHarnessSessions();
         } else {
           await invoke("hub_send_session_message", {
@@ -561,7 +479,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: (harness: string) => setDeliveryNotices(current => current.filter(item => item.harness !== harness)) };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
