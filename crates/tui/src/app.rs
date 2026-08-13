@@ -67,11 +67,21 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(options: &TuiOptions, home_dir: PathBuf) -> Self {
+    pub fn new(options: &TuiOptions, home_dir: PathBuf, effective: &hub::EffectiveSettings) -> Self {
         let is_workspace_overridden = options.workspace.is_some();
         let is_session_overridden = options.session.is_some();
-        let workspace_path = options.workspace.clone().or_else(|| std::env::current_dir().ok());
-        let session_id = options.session.clone().or_else(|| Some("general".to_string()));
+
+        let workspace_path = options
+            .workspace
+            .clone()
+            .or_else(|| effective.default_workspace.as_ref().map(PathBuf::from))
+            .or_else(|| std::env::current_dir().ok());
+
+        let session_id = options
+            .session
+            .clone()
+            .or_else(|| effective.default_session.clone())
+            .or_else(|| Some("general".to_string()));
 
         let mut status_message = String::from("Ready. Press Tab to switch tabs, q to exit.");
         if options.set_as_default_workspace_settings {
@@ -114,10 +124,56 @@ pub fn run(options: TuiOptions) -> Result<()> {
     };
     let home_dir = options.home.clone().unwrap_or(default_home_dir);
 
-    // Verify or open Hub store
-    let _store = HubStore::open(&home_dir)?;
+    // Verify or open Hub store & Settings store
+    let store = HubStore::open(&home_dir)?;
+    let mut settings_store = hub::SettingsStore::open(&home_dir);
 
-    let mut app = AppState::new(&options, home_dir);
+    if options.set_as_default_workspace_settings {
+        if let Some(ref ws) = options.workspace {
+            let ws_str = ws.display().to_string();
+            settings_store
+                .set_default_workspace(Some(&ws_str))
+                .map_err(|e| anyhow::anyhow!(e))?;
+            settings_store.save().map_err(|e| anyhow::anyhow!(e))?;
+            let _ = store.record_settings_audit_event(
+                "general.default_workspace",
+                "global",
+                "set_default",
+            );
+        }
+    }
+
+    if options.set_as_default_session_settings {
+        if let Some(ref sess) = options.session {
+            if let Some(ref ws) = options.workspace {
+                let ws_str = ws.display().to_string();
+                settings_store
+                    .set_workspace_default_session(&ws_str, Some(sess))
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                settings_store.save().map_err(|e| anyhow::anyhow!(e))?;
+                let _ = store.record_settings_audit_event(
+                    "workspace.default_session",
+                    &ws_str,
+                    "set_default",
+                );
+            } else {
+                settings_store
+                    .set_default_session(Some(sess))
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                settings_store.save().map_err(|e| anyhow::anyhow!(e))?;
+                let _ = store.record_settings_audit_event(
+                    "general.default_session",
+                    "global",
+                    "set_default",
+                );
+            }
+        }
+    }
+
+    let ws_str_opt = options.workspace.as_ref().map(|p| p.display().to_string());
+    let effective = settings_store.effective(ws_str_opt.as_deref());
+
+    let mut app = AppState::new(&options, home_dir, &effective);
     let mut terminal = init_terminal()?;
 
     let loop_result = run_loop(&mut terminal, &mut app);

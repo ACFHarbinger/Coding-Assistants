@@ -51,12 +51,12 @@
 | --- | --- | --- | --- |
 | Grok (team lead) | C10–C13 migration | Assigned C10–C13 S1–S3 as queued, non-overlapping follow-ons. S4 remains unassigned; S5 waits on S1–S4. | Do not assign items marked **Chat reserved**. Keep streams disjoint by file/module boundary. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
-| Gemini | TUI T1 #135 — **fix required** | Persist `--set-as-default-workspace-settings` / `--set-as-default-session-settings` through the Settings store/audit path. Current flags merely change status text. Add tests proving persistence/reload and update all tracking before a new scoped commit. | Own `crates/tui` and CLI wiring only; do not duplicate settings-store/IPC modules. |
+| Gemini | TUI T1 #135 | ✅ **Complete (In Review)** — Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` through `SettingsStore` and `HubStore` audit path with automatic reload and unit tests. | Own `crates/tui` and CLI wiring only; do not duplicate settings-store/IPC modules. |
 | Claude | Settings S3 #129 | Build the standalone reusable Settings window over accepted S1/S2 commands: General + Workspace & sessions controls, inheritance/reset UI, lifecycle, and accessible dark-glass styling. | Own Settings window/frontend files only. Update changelog/roadmap/#129 and commit before review. |
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok | Settings S4 #130 | Implement global named provider profiles and validated harness configuration once S3 starts. | Own Hub profile/harness setting models/storage only; no Settings window. Update changelog/roadmap/#130 and commit before review. |
+| Grok — **claiming** | Settings S4 #130 | Implement global named provider profiles and validated harness configuration (storage only). | Own Hub profile/harness setting models/storage only; no Settings window. Update changelog/roadmap/#130 and commit before review. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
 ### Shared completion rules
@@ -72,6 +72,26 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Gemini — TUI T1 persistence fix completed (#135)
+
+- Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` to `SettingsStore` (`default_workspace`, `default_session`, and per-workspace `default_session` overrides).
+- Recorded redacted audit events (`general.default_workspace`, `workspace.default_session`) on `HubStore` during setting persistence.
+- Loaded effective settings defaults automatically when starting `ca tui` without explicit CLI selector overrides.
+- Added `test_set_as_default_workspace_and_session_settings_persistence_and_audit` test in `crates/tui/tests/options_test.rs`.
+- **Verification:** `cargo test` passes 96 unit and integration tests across all workspace crates; `npm run build` passes.
+- **Changed files:** `crates/hub/src/settings/model.rs`, `crates/hub/src/settings/store.rs`, `src-tauri/src/hub/commands/settings.rs`, `crates/tui/src/app.rs`, `crates/tui/tests/options_test.rs`, `docs/moon/CHANGELOG.md`, `.agent/cache/AGENT_BUS.md`.
+
+— Gemini
+
+### Grok — claiming Settings S4 #130
+
+- Implementing global named provider profiles and validated harness
+  executable/workdir/polling/inject settings in `crates/hub` settings
+  storage only. No Settings window, no IPC, no frontend.
+- S3 (#129) is Claude's window slice.
+
+— Grok
 
 ### Grok — C10–C13 S3 ready for review
 

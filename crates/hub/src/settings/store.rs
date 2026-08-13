@@ -1,6 +1,12 @@
 use super::model::{
-    EffectiveSettings, FieldStatus, SettingsError, SettingsField, SettingsSnapshot,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    EffectiveHarnessSettings, EffectiveSettings, FieldStatus, HarnessSettings, ProfileSnapshot,
+    ProviderProfile, SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride,
+    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+};
+use super::profiles::{
+    default_profiles_from_table, effective_harnesses, harnesses_from_document,
+    profiles_from_document, validate_harness, validate_profile, validate_profile_name,
+    validate_provider, write_default_profiles, write_harness_fields, write_profile_fields,
 };
 use chrono::Utc;
 use std::collections::BTreeMap;
@@ -34,6 +40,8 @@ pub struct SettingsStore {
     document: DocumentMut,
     snapshot: SettingsSnapshot,
     workspaces: BTreeMap<String, WorkspaceOverride>,
+    profiles: BTreeMap<String, ProviderProfile>,
+    harnesses: BTreeMap<String, HarnessSettings>,
     load: SettingsLoad,
 }
 
@@ -47,6 +55,8 @@ impl SettingsStore {
                 document: default_document(),
                 snapshot: SettingsSnapshot::default(),
                 workspaces: BTreeMap::new(),
+                profiles: BTreeMap::new(),
+                harnesses: BTreeMap::new(),
                 load: SettingsLoad {
                     path,
                     status: LoadStatus::Missing,
@@ -57,6 +67,8 @@ impl SettingsStore {
                 document: default_document(),
                 snapshot: SettingsSnapshot::default(),
                 workspaces: BTreeMap::new(),
+                profiles: BTreeMap::new(),
+                harnesses: BTreeMap::new(),
                 load: SettingsLoad {
                     path,
                     status: LoadStatus::Unreadable {
@@ -65,11 +77,13 @@ impl SettingsStore {
                 },
             },
             Ok(raw) => match parse_document(&raw) {
-                Ok((document, snapshot, workspaces)) => Self {
+                Ok((document, snapshot, workspaces, profiles, harnesses)) => Self {
                     home,
                     document,
                     snapshot,
                     workspaces,
+                    profiles,
+                    harnesses,
                     load: SettingsLoad {
                         path,
                         status: LoadStatus::Loaded,
@@ -80,6 +94,8 @@ impl SettingsStore {
                     document: default_document(),
                     snapshot: SettingsSnapshot::default(),
                     workspaces: BTreeMap::new(),
+                    profiles: BTreeMap::new(),
+                    harnesses: BTreeMap::new(),
                     load: SettingsLoad {
                         path,
                         status: LoadStatus::Invalid {
@@ -121,17 +137,48 @@ impl SettingsStore {
                 Some(value) => (value, FieldStatus::Override),
                 None => (self.snapshot.backup_retention, FieldStatus::Inherited),
             };
+        let (default_session, default_session_status) =
+            match over.and_then(|o| o.default_session.clone()) {
+                Some(value) => (Some(value), FieldStatus::Override),
+                None => (self.snapshot.default_session.clone(), FieldStatus::Inherited),
+            };
+        let profiles = self.profiles.values().map(ProviderProfile::snapshot).collect();
+        let harnesses = effective_harnesses(&self.harnesses, &self.profiles, over.map(|o| &o.default_profiles));
         EffectiveSettings {
             schema_version: self.snapshot.schema_version,
             workspace: workspace.map(str::to_string),
             backup_retention,
             backup_retention_status,
+            default_workspace: self.snapshot.default_workspace.clone(),
+            default_workspace_status: FieldStatus::Inherited,
+            default_session,
+            default_session_status,
+            profiles,
+            harnesses,
         }
     }
 
     pub fn set_backup_retention(&mut self, retention: u32) -> Result<(), SettingsError> {
         let mut next = self.snapshot.clone();
         next.backup_retention = retention;
+        next.validate()?;
+        self.snapshot = next;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_default_workspace(&mut self, workspace: Option<&str>) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.clone();
+        next.default_workspace = workspace.map(str::to_string);
+        next.validate()?;
+        self.snapshot = next;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_default_session(&mut self, session: Option<&str>) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.clone();
+        next.default_session = session.map(str::to_string);
         next.validate()?;
         self.snapshot = next;
         write_snapshot_fields(&mut self.document, &self.snapshot);
@@ -150,7 +197,170 @@ impl SettingsStore {
         over.backup_retention = Some(retention);
         over.validate()?;
         self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
         Ok(())
+    }
+
+    pub fn set_workspace_default_session(
+        &mut self,
+        workspace: &str,
+        session: Option<&str>,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.default_session = session.map(str::to_string);
+        over.validate()?;
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn list_profiles(&self) -> Vec<ProfileSnapshot> {
+        self.profiles.values().map(ProviderProfile::snapshot).collect()
+    }
+
+    pub fn profile(&self, name: &str) -> Option<&ProviderProfile> {
+        self.profiles.get(name)
+    }
+
+    pub fn upsert_profile(&mut self, profile: ProviderProfile) -> Result<(), SettingsError> {
+        validate_profile(&profile)?;
+        self.profiles.insert(profile.name.clone(), profile);
+        write_profile_fields(&mut self.document, &self.profiles);
+        Ok(())
+    }
+
+    pub fn rename_profile(&mut self, from: &str, to: &str) -> Result<(), SettingsError> {
+        let to = validate_profile_name(to)?;
+        if from == to {
+            return Ok(());
+        }
+        if self.profiles.contains_key(&to) {
+            return Err(SettingsError::Conflict(format!(
+                "profile {to} already exists"
+            )));
+        }
+        let mut profile = self
+            .profiles
+            .remove(from)
+            .ok_or_else(|| SettingsError::Invalid(format!("unknown profile {from}")))?;
+        profile.name = to.clone();
+        self.profiles.insert(to.clone(), profile);
+        for over in self.workspaces.values_mut() {
+            for selected in over.default_profiles.values_mut() {
+                if selected == from {
+                    *selected = to.clone();
+                }
+            }
+        }
+        write_profile_fields(&mut self.document, &self.profiles);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    /// Remove profile configuration only. Never deletes a keychain secret.
+    /// Workspace default selections that pointed at this profile are cleared.
+    pub fn remove_profile(&mut self, name: &str) -> Result<ProviderProfile, SettingsError> {
+        let profile = self
+            .profiles
+            .remove(name)
+            .ok_or_else(|| SettingsError::Invalid(format!("unknown profile {name}")))?;
+        for over in self.workspaces.values_mut() {
+            over.default_profiles.retain(|_, selected| selected != name);
+        }
+        write_profile_fields(&mut self.document, &self.profiles);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(profile)
+    }
+
+    pub fn set_harness_settings(&mut self, settings: HarnessSettings) -> Result<(), SettingsError> {
+        validate_harness(&settings)?;
+        self.harnesses.insert(settings.harness.clone(), settings);
+        write_harness_fields(&mut self.document, &self.harnesses);
+        Ok(())
+    }
+
+    pub fn harness_settings(&self, harness: &str) -> Result<HarnessSettings, SettingsError> {
+        let harness = validate_provider(harness)?;
+        Ok(self
+            .harnesses
+            .get(&harness)
+            .cloned()
+            .unwrap_or(HarnessSettings::default_for(&harness)?))
+    }
+
+    pub fn set_workspace_default_profile(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+        profile: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        let profile = validate_profile_name(profile)?;
+        if !self.profiles.contains_key(&profile) {
+            return Err(SettingsError::Invalid(format!("unknown profile {profile}")));
+        }
+        if self.profiles[&profile].provider != harness {
+            return Err(SettingsError::Invalid(format!(
+                "profile {profile} is for provider {}, not {harness}",
+                self.profiles[&profile].provider
+            )));
+        }
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.default_profiles.insert(harness, profile);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn reset_workspace_default_profile(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        if let Some(over) = self.workspaces.get_mut(&workspace) {
+            over.default_profiles.remove(&harness);
+            if over.is_empty() {
+                self.workspaces.remove(&workspace);
+            }
+            write_workspace_fields(&mut self.document, &self.workspaces);
+        }
+        Ok(())
+    }
+
+    pub fn effective_harness(
+        &self,
+        workspace: Option<&str>,
+        harness: &str,
+    ) -> Result<EffectiveHarnessSettings, SettingsError> {
+        let harness = validate_provider(harness)?;
+        Ok(effective_harnesses(
+            &self.harnesses,
+            &self.profiles,
+            workspace.and_then(|path| {
+                self.workspaces
+                    .get(path)
+                    .map(|over| &over.default_profiles)
+            }),
+        )
+        .into_iter()
+        .find(|entry| entry.harness == harness)
+        .unwrap_or_else(|| {
+            let settings = HarnessSettings::default_for(&harness).expect("validated provider");
+            EffectiveHarnessSettings {
+                harness: settings.harness,
+                executable: settings.executable,
+                workdir: settings.workdir,
+                capture_polling: settings.capture_polling,
+                inject_permission: settings.inject_permission,
+                default_profile: None,
+                default_profile_status: FieldStatus::Inherited,
+                default_profile_badge: None,
+            }
+        }))
     }
 
     /// Clear one field of a workspace override, falling back to the global
@@ -165,10 +375,13 @@ impl SettingsStore {
         if let Some(over) = self.workspaces.get_mut(&workspace) {
             match field {
                 SettingsField::BackupRetention => over.backup_retention = None,
+                SettingsField::DefaultWorkspace => {}
+                SettingsField::DefaultSession => over.default_session = None,
             }
             if over.is_empty() {
                 self.workspaces.remove(&workspace);
             }
+            write_workspace_fields(&mut self.document, &self.workspaces);
         }
         Ok(())
     }
@@ -247,11 +460,13 @@ impl SettingsStore {
             ));
         }
         let raw = fs::read_to_string(&backup_canon)?;
-        let (document, snapshot, workspaces) = parse_document(&raw)?;
+        let (document, snapshot, workspaces, profiles, harnesses) = parse_document(&raw)?;
         snapshot.validate()?;
         self.document = document;
         self.snapshot = snapshot;
         self.workspaces = workspaces;
+        self.profiles = profiles;
+        self.harnesses = harnesses;
         self.load.status = LoadStatus::Loaded;
         self.write_atomically(false)
     }
@@ -262,8 +477,16 @@ impl SettingsStore {
             over.validate()
                 .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
         }
+        for profile in self.profiles.values() {
+            validate_profile(profile)?;
+        }
+        for settings in self.harnesses.values() {
+            validate_harness(settings)?;
+        }
         write_snapshot_fields(&mut self.document, &self.snapshot);
         write_workspace_fields(&mut self.document, &self.workspaces);
+        write_profile_fields(&mut self.document, &self.profiles);
+        write_harness_fields(&mut self.document, &self.harnesses);
         fs::create_dir_all(&self.home)?;
         if backup_current
             && self.load.path.exists()
@@ -333,6 +556,24 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
         document["storage"] = Item::Table(Table::new());
     }
     document["storage"]["backup_retention"] = value(i64::from(snapshot.backup_retention));
+
+    if let Some(ref default_ws) = snapshot.default_workspace {
+        if !document.contains_key("general") {
+            document["general"] = Item::Table(Table::new());
+        }
+        document["general"]["default_workspace"] = value(default_ws.as_str());
+    } else if document.get("general").and_then(Item::as_table).is_some_and(|t| t.contains_key("default_workspace")) {
+        document["general"]["default_workspace"] = Item::None;
+    }
+
+    if let Some(ref default_sess) = snapshot.default_session {
+        if !document.contains_key("general") {
+            document["general"] = Item::Table(Table::new());
+        }
+        document["general"]["default_session"] = value(default_sess.as_str());
+    } else if document.get("general").and_then(Item::as_table).is_some_and(|t| t.contains_key("default_session")) {
+        document["general"]["default_session"] = Item::None;
+    }
 }
 
 /// Rebuild the `[[workspace]]` array-of-tables from `workspaces` on every
@@ -354,6 +595,10 @@ fn write_workspace_fields(
         if let Some(retention) = over.backup_retention {
             table["backup_retention"] = value(i64::from(retention));
         }
+        if let Some(ref sess) = over.default_session {
+            table["default_session"] = value(sess.as_str());
+        }
+        write_default_profiles(&mut table, &over.default_profiles);
         array.push(table);
     }
     document["workspace"] = Item::ArrayOfTables(array);
@@ -369,6 +614,7 @@ fn normalize_workspace(workspace: &str) -> Result<String, SettingsError> {
     Ok(trimmed.to_string())
 }
 
+#[allow(clippy::type_complexity)]
 fn parse_document(
     raw: &str,
 ) -> Result<
@@ -376,6 +622,8 @@ fn parse_document(
         DocumentMut,
         SettingsSnapshot,
         BTreeMap<String, WorkspaceOverride>,
+        BTreeMap<String, ProviderProfile>,
+        BTreeMap<String, HarnessSettings>,
     ),
     SettingsError,
 > {
@@ -389,7 +637,9 @@ fn parse_document(
         over.validate()
             .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
     }
-    Ok((document, snapshot, workspaces))
+    let profiles = profiles_from_document(&document)?;
+    let harnesses = harnesses_from_document(&document)?;
+    Ok((document, snapshot, workspaces, profiles, harnesses))
 }
 
 fn workspaces_from_document(
@@ -421,8 +671,17 @@ fn workspaces_from_document(
             )?),
             None => None,
         };
+        let default_session = table.get("default_session").and_then(Item::as_str).map(str::to_string);
+        let default_profiles = default_profiles_from_table(table)?;
         if map
-            .insert(path.clone(), WorkspaceOverride { backup_retention })
+            .insert(
+                path.clone(),
+                WorkspaceOverride {
+                    backup_retention,
+                    default_session,
+                    default_profiles,
+                },
+            )
             .is_some()
         {
             return Err(SettingsError::Invalid(format!(
@@ -440,9 +699,16 @@ fn snapshot_from_document(document: &DocumentMut) -> Result<SettingsSnapshot, Se
         .and_then(Item::as_table)
         .ok_or_else(|| SettingsError::Invalid("missing [storage] table".into()))?;
     let backup_retention = integer_key(storage, "backup_retention")?;
+
+    let general = document.get("general").and_then(Item::as_table);
+    let default_workspace = general.and_then(|g| g.get("default_workspace")).and_then(Item::as_str).map(str::to_string);
+    let default_session = general.and_then(|g| g.get("default_session")).and_then(Item::as_str).map(str::to_string);
+
     Ok(SettingsSnapshot {
         schema_version: u32_from_i64(schema_version, "schema_version")?,
         backup_retention: u32_from_i64(backup_retention, "storage.backup_retention")?,
+        default_workspace,
+        default_session,
     })
 }
 

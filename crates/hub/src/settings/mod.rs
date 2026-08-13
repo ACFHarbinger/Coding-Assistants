@@ -9,12 +9,14 @@
 //! `crates/hub/src/store/policies/settings_audit.rs`.
 
 mod model;
+mod profiles;
 mod store;
 
 pub use model::{
-    EffectiveSettings, FieldStatus, SettingsError, SettingsField, SettingsSnapshot,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
-    MIN_BACKUP_RETENTION,
+    EffectiveHarnessSettings, EffectiveSettings, FieldStatus, HarnessSettings, ProfileSnapshot,
+    ProviderProfile, SecretReference, SecretSourceKind, SettingsError, SettingsField,
+    SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{LoadStatus, SettingsLoad, SettingsStore};
 

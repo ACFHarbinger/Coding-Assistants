@@ -14,6 +14,8 @@ fn open_settings_store() -> SettingsStore {
 fn settings_field_name(field: SettingsField) -> &'static str {
     match field {
         SettingsField::BackupRetention => "storage.backup_retention",
+        SettingsField::DefaultWorkspace => "general.default_workspace",
+        SettingsField::DefaultSession => "general.default_session",
     }
 }
 

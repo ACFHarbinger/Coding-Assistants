@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — TUI T1 foundation & default settings persistence fix (#135) (2026-08-13) [DRAFT]
+
+- Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` through `SettingsStore` (`default_workspace`, `default_session`, and per-workspace `default_session` overrides).
+- Recorded redacted audit events (`general.default_workspace`, `workspace.default_session`) on `HubStore` during setting persistence.
+- Loaded effective settings defaults automatically when starting `ca tui` without explicit CLI selector overrides.
+- Added `test_set_as_default_workspace_and_session_settings_persistence_and_audit` test in `crates/tui/tests/options_test.rs`.
+
 ### Chat / Codex — Settings S1/S2 review acceptance (#127, #128) (2026-08-13) [DRAFT]
 
 - Accepted the versioned, comment-preserving local settings store and its
