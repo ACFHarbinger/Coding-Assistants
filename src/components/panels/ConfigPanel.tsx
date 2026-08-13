@@ -369,6 +369,16 @@ export default function ConfigPanel({
               >
                 Load & Open
               </button>
+              {activeWorkSessionId && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => { if (onSelectWorkSession) onSelectWorkSession(null); }}
+                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', whiteSpace: 'nowrap', opacity: 0.85 }}
+                  title="Deselect active work session and return to general channels"
+                >
+                  Clear Selection
+                </button>
+              )}
             </div>
           </div>
         </div>
