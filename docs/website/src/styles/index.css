@@ -178,3 +178,81 @@ code, pre {
   border-radius: 0.25rem;
   font-size: 0.875em;
 }
+
+/* Print stylesheet (W7). Targets stable, pre-existing hooks only (semantic
+ * landmarks, .markdown-body) so this needs no changes to the reader/shell
+ * components themselves: header/footer/both sidebars are chrome, not
+ * article content; the article always prints legibly on white regardless
+ * of the active on-screen theme, since dark backgrounds waste ink and
+ * fight most printers' color handling. */
+@media print {
+  header,
+  footer,
+  aside,
+  nav {
+    display: none !important;
+  }
+
+  a[href="#main-content"] {
+    display: none !important;
+  }
+
+  body,
+  #main-content {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  #main-content {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .markdown-body {
+    color: #0f172a;
+    background: #ffffff;
+  }
+
+  .markdown-body a {
+    color: #1e1b4b;
+    text-decoration: underline;
+  }
+
+  /* Show the destination of external links, since a printed page can't be
+   * clicked. Internal HashRouter links (`/#/docs/...`) are left alone —
+   * their href is meaningless once printed, unlike a real external URL. */
+  .markdown-body a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #475569;
+  }
+
+  .markdown-body pre,
+  .markdown-body table,
+  .markdown-body blockquote,
+  .markdown-body img {
+    break-inside: avoid;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4 {
+    break-after: avoid;
+  }
+
+  .markdown-body pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
+
+  /* Copy-to-clipboard buttons and similar interactive controls are inert
+   * on paper. */
+  .markdown-body button {
+    display: none !important;
+  }
+}
