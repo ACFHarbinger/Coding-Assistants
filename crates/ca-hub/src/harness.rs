@@ -228,6 +228,11 @@ fn inject_harness_inner(
                 return crate::gemini_bridge::deliver_gemini_task(store, request);
             }
         }
+        if harness == HarnessId::Claude {
+            if let Some(store) = store {
+                return crate::claude_bridge::deliver_claude_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,

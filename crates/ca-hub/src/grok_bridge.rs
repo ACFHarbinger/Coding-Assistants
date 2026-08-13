@@ -231,11 +231,7 @@ fn write_rpc(stdin: &mut impl Write, value: &Value) -> Result<(), String> {
     stdin.flush().map_err(|error| error.to_string())
 }
 
-fn wait_rpc_result(
-    reader: &mut impl BufRead,
-    id: i64,
-    timeout: Duration,
-) -> Result<Value, String> {
+fn wait_rpc_result(reader: &mut impl BufRead, id: i64, timeout: Duration) -> Result<Value, String> {
     let deadline = Instant::now() + timeout;
     let mut line = String::new();
     while Instant::now() < deadline {
@@ -259,10 +255,7 @@ fn wait_rpc_result(
     Err(format!("timed out waiting for Grok ACP id {id}"))
 }
 
-fn collect_prompt_reply(
-    reader: &mut impl BufRead,
-    timeout: Duration,
-) -> Result<String, String> {
+fn collect_prompt_reply(reader: &mut impl BufRead, timeout: Duration) -> Result<String, String> {
     let deadline = Instant::now() + timeout;
     let mut line = String::new();
     let mut reply = String::new();
