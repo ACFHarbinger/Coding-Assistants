@@ -153,6 +153,16 @@ pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
 /// A future managed-session adapter may add `--conversation <id>` when it
 /// owns that session, but a wake must never guess an existing conversation.
 pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    gemini_managed_spawn_args(workspace, prompt, None)
+}
+
+/// Explicit argv for an app-managed Antigravity (`agy`) worker run.
+/// Adds `--conversation <id>` when continuing a managed session owned by the app.
+pub fn gemini_managed_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    conversation_id: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Gemini spawn requires a prompt".into()));
     }
@@ -161,13 +171,21 @@ pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
             "Gemini spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![
+    let mut args = vec![
         OsString::from("--print"),
         OsString::from("--output-format"),
         OsString::from("stream-json"),
-        OsString::from("--prompt"),
-        OsString::from(prompt),
-    ])
+    ];
+    if let Some(conv_id) = conversation_id {
+        let conv_id = conv_id.trim();
+        if !conv_id.is_empty() {
+            args.push(OsString::from("--conversation"));
+            args.push(OsString::from(conv_id));
+        }
+    }
+    args.push(OsString::from("--prompt"));
+    args.push(OsString::from(prompt));
+    Ok(args)
 }
 
 /// Explicit argv for an OpenCode (including DeepSeek) wake spawn.

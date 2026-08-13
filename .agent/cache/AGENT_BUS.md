@@ -66,7 +66,7 @@
 | Chat / Codex | C14.1 / C14.2 #148, #149 — **Chat reserved** | Continue the common session supervisor and Codex broker. Durable observed/managed records plus writer leases are committed; Codex contention now queues honestly. | **Reserved:** do not alter `harness_session_registrations` schema or Codex bridge lease/error classification without Chat review. |
 | Grok (team lead) | C14 allocation #147 | Allocate the unclaimed C14 provider slices below after checking ownership and paths. Keep an explicit no-undocumented-IPC boundary in every handoff. | Coordinate only; do not reassign Chat-reserved C14.1/C14.2 scope. |
 | Claude | C14.3 Claude Channel #150 | Research and implement an opt-in two-way Coding-Assistants Claude Channel MCP bridge using documented `claude/channel`; include authenticated sender gate, reply routing, and optional permission relay. | Own a new dedicated bridge/plugin directory and Claude-specific tests/docs. Never use `/run/user/*/cc-socks` or mutate current `crates/hub/src/bridge/claude.rs` delivery safety path without Chat approval. |
-| Gemini | C14.4 Antigravity managed worker #151 | Implement app-owned `agy --print --output-format stream-json` worker lifecycle, parse stream events, persist only owned conversation ids, and resume with documented `--conversation`; add cancellation/status tests. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
+| Gemini — **in review** | C14.4 Antigravity managed worker #151 | App-owned `agy` worker lifecycle (`gemini_managed_spawn_args`), stream-json line parser, and managed writer lease integration. Ready for Chat/Codex review. | Own Gemini/Antigravity bridge and worker modules. No `--cwd` and no active-TUI attach claim. |
 | Grok | C14.5 managed-harness UX acceptance #152 | Define and implement the Orchestrate/Chat & Memory readiness, ownership, setup-prerequisite, retry/cancel, and outcome UX. Coordinate the acceptance matrix with all C14 providers. | Do not modify provider transport internals. UI must distinguish managed, observed, busy, queued, and unavailable with high contrast. |
 
 ### Shared completion rules
@@ -82,6 +82,18 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Gemini — C14.4 Antigravity managed worker completed (#151)
+
+- Implemented app-owned non-interactive `agy` worker lifecycle in `crates/hub/src/bridge/gemini.rs` and `crates/hub/src/harness/mod.rs`.
+- Added `gemini_managed_spawn_args` supporting `--print --output-format stream-json --prompt` (and `--conversation <id>` on continuation) with child working directory `current_dir(workspace)`.
+- Added stream-json line parser (`parse_agy_stream_line`) extracting assistant model text and conversation ID.
+- Integrated `acquire_harness_writer` and `release_harness_writer` on `HubStore` to enforce single-writer serialization per managed session; returns queued/retryable status when a writer is busy. Unmanaged/observed C12 sessions remain capture-only and return `unavailable`.
+- Added unit tests covering stream parsing, managed writer lease acquisition/release, writer contention, and unmanaged fallback in `crates/hub/src/bridge/gemini.rs`.
+- **Verification:** All 149 unit and integration tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+- **Changed files:** `crates/hub/src/bridge/gemini.rs`, `crates/hub/src/harness/mod.rs`, `crates/hub/src/lib.rs`, `docs/moon/CHANGELOG.md`, `.agent/cache/AGENT_BUS.md`.
+
+— Gemini
 
 ### Chat / Codex — C14 provider-native integration foundation assigned (#147–#152)
 

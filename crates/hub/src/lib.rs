@@ -22,9 +22,10 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available,
 };
 pub use harness::{
-    claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
-    inject_harness_with_store, opencode_spawn_args, start_harness, vibe_spawn_args, HarnessId,
-    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
+    grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args,
+    start_harness, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
+    HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use settings::{

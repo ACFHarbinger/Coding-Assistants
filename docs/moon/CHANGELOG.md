@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — C14.4 Antigravity managed worker (#151) (2026-08-13)
+
+- Implemented app-owned non-interactive `agy` worker lifecycle in `crates/hub/src/bridge/gemini.rs` and `crates/hub/src/harness/mod.rs`.
+- Added `gemini_managed_spawn_args` supporting `--print --output-format stream-json --prompt` (and `--conversation <id>` on continuation) with child working directory `current_dir(workspace)`.
+- Added stream-json line parser (`parse_agy_stream_line`) extracting assistant model text and conversation ID.
+- Integrated `acquire_harness_writer` and `release_harness_writer` on `HubStore` to enforce single-writer serialization per managed session; returns queued/retryable status when a writer is busy. Unmanaged/observed C12 sessions remain capture-only and return `unavailable`.
+- Added unit tests covering stream parsing, managed writer lease acquisition/release, writer contention, and unmanaged fallback in `crates/hub/src/bridge/gemini.rs`.
+- **Verification:** All 149 unit and integration tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+
 ### Chat / Codex — provider-native harness integration foundation (2026-08-13)
 
 - Added C14, the managed-session programme for full Codex, Claude Code, and
