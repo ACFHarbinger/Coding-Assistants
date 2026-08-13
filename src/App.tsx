@@ -7,6 +7,7 @@ import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
 import MessagerPanel from "./components/panels/MessagerPanel";
+import { openSettingsWindow } from "./lib/settingsWindow";
 
 
 function App() {
@@ -354,6 +355,20 @@ function App() {
             onClick={() => { setHubVisited(true); setMainView("hub"); }}
           >
             Shared Hub
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: 0, padding: "0.5rem 0.9rem", fontSize: "0.9rem", borderRadius: "8px", display: "inline-flex", alignItems: "center", gap: "0.45rem" }}
+            onClick={() => { void openSettingsWindow(); }}
+            aria-haspopup="dialog"
+            title="Open Settings in its own window"
+          >
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.66 18.7a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15.04a1.7 1.7 0 0 0-1.56-1.04h-.08v-3h.08A1.7 1.7 0 0 0 7 9.96a1.7 1.7 0 0 0-.34-1.88L6.6 8.02 8.72 5.9l.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 11.7 4.74v-.08h3v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 11h.08v3h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+            </svg>
+            Settings
           </button>
           <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(16, 185, 129, 0.15)', color: '#6ee7b7', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
             Local hub online

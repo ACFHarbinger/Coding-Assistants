@@ -3,17 +3,25 @@ import type { AuditEvent } from "../panels/hub/types";
 // Mirrors `hub::FieldStatus` (Settings S2 / #128).
 export type SettingsFieldStatus = "inherited" | "override";
 
-// Mirrors `hub::SettingsField`. One variant today; later slices add more
-// without changing the patch/reset shape below.
-export type SettingsField = "backup_retention";
+// Mirrors `hub::SettingsField`.
+export type SettingsField = "backup_retention" | "default_workspace" | "default_session";
 
 // Mirrors `hub::EffectiveSettings`. Global defaults merged with an optional
 // workspace override; never carries a filesystem path or a secret value.
+// `profiles`/`harnesses` are Settings S4 (#130) scope — not read by the S3
+// General/Workspace & sessions tabs, kept loosely typed here on purpose so
+// this file doesn't need to track that in-flight shape.
 export interface EffectiveSettings {
   schema_version: number;
   workspace: string | null;
   backup_retention: number;
   backup_retention_status: SettingsFieldStatus;
+  default_workspace: string | null;
+  default_workspace_status: SettingsFieldStatus;
+  default_session: string | null;
+  default_session_status: SettingsFieldStatus;
+  profiles?: unknown[];
+  harnesses?: unknown[];
 }
 
 // Partial update sent to `settings_update`. `undefined` fields are left

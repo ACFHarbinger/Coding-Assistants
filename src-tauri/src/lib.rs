@@ -408,6 +408,8 @@ pub fn run() {
             hub::commands::settings::settings_get_load_status,
             hub::commands::settings::settings_update,
             hub::commands::settings::settings_reset_field,
+            hub::commands::settings::settings_set_default_workspace,
+            hub::commands::settings::settings_set_default_session,
             hub::commands::settings::settings_list_audit_events,
         ])
         .run(tauri::generate_context!())

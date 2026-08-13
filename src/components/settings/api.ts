@@ -29,6 +29,20 @@ export function resetSettingsField(workspace: string, field: SettingsField): Pro
   return invoke<EffectiveSettings>("settings_reset_field", { workspace, field });
 }
 
+// `default_workspace` is global-only; `workspace: null` clears it.
+export function setDefaultWorkspace(workspace: string | null): Promise<EffectiveSettings> {
+  return invoke<EffectiveSettings>("settings_set_default_workspace", { workspace });
+}
+
+// `workspace: null` sets the global default session; a workspace path sets
+// that workspace's override. `session: null` clears the value at that scope.
+export function setDefaultSession(
+  workspace: string | null,
+  session: string | null,
+): Promise<EffectiveSettings> {
+  return invoke<EffectiveSettings>("settings_set_default_session", { workspace, session });
+}
+
 export function listSettingsAuditEvents(): Promise<SettingsAuditEvent[]> {
   return invoke<SettingsAuditEvent[]>("settings_list_audit_events");
 }

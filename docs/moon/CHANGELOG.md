@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — Settings S3 standalone window (#129) (2026-08-13)
+
+- Added the approved standalone Settings window using Tauri's multiwindow
+  API: `src/lib/settingsWindow.ts` opens/focuses a single reusable
+  `"settings"` `WebviewWindow` (`index.html#/settings`), branched in
+  `src/main.tsx`. Reopening an already-open window `show()`s + `setFocus()`s
+  it rather than creating a duplicate — required because the app's global
+  `CloseRequested` handler hides windows instead of destroying them
+  (tray-resident behavior), so a plain `setFocus()` on a hidden window
+  would silently do nothing.
+- Added `src-tauri/capabilities/default.json` permissions
+  (`core:webview:allow-create-webview-window`, `core:window:allow-set-focus`)
+  needed for that window-creation call; neither is in Tauri's `core:default`
+  set. Added the `"settings"` window label to the existing capability.
+- Restored the header's Settings button in `src/App.tsx` (the prior review
+  scaffold had removed it) to call the new opener instead of toggling a
+  modal.
+- `src/components/settings/SettingsApp.tsx`: the window's root component —
+  WAI-ARIA `tablist`/`tab`/`tabpanel` with arrow-key/Home/End navigation,
+  dark glass-morphism styling, Escape-to-close. General and Workspace &
+  sessions tabs are real, backed by Settings S2 IPC end-to-end:
+  `default_workspace` (General; global-only, no per-workspace override
+  exists for "which workspace opens by default") and `default_session`
+  (Workspace & sessions; global default with a workspace override, full
+  Inherited/Workspace Override status pill and Reset to Global). Added a
+  Memory & storage tab for `backup_retention` as a low-risk bonus using
+  already-committed S2 IPC. Remaining tabs stay honest structural
+  placeholders pending S4/S5/S6 fields. A collapsible panel lists recent
+  settings-audit events end-to-end.
+- Extended `src-tauri/src/hub/commands/settings.rs` with
+  `settings_set_default_workspace` and `settings_set_default_session`
+  (registered in `lib.rs`) since the existing generic `settings_update`
+  patch can't express "clear an optional field back to unset" — these two
+  fields needed dedicated three-state (untouched/set/cleared) commands.
+- Verified with `cargo test -p hub --lib` (76/76, unaffected — no
+  settings-store code touched, only new Tauri commands calling existing
+  S1/S2/S4 store methods), `cargo clippy -p hub -p tauri-app --all-targets
+  -- -D warnings` clean, `cargo check --workspace` clean, `cargo fmt
+  --check` clean, `npx tsc --noEmit` clean, `npm run build` passes.
+
 ### Grok — Settings S4 profiles and harness configuration (#130) (2026-08-13)
 
 - Added global named `ProviderProfile` records to `settings.toml`

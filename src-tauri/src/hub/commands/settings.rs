@@ -114,6 +114,43 @@ pub fn settings_reset_field(
     Ok(store.effective(Some(&workspace)))
 }
 
+/// `default_workspace` is global-only (there is no per-workspace override of
+/// "which workspace opens by default"). `workspace: None` clears it.
+#[tauri::command]
+pub fn settings_set_default_workspace(
+    workspace: Option<String>,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    store
+        .set_default_workspace(workspace.as_deref())
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit("general.default_workspace", "global", "update")?;
+    Ok(store.effective(None))
+}
+
+/// `workspace: None` sets the global default session; `Some(path)` sets that
+/// workspace's override. `session: None` clears the value at that scope.
+#[tauri::command]
+pub fn settings_set_default_session(
+    workspace: Option<String>,
+    session: Option<String>,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    match workspace.as_deref() {
+        None => store
+            .set_default_session(session.as_deref())
+            .map_err(|e| e.to_string())?,
+        Some(ws) => store
+            .set_workspace_default_session(ws, session.as_deref())
+            .map_err(|e| e.to_string())?,
+    }
+    store.save().map_err(|e| e.to_string())?;
+    let scope = workspace.as_deref().unwrap_or("global");
+    record_settings_audit("general.default_session", scope, "update")?;
+    Ok(store.effective(workspace.as_deref()))
+}
+
 #[tauri::command]
 pub fn settings_list_audit_events() -> Result<Vec<hub::AuditEvent>, String> {
     super::store::open_store()?
