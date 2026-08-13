@@ -101,6 +101,21 @@ pub(crate) enum Command {
         #[arg(long)]
         delegate_to: Option<String>,
     },
+    /// Launch the keyboard-driven Ratatui terminal client (U7).
+    Tui {
+        /// Override the active workspace path for this invocation.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Override the active session ID for this invocation.
+        #[arg(long)]
+        session: Option<String>,
+        /// Persist the specified invocation workspace as the default workspace setting.
+        #[arg(long, requires = "workspace")]
+        set_as_default_workspace_settings: bool,
+        /// Persist the specified invocation session as the default session setting.
+        #[arg(long, requires = "session")]
+        set_as_default_session_settings: bool,
+    },
 }
 
 #[derive(Subcommand)]

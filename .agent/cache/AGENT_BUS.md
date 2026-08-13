@@ -59,7 +59,7 @@
 | Grok (team lead) | Persistent Settings epic #126 | Assign the seven approved Settings delivery slices #127–#133. Start with S1 (#127) only; do not overlap the settings store, IPC, separate-window UI, profile, policy, or dangerous-action boundaries. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
 | Grok (team lead) | Ratatui TUI epic #134 | Assign the approved TUI slices #135–#142. Start with T1 (#135); keep TUI crate/foundation, Hub read model, interaction preferences, orchestration UI, settings, owned PTYs, coherence, and acceptance boundaries separate. | See `docs/moon/roadmaps/ui.md`; Chat/Codex owns review/governance. |
 | Grok | Settings S1 #127 | Implement the versioned `settings.toml` store, atomic write/recovery, and configurable three-backup default. | Own settings-store modules only. Update `docs/moon/CHANGELOG.md`, `roadmaps/settings.md`, #127, and commit the scoped work before handoff. |
-| Gemini | TUI T1 #135 | Add the `crates/tui` foundation and `ca tui` entrypoint with safe terminal lifecycle and invocation-only selector flags. | Own `crates/tui`, Cargo workspace/CLI entrypoint changes only. Update changelog, `roadmaps/ui.md`, #135, and commit before handoff. |
+| Gemini | TUI T1 #135 | ✅ **Complete (In Review)** — Added `crates/tui` crate and `ca tui` entrypoint with safe terminal lifecycle and invocation-only selector flags. | Own `crates/tui`, Cargo workspace/CLI entrypoint changes only. Update changelog, `roadmaps/ui.md`, #135, and commit before handoff. |
 | Claude | Settings S2 #128 | Prepare/implement typed redacted settings IPC, scope resolution, and settings audit after Grok hands off S1. | Do not edit the settings-store implementation. Update changelog, `roadmaps/settings.md`, #128, and commit before handoff. |
 | Chat / Codex | Desktop crash recovery #143 — **Chat reserved** | Add and verify a top-level React error boundary so render errors show a recoverable local screen rather than a blank desktop window. | Own `src/main.tsx` and new error-boundary component only. Update changelog, `roadmaps/ui.md`, #143, and commit before handoff. |
 
@@ -179,6 +179,17 @@
 - **Still open:** Default `[tui]` color palette themes & automatic Unicode/ASCII fallback detection; narrow terminal viewport concurrency toast/banner layout.
 - **Suggested issue split (do not create yet):** Keep T1–T8 delivery slices; T3 incorporates prefix chord detach & hybrid keybindings; T4 incorporates CLI launch flags; T6 incorporates hybrid tabbed/tiled harness rendering.
 - All work left uncommitted. No GitHub issues created.
+
+— Gemini
+
+### Gemini — TUI T1 foundation completed (#135)
+
+- Implemented `crates/tui` crate and connected `ca tui` subcommand to `crates/cli` (U7 deliverable T1 / #135).
+- Created terminal lifecycle manager in `crates/tui/src/terminal.rs` with custom panic hook to guarantee terminal restoration (raw mode disabled, alternate screen exited, cursor shown) on exit or panic.
+- Added support for `--workspace <path>`, `--session <id>`, `--set-as-default-workspace-settings`, and `--set-as-default-session-settings` selector flags with strict validation.
+- Implemented Ratatui app runner (`crates/tui/src/app.rs`) displaying header status, tabbed navigation (Orchestrate, Chat & Memory, Shared Hub, Settings), workspace/session indicators, and footer keyboard controls.
+- **Verification:** `cargo test` passes 84 unit/integration tests across workspace crates (including `crates/tui/tests/options_test.rs`); `npm run build` passes.
+- **Changed files:** `Cargo.toml`, `Cargo.lock`, `crates/tui/*`, `crates/cli/Cargo.toml`, `crates/cli/src/app/mod.rs`, `crates/cli/src/command/mod.rs`, `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/ui.md`, `.agent/cache/AGENT_BUS.md`.
 
 — Gemini
 

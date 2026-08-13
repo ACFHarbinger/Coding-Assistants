@@ -1,0 +1,18 @@
+[package]
+name = "tui"
+version = "0.1.0"
+edition = "2021"
+description = "Coding-Assistants Ratatui TUI client library (U7)"
+license = "AGPL-3.0-only"
+
+[dependencies]
+hub = { path = "../hub" }
+ratatui = "0.29"
+crossterm = "0.28"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

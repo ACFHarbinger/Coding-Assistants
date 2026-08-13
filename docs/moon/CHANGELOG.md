@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — TUI T1 foundation (#135) (2026-08-13) [DRAFT]
+
+- Implemented `crates/tui` crate and `ca tui` subcommand entrypoint in `crates/cli` (U7 deliverable T1 / #135).
+- Created safe terminal lifecycle manager using Crossterm and Ratatui with a custom panic hook ensuring raw mode and alternate screen state are always cleanly restored on exit or panic.
+- Supported invocation selector flags `--workspace <path>`, `--session <id>`, `--set-as-default-workspace-settings`, and `--set-as-default-session-settings`, with strict validation and error feedback.
+- Rendered responsive Ratatui layout covering header status, tabbed navigation (Orchestrate, Chat & Memory, Shared Hub, Settings), active workspace/session indicators, and footer keyboard controls.
+
 ### Chat / Codex — desktop crash recovery boundary (#143) (2026-08-13) [DRAFT]
 
 - Wrapped the desktop React root in a top-level error boundary. A render failure

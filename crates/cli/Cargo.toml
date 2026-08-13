@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 hub = { path = "../hub" }
+tui = { path = "../tui" }
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive", "env"] }

@@ -4,4 +4,5 @@ members = [
     "src-tauri",
     "crates/hub",
     "crates/cli",
+    "crates/tui",
 ]

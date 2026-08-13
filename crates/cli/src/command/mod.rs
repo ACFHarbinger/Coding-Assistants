@@ -10,7 +10,7 @@ use hub::{
 };
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
-    let home = cli.home.unwrap_or_else(default_home);
+    let home = cli.home.clone().unwrap_or_else(default_home);
     let store = HubStore::open(&home)?;
 
     match cli.command {
@@ -476,6 +476,21 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
                 delegate_to.as_deref(),
             )?;
             println!("{}", serde_json::to_string_pretty(&outcome)?);
+        }
+        Command::Tui {
+            workspace,
+            session,
+            set_as_default_workspace_settings,
+            set_as_default_session_settings,
+        } => {
+            let options = tui::TuiOptions {
+                home: cli.home,
+                workspace,
+                session,
+                set_as_default_workspace_settings,
+                set_as_default_session_settings,
+            };
+            tui::run(options)?;
         }
     }
     Ok(())
