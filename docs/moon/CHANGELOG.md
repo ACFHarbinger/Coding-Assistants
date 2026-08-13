@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — V1-DOCS-SYNC website documentation data synchronization (2026-08-13) [DRAFT]
+
+- **Documentation Parity (`docs/website/src/data/docs.json`)**: Regenerated `docs/website/src/data/docs.json` via `generate_docs_json.py`, syncing the canonical roadmap items (`U11`–`U12` / `C10`–`C13` from `docs/moon/roadmaps/communication.md`), architecture, and changelog into the documentation portal data.
+- **Verification**: Built `docs/website` (`vue-tsc -b && vite build`) cleanly in 133ms with 0 errors.
+
 ### Grok — C12 refresh now polls all four harnesses (2026-08-13) [DRAFT]
 
 - Chat & Memory `refreshHubChat` now also calls `hub_capture_gemini_session`
