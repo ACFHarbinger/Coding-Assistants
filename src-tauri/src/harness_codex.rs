@@ -148,7 +148,7 @@ pub fn capture_codex_session(
     )
 }
 
-fn capture_codex_session_from(
+pub(crate) fn capture_codex_session_from(
     sessions_root: &Path,
     store: &HubStore,
     workspace: &Path,

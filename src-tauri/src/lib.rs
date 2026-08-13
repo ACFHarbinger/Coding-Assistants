@@ -1,5 +1,6 @@
 mod agents;
 mod file_tools;
+mod harness_c12;
 mod harness_claude;
 mod harness_cmds;
 mod harness_codex;

@@ -9,8 +9,9 @@ mod harness;
 mod store;
 
 pub use harness::{
-    grok_spawn_args, inject_harness, start_harness, HarnessId, HarnessInjectRequest,
-    HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
+    start_harness, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
+    HarnessStartResult,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,

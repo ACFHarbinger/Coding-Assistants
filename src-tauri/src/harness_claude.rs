@@ -26,7 +26,7 @@ fn claude_home() -> PathBuf {
 
 /// Mirrors the official `claude` CLI's own project-directory naming: the
 /// absolute workspace path with every `/` replaced by `-`.
-fn encode_workspace_dir_name(workspace: &Path) -> String {
+pub(crate) fn encode_workspace_dir_name(workspace: &Path) -> String {
     workspace.to_string_lossy().replace('/', "-")
 }
 
@@ -151,7 +151,7 @@ pub fn capture_claude_session(
     )
 }
 
-fn capture_claude_session_from(
+pub(crate) fn capture_claude_session_from(
     projects_dir: &Path,
     store: &HubStore,
     workspace: &Path,

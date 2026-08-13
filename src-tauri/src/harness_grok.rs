@@ -17,7 +17,7 @@ fn grok_home() -> PathBuf {
 
 /// Matches Grok's session-folder naming: percent-encode the absolute
 /// workspace with no safe characters (`/` → `%2F`).
-fn encode_workspace_dir_name(workspace: &Path) -> String {
+pub(crate) fn encode_workspace_dir_name(workspace: &Path) -> String {
     workspace
         .to_string_lossy()
         .bytes()
@@ -113,7 +113,7 @@ pub fn capture_grok_session(
     )
 }
 
-fn capture_grok_session_from(
+pub(crate) fn capture_grok_session_from(
     sessions_root: &Path,
     store: &HubStore,
     workspace: &Path,
