@@ -30,7 +30,8 @@
 //!   this process never decides on its own.
 
 use hub::{
-    get_permission_request, poll_channel_events, record_channel_reply, record_permission_request,
+    delete_channel_workspace, get_permission_request, list_channel_workspaces, poll_channel_events,
+    record_channel_reply, record_permission_request, rename_channel_workspace,
     setup_claude_channel, HubStore, PermissionVerdict,
 };
 use serde_json::{json, Value};
@@ -45,11 +46,66 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("--setup") {
-        run_setup(&args[1..]);
-    } else {
-        run_server(&args);
+    match args.first().map(String::as_str) {
+        Some("--setup") => run_setup(&args[1..]),
+        Some("--list") => run_list(),
+        Some("--rename") => run_rename(&args[1..]),
+        Some("--delete") => run_delete(&args[1..]),
+        _ => run_server(&args),
     }
+}
+
+/// Every workspace previously configured for a Channel bridge — the same
+/// registry a future Shared Hub panel reads through the Tauri commands in
+/// `src-tauri/src/harness/commands.rs`.
+fn run_list() {
+    let store = HubStore::open(hub::default_hub_home()).expect("open Hub store");
+    match list_channel_workspaces(&store) {
+        Ok(workspaces) if workspaces.is_empty() => {
+            println!("No workspaces configured yet. Run --setup --workspace <abs path> first.");
+        }
+        Ok(workspaces) => {
+            for workspace in workspaces {
+                println!("{}\t{}", workspace.display_name, workspace.workspace);
+            }
+        }
+        Err(error) => {
+            eprintln!("failed to list Channel workspaces: {error}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn run_rename(args: &[String]) {
+    let workspace = canonical_workspace_arg(args);
+    let Some(name) = args
+        .windows(2)
+        .find(|pair| pair[0] == "--name")
+        .map(|pair| pair[1].clone())
+    else {
+        eprintln!("--rename requires --workspace <abs path> --name <new display name>");
+        std::process::exit(1);
+    };
+    let store = HubStore::open(hub::default_hub_home()).expect("open Hub store");
+    if let Err(error) = rename_channel_workspace(&store, &workspace, &name) {
+        eprintln!("failed to rename: {error}");
+        std::process::exit(1);
+    }
+    println!("Renamed {} to \"{name}\".", workspace.display());
+}
+
+fn run_delete(args: &[String]) {
+    let workspace = canonical_workspace_arg(args);
+    let store = HubStore::open(hub::default_hub_home()).expect("open Hub store");
+    if let Err(error) = delete_channel_workspace(&store, &workspace) {
+        eprintln!("failed to delete: {error}");
+        std::process::exit(1);
+    }
+    println!(
+        "Removed the Channel configuration for {}. Its own .mcp.json is untouched \
+         — remove the \"coding-assistants-channel\" entry there yourself if you no longer want it.",
+        workspace.display()
+    );
 }
 
 fn workspace_arg(args: &[String]) -> PathBuf {
@@ -59,11 +115,15 @@ fn workspace_arg(args: &[String]) -> PathBuf {
         .unwrap_or_else(|| std::env::current_dir().expect("current directory"))
 }
 
-fn run_setup(args: &[String]) {
+/// Registrations are keyed by the canonicalized path (see `run_setup`), so
+/// every command that looks one up must resolve the same way.
+fn canonical_workspace_arg(args: &[String]) -> PathBuf {
     let requested = workspace_arg(args);
-    let workspace = requested
-        .canonicalize()
-        .unwrap_or_else(|_| requested.clone());
+    requested.canonicalize().unwrap_or(requested)
+}
+
+fn run_setup(args: &[String]) {
+    let workspace = canonical_workspace_arg(args);
     let store = HubStore::open(hub::default_hub_home()).expect("open Hub store");
     let bridge_binary = std::env::current_exe().expect("resolve this binary's own path");
 

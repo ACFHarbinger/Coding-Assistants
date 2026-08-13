@@ -1,5 +1,5 @@
 [package]
-name = "claude-channel"
+name = "claude"
 version = "0.1.0"
 edition = "2021"
 description = "C14.3: opt-in Claude Code Channel MCP bridge for Coding-Assistants"

@@ -1,4 +1,4 @@
-# `claude-channel`
+# `claude`
 
 C14.3: an **opt-in**, two-way Coding-Assistants bridge for Claude Code's
 documented, research-preview `claude/channel` MCP capability
@@ -38,15 +38,45 @@ control socket.
 ## Setup (per workspace, explicit opt-in)
 
 ```bash
-cargo build -p claude-channel
+cargo build -p claude
 ./target/debug/coding-assistants-claude-channel --setup --workspace /abs/path/to/workspace
 ```
 
 This registers `claude` as a Hub-**managed** harness session for that
 workspace (so the existing C14.1 single-writer lease applies to it like
-any other managed provider) and writes/merges a `coding-assistants-channel`
-entry into that workspace's `.mcp.json`, without touching any other server
-already configured there.
+any other managed provider), and writes two things:
+
+- The canonical, **app-owned** copy at
+  `~/.coding-assistants/servers/<repo-dir-name>-<hash>.mcp.json` — this is
+  the durable record `--list`/`--rename`/`--delete` and the Shared Hub
+  "Channels" tab all read/write. It survives the repository being deleted
+  or re-cloned.
+- The one file Claude Code itself actually reads:
+  `<workspace>/.mcp.json`, with the `coding-assistants-channel` entry
+  merged in (never touching any other server already configured there).
+  That entry is also merged from
+  `~/.coding-assistants/servers/global.mcp.json` — any server you add
+  there gets layered into every workspace's config on its next `--setup`.
+
+`.mcp.json` is git-ignored by this repository (it embeds a machine-local
+absolute binary path); don't commit it.
+
+### Managing configured workspaces
+
+```bash
+./target/debug/coding-assistants-claude-channel --list
+./target/debug/coding-assistants-claude-channel --rename --workspace /abs/path --name "Friendly name"
+./target/debug/coding-assistants-claude-channel --delete --workspace /abs/path
+```
+
+`--delete` removes the canonical config and downgrades the workspace's
+Hub registration back to `observed` — it does **not** touch the
+workspace's own `.mcp.json`; remove the `coding-assistants-channel` entry
+there yourself if you no longer want Claude Code to load it. The same
+three operations are available from the desktop app's Shared Hub →
+Channels tab (`claude_channel_list_workspaces` /
+`claude_channel_rename_workspace` / `claude_channel_delete_workspace`
+Tauri commands).
 
 Then, in that workspace:
 
@@ -78,7 +108,7 @@ over stdio) plus Claude Code's two documented experimental capabilities:
 ## Tests
 
 ```bash
-cargo test -p claude-channel   # pure helpers: config merge, tool schema, response shaping
+cargo test -p claude   # pure helpers: config merge, tool schema, response shaping
 cargo test -p hub -- claude_channel::  # Hub-side gate, reply routing, and permission lifecycle
 ```
 
