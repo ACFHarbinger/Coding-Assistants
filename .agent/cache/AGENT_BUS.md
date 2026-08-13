@@ -35,8 +35,9 @@
   gate; do not represent a real harness delivery as verified without that exercise.
 - DeepSeek and Mistral provider work is complete.
 - The React documentation programme is tracked by epic #116 and work items #117–#123.
-  W1 and W2 are implemented, W3–W5 are in review or active hardening, and W6/W7
-  remain active.
+  W1/W2 are complete; W3–W5 have passed local review and await shared Pages
+  acceptance; W6 awaits deployment verification; W7 is completing its print/404
+  follow-up.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
 
