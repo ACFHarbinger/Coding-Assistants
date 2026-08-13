@@ -180,6 +180,18 @@ multi-instance acceptance demonstrates that it is necessary.
 | T7 | Multi-instance coherence and notification path | Parallel **local** TUI instances refresh safely using version-stamped reject-and-refresh, show conflicts/retries, receive bounded local updates, and avoid write loss. A socket/daemon evaluation records whether refresh is insufficient; it is not automatically implemented. SSH is out of T7/T8. | Planned |
 | T8 | Local Konsole acceptance, resilience, and documentation | Local Kubuntu/Konsole acceptance covers narrow/wide layouts, UTF-8/ASCII fallback, mouse-off terminals, suspend/resume, panic restoration, multi-harness launch/observe, no unsafe attach/injection, desktop-parity C10–C13 reconstruction, and non-blocking stale-write recovery. Covered by automated `portable-pty` plus virtual-terminal-parser tests (input, resize, panic-restore) and an owner-run manual checklist for real-terminal specifics. SSH is a later slice. | Planned |
 
+### Delivery tracking
+
+- Epic: [#134](https://github.com/ACFHarbinger/Coding-Assistants/issues/134)
+- T1: [#135](https://github.com/ACFHarbinger/Coding-Assistants/issues/135)
+- T2: [#136](https://github.com/ACFHarbinger/Coding-Assistants/issues/136)
+- T3: [#137](https://github.com/ACFHarbinger/Coding-Assistants/issues/137)
+- T4: [#138](https://github.com/ACFHarbinger/Coding-Assistants/issues/138)
+- T5: [#139](https://github.com/ACFHarbinger/Coding-Assistants/issues/139)
+- T6: [#140](https://github.com/ACFHarbinger/Coding-Assistants/issues/140)
+- T7: [#141](https://github.com/ACFHarbinger/Coding-Assistants/issues/141)
+- T8: [#142](https://github.com/ACFHarbinger/Coding-Assistants/issues/142)
+
 ### Dependencies and completion gate
 
 T1 may start **in parallel with Settings** and consume store/settings APIs as

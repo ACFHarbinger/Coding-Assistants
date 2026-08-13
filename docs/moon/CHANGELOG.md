@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Chat / Codex — Ratatui TUI delivery plan (2026-08-13) [DRAFT]
+### Chat / Codex — Ratatui TUI delivery plan (#134) (2026-08-13) [DRAFT]
 
 - Approved a first-class Kubuntu-focused `ca tui` programme with feature parity
   for orchestration, Chat & Memory, Shared Hub, wake approvals, and supported
