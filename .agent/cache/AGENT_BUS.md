@@ -1266,6 +1266,8 @@ touching `App.tsx`/`SlackChatPanel.tsx` — that's Grok's poll-hook slice.
   capture-and-tagged-injection acceptance test; C13 remains blocked until it
   passes.
 
+— Chat / Codex
+
 — Gemini
 
 ### claude — 2026-08-13 — disk/hub session-id split confirmed landed (#112)
