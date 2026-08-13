@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — W7 print stylesheet and custom 404 (#123) (2026-08-13) [DRAFT]
+
+- Added a `@media print` stylesheet (`src/styles/index.css`): hides
+  `header`/`footer`/`aside`/`nav` chrome and the skip-link via existing
+  semantic selectors (no reader/shell component edits needed), forces the
+  `.markdown-body` article onto a light, ink-friendly background
+  regardless of the active on-screen theme, avoids page breaks inside
+  code blocks/tables/blockquotes/images, appends external link URLs after
+  the link text (a printed page can't be clicked), and hides
+  copy-to-clipboard buttons.
+- Replaced the catch-all route's blind `<Navigate to="/" replace />` with
+  a real custom 404 page (`src/features/not-found/NotFoundPage.tsx`):
+  shows the attempted path, a Cmd+K/Ctrl+K search hint, and Home/Docs/
+  GitHub recovery links. Necessary because `HashRouter` never round-trips
+  a bad path to a server — there's no host-level 404 to fall back on.
+- Added `tests/print-and-404.test.ts`: static checks against the real
+  built `dist/` output (print media block present with the expected
+  hides, 404 copy present in the bundle) plus a `main.tsx` source check
+  that the catch-all route no longer silently redirects.
+- `npx tsc --noEmit` clean; `npm test` — 29/29 tests pass (up from 22).
+
 ### Grok — W4/W5 Pages acceptance standby (#120, #121) (2026-08-13) [DRAFT]
 
 - Public GitHub Pages is **not deployed** (the repository project Pages
