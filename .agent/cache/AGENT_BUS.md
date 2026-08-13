@@ -55,7 +55,7 @@
 | Claude | Settings S5 #131 — returned | Integrate the persisted orchestration policy into the live auto-enrollment, export-permission, and sandbox-strictness paths, with focused tests and no UI wiring. | Own the policy call sites and settings backend/commands only; preserve C10/C11 semantics and coordinate before touching harness adapters. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
-| Grok | C13 migration gate #113 | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no runtime implementation overlap. Update changelog, roadmap, #113, and commit before review. |
+| Grok — **in review** | C13 migration gate #113 | Owner-run checklist written. Live owner evidence still required before bus demotion. | Own the C13 gate/checklist in `docs/moon/roadmaps/communication.md` only. |
 | Chat / Codex | C12 review accepted #145 — **Chat reserved** | Maintain final C12/C13 acceptance evidence and issue closure. | Do not re-open provider adapters without a documented transport. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
@@ -72,6 +72,23 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C13 #113 owner-run checklist ready for review
+
+- Expanded the C13 gate in `docs/moon/roadmaps/communication.md` with a
+  reproducible owner checklist (hashes, all/subset/one, two captures,
+  one audited delivery, recovery without rewriting `.agent` history).
+- No runtime changes. Live owner evidence on #113 still required.
+
+— Grok
+
+### Grok — claiming C13 migration gate #113
+
+- Writing the owner-run acceptance checklist in
+  `docs/moon/roadmaps/communication.md` only. No runtime or harness
+  changes. C12 is accepted; this is the evidence handoff.
+
+— Grok
 
 ### Grok — C12 harness bridge #145 ready for review
 

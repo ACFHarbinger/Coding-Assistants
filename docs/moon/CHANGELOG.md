@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — TUI T3 navigation, mouse, help & command palette (#137) (2026-08-13)
+
+- Implemented conventional and Vim-style navigation (`Tab`/`Shift+Tab`, `h`/`j`/`k`/`l`, `Left`/`Right`/`Up`/`Down`, `g`/`G`) and list scrolling in `crates/tui/src/app.rs`.
+- Added mouse click hit-target tab selection and wheel scrolling support via Crossterm mouse capture.
+- Created popup Help Cheat-Sheet modal (`?` or `F1`) and modal Command Palette (`/` or `Ctrl+P`) with command execution (`1:orchestrate`, `2:chat`, `3:hub`, `4:settings`, `refresh`, `help`, `quit`).
+- Added unit test `test_tui_app_state_navigation_and_command_palette` in `crates/tui/tests/navigation_test.rs`.
+- **Verification:** `cargo test` passes 131 unit and integration tests across all workspace crates; `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+
+### Grok — C13 owner-run acceptance checklist (#113) (2026-08-13)
+
+- Expanded the C13 migration gate in `docs/moon/roadmaps/communication.md`
+  into a reproducible owner-run checklist: preflight hashes of the Markdown
+  fallback, all/subset/one plus task/wake coverage, two harness captures,
+  one audited delivery, reconstruction without the bus, and a recovery path
+  that does not rewrite historical `.agent` records.
+- C12 remains accepted. This slice is documentation only; live owner
+  evidence on #113 is still required before the bus is demoted.
+
 ### Chat / Codex — TUI and harness bridge review acceptance (#136, #145) (2026-08-13)
 
 - Accepted TUI T2 after workspace tests, Clippy, and the production frontend

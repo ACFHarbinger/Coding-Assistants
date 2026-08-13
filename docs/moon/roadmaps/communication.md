@@ -18,9 +18,11 @@ communication is reliable.
 | C10 | Session addressing: all, subset, or one | Human and any enrolled agent can send a session message to every member, a named subset, or a single member. Non-targets are not woken or tasked. The session transcript records the explicit `to` list. | 🚧 **In Review** · session sends persist an exact recipient set by subject and reject non-members server-side; Chat & Memory routes all/subset/one through typed session/tagged commands. Agent-harness posting parity remains C12. |
 | C11 | Task vs wake message tags | A message may be tagged **task**, **wake**, both, or neither. **Wake** may launch a new harness instance of that identity and enroll it in the session team. **Task** must target an already-enrolled, currently present member and is refused (no spawn) otherwise. Agents can apply the same tags through the hub API/CLI. | 🚧 **In Review** · `HubStore::send_tagged_message` + `hub_send_tagged_message` + `ca msg tag` enforce task-refuse and wake-enroll. Presence is team membership plus session membership when a session is given. A wake enrolls a missing team or session member. Mixed tags still refuse the whole recipient when the task check fails. Each recipient gets a durable `SendOutcome` including `policy_decision`. Untagged `ca msg send` / `hub_send_message` cannot use kind `wake`. |
 | C12 | Bidirectional harness capture and inject | The app captures messages agents send inside Grok/Chat/Claude/Gemini harnesses into the session transcript. Hub messages tagged task and/or wake are injected into the target harness so the agent executes them. Builds on C9. | ✅ **Done** · #145. Capture polls all four. Grok task delivery uses the registered ACP leader path. Codex/Chat task delivery uses documented `codex app-server` `thread/resume` + `turn/start` when a persisted thread is registered or found on disk; otherwise `unavailable` and queued. Claude and Gemini capture/discovery are real; their control transports stay `unavailable` and queued. Task-only inject never spawns a replacement process. No PTY writes or fabricated sockets. Wake may still spawn. |
-| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · execute the explicit migration gate below only after C12 passes live acceptance; preserve the bus as a read-only fallback until then. |
+| C13 | Hub replaces the per-repo markdown bus | A full assign/review/task/wake loop completes with no writes to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`. Those files stay as a fallback until C10–C12 ship. `.agent` prompts/rules/skills remain resources, not the live protocol. | 📋 **Planned** · C12 accepted (#145). Owner-run checklist below is ready. Live owner evidence is still required before the Markdown bus is demoted. |
 
 ### C13 migration gate
+
+The five completion conditions are unchanged:
 
 1. **Preflight:** C10–C12 have passed their live acceptance checks; create or
    load a named work session with a recorded workspace and enrolled team.
@@ -38,6 +40,98 @@ communication is reliable.
 5. **Completion:** attach the acceptance evidence to #113, update the
    changelog/roadmaps and Project 21, then demote the Markdown bus to
    documented read-only fallback rather than removing it.
+
+#### Owner-run checklist (2026-08-13)
+
+Use this on Kubuntu against a real repository (for example this checkout or
+Project-Mobile-Fortress). Do **not** treat automated C12 fixture tests as
+this gate. Record every answer on #113. Stop and use the Recovery step if a
+required delivery path is missing.
+
+**Known transport truth (C12 accepted):** Grok task inject uses a registered
+ACP leader socket. Chat/Codex task inject uses documented `codex app-server`
+`thread/resume` + `turn/start` when a persisted thread is registered or found
+on disk. Claude and Gemini **capture** from disk; their **task inject** stays
+`unavailable` and queued. A **wake** may spawn via explicit argv. A **task**
+never spawns a replacement process.
+
+##### A. Preflight (gate 1)
+
+1. Confirm C12 #145 is accepted. Do not start if adapters were reopened.
+2. Snapshot the Markdown fallback (do not edit these files during the run):
+   ```bash
+   sha256sum .agent/cache/AGENT_BUS.md
+   find .agent/messages -type f -print0 | sort -z | xargs -0 sha256sum
+   ```
+   Attach the hashes to #113 as **before**.
+3. Desktop: Orchestrate → set an **absolute Workspace Root** → enroll at least
+   `human`, `grok`, and `chat` (plus Claude/Gemini if they will only capture).
+4. **Create team chat** or **Load team chat**. Confirm the header shows that
+   named session and workspace.
+5. Optional but recommended for inject: register live sessions
+   (`hub_register_harness_session` / Orchestrate discovery) so Grok has a
+   leader socket and Codex has a `diskSessionId` thread id.
+
+##### B. Hub-native run (gate 2)
+
+Use Chat & Memory on the named session. Composer: all / subset / one, plus
+**task**, **wake**, both, or neither. Send is explicit.
+
+| Step | Address | Tags | Expected durable result |
+| --- | --- | --- | --- |
+| B1 | **all** enrolled members | neither | One recipient set; no spawn; non-targets not tasked |
+| B2 | **subset** (two members) | **task** | Each present member accepted; absent refused; `policy_decision` recorded; **no spawn** |
+| B3 | **one** (a present member) | **wake** or task+wake | Wake may enroll/spawn per policy; task still refuses if not present |
+| B4 | **one** unsupported inject (Claude or Gemini) | **task** | Inject status `unavailable` or `queued`; message remains in the session inbox |
+
+Then:
+
+6. From at least **two** harnesses, produce a real assistant reply in that
+   workspace (Grok and Codex are the supported inject pair; Claude/Gemini
+   count if their on-disk transcript is captured).
+7. Refresh/capture into the same session until two harness-originated
+   messages appear in the session channel.
+8. Confirm one B2/B3 delivery left a `SendOutcome` (`accepted` /
+   `wake_enrolled` / `wake_denied_*` / `task_refused_not_present`) and, if
+   injected, a `HarnessInjectResult` of `delivered` or truthful
+   `unavailable`.
+
+##### C. Reconstruction (gate 3)
+
+Independently, without opening `AGENT_BUS.md` as the source of truth:
+
+9. Session transcript shows B1–B3 assignment text, recipient badges, and the
+   two harness results.
+10. `tagged_send_outcomes` / UI outcome list matches the intended `to` set.
+11. Audit / journal shows the human send and any wake-policy decision.
+12. Re-hash the fallback files from step 2. **Pass only if every hash is
+    unchanged.** A write to `.agent/cache/AGENT_BUS.md` or `.agent/messages/*`
+    fails the gate.
+
+##### D. Recovery (gate 4) — only if B or C fails
+
+13. Record the failure in the Hub (outcome reason, inject `unavailable`
+    detail, or a human note in the session). Do not invent a delivered
+    harness result.
+14. Resume coordination on the existing Markdown bus. Do **not** delete,
+    rewrite, or silently import historical `.agent/messages/*` or
+    `AGENT_BUS.md` into the Hub.
+
+##### E. Completion (gate 5)
+
+15. Attach to #113: before/after hashes, session id, recipient lists for
+    B1–B3, two harness capture message ids, one inject/outcome record,
+    and a short reconstruction narrative.
+16. Chat/Codex updates changelog, this roadmap, and Project 21, then
+    demotes the Markdown bus to documented **read-only fallback**. Do not
+    remove the files.
+
+**Pass:** steps A–C and E complete, hashes unchanged, two harness results
+in the named session, one audited task or wake delivery.
+
+**Fail:** any Markdown-bus write during the run; task-only spawn; fabricated
+delivery; fewer than two harness-originated session messages; missing
+all/subset/one coverage.
 
 **2026-08-12:** CA-102 adds bounded, exact channel queries to the shared
 store, CLI, and Tauri API (`channel:<name>` plus colon-delimited metadata).
