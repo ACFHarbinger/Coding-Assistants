@@ -4,7 +4,9 @@
 use super::quota_claude::{claude_home, claude_quota};
 use super::quota_codex::now_unix;
 use super::quota_grok::{grok_home, grok_quota, grok_token_from_auth, grok_windows_from_value};
+use super::settings::*;
 use super::{memory::*, messaging::*, store::open_store};
+use hub::{HarnessSettings, ProviderProfile, SecretReference};
 use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
@@ -398,4 +400,91 @@ fn grok_quota_is_well_formed_when_logged_in() {
         }
         other => panic!("unexpected status: {other}"),
     }
+}
+
+#[test]
+fn settings_profile_and_harness_commands_are_redacted_and_durable() {
+    let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join(format!(
+        "hub-tauri-settings-s4-{}-{}",
+        std::process::id(),
+        now_unix()
+    ));
+    std::env::set_var("CA_HOME", &dir);
+
+    let listed = settings_upsert_profile(ProviderProfile {
+        name: "work".into(),
+        provider: "grok".into(),
+        model: Some("grok-4".into()),
+        base_url: Some("https://api.x.ai".into()),
+        secret: SecretReference::EnvVar {
+            name: "XAI_API_KEY".into(),
+        },
+    })
+    .expect("upsert profile");
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].secret_badge, "Env Var $XAI_API_KEY");
+    let encoded = serde_json::to_string(&listed[0]).unwrap();
+    assert!(!encoded.to_ascii_lowercase().contains("sk-"));
+    assert!(!encoded.contains("Bearer"));
+
+    let renamed = settings_rename_profile("work".into(), "office".into()).expect("rename");
+    assert_eq!(renamed[0].name, "office");
+
+    let effective =
+        settings_set_workspace_default_profile("/abs/repo".into(), "grok".into(), "office".into())
+            .expect("select default profile");
+    let grok = effective
+        .harnesses
+        .iter()
+        .find(|entry| entry.harness == "grok")
+        .expect("grok harness");
+    assert_eq!(grok.default_profile.as_deref(), Some("office"));
+    assert_eq!(
+        grok.default_profile_badge.as_deref(),
+        Some("Env Var $XAI_API_KEY")
+    );
+
+    let harness = settings_update_harness(HarnessSettings {
+        harness: "grok".into(),
+        executable: "/usr/bin/grok".into(),
+        workdir: Some("/abs/ws".into()),
+        capture_polling: false,
+        inject_permission: true,
+    })
+    .expect("update harness");
+    assert_eq!(harness.executable, "/usr/bin/grok");
+    assert!(!harness.capture_polling);
+
+    let listed_harnesses =
+        settings_list_harnesses(Some("/abs/repo".into())).expect("list harnesses");
+    assert!(listed_harnesses.iter().any(|entry| entry.harness == "grok"));
+
+    settings_reset_workspace_default_profile("/abs/repo".into(), "grok".into())
+        .expect("reset default profile");
+    settings_remove_profile("office".into()).expect("remove profile");
+    assert!(settings_list_profiles()
+        .expect("list after remove")
+        .is_empty());
+
+    let rejected = settings_upsert_profile(ProviderProfile {
+        name: "bad".into(),
+        provider: "grok".into(),
+        model: Some("sk-secret".into()),
+        base_url: None,
+        secret: SecretReference::ProviderLogin,
+    });
+    assert!(rejected.is_err(), "{rejected:?}");
+
+    let rejected_shell = settings_update_harness(HarnessSettings {
+        harness: "grok".into(),
+        executable: "grok && rm -rf /".into(),
+        workdir: None,
+        capture_polling: true,
+        inject_permission: true,
+    });
+    assert!(rejected_shell.is_err(), "{rejected_shell:?}");
+
+    std::env::remove_var("CA_HOME");
+    let _ = std::fs::remove_dir_all(&dir);
 }

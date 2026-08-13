@@ -6,11 +6,57 @@ export type SettingsFieldStatus = "inherited" | "override";
 // Mirrors `hub::SettingsField`.
 export type SettingsField = "backup_retention" | "default_workspace" | "default_session";
 
+// Mirrors `hub::SecretSourceKind`. Never a credential value.
+export type SecretSourceKind = "keychain" | "env_var" | "provider_login";
+
+// Mirrors `hub::SecretReference`. Keychain ids and env-var *names* only.
+export type SecretReference =
+  | { kind: "keychain"; id: string }
+  | { kind: "env_var"; name: string }
+  | { kind: "provider_login" };
+
+// Mirrors `hub::ProfileSnapshot`.
+export interface ProfileSnapshot {
+  name: string;
+  provider: string;
+  model: string | null;
+  base_url: string | null;
+  secret_source: SecretSourceKind;
+  secret_badge: string;
+}
+
+// Mirrors `hub::ProviderProfile` for upsert. No secret value field exists.
+export interface ProviderProfile {
+  name: string;
+  provider: string;
+  model: string | null;
+  base_url: string | null;
+  secret: SecretReference;
+}
+
+// Mirrors `hub::HarnessSettings`.
+export interface HarnessSettings {
+  harness: string;
+  executable: string;
+  workdir: string | null;
+  capture_polling: boolean;
+  inject_permission: boolean;
+}
+
+// Mirrors `hub::EffectiveHarnessSettings`.
+export interface EffectiveHarnessSettings {
+  harness: string;
+  executable: string;
+  workdir: string | null;
+  capture_polling: boolean;
+  inject_permission: boolean;
+  default_profile: string | null;
+  default_profile_status: SettingsFieldStatus;
+  default_profile_badge: string | null;
+}
+
 // Mirrors `hub::EffectiveSettings`. Global defaults merged with an optional
 // workspace override; never carries a filesystem path or a secret value.
-// `profiles`/`harnesses` are Settings S4 (#130) scope — not read by the S3
-// General/Workspace & sessions tabs, kept loosely typed here on purpose so
-// this file doesn't need to track that in-flight shape.
 export interface EffectiveSettings {
   schema_version: number;
   workspace: string | null;
@@ -20,8 +66,8 @@ export interface EffectiveSettings {
   default_workspace_status: SettingsFieldStatus;
   default_session: string | null;
   default_session_status: SettingsFieldStatus;
-  profiles?: unknown[];
-  harnesses?: unknown[];
+  profiles: ProfileSnapshot[];
+  harnesses: EffectiveHarnessSettings[];
 }
 
 // Partial update sent to `settings_update`. `undefined` fields are left

@@ -1,6 +1,10 @@
 import { invoke } from "../../lib/tauri";
 import type {
+  EffectiveHarnessSettings,
   EffectiveSettings,
+  HarnessSettings,
+  ProfileSnapshot,
+  ProviderProfile,
   SettingsAuditEvent,
   SettingsField,
   SettingsLoadStatus,
@@ -45,4 +49,50 @@ export function setDefaultSession(
 
 export function listSettingsAuditEvents(): Promise<SettingsAuditEvent[]> {
   return invoke<SettingsAuditEvent[]>("settings_list_audit_events");
+}
+
+export function listSettingsProfiles(): Promise<ProfileSnapshot[]> {
+  return invoke<ProfileSnapshot[]>("settings_list_profiles");
+}
+
+export function upsertSettingsProfile(profile: ProviderProfile): Promise<ProfileSnapshot[]> {
+  return invoke<ProfileSnapshot[]>("settings_upsert_profile", { profile });
+}
+
+export function renameSettingsProfile(from: string, to: string): Promise<ProfileSnapshot[]> {
+  return invoke<ProfileSnapshot[]>("settings_rename_profile", { from, to });
+}
+
+export function removeSettingsProfile(name: string): Promise<ProfileSnapshot[]> {
+  return invoke<ProfileSnapshot[]>("settings_remove_profile", { name });
+}
+
+export function setWorkspaceDefaultProfile(
+  workspace: string,
+  harness: string,
+  profile: string,
+): Promise<EffectiveSettings> {
+  return invoke<EffectiveSettings>("settings_set_workspace_default_profile", {
+    workspace,
+    harness,
+    profile,
+  });
+}
+
+export function resetWorkspaceDefaultProfile(
+  workspace: string,
+  harness: string,
+): Promise<EffectiveSettings> {
+  return invoke<EffectiveSettings>("settings_reset_workspace_default_profile", {
+    workspace,
+    harness,
+  });
+}
+
+export function listSettingsHarnesses(workspace: string | null = null): Promise<EffectiveHarnessSettings[]> {
+  return invoke<EffectiveHarnessSettings[]>("settings_list_harnesses", { workspace });
+}
+
+export function updateSettingsHarness(settings: HarnessSettings): Promise<HarnessSettings> {
+  return invoke<HarnessSettings>("settings_update_harness", { settings });
 }

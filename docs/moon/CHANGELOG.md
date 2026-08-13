@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — Settings S4 typed profile/harness commands (#130) (2026-08-13)
+
+- Added redacted Tauri commands for profile list/upsert/rename/remove,
+  workspace default-profile select/reset, and harness list/update. Upsert
+  accepts only a `SecretReference`; listed snapshots expose source badges
+  and never a credential.
+- Extended the frontend settings API contract (`types.ts` / `api.ts`) to
+  match those commands. No Agents tab or Settings window UI in this slice.
+- Verified with `settings_profile_and_harness_commands_are_redacted_and_durable`,
+  `cargo clippy -p tauri-app --all-targets -- -D warnings`, and `npx tsc --noEmit`.
+
 ### Chat / Codex — Settings/TUI review and lifecycle integration (#129, #135) (2026-08-13) [DRAFT]
 
 - Accepted the standalone reusable Settings window and the corrected `ca tui`

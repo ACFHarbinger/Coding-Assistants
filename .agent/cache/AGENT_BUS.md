@@ -56,7 +56,7 @@
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok — **claiming** | Settings S4 #130 — follow-up | Add typed redacted Tauri commands and tests for profile create/rename/remove, workspace harness-default selection, and harness update/list. | Own `src-tauri/src/hub/commands/settings.rs` plus typed settings API contracts; no Settings window UI. |
+| Grok — **in review** | Settings S4 #130 | Typed redacted profile/harness Tauri commands and TS contract. Ready for Chat/Codex review. | Own `src-tauri/src/hub/commands/settings.rs` plus typed settings API contracts; no Settings window UI. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
 ### Shared completion rules
@@ -72,6 +72,18 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — Settings S4 #130 IPC follow-up ready for review
+
+- Added `settings_list_profiles`, upsert/rename/remove, workspace
+  default-profile set/reset, and harness list/update. Snapshots are
+  badges-only; shell executables and credential-looking models are
+  rejected. TS `types.ts`/`api.ts` updated. No Settings window UI.
+- **Verification:** Tauri
+  `settings_profile_and_harness_commands_are_redacted_and_durable`;
+  clippy clean; `npx tsc --noEmit`.
+
+— Grok
 
 ### Grok — claiming Settings S4 #130 IPC follow-up
 

@@ -5,7 +5,10 @@
 //! pills, and load-status diagnostics without their underlying path. Every
 //! mutation is recorded on the dedicated settings audit stream, which is a
 //! typed filter over the same Hub audit chain other commands already read.
-use hub::{EffectiveSettings, LoadStatus, SettingsField, SettingsStore};
+use hub::{
+    EffectiveHarnessSettings, EffectiveSettings, HarnessSettings, LoadStatus, ProfileSnapshot,
+    ProviderProfile, SettingsField, SettingsStore,
+};
 
 fn open_settings_store() -> SettingsStore {
     SettingsStore::open(hub::default_hub_home())
@@ -155,5 +158,109 @@ pub fn settings_set_default_session(
 pub fn settings_list_audit_events() -> Result<Vec<hub::AuditEvent>, String> {
     super::store::open_store()?
         .list_settings_audit_events()
+        .map_err(|e| e.to_string())
+}
+
+/// Redacted profile list. Never includes a credential or filesystem path.
+#[tauri::command]
+pub fn settings_list_profiles() -> Result<Vec<ProfileSnapshot>, String> {
+    Ok(open_settings_store().list_profiles())
+}
+
+/// Create or replace a global named profile. `secret` is a reference only
+/// (keychain id, env-var name, or existing-login). A raw credential is
+/// rejected by the store validator.
+#[tauri::command]
+pub fn settings_upsert_profile(profile: ProviderProfile) -> Result<Vec<ProfileSnapshot>, String> {
+    let mut store = open_settings_store();
+    store
+        .upsert_profile(profile.clone())
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit("profile", "global", &format!("upsert:{}", profile.name))?;
+    Ok(store.list_profiles())
+}
+
+#[tauri::command]
+pub fn settings_rename_profile(from: String, to: String) -> Result<Vec<ProfileSnapshot>, String> {
+    let mut store = open_settings_store();
+    store
+        .rename_profile(&from, &to)
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit("profile", "global", &format!("rename:{from}->{to}"))?;
+    Ok(store.list_profiles())
+}
+
+/// Removes profile configuration only. Does not delete a keychain secret.
+#[tauri::command]
+pub fn settings_remove_profile(name: String) -> Result<Vec<ProfileSnapshot>, String> {
+    let mut store = open_settings_store();
+    store.remove_profile(&name).map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit("profile", "global", &format!("remove:{name}"))?;
+    Ok(store.list_profiles())
+}
+
+/// Workspace selects a default profile *name* for one harness. Profile
+/// fields are not copied.
+#[tauri::command]
+pub fn settings_set_workspace_default_profile(
+    workspace: String,
+    harness: String,
+    profile: String,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    store
+        .set_workspace_default_profile(&workspace, &harness, &profile)
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit(
+        &format!("workspace.default_profile.{harness}"),
+        &workspace,
+        "update",
+    )?;
+    Ok(store.effective(Some(&workspace)))
+}
+
+#[tauri::command]
+pub fn settings_reset_workspace_default_profile(
+    workspace: String,
+    harness: String,
+) -> Result<EffectiveSettings, String> {
+    let mut store = open_settings_store();
+    store
+        .reset_workspace_default_profile(&workspace, &harness)
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit(
+        &format!("workspace.default_profile.{harness}"),
+        &workspace,
+        "reset",
+    )?;
+    Ok(store.effective(Some(&workspace)))
+}
+
+/// Global harness process settings, plus the workspace's selected default
+/// profile when `workspace` is given.
+#[tauri::command]
+pub fn settings_list_harnesses(
+    workspace: Option<String>,
+) -> Result<Vec<EffectiveHarnessSettings>, String> {
+    Ok(open_settings_store()
+        .effective(workspace.as_deref())
+        .harnesses)
+}
+
+#[tauri::command]
+pub fn settings_update_harness(settings: HarnessSettings) -> Result<HarnessSettings, String> {
+    let mut store = open_settings_store();
+    store
+        .set_harness_settings(settings.clone())
+        .map_err(|e| e.to_string())?;
+    store.save().map_err(|e| e.to_string())?;
+    record_settings_audit(&format!("harness.{}", settings.harness), "global", "update")?;
+    store
+        .harness_settings(&settings.harness)
         .map_err(|e| e.to_string())
 }
