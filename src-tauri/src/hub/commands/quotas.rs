@@ -81,6 +81,24 @@ fn ollama_quota() -> ProviderQuota {
     )
 }
 
+fn deepseek_quota() -> ProviderQuota {
+    unavailable_quota(
+        "deepseek",
+        "deepseek",
+        "DeepSeek via OpenCode",
+        "OpenCode does not expose a DeepSeek usage-budget command",
+    )
+}
+
+fn mistral_quota() -> ProviderQuota {
+    unavailable_quota(
+        "mistral",
+        "mistral",
+        "Mistral Vibe",
+        "vibe CLI does not expose a usage-budget command; run vibe --setup if unauthenticated",
+    )
+}
+
 #[tauri::command]
 pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
     Ok(vec![
@@ -89,6 +107,8 @@ pub fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
         codex_quota(),
         gemini_quota(),
         opencode_quota(),
+        deepseek_quota(),
+        mistral_quota(),
         llamacpp_quota(),
         ollama_quota(),
     ])
@@ -108,6 +128,8 @@ pub fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuota, Str
         "chat" | "codex" => codex_quota(),
         "gemini" => gemini_quota(),
         "opencode" => opencode_quota(),
+        "deepseek" => deepseek_quota(),
+        "mistral" | "vibe" => mistral_quota(),
         "llamacpp" => llamacpp_quota(),
         "ollama" => ollama_quota(),
         other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),

@@ -1,4 +1,10 @@
 use crate::agent::AgentEvent;
+use crate::client::providers::{
+    deepseek_unavailable_opencode, opencode_run_args, parse_opencode_models, vibe_home_from_env,
+    vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
+    vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
+    VIBE_FALLBACK_MODELS,
+};
 use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
@@ -81,6 +87,10 @@ impl Drop for KillOnDrop {
     }
 }
 
+fn is_vibe_provider(provider: &str) -> bool {
+    matches!(provider, "mistral" | "vibe")
+}
+
 pub struct LLMClient;
 
 impl LLMClient {
@@ -109,45 +119,7 @@ impl LLMClient {
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
-            let base = endpoint.trim_end_matches('/');
-            let url = if base.ends_with("/v1") {
-                format!("{base}/chat/completions")
-            } else {
-                format!("{base}/v1/chat/completions")
-            };
-            let response = reqwest::Client::new()
-                .post(&url)
-                .json(&serde_json::json!({
-                    "model": config.model,
-                    "messages": [{ "role": "user", "content": prompt }],
-                    "stream": false
-                }))
-                .send()
-                .await
-                .map_err(|e| format!("Existing model process request failed: {e}"))?;
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .map_err(|e| format!("Existing model process response read failed: {e}"))?;
-            if !status.is_success() {
-                return Err(format!("Existing model process returned {status}: {body}"));
-            }
-            let payload: serde_json::Value = serde_json::from_str(&body)
-                .map_err(|e| format!("Existing model process returned invalid JSON: {e}"))?;
-            let output = payload["choices"][0]["message"]["content"]
-                .as_str()
-                .ok_or("Existing model process response had no choices[0].message.content")?
-                .to_string();
-            let _ = app.emit(
-                "agent-event",
-                AgentEvent {
-                    source: source.to_string(),
-                    event_type: "response".to_string(),
-                    content: output.clone(),
-                },
-            );
-            return Ok(output);
+            return existing_endpoint_completion(endpoint, config, prompt, app, source).await;
         }
 
         if config.provider == "ollama" {
@@ -158,225 +130,52 @@ impl LLMClient {
                 .arg(prompt)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
-
             if let Some(dir) = work_dir {
                 command.current_dir(dir);
             }
-
-            let mut child = command
+            let child = command
                 .spawn()
                 .map_err(|e| format!("Failed to spawn ollama: {}", e))?;
-
-            let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
-            let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-
-            let mut child_guard = KillOnDrop(child);
-            let app_clone = app.clone();
-            let source_clone = source.to_string();
-
-            tokio::spawn(async move {
-                let mut reader = BufReader::new(stderr);
-                let mut line = String::new();
-                while let Ok(n) = reader.read_line(&mut line).await {
-                    if n == 0 {
-                        break;
-                    }
-                    let _ = app_clone.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: source_clone.clone(),
-                            event_type: "log".to_string(),
-                            content: line.clone(),
-                        },
-                    );
-                    line.clear();
-                }
-            });
-
-            let (cancel_tx, mut cancel_rx) = oneshot::channel();
-            if let Some(token) = token {
-                tokio::spawn(async move {
-                    loop {
-                        if token.load(Ordering::SeqCst) {
-                            let _ = cancel_tx.send(());
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                    }
-                });
-            }
-
-            let mut reader = BufReader::new(stdout);
-            let mut line = String::new();
-            let mut full_output = String::new();
-
-            loop {
-                tokio::select! {
-                    result = reader.read_line(&mut line) => {
-                         match result {
-                             Ok(0) => break,
-                             Ok(_) => {
-                                let _ = app.emit("agent-event", AgentEvent {
-                                    source: source.to_string(),
-                                    event_type: "stream".to_string(),
-                                    content: line.clone(),
-                                });
-                                full_output.push_str(&line);
-                                line.clear();
-                             }
-                             Err(e) => return Err(e.to_string()),
-                         }
-                    }
-                    _ = &mut cancel_rx => {
-                         return Err("Task cancelled".to_string());
-                    }
-                }
-            }
-
-            let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
-            if status.success() {
-                Ok(full_output)
-            } else {
-                Err(format!(
-                    "Ollama failed with status: {}. Check logs for details.",
-                    status
-                ))
-            }
-        } else if config.provider == "lm_studio" {
-            // LM Studio is usually OpenAI compatible at http://127.0.0.1:1234/v1
-            // For now, let's assume it supports a simple curl-like or use opencode if it can handle it
-            // Actually, if it's local, we might want to use a specific local runner if available.
-            // But for simplicity, let's use opencode with a custom base URL if possible,
-            // or just a placeholder for now as it's harder to test without it running.
-            // Given the request "instead of just providers using opencode",
-            // I'll implement it as an OpenAI compatible endpoint if I can.
-
-            Err("LM Studio support is partially implemented. Please ensure it is running on 127.0.0.1:1234".to_string())
-        } else {
-            let model_str = format!("{}/{}", config.provider, config.model);
-
-            let mut command = Command::new("opencode");
-            command
-                .arg("run")
-                .arg(prompt)
-                .arg("-m")
-                .arg(&model_str)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
-
-            if let Some(dir) = work_dir {
-                command.current_dir(dir);
-                if let Some(mcp_file) = mcp_config_path {
-                    let mcp_path = Path::new(mcp_file);
-                    let full_mcp_path = if mcp_path.is_absolute() {
-                        mcp_path.to_path_buf()
-                    } else {
-                        Path::new(dir).join(mcp_file)
-                    };
-                    command.env("MCP_CONFIG_FILE", full_mcp_path);
-                }
-            }
-
-            let mut child = command
-                .spawn()
-                .map_err(|e| format!("Failed to spawn opencode: {}", e))?;
-
-            let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
-            let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-
-            let mut child_guard = KillOnDrop(child);
-            let app_clone = app.clone();
-            let source_clone = source.to_string();
-
-            tokio::spawn(async move {
-                let mut reader = BufReader::new(stderr);
-                let mut line = String::new();
-                while let Ok(n) = reader.read_line(&mut line).await {
-                    if n == 0 {
-                        break;
-                    }
-                    let _ = app_clone.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: source_clone.clone(),
-                            event_type: "log".to_string(),
-                            content: line.clone(),
-                        },
-                    );
-                    line.clear();
-                }
-            });
-
-            let (cancel_tx, mut cancel_rx) = oneshot::channel();
-            if let Some(token) = token {
-                tokio::spawn(async move {
-                    loop {
-                        if token.load(Ordering::SeqCst) {
-                            let _ = cancel_tx.send(());
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                    }
-                });
-            }
-
-            let mut reader = BufReader::new(stdout);
-            let mut line = String::new();
-            let mut full_output = String::new();
-
-            loop {
-                tokio::select! {
-                    result = reader.read_line(&mut line) => {
-                         match result {
-                             Ok(0) => break,
-                             Ok(_) => {
-                                let _ = app.emit("agent-event", AgentEvent {
-                                    source: source.to_string(),
-                                    event_type: "stream".to_string(),
-                                    content: line.clone(),
-                                });
-                                full_output.push_str(&line);
-                                line.clear();
-                             }
-                             Err(e) => return Err(e.to_string()),
-                         }
-                    }
-                    _ = &mut cancel_rx => {
-                         return Err("Task cancelled".to_string());
-                    }
-                }
-            }
-
-            let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
-            if status.success() {
-                Ok(full_output)
-            } else {
-                Err(format!("Opencode failed with status: {}.", status))
-            }
+            return stream_cli_child(child, app, source, token, "Ollama").await;
         }
+
+        if config.provider == "lm_studio" {
+            return Err(
+                "LM Studio support is partially implemented. Please ensure it is running on 127.0.0.1:1234"
+                    .to_string(),
+            );
+        }
+
+        if is_vibe_provider(&config.provider) {
+            return vibe_completion(config, prompt, work_dir, app, source, token).await;
+        }
+
+        opencode_completion(
+            config,
+            prompt,
+            work_dir,
+            app,
+            source,
+            mcp_config_path,
+            token,
+        )
+        .await
     }
 
     pub async fn list_models(&self) -> Result<Vec<String>, String> {
         let mut models = Vec::new();
 
-        // 1. Get models from opencode
         if let Ok(output) = Command::new("opencode").arg("models").output().await {
             if output.status.success() {
                 if let Ok(content) = String::from_utf8(output.stdout) {
-                    for line in content.lines() {
-                        if !line.trim().is_empty() {
-                            models.push(line.to_string());
-                        }
-                    }
+                    models.extend(parse_opencode_models(&content));
                 }
             }
         }
 
-        // 2. Get models from ollama
         if let Ok(output) = Command::new("ollama").arg("list").output().await {
             if output.status.success() {
                 if let Ok(content) = String::from_utf8(output.stdout) {
-                    // Skip header line
                     for line in content.lines().skip(1) {
                         let parts: Vec<&str> = line.split_whitespace().collect();
                         if let Some(name) = parts.first() {
@@ -387,10 +186,242 @@ impl LLMClient {
             }
         }
 
-        // 3. LM Studio (Static list or probe if possible, but usually it's just one active model)
-        // For now, let's just add a generic one if we can detect the port is open
-        // (Skipping for now to keep it simple and focus on Ollama which is confirmed)
+        if let Ok(output) = Command::new("vibe").arg("--help").output().await {
+            if output.status.success() {
+                let help = String::from_utf8_lossy(&output.stdout);
+                let help_err = String::from_utf8_lossy(&output.stderr);
+                if vibe_programmatic_supported(&help) || vibe_programmatic_supported(&help_err) {
+                    for model in VIBE_FALLBACK_MODELS {
+                        models.push(format!("mistral/{model}"));
+                    }
+                }
+            }
+        }
 
         Ok(models)
+    }
+}
+
+async fn existing_endpoint_completion(
+    endpoint: &str,
+    config: &ModelConfig,
+    prompt: &str,
+    app: &AppHandle,
+    source: &str,
+) -> Result<String, String> {
+    let base = endpoint.trim_end_matches('/');
+    let url = if base.ends_with("/v1") {
+        format!("{base}/chat/completions")
+    } else {
+        format!("{base}/v1/chat/completions")
+    };
+    let response = reqwest::Client::new()
+        .post(&url)
+        .json(&serde_json::json!({
+            "model": config.model,
+            "messages": [{ "role": "user", "content": prompt }],
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Existing model process request failed: {e}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Existing model process response read failed: {e}"))?;
+    if !status.is_success() {
+        return Err(format!("Existing model process returned {status}: {body}"));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Existing model process returned invalid JSON: {e}"))?;
+    let output = payload["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Existing model process response had no choices[0].message.content")?
+        .to_string();
+    let _ = app.emit(
+        "agent-event",
+        AgentEvent {
+            source: source.to_string(),
+            event_type: "response".to_string(),
+            content: output.clone(),
+        },
+    );
+    Ok(output)
+}
+
+async fn vibe_completion(
+    config: &ModelConfig,
+    prompt: &str,
+    work_dir: Option<&str>,
+    app: &AppHandle,
+    source: &str,
+    token: Option<Arc<AtomicBool>>,
+) -> Result<String, String> {
+    let help = Command::new("vibe").arg("--help").output().await;
+    let help = match help {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            format!("{stdout}{stderr}")
+        }
+        Ok(output) => {
+            return Err(vibe_unavailable_not_installed(format!(
+                "vibe --help exited {}",
+                output.status
+            )));
+        }
+        Err(error) => return Err(vibe_unavailable_not_installed(error)),
+    };
+    if !vibe_programmatic_supported(&help) {
+        return Err(vibe_unavailable_unsupported());
+    }
+
+    let home = vibe_home_from_env(
+        std::env::var("VIBE_HOME").ok().as_deref(),
+        std::env::var("HOME").ok().as_deref(),
+    );
+    let env_key = std::env::var("MISTRAL_API_KEY").ok();
+    if !vibe_is_authenticated(&config.model, &home, env_key.as_deref()) {
+        return Err(vibe_unavailable_unauthenticated());
+    }
+
+    let args = vibe_run_args(prompt, work_dir)?;
+    let mut command = Command::new("vibe");
+    command
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if !config.model.trim().is_empty() {
+        command.env("VIBE_ACTIVE_MODEL", &config.model);
+    }
+    if let Some(dir) = work_dir {
+        command.current_dir(dir);
+    }
+    let child = command.spawn().map_err(vibe_unavailable_not_installed)?;
+    stream_cli_child(child, app, source, token, "Mistral Vibe").await
+}
+
+async fn opencode_completion(
+    config: &ModelConfig,
+    prompt: &str,
+    work_dir: Option<&str>,
+    app: &AppHandle,
+    source: &str,
+    mcp_config_path: Option<&str>,
+    token: Option<Arc<AtomicBool>>,
+) -> Result<String, String> {
+    let args = opencode_run_args(&config.provider, &config.model, prompt, work_dir)?;
+    let mut command = Command::new("opencode");
+    command
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    if let Some(dir) = work_dir {
+        command.current_dir(dir);
+        if let Some(mcp_file) = mcp_config_path {
+            let mcp_path = Path::new(mcp_file);
+            let full_mcp_path = if mcp_path.is_absolute() {
+                mcp_path.to_path_buf()
+            } else {
+                Path::new(dir).join(mcp_file)
+            };
+            command.env("MCP_CONFIG_FILE", full_mcp_path);
+        }
+    }
+
+    let child = command.spawn().map_err(|error| {
+        if config.provider == "deepseek" {
+            deepseek_unavailable_opencode(error)
+        } else {
+            format!("Failed to spawn opencode: {error}")
+        }
+    })?;
+    let label = if config.provider == "deepseek" {
+        "DeepSeek (OpenCode)"
+    } else {
+        "Opencode"
+    };
+    stream_cli_child(child, app, source, token, label).await
+}
+
+async fn stream_cli_child(
+    mut child: Child,
+    app: &AppHandle,
+    source: &str,
+    token: Option<Arc<AtomicBool>>,
+    fail_label: &str,
+) -> Result<String, String> {
+    let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
+    let mut child_guard = KillOnDrop(child);
+    let app_clone = app.clone();
+    let source_clone = source.to_string();
+
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        while let Ok(n) = reader.read_line(&mut line).await {
+            if n == 0 {
+                break;
+            }
+            let _ = app_clone.emit(
+                "agent-event",
+                AgentEvent {
+                    source: source_clone.clone(),
+                    event_type: "log".to_string(),
+                    content: line.clone(),
+                },
+            );
+            line.clear();
+        }
+    });
+
+    let (cancel_tx, mut cancel_rx) = oneshot::channel();
+    if let Some(token) = token {
+        tokio::spawn(async move {
+            loop {
+                if token.load(Ordering::SeqCst) {
+                    let _ = cancel_tx.send(());
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        });
+    }
+
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    let mut full_output = String::new();
+
+    loop {
+        tokio::select! {
+            result = reader.read_line(&mut line) => {
+                 match result {
+                     Ok(0) => break,
+                     Ok(_) => {
+                        let _ = app.emit("agent-event", AgentEvent {
+                            source: source.to_string(),
+                            event_type: "stream".to_string(),
+                            content: line.clone(),
+                        });
+                        full_output.push_str(&line);
+                        line.clear();
+                     }
+                     Err(e) => return Err(e.to_string()),
+                 }
+            }
+            _ = &mut cancel_rx => {
+                 return Err("Task cancelled".to_string());
+            }
+        }
+    }
+
+    let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(full_output)
+    } else {
+        Err(format!("{fail_label} failed with status: {status}."))
     }
 }

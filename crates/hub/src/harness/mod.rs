@@ -19,6 +19,8 @@ pub enum HarnessId {
     Chat,
     Claude,
     Gemini,
+    OpenCode,
+    Vibe,
 }
 
 impl HarnessId {
@@ -28,8 +30,10 @@ impl HarnessId {
             "chat" | "codex" | "openai" => Ok(Self::Chat),
             "claude" | "anthropic" => Ok(Self::Claude),
             "gemini" | "agy" | "google" => Ok(Self::Gemini),
+            "opencode" | "deepseek" => Ok(Self::OpenCode),
+            "vibe" | "mistral" => Ok(Self::Vibe),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, or gemini)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, or vibe)"
             ))),
         }
     }
@@ -40,6 +44,8 @@ impl HarnessId {
             Self::Chat => "chat",
             Self::Claude => "claude",
             Self::Gemini => "gemini",
+            Self::OpenCode => "opencode",
+            Self::Vibe => "vibe",
         }
     }
 
@@ -50,6 +56,8 @@ impl HarnessId {
             Self::Claude => "claude",
             // Gemini is provided locally by the Antigravity CLI.
             Self::Gemini => "agy",
+            Self::OpenCode => "opencode",
+            Self::Vibe => "vibe",
         }
     }
 }
@@ -154,6 +162,46 @@ pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
     ])
 }
 
+/// Explicit argv for an OpenCode (including DeepSeek) wake spawn.
+pub fn opencode_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("OpenCode spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "OpenCode spawn workspace must be an absolute path".into(),
+        ));
+    }
+    Ok(vec![
+        OsString::from("run"),
+        OsString::from(prompt),
+        OsString::from("--dir"),
+        workspace.as_os_str().to_os_string(),
+    ])
+}
+
+/// Explicit argv for a Mistral Vibe wake spawn.
+pub fn vibe_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("Vibe spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Vibe spawn workspace must be an absolute path".into(),
+        ));
+    }
+    Ok(vec![
+        OsString::from("-p"),
+        OsString::from(prompt),
+        OsString::from("--workdir"),
+        workspace.as_os_str().to_os_string(),
+        OsString::from("--trust"),
+        OsString::from("--output"),
+        OsString::from("text"),
+        OsString::from("--auto-approve"),
+    ])
+}
+
 fn spawn_explicit(
     program: &str,
     workspace: &Path,
@@ -189,6 +237,8 @@ pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult
         HarnessId::Chat => codex_spawn_args(&request.workspace, &request.prompt)?,
         HarnessId::Claude => claude_spawn_args(&request.workspace, &request.prompt)?,
         HarnessId::Gemini => gemini_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt)?,
     };
     spawn_explicit(harness.executable(), &request.workspace, &args)
 }
@@ -259,6 +309,8 @@ fn inject_harness_inner(
         HarnessId::Chat => codex_spawn_args(&request.workspace, &prompt)?,
         HarnessId::Claude => claude_spawn_args(&request.workspace, &prompt)?,
         HarnessId::Gemini => gemini_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt)?,
     };
 
     let started = spawn_explicit(harness.executable(), &request.workspace, &args)?;
@@ -329,7 +381,26 @@ mod tests {
         assert_eq!(HarnessId::parse("codex").unwrap(), HarnessId::Chat);
         assert_eq!(HarnessId::parse("claude").unwrap(), HarnessId::Claude);
         assert_eq!(HarnessId::parse("agy").unwrap(), HarnessId::Gemini);
+        assert_eq!(HarnessId::parse("deepseek").unwrap(), HarnessId::OpenCode);
+        assert_eq!(HarnessId::parse("mistral").unwrap(), HarnessId::Vibe);
         assert!(HarnessId::parse("ollama").is_err());
+    }
+
+    #[test]
+    fn opencode_and_vibe_argv_are_explicit() {
+        let ws = PathBuf::from("/tmp/coding-assistants-c12");
+        let oc = opencode_spawn_args(&ws, "review").unwrap();
+        assert_eq!(oc[0], "run");
+        assert_eq!(oc[1], "review");
+        assert_eq!(oc[2], "--dir");
+        assert_eq!(oc[3], ws.as_os_str());
+        let vibe = vibe_spawn_args(&ws, "review").unwrap();
+        assert_eq!(vibe[0], "-p");
+        assert_eq!(vibe[1], "review");
+        assert_eq!(HarnessId::OpenCode.executable(), "opencode");
+        assert_eq!(HarnessId::Vibe.executable(), "vibe");
+        assert!(opencode_spawn_args(Path::new("relative"), "x").is_err());
+        assert!(vibe_spawn_args(Path::new("relative"), "x").is_err());
     }
 
     #[test]

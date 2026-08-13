@@ -15,7 +15,7 @@
 mod tests {
     use hub::{
         claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
-        HarnessInjectRequest, HubStore,
+        opencode_spawn_args, vibe_spawn_args, HarnessInjectRequest, HubStore,
     };
     use std::fs;
     use std::io::Write;
@@ -241,10 +241,23 @@ mod tests {
         let gemini_args = gemini_spawn_args(&workspace, dangerous).unwrap();
         assert!(gemini_args.iter().any(|arg| arg == dangerous));
 
+        let opencode_args = opencode_spawn_args(&workspace, dangerous).unwrap();
+        assert!(opencode_args.iter().any(|arg| arg == dangerous));
+
+        let vibe_args = vibe_spawn_args(&workspace, dangerous).unwrap();
+        assert!(vibe_args.iter().any(|arg| arg == dangerous));
+
         // None of the builders may have split the dangerous string into
         // multiple argv entries at its embedded whitespace/operators — the
         // prompt must appear as exactly one element, verbatim.
-        for args in [&grok_args, &codex_args, &claude_args, &gemini_args] {
+        for args in [
+            &grok_args,
+            &codex_args,
+            &claude_args,
+            &gemini_args,
+            &opencode_args,
+            &vibe_args,
+        ] {
             let matches = args.iter().filter(|arg| *arg == dangerous).count();
             assert_eq!(matches, 1);
         }

@@ -13,6 +13,9 @@ const PROVIDERS = {
   "google": "Google",
   "xai": "Grok (xAI)",
   "ollama": "Ollama (Local)",
+  "deepseek": "DeepSeek (OpenCode)",
+  "opencode": "OpenCode",
+  "mistral": "Mistral (Vibe)",
 };
 
 interface HubMessage {

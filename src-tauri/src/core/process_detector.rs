@@ -26,6 +26,8 @@ fn classify_command(command: &str) -> Option<(&'static str, &'static str)> {
         "codex" | "chatgpt" => Some(("Codex", "openai")),
         "agy" | "gemini" => Some(("Gemini", "google")),
         "grok" | "supergrok" => Some(("Grok", "xai")),
+        "opencode" => Some(("OpenCode", "opencode")),
+        "vibe" => Some(("Mistral", "mistral")),
         _ => None,
     }
 }
@@ -90,6 +92,14 @@ mod tests {
         assert_eq!(
             classify_command("gemini --resume"),
             Some(("Gemini", "google"))
+        );
+        assert_eq!(
+            classify_command("/home/user/.opencode/bin/opencode run -m deepseek/deepseek-chat"),
+            Some(("OpenCode", "opencode"))
+        );
+        assert_eq!(
+            classify_command("vibe -p review --trust --output text"),
+            Some(("Mistral", "mistral"))
         );
     }
 
