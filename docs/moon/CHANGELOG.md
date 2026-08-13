@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — Ratatui TUI delivery plan (2026-08-13) [DRAFT]
+
+- Approved a first-class Kubuntu-focused `ca tui` programme with feature parity
+  for orchestration, Chat & Memory, Shared Hub, wake approvals, and supported
+  Settings access. It shares durable Hub state and policy/audit contracts with
+  desktop rather than creating a second agent-control model.
+- Defined the interactive-harness safety boundary: the TUI can render and
+  accept user input for explicitly launched, owned PTY processes only; observed
+  provider sessions stay read-only and C10–C12 safety constraints remain.
+- Locked dark high-contrast terminal styling, tmux-style configurable pane
+  controls, local multi-instance reject-and-refresh behavior, KDE notification
+  plus optional bell, and `portable-pty`/virtual-terminal acceptance coverage.
+
 ### Chat / Codex — persistent settings delivery plan (#126) (2026-08-13) [DRAFT]
 
 - Approved the local-first Persistent Settings plan: a standalone reusable Settings window, tabbed General through Danger zone surfaces, global defaults with deliberate path-distinct workspace overrides, global named provider profiles, and redacted settings auditing.

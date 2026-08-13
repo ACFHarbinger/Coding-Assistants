@@ -70,6 +70,34 @@
 
 ## 2026-08-13 updates
 
+### Grok — U7 Ratatui TUI owner answers recorded (review only)
+
+- Asked the owner the Grok-lens U7 questions (landing, TUI Settings
+  scope, owned-pane detach, multi-harness, confirmation rules, first
+  release vs later, SSH, sequencing). Recorded the answers in
+  `docs/moon/roadmaps/ui.md` U7.
+- **Changed files:** `docs/moon/roadmaps/ui.md` (this bus entry).
+  No `crates/tui`, no `ca tui` subcommand, no Settings implementation.
+- **Decided:** Honor the same workspace-open/default-team settings as
+  desktop. TUI edits ordinary and Advanced settings. Multiple owned
+  (launched) and observed harness panes. Same confirmation defaults as
+  desktop (explicit send still required). Feature parity with the Tauri
+  app, not research extras. Local Konsole is the T8 gate; SSH is later.
+  T1 may start beside Settings as S1+ lands. There is no `ca tui` yet;
+  T1 adds it.
+- **Still open:** owned-pane detach (tmux prefix / fixed chord /
+  double-Escape / mouse unfocus / palette-from-prefix — mouse-only is
+  not sufficient). `[tui]` defaults. Narrow-terminal Advanced Settings
+  presentation. Optional `--workspace`/`--session` flags.
+- **Suggested issue split (do not create yet):** keep T1–T8 under U7.
+  No extra epic for SSH. Detach binding is an acceptance note on T6,
+  not its own issue, until the owner picks. T1 is the first implementable
+  slice and may overlap Settings S1 by crate (`crates/tui` vs settings
+  store).
+- No commit, stage, implementation, or GitHub issue from this pass.
+
+— Grok
+
 ### Chat / Codex — Persistent Settings plan finalized
 
 - Final roadmap is approved for implementation and issue creation. The earlier
@@ -125,6 +153,24 @@
   workspace-local vs global profile field boundary; first-release memory/export vs later destructive slice;
   keychain desktop abstraction fallback. Claude persistence & recovery lens remains open.
 - **Suggested issue split (do not create yet):** S3 covers independent window chrome, tablist WAI-ARIA, and inheritance pills; S4 covers secret status indicators; S6 covers red/amber warning modals & name-typed purge confirmation.
+- All work left uncommitted. No GitHub issues created.
+
+— Gemini
+
+### Gemini — Ratatui TUI (U7) owner answers recorded (Gemini review lens)
+
+- Asked the owner the Gemini-lens questions for U7 Ratatui TUI (owned pane detach chord,
+  multi-harness pane layout, terminal inheritance badges & Advanced disclosure, hybrid keybindings model,
+  and CLI launch flags). Recorded answers in `docs/moon/roadmaps/ui.md`.
+- **Changed files:** `docs/moon/roadmaps/ui.md`, `.agent/cache/AGENT_BUS.md`.
+- **Decided:**
+  1. Detach from owned pane: Configurable prefix chord (e.g. `Ctrl+B` or `Ctrl+A`) + command key or palette trigger (intercepted by TUI, never reaches child process).
+  2. Multi-harness layout: Hybrid top tabbed pane bar with split tile support in wide terminals.
+  3. Terminal inheritance & disclosure: Compact bracket text badges (`[Global]` vs `[Workspace]`) and collapsible tree headers (`[+]`/`[-]`).
+  4. Keybinding & navigation: Hybrid Tab/Shift+Tab focus cycling, Arrow keys, Vim movement aliases (`hjkl`, `g`/`G`), and `/` for palette.
+  5. CLI launch flags: Support optional `ca tui --workspace <path>` and `--session <id>` flags.
+- **Still open:** Default `[tui]` color palette themes & automatic Unicode/ASCII fallback detection; narrow terminal viewport concurrency toast/banner layout.
+- **Suggested issue split (do not create yet):** Keep T1–T8 delivery slices; T3 incorporates prefix chord detach & hybrid keybindings; T4 incorporates CLI launch flags; T6 incorporates hybrid tabbed/tiled harness rendering.
 - All work left uncommitted. No GitHub issues created.
 
 — Gemini
@@ -391,6 +437,37 @@ scope assigned to me; let me know if there's more.
   memory/export/backup scope vs a later destructive-action slice.
 - All four review lenses (Grok, Gemini, Claude) are now recorded in the
   roadmap. Chat/Codex consolidation and final owner pass remain outstanding.
+- No commit, stage, implementation, or GitHub issue from this pass.
+
+— claude
+
+### claude — 2026-08-13 — U7 Ratatui TUI owner answers recorded (Claude review lens)
+
+- Note: the Persistent Settings roadmap has separately moved to **Approved
+  implementation plan** status with issues #126–#133 since my last pass;
+  did not touch that file in this update, only `docs/moon/roadmaps/ui.md`.
+- Asked the owner the Claude-lens U7 questions (multi-instance write
+  conflicts, T8 test/acceptance strategy, TUI provider-profile editing
+  scope, malformed/interrupted-settings recovery UX in the TUI). Recorded
+  answers in `docs/moon/roadmaps/ui.md` U7.
+- **Changed files:** `docs/moon/roadmaps/ui.md` only. No `crates/tui`, no
+  `ca tui` subcommand, no Settings or TUI implementation.
+- **Decided:** T7 multi-instance concurrency uses version-stamped
+  reject-and-refresh (stale writes rejected + refreshed, never
+  last-writer-wins). T8 acceptance pairs automated PTY-driven `crates/tui`
+  tests (input/resize/panic-restore) with an owner-run manual checklist for
+  real-terminal specifics. TUI provider-profile handling in T5 is
+  select-existing-only (workspace/harness default + same source badges as
+  desktop); create/edit stays desktop-only for U7. TUI malformed/interrupted
+  settings recovery mirrors desktop: safe-defaults startup that never
+  blocks, plus a keyboard-driven "restore last known good" action.
+- **Correction while updating "Still open":** removed the previously listed
+  "leaving an owned harness pane" open item — Gemini's recorded answer
+  (configurable prefix chord, never forwarded to the child) already
+  resolves it; the earlier "still open" note predated that answer.
+- **Still open:** default `[tui]` palette themes + Unicode/ASCII fallback
+  detection; narrow-viewport conflict toast/banner display rules; which
+  PTY-testing crate T8 standardizes on.
 - No commit, stage, implementation, or GitHub issue from this pass.
 
 — claude

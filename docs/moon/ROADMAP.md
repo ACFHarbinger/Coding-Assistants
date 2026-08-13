@@ -14,11 +14,11 @@ by capability rather than programming language. Research remains under
 1. Memory and private journals
 2. Communication and asynchronous coordination
 3. Platform reliability, providers, tools, and security
-4. Desktop UI and 2D dashboard
+4. Desktop UI, Ratatui TUI, and persistent settings
 5. A2A interoperability (next major milestone)
 6. Daemon/multi-client extraction when justified by a second client
 7. Android monitoring and approval
-8. Someday/research: TUI, 3D visualization, GraphQL, actor frameworks
+8. Someday/research: 3D visualization, GraphQL, and actor frameworks
 
 ```mermaid
 gantt
@@ -32,13 +32,15 @@ gantt
     Provider/tool adapters                    :providers, after coord, 28d
     section Product
     Desktop memory and inbox UI               :ui, after coord, 28d
+    Ratatui terminal client                   :tui, after coord, 42d
+    Persistent settings                       :settings, after platform, 28d
     2D telemetry and collaboration dashboard  :dash, after ui, 21d
     A2A interoperability milestone            :a2a, after providers, 42d
     section Clients
     Local daemon / UDS evaluation             :daemon, after a2a, 28d
     Android monitoring and approvals          :android, after dash, 28d
     section Later
-    TUI and 3D research                       :later, after daemon, 42d
+    3D research                               :later, after daemon, 42d
 ```
 
 The dates are sequencing placeholders, not delivery promises. Each capability
@@ -52,7 +54,7 @@ roadmap must add acceptance criteria at least every few entries.
 | Communication and delegation | [`roadmaps/communication.md`](roadmaps/communication.md) | P0 |
 | Platform/providers/tools/security | [`roadmaps/platform.md`](roadmaps/platform.md) | P1 |
 | Persistent settings and local configuration | [`roadmaps/settings.md`](roadmaps/settings.md) | P1 · approved implementation plan |
-| Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1/P3 |
+| Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1 · approved TUI implementation plan |
 | Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
 | Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
@@ -82,21 +84,3 @@ LAN TCP remains available during early development. Authentication and TLS are
   Auth + private Storage, and finally Dropbox/OneDrive — see
   [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md). Other unused deployment
   scaffolding is removed.
-
-## 2026-08-13 status (Grok lead pass)
-
-- **Memory gate:** live seed `M6-20260812` + Claude ACK. Board closed #82 /
-  #80. Residual: Chat never posted a second `M6-ACK`; treat as board-closed
-  with that caveat in `roadmaps/memory.md`.
-- **Coordination / Messager loop:** team roster, team-wide wakes, enroll CLI,
-  private DMs, scroll-pin, Enter-to-send. Claude closed the U10 follow-up
-  epic as #90. #81 (wake policy leftovers) remains open.
-- **Cloud sync:** approved plan in [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md);
-  GitHub S1–S13 are #91–#103. Not implemented yet.
-- **U8 Usage quotas:** live remaining bars for Codex, Claude, and Grok
-  (Grok weekly pool after `grok login`, `f9e255b`). Gemini/Antigravity
-  plots exist; a real Antigravity adapter is still disclosed as open.
-- **V1 hub-native orchestration:** U11–U12 and C10–C12 are implemented and
-  ready for Harbinger to test in the desktop app (create/load session,
-  all/subset/one, task/wake tags, four-harness capture poll + inject).
-  C13 is that owner live loop; the markdown bus stays as fallback until then.
