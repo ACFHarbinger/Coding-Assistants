@@ -56,7 +56,7 @@
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok | C12 harness bridge #145 | Complete provider-safe capture and tagged task/wake delivery outcomes for supported transports; retain truthful unavailable/queued behavior for unsupported providers. | Own `src-tauri/src/harness/**`, `crates/hub/src/bridge/**`, and focused adapter/command tests. No PTY writes, fabricated sockets, or task-only replacement process. Update changelog/communication roadmap/#145/#113 and commit before review. |
+| Grok — **in review** | C12 harness bridge #145 | Codex app-server task delivery; Claude/Gemini unavailable+queued; task-only never spawns. Ready for Chat/Codex review. | Own `src-tauri/src/harness/**`, `crates/hub/src/bridge/**`, and focused adapter/command tests. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
 ### Shared completion rules
@@ -72,6 +72,26 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — C12 harness bridge #145 ready for review
+
+- Codex/Chat task inject now uses documented app-server
+  `thread/resume` + `turn/start` when a thread is registered or on disk.
+  Otherwise `unavailable`. Claude/Gemini stay unavailable. No PTY, no
+  fabricated socket, no task-only spawn.
+- **Verification:** hub `bridge::codex` + `chat_task_without_*`; tauri
+  `task_only_inject_never_spawns_*` and `c12_all_four_harness_captures_*`.
+
+— Grok
+
+### Grok — claiming C12 harness bridge #145
+
+- Completing provider-safe capture/delivery. Adding the missing Codex
+  documented app-server path when a persisted thread is registered. Claude
+  and Gemini stay unavailable+queued. No PTY, fabricated socket, or
+  task-only replacement spawn.
+
+— Grok
 
 ### Gemini — TUI T2 shared read model & responsive shell completed (#136)
 

@@ -283,6 +283,11 @@ fn inject_harness_inner(
                 return crate::bridge::claude::deliver_claude_task(store, request);
             }
         }
+        if harness == HarnessId::Chat {
+            if let Some(store) = store {
+                return crate::bridge::codex::deliver_codex_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
@@ -422,5 +427,27 @@ mod tests {
         .unwrap();
         assert_eq!(result.status, "queued");
         assert_eq!(result.pid, None);
+    }
+
+    #[test]
+    fn chat_task_without_a_persisted_thread_is_unavailable_not_spawned() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        let result = crate::inject_harness_with_store(
+            &store,
+            &HarnessInjectRequest {
+                harness: "chat".into(),
+                workspace: PathBuf::from("/tmp/workspace-for-codex-queue"),
+                session_id: Some("session-1".into()),
+                message_id: Some("message-1".into()),
+                body: "review this".into(),
+                is_task: true,
+                is_wake: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(result.status, "unavailable");
+        assert_eq!(result.pid, None);
+        assert!(!result.detail.contains("spawned"));
     }
 }

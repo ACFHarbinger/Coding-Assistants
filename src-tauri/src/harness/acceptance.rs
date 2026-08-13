@@ -15,7 +15,8 @@
 mod tests {
     use hub::{
         claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
-        opencode_spawn_args, vibe_spawn_args, HarnessInjectRequest, HubStore,
+        inject_harness_with_store, opencode_spawn_args, vibe_spawn_args, HarnessInjectRequest,
+        HubStore,
     };
     use std::fs;
     use std::io::Write;
@@ -358,5 +359,33 @@ mod tests {
         assert_eq!(stored.from_agent, "human");
         assert_eq!(stored.to_agent, "grok");
         assert_eq!(stored.subject.as_deref(), Some(subject.as_str()));
+    }
+
+    #[test]
+    fn task_only_inject_never_spawns_and_reports_truthful_outcomes() {
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let workspace = PathBuf::from("/tmp/c12-no-spawn");
+        for harness in ["grok", "chat", "claude", "gemini"] {
+            let result = inject_harness_with_store(
+                &store,
+                &HarnessInjectRequest {
+                    harness: harness.into(),
+                    workspace: workspace.clone(),
+                    session_id: Some("session".into()),
+                    message_id: Some("msg".into()),
+                    body: "do not spawn a replacement".into(),
+                    is_task: true,
+                    is_wake: false,
+                },
+            )
+            .unwrap();
+            assert_eq!(result.pid, None, "{harness}: {result:?}");
+            assert!(
+                result.status == "unavailable" || result.status == "queued",
+                "{harness}: {result:?}"
+            );
+            assert!(!result.detail.to_ascii_lowercase().contains("spawned"));
+        }
     }
 }

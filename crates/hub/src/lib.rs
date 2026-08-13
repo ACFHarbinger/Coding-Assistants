@@ -15,6 +15,7 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
+pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
     acp_initialize, acp_session_load, acp_session_prompt, default_leader_socket, deliver_grok_task,

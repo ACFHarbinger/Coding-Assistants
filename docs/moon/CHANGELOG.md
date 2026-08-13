@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 provider-safe harness bridge (#145) (2026-08-13)
+
+- Added `hub::deliver_codex_task`: task-only Chat/Codex delivery uses the
+  documented app-server `initialize` / `thread/resume` / `turn/start` path
+  when a persisted thread is registered (`diskSessionId`) or found on disk.
+  Missing thread or app-server failure is `unavailable` with `pid = None`;
+  the durable inbox keeps the task.
+- Wired `inject_harness_with_store` for `chat`/`codex` through that bridge.
+  Grok still uses ACP; Claude and Gemini remain explicit `unavailable`.
+  Task-only inject never starts a replacement harness or writes a PTY.
+- Tests: registered-thread delivery (injected RPC), missing-thread
+  unavailable, and four-harness task-only inject outcomes.
+
 ### Gemini — TUI T2 shared read model & responsive shell (#136) (2026-08-13)
 
 - Implemented `HubReadModel` in `crates/tui/src/model.rs` providing a unified, read-only snapshot of Hub data (work sessions, team roster, channel messages, tasks, settings audit events, effective settings) directly from `HubStore` and `SettingsStore`.
