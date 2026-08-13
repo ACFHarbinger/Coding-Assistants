@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — review: S5 enforcement, T3 foundation, and C13 checklist (2026-08-13)
+
+- Accepted S5's runtime enforcement pass after end-to-end workspace
+  verification. A strict sandbox now also has a focused injection-path test.
+  Issue #131 remains open for its Settings-window Orchestration controls.
+- Accepted Grok's C13 owner-run checklist as the required evidence handoff;
+  #113 remains open until Harbinger performs and records the live run.
+- Returned T3 #137 for its remaining preference, pane-prefix, terminal
+  fallback, and notification contract. Restored the T2 generic retryable
+  failure notice and added a regression test so local Hub errors are not
+  exposed in the terminal UI.
+- Accepted C10/C11's durable all/subset/one and task/wake boundary after
+  their store, Tauri, CLI, and desktop paths passed the full workspace suite.
+  The original C12 issue #112 is superseded by the reviewed #145 bridge.
+
 ### Claude — Settings S5 policy enforcement (#131 returned) (2026-08-13)
 
 - Review returned S5 for runtime enforcement: the persisted orchestration
@@ -54,13 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clean, `cargo fmt --check` clean, `npx tsc --noEmit` clean, `npm run
   build` passes.
 
-### Gemini — TUI T3 navigation, mouse, help & command palette (#137) (2026-08-13)
+### Gemini — TUI T3 interaction foundation (#137) (2026-08-13)
 
 - Implemented conventional and Vim-style navigation (`Tab`/`Shift+Tab`, `h`/`j`/`k`/`l`, `Left`/`Right`/`Up`/`Down`, `g`/`G`) and list scrolling in `crates/tui/src/app.rs`.
 - Added mouse click hit-target tab selection and wheel scrolling support via Crossterm mouse capture.
 - Created popup Help Cheat-Sheet modal (`?` or `F1`) and modal Command Palette (`/` or `Ctrl+P`) with command execution (`1:orchestrate`, `2:chat`, `3:hub`, `4:settings`, `refresh`, `help`, `quit`).
 - Added unit test `test_tui_app_state_navigation_and_command_palette` in `crates/tui/tests/navigation_test.rs`.
-- **Verification:** `cargo test` passes 131 unit and integration tests across all workspace crates; `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+- The complete T3 preference/notification contract remains tracked in #137:
+  persistent `[tui]` preferences, configurable pane prefix, ASCII fallback,
+  and KDE notification/bell delivery are not yet implemented.
 
 ### Grok — C13 owner-run acceptance checklist (#113) (2026-08-13)
 

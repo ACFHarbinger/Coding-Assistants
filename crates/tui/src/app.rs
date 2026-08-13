@@ -95,8 +95,9 @@ impl AppState {
             .or_else(|| effective.default_session.clone())
             .or_else(|| Some("general".to_string()));
 
-        let mut status_message =
-            String::from("Ready. Press [Tab] to switch, [/] palette, [?] help, [r] refresh, [q] exit.");
+        let mut status_message = String::from(
+            "Ready. Press [Tab] to switch, [/] palette, [?] help, [r] refresh, [q] exit.",
+        );
         if options.set_as_default_workspace_settings {
             status_message = format!("Persisted default workspace setting: {:?}", workspace_path);
         }
@@ -134,8 +135,9 @@ impl AppState {
                 self.read_model = model;
                 self.status_message = String::from("Refreshed Hub read model.");
             }
-            Err(err) => {
-                self.status_message = format!("Refresh failed: {err}");
+            Err(_) => {
+                self.status_message =
+                    String::from("Hub data is temporarily unavailable; press r to retry.");
             }
         }
     }
@@ -218,21 +220,27 @@ pub fn run(options: TuiOptions) -> Result<()> {
         .or_else(|| effective.default_session.clone())
         .or_else(|| Some("general".to_string()));
 
-    let read_model = HubReadModel::load(
-        &home_dir,
-        workspace_path.as_deref(),
-        session_id.as_deref(),
-    )
-    .unwrap_or_else(|_| HubReadModel {
-        work_sessions: vec![],
-        team_members: vec![],
-        channel_messages: vec![],
-        tasks: vec![],
-        audit_events: vec![],
-        effective_settings: effective.clone(),
-    });
+    let initial_read =
+        HubReadModel::load(&home_dir, workspace_path.as_deref(), session_id.as_deref());
+    let (read_model, initial_read_failed) = match initial_read {
+        Ok(model) => (model, false),
+        Err(_) => (
+            HubReadModel {
+                work_sessions: vec![],
+                team_members: vec![],
+                channel_messages: vec![],
+                tasks: vec![],
+                audit_events: vec![],
+                effective_settings: effective.clone(),
+            },
+            true,
+        ),
+    };
 
     let mut app = AppState::new(&options, home_dir, &effective, read_model);
+    if initial_read_failed {
+        app.status_message = String::from("Hub data is temporarily unavailable; press r to retry.");
+    }
     let mut terminal = init_terminal()?;
 
     let loop_result = run_loop(&mut terminal, &mut app);
@@ -343,7 +351,8 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
                         }
                     } else {
                         match (key.code, key.modifiers) {
-                            (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                            (KeyCode::Char('q'), _)
+                            | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                                 app.should_quit = true;
                             }
                             (KeyCode::Char('/'), _)
@@ -627,7 +636,13 @@ fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
     if app.read_model.channel_messages.is_empty() {
         text.push(Line::from(" [System] No messages in this channel yet. Send a message via CLI or Desktop to start."));
     } else {
-        for msg in app.read_model.channel_messages.iter().skip(app.scroll_offset).take(15) {
+        for msg in app
+            .read_model
+            .channel_messages
+            .iter()
+            .skip(app.scroll_offset)
+            .take(15)
+        {
             let sender = if msg.from_agent.is_empty() {
                 "system"
             } else {
@@ -641,9 +656,10 @@ fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
         }
     }
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(format!(" Chat & Memory Panel (Scroll: {}) ", app.scroll_offset));
+    let block = Block::default().borders(Borders::ALL).title(format!(
+        " Chat & Memory Panel (Scroll: {}) ",
+        app.scroll_offset
+    ));
     let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
     frame.render_widget(paragraph, area);
 }
@@ -689,7 +705,13 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
             "Recent Settings Audit Events:",
             Style::default().fg(Color::Cyan),
         )));
-        for event in app.read_model.audit_events.iter().skip(app.scroll_offset).take(5) {
+        for event in app
+            .read_model
+            .audit_events
+            .iter()
+            .skip(app.scroll_offset)
+            .take(5)
+        {
             text.push(Line::from(format!(
                 "  [{}] {} ({})",
                 event.operation, event.path, event.status
@@ -697,9 +719,10 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
         }
     }
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(format!(" Shared Hub Panel (Scroll: {}) ", app.scroll_offset));
+    let block = Block::default().borders(Borders::ALL).title(format!(
+        " Shared Hub Panel (Scroll: {}) ",
+        app.scroll_offset
+    ));
     let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
     frame.render_widget(paragraph, area);
 }
@@ -813,12 +836,16 @@ fn draw_help_modal(frame: &mut Frame, area: Rect) {
     let help_text = vec![
         Line::from(Span::styled(
             "⚡ Navigation & Keybindings Cheat-Sheet",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from("  Tab / l / Right    : Switch to Next Tab"),
         Line::from("  Shift+Tab / h / Left: Switch to Previous Tab"),
-        Line::from("  1 .. 4             : Direct Jump to Tab (1:Orchestrate, 2:Chat, 3:Hub, 4:Settings)"),
+        Line::from(
+            "  1 .. 4             : Direct Jump to Tab (1:Orchestrate, 2:Chat, 3:Hub, 4:Settings)",
+        ),
         Line::from("  j / Down           : Scroll Down"),
         Line::from("  k / Up             : Scroll Up"),
         Line::from("  g / Home           : Scroll to Top"),
@@ -835,7 +862,9 @@ fn draw_help_modal(frame: &mut Frame, area: Rect) {
         .borders(Borders::ALL)
         .title(" Help Modal (Press Esc or ? to Close) ")
         .style(Style::default().bg(Color::Reset).fg(Color::Yellow));
-    let paragraph = Paragraph::new(help_text).block(block).wrap(Wrap { trim: true });
+    let paragraph = Paragraph::new(help_text)
+        .block(block)
+        .wrap(Wrap { trim: true });
     frame.render_widget(paragraph, popup_area);
 }
 
@@ -846,10 +875,17 @@ fn draw_command_palette_modal(frame: &mut Frame, area: Rect, app: &AppState) {
     let text = vec![
         Line::from(Span::styled(
             "Command Palette — type a command and press Enter:",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
-            Span::styled("> ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "> ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(&app.command_input),
             Span::styled("█", Style::default().fg(Color::Green)),
         ]),

@@ -54,3 +54,27 @@ fn test_tui_app_state_navigation_and_command_palette() {
     app.execute_command();
     assert!(app.should_quit);
 }
+
+#[test]
+fn test_refresh_hides_internal_hub_errors() {
+    let dir = tempdir().unwrap();
+    let invalid_home = dir.path().join("not-a-directory");
+    std::fs::write(&invalid_home, "not a hub directory").unwrap();
+    let effective = hub::SettingsStore::open(dir.path()).effective(None);
+    let read_model = HubReadModel {
+        work_sessions: vec![],
+        team_members: vec![],
+        channel_messages: vec![],
+        tasks: vec![],
+        audit_events: vec![],
+        effective_settings: effective.clone(),
+    };
+
+    let mut app = AppState::new(&TuiOptions::default(), invalid_home, &effective, read_model);
+    app.refresh();
+
+    assert_eq!(
+        app.status_message,
+        "Hub data is temporarily unavailable; press r to retry."
+    );
+}

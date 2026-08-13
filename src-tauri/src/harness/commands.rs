@@ -258,6 +258,29 @@ mod tests {
             assert!(error.contains("strict sandbox policy"), "{error}");
         });
     }
+
+    #[test]
+    fn hub_inject_harness_rejects_vibe_under_strict_policy_before_delivery() {
+        with_ca_home("inject-harness-rejects-vibe", || {
+            let mut settings = SettingsStore::open(hub::default_hub_home());
+            settings
+                .set_sandbox_strictness(SandboxStrictness::Strict)
+                .unwrap();
+            settings.save().unwrap();
+
+            let error = hub_inject_harness(
+                "vibe".into(),
+                "/abs/repo".into(),
+                None,
+                None,
+                "do something".into(),
+                false,
+                false,
+            )
+            .expect_err("strict policy must reject vibe before delivery");
+            assert!(error.contains("strict sandbox policy"), "{error}");
+        });
+    }
 }
 
 #[tauri::command]
