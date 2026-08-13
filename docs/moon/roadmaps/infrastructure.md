@@ -23,6 +23,9 @@ Keep only infrastructure with a current local or prototype use.
   clear boundary exists.
 - Add a repeatable source-length inventory/check before closing the issue, and
   run the affected crate/frontend/docs test and build commands after each slice.
+- Initial Chat/Codex slice complete: CLI app/command branches, message-query
+  helper, workflow tests, and Tauri quota tests are separated. The settings
+  store and its test suite remain the next owned split.
 - This is a refactor-only programme: behavior changes need their own roadmap
   entry and issue rather than being folded into a mechanical split.
 - **Claude's slice — done:** `crates/hub/src/bridge/claude_channel.rs` (1,069

@@ -85,6 +85,17 @@
 
 ## 2026-08-13 updates
 
+### Chat / Codex — core source-cap slice committed for review (#158)
+
+- Split CLI app/command branches, the durable-message recipient-subject
+  helper, workflow tests, and Tauri quota tests into focused modules. The
+  parent files are now within the 500-LoC cap; targeted Hub/CLI/Tauri tests
+  pass. Settings store/tests remain Chat-owned follow-up work.
+- Did not touch the in-flight roles/gate refactor or any provider/frontend
+  owner slice.
+
+— Chat / Codex
+
 ### Grok — C14.5/6 + frontend 500-LoC split ready for review (#152/#154/#158)
 
 - Leader connect/spawn, no `managed-<pid>` ids, Config/Messager/Channels

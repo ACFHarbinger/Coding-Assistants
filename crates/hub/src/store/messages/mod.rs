@@ -360,23 +360,6 @@ impl HubStore {
         Ok(())
     }
 
-    /// A recipient set represents one fan-out, while a channel/session prefix
-    /// represents a conversation. Callers may intentionally reuse that prefix
-    /// for subsequent posts, so retain it but give the later fan-out its own
-    /// suffix before inserting the primary-keyed recipient-set row.
-    fn unique_recipient_subject(&self, subject: &str) -> Result<String, HubError> {
-        let exists = self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM message_recipient_sets WHERE subject = ?1)",
-            params![subject],
-            |row| row.get::<_, i64>(0),
-        )? != 0;
-        Ok(if exists {
-            format!("{subject}:{}", Uuid::new_v4())
-        } else {
-            subject.to_owned()
-        })
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn record_send_outcome(
         &self,

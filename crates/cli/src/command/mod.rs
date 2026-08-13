@@ -1,5 +1,4 @@
 use crate::app::*;
-use crate::harness::capture_harness_session;
 use crate::helpers::{
     audit_file_hash, audit_operation, audit_process_context, default_home, require_human_authored,
     tagged_dispatch_workspace,
@@ -9,16 +8,16 @@ use hub::{
     MessageKind, MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
 };
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+
+mod harness;
+mod preflight;
+mod shutdown;
+mod tui_command;
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let home = cli.home.clone().unwrap_or_else(default_home);
     let command = cli.command;
-    if let Command::Preflight {
-        workspace,
-        session,
-        json,
-    } = command
-    {
-        return crate::preflight::run(home, workspace, session, json);
+    if let Some(result) = preflight::run_if_requested(&command, home.clone()) {
+        return result;
     }
     let store = HubStore::open(&home)?;
 
@@ -467,54 +466,33 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             }
         },
         Command::Inbox { action } => return crate::io::run(&store, action),
-        Command::Harness { action } => match action {
-            HarnessCommand::Capture {
-                harness,
-                workspace,
-                disk_session,
-                hub_session,
-            } => {
-                let outcome = capture_harness_session(
-                    &store,
-                    &harness,
-                    &workspace,
-                    disk_session.as_deref(),
-                    hub_session.as_deref(),
-                )?;
-                println!("{}", serde_json::to_string_pretty(&outcome)?);
-            }
-        },
+        Command::Harness { action } => harness::run(&store, action)?,
         Command::Shutdown {
             agent,
             task,
             objective,
             reason,
             delegate_to,
-        } => {
-            let outcome = store.record_shutdown(
-                &agent,
-                task.as_deref(),
-                &objective,
-                &reason,
-                delegate_to.as_deref(),
-            )?;
-            println!("{}", serde_json::to_string_pretty(&outcome)?);
-        }
+        } => shutdown::record(
+            &store,
+            &agent,
+            task.as_deref(),
+            &objective,
+            &reason,
+            delegate_to.as_deref(),
+        )?,
         Command::Tui {
             workspace,
             session,
             set_as_default_workspace_settings,
             set_as_default_session_settings,
-        } => {
-            let options = tui::TuiOptions {
-                home: cli.home,
-                workspace,
-                session,
-                set_as_default_workspace_settings,
-                set_as_default_session_settings,
-            };
-            tui::run(options)?;
-        }
+        } => tui_command::run(
+            cli.home,
+            workspace,
+            session,
+            set_as_default_workspace_settings,
+            set_as_default_session_settings,
+        )?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

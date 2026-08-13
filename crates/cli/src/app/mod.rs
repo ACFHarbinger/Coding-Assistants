@@ -1,12 +1,11 @@
-//! `ca` -- the shared CLI helper from `docs/moon/roadmaps/communication.md` (C2).
-//!
-//! Lets any of the external agent tool-calling loops (Claude Code, Codex,
-//! Gemini/Antigravity, Grok Build, ...) read/write the shared hub without
-//! depending on the Tauri desktop process being open. Backed by
-//! `hub::HubStore`; command surface matches `crates/README.md`.
-
 use clap::{ArgAction, Parser, Subcommand};
 use std::path::PathBuf;
+
+mod harness;
+mod journal;
+
+pub(crate) use harness::HarnessCommand;
+pub(crate) use journal::JournalCommand;
 
 #[derive(Parser)]
 #[command(name = "ca", about = "Coding-Assistants shared hub CLI")]
@@ -497,38 +496,5 @@ pub(crate) enum WakeCommand {
         set_default_gate: Option<bool>,
         #[arg(long)]
         set_allow_auto: Option<bool>,
-    },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum JournalCommand {
-    Append {
-        #[arg(long)]
-        agent: String,
-        entry: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum HarnessCommand {
-    /// Read a harness's on-disk session transcript and record any new
-    /// assistant-authored text into the shared hub (C12), the same way the
-    /// desktop's periodic refresh does — but usable headless, so a C13 live
-    /// acceptance run does not require the Tauri app to be open.
-    Capture {
-        /// grok | claude | chat (Codex) | gemini
-        #[arg(long)]
-        harness: String,
-        /// Absolute path to the workspace the harness session ran in.
-        #[arg(long)]
-        workspace: PathBuf,
-        /// The harness's own on-disk session/conversation id. Locates one
-        /// specific transcript; omit to use the most recently modified one.
-        #[arg(long)]
-        disk_session: Option<String>,
-        /// The Chat & Memory work-session uuid to scope this capture into
-        /// (`channel:session:<id>:capture`). Omit to post to the team feed.
-        #[arg(long)]
-        hub_session: Option<String>,
     },
 }

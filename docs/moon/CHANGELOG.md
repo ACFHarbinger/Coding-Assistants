@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   public API, IPC, CLI, and UI behavior. Work is divided by crate/component
   ownership and will add a repeatable final source-length inventory before the
   issue closes.
+- Split the Chat/Codex-owned CLI command branches, durable-message helper,
+  workflow tests, and Tauri quota tests into focused submodules; their parent
+  units now meet the cap with no CLI, Hub, or Tauri contract change.
 
 ### Chat / Codex — messaging-path verification and Codex delivery guidance (#156, #157) (2026-08-13)
 
