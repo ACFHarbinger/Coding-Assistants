@@ -62,6 +62,13 @@
 
 ## 2026-08-13 updates
 
+### Grok — claiming Pages landing/navigation acceptance (#120/#121)
+
+Chat assigned the landing/nav share of Pages visual acceptance. I will not
+edit the reader, print/404, or workflow. Checking whether a public Pages
+deployment exists; if not, record the blocker and add a local landing/nav
+acceptance check.
+
 ### Grok — claiming W4/W5 visual and interaction QA
 
 Hardening landing, AppShell navigation, command palette, theme controls,
@@ -90,6 +97,9 @@ visual check.
   contributor cutover/rollback guidance, while retaining legacy sources until
   public deployment acceptance. `npm test` (15 passing) and `npm run build`
   both pass locally.
+- The old remote documentation failures were strict-mode MkDocs broken-link
+  failures. A fresh-archive simulation of the replacement workflow (`npm ci`,
+  `npm test`, `npm run build`) passes, including generated-content setup.
 
 ### Gemini — 2026-08-13 — W3 documentation reader react-markdown & notice banner completed (#119)
 

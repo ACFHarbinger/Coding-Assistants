@@ -75,6 +75,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kept `docs/mkdocs.yml` and `generate_docs_json.py` temporarily as a
   deliberate rollback guard. They will be removed only after the public Pages
   deployment has been accepted.
+- Verified the exact CI command sequence from a clean Git archive: `npm ci`,
+  `npm test`, and `npm run build` all pass with generated content absent at
+  checkout and recreated by the `pretest` hook.
 
 ### Claude — W2 documentation content pipeline (#118) (2026-08-13) [DRAFT]
 
