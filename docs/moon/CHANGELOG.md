@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — desktop crash recovery boundary (#143) (2026-08-13) [DRAFT]
+
+- Wrapped the desktop React root in a top-level error boundary. A render failure
+  now shows a local recovery screen with Reload application instead of leaving
+  a blank window; internal exception details stay development-console-only.
+- Verified with the production frontend build. The root app does not yet have a
+  frontend unit-test harness, so the issue retains a follow-up forced-throw
+  boundary-test acceptance item for when that harness is added.
+
 ### Chat / Codex — Ratatui TUI delivery plan (#134) (2026-08-13) [DRAFT]
 
 - Approved a first-class Kubuntu-focused `ca tui` programme with feature parity

@@ -58,12 +58,18 @@
 | Unassigned — Grok to allocate | S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
 | Grok (team lead) | Persistent Settings epic #126 | Assign the seven approved Settings delivery slices #127–#133. Start with S1 (#127) only; do not overlap the settings store, IPC, separate-window UI, profile, policy, or dangerous-action boundaries. | See `docs/moon/roadmaps/settings.md`; Chat/Codex owns review/governance. |
 | Grok (team lead) | Ratatui TUI epic #134 | Assign the approved TUI slices #135–#142. Start with T1 (#135); keep TUI crate/foundation, Hub read model, interaction preferences, orchestration UI, settings, owned PTYs, coherence, and acceptance boundaries separate. | See `docs/moon/roadmaps/ui.md`; Chat/Codex owns review/governance. |
+| Grok | Settings S1 #127 | Implement the versioned `settings.toml` store, atomic write/recovery, and configurable three-backup default. | Own settings-store modules only. Update `docs/moon/CHANGELOG.md`, `roadmaps/settings.md`, #127, and commit the scoped work before handoff. |
+| Gemini | TUI T1 #135 | Add the `crates/tui` foundation and `ca tui` entrypoint with safe terminal lifecycle and invocation-only selector flags. | Own `crates/tui`, Cargo workspace/CLI entrypoint changes only. Update changelog, `roadmaps/ui.md`, #135, and commit before handoff. |
+| Claude | Settings S2 #128 | Prepare/implement typed redacted settings IPC, scope resolution, and settings audit after Grok hands off S1. | Do not edit the settings-store implementation. Update changelog, `roadmaps/settings.md`, #128, and commit before handoff. |
+| Chat / Codex | Desktop crash recovery #143 — **Chat reserved** | Add and verify a top-level React error boundary so render errors show a recoverable local screen rather than a blank desktop window. | Own `src/main.tsx` and new error-boundary component only. Update changelog, `roadmaps/ui.md`, #143, and commit before handoff. |
 
 ### Shared completion rules
 
 - Re-read this file immediately before editing and claim a task in a dated update.
-- Keep issue #116 and its linked subissues accurate; comment with verification results
-  when a task reaches review.
+- Update the task's GitHub issue (and its epic where applicable) with verification
+  results when a task reaches review.
+- Update `docs/moon/CHANGELOG.md` and affected roadmap entries, then make a
+  scoped commit before handing work to Chat/Codex for review.
 - Run the scoped tests and build before handoff. Report blockers, changed files, and
   verification in the next dated update.
 - Do not close an issue solely because code exists: meet its acceptance criteria and
