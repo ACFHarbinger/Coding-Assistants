@@ -83,15 +83,63 @@ pub fn parse_agy_stream_line(line: &str) -> Option<AgyStreamOutput> {
 
     let source = value.get("source").and_then(Value::as_str);
     let msg_type = value.get("type").and_then(Value::as_str);
-    if source == Some("MODEL") || msg_type == Some("PLANNER_RESPONSE") {
+
+    // Skip tool execution steps (VIEW_FILE, RUN_COMMAND, etc.) and intermediate tool_calls
+    let is_tool_step = matches!(
+        msg_type,
+        Some(
+            "VIEW_FILE"
+                | "LIST_DIR"
+                | "RUN_COMMAND"
+                | "REPLACE_FILE_CONTENT"
+                | "WRITE_TO_FILE"
+                | "MULTI_REPLACE_FILE_CONTENT"
+                | "READ_URL_CONTENT"
+                | "SEARCH_WEB"
+                | "ASK_QUESTION"
+                | "DEFINE_SUBAGENT"
+                | "INVOKE_SUBAGENT"
+                | "MANAGE_SUBAGENTS"
+                | "MANAGE_TASK"
+                | "SCHEDULE"
+                | "SEND_MESSAGE"
+                | "GENERATE_IMAGE"
+                | "GREP_SEARCH"
+        )
+    );
+    let has_tool_calls = value
+        .get("tool_calls")
+        .is_some_and(|tc| tc.as_array().is_some_and(|arr| !arr.is_empty()));
+
+    if (source == Some("MODEL") || msg_type == Some("PLANNER_RESPONSE"))
+        && !is_tool_step
+        && !has_tool_calls
+    {
         if let Some(content) = value.get("content").and_then(Value::as_str) {
-            if !content.trim().is_empty() {
-                out.assistant_texts.push(content.to_string());
+            let trimmed = content.trim();
+            if !trimmed.is_empty()
+                && !trimmed.starts_with("Created At:")
+                && !trimmed.starts_with("Completed At:")
+                && !trimmed.starts_with("File Path:")
+                && !trimmed.starts_with("<USER_REQUEST>")
+                && !trimmed.starts_with("{{ CHECKPOINT")
+                && !trimmed.starts_with("```json")
+                && !trimmed.contains("The following code has been modified")
+            {
+                out.assistant_texts.push(trimmed.to_string());
             }
         }
     } else if let Some(text) = value.get("text").and_then(Value::as_str) {
-        if !text.trim().is_empty() {
-            out.assistant_texts.push(text.to_string());
+        let trimmed = text.trim();
+        if !trimmed.is_empty()
+            && !trimmed.starts_with("Created At:")
+            && !trimmed.starts_with("Completed At:")
+            && !trimmed.starts_with("File Path:")
+            && !trimmed.starts_with("<USER_REQUEST>")
+            && !trimmed.starts_with("{{ CHECKPOINT")
+            && !trimmed.starts_with("```json")
+        {
+            out.assistant_texts.push(trimmed.to_string());
         }
     }
 
@@ -129,7 +177,10 @@ pub fn deliver_gemini_task_with(
         .unwrap_or_else(|_| request.workspace.clone());
     let workspace_str = workspace.to_string_lossy().into_owned();
 
-    let registration = store.get_harness_session("gemini", &workspace_str)?;
+    let registration = store
+        .get_harness_session("gemini", &workspace_str)?
+        .or_else(|| store.get_harness_session("agy", &workspace_str).ok().flatten());
+
     let is_managed = registration
         .as_ref()
         .is_some_and(|row| row.mode == HarnessSessionMode::Managed);
@@ -139,6 +190,12 @@ pub fn deliver_gemini_task_with(
             "Gemini/Antigravity active session delivery requires an app-owned managed session. Register one with hub_register_managed_harness_session. Task stays queued.",
         ));
     }
+
+    let conversation_id = request
+        .session_id
+        .clone()
+        .or_else(|| registration.as_ref().map(|row| row.disk_session_id.clone()))
+        .or_else(|| latest_gemini_session_id(&workspace));
 
     let writer_owner = format!(
         "gemini-worker:{}",
@@ -151,12 +208,18 @@ pub fn deliver_gemini_task_with(
         )));
     }
 
-    let conversation_id = registration.as_ref().map(|row| row.disk_session_id.clone());
-
     let run_res = runner(&workspace, &request.body, conversation_id.as_deref());
 
     let (next_state, result) = match run_res {
         Ok((pid, output)) => {
+            if let Some(ref new_conv) = output.conversation_id {
+                let _ = store.register_managed_harness_session(
+                    "gemini",
+                    &workspace_str,
+                    new_conv,
+                    pid.unwrap_or_else(std::process::id),
+                );
+            }
             let detail = if let Some(ref conv) = output.conversation_id {
                 format!("Gemini worker completed successfully (conversation: {conv})")
             } else {

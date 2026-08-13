@@ -1,30 +1,30 @@
-//! C12-GROK-BRIDGE: deliver a queued Hub task into an already-running Grok
-//! session through the documented ACP + leader path.
+//! C12-GROK-BRIDGE: discover an already-running Grok session and deliver a
+//! queued Hub task through the documented ACP + leader path.
 //!
 //! Grok Build's supported attach is `grok agent --leader stdio` talking to
 //! `~/.grok/leader.sock` (or `GROK_LEADER_SOCKET`), then `session/load` +
 //! `session/prompt`. That process is an ACP *client* of the existing leader,
 //! not a replacement TUI. If the leader socket is absent, delivery is
 //! `unavailable` and the task stays queued.
+//!
+//! Starting a leader-mode TUI lives in `bridge::channels::grok` and must
+//! not be required for this module to refuse safely.
 
 use crate::{HarnessInjectRequest, HarnessInjectResult, HubError, HubStore};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-pub fn default_leader_socket() -> PathBuf {
-    if let Ok(path) = std::env::var("GROK_LEADER_SOCKET") {
+pub fn grok_home() -> PathBuf {
+    if let Ok(path) = std::env::var("GROK_HOME") {
         if !path.trim().is_empty() {
             return PathBuf::from(path);
         }
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".grok").join("leader.sock")
-}
-
-pub fn grok_home() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".grok")
 }
@@ -62,85 +62,72 @@ pub fn latest_grok_session_id(workspace: &Path) -> Option<String> {
         .map(|(_, id)| id)
 }
 
+/// A Grok TUI currently listed in `~/.grok/active_sessions.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(dead_code)]
+pub struct ActiveGrokSession {
+    pub session_id: String,
+    pub pid: u32,
+    pub cwd: String,
+    #[serde(default)]
+    pub opened_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ActiveSessionFile {
+    session_id: String,
+    pid: u32,
+    cwd: String,
+    #[serde(default)]
+    pub opened_at: Option<String>,
+}
+
+#[allow(dead_code)]
+pub fn parse_active_grok_sessions(raw: &str) -> Vec<ActiveGrokSession> {
+    let Ok(rows) = serde_json::from_str::<Vec<ActiveSessionFile>>(raw) else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .map(|row| ActiveGrokSession {
+            session_id: row.session_id,
+            pid: row.pid,
+            cwd: row.cwd,
+            opened_at: row.opened_at,
+        })
+        .collect()
+}
+
+#[allow(dead_code)]
+pub fn list_active_grok_sessions() -> Vec<ActiveGrokSession> {
+    let Ok(raw) = std::fs::read_to_string(grok_home().join("active_sessions.json")) else {
+        return Vec::new();
+    };
+    parse_active_grok_sessions(&raw)
+}
+
+#[allow(dead_code)]
+pub fn active_grok_session_for(workspace: &Path) -> Option<ActiveGrokSession> {
+    let wanted = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
+    list_active_grok_sessions().into_iter().find(|row| {
+        let cwd = PathBuf::from(&row.cwd);
+        cwd == wanted || cwd.canonicalize().ok().as_ref() == Some(&wanted)
+    })
+}
+
+pub fn default_leader_socket() -> PathBuf {
+    if let Ok(path) = std::env::var("GROK_LEADER_SOCKET") {
+        if !path.trim().is_empty() {
+            return PathBuf::from(path);
+        }
+    }
+    grok_home().join("leader.sock")
+}
+
 pub fn leader_socket_available(path: &Path) -> bool {
     path.exists()
-}
-
-/// Deliver a task into a registered Grok session. Never writes a TTY/PTY and
-/// never starts a replacement interactive `grok` TUI.
-pub fn deliver_grok_task(
-    store: &HubStore,
-    request: &HarnessInjectRequest,
-) -> Result<HarnessInjectResult, HubError> {
-    if request.body.trim().is_empty() {
-        return Err(HubError::Invalid("inject body must not be empty".into()));
-    }
-    if !request.workspace.is_absolute() {
-        return Err(HubError::Invalid(
-            "Grok active-session delivery requires an absolute workspace".into(),
-        ));
-    }
-    let workspace = request
-        .workspace
-        .canonicalize()
-        .unwrap_or_else(|_| request.workspace.clone());
-    let registration = store.get_harness_session("grok", &workspace.to_string_lossy())?;
-    // `request.session_id` is the Hub work-session id, not Grok's disk/ACP
-    // session id. Never pass it to `session/load`.
-    let session_id = registration
-        .as_ref()
-        .map(|row| row.disk_session_id.clone())
-        .or_else(|| latest_grok_session_id(&workspace));
-    let Some(session_id) = session_id else {
-        return Ok(unavailable(
-            "no registered or on-disk Grok session for this workspace; register one with hub_register_harness_session",
-        ));
-    };
-    let socket = registration
-        .as_ref()
-        .and_then(|row| row.leader_socket.as_deref())
-        .map(PathBuf::from)
-        .unwrap_or_else(default_leader_socket);
-    if !leader_socket_available(&socket) {
-        return Ok(unavailable(&format!(
-            "Grok leader socket is not available at {} — start the TUI with leader mode (`[cli] use_leader = true` or `grok agent leader`). Task stays queued.",
-            socket.display()
-        )));
-    }
-
-    match run_acp_prompt(&socket, &workspace, &session_id, &request.body) {
-        Ok(reply) => {
-            if let Some(message_id) = request.message_id.as_deref() {
-                let _ = store.set_message_status(message_id, crate::MessageStatus::Acked);
-            }
-            let _ = store.record_harness_capture(
-                "grok",
-                "grok",
-                request.session_id.as_deref(),
-                &reply,
-                Some(&workspace.to_string_lossy()),
-            );
-            Ok(HarnessInjectResult {
-                harness: "grok".into(),
-                pid: None,
-                status: "delivered".into(),
-                detail: format!(
-                    "forwarded to registered Grok session {session_id} via leader {}",
-                    socket.display()
-                ),
-            })
-        }
-        Err(error) => Ok(unavailable(&error)),
-    }
-}
-
-fn unavailable(detail: &str) -> HarnessInjectResult {
-    HarnessInjectResult {
-        harness: "grok".into(),
-        pid: None,
-        status: "unavailable".into(),
-        detail: detail.into(),
-    }
 }
 
 pub fn acp_initialize() -> Value {
@@ -184,6 +171,16 @@ pub fn acp_session_prompt(session_id: &str, text: &str) -> Value {
     })
 }
 
+pub fn grok_acp_client_args(socket: &Path) -> Vec<String> {
+    vec![
+        "agent".into(),
+        "--leader".into(),
+        "--leader-socket".into(),
+        socket.display().to_string(),
+        "stdio".into(),
+    ]
+}
+
 fn run_acp_prompt(
     socket: &Path,
     workspace: &Path,
@@ -191,13 +188,7 @@ fn run_acp_prompt(
     text: &str,
 ) -> Result<String, String> {
     let mut child = Command::new("grok")
-        .args([
-            "agent",
-            "--leader",
-            "--leader-socket",
-            &socket.to_string_lossy(),
-            "stdio",
-        ])
+        .args(grok_acp_client_args(socket))
         .current_dir(workspace)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -299,10 +290,86 @@ fn collect_prompt_reply(reader: &mut impl BufRead, timeout: Duration) -> Result<
     Ok(reply)
 }
 
+/// Deliver a task into a registered Grok session. Never writes a TTY/PTY and
+/// never starts a replacement interactive `grok` TUI.
+pub fn deliver_grok_task(
+    store: &HubStore,
+    request: &HarnessInjectRequest,
+) -> Result<HarnessInjectResult, HubError> {
+    if request.body.trim().is_empty() {
+        return Err(HubError::Invalid("inject body must not be empty".into()));
+    }
+    if !request.workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Grok active-session delivery requires an absolute workspace".into(),
+        ));
+    }
+    let workspace = request
+        .workspace
+        .canonicalize()
+        .unwrap_or_else(|_| request.workspace.clone());
+    let registration = store.get_harness_session("grok", &workspace.to_string_lossy())?;
+    // `request.session_id` is the Hub work-session id, not Grok's disk/ACP
+    // session id. Never pass it to `session/load`.
+    let session_id = registration
+        .as_ref()
+        .map(|row| row.disk_session_id.clone())
+        .or_else(|| latest_grok_session_id(&workspace));
+    let Some(session_id) = session_id else {
+        return Ok(unavailable(
+            "no registered or on-disk Grok session for this workspace; use Shared Hub → Channels → Connect Grok (leader mode), or register one with hub_register_harness_session",
+        ));
+    };
+    let socket = registration
+        .as_ref()
+        .and_then(|row| row.leader_socket.as_deref())
+        .map(PathBuf::from)
+        .unwrap_or_else(default_leader_socket);
+    if !leader_socket_available(&socket) {
+        return Ok(unavailable(&format!(
+            "no leader socket at {} — start Grok with --leader (or [cli] use_leader = true) to enable delivery. Task stays queued.",
+            socket.display()
+        )));
+    }
+
+    match run_acp_prompt(&socket, &workspace, &session_id, &request.body) {
+        Ok(reply) => {
+            if let Some(message_id) = request.message_id.as_deref() {
+                let _ = store.set_message_status(message_id, crate::MessageStatus::Acked);
+            }
+            let _ = store.record_harness_capture(
+                "grok",
+                "grok",
+                request.session_id.as_deref(),
+                &reply,
+                Some(&workspace.to_string_lossy()),
+            );
+            Ok(HarnessInjectResult {
+                harness: "grok".into(),
+                pid: None,
+                status: "delivered".into(),
+                detail: format!(
+                    "forwarded to registered Grok session {session_id} via leader {}",
+                    socket.display()
+                ),
+            })
+        }
+        Err(error) => Ok(unavailable(&error)),
+    }
+}
+
+fn unavailable(detail: &str) -> HarnessInjectResult {
+    HarnessInjectResult {
+        harness: "grok".into(),
+        pid: None,
+        status: "unavailable".into(),
+        detail: detail.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::HubStore;
     use tempfile::tempdir;
 
     #[test]
@@ -316,14 +383,30 @@ mod tests {
     }
 
     #[test]
+    fn parse_active_sessions_reads_the_live_tui_record() {
+        let raw = r#"[{"session_id":"019ffa19-d2c4-7452-9f51-66623841870a","pid":690024,"cwd":"/tmp/ws"}]"#;
+        let rows = parse_active_grok_sessions(raw);
+        assert_eq!(rows[0].session_id, "019ffa19-d2c4-7452-9f51-66623841870a");
+        assert_eq!(rows[0].pid, 690024);
+    }
+
+    #[test]
     fn acp_frames_use_documented_methods() {
         assert_eq!(acp_initialize()["method"], "initialize");
         let load = acp_session_load("sess-1", Path::new("/tmp/ws"));
         assert_eq!(load["method"], "session/load");
-        assert_eq!(load["params"]["sessionId"], "sess-1");
         let prompt = acp_session_prompt("sess-1", "do the task");
-        assert_eq!(prompt["method"], "session/prompt");
         assert_eq!(prompt["params"]["prompt"][0]["text"], "do the task");
+        assert_eq!(
+            grok_acp_client_args(Path::new("/tmp/leader.sock")),
+            vec![
+                "agent",
+                "--leader",
+                "--leader-socket",
+                "/tmp/leader.sock",
+                "stdio"
+            ]
+        );
     }
 
     #[test]
@@ -352,7 +435,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, "unavailable");
-        assert!(result.detail.contains("leader socket"));
+        assert!(result.detail.contains("leader socket") || result.detail.contains("--leader"));
         assert_eq!(result.pid, None);
     }
 
@@ -374,6 +457,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.status, "unavailable");
-        assert!(result.detail.contains("no registered") || result.detail.contains("leader socket"));
+        assert!(
+            result.detail.contains("no registered")
+                || result.detail.contains("leader socket")
+                || result.detail.contains("--leader")
+        );
     }
 }

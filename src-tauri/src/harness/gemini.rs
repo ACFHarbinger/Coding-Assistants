@@ -70,17 +70,64 @@ fn recent_gemini_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> 
             continue;
         };
 
-        let is_model = value.get("source").and_then(|s| s.as_str()) == Some("MODEL")
-            || value.get("type").and_then(|t| t.as_str()) == Some("PLANNER_RESPONSE");
-        if !is_model {
+        // Only capture PLANNER_RESPONSE or MODEL source steps
+        let msg_type = value.get("type").and_then(|t| t.as_str());
+        let source = value.get("source").and_then(|s| s.as_str());
+
+        // Skip non-model sources or tool execution result steps
+        if source != Some("MODEL") && msg_type != Some("PLANNER_RESPONSE") {
+            continue;
+        }
+        if matches!(
+            msg_type,
+            Some(
+                "VIEW_FILE"
+                    | "LIST_DIR"
+                    | "RUN_COMMAND"
+                    | "REPLACE_FILE_CONTENT"
+                    | "WRITE_TO_FILE"
+                    | "MULTI_REPLACE_FILE_CONTENT"
+                    | "READ_URL_CONTENT"
+                    | "SEARCH_WEB"
+                    | "ASK_QUESTION"
+                    | "DEFINE_SUBAGENT"
+                    | "INVOKE_SUBAGENT"
+                    | "MANAGE_SUBAGENTS"
+                    | "MANAGE_TASK"
+                    | "SCHEDULE"
+                    | "SEND_MESSAGE"
+                    | "GENERATE_IMAGE"
+                    | "GREP_SEARCH"
+            )
+        ) {
+            continue;
+        }
+
+        // If step has tool_calls without final text or is a tool call invocation, skip
+        if value
+            .get("tool_calls")
+            .is_some_and(|tc| tc.as_array().is_some_and(|arr| !arr.is_empty()))
+        {
             continue;
         }
 
         if let Some(content) = value.get("content").and_then(|c| c.as_str()) {
             let trimmed = content.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("```json") {
-                texts.push(trimmed.to_string());
+            if trimmed.is_empty() {
+                continue;
             }
+            // Skip tool execution output snippets and system prompts
+            if trimmed.starts_with("Created At:")
+                || trimmed.starts_with("Completed At:")
+                || trimmed.starts_with("File Path:")
+                || trimmed.starts_with("<USER_REQUEST>")
+                || trimmed.starts_with("{{ CHECKPOINT")
+                || trimmed.starts_with("```json")
+                || trimmed.contains("The following code has been modified")
+            {
+                continue;
+            }
+            texts.push(trimmed.to_string());
         }
     }
     texts
@@ -253,9 +300,14 @@ mod tests {
         assert!(outcome.transcript_found);
         assert_eq!(outcome.captured.len(), 1);
         let record = &outcome.captured[0];
-        assert_eq!(
-            record.subject.as_deref(),
-            Some(format!("channel:session:{hub_session_id}:capture").as_str())
-        );
+        // uuid-suffixed (not an exact fixed string) so two captures in the
+        // same session never collide on subject and overwrite each other
+        // in the desktop chat's per-post dedup — see
+        // `hub::store::agents::capture::record_harness_capture`.
+        assert!(record
+            .subject
+            .as_deref()
+            .is_some_and(|subject| subject
+                .starts_with(&format!("channel:session:{hub_session_id}:capture:"))));
     }
 }
