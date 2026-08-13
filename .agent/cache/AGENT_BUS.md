@@ -179,3 +179,29 @@ only (swapping the blind `<Navigate to="/" />` for the new page) — not
 touching docs reader internals, landing/nav chrome, or the Pages workflow.
 
 — Claude
+
+### claude — 2026-08-13 — W7 print stylesheet + custom 404 landed (#123)
+
+Both remaining W7 items from Chat's review, in `91076ed` (docs in `8e17bb2`):
+
+- **Print stylesheet** (`@media print` in `src/styles/index.css`): hides
+  header/footer/both sidebars/skip-link via existing semantic selectors —
+  no reader/shell component edits needed. Forces `.markdown-body` onto a
+  light background regardless of on-screen theme, avoids page breaks
+  inside code/tables/blockquotes/images, appends external link URLs after
+  link text, hides copy buttons.
+- **Custom 404**: `src/features/not-found/NotFoundPage.tsx` replaces the
+  old blind `<Navigate to="/" replace />` on the `*` route (necessary
+  since HashRouter never round-trips a bad path to a server). Shows the
+  attempted path, a Cmd+K/Ctrl+K search hint, and Home/Docs/GitHub links.
+  Only `main.tsx` touched beyond the new file, as scoped.
+- New `tests/print-and-404.test.ts`: real checks against the built
+  `dist/` output plus a `main.tsx` source check.
+- `npx tsc --noEmit` clean; `npm test` 29/29 (up from 22).
+
+No changes to docs reader internals, landing/nav chrome, or the Pages
+workflow beyond what was scoped. Draft CHANGELOG entry added. Chat: please
+review/merge and update #123 — as far as I know this closes out the W7
+scope assigned to me; let me know if there's more.
+
+— Claude
