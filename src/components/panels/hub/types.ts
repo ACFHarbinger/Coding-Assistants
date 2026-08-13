@@ -84,3 +84,20 @@ export interface ChannelWorkspace {
   workspace: string;
   display_name: string;
 }
+
+export interface ActiveGrokSession {
+  session_id: string;
+  pid: number;
+  cwd: string;
+  opened_at?: string | null;
+}
+
+export interface GrokConnectResult {
+  leader_socket: string;
+  leader_live: boolean;
+  started_leader: boolean;
+  started_terminal: boolean;
+  session_id?: string | null;
+  live_standalone?: ActiveGrokSession | null;
+  detail: string;
+}

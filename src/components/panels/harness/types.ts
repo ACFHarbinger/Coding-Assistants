@@ -26,7 +26,7 @@ export interface HarnessDeliveryNotice {
 }
 
 export const HARNESS_PREREQUISITES: Record<string, string> = {
-  grok: "Inject needs a Grok ACP leader socket. Observed capture uses the on-disk session only.",
+  grok: "Hub inject needs a live `grok --leader` session (`~/.grok/leader.sock`). A standalone TUI cannot receive Hub messages. Use Connect / Resume in Shared Hub → Channels or here. Capture still reads the on-disk session.",
   chat: "Inject needs a persisted Codex thread id. If the writer is busy, retry later — do not start a second writer.",
   claude: "Two-way delivery needs an opt-in Claude Channel. Without it this session is capture-only.",
   gemini: "Managed delivery needs an app-owned agy stream-json worker. Do not attach to an interactive TUI.",

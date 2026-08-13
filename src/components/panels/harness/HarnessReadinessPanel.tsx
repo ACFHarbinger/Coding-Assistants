@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
+import GrokLeaderCard from "./GrokLeaderCard";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
@@ -55,6 +56,12 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     setBusy(true);
     try {
       requireWorkspace();
+      if (harness === "grok") {
+        throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
+      }
+      if (!diskId.trim()) {
+        throw new Error(`Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`);
+      }
       const started = await invoke<{ pid?: number | null; status: string; detail: string }>("hub_start_harness", {
         harness,
         workspace,
@@ -67,7 +74,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       await invoke("hub_register_managed_harness_session", {
         harness,
         workspace,
-        diskSessionId: diskId.trim() || `managed-${started.pid}`,
+        diskSessionId: diskId.trim(),
         managedPid: started.pid,
       });
       setDiskId("");
@@ -125,8 +132,16 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         </button>
       </div>
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
-        {HARNESS_PREREQUISITES[harness]} Start managed uses the documented wake spawn, then marks the Hub row owned. It does not attach to an existing TTY or undocumented socket.
+        {HARNESS_PREREQUISITES[harness]} {harness === "grok"
+          ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
+          : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
       </p>
+
+      {harness === "grok" && (
+        <div style={{ marginBottom: "0.85rem" }}>
+          <GrokLeaderCard workspace={workspace} compact />
+        </div>
+      )}
 
       <div style={{ display: "grid", gap: "0.55rem" }}>
         {sessions.length === 0 && (
