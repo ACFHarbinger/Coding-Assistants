@@ -461,6 +461,16 @@ pub struct ChannelRecord {
     pub created_at: String,
 }
 
+/// An explicitly registered already-running harness session (C12 bridge).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarnessSessionRegistration {
+    pub harness: String,
+    pub workspace: String,
+    pub disk_session_id: String,
+    pub leader_socket: Option<String>,
+    pub registered_at: String,
+}
+
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
@@ -851,6 +861,15 @@ impl HubStore {
                 created_at TEXT NOT NULL,
                 deleted_at TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS harness_session_registrations (
+                harness TEXT NOT NULL,
+                workspace TEXT NOT NULL,
+                disk_session_id TEXT NOT NULL,
+                leader_socket TEXT,
+                registered_at TEXT NOT NULL,
+                PRIMARY KEY (harness, workspace)
+            );
             "#,
         )?;
 
@@ -1158,6 +1177,96 @@ impl HubStore {
             .into_iter()
             .find(|channel| channel.id == id)
             .ok_or_else(|| HubError::NotFound(id))
+    }
+
+    pub fn register_harness_session(
+        &self,
+        harness: &str,
+        workspace: &str,
+        disk_session_id: &str,
+        leader_socket: Option<&str>,
+    ) -> Result<HarnessSessionRegistration, HubError> {
+        let harness = harness.trim();
+        let workspace = workspace.trim();
+        let disk_session_id = disk_session_id.trim();
+        if harness.is_empty() || workspace.is_empty() || disk_session_id.is_empty() {
+            return Err(HubError::Invalid(
+                "harness session registration requires harness, absolute workspace, and disk session id"
+                    .into(),
+            ));
+        }
+        if !Path::new(workspace).is_absolute() {
+            return Err(HubError::Invalid(
+                "harness session workspace must be an absolute path".into(),
+            ));
+        }
+        let registered_at = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO harness_session_registrations(
+                harness, workspace, disk_session_id, leader_socket, registered_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(harness, workspace) DO UPDATE SET
+                disk_session_id = excluded.disk_session_id,
+                leader_socket = excluded.leader_socket,
+                registered_at = excluded.registered_at",
+            params![
+                harness,
+                workspace,
+                disk_session_id,
+                leader_socket,
+                registered_at
+            ],
+        )?;
+        Ok(HarnessSessionRegistration {
+            harness: harness.into(),
+            workspace: workspace.into(),
+            disk_session_id: disk_session_id.into(),
+            leader_socket: leader_socket.map(str::to_string),
+            registered_at,
+        })
+    }
+
+    pub fn get_harness_session(
+        &self,
+        harness: &str,
+        workspace: &str,
+    ) -> Result<Option<HarnessSessionRegistration>, HubError> {
+        self.conn
+            .query_row(
+                "SELECT harness, workspace, disk_session_id, leader_socket, registered_at
+                 FROM harness_session_registrations
+                 WHERE harness = ?1 AND workspace = ?2",
+                params![harness, workspace],
+                |row| {
+                    Ok(HarnessSessionRegistration {
+                        harness: row.get(0)?,
+                        workspace: row.get(1)?,
+                        disk_session_id: row.get(2)?,
+                        leader_socket: row.get(3)?,
+                        registered_at: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(HubError::from)
+    }
+
+    pub fn list_harness_sessions(&self) -> Result<Vec<HarnessSessionRegistration>, HubError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT harness, workspace, disk_session_id, leader_socket, registered_at
+             FROM harness_session_registrations
+             ORDER BY registered_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(HarnessSessionRegistration {
+                harness: row.get(0)?,
+                workspace: row.get(1)?,
+                disk_session_id: row.get(2)?,
+                leader_socket: row.get(3)?,
+                registered_at: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     pub fn delete_channel(&self, id: &str) -> Result<(), HubError> {
@@ -4857,5 +4966,28 @@ mod tests {
             .create_channel("design-review", Some("again"))
             .unwrap();
         assert_eq!(restored.id, "design-review");
+    }
+
+    #[test]
+    fn harness_session_registration_is_upserted_per_workspace() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .register_harness_session(
+                "grok",
+                "/tmp/ca-bridge-ws",
+                "session-a",
+                Some("/tmp/leader.sock"),
+            )
+            .unwrap();
+        store
+            .register_harness_session("grok", "/tmp/ca-bridge-ws", "session-b", None)
+            .unwrap();
+        let loaded = store
+            .get_harness_session("grok", "/tmp/ca-bridge-ws")
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.disk_session_id, "session-b");
+        assert!(loaded.leader_socket.is_none());
     }
 }

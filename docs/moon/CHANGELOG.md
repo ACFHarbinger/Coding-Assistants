@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **C12-GROK-BRIDGE.** An explicitly registered Grok session can receive a
+  queued Hub **task** through Grok Build's documented ACP leader path
+  (`grok agent --leader stdio` → `session/load` + `session/prompt` on
+  `~/.grok/leader.sock`). That is an ACP client of the existing leader, not
+  a replacement TUI. If the leader socket is missing, delivery is
+  `unavailable` and the task stays queued. Register with
+  `hub_register_harness_session` (or let Grok capture auto-register the
+  latest on-disk session). `hub_inject_harness` / `ca msg tag --dispatch`
+  use this path for Grok tasks.
+
 - The app header now continuously shows the selected **Workspace root** and
   **Active team chat**. Orchestrate places the editable Workspace Root control
   at the top, before team/session configuration.

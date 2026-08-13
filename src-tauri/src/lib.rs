@@ -370,6 +370,8 @@ pub fn run() {
             hub_cmds::hub_add_work_session_member,
             harness_cmds::hub_start_harness,
             harness_cmds::hub_inject_harness,
+            harness_cmds::hub_register_harness_session,
+            harness_cmds::hub_list_harness_sessions,
             harness_cmds::hub_record_harness_capture,
             harness_cmds::hub_capture_claude_session,
             harness_cmds::hub_capture_codex_session,

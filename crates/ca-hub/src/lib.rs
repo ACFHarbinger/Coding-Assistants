@@ -5,18 +5,23 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+mod grok_bridge;
 mod harness;
 mod store;
 
+pub use grok_bridge::{
+    acp_initialize, acp_session_load, acp_session_prompt, default_leader_socket, deliver_grok_task,
+    latest_grok_session_id, leader_socket_available,
+};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
-    start_harness, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
-    HarnessStartResult,
+    inject_harness_with_store, start_harness, HarnessId, HarnessInjectRequest, HarnessInjectResult,
+    HarnessStartRequest, HarnessStartResult,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,
-    BudgetStatus, ChannelRecord, CompactReport, GitExportOutcome, HubError, HubStore, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, SendOutcome,
-    ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord,
-    WorkflowStep,
+    BudgetStatus, ChannelRecord, CompactReport, GitExportOutcome, HarnessSessionRegistration,
+    HubError, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord,
+    MessageStatus, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord,
+    WakeStatus, WorkSessionRecord, WorkflowStep,
 };

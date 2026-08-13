@@ -127,6 +127,18 @@ pub(crate) fn capture_grok_session_from(
             captured: Vec::new(),
         });
     };
+    if let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) {
+        let socket = ca_hub::default_leader_socket();
+        let _ = store.register_harness_session(
+            "grok",
+            &workspace.to_string_lossy(),
+            &disk_session_id.to_string_lossy(),
+            socket
+                .exists()
+                .then(|| socket.display().to_string())
+                .as_deref(),
+        );
+    }
     let texts = recent_assistant_texts(&path, 200);
     let mut captured = Vec::new();
     for text in &texts {

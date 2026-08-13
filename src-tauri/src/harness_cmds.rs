@@ -4,7 +4,8 @@
 
 use crate::hub_cmds::open_store;
 use ca_hub::{
-    inject_harness, start_harness, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
+    default_leader_socket, inject_harness_with_store, latest_grok_session_id, start_harness,
+    HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest,
     HarnessStartResult, MessageRecord,
 };
 use std::path::PathBuf;
@@ -35,16 +36,52 @@ pub fn hub_inject_harness(
     is_task: bool,
     is_wake: bool,
 ) -> Result<HarnessInjectResult, String> {
-    inject_harness(&HarnessInjectRequest {
-        harness,
-        workspace: PathBuf::from(workspace),
-        session_id,
-        message_id,
-        body,
-        is_task,
-        is_wake,
-    })
+    inject_harness_with_store(
+        &open_store()?,
+        &HarnessInjectRequest {
+            harness,
+            workspace: PathBuf::from(workspace),
+            session_id,
+            message_id,
+            body,
+            is_task,
+            is_wake,
+        },
+    )
     .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_register_harness_session(
+    harness: String,
+    workspace: String,
+    disk_session_id: Option<String>,
+    leader_socket: Option<String>,
+) -> Result<HarnessSessionRegistration, String> {
+    let workspace_path = PathBuf::from(&workspace);
+    let session_id = match disk_session_id.filter(|id| !id.trim().is_empty()) {
+        Some(id) => id,
+        None if harness == "grok" => latest_grok_session_id(&workspace_path).ok_or_else(|| {
+            "no on-disk Grok session for this workspace; pass diskSessionId".to_string()
+        })?,
+        None => {
+            return Err("diskSessionId is required unless Grok can infer the latest session".into())
+        }
+    };
+    let socket = leader_socket.or_else(|| {
+        let path = default_leader_socket();
+        path.exists().then(|| path.display().to_string())
+    });
+    open_store()?
+        .register_harness_session(&harness, &workspace, &session_id, socket.as_deref())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_harness_sessions() -> Result<Vec<HarnessSessionRegistration>, String> {
+    open_store()?
+        .list_harness_sessions()
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

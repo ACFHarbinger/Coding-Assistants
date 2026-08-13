@@ -6,8 +6,8 @@
 //! `ca_hub::HubStore`; command surface matches `crates/README.md`.
 
 use ca_hub::{
-    inject_harness, HarnessInjectRequest, HubStore, MemoryScope, MemoryTier, MessageKind,
-    MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
+    inject_harness_with_store, HarnessInjectRequest, HubStore, MemoryScope, MemoryTier,
+    MessageKind, MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
 };
 use clap::{ArgAction, Parser, Subcommand};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -706,15 +706,18 @@ fn main() -> anyhow::Result<()> {
                 )?;
                 if let Some(workspace) = dispatch_workspace {
                     for outcome in outcomes.iter().filter(|outcome| outcome.accepted) {
-                        let dispatch_result = inject_harness(&HarnessInjectRequest {
-                            harness: outcome.to_agent.clone(),
-                            workspace: workspace.clone(),
-                            session_id: session.clone(),
-                            message_id: outcome.message_id.clone(),
-                            body: body.clone(),
-                            is_task: task,
-                            is_wake: wake,
-                        });
+                        let dispatch_result = inject_harness_with_store(
+                            &store,
+                            &HarnessInjectRequest {
+                                harness: outcome.to_agent.clone(),
+                                workspace: workspace.clone(),
+                                session_id: session.clone(),
+                                message_id: outcome.message_id.clone(),
+                                body: body.clone(),
+                                is_task: task,
+                                is_wake: wake,
+                            },
+                        );
                         let dispatch_event = match dispatch_result {
                             Ok(result) => serde_json::json!({
                                 "type": "harness_dispatch",

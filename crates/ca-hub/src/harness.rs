@@ -194,6 +194,22 @@ pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult
 }
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
+    inject_harness_inner(None, request)
+}
+
+/// Same as [`inject_harness`], but Grok task delivery uses a registered
+/// active session through the leader ACP bridge when a store is provided.
+pub fn inject_harness_with_store(
+    store: &crate::HubStore,
+    request: &HarnessInjectRequest,
+) -> Result<HarnessInjectResult, HubError> {
+    inject_harness_inner(Some(store), request)
+}
+
+fn inject_harness_inner(
+    store: Option<&crate::HubStore>,
+    request: &HarnessInjectRequest,
+) -> Result<HarnessInjectResult, HubError> {
     let harness = HarnessId::parse(&request.harness)?;
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
@@ -204,6 +220,11 @@ pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectRes
     // CLI here is both surprising and wrong. The tagged message has already
     // been stored by the caller; an active inbox adapter can consume it.
     if request.is_task && !request.is_wake {
+        if harness == HarnessId::Grok {
+            if let Some(store) = store {
+                return crate::grok_bridge::deliver_grok_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
