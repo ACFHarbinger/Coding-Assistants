@@ -2,7 +2,7 @@
 use super::store::open_store;
 use hub::{
     AuditEvent, ChannelRecord, GitExportOutcome, HubStore, MemoryRecord, MessageKind,
-    MessageRecord, MessageStatus, SettingsStore, WakePolicy, WakeRecord, WakeStatus,
+    MessageRecord, MessageStatus, ReadMarker, SettingsStore, WakePolicy, WakeRecord, WakeStatus,
 };
 
 /// S5 / #131: exports are gated by Settings' global `export_enabled` policy.
@@ -159,6 +159,25 @@ pub fn hub_list_messages(
         .map_err(|e| e.to_string())?;
     store
         .list_messages(to.as_deref(), status)
+        .map_err(|e| e.to_string())
+}
+
+/// Records that `agent` has read `scope` (a channel id, work session id, or
+/// `dm-<agent>` pairing) as of now. Never regresses an existing, more
+/// recent marker — see `hub::HubStore::mark_read`.
+#[tauri::command]
+pub fn hub_mark_read(agent: String, scope: String) -> Result<ReadMarker, String> {
+    open_store()?
+        .mark_read(&agent, &scope, None)
+        .map_err(|e| e.to_string())
+}
+
+/// Every team member's read marker for `scope`, for the chat UI to render
+/// "read by" against each message.
+#[tauri::command]
+pub fn hub_list_read_markers(scope: String) -> Result<Vec<ReadMarker>, String> {
+    open_store()?
+        .list_read_markers(&scope)
         .map_err(|e| e.to_string())
 }
 

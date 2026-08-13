@@ -360,6 +360,8 @@ pub fn run() {
             hub::commands::messaging::hub_list_tagged_send_outcomes,
             hub::commands::messaging::hub_poll_messages,
             hub::commands::messaging::hub_list_messages,
+            hub::commands::messaging::hub_mark_read,
+            hub::commands::messaging::hub_list_read_markers,
             hub::commands::messaging::hub_list_channels,
             hub::commands::messaging::hub_create_channel,
             hub::commands::messaging::hub_delete_channel,

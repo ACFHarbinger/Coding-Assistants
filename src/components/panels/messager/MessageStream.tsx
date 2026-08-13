@@ -1,6 +1,6 @@
 // @ts-nocheck
 export default function MessageStream(props: any) {
-  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu } = props;
+  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
   return (
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div
@@ -253,6 +253,27 @@ export default function MessageStream(props: any) {
                             ↩ Reply
                           </button>
                         )}
+                        {(() => {
+                          const readers = (readMarkers || [])
+                            .filter(marker => marker.agent_id !== msg.from_agent && marker.last_read_at >= msg.created_at)
+                            .map(marker => getAgentInfo(marker.agent_id).displayName);
+                          if (readers.length === 0) return null;
+                          return (
+                            <div
+                              style={{
+                                justifySelf: "start",
+                                fontSize: "0.72rem",
+                                color: "var(--text-muted)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.3rem",
+                              }}
+                              title={`Read by: ${readers.join(", ")}`}
+                            >
+                              <span style={{ color: "#6ee7b7" }}>✓✓</span> Read by {readers.join(", ")}
+                            </div>
+                          );
+                        })()}
                         {(linkedMemories[msg.id] || []).map(memory => (
                           <button
                             key={memory.id}

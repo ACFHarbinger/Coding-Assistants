@@ -248,6 +248,19 @@ pub struct SendOutcome {
     pub created_at: String,
 }
 
+/// How far one team member has read into a chat scope (a channel id, a
+/// work session id, or a `dm-<agent>` pairing — whatever string the caller
+/// already uses to group messages). A message is considered read by
+/// `agent_id` once its `created_at` is at or before this marker's
+/// `last_read_at`, so "read this message" and "opened the channel after
+/// this message was sent" are the same underlying signal.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadMarker {
+    pub agent_id: String,
+    pub scope: String,
+    pub last_read_at: String,
+}
+
 /// Extracts the memory identifiers embedded by the Hub's chat composer.
 ///
 /// References deliberately accept both full UUIDs and the short prefix shown

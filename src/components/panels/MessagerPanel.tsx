@@ -28,6 +28,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [lastReadAt, setLastReadAt] = useState<Record<string, string>>(loadLastRead);
+  const [readMarkers, setReadMarkers] = useState<{ agent_id: string; scope: string; last_read_at: string }[]>([]);
   const [channelRecords, setChannelRecords] = useState<HubMessage[]>([]);
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
@@ -159,8 +160,23 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     if (!latest) return;
     setLastReadAt(prev => {
       if ((prev[activeChannel] || "") >= latest) return prev;
+      void invoke("hub_mark_read", { agent: "human", scope: `channel:${activeChannel}` }).catch(() => {});
       return persistLastRead({ ...prev, [activeChannel]: latest });
     });
+  }, [activeChannel, hubMessages, channelRecords]);
+
+  // Read-receipt markers for the active scope — who on the team has read
+  // up through a given point in time, rendered per-message in MessageStream.
+  useEffect(() => {
+    if (activeChannel.startsWith("dm-")) {
+      setReadMarkers([]);
+      return;
+    }
+    let cancelled = false;
+    invoke<{ agent_id: string; scope: string; last_read_at: string }[]>("hub_list_read_markers", { scope: `channel:${activeChannel}` })
+      .then(markers => { if (!cancelled) setReadMarkers(markers); })
+      .catch(() => { if (!cancelled) setReadMarkers([]); });
+    return () => { cancelled = true; };
   }, [activeChannel, hubMessages, channelRecords]);
 
   useEffect(() => {
@@ -545,7 +561,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: (harness: string) => setDeliveryNotices(current => current.filter(item => item.harness !== harness)) };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: (harness: string) => setDeliveryNotices(current => current.filter(item => item.harness !== harness)) };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>

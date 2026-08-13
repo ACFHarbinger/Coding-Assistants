@@ -230,6 +230,14 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
                 let records = store.list_channel_messages(&channel, limit)?;
                 println!("{}", serde_json::to_string_pretty(&records)?);
             }
+            MsgCommand::Read { agent, scope, at } => {
+                let marker = store.mark_read(&agent, &scope, at.as_deref())?;
+                println!("{}", serde_json::to_string_pretty(&marker)?);
+            }
+            MsgCommand::Readers { scope } => {
+                let markers = store.list_read_markers(&scope)?;
+                println!("{}", serde_json::to_string_pretty(&markers)?);
+            }
             MsgCommand::Memories { message_id } => {
                 let memories = store.list_message_memories(&message_id)?;
                 println!("{}", serde_json::to_string_pretty(&memories)?);

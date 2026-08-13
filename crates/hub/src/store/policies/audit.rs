@@ -351,6 +351,16 @@ impl HubStore {
                 deleted_at TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS read_markers (
+                agent_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                last_read_at TEXT NOT NULL,
+                PRIMARY KEY (agent_id, scope)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_read_markers_scope
+                ON read_markers(scope);
+
             CREATE TABLE IF NOT EXISTS harness_session_registrations (
                 harness TEXT NOT NULL,
                 workspace TEXT NOT NULL,

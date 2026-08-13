@@ -429,6 +429,19 @@ pub(crate) enum MsgCommand {
     },
     /// Resolve durable memory references embedded in a message body.
     Memories { message_id: String },
+    /// Mark that `agent` has read `scope` (a channel id, work session id, or
+    /// `dm-<agent>` pairing) as of now, or an explicit `--at` RFC 3339
+    /// timestamp. Never regresses an existing, more recent marker.
+    Read {
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        scope: String,
+        #[arg(long)]
+        at: Option<String>,
+    },
+    /// List every team member's read marker for `scope`.
+    Readers { scope: String },
     /// Mark a message done/acked/cancelled.
     Status {
         id: String,
