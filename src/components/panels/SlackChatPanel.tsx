@@ -389,12 +389,26 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
             args: { from: "human", sessionId: activeWorkSession.id, to: targetAgents, subject, workspace: null, task: null, body: bodyText }
           });
         }
+      } else if (isTaskTag || isWakeTag) {
+        await invoke("hub_send_tagged_message", {
+          args: {
+            from: "human",
+            to: targetAgents,
+            isTask: isTaskTag,
+            isWake: isWakeTag,
+            subject,
+            workspace: null,
+            task: isTaskTag ? bodyText : null,
+            sessionId: null,
+            body: bodyText
+          }
+        });
       } else {
         const sentMsg = await invoke<{ id: string }>("hub_send_message", {
           args: { from: "human", to: toField, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
         });
         const wakeTargets = toField === "team" ? teamWakeTargets(hubAgents) : targetAgents;
-        if (isWakeTag || wakePolicyGate) {
+        if (wakePolicyGate) {
           await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
             target, reason: `Chat & Memory message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
           })));

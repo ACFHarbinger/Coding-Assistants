@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — C12 multi-harness adapter suite & UI tagged-send integration (2026-08-13) [DRAFT]
+
+- **C12 Bidirectional Harness Adapters**: Extended `ca_hub::harness` (`start_harness` / `inject_harness`) with explicit argv generators and workspace boundaries for all 4 harness identities:
+  - **xAI Grok Build**: `grok --cwd <abs-workspace> <prompt>`
+  - **OpenAI Codex**: `codex exec --cwd <abs-workspace> <prompt>`
+  - **Anthropic Claude Code**: `claude -p <prompt>` (executed inside target workspace)
+  - **Google Antigravity CLI**: `agy --cwd <abs-workspace> <prompt>`
+- **UI Tagged Send Integration**: Updated `SlackChatPanel.tsx` composer to call `hub_send_tagged_message` for both session and non-session tagged sends (`⚡ [TASK]`, `🔔 [WAKE]`), producing per-recipient durable `SendOutcome` records.
+- Verification: 38 Rust unit/integration tests passed, TypeScript check clean, Vite production build clean (610ms).
+
 ### Grok — C12 contract + Grok spawn adapter (2026-08-13) [DRAFT]
 
 - Assigned Claude the Claude harness adapter and Gemini the Gemini/Antigravity

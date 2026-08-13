@@ -104,8 +104,60 @@ pub fn grok_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, 
     ])
 }
 
-fn spawn_explicit(program: &str, args: &[OsString]) -> Result<HarnessStartResult, HubError> {
+/// Explicit argv for an OpenAI Codex / Chat wake/task spawn.
+pub fn codex_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("Codex spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Codex spawn workspace must be an absolute path".into(),
+        ));
+    }
+    Ok(vec![
+        OsString::from("exec"),
+        OsString::from("--cwd"),
+        workspace.as_os_str().to_os_string(),
+        OsString::from(prompt),
+    ])
+}
+
+/// Explicit argv for an Anthropic Claude Code wake/task spawn.
+pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("Claude spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Claude spawn workspace must be an absolute path".into(),
+        ));
+    }
+    Ok(vec![
+        OsString::from("-p"),
+        OsString::from(prompt),
+    ])
+}
+
+/// Explicit argv for a Google Antigravity CLI (agy) wake/task spawn.
+pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("Gemini spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Gemini spawn workspace must be an absolute path".into(),
+        ));
+    }
+    Ok(vec![
+        OsString::from("--cwd"),
+        workspace.as_os_str().to_os_string(),
+        OsString::from(prompt),
+    ])
+}
+
+fn spawn_explicit(program: &str, workspace: &Path, args: &[OsString]) -> Result<HarnessStartResult, HubError> {
     match Command::new(program)
+        .current_dir(workspace)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -129,21 +181,13 @@ fn spawn_explicit(program: &str, args: &[OsString]) -> Result<HarnessStartResult
 
 pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
     let harness = HarnessId::parse(&request.harness)?;
-    match harness {
-        HarnessId::Grok => {
-            let args = grok_spawn_args(&request.workspace, &request.prompt)?;
-            spawn_explicit(harness.executable(), &args)
-        }
-        HarnessId::Chat | HarnessId::Claude | HarnessId::Gemini => Ok(HarnessStartResult {
-            harness: harness.as_str().into(),
-            pid: None,
-            status: "unsupported".into(),
-            detail: format!(
-                "{} adapter is assigned to another agent; see AGENT_BUS C12",
-                harness.as_str()
-            ),
-        }),
-    }
+    let args = match harness {
+        HarnessId::Grok => grok_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::Chat => codex_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::Claude => claude_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &request.prompt)?,
+    };
+    spawn_explicit(harness.executable(), &request.workspace, &args)
 }
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
@@ -151,40 +195,34 @@ pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectRes
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
     }
-    match harness {
-        HarnessId::Grok => {
-            let prompt = if request.is_task && request.is_wake {
-                format!("[TASK] [WAKE] {}", request.body)
-            } else if request.is_task {
-                format!("[TASK] {}", request.body)
-            } else if request.is_wake {
-                format!("[WAKE] {}", request.body)
-            } else {
-                request.body.clone()
-            };
-            let args = grok_spawn_args(&request.workspace, &prompt)?;
-            let started = spawn_explicit(harness.executable(), &args)?;
-            Ok(HarnessInjectResult {
-                harness: started.harness,
-                pid: started.pid,
-                status: if started.status == "started" {
-                    "spawned".into()
-                } else {
-                    started.status
-                },
-                detail: started.detail,
-            })
-        }
-        HarnessId::Chat | HarnessId::Claude | HarnessId::Gemini => Ok(HarnessInjectResult {
-            harness: harness.as_str().into(),
-            pid: None,
-            status: "unsupported".into(),
-            detail: format!(
-                "{} inject is assigned to another agent; see AGENT_BUS C12",
-                harness.as_str()
-            ),
-        }),
-    }
+    let prompt = if request.is_task && request.is_wake {
+        format!("[TASK] [WAKE] {}", request.body)
+    } else if request.is_task {
+        format!("[TASK] {}", request.body)
+    } else if request.is_wake {
+        format!("[WAKE] {}", request.body)
+    } else {
+        request.body.clone()
+    };
+
+    let args = match harness {
+        HarnessId::Grok => grok_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::Chat => codex_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::Claude => claude_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &prompt)?,
+    };
+
+    let started = spawn_explicit(harness.executable(), &request.workspace, &args)?;
+    Ok(HarnessInjectResult {
+        harness: started.harness,
+        pid: started.pid,
+        status: if started.status == "started" {
+            "spawned".into()
+        } else {
+            started.status
+        },
+        detail: started.detail,
+    })
 }
 
 #[cfg(test)]
@@ -204,24 +242,44 @@ mod tests {
     }
 
     #[test]
+    fn codex_argv_is_explicit_and_rejects_relative_workspace() {
+        let ws = PathBuf::from("/tmp/coding-assistants-c12");
+        let args = codex_spawn_args(&ws, "run task").unwrap();
+        assert_eq!(args[0], "exec");
+        assert_eq!(args[1], "--cwd");
+        assert_eq!(args[2], ws.as_os_str());
+        assert_eq!(args[3], "run task");
+        assert!(codex_spawn_args(Path::new("relative"), "x").is_err());
+        assert!(codex_spawn_args(&ws, "   ").is_err());
+    }
+
+    #[test]
+    fn claude_argv_is_explicit_and_rejects_relative_workspace() {
+        let ws = PathBuf::from("/tmp/coding-assistants-c12");
+        let args = claude_spawn_args(&ws, "fix bug").unwrap();
+        assert_eq!(args[0], "-p");
+        assert_eq!(args[1], "fix bug");
+        assert!(claude_spawn_args(Path::new("relative"), "x").is_err());
+        assert!(claude_spawn_args(&ws, "   ").is_err());
+    }
+
+    #[test]
+    fn gemini_argv_is_explicit_and_rejects_relative_workspace() {
+        let ws = PathBuf::from("/tmp/coding-assistants-c12");
+        let args = gemini_spawn_args(&ws, "build feature").unwrap();
+        assert_eq!(args[0], "--cwd");
+        assert_eq!(args[1], ws.as_os_str());
+        assert_eq!(args[2], "build feature");
+        assert!(gemini_spawn_args(Path::new("relative"), "x").is_err());
+        assert!(gemini_spawn_args(&ws, "   ").is_err());
+    }
+
+    #[test]
     fn harness_ids_cover_the_four_v1_identities() {
         assert_eq!(HarnessId::parse("grok").unwrap(), HarnessId::Grok);
         assert_eq!(HarnessId::parse("codex").unwrap(), HarnessId::Chat);
         assert_eq!(HarnessId::parse("claude").unwrap(), HarnessId::Claude);
         assert_eq!(HarnessId::parse("agy").unwrap(), HarnessId::Gemini);
         assert!(HarnessId::parse("ollama").is_err());
-    }
-
-    #[test]
-    fn other_harnesses_are_reserved_not_silently_run() {
-        let request = HarnessStartRequest {
-            harness: "claude".into(),
-            workspace: PathBuf::from("/tmp"),
-            session_id: None,
-            prompt: "hi".into(),
-        };
-        let result = start_harness(&request).unwrap();
-        assert_eq!(result.status, "unsupported");
-        assert!(result.pid.is_none());
     }
 }
