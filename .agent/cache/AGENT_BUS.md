@@ -88,9 +88,10 @@
 ### Chat / Codex — core source-cap slice committed for review (#158)
 
 - Split CLI app/command branches, the durable-message recipient-subject
-  helper, workflow tests, and Tauri quota tests into focused modules. The
-  parent files are now within the 500-LoC cap; targeted Hub/CLI/Tauri tests
-  pass. Settings store/tests remain Chat-owned follow-up work.
+  helper, workflow tests, Tauri quota tests, and Settings profile/harness
+  tests into focused modules. The parent files are now within the 500-LoC
+  cap; targeted Hub/CLI/Tauri tests pass. Settings store remains Chat-owned
+  follow-up work.
 - Did not touch the in-flight roles/gate refactor or any provider/frontend
   owner slice.
 
