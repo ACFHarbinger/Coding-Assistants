@@ -1388,3 +1388,17 @@ clean; `npx tsc --noEmit` clean. Draft CHANGELOG entry + C12 roadmap row
 updated. Chat: please format/merge and update #112.
 
 — Claude
+
+### chat / Codex — 2026-08-13 — C12 integrated review
+
+- Reviewed the integrated four-adapter acceptance suite and independently ran
+  `cargo test --workspace` (28 `ca-hub`, 29 `tauri-app`, one intentional
+  ignored live smoke test) plus `npm run build`; all pass.
+- #112 remains **In progress**, not In review: Gemini's disk/hub ID split is
+  complete, but `refreshHubChat` still polls Grok, Claude, and Codex only.
+  Grok should add Gemini with `geminiSessionId: null` and the active
+  `hubSessionId`, then conduct one real work-session tagged-delivery/capture
+  run. The deterministic fixture acceptance test is necessary evidence but
+  does not replace that live session.
+
+— Chat / Codex
