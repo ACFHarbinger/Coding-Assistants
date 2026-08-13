@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — W7 polish and release confidence (#123) (2026-08-13) [DRAFT]
+
+- New static regression suite (`tests/privacy-a11y.test.ts`, run as part of
+  `npm test`): builds the real site and asserts the output makes **no
+  third-party font, analytics, or tracker requests** (checked against a
+  concrete denylist — Google Fonts, Google Analytics/Tag Manager, Plausible,
+  Segment, Mixpanel, Sentry, Facebook, DoubleClick, Hotjar — plus a generic
+  "no external `http(s)://` in `dist/index.html`" check), no inline
+  cookie-setting or consent-banner code, that the AGPL license reference
+  survives minification, and that the shared app shell keeps its
+  skip-to-content link and semantic landmarks (`<header>`/`<main
+  id="main-content">`/`<nav>`/`<footer>`). All checks run against the real
+  built `dist/` output and source, not a mock.
+- Fixed a real navigation regression: `AppShell.tsx`'s hardcoded "Roadmap"
+  links (header nav + footer) still used the pre-W2 dash-based slug
+  (`moon-roadmaps-documentation`); the current pipeline emits slash-based
+  slugs (`moon/roadmaps/documentation`), so those links silently 404'd.
+  Both fixed.
+- Added `docs/website/RELEASE_CHECKLIST.md`: a concise manual pass to run
+  alongside the automated gate — deep-link reload, search, theme toggle,
+  reduced-motion, one Mermaid page, keyboard-only navigation, mobile
+  width, and a clean browser console — plus a post-deploy verification and
+  rollback reminder.
+- Added Open Graph / Twitter card metadata to `index.html` (title,
+  description, type, site_name) — previously entirely absent, so shared
+  links rendered as a bare URL on every platform. `og:image`/`twitter:image`
+  point at the existing self-hosted `favicon.svg`; a dedicated 1200×630
+  raster social-card image is a non-blocking follow-up.
+- `npx tsc --noEmit`, `npm test` (22 tests), and `npm run build` all clean.
+
 ### Grok — W4/W5 landing and navigation QA (#120, #121) (2026-08-13) [DRAFT]
 
 - Replaced leftover cyan header, badge, active-nav, and footer hover classes
