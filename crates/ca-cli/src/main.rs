@@ -354,6 +354,30 @@ enum MsgCommand {
         task: Option<String>,
         body: String,
     },
+    /// C11: send a task- and/or wake-tagged message, enforcing the same
+    /// rules as the Chat & Memory composer — task targets must already be
+    /// present team/session members (rejected otherwise, no spawn); wake
+    /// may enroll a new identity before delivery, subject to wake policy.
+    Tag {
+        #[arg(long)]
+        from: String,
+        /// Comma-separated recipient agent ids.
+        #[arg(long, value_delimiter = ',')]
+        to: Vec<String>,
+        #[arg(long, default_value_t = false)]
+        task: bool,
+        #[arg(long, default_value_t = false)]
+        wake: bool,
+        #[arg(long)]
+        subject: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+        #[arg(long)]
+        task_id: Option<String>,
+        #[arg(long)]
+        session: Option<String>,
+        body: String,
+    },
     Poll {
         #[arg(long)]
         to: String,
@@ -621,6 +645,30 @@ fn main() -> anyhow::Result<()> {
                     task.as_deref(),
                 )?;
                 println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            MsgCommand::Tag {
+                from,
+                to,
+                task,
+                wake,
+                subject,
+                workspace,
+                task_id,
+                session,
+                body,
+            } => {
+                let outcomes = store.send_tagged_message(
+                    &from,
+                    &to,
+                    task,
+                    wake,
+                    &body,
+                    subject.as_deref(),
+                    workspace.as_deref(),
+                    task_id.as_deref(),
+                    session.as_deref(),
+                )?;
+                println!("{}", serde_json::to_string_pretty(&outcomes)?);
             }
             MsgCommand::Poll { to, no_ack } => {
                 let records = store.poll_messages(&to, !no_ack)?;

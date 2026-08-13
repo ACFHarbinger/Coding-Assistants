@@ -963,6 +963,48 @@ pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> 
         .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+pub struct SendTaggedMessageArgs {
+    pub from: String,
+    pub to: Vec<String>,
+    pub is_task: bool,
+    pub is_wake: bool,
+    pub subject: Option<String>,
+    pub workspace: Option<String>,
+    pub task: Option<String>,
+    pub session_id: Option<String>,
+    pub body: String,
+}
+
+/// C11: same task/wake enforcement for the human UI and agents alike — this
+/// command is the one typed boundary both call, so neither can bypass the
+/// other's rules.
+#[tauri::command]
+pub fn hub_send_tagged_message(
+    args: SendTaggedMessageArgs,
+) -> Result<Vec<ca_hub::SendOutcome>, String> {
+    open_store()?
+        .send_tagged_message(
+            &args.from,
+            &args.to,
+            args.is_task,
+            args.is_wake,
+            &args.body,
+            args.subject.as_deref(),
+            args.workspace.as_deref(),
+            args.task.as_deref(),
+            args.session_id.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hub_list_tagged_send_outcomes(subject: String) -> Result<Vec<ca_hub::SendOutcome>, String> {
+    open_store()?
+        .list_tagged_send_outcomes(&subject)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_poll_messages(
     to: String,

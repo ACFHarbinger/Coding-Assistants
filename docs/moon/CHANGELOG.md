@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — C11 backend task/wake enforcement (2026-08-13) [DRAFT]
+
+- `ca-hub`: new `HubStore::send_tagged_message` is the single typed
+  boundary both the human UI and agents go through for task/wake-tagged
+  sends (Hub API + CLI parity, per #111's acceptance criteria). Presence is
+  defined as enrolled team membership, plus session membership when a
+  session is given — there's no live-heartbeat signal in this schema yet.
+  - **Task**-tagged recipients who are not currently present are rejected:
+    no message is sent, no membership is mutated.
+  - **Wake**-tagged recipients who are not yet a team member are enrolled
+    (and added to the session, if any) before delivery, then routed through
+    the existing `request_wake` policy/budget/human-gate path — a wake
+    denial there does not undo the enrollment or the message.
+  - Both tags on one recipient apply the task check first: an absent
+    recipient is rejected even if also wake-tagged (no accidental spawn via
+    a combined tag).
+  - Every recipient gets a durable, queryable `tagged_send_outcomes` row
+    (`list_tagged_send_outcomes`) whether accepted or rejected, satisfying
+    the "auditable per recipient" acceptance bar.
+- Tauri: `hub_send_tagged_message` / `hub_list_tagged_send_outcomes`.
+- CLI: `ca msg tag --from <id> --to a,b,c [--task] [--wake] [--session <id>] <body>`.
+- Fixed two bugs found while starting U11 (before Grok/Gemini's concurrent
+  work landed first): an orphaned duplicate `subject` declaration that broke
+  the build, and `kind: "task"` being sent to `hub_send_message`, which
+  `ca-hub`'s `MessageKind` enum doesn't accept (task intent now rides the
+  existing `task` field, subject suffix, and `[TASK]` body prefix instead).
+- Real (not mocked) tests: `cargo test -p ca-hub` covers task-only rejection
+  (no side effects), wake-only enrollment + wake request, both tags on one
+  recipient, wake-policy denial without undoing enrollment/delivery, and the
+  argument-validation edge cases. 26 `ca-hub` tests + 10 `tauri-app` tests
+  pass; `npx tsc --noEmit` / `npx vite build` clean.
+- Not yet wired: `SlackChatPanel.tsx`'s composer still calls plain
+  `hub_send_message` with a client-only task check (Gemini, `46b1ba4`).
+  Pointing it at `hub_send_tagged_message` so the UI gets the same durable
+  audit trail and policy-aware wake path is follow-up work — flagging here
+  so it isn't lost, since #111's acceptance also expects Store/Tauri tests
+  for "partial recipient failure" once the UI sends true multi-recipient
+  batches instead of one `hub_send_message` call per member.
+
 ### Grok — U11 session focus and persist (2026-08-13) [DRAFT]
 
 - Orchestrate Create/Load now keep the chosen work session through hub

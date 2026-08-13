@@ -10,6 +10,6 @@ mod store;
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,
     BudgetStatus, CompactReport, GitExportOutcome, HubError, HubStore, MemoryRecord, MemoryScope,
-    MemoryTier, MessageKind, MessageRecord, MessageStatus, ShutdownOutcome, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep,
+    MemoryTier, MessageKind, MessageRecord, MessageStatus, SendOutcome, ShutdownOutcome,
+    TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep,
 };

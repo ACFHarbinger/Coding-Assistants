@@ -220,6 +220,25 @@ pub struct MessageRecord {
     pub acked_at: Option<String>,
 }
 
+/// Per-recipient audit record for a task/wake-tagged send (C11). One row is
+/// written for every recipient regardless of whether delivery was accepted,
+/// so rejections are as durable/auditable as successful sends.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendOutcome {
+    pub id: String,
+    pub subject: String,
+    pub from_agent: String,
+    pub to_agent: String,
+    pub is_task: bool,
+    pub is_wake: bool,
+    pub accepted: bool,
+    pub enrolled: bool,
+    pub wake_requested: bool,
+    pub reason: Option<String>,
+    pub message_id: Option<String>,
+    pub created_at: String,
+}
+
 /// Extracts the memory identifiers embedded by the Hub's chat composer.
 ///
 /// References deliberately accept both full UUIDs and the short prefix shown
@@ -739,6 +758,24 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_audit_status_time
                 ON audit_events(status, observed_at);
+
+            CREATE TABLE IF NOT EXISTS tagged_send_outcomes (
+                id TEXT PRIMARY KEY NOT NULL,
+                subject TEXT NOT NULL,
+                from_agent TEXT NOT NULL,
+                to_agent TEXT NOT NULL,
+                is_task INTEGER NOT NULL DEFAULT 0,
+                is_wake INTEGER NOT NULL DEFAULT 0,
+                accepted INTEGER NOT NULL,
+                enrolled INTEGER NOT NULL DEFAULT 0,
+                wake_requested INTEGER NOT NULL DEFAULT 0,
+                reason TEXT,
+                message_id TEXT,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tagged_send_outcomes_subject
+                ON tagged_send_outcomes(subject, created_at);
             "#,
         )?;
 
@@ -1427,6 +1464,245 @@ impl HubStore {
                 )
             })
             .collect()
+    }
+
+    pub fn is_team_member(&self, agent_id: &str) -> Result<bool, HubError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT team_member FROM agents WHERE id = ?1",
+                params![agent_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .map(|value| value != 0)
+            .unwrap_or(false))
+    }
+
+    pub fn is_session_member(&self, session_id: &str, agent_id: &str) -> Result<bool, HubError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT 1 FROM work_session_members WHERE session_id = ?1 AND agent_id = ?2",
+                params![session_id, agent_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    /// C11: enforce distinct task vs. wake semantics per recipient.
+    ///
+    /// "Currently present" is defined as: enrolled on the standing team
+    /// (`agents.team_member`), and — when `session_id` is given — also a
+    /// member of that session. There is no live-heartbeat signal in this
+    /// schema yet, so presence is this durable enrollment state, not a
+    /// point-in-time process check.
+    ///
+    /// - Task-tagged recipients who are not currently present are rejected:
+    ///   no message is sent and no membership is mutated.
+    /// - Wake-tagged recipients who are not yet a team member are enrolled
+    ///   (and added to the session, if any) before delivery, then a durable
+    ///   wake request is filed through the existing policy/budget/human-gate
+    ///   path (`request_wake`) — a denial there does not undo the enrollment
+    ///   or the message send, it only leaves the recipient unwoken.
+    /// - Every recipient gets exactly one durable `tagged_send_outcomes` row,
+    ///   whether accepted or rejected.
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_tagged_message(
+        &self,
+        from_agent: &str,
+        to: &[String],
+        is_task: bool,
+        is_wake: bool,
+        body: &str,
+        subject: Option<&str>,
+        workspace_path: Option<&str>,
+        task_id: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<Vec<SendOutcome>, HubError> {
+        if body.trim().is_empty() {
+            return Err(HubError::Invalid("message body must not be empty".into()));
+        }
+        if !is_task && !is_wake {
+            return Err(HubError::Invalid(
+                "send_tagged_message requires at least one of task/wake".into(),
+            ));
+        }
+        let subject = subject
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("tagged:{}", Uuid::new_v4()));
+
+        let mut recipients: Vec<String> = Vec::new();
+        for id in to {
+            if id != "system" && id != from_agent && !recipients.contains(id) {
+                recipients.push(id.clone());
+            }
+        }
+        if recipients.is_empty() {
+            return Err(HubError::Invalid(
+                "send_tagged_message requires at least one recipient".into(),
+            ));
+        }
+
+        let mut outcomes = Vec::with_capacity(recipients.len());
+        for recipient in recipients {
+            let present = if let Some(session_id) = session_id {
+                self.is_team_member(&recipient)?
+                    && self.is_session_member(session_id, &recipient)?
+            } else {
+                self.is_team_member(&recipient)?
+            };
+
+            if is_task && !present {
+                outcomes.push(self.record_send_outcome(
+                    &subject,
+                    from_agent,
+                    &recipient,
+                    is_task,
+                    is_wake,
+                    false,
+                    false,
+                    false,
+                    Some("task target is not a current team/session member".into()),
+                    None,
+                )?);
+                continue;
+            }
+
+            let mut enrolled = false;
+            if is_wake && !self.is_team_member(&recipient)? {
+                self.upsert_agent(&recipient, &recipient)?;
+                self.set_team_member(&recipient, true)?;
+                if let Some(session_id) = session_id {
+                    self.add_work_session_member(session_id, &recipient)?;
+                }
+                enrolled = true;
+            }
+
+            let kind = if is_wake {
+                MessageKind::Wake
+            } else {
+                MessageKind::Message
+            };
+            let message = self.send_message(
+                from_agent,
+                &recipient,
+                kind,
+                body,
+                Some(&subject),
+                workspace_path,
+                task_id,
+            )?;
+
+            let mut wake_requested = false;
+            let mut reason = None;
+            if is_wake {
+                let wake_reason = format!("tagged send: {subject}");
+                match self.request_wake(&recipient, Some(&wake_reason), Some(&message.id), false) {
+                    Ok(_) => wake_requested = true,
+                    Err(error) => reason = Some(format!("wake request denied: {error}")),
+                }
+            }
+
+            outcomes.push(self.record_send_outcome(
+                &subject,
+                from_agent,
+                &recipient,
+                is_task,
+                is_wake,
+                true,
+                enrolled,
+                wake_requested,
+                reason,
+                Some(message.id),
+            )?);
+        }
+
+        Ok(outcomes)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_send_outcome(
+        &self,
+        subject: &str,
+        from_agent: &str,
+        to_agent: &str,
+        is_task: bool,
+        is_wake: bool,
+        accepted: bool,
+        enrolled: bool,
+        wake_requested: bool,
+        reason: Option<String>,
+        message_id: Option<String>,
+    ) -> Result<SendOutcome, HubError> {
+        let id = Uuid::new_v4().to_string();
+        let created_at = Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO tagged_send_outcomes(
+                id, subject, from_agent, to_agent, is_task, is_wake,
+                accepted, enrolled, wake_requested, reason, message_id, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "#,
+            params![
+                id,
+                subject,
+                from_agent,
+                to_agent,
+                is_task as i64,
+                is_wake as i64,
+                accepted as i64,
+                enrolled as i64,
+                wake_requested as i64,
+                reason,
+                message_id,
+                created_at,
+            ],
+        )?;
+        Ok(SendOutcome {
+            id,
+            subject: subject.to_string(),
+            from_agent: from_agent.to_string(),
+            to_agent: to_agent.to_string(),
+            is_task,
+            is_wake,
+            accepted,
+            enrolled,
+            wake_requested,
+            reason,
+            message_id,
+            created_at,
+        })
+    }
+
+    pub fn list_tagged_send_outcomes(&self, subject: &str) -> Result<Vec<SendOutcome>, HubError> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, subject, from_agent, to_agent, is_task, is_wake,
+                   accepted, enrolled, wake_requested, reason, message_id, created_at
+            FROM tagged_send_outcomes
+            WHERE subject = ?1
+            ORDER BY created_at
+            "#,
+        )?;
+        let rows = stmt.query_map(params![subject], |row| {
+            Ok(SendOutcome {
+                id: row.get(0)?,
+                subject: row.get(1)?,
+                from_agent: row.get(2)?,
+                to_agent: row.get(3)?,
+                is_task: row.get::<_, i64>(4)? != 0,
+                is_wake: row.get::<_, i64>(5)? != 0,
+                accepted: row.get::<_, i64>(6)? != 0,
+                enrolled: row.get::<_, i64>(7)? != 0,
+                wake_requested: row.get::<_, i64>(8)? != 0,
+                reason: row.get(9)?,
+                message_id: row.get(10)?,
+                created_at: row.get(11)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     pub fn get_message(&self, id: &str) -> Result<Option<MessageRecord>, HubError> {
@@ -3887,5 +4163,173 @@ mod tests {
             1
         );
         assert_eq!(store.list_work_sessions().unwrap()[0].id, session.id);
+    }
+
+    #[test]
+    fn c11_task_tag_rejects_absent_recipient_without_side_effects() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        // "outsider" has never been seen, so it starts out absent.
+        let outcomes = store
+            .send_tagged_message(
+                "human",
+                &["grok".to_string(), "outsider".to_string()],
+                true,
+                false,
+                "ship the release",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        let grok = outcomes.iter().find(|o| o.to_agent == "grok").unwrap();
+        assert!(grok.accepted);
+        assert!(!grok.enrolled);
+        assert!(grok.message_id.is_some());
+
+        let outsider = outcomes.iter().find(|o| o.to_agent == "outsider").unwrap();
+        assert!(!outsider.accepted);
+        assert!(!outsider.enrolled);
+        assert!(outsider.message_id.is_none());
+        assert!(outsider
+            .reason
+            .as_deref()
+            .unwrap()
+            .contains("not a current"));
+
+        // No membership mutation and no message actually delivered to "outsider".
+        assert!(!store.is_team_member("outsider").unwrap());
+        assert!(store
+            .list_messages(Some("outsider"), None)
+            .unwrap()
+            .is_empty());
+
+        // Durable per-recipient audit trail survives independent of the caller.
+        let replayed = store
+            .list_tagged_send_outcomes(&outcomes[0].subject)
+            .unwrap();
+        assert_eq!(replayed.len(), 2);
+    }
+
+    #[test]
+    fn c11_wake_tag_enrolls_and_requests_wake_for_a_new_identity() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        assert!(!store.is_team_member("newbie").unwrap());
+
+        let outcomes = store
+            .send_tagged_message(
+                "human",
+                &["newbie".to_string()],
+                false,
+                true,
+                "join the session and pick up C12",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        let outcome = &outcomes[0];
+        assert!(outcome.accepted);
+        assert!(outcome.enrolled);
+        assert!(outcome.wake_requested);
+        assert!(store.is_team_member("newbie").unwrap());
+        let pending = store.list_wakes(Some("newbie"), true).unwrap();
+        assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
+    fn c11_task_and_wake_together_apply_both_rules_per_recipient() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("Cloud sync design").unwrap();
+
+        let outcomes = store
+            .send_tagged_message(
+                "human",
+                &["grok".to_string(), "fresh".to_string()],
+                true,
+                true,
+                "session kickoff",
+                None,
+                None,
+                None,
+                Some(&session.id),
+            )
+            .unwrap();
+
+        // "grok" is already a team+session member: task passes, wake is a no-op enroll.
+        let grok = outcomes.iter().find(|o| o.to_agent == "grok").unwrap();
+        assert!(grok.accepted);
+        assert!(!grok.enrolled);
+
+        // "fresh" is present in neither team nor session, so the task check
+        // fails first — task always wins over wake for the same recipient.
+        let fresh = outcomes.iter().find(|o| o.to_agent == "fresh").unwrap();
+        assert!(!fresh.accepted);
+        assert!(!fresh.enrolled);
+        assert!(!store.is_team_member("fresh").unwrap());
+    }
+
+    #[test]
+    fn c11_wake_request_denial_does_not_undo_enrollment_or_delivery() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .set_wake_policy(&WakePolicy {
+                default_requires_human_gate: false,
+                allow_auto_wake: false,
+            })
+            .unwrap();
+
+        let outcomes = store
+            .send_tagged_message(
+                "human",
+                &["gated".to_string()],
+                false,
+                true,
+                "policy should deny this auto-wake",
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        let outcome = &outcomes[0];
+        // Enrollment and message delivery still happen; only the wake itself
+        // is denied by the standing auto-wake-forbidden policy.
+        assert!(outcome.accepted);
+        assert!(outcome.enrolled);
+        assert!(store.is_team_member("gated").unwrap());
+        assert!(!store.list_messages(Some("gated"), None).unwrap().is_empty());
+        assert!(!outcome.wake_requested);
+        assert!(outcome.reason.as_deref().unwrap().contains("denied"));
+    }
+
+    #[test]
+    fn c11_send_tagged_message_requires_a_tag_and_a_recipient() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        assert!(store
+            .send_tagged_message(
+                "human",
+                &["grok".to_string()],
+                false,
+                false,
+                "body",
+                None,
+                None,
+                None,
+                None
+            )
+            .is_err());
+        assert!(store
+            .send_tagged_message("human", &[], true, false, "body", None, None, None, None)
+            .is_err());
     }
 }
