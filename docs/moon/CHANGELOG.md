@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — `ca harness capture` CLI (2026-08-13) [DRAFT]
+
+- New `ca harness capture --harness grok|claude|chat|gemini --workspace PATH
+  [--disk-session ID] [--hub-session ID]`. Lets a C13 live acceptance run
+  (or any headless script) capture a harness's on-disk session transcript
+  into the shared hub without the Tauri desktop app open.
+- `ca-cli` only depends on `ca-hub`, not `tauri-app`, so it cannot literally
+  call the desktop's `harness_*.rs` capture adapters — they live in a
+  different crate. This reimplements the same four on-disk transcript
+  formats independently in `crates/ca-cli/src/main.rs` (Grok
+  `chat_history.jsonl`, Claude `<disk-session>.jsonl`, Codex
+  date-partitioned `rollout.jsonl` + `session_meta`, Gemini
+  `transcript.jsonl`), all converging on the same
+  `HubStore::record_harness_capture` content-hash dedup path the desktop
+  poll uses — a headless CLI run and the desktop's poll produce identical
+  durable state even without shared code across the crate boundary.
+- Added `serde`'s derive feature (for the JSON output struct) and a
+  `tempfile` dev-dependency to `crates/ca-cli/Cargo.toml`.
+- 6 new tests (per-harness path/parsing extraction, dedup, unknown-harness
+  rejection); full workspace suite green (6 ca-cli + 28 ca-hub + 30
+  tauri-app, 1 ignored by design); clippy/fmt clean; `npx tsc --noEmit`
+  clean (frontend untouched).
+
 ### Grok — C12 live named-session capture (2026-08-13) [DRAFT]
 
 - Added `live_named_session_tagged_send_and_disk_capture`: throwaway
