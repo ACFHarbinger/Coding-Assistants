@@ -22,7 +22,10 @@ fn test_options_with_overrides() {
     };
 
     assert_eq!(opts.home.unwrap(), PathBuf::from("/tmp/test_home"));
-    assert_eq!(opts.workspace.unwrap(), PathBuf::from("/tmp/test_workspace"));
+    assert_eq!(
+        opts.workspace.unwrap(),
+        PathBuf::from("/tmp/test_workspace")
+    );
     assert_eq!(opts.session.unwrap(), "test_session");
     assert!(opts.set_as_default_workspace_settings);
     assert!(opts.set_as_default_session_settings);
@@ -46,26 +49,18 @@ fn test_set_as_default_workspace_and_session_settings_persistence_and_audit() {
     };
 
     let store = HubStore::open(&home_path).unwrap();
-    let mut settings_store = SettingsStore::open(&home_path);
-
-    let ws_str = workspace_path.display().to_string();
-    settings_store.set_default_workspace(Some(&ws_str)).unwrap();
-    settings_store.set_workspace_default_session(&ws_str, Some("feature_session")).unwrap();
-    settings_store.save().unwrap();
-
-    store
-        .record_settings_audit_event("general.default_workspace", "global", "set_default")
-        .unwrap();
-    store
-        .record_settings_audit_event("workspace.default_session", &ws_str, "set_default")
-        .unwrap();
+    tui::app::persist_requested_defaults(&opts, &home_path, &store).unwrap();
 
     // Reload settings store from disk
     let reloaded_settings = SettingsStore::open(&home_path);
+    let ws_str = workspace_path.display().to_string();
     let effective = reloaded_settings.effective(Some(&ws_str));
 
     assert_eq!(effective.default_workspace.as_deref().unwrap(), ws_str);
-    assert_eq!(effective.default_session.as_deref().unwrap(), "feature_session");
+    assert_eq!(
+        effective.default_session.as_deref().unwrap(),
+        "feature_session"
+    );
 
     let app = tui::app::AppState::new(&opts, home_path, &effective);
     assert!(app.is_default_workspace_persisted);

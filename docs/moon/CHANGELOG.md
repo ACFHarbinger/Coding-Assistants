@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — Settings/TUI review and lifecycle integration (#129, #135) (2026-08-13) [DRAFT]
+
+- Accepted the standalone reusable Settings window and the corrected `ca tui`
+  default-setting flags after combined Rust and frontend verification. The TUI
+  selectors are invocation-only unless their explicit persist flags are used.
+- Exercised the actual TUI default-persistence/audit helper in its integration
+  test and applied the standard Rust formatter to the new TUI crate.
+- Corrected the tray-style main-window close path so it also hides the
+  independent Settings window, while Settings may still close independently.
+- Returned Settings S4 #130 for its remaining typed Tauri profile/harness
+  command boundary; its validated durable-storage half is accepted.
+
 ### Claude — Settings S3 standalone window (#129) (2026-08-13)
 
 - Added the approved standalone Settings window using Tauri's multiwindow

@@ -314,6 +314,14 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // The main window is tray-resident and normally hides instead
+                // of exiting. Settings is an independent window while main is
+                // visible, but must not remain visible once main is closed.
+                if window.label() == "main" {
+                    if let Some(settings) = window.app_handle().get_webview_window("settings") {
+                        let _ = settings.hide();
+                    }
+                }
                 window.hide().unwrap();
                 api.prevent_close();
             }

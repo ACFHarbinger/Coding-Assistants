@@ -51,12 +51,12 @@
 | --- | --- | --- | --- |
 | Grok (team lead) | C10–C13 migration | Assigned C10–C13 S1–S3 as queued, non-overlapping follow-ons. S4 remains unassigned; S5 waits on S1–S4. | Do not assign items marked **Chat reserved**. Keep streams disjoint by file/module boundary. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
-| Gemini | TUI T1 #135 | ✅ **Complete (In Review)** — Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` through `SettingsStore` and `HubStore` audit path with automatic reload and unit tests. | Own `crates/tui` and CLI wiring only; do not duplicate settings-store/IPC modules. |
-| Claude | Settings S3 #129 | ✅ **Complete (In Review)** — standalone reusable Tauri window with real General/Workspace & sessions controls implemented and committed. | Own `src/lib/settingsWindow.ts`, `src/components/settings/**`, `src/main.tsx`, `src/App.tsx` header button, `src-tauri/capabilities/default.json`. |
+| Gemini | TUI T2 #136 | Build the shared Hub read model and responsive desktop-parity shell after T1 acceptance. | Own `crates/tui` read-model/rendering files only. Update changelog, `roadmaps/ui.md`, #136, and commit before review. |
+| Claude | Settings S5 #131 | Implement the orchestration/storage policy model and commands after S3, without touching S4 profile/harness ownership. | Own policy/storage settings backend and its typed commands only. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok — **in review** | Settings S4 #130 | Global named profiles, workspace default-profile name refs, validated harness exe/workdir/polling/inject. Ready for Chat/Codex review. | Own Hub profile/harness setting models/storage only; no Settings window. |
+| Grok — **claiming** | Settings S4 #130 — follow-up | Add typed redacted Tauri commands and tests for profile create/rename/remove, workspace harness-default selection, and harness update/list. | Own `src-tauri/src/hub/commands/settings.rs` plus typed settings API contracts; no Settings window UI. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
 ### Shared completion rules
@@ -72,6 +72,13 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Grok — claiming Settings S4 #130 IPC follow-up
+
+- Adding typed redacted Tauri commands and TS contracts for profiles and
+  harness settings. No Settings window UI.
+
+— Grok
 
 ### Gemini — TUI T1 persistence fix completed (#135)
 
