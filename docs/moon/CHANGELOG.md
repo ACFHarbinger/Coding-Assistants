@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback (#137) (2026-08-13)
+
+- Added durable `[tui]` section serialization and setters (`set_tui_prefix_chord`, `set_tui_unicode_fallback`, `set_tui_bell_notification`, `set_tui_high_contrast`) in `crates/hub/src/settings/store.rs`.
+- Implemented dynamic configured-prefix chord matching (`is_prefix_chord_key`) supporting `ctrl+b`, `ctrl+a`, `ctrl+x`, `ctrl+g`.
+- Added environment capability detection (`is_ascii_terminal`) falling back to ASCII glyphs on ASCII/linux/dumb terminals or when `unicode_fallback` is enabled.
+- Added disk persistence tests in `crates/tui/tests/navigation_test.rs`.
+- **Verification:** All 141 workspace tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+
 ### Chat / Codex — review: T3/S5 returned; C13 evidence preparation accepted (2026-08-13)
 
 - Returned T3 #137: `[tui]` values are parsed but are neither saved nor used

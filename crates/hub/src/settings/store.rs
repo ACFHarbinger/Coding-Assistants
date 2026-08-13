@@ -243,6 +243,34 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_tui_prefix_chord(&mut self, chord: &str) -> Result<(), SettingsError> {
+        let trimmed = chord.trim().to_lowercase();
+        if trimmed.is_empty() {
+            return Err(SettingsError::Invalid("prefix_chord must not be empty".into()));
+        }
+        self.snapshot.tui.prefix_chord = trimmed;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_tui_unicode_fallback(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.tui.unicode_fallback = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_tui_bell_notification(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.tui.bell_notification = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_tui_high_contrast(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.tui.high_contrast = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
     /// Set a workspace-local override. Does not save; call [`Self::save`]
     /// to persist and pick up atomic-write/backup handling.
     pub fn set_workspace_backup_retention(
@@ -747,6 +775,15 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
     {
         document["orchestration"]["retention_days"] = Item::None;
     }
+
+    if !document.contains_key("tui") {
+        document["tui"] = Item::Table(Table::new());
+    }
+    let tui = &snapshot.tui;
+    document["tui"]["prefix_chord"] = value(tui.prefix_chord.as_str());
+    document["tui"]["unicode_fallback"] = value(tui.unicode_fallback);
+    document["tui"]["bell_notification"] = value(tui.bell_notification);
+    document["tui"]["high_contrast"] = value(tui.high_contrast);
 }
 
 /// Rebuild the `[[workspace]]` array-of-tables from `workspaces` on every

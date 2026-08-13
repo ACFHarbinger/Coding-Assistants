@@ -383,19 +383,21 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
                             }
                             _ => {}
                         }
+                    } else if is_prefix_chord_key(
+                        key,
+                        &app.read_model.effective_settings.tui.prefix_chord,
+                    ) {
+                        app.is_prefix_mode_active = true;
+                        app.status_message = format!(
+                            "Prefix chord active ({}). Press [c] chat, [o] orch, [h] hub, [s] settings, [?] help.",
+                            app.read_model.effective_settings.tui.prefix_chord
+                        );
                     } else {
                         match (key.code, key.modifiers) {
-                            (KeyCode::Char('b'), KeyModifiers::CONTROL)
-                            | (KeyCode::Char('a'), KeyModifiers::CONTROL) => {
-                                app.is_prefix_mode_active = true;
-                                app.status_message = String::from(
-                                    "Prefix chord active. Press [c] chat, [o] orch, [h] hub, [s] settings, [?] help.",
-                                );
-                            }
-                            (KeyCode::Char('q'), _)
-                            | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                                app.should_quit = true;
-                            }
+                                (KeyCode::Char('q'), _)
+                                | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                                    app.should_quit = true;
+                                }
                             (KeyCode::Char('/'), _)
                             | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
                                 app.is_command_palette_open = true;
@@ -518,7 +520,7 @@ fn draw_ui(frame: &mut Frame, app: &AppState) {
 }
 
 fn draw_header(frame: &mut Frame, area: Rect, app: &AppState) {
-    let icon = if app.read_model.effective_settings.tui.unicode_fallback {
+    let icon = if app.read_model.effective_settings.tui.unicode_fallback || is_ascii_terminal() {
         "[*] "
     } else {
         "⚡ "
@@ -962,4 +964,30 @@ fn draw_command_palette_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         .style(Style::default().bg(Color::Reset).fg(Color::Cyan));
     let paragraph = Paragraph::new(text).block(block);
     frame.render_widget(paragraph, popup_area);
+}
+
+fn is_prefix_chord_key(key: event::KeyEvent, configured: &str) -> bool {
+    let clean = configured.trim().to_lowercase();
+    let (target_code, target_mods) = match clean.as_str() {
+        "ctrl+a" => (KeyCode::Char('a'), KeyModifiers::CONTROL),
+        "ctrl+x" => (KeyCode::Char('x'), KeyModifiers::CONTROL),
+        "ctrl+g" => (KeyCode::Char('g'), KeyModifiers::CONTROL),
+        _ => (KeyCode::Char('b'), KeyModifiers::CONTROL),
+    };
+    key.code == target_code && key.modifiers.contains(target_mods)
+}
+
+fn is_ascii_terminal() -> bool {
+    if let Ok(lang) = std::env::var("LANG") {
+        let lower = lang.to_lowercase();
+        if lower.contains("ascii") || (lower.contains("c") && !lower.contains("utf")) {
+            return true;
+        }
+    }
+    if let Ok(term) = std::env::var("TERM") {
+        if term == "linux" || term == "dumb" {
+            return true;
+        }
+    }
+    false
 }

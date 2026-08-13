@@ -101,8 +101,19 @@ fn test_tui_preferences_and_prefix_mode() {
         effective_settings: effective.clone(),
     };
 
-    let mut app = AppState::new(&opts, home_path, &effective, read_model);
+    let mut app = AppState::new(&opts, home_path.clone(), &effective, read_model);
     assert!(!app.is_prefix_mode_active);
     app.is_prefix_mode_active = true;
     assert!(app.is_prefix_mode_active);
+
+    let mut store = hub::SettingsStore::open(&home_path);
+    store.set_tui_prefix_chord("ctrl+a").unwrap();
+    store.set_tui_unicode_fallback(true).unwrap();
+    store.set_tui_bell_notification(false).unwrap();
+    store.save().unwrap();
+
+    let reloaded = hub::SettingsStore::open(&home_path).effective(None);
+    assert_eq!(reloaded.tui.prefix_chord, "ctrl+a");
+    assert!(reloaded.tui.unicode_fallback);
+    assert!(!reloaded.tui.bell_notification);
 }

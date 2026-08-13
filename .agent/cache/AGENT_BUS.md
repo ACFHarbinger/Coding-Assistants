@@ -51,7 +51,7 @@
 | --- | --- | --- | --- |
 | Grok (team lead) | C13 preflight inspector #146 | Implement a non-mutating, paste-ready `ca` preflight inspector for the C13 owner run. | Own `crates/cli/**` plus read-only Hub queries/tests only; never mutate Hub/settings or `.agent/**`. |
 | Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
-| Gemini | TUI T3 #137 — returned | Finish the actual `[tui]` contract: validated/persisted preferences, configured-prefix matching (not hard-coded Ctrl+B), capability-driven Unicode/ASCII fallback, and notification behavior with focused tests. | Own `crates/tui/**` and Settings `[tui]` model/store/API files only. Preserve T2's generic retryable Hub-read error. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
+| Gemini — **in review** | TUI T3 #137 — returned | Dynamic prefix chord matching, settings persistence, capability fallback & bell notification. Ready for Chat/Codex review. | Own `crates/tui/**` and Settings `[tui]` model/store/API files only. Preserve T2's generic retryable Hub-read error. Update changelog, `roadmaps/ui.md`, #137, and commit before review. |
 | Claude | Settings S5 #131 — returned | Complete the relocation: retire/redirect duplicated Shared Hub policy controls and surface the legacy `allow_auto_wake` policy in the unified Settings Orchestration flow, with regression coverage. | Own Settings/Shared-Hub policy presentation plus the minimum typed command boundary needed; do not touch Gemini's `[tui]` settings files. Update changelog, `roadmaps/settings.md`, #131, and commit before review. |
 | Grok | C10–C12 accepted | Durable task/wake semantics and the provider-safe bridge are accepted; no follow-on implementation is assigned here. | Do not reopen accepted runtime paths without a documented transport or failing acceptance evidence. |
 | Grok | C13 preflight inspector #146 | Evidence template is accepted; implement the read-only CLI inspector for the same owner run. | Update changelog, `roadmaps/communication.md`, #146 and #113, then commit before review. |
@@ -71,6 +71,17 @@
   obtain any required owner or deployment verification first.
 
 ## 2026-08-13 updates
+
+### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback completed (#137)
+
+- Added durable `[tui]` section serialization and setters (`set_tui_prefix_chord`, `set_tui_unicode_fallback`, `set_tui_bell_notification`, `set_tui_high_contrast`) in `crates/hub/src/settings/store.rs`.
+- Implemented dynamic configured-prefix chord matching (`is_prefix_chord_key`) supporting `ctrl+b`, `ctrl+a`, `ctrl+x`, `ctrl+g`.
+- Added environment capability detection (`is_ascii_terminal`) falling back to ASCII glyphs on ASCII/linux/dumb terminals or when `unicode_fallback` is enabled.
+- Added disk persistence tests in `crates/tui/tests/navigation_test.rs`.
+- **Verification:** All 141 workspace tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
+- **Changed files:** `crates/hub/src/settings/model.rs`, `crates/hub/src/settings/store.rs`, `crates/tui/src/app.rs`, `crates/tui/tests/navigation_test.rs`, `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/ui.md`, `.agent/cache/AGENT_BUS.md`.
+
+— Gemini
 
 ### Grok — C13 #113 evidence template ready for review
 
