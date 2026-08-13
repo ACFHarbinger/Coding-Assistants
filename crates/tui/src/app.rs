@@ -71,6 +71,7 @@ pub struct AppState {
     pub command_input: String,
     pub scroll_offset: usize,
     pub selected_index: usize,
+    pub is_prefix_mode_active: bool,
 }
 
 impl AppState {
@@ -122,6 +123,7 @@ impl AppState {
             command_input: String::new(),
             scroll_offset: 0,
             selected_index: 0,
+            is_prefix_mode_active: false,
         }
     }
 
@@ -134,6 +136,11 @@ impl AppState {
             Ok(model) => {
                 self.read_model = model;
                 self.status_message = String::from("Refreshed Hub read model.");
+                if self.read_model.effective_settings.tui.bell_notification {
+                    use std::io::Write;
+                    print!("\x07");
+                    let _ = std::io::stdout().flush();
+                }
             }
             Err(_) => {
                 self.status_message =
@@ -325,7 +332,34 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key) => {
-                    if app.is_command_palette_open {
+                    if app.is_prefix_mode_active {
+                        app.is_prefix_mode_active = false;
+                        match key.code {
+                            KeyCode::Char('b') | KeyCode::Char('a') => {
+                                app.status_message = String::from("Prefix chord action executed.");
+                            }
+                            KeyCode::Char('c') => {
+                                app.active_tab = TabIndex::ChatAndMemory;
+                                app.scroll_offset = 0;
+                            }
+                            KeyCode::Char('o') => {
+                                app.active_tab = TabIndex::Orchestrate;
+                                app.scroll_offset = 0;
+                            }
+                            KeyCode::Char('h') => {
+                                app.active_tab = TabIndex::SharedHub;
+                                app.scroll_offset = 0;
+                            }
+                            KeyCode::Char('s') => {
+                                app.active_tab = TabIndex::Settings;
+                                app.scroll_offset = 0;
+                            }
+                            KeyCode::Char('?') => {
+                                app.is_help_open = true;
+                            }
+                            _ => {}
+                        }
+                    } else if app.is_command_palette_open {
                         match key.code {
                             KeyCode::Esc => {
                                 app.is_command_palette_open = false;
@@ -351,6 +385,13 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
                         }
                     } else {
                         match (key.code, key.modifiers) {
+                            (KeyCode::Char('b'), KeyModifiers::CONTROL)
+                            | (KeyCode::Char('a'), KeyModifiers::CONTROL) => {
+                                app.is_prefix_mode_active = true;
+                                app.status_message = String::from(
+                                    "Prefix chord active. Press [c] chat, [o] orch, [h] hub, [s] settings, [?] help.",
+                                );
+                            }
                             (KeyCode::Char('q'), _)
                             | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                                 app.should_quit = true;
@@ -462,7 +503,7 @@ fn draw_ui(frame: &mut Frame, app: &AppState) {
         ])
         .split(frame.area());
 
-    draw_header(frame, chunks[0]);
+    draw_header(frame, chunks[0], app);
     draw_tabs(frame, chunks[1], app);
     draw_body(frame, chunks[2], app);
     draw_footer(frame, chunks[3], app);
@@ -476,10 +517,15 @@ fn draw_ui(frame: &mut Frame, app: &AppState) {
     }
 }
 
-fn draw_header(frame: &mut Frame, area: Rect) {
+fn draw_header(frame: &mut Frame, area: Rect, app: &AppState) {
+    let icon = if app.read_model.effective_settings.tui.unicode_fallback {
+        "[*] "
+    } else {
+        "⚡ "
+    };
     let title = Line::from(vec![
         Span::styled(
-            "⚡ Coding-Assistants ",
+            format!("{icon}Coding-Assistants "),
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
@@ -783,6 +829,17 @@ fn draw_settings_view(frame: &mut Frame, area: Rect, app: &AppState) {
             "• Harnesses configured: {} harnesses",
             eff.harnesses.len()
         )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "TUI Preferences ([tui]):",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(format!("• Prefix Chord: {}", eff.tui.prefix_chord)),
+        Line::from(format!("• Unicode Fallback: {}", eff.tui.unicode_fallback)),
+        Line::from(format!("• Bell Notification: {}", eff.tui.bell_notification)),
+        Line::from(format!("• High Contrast: {}", eff.tui.high_contrast)),
     ];
 
     let block = Block::default()

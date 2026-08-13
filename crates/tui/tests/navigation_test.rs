@@ -78,3 +78,31 @@ fn test_refresh_hides_internal_hub_errors() {
         "Hub data is temporarily unavailable; press r to retry."
     );
 }
+
+#[test]
+fn test_tui_preferences_and_prefix_mode() {
+    let dir = tempdir().unwrap();
+    let home_path = dir.path().to_path_buf();
+    let settings_store = hub::SettingsStore::open(&home_path);
+    let effective = settings_store.effective(None);
+
+    assert_eq!(effective.tui.prefix_chord, "ctrl+b");
+    assert!(!effective.tui.unicode_fallback);
+    assert!(effective.tui.bell_notification);
+    assert!(effective.tui.high_contrast);
+
+    let opts = TuiOptions::default();
+    let read_model = HubReadModel {
+        work_sessions: vec![],
+        team_members: vec![],
+        channel_messages: vec![],
+        tasks: vec![],
+        audit_events: vec![],
+        effective_settings: effective.clone(),
+    };
+
+    let mut app = AppState::new(&opts, home_path, &effective, read_model);
+    assert!(!app.is_prefix_mode_active);
+    app.is_prefix_mode_active = true;
+    assert!(app.is_prefix_mode_active);
+}

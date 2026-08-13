@@ -1,8 +1,8 @@
 use super::model::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
     HarnessSettings, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot, ProviderProfile,
-    SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride,
-    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot, TuiSettings,
+    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };
 use super::profiles::{
     default_profiles_from_table, effective_harnesses, harnesses_from_document,
@@ -170,6 +170,7 @@ impl SettingsStore {
             profiles,
             harnesses,
             orchestration,
+            tui: self.snapshot.tui.clone(),
         }
     }
 
@@ -1021,12 +1022,37 @@ fn snapshot_from_document(document: &DocumentMut) -> Result<SettingsSnapshot, Se
         .transpose()?
         .unwrap_or_default();
 
+    let tui = document
+        .get("tui")
+        .and_then(Item::as_table)
+        .map(tui_settings_from_table)
+        .transpose()?
+        .unwrap_or_default();
+
     Ok(SettingsSnapshot {
         schema_version: u32_from_i64(schema_version, "schema_version")?,
         backup_retention: u32_from_i64(backup_retention, "storage.backup_retention")?,
         default_workspace,
         default_session,
         orchestration,
+        tui,
+    })
+}
+
+fn tui_settings_from_table(table: &Table) -> Result<TuiSettings, SettingsError> {
+    let defaults = TuiSettings::default();
+    let prefix_chord = match table.get("prefix_chord").and_then(Item::as_str) {
+        Some(s) => s.to_string(),
+        None => defaults.prefix_chord,
+    };
+    let unicode_fallback = bool_key_or(table, "unicode_fallback", defaults.unicode_fallback)?;
+    let bell_notification = bool_key_or(table, "bell_notification", defaults.bell_notification)?;
+    let high_contrast = bool_key_or(table, "high_contrast", defaults.high_contrast)?;
+    Ok(TuiSettings {
+        prefix_chord,
+        unicode_fallback,
+        bell_notification,
+        high_contrast,
     })
 }
 

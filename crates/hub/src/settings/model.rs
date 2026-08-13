@@ -20,6 +20,25 @@ pub const MIN_BACKUP_RETENTION: u32 = 1;
 /// Inclusive upper bound for `storage.backup_retention`.
 pub const MAX_BACKUP_RETENTION: u32 = 20;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TuiSettings {
+    pub prefix_chord: String,
+    pub unicode_fallback: bool,
+    pub bell_notification: bool,
+    pub high_contrast: bool,
+}
+
+impl Default for TuiSettings {
+    fn default() -> Self {
+        Self {
+            prefix_chord: "ctrl+b".to_string(),
+            unicode_fallback: false,
+            bell_notification: true,
+            high_contrast: true,
+        }
+    }
+}
+
 /// Validated settings fields owned by S1. Later slices add more keys without
 /// changing this load/save contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +48,7 @@ pub struct SettingsSnapshot {
     pub default_workspace: Option<String>,
     pub default_session: Option<String>,
     pub orchestration: OrchestrationPolicy,
+    pub tui: TuiSettings,
 }
 
 impl Default for SettingsSnapshot {
@@ -39,6 +59,7 @@ impl Default for SettingsSnapshot {
             default_workspace: None,
             default_session: None,
             orchestration: OrchestrationPolicy::default(),
+            tui: TuiSettings::default(),
         }
     }
 }
@@ -266,6 +287,7 @@ pub struct EffectiveSettings {
     #[serde(default)]
     pub harnesses: Vec<EffectiveHarnessSettings>,
     pub orchestration: EffectiveOrchestrationPolicy,
+    pub tui: TuiSettings,
 }
 
 /// How a profile obtains credentials. Never carries a secret value.
