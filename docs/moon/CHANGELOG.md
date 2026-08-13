@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — TUI and harness bridge review acceptance (#136, #145) (2026-08-13)
+
+- Accepted TUI T2 after workspace tests, Clippy, and the production frontend
+  build passed. The TUI now treats a failed Hub snapshot as a visible,
+  retryable condition instead of silently presenting it as an empty Hub.
+- Accepted C12's provider-safe bridge: all four harnesses capture into the
+  shared session, Codex uses its documented app-server delivery route, Grok
+  uses its documented ACP leader route, and unsupported Claude/Gemini control
+  transports remain explicitly queued and unavailable. No task-only path
+  writes a PTY or starts a replacement harness.
+- Returned Settings S5 #131 for runtime enforcement. Its policy values and
+  typed commands are durable, but auto-enrollment, export permission, and
+  sandbox strictness are not yet consumed by their respective live flows.
+
 ### Claude — Settings S5 orchestration and storage policy backend (#131) (2026-08-13)
 
 - Added `hub::settings::OrchestrationPolicy` (global) and

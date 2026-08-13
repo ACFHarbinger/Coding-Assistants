@@ -32,10 +32,9 @@ impl HubReadModel {
         let ws_str = workspace.map(|p| p.display().to_string());
         let effective_settings = settings_store.effective(ws_str.as_deref());
 
-        let work_sessions = hub_store.list_work_sessions().unwrap_or_default();
+        let work_sessions = hub_store.list_work_sessions()?;
         let team_members = hub_store
-            .list_agents()
-            .unwrap_or_default()
+            .list_agents()?
             .into_iter()
             .filter(|agent| agent.team_member)
             .collect();
@@ -44,12 +43,10 @@ impl HubReadModel {
             .map(|s| format!("session:{s}"))
             .unwrap_or_else(|| "general".to_string());
 
-        let channel_messages = hub_store
-            .list_channel_messages(&channel_id, 50)
-            .unwrap_or_default();
+        let channel_messages = hub_store.list_channel_messages(&channel_id, 50)?;
 
-        let tasks = hub_store.list_tasks(None).unwrap_or_default();
-        let audit_events = hub_store.list_settings_audit_events().unwrap_or_default();
+        let tasks = hub_store.list_tasks(None)?;
+        let audit_events = hub_store.list_settings_audit_events()?;
 
         Ok(Self {
             work_sessions,

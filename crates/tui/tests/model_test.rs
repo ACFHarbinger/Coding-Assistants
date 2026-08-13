@@ -24,14 +24,19 @@ fn test_hub_read_model_loads_coherent_data() {
         .unwrap();
 
     // Load HubReadModel
-    let read_model = HubReadModel::load(&home_path, Some(&workspace_path), Some(&session.id)).unwrap();
+    let read_model =
+        HubReadModel::load(&home_path, Some(&workspace_path), Some(&session.id)).unwrap();
 
     assert!(!read_model.work_sessions.is_empty());
     assert_eq!(read_model.work_sessions[0].name, "T2 Test Session");
     assert!(!read_model.audit_events.is_empty());
     assert_eq!(read_model.audit_events[0].path, "general.default_workspace");
     assert_eq!(
-        read_model.effective_settings.default_workspace.as_deref().unwrap(),
+        read_model
+            .effective_settings
+            .default_workspace
+            .as_deref()
+            .unwrap(),
         ws_str
     );
 }

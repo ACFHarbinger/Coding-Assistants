@@ -62,7 +62,9 @@ fn test_set_as_default_workspace_and_session_settings_persistence_and_audit() {
         "feature_session"
     );
 
-    let read_model = tui::HubReadModel::load(&home_path, Some(&workspace_path), Some("feature_session")).unwrap();
+    let read_model =
+        tui::HubReadModel::load(&home_path, Some(&workspace_path), Some("feature_session"))
+            .unwrap();
     let app = tui::app::AppState::new(&opts, home_path, &effective, read_model);
     assert!(app.is_default_workspace_persisted);
     assert!(app.is_default_session_persisted);

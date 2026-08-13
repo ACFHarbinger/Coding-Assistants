@@ -90,7 +90,8 @@ impl AppState {
             .or_else(|| effective.default_session.clone())
             .or_else(|| Some("general".to_string()));
 
-        let mut status_message = String::from("Ready. Press Tab to switch tabs, r to refresh, q to exit.");
+        let mut status_message =
+            String::from("Ready. Press Tab to switch tabs, r to refresh, q to exit.");
         if options.set_as_default_workspace_settings {
             status_message = format!("Persisted default workspace setting: {:?}", workspace_path);
         }
@@ -114,13 +115,19 @@ impl AppState {
     }
 
     pub fn refresh(&mut self) {
-        if let Ok(model) = HubReadModel::load(
+        match HubReadModel::load(
             &self.home_dir,
             self.workspace_path.as_deref(),
             self.session_id.as_deref(),
         ) {
-            self.read_model = model;
-            self.status_message = String::from("Refreshed Hub read model.");
+            Ok(model) => {
+                self.read_model = model;
+                self.status_message = String::from("Refreshed Hub read model.");
+            }
+            Err(_) => {
+                self.status_message =
+                    String::from("Hub data is temporarily unavailable; press r to retry.");
+            }
         }
     }
 }
@@ -164,20 +171,27 @@ pub fn run(options: TuiOptions) -> Result<()> {
         .or_else(|| effective.default_session.clone())
         .or_else(|| Some("general".to_string()));
 
-    let read_model = HubReadModel::load(
-        &home_dir,
-        workspace_path.as_deref(),
-        session_id.as_deref(),
-    ).unwrap_or_else(|_| HubReadModel {
-        work_sessions: vec![],
-        team_members: vec![],
-        channel_messages: vec![],
-        tasks: vec![],
-        audit_events: vec![],
-        effective_settings: effective.clone(),
-    });
+    let initial_read =
+        HubReadModel::load(&home_dir, workspace_path.as_deref(), session_id.as_deref());
+    let (read_model, initial_read_failed) = match initial_read {
+        Ok(model) => (model, false),
+        Err(_) => (
+            HubReadModel {
+                work_sessions: vec![],
+                team_members: vec![],
+                channel_messages: vec![],
+                tasks: vec![],
+                audit_events: vec![],
+                effective_settings: effective.clone(),
+            },
+            true,
+        ),
+    };
 
     let mut app = AppState::new(&options, home_dir, &effective, read_model);
+    if initial_read_failed {
+        app.status_message = String::from("Hub data is temporarily unavailable; press r to retry.");
+    }
     let mut terminal = init_terminal()?;
 
     let loop_result = run_loop(&mut terminal, &mut app);
@@ -383,7 +397,11 @@ fn draw_orchestrate_view(frame: &mut Frame, area: Rect, app: &AppState) {
             .take(5)
             .map(|s| format!("{} ({} members)", s.name, s.member_ids.len()))
             .collect();
-        format!("• Work Sessions ({}): {}", session_count, session_names.join(" | "))
+        format!(
+            "• Work Sessions ({}): {}",
+            session_count,
+            session_names.join(" | ")
+        )
     };
 
     let text = vec![
@@ -463,7 +481,11 @@ fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
         text.push(Line::from(" [System] No messages in this channel yet. Send a message via CLI or Desktop to start."));
     } else {
         for msg in app.read_model.channel_messages.iter().take(15) {
-            let sender = if msg.from_agent.is_empty() { "system" } else { &msg.from_agent };
+            let sender = if msg.from_agent.is_empty() {
+                "system"
+            } else {
+                &msg.from_agent
+            };
             let body_preview: String = msg.body.chars().take(80).collect();
             text.push(Line::from(vec![
                 Span::styled(format!(" [{}] ", sender), Style::default().fg(Color::Cyan)),
@@ -505,7 +527,10 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
 
     if !app.read_model.tasks.is_empty() {
         text.push(Line::from(""));
-        text.push(Line::from(Span::styled("Recent Tasks:", Style::default().fg(Color::Cyan))));
+        text.push(Line::from(Span::styled(
+            "Recent Tasks:",
+            Style::default().fg(Color::Cyan),
+        )));
         for task in app.read_model.tasks.iter().take(5) {
             text.push(Line::from(format!("  [{:?}] {}", task.status, task.id)));
         }
@@ -513,9 +538,15 @@ fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
 
     if !app.read_model.audit_events.is_empty() {
         text.push(Line::from(""));
-        text.push(Line::from(Span::styled("Recent Settings Audit Events:", Style::default().fg(Color::Cyan))));
+        text.push(Line::from(Span::styled(
+            "Recent Settings Audit Events:",
+            Style::default().fg(Color::Cyan),
+        )));
         for event in app.read_model.audit_events.iter().take(5) {
-            text.push(Line::from(format!("  [{}] {} ({})", event.operation, event.path, event.status)));
+            text.push(Line::from(format!(
+                "  [{}] {} ({})",
+                event.operation, event.path, event.status
+            )));
         }
     }
 
@@ -536,9 +567,18 @@ fn draw_settings_view(frame: &mut Frame, area: Rect, app: &AppState) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(format!("• Backup Retention: {} backups", eff.backup_retention)),
-        Line::from(format!("• Default Workspace: {}", eff.default_workspace.as_deref().unwrap_or("None (Global)"))),
-        Line::from(format!("• Default Session: {}", eff.default_session.as_deref().unwrap_or("None (Global)"))),
+        Line::from(format!(
+            "• Backup Retention: {} backups",
+            eff.backup_retention
+        )),
+        Line::from(format!(
+            "• Default Workspace: {}",
+            eff.default_workspace.as_deref().unwrap_or("None (Global)")
+        )),
+        Line::from(format!(
+            "• Default Session: {}",
+            eff.default_session.as_deref().unwrap_or("None (Global)")
+        )),
         Line::from(vec![
             Span::raw("• Workspace override mode: "),
             Span::styled(
@@ -565,8 +605,14 @@ fn draw_settings_view(frame: &mut Frame, area: Rect, app: &AppState) {
                 Style::default().fg(Color::Yellow),
             ),
         ]),
-        Line::from(format!("• Profiles configured: {} global profiles", eff.profiles.len())),
-        Line::from(format!("• Harnesses configured: {} harnesses", eff.harnesses.len())),
+        Line::from(format!(
+            "• Profiles configured: {} global profiles",
+            eff.profiles.len()
+        )),
+        Line::from(format!(
+            "• Harnesses configured: {} harnesses",
+            eff.harnesses.len()
+        )),
     ];
 
     let block = Block::default()
