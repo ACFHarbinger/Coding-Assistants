@@ -40,9 +40,11 @@ as issue #90, since U10 had no prior issue of its own.
 
 ### Fixed
 
-- Slack channel badges now count **unread** posts only. Opening a channel
-  (for example `#team-coordination`) marks its current messages read and
-  clears the number; it no longer stays at the total message count.
+- Slack channel badges now count **unread** posts only, using the same
+  membership as the thread (including unprefixed `#general` history).
+  Opening a channel marks those posts read. Existing history is not treated
+  as unread on first launch, which is why `#general` had no number while
+  `#team-coordination` showed a stale total.
 
 - CA-106's Edit/Delete menu only opened via right-click, with no visible
   affordance a first-time owner would discover. Added a hover-revealed
