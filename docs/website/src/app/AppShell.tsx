@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Menu, X, Github } from 'lucide-react';
-import { BrandMark } from '../assets/brand/BrandMark';
+import { BrandMark } from '../assets/svgs/BrandMark';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { CommandPalette } from '../features/search/CommandPalette';
+import { CommandPalette } from '../features/navigation/CommandPalette';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();

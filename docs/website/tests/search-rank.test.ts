@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDocSearch, rankQuery, SEARCH_BOOST } from "../src/features/search/searchIndex.ts";
+import { createDocSearch, rankQuery, SEARCH_BOOST } from "../src/features/navigation/searchIndex.ts";
 
 test("title matches rank above body-only matches", () => {
   const search = createDocSearch([
