@@ -261,6 +261,95 @@ pub struct ReadMarker {
     pub last_read_at: String,
 }
 
+/// A named, reusable permission + responsibility bundle assignable to any
+/// team member. An agent's effective permissions/responsibilities are the
+/// union across every role currently assigned to it (numeric limits take
+/// the most permissive/highest value among assigned roles; `None` means
+/// unlimited). The `cto` role is `is_builtin` — protected from edit or
+/// deletion, always unlimited, always assigned to `human`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Role {
+    pub id: String,
+    pub display_name: String,
+    pub is_builtin: bool,
+    /// Task/wake sends this role's bearer may make per day without
+    /// triggering the human approval gate. `None` = unlimited.
+    pub daily_ungated_quota: Option<i64>,
+    /// Largest recipient count a single task/wake broadcast from this
+    /// role's bearer may target without triggering the gate. `None` =
+    /// unlimited.
+    pub max_broadcast_recipients: Option<i64>,
+    pub can_archive_messages: bool,
+    pub can_update_agent_roles: bool,
+    /// The "main bridge" duty: allocating tasks between agents and the
+    /// human, previously done informally by whichever agent held team
+    /// lead.
+    pub can_allocate_tasks: bool,
+    /// Free-form responsibility tags this role grants by default (e.g.
+    /// `"product_manager"`, `"reviewer"`, `"planner"`) — open vocabulary,
+    /// not a fixed enum, so new responsibilities don't need a migration.
+    pub responsibilities: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Every role currently assigned to one agent, plus the union computed
+/// from them — what `check_broadcast_gate` and the desktop UI actually
+/// act on, rather than re-deriving the union from raw role rows each time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectiveAgentPermissions {
+    pub agent_id: String,
+    pub roles: Vec<Role>,
+    pub daily_ungated_quota: Option<i64>,
+    pub max_broadcast_recipients: Option<i64>,
+    pub can_archive_messages: bool,
+    pub can_update_agent_roles: bool,
+    pub can_allocate_tasks: bool,
+    pub responsibilities: Vec<String>,
+}
+
+/// Which role a provider gets assigned by default — resolved per
+/// workspace first, falling back to the global (`workspace_path == ""`)
+/// default for that provider if no workspace-specific row exists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleProviderDefault {
+    pub provider: String,
+    /// Empty string means the global default, not a specific workspace.
+    pub workspace_path: String,
+    pub role_id: String,
+}
+
+/// Verdict from [`crate::HubStore::check_broadcast_gate`]: whether a
+/// task/wake send may proceed immediately, or must wait on a durably
+/// recorded human approval first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GateVerdict {
+    Allowed,
+    RequiresApproval { reason: String },
+}
+
+/// A task/wake send that exceeded its sender's role quota or broadcast
+/// recipient limit, held for explicit human approval before any delivery
+/// is attempted. Rejecting it never mutates team membership or sends the
+/// original message — it only notifies `from_agent` why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingGateApproval {
+    pub id: String,
+    pub subject: String,
+    pub from_agent: String,
+    pub to_agents: Vec<String>,
+    pub is_task: bool,
+    pub is_wake: bool,
+    pub body: String,
+    pub workspace_path: Option<String>,
+    pub task_id: Option<String>,
+    pub session_id: Option<String>,
+    pub reason: String,
+    pub status: String,
+    pub created_at: String,
+    pub resolved_at: Option<String>,
+}
+
 /// Extracts the memory identifiers embedded by the Hub's chat composer.
 ///
 /// References deliberately accept both full UUIDs and the short prefix shown
@@ -314,6 +403,7 @@ mod messages;
 mod models;
 pub use models::*;
 mod policies;
+mod roles;
 mod tasks;
 #[cfg(test)]
 mod tests;

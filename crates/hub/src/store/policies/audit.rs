@@ -361,6 +361,66 @@ impl HubStore {
             CREATE INDEX IF NOT EXISTS idx_read_markers_scope
                 ON read_markers(scope);
 
+            CREATE TABLE IF NOT EXISTS roles (
+                id TEXT PRIMARY KEY NOT NULL,
+                display_name TEXT NOT NULL,
+                is_builtin INTEGER NOT NULL DEFAULT 0,
+                daily_ungated_quota INTEGER,
+                max_broadcast_recipients INTEGER,
+                can_archive_messages INTEGER NOT NULL DEFAULT 0,
+                can_update_agent_roles INTEGER NOT NULL DEFAULT 0,
+                can_allocate_tasks INTEGER NOT NULL DEFAULT 0,
+                responsibilities_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_role_assignments (
+                agent_id TEXT NOT NULL,
+                role_id TEXT NOT NULL,
+                assigned_at TEXT NOT NULL,
+                PRIMARY KEY (agent_id, role_id),
+                FOREIGN KEY(role_id) REFERENCES roles(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_role_assignments_role
+                ON agent_role_assignments(role_id);
+
+            CREATE TABLE IF NOT EXISTS role_provider_defaults (
+                provider TEXT NOT NULL,
+                workspace_path TEXT NOT NULL DEFAULT '',
+                role_id TEXT NOT NULL,
+                PRIMARY KEY (provider, workspace_path),
+                FOREIGN KEY(role_id) REFERENCES roles(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS gate_quota_usage (
+                agent_id TEXT NOT NULL,
+                usage_date TEXT NOT NULL,
+                ungated_sends_used INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (agent_id, usage_date)
+            );
+
+            CREATE TABLE IF NOT EXISTS pending_gate_approvals (
+                id TEXT PRIMARY KEY NOT NULL,
+                subject TEXT NOT NULL,
+                from_agent TEXT NOT NULL,
+                to_agents_json TEXT NOT NULL,
+                is_task INTEGER NOT NULL DEFAULT 0,
+                is_wake INTEGER NOT NULL DEFAULT 0,
+                body TEXT NOT NULL,
+                workspace_path TEXT,
+                task_id TEXT,
+                session_id TEXT,
+                reason TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_pending_gate_approvals_status
+                ON pending_gate_approvals(status, created_at);
+
             CREATE TABLE IF NOT EXISTS harness_session_registrations (
                 harness TEXT NOT NULL,
                 workspace TEXT NOT NULL,
@@ -482,6 +542,7 @@ impl HubStore {
         }
 
         self.seed_default_channels()?;
+        self.ensure_builtin_roles()?;
         Ok(())
     }
 }

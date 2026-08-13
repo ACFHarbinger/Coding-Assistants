@@ -80,13 +80,17 @@ pub struct SendTaggedMessageArgs {
 
 /// C11: same task/wake enforcement for the human UI and agents alike — this
 /// command is the one typed boundary both call, so neither can bypass the
-/// other's rules.
+/// other's rules. Routes through the role-permission gate
+/// (`send_tagged_message_gated`): a sender over its role's daily ungated
+/// quota or broadcast-recipient limit gets a durable pending approval
+/// instead of immediate delivery, rather than the raw, ungated
+/// `send_tagged_message`.
 #[tauri::command]
 pub fn hub_send_tagged_message(
     args: SendTaggedMessageArgs,
 ) -> Result<Vec<hub::SendOutcome>, String> {
     open_store()?
-        .send_tagged_message(
+        .send_tagged_message_gated(
             &args.from,
             &args.to,
             args.is_task,
