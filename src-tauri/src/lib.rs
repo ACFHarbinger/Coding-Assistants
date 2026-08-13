@@ -460,6 +460,8 @@ pub fn run() {
             commands::commands::roles::hub_list_role_provider_defaults,
             commands::commands::roles::hub_list_pending_gate_approvals,
             commands::commands::roles::hub_resolve_gate_approval,
+            commands::commands::attachments::hub_save_attachment,
+            commands::commands::attachments::hub_get_attachment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

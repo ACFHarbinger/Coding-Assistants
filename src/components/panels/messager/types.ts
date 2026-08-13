@@ -89,3 +89,23 @@ export interface ReplyTarget {
   fromAgent: string;
   preview: string;
 }
+
+export interface AttachmentRecord {
+  id: string;
+  filename: string;
+  mime: string;
+  byte_size: number;
+  absolute_path: string;
+  created_at: string;
+}
+
+export interface AttachmentPayload {
+  record: AttachmentRecord;
+  data_base64: string;
+}
+
+/** A just-uploaded attachment still sitting in the composer, not yet sent. */
+export interface PendingAttachment {
+  record: AttachmentRecord;
+  previewUrl: string;
+}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
-import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, ReplyTarget, MessagerPanelProps } from "./messager/types";
-import { deliverTaggedSession } from "./messager/sendTagged";
+import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, PendingAttachment, ReplyTarget, MessagerPanelProps } from "./messager/types";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
+import { useSendMessage } from "./messager/useSendMessage";
 import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
@@ -40,6 +40,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const { harnessSessions, deliveryNotices, setDeliveryNotices, refreshHarnessSessions, retryDelivery, dismissDelivery } = useHarnessDelivery(workspacePath, activeWorkSessionId);
   const [isTaskTag, setIsTaskTag] = useState<boolean>(false);
   const [isWakeTag, setIsWakeTag] = useState<boolean>(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string>("");
 
   // Memories side drawer state
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
@@ -178,135 +180,12 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     return () => { disposed = true; };
   }, [activeChannel, hubMessages]);
 
-  const handleSendMessage = async () => {
-    if (!messageInput.trim() || sending) return;
-    const dmTarget = activeChannel.startsWith("dm-")
-      ? activeChannel.replace("dm-", "")
-      : null;
-    if (dmTarget === "human") return;
-    setSending(true);
-    try {
-      const sessionChannel = activeChannel.startsWith("session:") ? activeChannel : null;
-      let bodyText = messageInput.trim();
-      const enrolledRoster = rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
-
-      const eligibleRecipients = sessionChannel && activeWorkSession
-        ? activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system")
-        : enrolledRoster;
-      let targetAgents: string[] = [];
-      if (dmTarget) {
-        targetAgents = [dmTarget];
-      } else if (recipientMode === "single") {
-        targetAgents = [singleRecipient];
-      } else if (recipientMode === "subset") {
-        // A subset starts with every eligible member selected. The old UI
-        // rendered an absent key as checked but only sent explicitly present
-        // keys, so an untouched subset could accidentally address nobody.
-        targetAgents = eligibleRecipients.filter(id => selectedSubset[id] !== false);
-        if (targetAgents.length === 0) {
-          alert("Please select at least one recipient agent for subset messaging.");
-          setSending(false);
-          return;
-        }
-      } else {
-        targetAgents = eligibleRecipients;
-      }
-
-      // C11 Validation: Task-tagged messages MUST target existing team members
-      if (isTaskTag) {
-        const nonTeamTargets = targetAgents.filter(id => !enrolledRoster.includes(id));
-        if (nonTeamTargets.length > 0) {
-          alert(`Task-tagged messages must target existing team members. Target(s) not on team: ${nonTeamTargets.join(", ")}. Please enroll the agent or use [WAKE] tag to spawn a new instance.`);
-          setSending(false);
-          return;
-        }
-      }
-
-      // Ensure tags are in body text
-      if (isTaskTag && !bodyText.startsWith("[TASK]")) {
-        bodyText = `[TASK] ${bodyText}`;
-      }
-      if (isWakeTag && !bodyText.startsWith("[WAKE]")) {
-        bodyText = `[WAKE] ${bodyText}`;
-      }
-
-      // hub's MessageKind enum only knows message/handoff/wake/system — task
-      // intent rides in the `task` field, subject suffix, and [TASK] body
-      // prefix instead of a "task" kind, which the backend would reject.
-      const messageKind = isWakeTag ? "wake" : "message";
-      let subject = dmTarget
-        ? `private:${crypto.randomUUID()}`
-        : replyTo
-          ? `channel:${activeChannel}:thread:${replyTo.id}:${crypto.randomUUID()}`
-        : `channel:${activeChannel}:${crypto.randomUUID()}`;
-
-      if (isTaskTag) subject += `:kind:task`;
-      else if (isWakeTag) subject += `:kind:wake`;
-
-      const toField = dmTarget
-        ? dmTarget
-        : recipientMode === "all" && !sessionChannel
-          ? "team"
-          : targetAgents.join(",");
-
-      if (sessionChannel && activeWorkSession) {
-        if (targetAgents.length === 0) throw new Error("The active work session has no members");
-        if (isTaskTag || isWakeTag) {
-          if (!workspacePath.startsWith("/")) {
-            throw new Error("Tagged delivery requires an absolute Workspace Root in Orchestrate");
-          }
-          setDeliveryNotices(await deliverTaggedSession({
-            targetAgents,
-            isTaskTag,
-            isWakeTag,
-            subject,
-            bodyText,
-            workspacePath,
-            sessionId: activeWorkSession.id,
-          }));
-          void refreshHarnessSessions();
-        } else {
-          await invoke("hub_send_session_message", {
-            args: { from: "human", sessionId: activeWorkSession.id, to: targetAgents, subject, workspace: null, task: null, body: bodyText }
-          });
-        }
-      } else if (isTaskTag || isWakeTag) {
-        await invoke("hub_send_tagged_message", {
-          args: {
-            from: "human",
-            to: targetAgents,
-            isTask: isTaskTag,
-            isWake: isWakeTag,
-            subject,
-            workspace: null,
-            task: isTaskTag ? bodyText : null,
-            sessionId: null,
-            body: bodyText
-          }
-        });
-      } else {
-        const sentMsg = await invoke<{ id: string }>("hub_send_message", {
-          args: { from: "human", to: toField, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
-        });
-        const wakeTargets = toField === "team" ? teamWakeTargets(hubAgents) : targetAgents;
-        if (wakePolicyGate) {
-          await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
-            target, reason: `Chat & Memory message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
-          })));
-        }
-      }
-
-      setMessageInput("");
-      setReplyTo(null);
-      forceScrollRef.current = true;
-      stickToBottomRef.current = true;
-      await onRefresh();
-    } catch (err) {
-      alert(`Failed to send message: ${err}`);
-    } finally {
-      setSending(false);
-    }
-  };
+  const handleSendMessage = useSendMessage({
+    activeChannel, activeWorkSession, hubAgents, workspacePath, messageInput, sending, setSending,
+    recipientMode, selectedSubset, singleRecipient, isTaskTag, isWakeTag, wakePolicyGate, replyTo,
+    pendingAttachments, setDeliveryNotices, refreshHarnessSessions, setMessageInput, setReplyTo,
+    setPendingAttachments, forceScrollRef, stickToBottomRef, onRefresh,
+  });
 
   const startReply = (message: HubMessage) => {
     const rootId = threadRootId(message, activeChannel) || message.id;
@@ -494,7 +373,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel, sortOrder]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>

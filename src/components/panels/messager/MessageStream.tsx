@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { isNearNewestEdge, newestEdgeScrollTop } from "./utils";
+import { renderMessageBody } from "./attachments";
 export default function MessageStream(props: any) {
   const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
   return (
@@ -205,7 +206,7 @@ export default function MessageStream(props: any) {
                             transition: "box-shadow 0.12s ease"
                           }}
                         >
-                          {msg.body}
+                          {renderMessageBody(msg.body)}
                           {msg.from_agent === "human" && (
                             <button
                               type="button"

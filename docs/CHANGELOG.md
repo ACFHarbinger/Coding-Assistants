@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Added
 
+- **Chat & Memory attachments**: paste an image from the clipboard directly into the composer textarea, or click the new **📎 Attach** button next to Send Message, to attach one or more files to a message. Attachments are stored as plain files under `<hub_home>/attachments/` and indexed in a new `attachments` table (`crates/hub/src/store/attachments.rs`; `hub_save_attachment`/`hub_get_attachment` Tauri commands, base64 over the IPC boundary), referenced from the message body via an `[attachment:<id>:<filename>]` token — the same embedded-reference pattern `[Memory #<id>]` already uses, so no schema change to `messages` or any existing `send_message`/`send_tagged_message` call site. The Chat & Memory stream renders images inline (click to download) and other files as a small download chip (`messager/attachments.tsx`). All harness dispatch is a plain CLI subprocess prompt rather than a multimodal API call, so task/wake delivery to a live work-session harness substitutes each token with the attachment's absolute on-disk path in the dispatched body only (`resolveDispatchBody`) — the stored/displayed message keeps the friendly token — letting each harness's own file-read/vision tool open it directly.
 - **Tauri backend organization:** `src-tauri/src` is grouped into `agent`,
   `client`, `harness`, `hub`, `server`, `core`, and `main` modules without
   changing the public IPC command contract.

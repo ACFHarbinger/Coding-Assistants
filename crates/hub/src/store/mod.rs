@@ -226,6 +226,21 @@ pub struct MessageRecord {
     pub acked_at: Option<String>,
 }
 
+/// A file pasted or picked in the desktop composer (image or other
+/// attachment). Stored as a plain file under `<hub_home>/attachments/` and
+/// indexed here; messages reference one by embedding an
+/// `attachment://<id>` marker in their body rather than the `messages`
+/// table gaining a column, so no existing send path changes shape.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachmentRecord {
+    pub id: String,
+    pub filename: String,
+    pub mime: String,
+    pub byte_size: i64,
+    pub absolute_path: String,
+    pub created_at: String,
+}
+
 /// Per-recipient audit record for a task/wake-tagged send (C11). One row is
 /// written for every recipient regardless of whether delivery was accepted,
 /// so rejections are as durable/auditable as successful sends.
@@ -398,6 +413,7 @@ pub struct GitExportOutcome {
 }
 
 mod agents;
+mod attachments;
 mod exports;
 mod messages;
 mod models;

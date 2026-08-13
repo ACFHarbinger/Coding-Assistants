@@ -1,6 +1,7 @@
 import { invoke } from "../../../lib/tauri";
 import type { HarnessDeliveryNotice } from "../harness/types";
 import { injectNotice, isSuccessfulInject } from "../harness/types";
+import { resolveDispatchBody } from "./attachments";
 import type { HarnessInjectResult, TaggedSendOutcome } from "./types";
 
 export async function deliverTaggedSession(args: {
@@ -11,7 +12,9 @@ export async function deliverTaggedSession(args: {
   bodyText: string;
   workspacePath: string;
   sessionId: string;
+  attachments?: { id: string; absolutePath: string; filename: string }[];
 }): Promise<HarnessDeliveryNotice[]> {
+  const dispatchBody = resolveDispatchBody(args.bodyText, args.attachments ?? []);
   const outcomes = await invoke<TaggedSendOutcome[]>("hub_send_tagged_message", {
     args: {
       from: "human",
@@ -32,7 +35,7 @@ export async function deliverTaggedSession(args: {
       workspace: args.workspacePath,
       sessionId: args.sessionId,
       messageId: outcome.message_id,
-      body: args.bodyText,
+      body: dispatchBody,
       isTask: args.isTaskTag,
       isWake: args.isWakeTag,
     })),

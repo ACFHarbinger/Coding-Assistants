@@ -9,6 +9,7 @@ impl HubStore {
         fs::create_dir_all(data_dir.join("journals"))?;
         fs::create_dir_all(data_dir.join("markdown"))?;
         fs::create_dir_all(data_dir.join("wake"))?;
+        fs::create_dir_all(data_dir.join("attachments"))?;
 
         let db_path = data_dir.join("hub.db");
         let conn = Connection::open(&db_path)?;
@@ -236,6 +237,15 @@ impl HubStore {
 
             CREATE INDEX IF NOT EXISTS idx_read_markers_scope
                 ON read_markers(scope);
+
+            CREATE TABLE IF NOT EXISTS attachments (
+                id TEXT PRIMARY KEY NOT NULL,
+                filename TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                byte_size INTEGER NOT NULL,
+                relative_path TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
 
             CREATE TABLE IF NOT EXISTS roles (
                 id TEXT PRIMARY KEY NOT NULL,

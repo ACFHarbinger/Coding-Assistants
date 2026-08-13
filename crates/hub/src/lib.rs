@@ -45,8 +45,9 @@ pub use settings::{
     CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
-    parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AuditEvent, BudgetPauseOutcome,
-    BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions, GateVerdict,
+    parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
+    BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
+    GateVerdict,
     GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
     HubError, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord,
     MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault, SendOutcome,

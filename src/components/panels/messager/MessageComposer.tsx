@@ -1,6 +1,35 @@
 // @ts-nocheck
+import { useRef } from "react";
+import { attachmentToken, uploadAttachment } from "./attachments";
 export default function MessageComposer(props: any) {
-  const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending } = props;
+  const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachFiles = async (files: FileList | File[]) => {
+    setAttachmentError("");
+    for (const file of Array.from(files)) {
+      try {
+        const record = await uploadAttachment(file);
+        const previewUrl = URL.createObjectURL(file);
+        setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
+        setMessageInput((prev: string) => {
+          const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
+          return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
+        });
+      } catch (err) {
+        setAttachmentError(`Failed to attach "${file.name}": ${err}`);
+      }
+    }
+  };
+  const removeAttachment = (id: string) => {
+    setPendingAttachments((prev: any[]) => {
+      const target = prev.find(p => p.record.id === id);
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+        setMessageInput((body: string) => body.replace(`${attachmentToken(target.record.id, target.record.filename)}\n`, "").replace(attachmentToken(target.record.id, target.record.filename), ""));
+      }
+      return prev.filter(p => p.record.id !== id);
+    });
+  };
   const recipients = (activeWorkSession && activeChannel === `session:${activeWorkSession.id}`
     ? activeWorkSession.member_ids
     : rosterAgentIds(hubAgents)
@@ -68,6 +97,17 @@ export default function MessageComposer(props: any) {
                 e.preventDefault();
                 handleSendMessage();
               }}
+              onPaste={e => {
+                const items = Array.from(e.clipboardData?.items || []);
+                const files = items
+                  .filter(item => item.kind === "file")
+                  .map(item => item.getAsFile())
+                  .filter((file): file is File => file !== null);
+                if (files.length > 0) {
+                  e.preventDefault();
+                  void attachFiles(files);
+                }
+              }}
               style={{
                 width: "100%",
                 background: "rgba(0,0,0,0.4)",
@@ -80,6 +120,57 @@ export default function MessageComposer(props: any) {
                 resize: "none"
               }}
             />
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={e => {
+                if (e.target.files && e.target.files.length > 0) void attachFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            {attachmentError && (
+              <p style={{ margin: 0, color: "#f87171", fontSize: "0.78rem" }}>{attachmentError}</p>
+            )}
+
+            {pendingAttachments.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {pendingAttachments.map((pending: any) => (
+                  <div
+                    key={pending.record.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      padding: "0.3rem 0.5rem",
+                      borderRadius: "8px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid var(--border-color)",
+                      fontSize: "0.78rem",
+                      color: "var(--text-main)"
+                    }}
+                  >
+                    {pending.record.mime.startsWith("image/") ? (
+                      <img src={pending.previewUrl} alt={pending.record.filename} style={{ width: "28px", height: "28px", objectFit: "cover", borderRadius: "5px" }} />
+                    ) : (
+                      <span>📎</span>
+                    )}
+                    <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pending.record.filename}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(pending.record.id)}
+                      title="Remove attachment"
+                      style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.8rem", lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Input Controls Row */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -153,10 +244,27 @@ export default function MessageComposer(props: any) {
                 )}
 
                 <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Add attachment (image or file)"
+                  style={{
+                    padding: "0.6rem 0.8rem",
+                    fontSize: "0.9rem",
+                    marginLeft: "auto",
+                    borderRadius: "8px",
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid var(--border-color)",
+                    color: "#fff",
+                    cursor: "pointer"
+                  }}
+                >
+                  📎 Attach
+                </button>
+                <button
                   className={sending ? "btn-secondary" : "btn-primary"}
                   onClick={handleSendMessage}
                   disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
-                  style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem", marginLeft: "auto" }}
+                  style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
                 >
                   {sending ? "Sending..." : "Send Message"}
                 </button>
