@@ -220,17 +220,17 @@ fn inject_harness_inner(
     if request.is_task && !request.is_wake {
         if harness == HarnessId::Grok {
             if let Some(store) = store {
-                return crate::grok_bridge::deliver_grok_task(store, request);
+                return crate::bridge::grok::deliver_grok_task(store, request);
             }
         }
         if harness == HarnessId::Gemini {
             if let Some(store) = store {
-                return crate::gemini_bridge::deliver_gemini_task(store, request);
+                return crate::bridge::gemini::deliver_gemini_task(store, request);
             }
         }
         if harness == HarnessId::Claude {
             if let Some(store) = store {
-                return crate::claude_bridge::deliver_claude_task(store, request);
+                return crate::bridge::claude::deliver_claude_task(store, request);
             }
         }
         return Ok(HarnessInjectResult {
