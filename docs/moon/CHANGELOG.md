@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — Antigravity (`agy`) kill → capture → relaunch channel bridge (#151) (2026-08-13)
+
+- Implemented managed Gemini (`agy`) process kill -> capture -> relaunch channel bridge under `crates/hub/src/bridge/channels/gemini/` (`mod.rs`, `relaunch.rs`).
+- `relaunch.rs` provides `is_pid_running`, `kill_managed_agy_process` (graceful SIGTERM with SIGKILL fallback), `resolve_gemini_continuation_id` (resolving process output -> requested session ID -> registered session ID -> `latest_gemini_session_id`), and `relaunch_and_deliver_gemini_task`.
+- Wired `relaunch_and_deliver_gemini_task` into `deliver_gemini_task` and updated `hub_register_managed_harness_session` in `src-tauri/src/harness/commands.rs` to auto-infer `latest_gemini_session_id` when `disk_session_id` is omitted/general.
+- Filtered tool execution outputs (`VIEW_FILE`, `RUN_COMMAND`, etc.) and system prompt metadata from being captured into Chat & Memory messager.
+- **Verification:** `cargo test --workspace` passed 100% cleanly (214 tests); `cargo clippy --workspace --all-targets -- -D warnings` passed cleanly.
+
 ### Grok — leader connect, managed-id fix, and frontend 500-LoC split (#152, #154, #158) (2026-08-13)
 
 - Guided Grok leader setup: Shared Hub → Channels and Orchestrate show

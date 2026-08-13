@@ -154,9 +154,10 @@ pub fn deliver_gemini_task(
     store: &HubStore,
     request: &HarnessInjectRequest,
 ) -> Result<HarnessInjectResult, HubError> {
-    deliver_gemini_task_with(store, request, run_agy_worker)
+    crate::bridge::channels::gemini::relaunch_and_deliver_gemini_task(store, request)
 }
 
+#[allow(dead_code)]
 pub fn deliver_gemini_task_with(
     store: &HubStore,
     request: &HarnessInjectRequest,
@@ -179,7 +180,12 @@ pub fn deliver_gemini_task_with(
 
     let registration = store
         .get_harness_session("gemini", &workspace_str)?
-        .or_else(|| store.get_harness_session("agy", &workspace_str).ok().flatten());
+        .or_else(|| {
+            store
+                .get_harness_session("agy", &workspace_str)
+                .ok()
+                .flatten()
+        });
 
     let is_managed = registration
         .as_ref()
@@ -250,7 +256,7 @@ pub fn deliver_gemini_task_with(
     Ok(result)
 }
 
-fn run_agy_worker(
+pub(crate) fn run_agy_worker(
     workspace: &Path,
     prompt: &str,
     conversation_id: Option<&str>,
@@ -292,7 +298,7 @@ fn run_agy_worker(
     }
 }
 
-fn unavailable(detail: &str) -> HarnessInjectResult {
+pub(crate) fn unavailable(detail: &str) -> HarnessInjectResult {
     HarnessInjectResult {
         harness: "gemini".into(),
         pid: None,
@@ -301,7 +307,7 @@ fn unavailable(detail: &str) -> HarnessInjectResult {
     }
 }
 
-fn queued(detail: &str) -> HarnessInjectResult {
+pub(crate) fn queued(detail: &str) -> HarnessInjectResult {
     HarnessInjectResult {
         harness: "gemini".into(),
         pid: None,

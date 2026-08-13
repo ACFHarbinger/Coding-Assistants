@@ -121,8 +121,16 @@ pub fn hub_register_managed_harness_session(
     disk_session_id: String,
     managed_pid: u32,
 ) -> Result<HarnessSessionRegistration, String> {
+    let mut effective_session_id = disk_session_id;
+    if (harness == "gemini" || harness == "agy")
+        && (effective_session_id.trim().is_empty() || effective_session_id == "general")
+    {
+        if let Some(inferred) = hub::latest_gemini_session_id(&PathBuf::from(&workspace)) {
+            effective_session_id = inferred;
+        }
+    }
     open_store()?
-        .register_managed_harness_session(&harness, &workspace, &disk_session_id, managed_pid)
+        .register_managed_harness_session(&harness, &workspace, &effective_session_id, managed_pid)
         .map_err(|error| error.to_string())
 }
 
