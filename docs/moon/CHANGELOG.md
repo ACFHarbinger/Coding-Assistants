@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Accepted TUI T2 after workspace tests, Clippy, and the production frontend
   build passed. The TUI now treats a failed Hub snapshot as a visible,
-  retryable condition instead of silently presenting it as an empty Hub.
+  retryable condition instead of silently presenting it as an empty Hub; a
+  regression test covers an unreadable Hub home.
 - Accepted C12's provider-safe bridge: all four harnesses capture into the
   shared session, Codex uses its documented app-server delivery route, Grok
   uses its documented ACP leader route, and unsupported Claude/Gemini control

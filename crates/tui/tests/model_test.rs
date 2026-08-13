@@ -40,3 +40,12 @@ fn test_hub_read_model_loads_coherent_data() {
         ws_str
     );
 }
+
+#[test]
+fn test_hub_read_model_reports_an_unreadable_home() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("not-a-hub-directory");
+    std::fs::write(&file_path, "not a directory").unwrap();
+
+    assert!(HubReadModel::load(&file_path, None, None).is_err());
+}
