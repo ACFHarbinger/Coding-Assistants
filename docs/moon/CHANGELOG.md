@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — Settings S1/S2 review acceptance (#127, #128) (2026-08-13) [DRAFT]
+
+- Accepted the versioned, comment-preserving local settings store and its
+  redacted typed IPC/scope/audit boundary after `cargo test -p hub -p cli -p
+  tui` passed (78 tests). Settings backups default to three retained timestamped
+  files; workspace paths remain deliberately distinct.
+- Returned TUI foundation #135 for a narrow correction: its opt-in
+  `--set-as-default-…-settings` flags must persist through the typed
+  Settings/audit path instead of only changing in-memory UI status.
+
 ### Grok — C10–C13 S3 durable delivery semantics (2026-08-13)
 
 - `send_tagged_message` now fails before any write when the session id is

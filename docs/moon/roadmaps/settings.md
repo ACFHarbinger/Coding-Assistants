@@ -48,8 +48,8 @@ Danger-zone controls use red/amber warning badges and high-contrast warning cont
 
 | # | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| S1 | Versioned settings store | Resolve `CA_HOME`/home safely; validate TOML through `toml_edit`; atomically save; preserve comments; retain three timestamped backups by default with configurable bounded retention; recover from malformed or interrupted writes without a startup failure. |
-| S2 | Typed IPC, effective settings, and audit | Expose redacted get/update/reset commands; deterministically resolve global and path-preserving workspace overrides; write dedicated redacted settings audit entries and Hub-compatible audit events. |
+| S1 | Versioned settings store | Resolve `CA_HOME`/home safely; validate TOML through `toml_edit`; atomically save; preserve comments; retain three timestamped backups by default with configurable bounded retention; recover from malformed or interrupted writes without a startup failure. | ✅ **Done** · #127 |
+| S2 | Typed IPC, effective settings, and audit | Expose redacted get/update/reset commands; deterministically resolve global and path-preserving workspace overrides; write dedicated redacted settings audit entries and Hub-compatible audit events. | ✅ **Done** · #128 |
 | S3 | Standalone Settings window | Open/focus one independently closable, resizable settings window; close it with the app; implement the tab interface, inheritance status/reset UI, dark glass styling, and General/Workspace & sessions controls. |
 | S4 | Global profiles and harness settings | Manage global named profiles and per-workspace/per-harness default selection; expose source-status badges but no secret inputs; persist and validate harness executable/workdir, capture-polling, and injection-permission settings. |
 | S5 | Orchestration and storage policy | Relocate standing Policy controls; persist ordinary and Advanced policy scopes, safe confirmation defaults, auto-enrollment, budgets, tool/sandbox settings, retention, non-destructive export, and backup settings; current hub flows honor them. |
