@@ -25,8 +25,10 @@ pub use bridge::claude::{
 pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
-    acp_initialize, acp_session_load, acp_session_prompt, default_leader_socket, deliver_grok_task,
-    latest_grok_session_id, leader_socket_available,
+    acp_initialize, acp_session_load, acp_session_prompt, active_grok_session_for,
+    connect_grok_leader_session, default_leader_socket, deliver_grok_task, grok_leader_status,
+    latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
+    GrokConnectResult,
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,

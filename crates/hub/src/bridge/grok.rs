@@ -10,6 +10,10 @@
 //! Starting a leader-mode TUI lives in `bridge::channels::grok` and must
 //! not be required for this module to refuse safely.
 
+pub use crate::bridge::channels::grok::{
+    connect_grok_leader_session, grok_leader_status, GrokConnectResult,
+};
+
 use crate::{HarnessInjectRequest, HarnessInjectResult, HubError, HubStore};
 use serde::Deserialize;
 use serde::Serialize;

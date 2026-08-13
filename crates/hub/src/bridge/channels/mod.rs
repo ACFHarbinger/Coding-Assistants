@@ -4,3 +4,5 @@
 //! is Claude Code's MCP `claude/channel` research preview only.
 
 pub mod claude;
+pub mod grok;
+pub mod grok;
