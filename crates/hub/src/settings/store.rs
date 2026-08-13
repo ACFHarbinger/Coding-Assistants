@@ -140,10 +140,21 @@ impl SettingsStore {
         let (default_session, default_session_status) =
             match over.and_then(|o| o.default_session.clone()) {
                 Some(value) => (Some(value), FieldStatus::Override),
-                None => (self.snapshot.default_session.clone(), FieldStatus::Inherited),
+                None => (
+                    self.snapshot.default_session.clone(),
+                    FieldStatus::Inherited,
+                ),
             };
-        let profiles = self.profiles.values().map(ProviderProfile::snapshot).collect();
-        let harnesses = effective_harnesses(&self.harnesses, &self.profiles, over.map(|o| &o.default_profiles));
+        let profiles = self
+            .profiles
+            .values()
+            .map(ProviderProfile::snapshot)
+            .collect();
+        let harnesses = effective_harnesses(
+            &self.harnesses,
+            &self.profiles,
+            over.map(|o| &o.default_profiles),
+        );
         EffectiveSettings {
             schema_version: self.snapshot.schema_version,
             workspace: workspace.map(str::to_string),
@@ -216,7 +227,10 @@ impl SettingsStore {
     }
 
     pub fn list_profiles(&self) -> Vec<ProfileSnapshot> {
-        self.profiles.values().map(ProviderProfile::snapshot).collect()
+        self.profiles
+            .values()
+            .map(ProviderProfile::snapshot)
+            .collect()
     }
 
     pub fn profile(&self, name: &str) -> Option<&ProviderProfile> {
@@ -340,11 +354,7 @@ impl SettingsStore {
         Ok(effective_harnesses(
             &self.harnesses,
             &self.profiles,
-            workspace.and_then(|path| {
-                self.workspaces
-                    .get(path)
-                    .map(|over| &over.default_profiles)
-            }),
+            workspace.and_then(|path| self.workspaces.get(path).map(|over| &over.default_profiles)),
         )
         .into_iter()
         .find(|entry| entry.harness == harness)
@@ -562,7 +572,11 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
             document["general"] = Item::Table(Table::new());
         }
         document["general"]["default_workspace"] = value(default_ws.as_str());
-    } else if document.get("general").and_then(Item::as_table).is_some_and(|t| t.contains_key("default_workspace")) {
+    } else if document
+        .get("general")
+        .and_then(Item::as_table)
+        .is_some_and(|t| t.contains_key("default_workspace"))
+    {
         document["general"]["default_workspace"] = Item::None;
     }
 
@@ -571,7 +585,11 @@ fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &SettingsSnapshot
             document["general"] = Item::Table(Table::new());
         }
         document["general"]["default_session"] = value(default_sess.as_str());
-    } else if document.get("general").and_then(Item::as_table).is_some_and(|t| t.contains_key("default_session")) {
+    } else if document
+        .get("general")
+        .and_then(Item::as_table)
+        .is_some_and(|t| t.contains_key("default_session"))
+    {
         document["general"]["default_session"] = Item::None;
     }
 }
@@ -671,7 +689,10 @@ fn workspaces_from_document(
             )?),
             None => None,
         };
-        let default_session = table.get("default_session").and_then(Item::as_str).map(str::to_string);
+        let default_session = table
+            .get("default_session")
+            .and_then(Item::as_str)
+            .map(str::to_string);
         let default_profiles = default_profiles_from_table(table)?;
         if map
             .insert(
@@ -701,8 +722,14 @@ fn snapshot_from_document(document: &DocumentMut) -> Result<SettingsSnapshot, Se
     let backup_retention = integer_key(storage, "backup_retention")?;
 
     let general = document.get("general").and_then(Item::as_table);
-    let default_workspace = general.and_then(|g| g.get("default_workspace")).and_then(Item::as_str).map(str::to_string);
-    let default_session = general.and_then(|g| g.get("default_session")).and_then(Item::as_str).map(str::to_string);
+    let default_workspace = general
+        .and_then(|g| g.get("default_workspace"))
+        .and_then(Item::as_str)
+        .map(str::to_string);
+    let default_session = general
+        .and_then(|g| g.get("default_session"))
+        .and_then(Item::as_str)
+        .map(str::to_string);
 
     Ok(SettingsSnapshot {
         schema_version: u32_from_i64(schema_version, "schema_version")?,

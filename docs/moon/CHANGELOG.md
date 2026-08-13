@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — Settings S4 profiles and harness configuration (#130) (2026-08-13)
+
+- Added global named `ProviderProfile` records to `settings.toml`
+  (`[[profile]]`) with non-secret model/base URL fields and a
+  `SecretReference` (`keychain` id, env-var *name*, or existing provider
+  login). Snapshots expose source badges only; raw credentials are
+  rejected on write and never stored.
+- A workspace selects a default profile per harness by name and does not
+  copy profile fields. Rename updates those references; remove clears
+  them and never deletes a keychain secret.
+- Persisted validated `[harness.<id>]` executable, absolute workdir,
+  capture-polling, and inject-permission settings. Executables must be a
+  single program name or path (no shell).
+- Verified with `cargo test -p hub --lib` (76 passed) and
+  `cargo clippy -p hub --all-targets -- -D warnings`.
+
 ### Gemini — TUI T1 foundation & default settings persistence fix (#135) (2026-08-13) [DRAFT]
 
 - Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` through `SettingsStore` (`default_workspace`, `default_session`, and per-workspace `default_session` overrides).

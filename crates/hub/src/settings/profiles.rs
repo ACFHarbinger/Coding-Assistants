@@ -66,7 +66,9 @@ pub fn validate_secret(secret: &SecretReference) -> Result<(), SettingsError> {
 pub fn validate_executable(executable: &str) -> Result<String, SettingsError> {
     let executable = executable.trim();
     if executable.is_empty() {
-        return Err(SettingsError::Invalid("executable must not be empty".into()));
+        return Err(SettingsError::Invalid(
+            "executable must not be empty".into(),
+        ));
     }
     if executable.split_whitespace().count() != 1
         || executable.chars().any(|ch| {
@@ -94,7 +96,9 @@ pub fn validate_workdir(workdir: &str) -> Result<String, SettingsError> {
         ));
     }
     if workdir.contains('\0') || workdir.contains('\n') {
-        return Err(SettingsError::Invalid("workdir contains invalid characters".into()));
+        return Err(SettingsError::Invalid(
+            "workdir contains invalid characters".into(),
+        ));
     }
     Ok(workdir.to_string())
 }
@@ -141,7 +145,10 @@ fn reject_secret_looking(value: &str, field: &str) -> Result<(), SettingsError> 
     Ok(())
 }
 
-pub fn write_profile_fields(document: &mut DocumentMut, profiles: &BTreeMap<String, ProviderProfile>) {
+pub fn write_profile_fields(
+    document: &mut DocumentMut,
+    profiles: &BTreeMap<String, ProviderProfile>,
+) {
     if profiles.is_empty() {
         document.remove("profile");
         return;
@@ -175,7 +182,10 @@ pub fn write_profile_fields(document: &mut DocumentMut, profiles: &BTreeMap<Stri
     document["profile"] = Item::ArrayOfTables(array);
 }
 
-pub fn write_harness_fields(document: &mut DocumentMut, harnesses: &BTreeMap<String, HarnessSettings>) {
+pub fn write_harness_fields(
+    document: &mut DocumentMut,
+    harnesses: &BTreeMap<String, HarnessSettings>,
+) {
     if harnesses.is_empty() {
         document.remove("harness");
         return;
@@ -217,7 +227,11 @@ pub fn profiles_from_document(
             .get("provider")
             .and_then(Item::as_str)
             .ok_or_else(|| SettingsError::Invalid(format!("profile {name} missing provider")))?;
-        let secret = match table.get("secret_source").and_then(Item::as_str).unwrap_or("") {
+        let secret = match table
+            .get("secret_source")
+            .and_then(Item::as_str)
+            .unwrap_or("")
+        {
             "keychain" => SecretReference::Keychain {
                 id: table
                     .get("secret_ref")
@@ -246,7 +260,10 @@ pub fn profiles_from_document(
         let profile = ProviderProfile {
             name: validate_profile_name(name)?,
             provider: validate_provider(provider)?,
-            model: table.get("model").and_then(Item::as_str).map(str::to_string),
+            model: table
+                .get("model")
+                .and_then(Item::as_str)
+                .map(str::to_string),
             base_url: table
                 .get("base_url")
                 .and_then(Item::as_str)
@@ -279,7 +296,9 @@ pub fn harnesses_from_document(
         let executable = inner
             .get("executable")
             .and_then(Item::as_str)
-            .ok_or_else(|| SettingsError::Invalid(format!("harness.{harness} missing executable")))?;
+            .ok_or_else(|| {
+                SettingsError::Invalid(format!("harness.{harness} missing executable"))
+            })?;
         let settings = HarnessSettings {
             harness: validate_provider(harness)?,
             executable: validate_executable(executable)?,
@@ -306,7 +325,10 @@ pub fn default_profiles_from_table(
     table: &Table,
 ) -> Result<BTreeMap<String, String>, SettingsError> {
     let mut map = BTreeMap::new();
-    let Some(inner) = table.get("default_profiles").and_then(Item::as_inline_table) else {
+    let Some(inner) = table
+        .get("default_profiles")
+        .and_then(Item::as_inline_table)
+    else {
         if table.get("default_profiles").is_some() {
             return Err(SettingsError::Invalid(
                 "workspace default_profiles must be an inline table".into(),
@@ -315,9 +337,9 @@ pub fn default_profiles_from_table(
         return Ok(map);
     };
     for (harness, item) in inner.iter() {
-        let profile = item
-            .as_str()
-            .ok_or_else(|| SettingsError::Invalid(format!("default profile for {harness} must be a string")))?;
+        let profile = item.as_str().ok_or_else(|| {
+            SettingsError::Invalid(format!("default profile for {harness} must be a string"))
+        })?;
         let harness = validate_provider(harness)?;
         let profile = validate_profile_name(profile)?;
         map.insert(harness, profile);

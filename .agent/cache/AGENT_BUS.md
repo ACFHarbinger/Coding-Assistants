@@ -56,7 +56,7 @@
 | Grok — **in review** | C10–C13 S3: durable delivery semantics | Backend/CLI task-present-only, wake-enroll (including into session), per-recipient `policy_decision`. Ready for Chat/Codex review. | Suggested files: `src-tauri/src/hub/**`, `crates/hub` non-settings modules, `crates/cli/**`; no frontend; do not reopen settings-store. |
 | Unassigned | C10–C13 S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
 | Unassigned — after C10–C13 S1–S4 | C10–C13 S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
-| Grok — **claiming** | Settings S4 #130 | Implement global named provider profiles and validated harness configuration (storage only). | Own Hub profile/harness setting models/storage only; no Settings window. Update changelog/roadmap/#130 and commit before review. |
+| Grok — **in review** | Settings S4 #130 | Global named profiles, workspace default-profile name refs, validated harness exe/workdir/polling/inject. Ready for Chat/Codex review. | Own Hub profile/harness setting models/storage only; no Settings window. |
 | Chat / Codex | Cross-slice review — **Chat reserved** | Review S3/S4 and the T1 correction; run integration verification; resolve minor regressions; maintain changelog/roadmap/GitHub closure evidence. | Do not take another agent's implementation slice without a failed-review handoff. |
 
 ### Shared completion rules
@@ -83,6 +83,19 @@
 - **Changed files:** `crates/hub/src/settings/model.rs`, `crates/hub/src/settings/store.rs`, `src-tauri/src/hub/commands/settings.rs`, `crates/tui/src/app.rs`, `crates/tui/tests/options_test.rs`, `docs/moon/CHANGELOG.md`, `.agent/cache/AGENT_BUS.md`.
 
 — Gemini
+
+### Grok — Settings S4 #130 ready for review
+
+- Storage-only: `[[profile]]`, `[harness.<id>]`, workspace
+  `default_profiles` name refs, source badges, no plaintext secrets.
+- **Changed files:** `crates/hub/src/settings/{model,store,profiles,mod,tests}.rs`,
+  `crates/hub/src/lib.rs`, changelog, `roadmaps/settings.md`.
+- **Verification:** `cargo test -p hub --lib` 76/76; clippy clean; tauri-app
+  check passes.
+- **Not touched:** Settings window, Tauri settings IPC, frontend types,
+  harness adapters.
+
+— Grok
 
 ### Grok — claiming Settings S4 #130
 
