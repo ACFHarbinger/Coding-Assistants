@@ -977,3 +977,13 @@ existing sessions (`hub_list_work_sessions`) and focuses Chat & Memory on
 the chosen session channel.
 
 — Claude
+
+### gemini — 2026-08-13 — v1 hub-native orchestration UI (U11, U12, C10, C11) completed
+
+- **U11 Create and Load Team Chat Entry Points**: Implemented dedicated Create Team Chat (`Create & Open`) and Load Existing Team Chat (`Load & Open`) controls in Orchestrate (`ConfigPanel.tsx`), which set active work session and focus the Chat & Memory window (`App.tsx`).
+- **U12 / C10 Recipient Selection & Intent Tags**: Added Recipient Mode controls to Chat & Memory composer (`SlackChatPanel.tsx`) supporting `🌐 All Team`, `👥 Subset` (interactive agent checkboxes), and `🎯 Single Agent` (dropdown), along with `⚡ [TASK]` and `🔔 WAKE` intent tag toggles.
+- **C11 Task Tag Team Member Validation**: Implemented pre-flight validation preventing task-tagged messages from targeting non-enrolled agents, ensuring tasks target existing team members while wake-tagged messages can trigger or spawn new agent instances.
+- **Transcript Intent & Recipient Badges**: Added visual badges to transcript message bubbles displaying `⚡ TASK`, `🔔 WAKE`, and `To: <recipient>` header metadata.
+- Verification: `npx tsc --noEmit` clean, `npm run build` clean (589ms), `cargo test --workspace` clean (all 26 tests passed).
+
+— Gemini

@@ -50,6 +50,7 @@ export interface SlackChatPanelProps {
   hubAgents: HubAgent[];
   workSessions: WorkSession[];
   activeWorkSessionId: string | null;
+  focusSessionId?: string | null;
   onSelectWorkSession: (sessionId: string | null) => void;
   onRefresh: () => Promise<void>;
 }
@@ -176,10 +177,9 @@ function threadRootId(message: HubMessage, channel: string): string | null {
   return rootId || null;
 }
 
-export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
+export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, onSelectWorkSession, onRefresh }: SlackChatPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
   const [messageInput, setMessageInput] = useState<string>("");
-  const [targetRecipient, setTargetRecipient] = useState<string>("team");
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -188,6 +188,13 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
   const [linkedMemories, setLinkedMemories] = useState<Record<string, MemoryRecord[]>>({});
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [sessionWakeTargets, setSessionWakeTargets] = useState<Record<string, boolean>>({});
+
+  // Canonical U12 / C10 recipient selection & intent tag state
+  const [recipientMode, setRecipientMode] = useState<"all" | "subset" | "single">("all");
+  const [selectedSubset, setSelectedSubset] = useState<Record<string, boolean>>({});
+  const [singleRecipient, setSingleRecipient] = useState<string>("grok");
+  const [isTaskTag, setIsTaskTag] = useState<boolean>(false);
+  const [isWakeTag, setIsWakeTag] = useState<boolean>(false);
 
   // Memories side drawer state
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
@@ -211,6 +218,11 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
   const prevChannelRef = useRef(activeChannel);
   const [jumpToLatest, setJumpToLatest] = useState(false);
   const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) || null;
+
+  useEffect(() => {
+    if (!focusSessionId) return;
+    setActiveChannel(`session:${focusSessionId}`);
+  }, [focusSessionId]);
 
   useEffect(() => {
     if (!activeWorkSession) return;
@@ -319,24 +331,70 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
     setSending(true);
     try {
       const sessionChannel = activeChannel.startsWith("session:") ? activeChannel : null;
-      const subject = dmTarget
+      let bodyText = messageInput.trim();
+      const enrolledRoster = rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
+
+      let targetAgents: string[] = [];
+      if (dmTarget) {
+        targetAgents = [dmTarget];
+      } else if (sessionChannel && activeWorkSession) {
+        targetAgents = activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system");
+      } else if (recipientMode === "single") {
+        targetAgents = [singleRecipient];
+      } else if (recipientMode === "subset") {
+        targetAgents = Object.keys(selectedSubset).filter(id => selectedSubset[id]);
+        if (targetAgents.length === 0) {
+          alert("Please select at least one recipient agent for subset messaging.");
+          setSending(false);
+          return;
+        }
+      } else {
+        targetAgents = enrolledRoster;
+      }
+
+      // C11 Validation: Task-tagged messages MUST target existing team members
+      if (isTaskTag) {
+        const nonTeamTargets = targetAgents.filter(id => !enrolledRoster.includes(id));
+        if (nonTeamTargets.length > 0) {
+          alert(`Task-tagged messages must target existing team members. Target(s) not on team: ${nonTeamTargets.join(", ")}. Please enroll the agent or use [WAKE] tag to spawn a new instance.`);
+          setSending(false);
+          return;
+        }
+      }
+
+      // Ensure tags are in body text
+      if (isTaskTag && !bodyText.startsWith("[TASK]")) {
+        bodyText = `[TASK] ${bodyText}`;
+      }
+      if (isWakeTag && !bodyText.startsWith("[WAKE]")) {
+        bodyText = `[WAKE] ${bodyText}`;
+      }
+
+      const messageKind = isTaskTag ? "task" : isWakeTag ? "wake" : "message";
+      let subject = dmTarget
         ? `private:${crypto.randomUUID()}`
         : replyTo
           ? `channel:${activeChannel}:thread:${replyTo.id}:${crypto.randomUUID()}`
         : `channel:${activeChannel}:${crypto.randomUUID()}`;
-      const to = dmTarget
+
+      if (isTaskTag) subject += `:kind:task`;
+      else if (isWakeTag) subject += `:kind:wake`;
+
+      const toField = dmTarget
         ? dmTarget
-        : (targetRecipient === "team" ? "team" : targetRecipient);
+        : recipientMode === "all" && !sessionChannel
+          ? "team"
+          : targetAgents.join(",");
+
       if (sessionChannel && activeWorkSession) {
-        const recipients = activeWorkSession.member_ids.filter(id => id !== "system");
-        if (recipients.length === 0) throw new Error("The active work session has no members");
-        const messages = await Promise.all(recipients.map(recipient =>
+        if (targetAgents.length === 0) throw new Error("The active work session has no members");
+        const messages = await Promise.all(targetAgents.map(recipient =>
           invoke<{ id: string }>("hub_send_message", {
-            args: { from: "human", to: recipient, kind: "message", subject, workspace: null, task: null, body: messageInput.trim() }
+            args: { from: "human", to: recipient, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
           }).then(message => ({ recipient, message }))
         ));
         await Promise.all(messages
-          .filter(({ recipient }) => recipient !== "human" && sessionWakeTargets[recipient])
+          .filter(({ recipient }) => recipient !== "human" && (isWakeTag || sessionWakeTargets[recipient]))
           .map(({ recipient, message }) => invoke("hub_request_wake", {
             target: recipient,
             reason: `Work session: ${activeWorkSession.name}`,
@@ -345,12 +403,14 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
           })));
       } else {
         const sentMsg = await invoke<{ id: string }>("hub_send_message", {
-          args: { from: "human", to, kind: "message", subject, workspace: null, task: null, body: messageInput.trim() }
+          args: { from: "human", to: toField, kind: messageKind, subject, workspace: null, task: isTaskTag ? bodyText : null, body: bodyText }
         });
-        const wakeTargets = to === "team" ? teamWakeTargets(hubAgents) : [to];
-        await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
-          target, reason: `Chat & Memory message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
-        })));
+        const wakeTargets = toField === "team" ? teamWakeTargets(hubAgents) : targetAgents;
+        if (isWakeTag || wakePolicyGate) {
+          await Promise.all(wakeTargets.map(target => invoke("hub_request_wake", {
+            target, reason: `Chat & Memory message in ${activeChannel}`, messageId: sentMsg.id, humanGate: wakePolicyGate
+          })));
+        }
       }
 
       setMessageInput("");
@@ -807,7 +867,7 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
 
                   {/* Message Bubble Body */}
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.25rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
                       <span style={{ fontWeight: 700, fontSize: "0.9rem", color: sender.text }}>{sender.displayName}</span>
                       <span style={{
                         fontSize: "0.7rem",
@@ -818,7 +878,50 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                       }}>
                         {sender.role}
                       </span>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{formattedTime}</span>
+
+                      {/* Intent Badges */}
+                      {(msg.kind === "task" || msg.body.includes("[TASK]")) && (
+                        <span style={{
+                          fontSize: "0.68rem",
+                          padding: "0.1rem 0.45rem",
+                          borderRadius: "6px",
+                          background: "rgba(234, 179, 8, 0.2)",
+                          color: "#fef08a",
+                          border: "1px solid rgba(234, 179, 8, 0.4)",
+                          fontWeight: 700
+                        }}>
+                          ⚡ TASK
+                        </span>
+                      )}
+                      {(msg.kind === "wake" || msg.body.includes("[WAKE]")) && (
+                        <span style={{
+                          fontSize: "0.68rem",
+                          padding: "0.1rem 0.45rem",
+                          borderRadius: "6px",
+                          background: "rgba(16, 185, 129, 0.2)",
+                          color: "#a7f3d0",
+                          border: "1px solid rgba(16, 185, 129, 0.4)",
+                          fontWeight: 700
+                        }}>
+                          🔔 WAKE
+                        </span>
+                      )}
+
+                      {/* Recipient Badge */}
+                      {msg.to_agent && (
+                        <span style={{
+                          fontSize: "0.68rem",
+                          padding: "0.1rem 0.45rem",
+                          borderRadius: "6px",
+                          background: "rgba(99, 102, 241, 0.15)",
+                          color: "#c7d2fe",
+                          border: "1px solid rgba(99, 102, 241, 0.3)"
+                        }}>
+                          To: {msg.to_agent === "team" ? "All Team" : msg.to_agent}
+                        </span>
+                      )}
+
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "auto" }}>{formattedTime}</span>
                     </div>
 
                     {editingId === msg.id ? (
@@ -1063,15 +1166,15 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
             />
 
             {/* Input Controls Row */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                 {activeChannel.startsWith("dm-") ? (
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 600 }}>
                     Direct message to {getAgentInfo(activeChannel.replace("dm-", "")).displayName}
                   </span>
                 ) : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Wake only selected session members:</span>
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Wake selected session members:</span>
                     <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
                       {activeWorkSession.member_ids.filter(id => id !== "human" && id !== "system").map(agentId => (
                         <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer" }}>
@@ -1086,29 +1189,145 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                     </div>
                   </div>
                 ) : (
-                <select
-                  value={targetRecipient}
-                  onChange={e => setTargetRecipient(e.target.value)}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    borderRadius: "8px",
-                    background: "rgba(0,0,0,0.4)",
-                    color: "var(--text-main)",
-                    border: "1px solid var(--border-color)",
-                    fontSize: "0.85rem",
-                    outline: "none"
-                  }}
-                >
-                  <option value="team">Broadcast to Team</option>
-                  <option value="grok">Grok (Lead Orchestrator)</option>
-                  <option value="chat">Chat (Co-Lead / Codex)</option>
-                  <option value="claude">Claude (Code Agent)</option>
-                  <option value="gemini">Gemini (Supporting)</option>
-                </select>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Recipients:</span>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientMode("all")}
+                      style={{
+                        padding: "0.3rem 0.65rem",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border-color)",
+                        background: recipientMode === "all" ? "var(--primary)" : "rgba(0,0,0,0.3)",
+                        color: "#fff",
+                        fontSize: "0.78rem",
+                        cursor: "pointer",
+                        fontWeight: recipientMode === "all" ? 700 : 400
+                      }}
+                    >
+                      🌐 All Team
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientMode("subset")}
+                      style={{
+                        padding: "0.3rem 0.65rem",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border-color)",
+                        background: recipientMode === "subset" ? "var(--primary)" : "rgba(0,0,0,0.3)",
+                        color: "#fff",
+                        fontSize: "0.78rem",
+                        cursor: "pointer",
+                        fontWeight: recipientMode === "subset" ? 700 : 400
+                      }}
+                    >
+                      👥 Subset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientMode("single")}
+                      style={{
+                        padding: "0.3rem 0.65rem",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border-color)",
+                        background: recipientMode === "single" ? "var(--primary)" : "rgba(0,0,0,0.3)",
+                        color: "#fff",
+                        fontSize: "0.78rem",
+                        cursor: "pointer",
+                        fontWeight: recipientMode === "single" ? 700 : 400
+                      }}
+                    >
+                      🎯 Single Agent
+                    </button>
+
+                    {recipientMode === "subset" && (
+                      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", background: "rgba(0,0,0,0.3)", padding: "0.35rem 0.65rem", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                        {rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system").map(agentId => (
+                          <label key={agentId} style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", color: "var(--text-main)", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedSubset[agentId] ?? true}
+                              onChange={e => setSelectedSubset(prev => ({ ...prev, [agentId]: e.target.checked }))}
+                            />
+                            {getAgentInfo(agentId).displayName}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {recipientMode === "single" && (
+                      <select
+                        value={singleRecipient}
+                        onChange={e => setSingleRecipient(e.target.value)}
+                        style={{
+                          padding: "0.35rem 0.75rem",
+                          borderRadius: "8px",
+                          background: "rgba(0,0,0,0.4)",
+                          color: "var(--text-main)",
+                          border: "1px solid var(--border-color)",
+                          fontSize: "0.85rem",
+                          outline: "none"
+                        }}
+                      >
+                        {rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system").map(agentId => (
+                          <option key={agentId} value={agentId}>
+                            {getAgentInfo(agentId).displayName} ({getAgentInfo(agentId).role})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 )}
 
-                {/* Wake Gate Checkbox */}
-                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                <button
+                  className={sending ? "btn-secondary" : "btn-primary"}
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
+                  style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem", marginLeft: "auto" }}
+                >
+                  {sending ? "Sending..." : "Send Message"}
+                </button>
+              </div>
+
+              {/* Intent Tags Row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", paddingTop: "0.35rem", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Intent Tags:</span>
+                <button
+                  type="button"
+                  onClick={() => setIsTaskTag(prev => !prev)}
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "6px",
+                    border: isTaskTag ? "1px solid #eab308" : "1px solid var(--border-color)",
+                    background: isTaskTag ? "rgba(234, 179, 8, 0.25)" : "rgba(0,0,0,0.3)",
+                    color: isTaskTag ? "#fef08a" : "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    cursor: "pointer",
+                    fontWeight: isTaskTag ? 700 : 400
+                  }}
+                  title="Mark as Task execution request (targets existing team members only)"
+                >
+                  ⚡ [TASK]
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsWakeTag(prev => !prev)}
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "6px",
+                    border: isWakeTag ? "1px solid #10b981" : "1px solid var(--border-color)",
+                    background: isWakeTag ? "rgba(16, 185, 129, 0.25)" : "rgba(0,0,0,0.3)",
+                    color: isWakeTag ? "#a7f3d0" : "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    cursor: "pointer",
+                    fontWeight: isWakeTag ? 700 : 400
+                  }}
+                  title="Mark as Wake request (can wake/spawn team instances)"
+                >
+                  🔔 [WAKE]
+                </button>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "var(--text-muted)", cursor: "pointer", marginLeft: "auto" }}>
                   <input
                     type="checkbox"
                     checked={wakePolicyGate}
@@ -1117,15 +1336,6 @@ export default function SlackChatPanel({ hubMessages, hubAgents, workSessions, a
                   Require Human Approval Gate
                 </label>
               </div>
-
-              <button
-                className={sending ? "btn-secondary" : "btn-primary"}
-                onClick={handleSendMessage}
-                disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
-                style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
-              >
-                {sending ? "Sending..." : "Send Message"}
-              </button>
             </div>
           </div>
         </div>

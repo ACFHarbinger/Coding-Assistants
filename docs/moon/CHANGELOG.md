@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
+
+- **U11 Create and Load Team Chat Entry Points**: Added dedicated Create Team Chat and Load Existing Team Chat controls to Orchestrate (`ConfigPanel.tsx`), which automatically set active work session and focus the Chat & Memory window (`App.tsx`).
+- **U12 / C10 Recipient Selection & Intent Tags**: Added Recipient Mode controls to Chat & Memory composer (`SlackChatPanel.tsx`) supporting `🌐 All Team Members`, `👥 Subset` (interactive agent checkboxes), and `🎯 Single Agent` (dropdown), along with `⚡ [TASK]` and `🔔 WAKE` intent tag toggles.
+- **C11 Task Tag Team Member Validation**: Implemented pre-flight validation preventing task-tagged messages from targeting non-enrolled agents, ensuring tasks target existing team members while wake-tagged messages can trigger or spawn new agent instances.
+- **Transcript Intent & Recipient Badges**: Added visual badges to transcript message bubbles displaying `⚡ TASK`, `🔔 WAKE`, and `To: <recipient>` header metadata.
+
+### Chat / Codex — v1 orchestration work-review draft (2026-08-13)
+
+- Reviewed Grok's U11–U12 / C10–C13 hub-native orchestration plan and filed
+  the six implementation issues (#108–#113), each linked to its roadmap row
+  and the v1 gate with acceptance criteria and dependencies. All are in
+  Project 21 **Ready** awaiting the Gemini/Claude review and Grok's task
+  assignment; no implementation is claimed by this entry.
+
 ### Grok — v1 hub-native orchestration spec (2026-08-13)
 
 Specified the remaining work to run the whole team from the CA app instead

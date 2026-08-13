@@ -101,7 +101,14 @@ function App() {
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
-  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(null);
+  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("ca.activeWorkSessionId");
+    } catch {
+      return null;
+    }
+  });
+  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadModels() {
@@ -185,9 +192,18 @@ function App() {
       setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
       setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
       setWorkSessions(sessions);
-      setActiveWorkSessionId(current => current && sessions.some(session => session.id === current)
-        ? current
-        : (sessions[0]?.id ?? null));
+      setActiveWorkSessionId(current => {
+        const next = current && sessions.some(session => session.id === current)
+          ? current
+          : current;
+        try {
+          if (next) localStorage.setItem("ca.activeWorkSessionId", next);
+          else localStorage.removeItem("ca.activeWorkSessionId");
+        } catch {
+          /* ignore quota / private mode */
+        }
+        return next;
+      });
     } catch (error) {
       console.error("Failed to refresh harness messages:", error);
     }
@@ -229,11 +245,23 @@ function App() {
     }
   };
 
+  const selectWorkSession = (sessionId: string | null) => {
+    setActiveWorkSessionId(sessionId);
+    if (sessionId) {
+      setChatFocusSessionId(sessionId);
+      try {
+        localStorage.setItem("ca.activeWorkSessionId", sessionId);
+      } catch {
+        /* ignore quota / private mode */
+      }
+    }
+  };
+
   const createWorkSession = async (name: string) => {
     if (!isTauriRuntime()) throw new Error("Work sessions require the desktop app");
     const session = await invoke<WorkSession>("hub_create_work_session", { name });
     setWorkSessions(prev => [session, ...prev.filter(existing => existing.id !== session.id)]);
-    setActiveWorkSessionId(session.id);
+    selectWorkSession(session.id);
   };
 
   const removeAgentFromTeam = (agent: TeamMember) => {
@@ -301,7 +329,8 @@ function App() {
             hubAgents={hubAgents}
             workSessions={workSessions}
             activeWorkSessionId={activeWorkSessionId}
-            onSelectWorkSession={setActiveWorkSessionId}
+            focusSessionId={chatFocusSessionId}
+            onSelectWorkSession={selectWorkSession}
             onRefresh={refreshHubChat}
           />
         </div>
@@ -321,6 +350,10 @@ function App() {
               onAddAgent={addAgentToTeam}
               onRemoveAgent={removeAgentFromTeam}
               onCreateWorkSession={createWorkSession}
+              workSessions={workSessions}
+              activeWorkSessionId={activeWorkSessionId}
+              onSelectWorkSession={selectWorkSession}
+              onSwitchToChatView={() => setMainView("slack")}
               activeWorkSessionName={workSessions.find(session => session.id === activeWorkSessionId)?.name ?? null}
             />
 
