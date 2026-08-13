@@ -249,4 +249,101 @@ mod tests {
             assert_eq!(matches, 1);
         }
     }
+
+    /// Live disk capture + tagged-send policy against this checkout.
+    /// Uses a throwaway HubStore so Harbinger's `~/.coding-assistants` is
+    /// never written. Does not spawn a harness.
+    #[test]
+    fn live_named_session_tagged_send_and_disk_capture() {
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("src-tauri parent is the repo")
+            .to_path_buf();
+        let session = store.create_work_session("C12 live named session").unwrap();
+        for id in ["human", "grok", "chat", "claude", "gemini"] {
+            store.upsert_agent(id, id).unwrap();
+            store.set_team_member(id, true).unwrap();
+            store.add_work_session_member(&session.id, id).unwrap();
+        }
+
+        let subject = format!("channel:session:{}:live", session.id);
+        let accepted = store
+            .send_tagged_message(
+                "human",
+                &["grok".into()],
+                true,
+                false,
+                "C12 live task: confirm capture adapters without spawning",
+                Some(&subject),
+                Some(&workspace.to_string_lossy()),
+                None,
+                Some(&session.id),
+            )
+            .unwrap();
+        assert_eq!(accepted.len(), 1);
+        assert!(accepted[0].accepted, "{accepted:?}");
+
+        let rejected = store
+            .send_tagged_message(
+                "human",
+                &["outsider".into()],
+                true,
+                false,
+                "C12 live task must not enroll an outsider",
+                None,
+                Some(&workspace.to_string_lossy()),
+                None,
+                Some(&session.id),
+            )
+            .unwrap();
+        assert!(!rejected[0].accepted);
+        assert!(!store.is_team_member("outsider").unwrap());
+
+        let grok =
+            crate::harness_grok::capture_grok_session(&store, &workspace, None, Some(&session.id))
+                .unwrap();
+        let claude = crate::harness_claude::capture_claude_session(
+            &store,
+            &workspace,
+            None,
+            Some(&session.id),
+        )
+        .unwrap();
+        let chat = crate::harness_codex::capture_codex_session(
+            &store,
+            &workspace,
+            None,
+            Some(&session.id),
+        )
+        .unwrap();
+        let gemini = crate::harness_gemini::capture_gemini_session(
+            &store,
+            &workspace,
+            None,
+            Some(&session.id),
+        )
+        .unwrap();
+
+        eprintln!(
+            "C12 live capture counts (bodies omitted): grok found={} scanned={} new={} | claude found={} scanned={} new={} | chat found={} scanned={} new={} | gemini found={} scanned={} new={}",
+            grok.transcript_found, grok.scanned, grok.captured.len(),
+            claude.transcript_found, claude.scanned, claude.captured.len(),
+            chat.transcript_found, chat.scanned, chat.captured.len(),
+            gemini.transcript_found, gemini.scanned, gemini.captured.len(),
+        );
+
+        let message_id = accepted[0]
+            .message_id
+            .as_deref()
+            .expect("accepted tagged send records a message id");
+        let stored = store
+            .get_message(message_id)
+            .unwrap()
+            .expect("tagged send must persist");
+        assert_eq!(stored.from_agent, "human");
+        assert_eq!(stored.to_agent, "grok");
+        assert_eq!(stored.subject.as_deref(), Some(subject.as_str()));
+    }
 }

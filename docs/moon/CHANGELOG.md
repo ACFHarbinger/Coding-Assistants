@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Grok — C12 live named-session capture (2026-08-13) [DRAFT]
+
+- Added `live_named_session_tagged_send_and_disk_capture`: throwaway
+  HubStore, task-tagged send to an enrolled `grok` (outsider rejected), then
+  live disk capture for all four harnesses against this checkout.
+- Result on this machine (bodies omitted): grok 11, claude 52, chat 25,
+  gemini 247 new rows. U11–U12 / C10–C12 are ready for Harbinger to
+  exercise in the desktop app. C13 is that owner run.
+
+### Chat / Codex — C11 CLI tagged-delivery dispatch parity (2026-08-13) [DRAFT]
+
+- Added `ca msg tag --dispatch`: agents using the CLI can now route each
+  policy-accepted task/wake target through the same explicit-argv harness
+  injector used by Chat & Memory. Durable tagged-send outcomes remain the
+  command's compatible JSON stdout; one structured dispatch result per target
+  is emitted to stderr for harness execution diagnostics.
+- Dispatch is deliberate and authority-safe: it requires an absolute
+  `--workspace`, never infers a working directory, and never runs for a
+  rejected task target. The existing `ca msg tag` behavior remains durable-only
+  unless `--dispatch` is supplied.
+
 ### Gemini — V1-DOCS-SYNC website documentation data synchronization (2026-08-13) [DRAFT]
 
 - **Documentation Parity (`docs/website/src/data/docs.json`)**: Regenerated `docs/website/src/data/docs.json` via `generate_docs_json.py`, syncing the canonical roadmap items (`U11`–`U12` / `C10`–`C13` from `docs/moon/roadmaps/communication.md`), architecture, and changelog into the documentation portal data.

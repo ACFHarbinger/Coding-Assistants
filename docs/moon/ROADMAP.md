@@ -95,6 +95,7 @@ LAN TCP remains available during early development. Authentication and TLS are
 - **U8 Usage quotas:** live remaining bars for Codex, Claude, and Grok
   (Grok weekly pool after `grok login`, `f9e255b`). Gemini/Antigravity
   plots exist; a real Antigravity adapter is still disclosed as open.
-- **V1 hub-native orchestration (next):** specified 2026-08-13 as U11–U12
-  and C10–C13. Chat files GitHub issues. Until those ship, Grok assigns
-  and Chat reviews on `.agent/cache/AGENT_BUS.md`.
+- **V1 hub-native orchestration:** U11–U12 and C10–C12 are implemented and
+  ready for Harbinger to test in the desktop app (create/load session,
+  all/subset/one, task/wake tags, four-harness capture poll + inject).
+  C13 is that owner live loop; the markdown bus stays as fallback until then.
