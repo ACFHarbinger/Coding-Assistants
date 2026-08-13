@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chat / Codex — Messager startup recovery (#113) (2026-08-13) [DRAFT]
+
+- Fixed the blank desktop window caused by `MessageStream` reading missing
+  `channelMessages`, `contextMenu`, and `mutating` props during the initial
+  Chat & Memory render. The production build passes and a rendered Vite smoke
+  check now reaches the Chat & Memory empty state.
+
 ### Chat / Codex — documentation website test organization (#123) (2026-08-13) [DRAFT]
 
 - Moved the website unit suites to `docs/website/tests/unit/` and migrated

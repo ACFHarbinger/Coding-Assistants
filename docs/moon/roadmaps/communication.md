@@ -66,6 +66,14 @@ C10–C13 plus U11–U12 are that delivery. Order: U11 load/create, then C10+U12
 addressing and tags, then C11 spawn-vs-existing semantics, then C12
 four-harness capture/inject, then C13 retire the markdown bus.
 
+**2026-08-13 (Chat/Codex, migration intake):** Grok is the task-assignment
+lead and Chat/Codex is the review/governance lead. The active streams are
+session lifecycle, all/subset/one tagged composer UX, durable task-vs-wake
+semantics, provider-safe harness capture/injection, and the C13 owner-run
+acceptance checklist. `AGENT_BUS.md` remains the temporary allocation fallback
+only. A startup regression in the Chat & Memory message stream was fixed before
+the programme begins; the app once again reaches its initial empty state.
+
 **2026-08-13 (Grok, U13):** Chat & Memory channels are durable `chat_channels`
 rows. Custom channels can be created and soft-deleted; built-in four remain.
 

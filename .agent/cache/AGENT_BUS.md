@@ -39,15 +39,23 @@
   passed, and epic #116 with work items #117–#123 is closed.
 - The documentation site uses the curated build-content pipeline. Local verification
   currently passes with `npm test` and `npm run build` in `docs/website`.
+- **New priority — hub-native orchestration migration:** Move the owner’s team
+  assignment/review loop from per-repository Markdown files to named Chat &
+  Memory work sessions. The Markdown bus remains the temporary fallback until
+  C10–C13 pass live acceptance; do not delete or mutate fallback records as
+  part of this programme.
 
 ## Active task board
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| Chat / Codex | Documentation programme | W1–W7 and the epic are closed after the final clean Pages deployment. Monitor only for a new owner-requested follow-up. | Do not reopen or change completed website scope without a new issue. |
-| Gemini | #119 — W3 documentation reader | Focused repair was completed by Chat/Codex while Gemini was on acceptance standby. Review the next deployed reader pass if requested. | Do not edit reader, workflow, landing/navigation, or W7 files unless assigned a new bounded task. |
-| Grok | #120/#121 — W4 landing and W5 navigation | Review complete; perform the landing/navigation portion of the shared Pages visual acceptance once a deployment is available. | Do not alter reader, print/404, or workflow files without a new assignment. |
-| Claude | #123 — W7 polish follow-up | Complete the remaining bounded W7 implementation: article print stylesheet and a custom HashRouter not-found view. Add targeted static checks where practical; keep the dedicated 1200×630 social-card asset explicitly optional for this pass. | Own print/404 code and related tests/guidance. Do not change reader rendering or the Pages workflow. |
+| Grok (team lead) | C10–C13 migration | Assign the unclaimed implementation tasks below, maintain the task board, and report the remaining unassigned/open work to Chat at the end of each run. | Do not assign items marked **Chat reserved**. Keep streams disjoint by file/module boundary. |
+| Chat / Codex (review lead) | C10–C13 migration — **Chat reserved** | Review all implementation, own integration/acceptance evidence, update changelog/roadmaps/issues, create necessary issues, and provide Grok a precise open-work list after each review. Also own frontend crash resilience and regressions in `src/main.tsx` / error-boundary support. | **Reserved: Grok must not assign this scope.** Do not implement another agent’s feature stream without a review handoff. |
+| Unassigned — Grok to allocate | S1: session lifecycle UX | Verify and complete Orchestrate controls that create a named team chat and load/select an existing chat in Chat & Memory; preserve workspace/team membership and clear failure feedback. | Suggested files: `ConfigPanel.tsx`, `App.tsx`, session command tests only. |
+| Unassigned — Grok to allocate | S2: session addressing and tagged composer UX | Complete all/subset/single recipient selection, task/wake/both controls, recipient/outcome display, and agent-originated parity in Chat & Memory. | Suggested files: `MessagerPanel.tsx`, `messager/*`, typed UI state only; do not change harness adapters. |
+| Unassigned — Grok to allocate | S3: durable delivery semantics | Audit/fix backend and CLI enforcement: task targets a present session member only; wake may start/enrol an identity; mixed tags record per-recipient outcomes and policy decisions. | Suggested files: `src-tauri/src/hub/**`, `crates/hub/**`, `crates/cli/**`; no frontend feature changes. |
+| Unassigned — Grok to allocate | S4: harness capture and task/wake injection | Complete provider-safe capture/injection adapters and delivery states for supported transports; never write to a PTY, fabricate a socket, or launch a task-only replacement agent. | Suggested files: `src-tauri/src/harness/**`, adapter tests and command boundary only. |
+| Unassigned — Grok to allocate | S5: C13 live migration acceptance | Prepare a reproducible owner-run checklist proving a named session can address all/subset/one, capture two harness results, audit a task/wake delivery, and reconstruct the review without Markdown-bus writes. | Coordinate with Chat review; no implementation overlap until S1–S4 hand off. |
 
 ### Shared completion rules
 
@@ -236,6 +244,18 @@ gap.
   relevant deployed, test, accessibility, navigation, cutover, and test-stack
   evidence. No new issue is necessary: the test/TypeDoc/root-command work is
   direct completion work for the existing W6/W7 scope.
+
+### Chat / Codex — hub-native orchestration migration intake
+
+- Established the C10–C13 migration board at the owner’s direction. Grok is
+  the task-assignment lead; Chat/Codex is the review and governance lead.
+- Reserved Chat/Codex’s crash-resilience, integration/acceptance, roadmap,
+  changelog, and GitHub-issue scope so it cannot be assigned accidentally.
+  Grok must allocate S1–S5 as non-overlapping implementation streams and send
+  Chat the remaining open work at the end of each run.
+- Product rules are explicit: task messages target only an existing current
+  session member; wake messages may launch/enrol an identity; all/subset/one
+  addressing and per-recipient outcomes must remain durable and auditable.
 
 ### claude — 2026-08-13 — claiming remaining W7 scope: print stylesheet + custom 404
 
