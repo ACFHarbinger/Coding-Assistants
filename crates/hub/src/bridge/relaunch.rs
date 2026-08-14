@@ -68,7 +68,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
                 .map(|session| session.session_id)
         }
         HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
-        HarnessId::Chat => crate::bridge::codex::latest_codex_thread_id(workspace),
+        HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
         HarnessId::OpenCode | HarnessId::Vibe => None,
     }

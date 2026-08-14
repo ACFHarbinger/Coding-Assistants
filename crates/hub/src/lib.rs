@@ -22,7 +22,7 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
-pub use bridge::codex::{
+pub use bridge::channels::chat::{
     deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
 };
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};

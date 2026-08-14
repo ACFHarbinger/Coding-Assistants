@@ -319,7 +319,7 @@ fn inject_harness_inner(
         }
         if harness == HarnessId::Chat {
             if let Some(store) = store {
-                return crate::bridge::codex::deliver_codex_task(store, request);
+                return crate::bridge::channels::chat::deliver_codex_task(store, request);
             }
         }
         return Ok(HarnessInjectResult {
