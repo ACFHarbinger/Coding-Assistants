@@ -19,6 +19,10 @@ by capability rather than programming language. Research remains under
 6. Daemon/multi-client extraction when justified by a second client
 7. Android monitoring and approval
 8. Someday/research: 3D visualization, GraphQL, and actor frameworks
+9. Someday/research: multi-human, multi-team coordination (not started — see
+   [`roadmaps/multi_human.md`](roadmaps/multi_human.md); explicitly not
+   urgent as of 2026-08-14, revisit once a second developer approaches
+   multi-agent orchestration)
 
 ```mermaid
 gantt
@@ -58,6 +62,7 @@ roadmap must add acceptance criteria at least every few entries.
 | Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
 | Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
+| Multi-human, multi-team coordination | [`roadmaps/multi_human.md`](roadmaps/multi_human.md) | Research · not urgent as of 2026-08-14 |
 
 ## Product gates
 

@@ -37,6 +37,21 @@ export interface MemoryRecord {
   stale: boolean;
 }
 
+export interface MemoryLinkRecord {
+  id: string;
+  from_memory_id: string;
+  to_memory_id: string;
+  relation?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface LinkSuggestion {
+  candidate: MemoryRecord;
+  score: number;
+  reason: string;
+}
+
 export interface DetectedProcess {
   pid: number;
   agent: string;

@@ -6,7 +6,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?logo=rust&logoColor=black)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](../LICENSE)
 
 ---
 
@@ -109,14 +109,14 @@ Coding-Assistants/
 - If tests are requested:
   - **Frontend**: Vitest + React Testing Library.
   - **Backend**: `cargo test` in `src-tauri/`.
-- See [TESTING.md](docs/TESTING.md) for detailed testing strategy.
+- See [TESTING.md](../docs/TESTING.md) for detailed testing strategy.
 
 ## Security Notes
 
 - Do **not** invoke shells; pass explicit args to `std::process::Command`.
 - Validate file paths and user input before use.
 - Resource file reads are restricted to paths starting with `.agent`.
-- See [SECURITY.md](docs/SECURITY.md) for the full security policy.
+- See [SECURITY.md](../docs/SECURITY.md) for the full security policy.
 
 ## Code Style
 
@@ -138,4 +138,4 @@ These markers are parsed by `AgentSystem::interactive_completion` in
 
 ## Contribution Guidelines
 
-See [CONTRIBUTING.md](git/CONTRIBUTING.md) for the full contribution workflow.
+See [CONTRIBUTING.md](../git/CONTRIBUTING.md) for the full contribution workflow.
