@@ -1,6 +1,12 @@
 // @ts-nocheck
+import { useState } from "react";
+import MemoryLinksSection from "./MemoryLinksSection";
+import TopicBrowsePanel from "./TopicBrowsePanel";
+
 export default function MemoryDrawer(props: any) {
   const { showMemoryDrawer, setShowMemoryDrawer, memorySearch, setMemorySearch, selectedTierFilter, setSelectedTierFilter, memories, setMessageInput } = props;
+  const [browseMode, setBrowseMode] = useState<"tier" | "topic">("tier");
+  const [expandedMemoryId, setExpandedMemoryId] = useState<string | null>(null);
   if (!showMemoryDrawer) return null;
   const filteredMemories = memories.filter((memory) => selectedTierFilter === "all" || memory.tier === selectedTierFilter).filter((memory) => {
     const query = memorySearch.trim().toLowerCase();
@@ -28,6 +34,33 @@ export default function MemoryDrawer(props: any) {
             </button>
           </div>
 
+          {/* Browse mode toggle */}
+          <div style={{ display: "flex", gap: "0.35rem" }}>
+            {(["tier", "topic"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setBrowseMode(mode)}
+                style={{
+                  flex: 1,
+                  padding: "0.35rem 0.6rem",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: browseMode === mode ? "var(--primary)" : "rgba(255, 255, 255, 0.08)",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                {mode === "tier" ? "Browse by tier" : "🔎 Browse by topic"}
+              </button>
+            ))}
+          </div>
+
+          {browseMode === "topic" ? (
+            <TopicBrowsePanel />
+          ) : (
+            <>
           {/* Search Memories */}
           <input
             type="text"
@@ -96,19 +129,34 @@ export default function MemoryDrawer(props: any) {
                     }}>
                       {m.tier}
                     </span>
-                    <button
-                      onClick={() => insertMemoryLink(m.id)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--primary)",
-                        fontSize: "0.75rem",
-                        cursor: "pointer",
-                        fontWeight: 600
-                      }}
-                    >
-                      + Attach
-                    </button>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => setExpandedMemoryId(expandedMemoryId === m.id ? null : m.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--accent)",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          fontWeight: 600
+                        }}
+                      >
+                        {expandedMemoryId === m.id ? "Hide links" : "🔗 Links"}
+                      </button>
+                      <button
+                        onClick={() => insertMemoryLink(m.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--primary)",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          fontWeight: 600
+                        }}
+                      >
+                        + Attach
+                      </button>
+                    </div>
                   </div>
                   <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
                     {m.title || `Memory #${m.id.slice(0, 8)}`}
@@ -116,10 +164,15 @@ export default function MemoryDrawer(props: any) {
                   <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                     {m.body}
                   </div>
+                  {expandedMemoryId === m.id && (
+                    <MemoryLinksSection memoryId={m.id} currentAgentId="human" />
+                  )}
                 </div>
               ))
             )}
           </div>
+            </>
+          )}
         </div>
   );
 }
