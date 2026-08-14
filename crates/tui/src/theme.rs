@@ -207,6 +207,86 @@ fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
     (a as f32 + (b as f32 - a as f32) * t).round() as u8
 }
 
+/// Interpolates between `theme.muted` and `theme.accent` by `t ∈ [0, 1]`.
+/// Used by ambient fill elements to color dots and sparkline bars in proportion
+/// to a pulse phase — 0.0 gives muted, 1.0 gives full accent.  Falls back to
+/// accent for non-Rgb themes (the existing `lerp_color` fall-back).
+pub fn lerp_accent(theme: &Theme, t: f32) -> ratatui::style::Color {
+    lerp_color(theme.muted, theme.accent, t)
+}
+
+/// Buckets a slice of RFC3339 timestamps into `n_buckets` equal time-slices
+/// spanning the actual oldest-to-newest range in `timestamps`, and returns
+/// bar heights in `0..=7`, ready for block-character sparkline rendering —
+/// bucket 0 is the oldest slice, the last bucket is the most recent.
+///
+/// Unparsable entries are skipped rather than distorting the range. When
+/// every entry is unparsable, `n_buckets` is 0, or `timestamps` is empty,
+/// returns an all-zero vec of length `n_buckets`. When every parsed
+/// timestamp falls at the same instant (or only one remains), every count
+/// lands in the last (most recent) bucket rather than being spread by an
+/// arbitrary rule.
+pub fn task_sparkline_buckets(timestamps: &[&str], n_buckets: usize) -> Vec<u8> {
+    use chrono::{DateTime, Utc};
+
+    if n_buckets == 0 {
+        return vec![];
+    }
+    let mut counts = vec![0u32; n_buckets];
+    let parsed: Vec<DateTime<Utc>> = timestamps
+        .iter()
+        .filter_map(|ts| DateTime::parse_from_rfc3339(ts).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .collect();
+    if parsed.is_empty() {
+        return counts.iter().map(|&c| c as u8).collect();
+    }
+    let min = *parsed.iter().min().unwrap();
+    let max = *parsed.iter().max().unwrap();
+    let span = (max - min).num_milliseconds().max(0) as f64;
+    for dt in &parsed {
+        let bucket = if span == 0.0 {
+            n_buckets - 1
+        } else {
+            let elapsed = (*dt - min).num_milliseconds().max(0) as f64;
+            (((elapsed / span) * n_buckets as f64) as usize).min(n_buckets - 1)
+        };
+        counts[bucket] = counts[bucket].saturating_add(1);
+    }
+    let peak = counts.iter().copied().max().unwrap_or(1).max(1);
+    counts
+        .iter()
+        .map(|&c| (c * 7).div_ceil(peak) as u8)
+        .collect()
+}
+
+/// Renders `task_sparkline_buckets`' `0..=7` bar heights as a string of
+/// Unicode block characters (▁▂▃▄▅▆▇█), one per bucket.
+pub fn sparkline_string(buckets: &[u8]) -> String {
+    const BAR_CHARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    buckets
+        .iter()
+        .map(|&h| BAR_CHARS[h.min(7) as usize])
+        .collect()
+}
+
+/// Maps agent index `i` and the global `tick` counter to a pulse brightness
+/// in `0.0..=1.0` using a slow sine-like triangle wave.  Each agent is offset
+/// by `i * 23` ticks so the presence dots pulse in a staggered cascade rather
+/// than all together.
+///
+/// Returns a value in `[0.0, 1.0]` where 1.0 is full brightness.
+pub fn agent_pulse_phase(i: usize, tick: u64) -> f32 {
+    let offset = (i as u64).wrapping_mul(23);
+    let t = tick.wrapping_add(offset) % 60;
+    // Triangle wave: 0 → 1 over 30 ticks, 1 → 0 over next 30
+    if t < 30 {
+        t as f32 / 30.0
+    } else {
+        (60 - t) as f32 / 30.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,5 +353,88 @@ mod tests {
         let len = SPINNER_FRAMES.len() as u64;
         assert_eq!(spinner_frame(0), spinner_frame(len));
         assert_eq!(spinner_frame(1), spinner_frame(len + 1));
+    }
+
+    #[test]
+    fn sparkline_empty_input_yields_all_zeros() {
+        let buckets = task_sparkline_buckets(&[], 8);
+        assert_eq!(buckets.len(), 8);
+        assert!(buckets.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn sparkline_zero_buckets_returns_empty() {
+        assert_eq!(
+            task_sparkline_buckets(&["2026-01-01T12:00:00Z"], 0),
+            Vec::<u8>::new()
+        );
+    }
+
+    #[test]
+    fn sparkline_all_unparsable_yields_all_zeros() {
+        let buckets = task_sparkline_buckets(&["not-a-timestamp", "also-bad"], 8);
+        assert_eq!(buckets.len(), 8);
+        assert!(buckets.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn sparkline_identical_timestamps_land_in_the_last_bucket() {
+        // No real span to distribute across — everything is "now", so it
+        // must all land in the most-recent bucket rather than an arbitrary one.
+        let ts = ["2026-01-01T00:00:00Z"; 5];
+        let buckets = task_sparkline_buckets(&ts, 4);
+        assert_eq!(buckets.len(), 4);
+        assert_eq!(buckets[3], 7);
+        assert!(buckets[..3].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn sparkline_orders_oldest_to_newest_across_the_real_range() {
+        // Three events spread evenly across a 100ms span with 4 buckets:
+        // the earliest must land at or before the middle bucket and the
+        // latest must land in the final bucket — this is the property the
+        // old "last two digits" heuristic could not guarantee at all.
+        let ts = [
+            "2026-01-01T00:00:00.000Z",
+            "2026-01-01T00:00:00.050Z",
+            "2026-01-01T00:00:00.099Z",
+        ];
+        let buckets = task_sparkline_buckets(&ts, 4);
+        assert_eq!(buckets.len(), 4);
+        // A non-trivial spread across buckets, not everything crushed into one.
+        assert!(buckets.iter().filter(|&&b| b > 0).count() >= 2);
+        assert!(
+            buckets[3] > 0,
+            "the most recent event must reach the last bucket"
+        );
+    }
+
+    #[test]
+    fn sparkline_output_length_matches_n_buckets() {
+        let ts = ["2026-01-01T12:34:56Z", "2026-06-15T08:00:01Z"];
+        for n in [1, 4, 8, 16] {
+            assert_eq!(task_sparkline_buckets(&ts, n).len(), n);
+        }
+    }
+
+    #[test]
+    fn agent_pulse_phase_stays_in_zero_to_one() {
+        for i in 0..8 {
+            for tick in [0u64, 1, 15, 29, 30, 45, 59, 60, 1000] {
+                let p = agent_pulse_phase(i, tick);
+                assert!(
+                    (0.0..=1.0).contains(&p),
+                    "pulse {p} out of range at i={i} tick={tick}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn agent_pulse_phase_staggers_adjacent_agents() {
+        // Two agents at the same tick should not always have the same phase.
+        let p0 = agent_pulse_phase(0, 0);
+        let p1 = agent_pulse_phase(1, 0);
+        assert_ne!(p0, p1, "adjacent agents must start at different phases");
     }
 }

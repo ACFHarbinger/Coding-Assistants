@@ -1,7 +1,11 @@
+use super::ambient::draw_orchestrate_ambient;
 use super::state::AppState;
-use crate::theme::{logo_lines, spinner_frame, wordmark_lines};
+use crate::theme::{
+    lerp_accent, logo_lines, sparkline_string, spinner_frame, task_sparkline_buckets,
+    wordmark_lines,
+};
 use ratatui::{
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
@@ -47,7 +51,7 @@ pub fn draw_orchestrate_view(frame: &mut Frame, area: Rect, app: &AppState) {
         )
     };
 
-    let text = vec![
+    let content_lines = vec![
         Line::from(vec![
             Span::styled(
                 "Workspace Root: ",
@@ -86,13 +90,35 @@ pub fn draw_orchestrate_view(frame: &mut Frame, area: Rect, app: &AppState) {
         Line::from(team_roster),
         Line::from(sessions_summary),
     ];
+    let content_height = content_lines.len() as u16 + 2; // +2 for block border rows
 
-    let block = Block::default()
+    let outer = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.border))
         .title(" Orchestrate Panel ");
-    let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
-    frame.render_widget(paragraph, area);
+    frame.render_widget(&outer, area);
+    let inner = outer.inner(area);
+
+    // Split inner area: fixed content rows on top, ambient fill below.
+    let ambient_height = inner
+        .height
+        .saturating_sub(content_height.min(inner.height));
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(content_height.min(inner.height)),
+            Constraint::Length(ambient_height),
+        ])
+        .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(content_lines).wrap(Wrap { trim: true }),
+        chunks[0],
+    );
+
+    if ambient_height >= 3 {
+        draw_orchestrate_ambient(frame, chunks[1], app);
+    }
 }
 
 pub fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
@@ -255,6 +281,47 @@ pub fn draw_shared_hub_view(frame: &mut Frame, area: Rect, app: &AppState) {
             )));
         }
     }
+
+    // ── Ambient sparkline footer ──────────────────────────────────────────────
+    // Always rendered, regardless of data presence, so the panel feels alive.
+    let n_buckets = (area.width.saturating_sub(22) as usize).clamp(1, 40);
+    let phase = (app.tick as f32 / 80.0).rem_euclid(1.0);
+
+    let task_ts: Vec<&str> = app
+        .read_model
+        .tasks
+        .iter()
+        .map(|t| t.updated_at.as_str())
+        .collect();
+    let task_bar = sparkline_string(&task_sparkline_buckets(&task_ts, n_buckets));
+
+    let audit_ts: Vec<&str> = app
+        .read_model
+        .audit_events
+        .iter()
+        .map(|e| e.observed_at.as_str())
+        .collect();
+    let audit_bar = sparkline_string(&task_sparkline_buckets(&audit_ts, n_buckets));
+
+    text.push(Line::from(""));
+    text.push(Line::from(Span::styled(
+        "─── Activity Sparklines ─────────────────────────",
+        Style::default().fg(theme.border),
+    )));
+    text.push(Line::from(vec![
+        Span::styled(
+            format!("  {} Tasks:  ", spinner_frame(app.tick)),
+            Style::default().fg(theme.accent),
+        ),
+        Span::styled(task_bar, Style::default().fg(lerp_accent(theme, phase))),
+    ]));
+    text.push(Line::from(vec![
+        Span::styled("     Audit:  ", Style::default().fg(theme.accent2)),
+        Span::styled(
+            audit_bar,
+            Style::default().fg(lerp_accent(theme, (phase + 0.5).rem_euclid(1.0))),
+        ),
+    ]));
 
     let block = Block::default()
         .borders(Borders::ALL)

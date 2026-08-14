@@ -1,5 +1,6 @@
 //! `ca tui` main application runner and Ratatui rendering engine.
 
+mod ambient;
 pub mod runner;
 pub mod state;
 pub mod ui;
