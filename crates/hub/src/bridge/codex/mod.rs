@@ -191,12 +191,28 @@ fn deliver_codex_task_with(
             // reply within the read budget (reply_text: None) still counts
             // as delivered — turn/start already acked the turn.
             if let Some(reply_text) = outcome.reply_text.as_deref() {
-                let _ = reply::record_codex_reply(
+                if let Ok(reply_message) = reply::record_codex_reply(
                     store,
                     request.message_id.as_deref(),
                     request.session_id.as_deref(),
                     reply_text,
-                );
+                ) {
+                    // This turn's response now genuinely appears in Codex's
+                    // own on-disk session transcript too (the turn/start we
+                    // just ran did a thread/resume on that same thread), so
+                    // the separate C12 passive transcript poller
+                    // (capture_codex_session, polled independently by the
+                    // desktop UI) would otherwise rediscover this exact text
+                    // and post it a second time. Pre-mark it seen so that
+                    // poller's own dedup check skips it.
+                    let _ = store.mark_harness_capture_seen(
+                        "codex",
+                        CODEX_AGENT_ID,
+                        request.session_id.as_deref(),
+                        reply_text,
+                        Some(&reply_message.id),
+                    );
+                }
             }
             Ok(HarnessInjectResult {
                 harness: "chat".into(),

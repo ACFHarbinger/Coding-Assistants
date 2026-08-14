@@ -84,13 +84,7 @@ impl HubStore {
                 "harness capture body must not be empty".into(),
             ));
         }
-        let content_hash = sha256_hex(
-            format!(
-                "{harness}\0{agent_id}\0{}\0{body}",
-                session_id.unwrap_or("")
-            )
-            .as_bytes(),
-        );
+        let content_hash = harness_capture_content_hash(harness, agent_id, session_id, body);
         let existing: Option<String> = self
             .conn
             .query_row(
@@ -149,6 +143,61 @@ impl HubStore {
         )?;
         Ok(Some(message))
     }
+
+    /// Marks `(harness, agent_id, session_id, body)` as already captured
+    /// without posting a new message — for content that was already
+    /// delivered to the Hub through a different path (e.g. C14.2's explicit
+    /// turn-completion reply routing), so the C12 passive on-disk-transcript
+    /// poller's next pass recognizes the same text via `record_harness_capture`'s
+    /// existing dedup check and does not post a visible duplicate.
+    ///
+    /// `message_id` should be the id of the message that already carries this
+    /// content, for provenance; pass `None` if there isn't one. Uses `INSERT
+    /// OR IGNORE` against `harness_captures`' existing UNIQUE(harness,
+    /// agent_id, session_id, content_hash) constraint, so calling this after
+    /// `record_harness_capture` has already independently captured the same
+    /// content is a safe no-op either direction.
+    ///
+    /// This only prevents the duplicate when both paths agree on
+    /// `session_id` — the passive poller keys on whatever Hub session the
+    /// desktop UI currently has active, which may differ from the session a
+    /// task was actually delivered under if the two aren't the same.
+    pub fn mark_harness_capture_seen(
+        &self,
+        harness: &str,
+        agent_id: &str,
+        session_id: Option<&str>,
+        body: &str,
+        message_id: Option<&str>,
+    ) -> Result<(), HubError> {
+        let content_hash = harness_capture_content_hash(harness, agent_id, session_id, body);
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT OR IGNORE INTO harness_captures(
+                id, harness, agent_id, session_id, content_hash, message_id, body, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "#,
+            params![id, harness, agent_id, session_id, content_hash, message_id, body, now],
+        )?;
+        Ok(())
+    }
+}
+
+fn harness_capture_content_hash(
+    harness: &str,
+    agent_id: &str,
+    session_id: Option<&str>,
+    body: &str,
+) -> String {
+    sha256_hex(
+        format!(
+            "{harness}\0{agent_id}\0{}\0{body}",
+            session_id.unwrap_or("")
+        )
+        .as_bytes(),
+    )
 }
 
 #[cfg(test)]
@@ -190,5 +239,71 @@ mod tests {
         assert_eq!(listed.len(), 2, "both captures must remain visible");
         assert!(listed.iter().any(|m| m.from_agent == "grok"));
         assert!(listed.iter().any(|m| m.from_agent == "claude"));
+    }
+
+    #[test]
+    fn mark_harness_capture_seen_suppresses_a_later_passive_capture_of_the_same_text() {
+        // Regression: C14.2's explicit turn-completion reply routing posts
+        // Codex's reply through record_codex_reply — a different insert
+        // path than record_harness_capture. Since send_codex_turn's
+        // thread/resume runs against the same on-disk thread the passive
+        // C12 poller (capture_codex_session) also scans, that poller would
+        // otherwise rediscover the identical text and post a visible
+        // duplicate. mark_harness_capture_seen must make the poller's own
+        // dedup check treat it as already-seen.
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("dedup regression").unwrap();
+
+        // Simulates record_codex_reply already having posted the reply
+        // through send_message/send_session_message, then C14.2 marking it
+        // seen for the passive poller's benefit.
+        store
+            .mark_harness_capture_seen(
+                "codex",
+                "chat",
+                Some(&session.id),
+                "already delivered via C14.2",
+                Some("reply-message-id"),
+            )
+            .unwrap();
+
+        let captured = store
+            .record_harness_capture(
+                "codex",
+                "chat",
+                Some(&session.id),
+                "already delivered via C14.2",
+                None,
+            )
+            .unwrap();
+        assert!(
+            captured.is_none(),
+            "passive capture of already-marked-seen content must be a no-op"
+        );
+    }
+
+    #[test]
+    fn mark_harness_capture_seen_is_idempotent_with_a_real_prior_capture() {
+        // Calling mark_harness_capture_seen after record_harness_capture
+        // already captured the same content (the reverse ordering) must
+        // not error or create a second harness_captures row — the UNIQUE
+        // constraint plus INSERT OR IGNORE covers either direction.
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        let first = store
+            .record_harness_capture("codex", "chat", None, "hello from codex", None)
+            .unwrap();
+        assert!(first.is_some());
+
+        store
+            .mark_harness_capture_seen("codex", "chat", None, "hello from codex", None)
+            .unwrap();
+
+        let second = store
+            .record_harness_capture("codex", "chat", None, "hello from codex", None)
+            .unwrap();
+        assert!(second.is_none(), "content already captured stays deduped");
     }
 }
