@@ -15,7 +15,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
   const [harness, setHarness] = useState<string>("grok");
   const [busy, setBusy] = useState(false);
   const [relaunching, setRelaunching] = useState<string | null>(null);
-  const [terminal, setTerminal] = useState<{ harness: string; sessionId: string } | null>(null);
+  const [terminals, setTerminals] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     try {
@@ -68,7 +68,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       });
       setDetail(outcome.detail);
       setError("");
-      setTerminal({ harness: outcome.harness, sessionId: outcome.session_id });
+      setTerminals((prev) => ({ ...prev, [outcome.harness]: outcome.session_id }));
       await refresh();
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
@@ -78,14 +78,19 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     }
   };
 
-  const closeTerminal = async () => {
-    if (!terminal) return;
+  const closeTerminal = async (target: string) => {
+    const sessionId = terminals[target];
+    if (!sessionId) return;
     try {
-      await invoke("pty_kill", { sessionId: terminal.sessionId });
+      await invoke("pty_kill", { sessionId });
     } catch {
       // Already exited — nothing to clean up.
     }
-    setTerminal(null);
+    setTerminals((prev) => {
+      const next = { ...prev };
+      delete next[target];
+      return next;
+    });
   };
 
   const startManaged = async () => {
@@ -175,7 +180,17 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         >
           {relaunching === harness ? "Opening terminal…" : "Resume in terminal"}
         </button>
+        {terminals[harness] && (
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal(harness)}>
+            Close terminal
+          </button>
+        )}
       </div>
+      {terminals[harness] && (
+        <div style={{ height: "320px", marginBottom: "0.85rem" }}>
+          <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} />
+        </div>
+      )}
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
         {HARNESS_PREREQUISITES[harness]} {harness === "grok"
           ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
@@ -195,43 +210,43 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
           <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No harness sessions registered for this workspace.</div>
         )}
         {sessions.map((row) => (
-          <div key={`${row.harness}:${row.workspace}`} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", padding: "0.65rem 0.75rem", borderRadius: "9px", border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.22)" }}>
-            <div>
-              <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
-              <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                thread {row.disk_session_id}
-                {row.writer_owner ? ` · writer ${row.writer_owner}` : ""}
-                {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
+          <div key={`${row.harness}:${row.workspace}`} style={{ display: "flex", flexDirection: "column", gap: "0.55rem", padding: "0.65rem 0.75rem", borderRadius: "9px", border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.22)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div>
+                <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
+                <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                  thread {row.disk_session_id}
+                  {row.writer_owner ? ` · writer ${row.writer_owner}` : ""}
+                  {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+                <HarnessBadge mode={row.mode} state={row.state} />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ marginTop: 0 }}
+                  disabled={busy}
+                  title="Kill the managed pid if one is registered, then resume this harness in a real terminal."
+                  onClick={() => void relaunchInTerminal(row.harness, row.managed_pid)}
+                >
+                  {relaunching === row.harness ? "Opening…" : "Resume in terminal"}
+                </button>
+                {terminals[row.harness] && (
+                  <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal(row.harness)}>
+                    Close terminal
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
-              <HarnessBadge mode={row.mode} state={row.state} />
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ marginTop: 0 }}
-                disabled={busy}
-                title="Kill the managed pid if one is registered, then resume this harness in a real terminal."
-                onClick={() => void relaunchInTerminal(row.harness, row.managed_pid)}
-              >
-                {relaunching === row.harness ? "Opening…" : "Resume in terminal"}
-              </button>
-            </div>
+            {terminals[row.harness] && (
+              <div style={{ height: "320px" }}>
+                <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} />
+              </div>
+            )}
           </div>
         ))}
       </div>
-
-      {terminal && (
-        <div style={{ marginTop: "1rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-            <strong style={{ color: "var(--text-main)", fontSize: "0.85rem" }}>{terminal.harness} terminal</strong>
-            <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal()}>
-              Close terminal
-            </button>
-          </div>
-          <EmbeddedTerminal sessionId={terminal.sessionId} onExit={() => setDetail(`${terminal.harness} terminal exited`)} />
-        </div>
-      )}
     </section>
   );
 }

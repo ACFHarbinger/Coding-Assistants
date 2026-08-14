@@ -28,7 +28,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
   const [detail, setDetail] = useState("");
   const [diskId, setDiskId] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [terminal, setTerminal] = useState<{ harness: string; sessionId: string } | null>(null);
+  const [terminals, setTerminals] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     if (!workspace.startsWith("/")) {
@@ -85,18 +85,23 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       workspace,
       existingPid: row?.managed_pid ?? null,
     });
-    setTerminal({ harness: outcome.harness, sessionId: outcome.session_id });
+    setTerminals((prev) => ({ ...prev, [harness]: outcome.session_id }));
     return outcome.detail;
   });
 
-  const closeTerminal = async () => {
-    if (!terminal) return;
+  const closeTerminal = async (harness: string) => {
+    const sessionId = terminals[harness];
+    if (!sessionId) return;
     try {
-      await invoke("pty_kill", { sessionId: terminal.sessionId });
+      await invoke("pty_kill", { sessionId });
     } catch {
       // Already exited — nothing to clean up.
     }
-    setTerminal(null);
+    setTerminals((prev) => {
+      const next = { ...prev };
+      delete next[harness];
+      return next;
+    });
   };
 
   const startManaged = (harness: LiveTerminalHarness) => void run(harness, async () => {
@@ -152,22 +157,34 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
   };
 
   const startRow = (id: LiveTerminalHarness) => (
-    <div key={id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.65rem", flexWrap: "wrap", padding: "0.55rem 0.7rem", borderRadius: "8px", background: "rgba(0,0,0,0.25)" }}>
-      <strong style={{ color: "var(--text-main)", textTransform: "capitalize", minWidth: "4.5rem" }}>{id}</strong>
-      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-        {id === "grok" ? (
-          <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={connectGrok}>
-            Connect / resume
+    <div key={id} style={{ display: "flex", flexDirection: "column", gap: "0.6rem", padding: "0.55rem 0.7rem", borderRadius: "8px", background: "rgba(0,0,0,0.25)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.65rem", flexWrap: "wrap" }}>
+        <strong style={{ color: "var(--text-main)", textTransform: "capitalize", minWidth: "4.5rem" }}>{id}</strong>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          {id === "grok" ? (
+            <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={connectGrok}>
+              Connect / resume
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={() => startManaged(id)}>
+              Start managed
+            </button>
+          )}
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={() => resume(id)}>
+            Resume in terminal
           </button>
-        ) : (
-          <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={() => startManaged(id)}>
-            Start managed
-          </button>
-        )}
-        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy !== null} onClick={() => resume(id)}>
-          Resume in terminal
-        </button>
+          {terminals[id] && (
+            <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal(id)}>
+              Close terminal
+            </button>
+          )}
+        </div>
       </div>
+      {terminals[id] && (
+        <div style={{ height: "320px" }}>
+          <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} />
+        </div>
+      )}
     </div>
   );
 
@@ -234,6 +251,9 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
                   busy={busy === id}
                   onResume={() => resume(id)}
                   onKill={() => kill(id)}
+                  terminalSessionId={terminals[id] ?? null}
+                  onCloseTerminal={() => void closeTerminal(id)}
+                  onTerminalExit={(detail) => setDetail(`${id} terminal: ${detail}`)}
                 />
               );
             })}
@@ -251,18 +271,6 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
             </div>
           )}
         </>
-      )}
-
-      {terminal && (
-        <div style={{ marginTop: "1rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-            <strong style={{ color: "var(--text-main)", fontSize: "0.85rem" }}>{terminal.harness} terminal</strong>
-            <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal()}>
-              Close terminal
-            </button>
-          </div>
-          <EmbeddedTerminal sessionId={terminal.sessionId} onExit={() => setDetail(`${terminal.harness} terminal exited`)} />
-        </div>
       )}
     </section>
   );

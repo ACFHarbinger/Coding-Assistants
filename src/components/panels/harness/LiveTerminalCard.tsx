@@ -1,4 +1,5 @@
 import HarnessBadge from "./HarnessBadge";
+import EmbeddedTerminal from "./EmbeddedTerminal";
 import type { HarnessSessionRegistration } from "./types";
 
 export default function LiveTerminalCard({
@@ -9,6 +10,9 @@ export default function LiveTerminalCard({
   busy,
   onResume,
   onKill,
+  terminalSessionId,
+  onCloseTerminal,
+  onTerminalExit,
 }: {
   harness: string;
   session: HarnessSessionRegistration | null;
@@ -17,6 +21,9 @@ export default function LiveTerminalCard({
   busy: boolean;
   onResume: () => void;
   onKill: () => void;
+  terminalSessionId?: string | null;
+  onCloseTerminal?: () => void;
+  onTerminalExit?: (detail: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem", padding: "0.9rem 1rem", borderRadius: "10px", border: "1px solid rgba(52, 211, 153, 0.45)", background: "rgba(0,0,0,0.28)", minHeight: "148px" }}>
@@ -60,7 +67,22 @@ export default function LiveTerminalCard({
         >
           Kill
         </button>
+        {terminalSessionId && onCloseTerminal && (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: 0 }}
+            onClick={onCloseTerminal}
+          >
+            Close terminal
+          </button>
+        )}
       </div>
+      {terminalSessionId && (
+        <div style={{ height: "320px" }}>
+          <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} />
+        </div>
+      )}
     </div>
   );
 }
