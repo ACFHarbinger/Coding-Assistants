@@ -7,10 +7,10 @@ use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
     launch_claude_channel_session, list_active_grok_sessions, list_channel_workspaces,
-    relaunch_harness_in_terminal, rename_channel_workspace, start_harness, ActiveGrokSession,
-    ChannelWorkspace, GrokConnectResult, HarnessInjectRequest, HarnessInjectResult,
-    HarnessSessionRegistration, HarnessStartRequest, HarnessStartResult, MessageRecord,
-    RelaunchOutcome, SandboxStrictness, SettingsStore,
+    relaunch_harness_in_terminal, rename_channel_workspace, start_harness, start_managed_harness,
+    ActiveGrokSession, ChannelWorkspace, GrokConnectResult, HarnessInjectRequest,
+    HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest, HarnessStartResult,
+    MessageRecord, RelaunchOutcome, SandboxStrictness, SettingsStore,
 };
 use std::path::{Path, PathBuf};
 
@@ -61,6 +61,42 @@ pub fn hub_relaunch_harness_in_terminal(
     existing_pid: Option<u32>,
 ) -> Result<RelaunchOutcome, String> {
     relaunch_harness_in_terminal(&harness, Path::new(&workspace), existing_pid)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartManagedHarnessOutcome {
+    pub start: HarnessStartResult,
+    pub registration: HarnessSessionRegistration,
+}
+
+/// "Start managed": spawns a headless one-shot worker and registers it as
+/// managed, killing any prior managed pid already registered for this
+/// (harness, workspace) first — the "Start managed" button previously
+/// orphaned the earlier process on a repeat click instead of replacing it.
+#[tauri::command]
+pub fn hub_start_managed_harness(
+    harness: String,
+    workspace: String,
+    disk_session_id: String,
+    prompt: String,
+) -> Result<StartManagedHarnessOutcome, String> {
+    if sandbox_strictness_blocks(&harness, &workspace) {
+        return Err(format!(
+            "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
+        ));
+    }
+    let (start, registration) = start_managed_harness(
+        &open_store()?,
+        &harness,
+        Path::new(&workspace),
+        &disk_session_id,
+        &prompt,
+    )?;
+    Ok(StartManagedHarnessOutcome {
+        start,
+        registration,
+    })
 }
 
 #[tauri::command]
@@ -146,66 +182,6 @@ pub fn hub_register_managed_harness_session(
     open_store()?
         .register_managed_harness_session(&harness, &workspace, &effective_session_id, managed_pid)
         .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-pub fn hub_capture_grok_session(
-    workspace: String,
-    grok_session_id: Option<String>,
-    hub_session_id: Option<String>,
-) -> Result<crate::harness::grok::GrokCaptureOutcome, String> {
-    let store = open_store()?;
-    crate::harness::grok::capture_grok_session(
-        &store,
-        &PathBuf::from(workspace),
-        grok_session_id.as_deref(),
-        hub_session_id.as_deref(),
-    )
-}
-
-#[tauri::command]
-pub fn hub_capture_claude_session(
-    workspace: String,
-    claude_session_id: Option<String>,
-    hub_session_id: Option<String>,
-) -> Result<crate::harness::claude::ClaudeCaptureOutcome, String> {
-    let store = open_store()?;
-    crate::harness::claude::capture_claude_session(
-        &store,
-        &PathBuf::from(workspace),
-        claude_session_id.as_deref(),
-        hub_session_id.as_deref(),
-    )
-}
-
-#[tauri::command]
-pub fn hub_capture_codex_session(
-    workspace: String,
-    codex_session_id: Option<String>,
-    hub_session_id: Option<String>,
-) -> Result<crate::harness::codex::CodexCaptureOutcome, String> {
-    let store = open_store()?;
-    crate::harness::codex::capture_codex_session(
-        &store,
-        &PathBuf::from(workspace),
-        codex_session_id.as_deref(),
-        hub_session_id.as_deref(),
-    )
-}
-
-#[tauri::command]
-pub fn hub_capture_gemini_session(
-    workspace: String,
-    gemini_session_id: Option<String>,
-    hub_session_id: Option<String>,
-) -> Result<crate::harness::gemini::GeminiCaptureOutcome, String> {
-    let store = open_store()?;
-    crate::harness::gemini::capture_gemini_session(
-        &store,
-        &PathBuf::from(workspace),
-        gemini_session_id.as_deref(),
-        hub_session_id.as_deref(),
-    )
 }
 
 /// C14.3: every workspace previously configured with `--setup` for the

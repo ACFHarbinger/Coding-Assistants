@@ -85,20 +85,15 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       if (!diskId.trim()) {
         throw new Error(`Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`);
       }
-      const started = await invoke<{ pid?: number | null; status: string; detail: string }>("hub_start_harness", {
-        harness,
-        workspace,
-        sessionId: null,
-        prompt: "Coding-Assistants managed session",
-      });
-      if (!started.pid) {
-        throw new Error(started.detail || "Managed start did not return a pid. The session was not marked managed.");
-      }
-      await invoke("hub_register_managed_harness_session", {
+      // A single atomic call: kills any prior managed pid already
+      // registered for this (harness, workspace) before spawning and
+      // registering the new one, so a repeat click can't orphan the
+      // earlier process the way the old two-step start+register flow did.
+      await invoke("hub_start_managed_harness", {
         harness,
         workspace,
         diskSessionId: diskId.trim(),
-        managedPid: started.pid,
+        prompt: "Coding-Assistants managed session",
       });
       setDiskId("");
       await refresh();

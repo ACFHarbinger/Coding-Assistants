@@ -32,7 +32,7 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
-pub use bridge::relaunch::{relaunch_harness_in_terminal, RelaunchOutcome};
+pub use bridge::relaunch::{relaunch_harness_in_terminal, start_managed_harness, RelaunchOutcome};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,
