@@ -4,6 +4,19 @@ Communication starts with explicit, declarative task wiring and asynchronous
 mailboxes. Parallel execution and A2A follow only after durable local
 communication is reliable.
 
+> **Priority note (Harbinger, 2026-08-14):** the developers being onboarded
+> (see [`multi_human.md`](multi_human.md), timeline relaxed the same day)
+> use a single agent each, not multi-agent orchestration — at least one has
+> Claude, another has Gemini. Reprioritizing C14 accordingly: **finish C14.3
+> (Claude Code) end-to-end acceptance first**, **C14.4/C14.7 (Gemini `agy`,
+> including the #155 `--prompt` bug) second** — those two providers are
+> enough to validate the team-facing features (messaging, task assignment,
+> channels/bridges, memory) that actually matter for this onboarding.
+> **C14.2/C14.8 (Codex) and C14.6 (Grok) are explicitly deprioritized**: pick
+> them up only if a fix is fast/cheap, otherwise skip for now rather than
+> spending time reverse-engineering a CLI contract nobody being onboarded is
+> using yet.
+
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | C1 | Agent identities, attribution headers, durable inbox/outbox messages, and handoff records | Every message records sender, receiver, task, workspace, timestamp, and status | ✅ **Done** · `ca msg send/poll/list/status` + seeded agents + handoff kind in MD export |

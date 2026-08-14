@@ -8,7 +8,12 @@
 > the developers being onboarded are still learning single-agent workflows
 > (opencode was only installed this week); real multi-agent orchestration on
 > their side is realistically months away. Treat this roadmap as "get the
-> hard-to-retrofit schema decisions right early," not "build now."
+> hard-to-retrofit schema decisions right early," not "build now." **What is
+> a near-term priority** is the vertical slice this actually motivates —
+> see [`communication.md`](communication.md)'s 2026-08-14 priority note:
+> get messaging/tasks/channels/memory working exceptionally well for Claude
+> first, Gemini second (the two providers the onboarding developers
+> actually have), deprioritizing deeper Grok/Codex CLI work for now.
 
 Today's Hub is a **single-human operating system**: one flat roster
 (`human`, `claude`, `chat`, `gemini`, `grok`), `MemoryScope::{Global,
