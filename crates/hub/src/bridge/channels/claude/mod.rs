@@ -37,6 +37,8 @@ mod permissions;
 mod reply;
 mod terminal;
 mod workspaces;
+#[cfg(test)]
+mod acceptance;
 
 pub const CLAUDE_AGENT_ID: &str = "claude";
 
