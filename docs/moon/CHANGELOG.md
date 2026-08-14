@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hub — C14.3 automated acceptance test + C14.7 argv-order fix (2026-08-14)
 
-- **C14.3** (#150): added `crates/hub/src/bridge/channels/claude/acceptance.rs`,
+- **C14.3** (#150, `b95baaf`): added `crates/hub/src/bridge/channels/claude/acceptance.rs`,
   an isolated `HubStore`-level round-trip test for the Claude Channel bridge
   — no MCP server or real Claude Code process needed, since
   `poll_channel_events`/`poll_quiet_channel_events`/`record_channel_reply`/
