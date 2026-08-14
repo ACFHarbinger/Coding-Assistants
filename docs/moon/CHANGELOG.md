@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — C14.3 automated acceptance test + C14.7 argv-order fix (2026-08-14)
+
+- **C14.3** (#150): added `crates/hub/src/bridge/channels/claude/acceptance.rs`,
+  an isolated `HubStore`-level round-trip test for the Claude Channel bridge
+  — no MCP server or real Claude Code process needed, since
+  `poll_channel_events`/`poll_quiet_channel_events`/`record_channel_reply`/
+  the permission-relay functions are all plain functions over a store.
+  Covers the enrolled-sender authenticated gate, the disturb/quiet poll
+  split (task/wake messages vs. plain ones) with ack-on-drain for both,
+  reply routing back to the original sender rather than a "human" fallback,
+  and the full permission-relay lifecycle proving nothing auto-approves a
+  request before an explicit resolve call.
+- **C14.7** (#155, closed): the originally-diagnosed `--prompt <text>` bug
+  was already fixed in a prior commit, but the reported symptom (gibberish
+  `agy` replies) was still reproducible. Direct testing against a live
+  `agy` call found the real remaining cause: **argument order**, not shape
+  — `--print --output-format stream-json <prompt>` makes `agy` misparse the
+  prompt; `--output-format stream-json [--conversation <id>] --print
+  <prompt>` works reliably, verified for both a fresh and a
+  `--conversation`-resumed call. `gemini_managed_spawn_args` reordered
+  accordingly; argv-shape tests updated/added.
+- **Verification:** `cargo build --workspace` and `cargo check -p hub
+  --tests` both clean for all of the above; the new test itself was not
+  executed per the session's hardware constraint (no `cargo test`).
+
 ### Desktop — memory_links + link-suggestion matcher UI (M7 closed, #159) (2026-08-14)
 
 - Added `MemoryLinksSection` (`src/components/panels/messager/`): a
