@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs — C14.4 Gemini roadmap row corrected to reflect landed work (#151) (2026-08-14)
+
+- The C14.4 roadmap row still described the original unimplemented plan
+  even though Gemini had already landed the full app-managed worker
+  (`crates/hub/src/bridge/gemini.rs`) and, separately, the kill →
+  capture → relaunch continuation bridge (`crates/hub/src/bridge/channels/gemini/`,
+  commit `7c64248`) needed because `agy` exposes no live-push channel.
+  Updated `docs/moon/roadmaps/communication.md` to cite what actually
+  landed. No code changed in this pass.
+
 ### Hub — Codex turn-completion reply routing (C14.2, #149) (2026-08-14)
 
 - `1633837` fixes the blocking C14.2 gap where the disposable Codex
