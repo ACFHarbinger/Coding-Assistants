@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — memory_links + link-suggestion matcher UI (M7 closed, #159) (2026-08-14)
+
+- Added `MemoryLinksSection` (`src/components/panels/messager/`): a
+  per-memory expandable "🔗 Links" panel in the Chat & Memory drawer,
+  showing existing `memory_links` edges (relation, creator, Unlink), and a
+  "Find related" action surfacing `suggest_links_for_memory` candidates
+  (score, human-readable reason) with a one-click Link button. The
+  suggestions panel stays open after linking so multiple candidates can be
+  linked in one pass without re-querying.
+- Added `TopicBrowsePanel`: a new "Browse by topic" mode alongside the
+  existing tier-filtered browse, searching `memories_for_topic` and
+  rendering results grouped by `agent_id` in side-by-side sections — the
+  "everyone's view of this topic" experience the M7 design discussion
+  originally asked for.
+- Both correctly use the `{ args: {...} }` payload wrapping convention for
+  `hub_link_memories` (a single Rust `args` struct parameter), rather than
+  the flat-field pattern `hub_write_memory`'s call site elsewhere in this
+  codebase incorrectly uses — called out explicitly in each component's
+  brief to avoid propagating that latent bug into new code.
+- **M7 is now closed end to end**: schema, matcher, CLI, Tauri IPC, and
+  desktop UI all landed. See `docs/moon/roadmaps/memory.md`'s M7 row.
+- **Verification:** `npx tsc --noEmit` and `npm run build` (`tsc` + `vite
+  build`) both clean; `cargo build --workspace` clean.
+
 ### Hub — memory_links graph + heuristic link-suggestion matcher (M7, #159) (2026-08-14)
 
 - Added `memory_links`: a directed edge between two memories (`from_memory_id`,
