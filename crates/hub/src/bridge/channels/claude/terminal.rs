@@ -186,6 +186,21 @@ pub fn launch_claude_channel_session(workspace: &Path) -> Result<u32, String> {
         "--dangerously-load-development-channels",
         "server:coding-assistants-channel",
     ];
+    // Same reasoning as bridge::relaunch's hold_open_after_exit (kept as
+    // a separate copy here rather than shared, matching this file's own
+    // existing duplication-over-coupling choice for TERMINAL_CANDIDATES):
+    // if `claude` fails fast on startup for any reason, the window must
+    // stay open long enough to actually read why, not flash and close.
+    const SCRIPT: &str = r#"
+"$0" "$@"
+status=$?
+echo
+echo "[$0 exited $status] Press Enter to close this terminal."
+read -r _ignored
+exit "$status"
+"#;
+    let mut sh_args = vec!["-c".to_string(), SCRIPT.to_string(), "claude".to_string()];
+    sh_args.extend(claude_args.iter().map(|s| s.to_string()));
 
     let mut errors = Vec::new();
     for terminal in TERMINAL_CANDIDATES {
@@ -193,8 +208,8 @@ pub fn launch_claude_channel_session(workspace: &Path) -> Result<u32, String> {
         command
             .current_dir(workspace)
             .args(terminal_exec_prefix(terminal))
-            .arg("claude")
-            .args(claude_args);
+            .arg("sh")
+            .args(&sh_args);
         match command.spawn() {
             Ok(child) => return Ok(child.id()),
             Err(error) => errors.push(format!("{terminal}: {error}")),

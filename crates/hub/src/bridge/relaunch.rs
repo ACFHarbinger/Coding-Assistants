@@ -26,6 +26,36 @@ fn terminal_exec_prefix(terminal: &str) -> &'static [&'static str] {
     }
 }
 
+/// Wraps `program`/`args` so the launched terminal stays open and shows
+/// the exit status after the harness process exits, whatever that status
+/// is. Without this, a command that fails immediately — confirmed live,
+/// 2026-08-14: `codex resume <a stale/invalid thread id>` prints a real
+/// error and exits in well under a second — makes the terminal window
+/// flash and close before its error is ever readable, indistinguishable
+/// from the terminal itself crashing. Terminal emulators disagree on a
+/// "hold open" flag (`konsole --hold`, `xterm -hold`, no equivalent for
+/// `gnome-terminal` or whatever `x-terminal-emulator` resolves to), so
+/// this wraps the command in a small `sh` script instead, uniform across
+/// all four.
+///
+/// `program`/`args` are passed to `sh` as trailing positional arguments
+/// (`$0`/`"$@"`), never interpolated into the script string itself — `sh`
+/// treats them as opaque values, not re-parsed shell syntax, so this stays
+/// exactly as injection-safe as passing them directly to `Command::args`.
+fn hold_open_after_exit(program: &str, args: &[String]) -> (&'static str, Vec<String>) {
+    const SCRIPT: &str = r#"
+"$0" "$@"
+status=$?
+echo
+echo "[$0 exited $status] Press Enter to close this terminal."
+read -r _ignored
+exit "$status"
+"#;
+    let mut sh_args = vec!["-c".to_string(), SCRIPT.to_string(), program.to_string()];
+    sh_args.extend(args.iter().cloned());
+    ("sh", sh_args)
+}
+
 /// True if a process with this pid currently exists.
 pub fn is_pid_running(pid: u32) -> bool {
     Command::new("kill")
@@ -130,6 +160,7 @@ pub fn relaunch_harness_in_terminal(
     let resumed_session_id = latest_session_id(harness, workspace);
     let args = interactive_resume_args(harness, resumed_session_id.as_deref());
     let program = harness.executable();
+    let (wrapped_program, wrapped_args) = hold_open_after_exit(program, &args);
 
     let mut errors = Vec::new();
     for terminal in TERMINAL_CANDIDATES {
@@ -137,8 +168,8 @@ pub fn relaunch_harness_in_terminal(
         command
             .current_dir(workspace)
             .args(terminal_exec_prefix(terminal))
-            .arg(program)
-            .args(&args);
+            .arg(wrapped_program)
+            .args(&wrapped_args);
         match command.spawn() {
             Ok(_) => {
                 let detail = match &resumed_session_id {
@@ -231,6 +262,32 @@ pub fn start_managed_harness(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hold_open_after_exit_wraps_in_sh_with_program_and_args_as_positionals() {
+        let (program, args) = hold_open_after_exit("codex", &["resume".into(), "abc".into()]);
+        assert_eq!(program, "sh");
+        assert_eq!(args[0], "-c");
+        assert!(args[1].contains("\"$0\" \"$@\""), "script must exec via positionals, not interpolate");
+        assert_eq!(&args[2..], &["codex", "resume", "abc"]);
+    }
+
+    #[test]
+    fn hold_open_after_exit_script_actually_propagates_the_exit_status() {
+        // Regression: a wrapper that "holds the window open" but silently
+        // swallows the real exit code would break anything reading
+        // RelaunchOutcome's success/failure the same way a flashing
+        // window broke reading the error message.
+        let (program, args) = hold_open_after_exit("/bin/false", &[]);
+        let status = std::process::Command::new(program)
+            .args(&args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(1));
+    }
 
     #[test]
     fn interactive_resume_args_match_each_harness_documented_flag() {
