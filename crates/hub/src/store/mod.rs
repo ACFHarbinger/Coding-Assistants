@@ -184,6 +184,12 @@ pub struct AgentRecord {
     /// and local model runtimes stay addressable but are not implicit members.
     #[serde(default)]
     pub team_member: bool,
+    /// References an [`AttachmentRecord`] holding the agent's profile image.
+    /// Any agent (human or otherwise) can set its own via `set_agent_avatar`
+    /// — there is no gate restricting an identity to only setting its own,
+    /// same trust model as the rest of the Hub's local SQLite store.
+    #[serde(default)]
+    pub avatar_attachment_id: Option<String>,
 }
 
 /// A named, durable chat scope for one owner-led work session.

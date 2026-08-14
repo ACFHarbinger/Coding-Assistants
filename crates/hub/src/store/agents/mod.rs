@@ -1,5 +1,6 @@
 use super::*;
 
+mod avatar;
 mod capture;
 mod team;
 impl HubStore {
@@ -25,7 +26,8 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member FROM agents ORDER BY id ASC",
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id
+             FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(AgentRecord {
@@ -34,6 +36,7 @@ impl HubStore {
                 created_at: r.get(2)?,
                 card_json: r.get(3)?,
                 team_member: r.get::<_, i64>(4)? != 0,
+                avatar_attachment_id: r.get(5)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
