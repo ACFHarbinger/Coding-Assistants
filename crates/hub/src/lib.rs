@@ -35,6 +35,7 @@ pub use bridge::grok::{
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{relaunch_harness_in_terminal, start_managed_harness, RelaunchOutcome};
 pub use bridge::relaunch_claude::start_managed_claude_channel;
+pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,

@@ -31,6 +31,28 @@ fn command_is_channel_bridge_for(command: &str, workspace: &Path) -> bool {
         .any(|(flag, value)| flag == "--workspace" && value == workspace)
 }
 
+/// Pids of `coding-assistants-claude-channel --workspace <workspace>`
+/// processes. Same match as [`is_channel_session_live`] — the Channel
+/// bridge is the liveness signal, not a terminal-emulator pid.
+pub fn channel_bridge_pids(workspace: &Path) -> Result<Vec<u32>, String> {
+    let output = std::process::Command::new("ps")
+        .args(["-eo", "pid=,args="])
+        .output()
+        .map_err(|error| format!("failed to inspect local processes: {error}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim_start();
+            let (pid_str, rest) = trimmed.split_once(char::is_whitespace)?;
+            let pid = pid_str.parse::<u32>().ok()?;
+            command_is_channel_bridge_for(rest.trim(), workspace).then_some(pid)
+        })
+        .collect())
+}
+
 /// Whether a live Claude Code session already has the Channel bridge
 /// loaded for `workspace` — i.e. some running `claude` process spawned
 /// `coding-assistants-claude-channel --workspace <workspace>` as its MCP
@@ -39,21 +61,7 @@ fn command_is_channel_bridge_for(command: &str, workspace: &Path) -> bool {
 /// stdin/stdout, and this crate has no way to attach to it even if it
 /// wanted to — the bridge itself is what proves a session is connected.
 pub fn is_channel_session_live(workspace: &Path) -> Result<bool, String> {
-    let output = std::process::Command::new("ps")
-        .args(["-eo", "pid=,args="])
-        .output()
-        .map_err(|error| format!("failed to inspect local processes: {error}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).lines().any(|line| {
-        let command = line
-            .trim_start()
-            .split_once(char::is_whitespace)
-            .map(|(_, rest)| rest.trim())
-            .unwrap_or("");
-        command_is_channel_bridge_for(command, workspace)
-    }))
+    Ok(!channel_bridge_pids(workspace)?.is_empty())
 }
 
 /// Terminal emulators to try, in order — the system default alternative

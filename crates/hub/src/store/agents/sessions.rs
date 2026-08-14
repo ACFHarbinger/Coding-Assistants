@@ -31,4 +31,24 @@ impl HubStore {
         registration.managed_pid = managed_pid;
         Ok(registration)
     }
+
+    /// Clear the managed pid and writer lease and stamp `stopped`.
+    /// No-op (returns `None`) when no row exists for this pair.
+    pub fn mark_harness_session_stopped(
+        &self,
+        harness: &str,
+        workspace: &str,
+    ) -> Result<Option<HarnessSessionRegistration>, HubError> {
+        let changed = self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET state = 'stopped', managed_pid = NULL,
+                 writer_owner = NULL, writer_acquired_at = NULL
+             WHERE harness = ?1 AND workspace = ?2",
+            params![harness.trim(), workspace.trim()],
+        )?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        self.get_harness_session(harness, workspace)
+    }
 }

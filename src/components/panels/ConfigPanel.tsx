@@ -6,6 +6,7 @@ import WorkSessionSection from "./config/WorkSessionSection";
 import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 import { processTargetId } from "./config/types";
 import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
+import LiveTerminalsPanel from "./harness/LiveTerminalsPanel";
 
 export type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 
@@ -261,6 +262,7 @@ export default function ConfigPanel({
         </div>
       </section>
 
+      <LiveTerminalsPanel workspace={config.work_dir} />
       <HarnessReadinessPanel workspace={config.work_dir} />
 
       <WorkSessionSection

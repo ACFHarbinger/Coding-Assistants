@@ -8,3 +8,4 @@ pub mod commands;
 pub mod gemini;
 pub mod grok;
 pub mod presence;
+pub mod stop;

@@ -26,6 +26,39 @@ export interface StartManagedHarnessOutcome {
   registration: HarnessSessionRegistration;
 }
 
+/** Workspace-scoped liveness from `hub_workspace_agent_presence`. */
+export interface WorkspaceAgentPresence {
+  claude: boolean;
+  chat: boolean;
+  gemini: boolean;
+  grok: boolean;
+}
+
+export interface StopManagedOutcome {
+  harness: string;
+  killed_pids: number[];
+  detail: string;
+}
+
+export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok"] as const;
+export type LiveTerminalHarness = (typeof LIVE_TERMINAL_HARNESSES)[number];
+
+export function presenceLive(harness: string, presence: WorkspaceAgentPresence | null): boolean {
+  if (!presence) return false;
+  const key = harness.toLowerCase();
+  if (key === "chat" || key === "codex") return presence.chat;
+  if (key === "claude") return presence.claude;
+  if (key === "gemini" || key === "agy") return presence.gemini;
+  if (key === "grok") return presence.grok;
+  return false;
+}
+
+export function sessionAliases(harness: string): string[] {
+  if (harness === "chat" || harness === "codex") return ["chat", "codex"];
+  if (harness === "gemini" || harness === "agy") return ["gemini", "agy"];
+  return [harness];
+}
+
 export interface HarnessDeliveryNotice {
   harness: string;
   status: string;
