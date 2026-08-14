@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
-import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration, type RelaunchOutcome, type StartManagedHarnessOutcome } from "./types";
+import EmbeddedTerminal from "./EmbeddedTerminal";
+import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
 
@@ -14,6 +15,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
   const [harness, setHarness] = useState<string>("grok");
   const [busy, setBusy] = useState(false);
   const [relaunching, setRelaunching] = useState<string | null>(null);
+  const [terminal, setTerminal] = useState<{ harness: string; sessionId: string } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,13 +61,14 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     setRelaunching(target);
     try {
       requireWorkspace();
-      const outcome = await invoke<RelaunchOutcome>("hub_relaunch_harness_in_terminal", {
+      const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
         harness: target,
         workspace,
         existingPid,
       });
       setDetail(outcome.detail);
       setError("");
+      setTerminal({ harness: outcome.harness, sessionId: outcome.session_id });
       await refresh();
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
@@ -73,6 +76,16 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       setBusy(false);
       setRelaunching(null);
     }
+  };
+
+  const closeTerminal = async () => {
+    if (!terminal) return;
+    try {
+      await invoke("pty_kill", { sessionId: terminal.sessionId });
+    } catch {
+      // Already exited — nothing to clean up.
+    }
+    setTerminal(null);
   };
 
   const startManaged = async () => {
@@ -207,6 +220,18 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
           </div>
         ))}
       </div>
+
+      {terminal && (
+        <div style={{ marginTop: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+            <strong style={{ color: "var(--text-main)", fontSize: "0.85rem" }}>{terminal.harness} terminal</strong>
+            <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal()}>
+              Close terminal
+            </button>
+          </div>
+          <EmbeddedTerminal sessionId={terminal.sessionId} onExit={() => setDetail(`${terminal.harness} terminal exited`)} />
+        </div>
+      )}
     </section>
   );
 }

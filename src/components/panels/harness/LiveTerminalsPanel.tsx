@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { ActiveGrokSession, GrokConnectResult } from "../hub/types";
 import LiveTerminalCard from "./LiveTerminalCard";
+import EmbeddedTerminal from "./EmbeddedTerminal";
 import {
   LIVE_TERMINAL_HARNESSES,
   presenceLive,
   sessionAliases,
+  type EmbeddedRelaunchOutcome,
   type HarnessSessionRegistration,
   type LiveTerminalHarness,
-  type RelaunchOutcome,
   type StartManagedHarnessOutcome,
   type StopManagedOutcome,
   type WorkspaceAgentPresence,
@@ -27,6 +28,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
   const [detail, setDetail] = useState("");
   const [diskId, setDiskId] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [terminal, setTerminal] = useState<{ harness: string; sessionId: string } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!workspace.startsWith("/")) {
@@ -78,13 +80,24 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
 
   const resume = (harness: string) => void run(harness, async () => {
     const row = findSession(sessions, harness, workspace);
-    const outcome = await invoke<RelaunchOutcome>("hub_relaunch_harness_in_terminal", {
+    const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
       harness,
       workspace,
       existingPid: row?.managed_pid ?? null,
     });
+    setTerminal({ harness: outcome.harness, sessionId: outcome.session_id });
     return outcome.detail;
   });
+
+  const closeTerminal = async () => {
+    if (!terminal) return;
+    try {
+      await invoke("pty_kill", { sessionId: terminal.sessionId });
+    } catch {
+      // Already exited — nothing to clean up.
+    }
+    setTerminal(null);
+  };
 
   const startManaged = (harness: LiveTerminalHarness) => void run(harness, async () => {
     if (harness === "grok") {
@@ -238,6 +251,18 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
             </div>
           )}
         </>
+      )}
+
+      {terminal && (
+        <div style={{ marginTop: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+            <strong style={{ color: "var(--text-main)", fontSize: "0.85rem" }}>{terminal.harness} terminal</strong>
+            <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal()}>
+              Close terminal
+            </button>
+          </div>
+          <EmbeddedTerminal sessionId={terminal.sessionId} onExit={() => setDetail(`${terminal.harness} terminal exited`)} />
+        </div>
       )}
     </section>
   );

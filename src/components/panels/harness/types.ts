@@ -21,6 +21,14 @@ export interface RelaunchOutcome {
   detail: string;
 }
 
+export interface EmbeddedRelaunchOutcome {
+  harness: string;
+  killed_pid: number | null;
+  resumed_session_id: string | null;
+  session_id: string;
+  detail: string;
+}
+
 export interface StartManagedHarnessOutcome {
   start: { harness: string; pid: number | null; status: string; detail: string };
   registration: HarnessSessionRegistration;
