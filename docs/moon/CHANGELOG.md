@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — Codex turn-completion reply routing (C14.2, #149) (2026-08-14)
+
+- `1633837` fixes the blocking C14.2 gap where the disposable Codex
+  app-server client accepted `turn/start` but discarded the actual reply.
+  It now waits for the matching unsolicited `turn/completed` notification,
+  extracts and joins the final `agentMessage` item text, and records it in
+  the Hub back to the original task sender. Session-scoped replies mirror
+  Claude Channel routing, including UUID-suffixed reply subjects to avoid
+  desktop post-dedup collisions.
+- Verified against the installed `codex app-server generate-ts` bindings:
+  `TurnCompletedNotification` carries `threadId` and `turn`, while
+  `ThreadItem`'s `agentMessage` carries `text`. `cargo build --workspace`
+  and `cargo clippy --workspace --all-targets` are clean; no tests ran.
+- Still open for #149: the documented persistent per-thread app-server daemon
+  broker. Its control socket did not answer plain JSON-RPC in the live probe,
+  and this change intentionally retains one stdio app-server child per turn
+  while fixing the previously missing reply capture.
+
 ### Hub — C14.3 automated acceptance test + C14.7 argv-order fix (2026-08-14)
 
 - **C14.3** (#150, `b95baaf`): added `crates/hub/src/bridge/channels/claude/acceptance.rs`,
