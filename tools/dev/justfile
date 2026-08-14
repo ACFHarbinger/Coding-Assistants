@@ -39,6 +39,11 @@ install-ca:
     @echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
     @echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
 
+# Launch the keyboard-driven Ratatui terminal client from the current source.
+[no-cd]
+tui:
+    cargo run -p cli -- tui
+
 # Launch the Tauri application in development mode.
 #
 # GDK_BACKEND=x11 — Forces XWayland instead of native Wayland. Your desktop

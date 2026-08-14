@@ -53,6 +53,10 @@ install-ca:
 start:
     @just dev::dev
 
+# Launch the keyboard-driven terminal client from the current source
+tui:
+    @just dev::tui
+
 # --- Build (→ tools/build) ---
 
 # Build the app (frontend + Rust backend)
