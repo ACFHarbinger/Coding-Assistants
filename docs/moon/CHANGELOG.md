@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — memory_links graph + heuristic link-suggestion matcher (M7, #159) (2026-08-14)
+
+- Added `memory_links`: a directed edge between two memories (`from_memory_id`,
+  `to_memory_id`, freeform `relation`, mandatory `created_by` provenance,
+  `ON DELETE CASCADE`). Duplicate edges between the same pair are allowed on
+  purpose — two independent observers drawing the same connection is signal,
+  not something to dedupe. `link_memories` / `unlink_memories` /
+  `list_memory_links` / `related_memories` (depth-bounded graph walk via a
+  recursive CTE, undirected traversal) / `memories_for_topic` (search results
+  grouped by `agent_id` — the "everyone's view of this topic" browse query).
+- Added `LinkSuggestionMode` (off/suggest/auto) to `OrchestrationPolicy`,
+  wired through the full existing settings machinery (global default,
+  per-workspace override, effective-merge with `FieldStatus`, TOML
+  read/write, `reset_workspace_field`) — mirrors `SandboxStrictness` at
+  every touchpoint rather than a parallel settings struct.
+- Added `suggest_links_for_memory`: a dependency-free tag+token
+  Jaccard-similarity scorer (no embeddings, no new crates) returning scored,
+  human-readable-reasoned candidates. `apply_link_suggestions` applies
+  `LinkSuggestionMode`'s policy on top — `Off` no-ops without scoring,
+  `Suggest` returns candidates without writing edges, `Auto` writes edges
+  for candidates at/above `AUTO_ACCEPT_THRESHOLD`, attributed to
+  `created_by = "system:auto-link"` (never the triggering memory's own
+  author, so provenance still distinguishes a drawn connection from a
+  computed one even in `Auto` mode). `HubStore` deliberately does not read
+  `SettingsStore` itself — the mode is a plain parameter, keeping the
+  SQLite and TOML stores decoupled the way every other store method does.
+- Exposed all of the above via `ca memory link/unlink/links/related/topic/
+  suggest-links/apply-suggestions` (CLI) and `hub_link_memories` and six
+  sibling Tauri commands (desktop IPC), both mirroring the existing
+  `memory` command conventions exactly. No frontend/UI wiring yet — no
+  React component calls the new IPC commands.
+- **Recalibration:** `AUTO_ACCEPT_THRESHOLD` started as a guessed round
+  number (0.55). A real smoke test — two obviously-related memories
+  (shared tag, four shared meaningful terms, same technical decision) —
+  scored only 0.39-0.42 with that threshold, so `Auto` mode would have
+  silently never fired on real data. Recalibrated to 0.35 based on that
+  measurement, then re-verified the same smoke test actually draws the
+  edge. The lesson: a "conservative by feel" threshold on a similarity
+  scorer needs a real example before it means anything.
+- **Verification:** `cargo build --workspace` clean; manual CLI smoke
+  test end-to-end (write related memories → `suggest-links` returns a
+  scored match with a reason → `apply-suggestions --mode auto` draws a
+  `system:auto-link` edge → `links` confirms it). Regression test added
+  (`store::tests::roster::suggest_links_scores_shared_tags_and_terms_above_unrelated_memories`)
+  covering Off/Suggest/Auto and the already-linked exclusion — not run
+  per this session's hardware constraint; left for manual `cargo test -p
+  hub` verification.
+
 ### Dev — WebKitGTK snap `libpthread` crash on `just start` (2026-08-13)
 
 - `just start` / `just dev::dev` now strip `/snap/*` entries from

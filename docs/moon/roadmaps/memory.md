@@ -26,6 +26,7 @@ Top-priority capability for the local-first collaboration hub.
 | M4 | Private per-agent journals under a separate, non-shared directory, with optional **opt-in, owner-permissioned** per-agent encryption | Each agent can write without overwriting another agent; private data never enters shared exports by default; the shared/durable store (M1–M3) is **never** encrypted | 🚧 **Partial** · `journals/<agent>/journal.md` + isolation tests; encryption still open |
 | M5 | Memory review/edit/delete/stale workflows and bounded transcript retention | Human can correct or remove memories; retention policy is tested | 🚧 **Partial** · stale/delete/purge-stale/age-out + desktop Hub review; full TTL scheduler not automated |
 | M6 | Acceptance gate: owner and two external agents retrieve and use a prior handoff on a real repository task | End-to-end transcript, memory, Git changes, and provenance are reviewable | ✅ **Board-closed (#82)** · Isolated test + live seed `M6-20260812`; Claude retrieved and ACKed; private journal canary did not leak. Chat never posted a second `M6-ACK`. Grok does not reopen; the original two-harness wording is only partially met. |
+| M7 | Memory-to-memory graph links (not just source-event provenance) plus a suggestion/auto-link matcher, gated by an `off`/`suggest`/`auto` policy | Edges are creatable/queryable/depth-walkable via CLI and IPC; a dependency-free scorer proposes candidates with a human-readable reason; `Auto` mode only draws edges above a real, measured threshold, attributed to the system, never an agent | 🚧 **Backend done, UI open (#159)** · `memory_links` + recursive-CTE `related_memories` + tag/token-Jaccard `suggest_links_for_memory`/`apply_link_suggestions`; CLI + Tauri IPC exposed; no React UI calls it yet |
 
 SQLite is the source of truth for structured memory. Markdown is the
 human-readable synchronization and high-priority layer. Private journals are
@@ -55,3 +56,14 @@ append-only export/retention.
 described a different, incompatible `hub` schema that briefly coexisted
 after concurrent sessions; reconciled by wiring `store.rs` as the real
 implementation.
+
+**2026-08-14 (M7, Claude + Grok + Codex, #159):** memory-to-memory graph
+links landed — `memory_links`, depth-bounded traversal, and a dependency-free
+tag/token-Jaccard matcher behind a new `off`/`suggest`/`auto`
+`LinkSuggestionMode` setting. Backend (store, CLI, Tauri IPC) is done and
+`cargo build --workspace` clean; no frontend UI calls the new commands yet.
+Worth remembering: the auto-accept threshold started as a guessed 0.55 and
+had to be recalibrated to 0.35 after a real smoke test showed genuinely
+related memories scoring only 0.39-0.42 — a similarity threshold picked "by
+feel" without a real example is not a real threshold. See
+`docs/moon/CHANGELOG.md` for full detail.
