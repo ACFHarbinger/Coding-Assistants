@@ -9,6 +9,7 @@
 use hub::HubStore;
 use serde::Serialize;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 fn codex_sessions_dir() -> PathBuf {
@@ -49,9 +50,11 @@ fn transcript_paths(sessions_root: &Path) -> Vec<PathBuf> {
 }
 
 fn transcript_metadata(path: &Path) -> Option<(String, String)> {
-    let raw = fs::read_to_string(path).ok()?;
-    raw.lines().take(16).find_map(|line| {
-        let value = serde_json::from_str::<serde_json::Value>(line).ok()?;
+    // session_meta is in the first few lines. Do not slurp the whole
+    // rollout (tens of MB each; ~167MB across ~/.codex/sessions here).
+    let file = fs::File::open(path).ok()?;
+    BufReader::new(file).lines().take(16).find_map(|line| {
+        let value = serde_json::from_str::<serde_json::Value>(&line.ok()?).ok()?;
         if value.get("type").and_then(|item| item.as_str()) != Some("session_meta") {
             return None;
         }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-import { PROVIDERS, HubAgent, HubMessage, WorkSession, loadWorkspaceRoot, sameHubAgents, sameHubMessages } from "./app/hubState";
+import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, sameHubAgents, sameHubMessages } from "./app/hubState";
 import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
@@ -161,7 +161,7 @@ function App() {
     fetchResources();
   }, [config.work_dir]);
 
-  const refreshHubChat = async () => {
+  const refreshHubChat = async (options?: HubRefreshOptions) => {
     if (!isTauriRuntime()) return;
     try {
       const [messages, agents, sessions] = await Promise.all([
@@ -197,7 +197,7 @@ function App() {
         current && sessions.some(session => session.id === current) ? current : current
       );
       const workspace = workDirRef.current;
-      if (workspace) {
+      if (workspace && options?.includeCapture !== false) {
         const captures = await Promise.allSettled([
           invoke<{ captured?: unknown[] }>("hub_capture_grok_session", {
             workspace,

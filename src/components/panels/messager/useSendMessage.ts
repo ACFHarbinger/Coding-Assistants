@@ -28,7 +28,7 @@ export function useSendMessage(params: {
   setPendingAttachments: (value: PendingAttachment[]) => void;
   forceScrollRef: MutableRefObject<boolean>;
   stickToBottomRef: MutableRefObject<boolean>;
-  onRefresh: () => Promise<void>;
+  onRefresh: (options?: { includeCapture?: boolean }) => Promise<void>;
 }) {
   return async function handleSendMessage() {
     const {
@@ -163,7 +163,9 @@ export function useSendMessage(params: {
       setPendingAttachments([]);
       forceScrollRef.current = true;
       stickToBottomRef.current = true;
-      await onRefresh();
+      // Lists only: the 1.5s poll already runs the four-provider capture
+      // scan. Awaiting it here kept Send stuck on a full on-disk re-walk.
+      await onRefresh({ includeCapture: false });
     } catch (err) {
       alert(`Failed to send message: ${err}`);
     } finally {

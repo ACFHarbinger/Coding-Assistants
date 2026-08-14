@@ -27,6 +27,11 @@ export interface WorkSession {
   member_ids: string[];
 }
 
+/** Chat refresh. Capture is the four-provider on-disk transcript scan. */
+export type HubRefreshOptions = {
+  includeCapture?: boolean;
+};
+
 export function sameHubMessages(left: HubMessage[], right: HubMessage[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((message, index) => {
