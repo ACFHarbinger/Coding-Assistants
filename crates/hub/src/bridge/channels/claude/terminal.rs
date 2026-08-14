@@ -5,6 +5,73 @@
 use std::path::Path;
 
 const CHANNEL_BRIDGE_EXECUTABLE: &str = "coding-assistants-claude-channel";
+const CHANNEL_SERVER_KEY: &str = "coding-assistants-channel";
+
+/// Whether `<workspace>/.mcp.json` already has the Channel server entry
+/// `--setup` writes. Any read/parse failure (file missing, invalid JSON)
+/// is treated as "not set up yet" rather than an error — the setup step
+/// itself is safe to (re-)run and will just write it.
+fn workspace_mcp_json_has_channel_server(workspace: &Path) -> bool {
+    let Ok(raw) = std::fs::read_to_string(workspace.join(".mcp.json")) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    value
+        .get("mcpServers")
+        .and_then(|servers| servers.get(CHANNEL_SERVER_KEY))
+        .is_some()
+}
+
+/// Ensures the one-time `--setup --workspace <path>` step has run for
+/// `workspace` before a terminal is opened that assumes it already has.
+/// Without it, Claude Code fails immediately with "server:
+/// coding-assistants-channel · no MCP server configured with that name" —
+/// confirmed live, 2026-08-14: nothing in the desktop app ever called
+/// `setup_claude_channel` (only a test did), so "Connect"/"Start managed"
+/// launched a terminal that was *guaranteed* to fail for any workspace
+/// that had never been set up through the separate `--setup` CLI path.
+///
+/// Idempotent — skipped once the workspace's own `.mcp.json` already has
+/// the `coding-assistants-channel` server entry. Deliberately checks the
+/// real target file, not just this app's internal canonical copy under
+/// `workspace_servers_path`: confirmed live that the two can disagree —
+/// a prior setup attempt left the internal copy behind without the
+/// workspace's `.mcp.json` ever actually getting written (an interrupted
+/// or since-deleted prior run), which would have made a weaker check
+/// wrongly skip re-running setup here too. Shells out to the sibling
+/// `coding-assistants-claude-channel --setup` binary (built into the same
+/// `target/{debug,release}` directory as this process's own executable in
+/// this Cargo workspace) rather than reimplementing its `.mcp.json` merge
+/// logic a second time here.
+fn ensure_claude_channel_setup(workspace: &Path) -> Result<(), String> {
+    if workspace_mcp_json_has_channel_server(workspace) {
+        return Ok(());
+    }
+    let bridge_binary = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(CHANNEL_BRIDGE_EXECUTABLE)))
+        .ok_or_else(|| "could not resolve the Claude Channel bridge binary's own directory".to_string())?;
+    if !bridge_binary.is_file() {
+        return Err(format!(
+            "Claude Channel bridge binary not found at {} — build it with `cargo build -p claude`",
+            bridge_binary.display()
+        ));
+    }
+    let output = std::process::Command::new(&bridge_binary)
+        .args(["--setup", "--workspace"])
+        .arg(workspace)
+        .output()
+        .map_err(|error| format!("failed to run Claude Channel setup: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Claude Channel setup failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(())
+}
 
 /// Pure match on one `ps -eo pid=,args=` command line: is this a
 /// `coding-assistants-claude-channel` bridge process for exactly this
@@ -108,7 +175,12 @@ fn terminal_exec_prefix(terminal: &str) -> &'static [&'static str] {
 /// Returns the spawned terminal-emulator pid (not Claude Code's pid).
 /// Some emulators (`gnome-terminal`) hand off to a server and that pid
 /// may exit immediately — callers must not treat it as Channel liveness.
+///
+/// Runs [`ensure_claude_channel_setup`] first (a no-op once already set
+/// up) so callers never open a terminal that's guaranteed to fail with
+/// "no MCP server configured with that name".
 pub fn launch_claude_channel_session(workspace: &Path) -> Result<u32, String> {
+    ensure_claude_channel_setup(workspace)?;
     let claude_args = [
         "--dangerously-skip-permissions",
         "--dangerously-load-development-channels",
@@ -138,6 +210,34 @@ pub fn launch_claude_channel_session(workspace: &Path) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_mcp_json_has_channel_server_is_false_when_the_file_is_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!workspace_mcp_json_has_channel_server(dir.path()));
+    }
+
+    #[test]
+    fn workspace_mcp_json_has_channel_server_is_false_for_unrelated_servers() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".mcp.json"),
+            r#"{"mcpServers":{"filesystem":{"command":"npx"}}}"#,
+        )
+        .unwrap();
+        assert!(!workspace_mcp_json_has_channel_server(dir.path()));
+    }
+
+    #[test]
+    fn workspace_mcp_json_has_channel_server_is_true_once_setup_has_written_it() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".mcp.json"),
+            r#"{"mcpServers":{"coding-assistants-channel":{"command":"/path/to/bridge"}}}"#,
+        )
+        .unwrap();
+        assert!(workspace_mcp_json_has_channel_server(dir.path()));
+    }
 
     #[test]
     fn command_is_channel_bridge_for_matches_the_bridge_and_exact_workspace() {
