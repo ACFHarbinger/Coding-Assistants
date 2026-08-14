@@ -350,6 +350,7 @@ pub fn run() {
             pty::pty_kill,
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
+            commands::commands::store::hub_get_data_dir,
             commands::commands::messaging::hub_data_dir,
             commands::commands::store::hub_list_agents,
             commands::commands::store::hub_upsert_agent_card,

@@ -278,9 +278,18 @@ pub fn claude_channel_delete_workspace(workspace: String) -> Result<(), String> 
 /// loaded for `workspace` — see `hub::is_channel_session_live`. The
 /// Shared Hub Channels tab polls this to show a connected/not-connected
 /// status per configured workspace.
+///
+/// Async + `spawn_blocking`: `is_channel_session_live` shells out to
+/// `claude agents --json`, and a sync `#[tauri::command]` runs that
+/// subprocess call inline on the same thread that dispatches IPC, which
+/// can stall the whole window (see `hub_get_provider_quotas`'s doc comment
+/// for the confirmed live repro of this class of bug). The Channels tab
+/// calls this once per configured workspace on every load.
 #[tauri::command]
-pub fn claude_channel_is_connected(workspace: String) -> Result<bool, String> {
-    is_channel_session_live(Path::new(&workspace))
+pub async fn claude_channel_is_connected(workspace: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || is_channel_session_live(Path::new(&workspace)))
+        .await
+        .map_err(|error| format!("channel liveness check task panicked: {error}"))?
 }
 
 /// Launches a terminal running `claude` with the Channel bridge loaded for
