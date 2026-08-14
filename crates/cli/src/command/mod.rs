@@ -4,8 +4,8 @@ use crate::helpers::{
     tagged_dispatch_workspace,
 };
 use hub::{
-    inject_harness_with_store, HarnessInjectRequest, HubStore, MemoryScope, MemoryTier,
-    MessageKind, MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
+    inject_harness_with_store, HarnessInjectRequest, HubStore, LinkSuggestionMode, MemoryScope,
+    MemoryTier, MessageKind, MessageStatus, TaskStatus, WakeStatus, WorkflowStep,
 };
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
@@ -115,6 +115,54 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             MemoryCommand::AgeOut { hours } => {
                 let n = store.mark_short_term_stale_older_than(hours)?;
                 println!("{{\"aged_out\":{n}}}");
+            }
+            MemoryCommand::Link {
+                from,
+                to,
+                relation,
+                created_by,
+            } => {
+                let record = store.link_memories(&from, &to, relation.as_deref(), &created_by)?;
+                println!("{}", serde_json::to_string_pretty(&record)?);
+            }
+            MemoryCommand::Unlink { link_id } => {
+                store.unlink_memories(&link_id)?;
+                println!("ok");
+            }
+            MemoryCommand::Links { memory_id } => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.list_memory_links(&memory_id)?)?
+                );
+            }
+            MemoryCommand::Related { memory_id, depth } => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.related_memories(&memory_id, depth)?)?
+                );
+            }
+            MemoryCommand::Topic { query } => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&store.memories_for_topic(&query)?)?
+                );
+            }
+            MemoryCommand::SuggestLinks { memory_id, limit } => {
+                let suggestions = store.suggest_links_for_memory(&memory_id, limit)?;
+                println!("{}", serde_json::to_string_pretty(&suggestions)?);
+            }
+            MemoryCommand::ApplySuggestions {
+                memory_id,
+                mode,
+                limit,
+            } => {
+                let mode = LinkSuggestionMode::parse(&mode).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "unknown link-suggestion mode {mode:?} (expected off|suggest|auto)"
+                    )
+                })?;
+                let suggestions = store.apply_link_suggestions(&memory_id, mode, limit)?;
+                println!("{}", serde_json::to_string_pretty(&suggestions)?);
             }
         },
         Command::Msg { action } => match action {

@@ -360,6 +360,47 @@ pub(crate) enum MemoryCommand {
         #[arg(long, default_value_t = 72)]
         hours: i64,
     },
+    /// Draw a directed edge from one memory to another.
+    Link {
+        from: String,
+        to: String,
+        #[arg(long)]
+        relation: Option<String>,
+        #[arg(long)]
+        created_by: String,
+    },
+    /// Remove a memory link by id.
+    Unlink {
+        link_id: String,
+    },
+    /// List directed links incident on a memory.
+    Links {
+        memory_id: String,
+    },
+    /// Walk related memories out to a given hop depth (0 is a no-op).
+    Related {
+        memory_id: String,
+        #[arg(long, default_value_t = 1)]
+        depth: u8,
+    },
+    /// Group memories whose title, body, or tags match a topic query.
+    Topic {
+        query: String,
+    },
+    /// Score existing memories for likely links without creating any edges.
+    SuggestLinks {
+        memory_id: String,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Apply the configured link-suggestion policy to a memory.
+    ApplySuggestions {
+        memory_id: String,
+        #[arg(long, default_value = "suggest")]
+        mode: String,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
 }
 
 #[derive(Subcommand)]
