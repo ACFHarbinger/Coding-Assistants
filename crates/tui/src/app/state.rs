@@ -1,5 +1,6 @@
 use crate::model::HubReadModel;
 use crate::options::TuiOptions;
+use crate::theme::{Theme, ThemeName};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +59,12 @@ pub struct AppState {
     pub scroll_offset: usize,
     pub selected_index: usize,
     pub is_prefix_mode_active: bool,
+    pub theme_name: ThemeName,
+    pub theme: Theme,
+    /// Incremented once per draw loop iteration (~every 100ms); drives the
+    /// idle splash's animated gradient sweep and spinner glyph. Never
+    /// persisted — purely a render-time animation clock.
+    pub tick: u64,
 }
 
 impl AppState {
@@ -110,7 +117,18 @@ impl AppState {
             scroll_offset: 0,
             selected_index: 0,
             is_prefix_mode_active: false,
+            theme_name: ThemeName::Grok,
+            theme: Theme::from_name(ThemeName::Grok),
+            tick: 0,
         }
+    }
+
+    /// Advances to the next color theme, wrapping around. Used by the `T`
+    /// keybinding and the `theme` command palette entry.
+    pub fn cycle_theme(&mut self) {
+        self.theme_name = self.theme_name.next();
+        self.theme = Theme::from_name(self.theme_name);
+        self.status_message = format!("Theme: {}", self.theme_name.label());
     }
 
     pub fn refresh(&mut self) {
@@ -159,6 +177,24 @@ impl AppState {
             }
             "r" | "refresh" => {
                 self.refresh();
+            }
+            "theme" => {
+                self.cycle_theme();
+            }
+            other if other.starts_with("theme ") => {
+                let requested = other["theme ".len()..].trim();
+                match ThemeName::from_label(requested) {
+                    Some(name) => {
+                        self.theme_name = name;
+                        self.theme = Theme::from_name(name);
+                        self.status_message = format!("Theme: {}", name.label());
+                    }
+                    None => {
+                        self.status_message = format!(
+                            "Unknown theme '{requested}'. Try: grok, dracula, solarized, dark."
+                        );
+                    }
+                }
             }
             "?" | "help" => {
                 self.is_help_open = true;

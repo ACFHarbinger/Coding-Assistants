@@ -4,7 +4,7 @@ use crate::model::HubReadModel;
 use crate::options::TuiOptions;
 use crate::terminal::{init_terminal, restore_terminal};
 use anyhow::{bail, Result};
-use crossterm::event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use hub::HubStore;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -151,168 +151,155 @@ fn run_loop(terminal: &mut crate::terminal::TuiTerminal, app: &mut AppState) -> 
         terminal.draw(|frame| draw_ui(frame, app))?;
 
         if event::poll(Duration::from_millis(100))? {
-            match event::read()? {
-                Event::Key(key) => {
-                    if app.is_prefix_mode_active {
-                        app.is_prefix_mode_active = false;
-                        match key.code {
-                            KeyCode::Char('b') | KeyCode::Char('a') => {
-                                app.status_message = String::from("Prefix chord action executed.");
-                            }
-                            KeyCode::Char('c') => {
-                                app.active_tab = TabIndex::ChatAndMemory;
-                                app.scroll_offset = 0;
-                            }
-                            KeyCode::Char('o') => {
-                                app.active_tab = TabIndex::Orchestrate;
-                                app.scroll_offset = 0;
-                            }
-                            KeyCode::Char('h') => {
-                                app.active_tab = TabIndex::SharedHub;
-                                app.scroll_offset = 0;
-                            }
-                            KeyCode::Char('s') => {
-                                app.active_tab = TabIndex::Settings;
-                                app.scroll_offset = 0;
-                            }
-                            KeyCode::Char('?') => {
-                                app.is_help_open = true;
-                            }
-                            _ => {}
-                        }
-                    } else if app.is_command_palette_open {
-                        match key.code {
-                            KeyCode::Esc => {
-                                app.is_command_palette_open = false;
-                                app.command_input.clear();
-                            }
-                            KeyCode::Enter => {
-                                app.execute_command();
-                            }
-                            KeyCode::Backspace => {
-                                app.command_input.pop();
-                            }
-                            KeyCode::Char(c) => {
-                                app.command_input.push(c);
-                            }
-                            _ => {}
-                        }
-                    } else if app.is_help_open {
-                        match key.code {
-                            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
-                                app.is_help_open = false;
-                            }
-                            _ => {}
-                        }
-                    } else if is_prefix_chord_key(
-                        key,
-                        &app.read_model.effective_settings.tui.prefix_chord,
-                    ) {
-                        app.is_prefix_mode_active = true;
-                        app.status_message = format!(
-                            "Prefix chord active ({}). Press [c] chat, [o] orch, [h] hub, [s] settings, [?] help.",
-                            app.read_model.effective_settings.tui.prefix_chord
-                        );
-                    } else {
-                        match (key.code, key.modifiers) {
-                            (KeyCode::Char('q'), _)
-                            | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                                app.should_quit = true;
-                            }
-                            (KeyCode::Char('/'), _)
-                            | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
-                                app.is_command_palette_open = true;
-                                app.command_input.clear();
-                            }
-                            (KeyCode::Char('?'), _) | (KeyCode::F(1), _) => {
-                                app.is_help_open = !app.is_help_open;
-                            }
-                            (KeyCode::Char('r'), _) => {
-                                app.refresh();
-                            }
-                            (KeyCode::Tab, KeyModifiers::NONE)
-                            | (KeyCode::Char('l'), KeyModifiers::NONE)
-                            | (KeyCode::Right, KeyModifiers::NONE) => {
-                                app.active_tab = app.active_tab.next();
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::BackTab, _)
-                            | (KeyCode::Tab, KeyModifiers::SHIFT)
-                            | (KeyCode::Char('h'), KeyModifiers::NONE)
-                            | (KeyCode::Left, KeyModifiers::NONE) => {
-                                app.active_tab = app.active_tab.prev();
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::Char('j'), KeyModifiers::NONE)
-                            | (KeyCode::Down, KeyModifiers::NONE) => {
-                                app.scroll_offset = app.scroll_offset.saturating_add(1);
-                                app.selected_index = app.selected_index.saturating_add(1);
-                            }
-                            (KeyCode::Char('k'), KeyModifiers::NONE)
-                            | (KeyCode::Up, KeyModifiers::NONE) => {
-                                app.scroll_offset = app.scroll_offset.saturating_sub(1);
-                                app.selected_index = app.selected_index.saturating_sub(1);
-                            }
-                            (KeyCode::Char('g'), KeyModifiers::NONE)
-                            | (KeyCode::Home, KeyModifiers::NONE) => {
-                                app.scroll_offset = 0;
-                                app.selected_index = 0;
-                            }
-                            (KeyCode::Char('G'), KeyModifiers::NONE)
-                            | (KeyCode::End, KeyModifiers::NONE) => {
-                                app.scroll_offset = 100;
-                            }
-                            (KeyCode::Char('1'), _) => {
-                                app.active_tab = TabIndex::Orchestrate;
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::Char('2'), _) => {
-                                app.active_tab = TabIndex::ChatAndMemory;
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::Char('3'), _) => {
-                                app.active_tab = TabIndex::SharedHub;
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::Char('4'), _) => {
-                                app.active_tab = TabIndex::Settings;
-                                app.scroll_offset = 0;
-                            }
-                            (KeyCode::Esc, _) => {
-                                app.should_quit = true;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                Event::Mouse(mouse_event) => match mouse_event.kind {
-                    MouseEventKind::Down(MouseButton::Left) => {
-                        if mouse_event.row == 3 || mouse_event.row == 4 {
-                            if mouse_event.column < 16 {
-                                app.active_tab = TabIndex::Orchestrate;
-                            } else if mouse_event.column < 34 {
-                                app.active_tab = TabIndex::ChatAndMemory;
-                            } else if mouse_event.column < 50 {
-                                app.active_tab = TabIndex::SharedHub;
-                            } else {
-                                app.active_tab = TabIndex::Settings;
-                            }
-                            app.scroll_offset = 0;
-                        }
-                    }
-                    MouseEventKind::ScrollDown => {
-                        app.scroll_offset = app.scroll_offset.saturating_add(1);
-                    }
-                    MouseEventKind::ScrollUp => {
-                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
-                    }
-                    _ => {}
-                },
-                _ => {}
+            if let Event::Key(key) = event::read()? {
+                handle_key(app, key);
             }
         }
+
+        // Advances the idle splash's animated gradient sweep and spinner
+        // glyph once per loop iteration (~every 100ms, bounded by the
+        // event::poll timeout above), independent of whether an event fired.
+        app.tick = app.tick.wrapping_add(1);
     }
     Ok(())
+}
+
+fn handle_key(app: &mut AppState, key: event::KeyEvent) {
+    if app.is_prefix_mode_active {
+        app.is_prefix_mode_active = false;
+        match key.code {
+            KeyCode::Char('b') | KeyCode::Char('a') => {
+                app.status_message = String::from("Prefix chord action executed.");
+            }
+            KeyCode::Char('c') => {
+                app.active_tab = TabIndex::ChatAndMemory;
+                app.scroll_offset = 0;
+            }
+            KeyCode::Char('o') => {
+                app.active_tab = TabIndex::Orchestrate;
+                app.scroll_offset = 0;
+            }
+            KeyCode::Char('h') => {
+                app.active_tab = TabIndex::SharedHub;
+                app.scroll_offset = 0;
+            }
+            KeyCode::Char('s') => {
+                app.active_tab = TabIndex::Settings;
+                app.scroll_offset = 0;
+            }
+            KeyCode::Char('?') => {
+                app.is_help_open = true;
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    if app.is_command_palette_open {
+        match key.code {
+            KeyCode::Esc => {
+                app.is_command_palette_open = false;
+                app.command_input.clear();
+            }
+            KeyCode::Enter => {
+                app.execute_command();
+            }
+            KeyCode::Backspace => {
+                app.command_input.pop();
+            }
+            KeyCode::Char(c) => {
+                app.command_input.push(c);
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    if app.is_help_open {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
+                app.is_help_open = false;
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    if is_prefix_chord_key(key, &app.read_model.effective_settings.tui.prefix_chord) {
+        app.is_prefix_mode_active = true;
+        app.status_message = format!(
+            "Prefix chord active ({}). Press [c] chat, [o] orch, [h] hub, [s] settings, [?] help.",
+            app.read_model.effective_settings.tui.prefix_chord
+        );
+        return;
+    }
+
+    match (key.code, key.modifiers) {
+        (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+            app.should_quit = true;
+        }
+        (KeyCode::Char('/'), _) | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
+            app.is_command_palette_open = true;
+            app.command_input.clear();
+        }
+        (KeyCode::Char('?'), _) | (KeyCode::F(1), _) => {
+            app.is_help_open = !app.is_help_open;
+        }
+        (KeyCode::Char('r'), _) => {
+            app.refresh();
+        }
+        (KeyCode::Char('T'), _) => {
+            app.cycle_theme();
+        }
+        (KeyCode::Tab, KeyModifiers::NONE)
+        | (KeyCode::Char('l'), KeyModifiers::NONE)
+        | (KeyCode::Right, KeyModifiers::NONE) => {
+            app.active_tab = app.active_tab.next();
+            app.scroll_offset = 0;
+        }
+        (KeyCode::BackTab, _)
+        | (KeyCode::Tab, KeyModifiers::SHIFT)
+        | (KeyCode::Char('h'), KeyModifiers::NONE)
+        | (KeyCode::Left, KeyModifiers::NONE) => {
+            app.active_tab = app.active_tab.prev();
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Char('j'), KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => {
+            app.scroll_offset = app.scroll_offset.saturating_add(1);
+            app.selected_index = app.selected_index.saturating_add(1);
+        }
+        (KeyCode::Char('k'), KeyModifiers::NONE) | (KeyCode::Up, KeyModifiers::NONE) => {
+            app.scroll_offset = app.scroll_offset.saturating_sub(1);
+            app.selected_index = app.selected_index.saturating_sub(1);
+        }
+        (KeyCode::Char('g'), KeyModifiers::NONE) | (KeyCode::Home, KeyModifiers::NONE) => {
+            app.scroll_offset = 0;
+            app.selected_index = 0;
+        }
+        (KeyCode::Char('G'), KeyModifiers::NONE) | (KeyCode::End, KeyModifiers::NONE) => {
+            app.scroll_offset = 100;
+        }
+        (KeyCode::Char('1'), _) => {
+            app.active_tab = TabIndex::Orchestrate;
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Char('2'), _) => {
+            app.active_tab = TabIndex::ChatAndMemory;
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Char('3'), _) => {
+            app.active_tab = TabIndex::SharedHub;
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Char('4'), _) => {
+            app.active_tab = TabIndex::Settings;
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Esc, _) => {
+            app.should_quit = true;
+        }
+        _ => {}
+    }
 }
 
 fn is_prefix_chord_key(key: event::KeyEvent, configured: &str) -> bool {
