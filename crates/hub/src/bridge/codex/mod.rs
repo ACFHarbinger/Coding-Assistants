@@ -1,20 +1,33 @@
-//! C12 Codex / Chat bridge: deliver a queued Hub task into a persisted
+//! C12/C14.2 Codex / Chat bridge: deliver a queued Hub task into a persisted
 //! Codex thread through the documented app-server JSON-RPC protocol
-//! (`initialize`, `thread/resume`, `turn/start`).
+//! (`initialize`, `thread/resume`, `turn/start`), then route Codex's actual
+//! reply back into the Hub once it completes.
 //!
 //! This never writes another process's PTY, never invents a control socket,
 //! and never starts a replacement `codex exec` process for a task-only
 //! inject. Without a registered or on-disk thread id the task stays
 //! `unavailable` / queued.
+//!
+//! Split by concern, mirroring `bridge::channels::claude`: this file owns
+//! thread discovery and delivery orchestration; [`turn`] speaks the
+//! app-server JSON-RPC protocol and captures a turn's reply text;
+//! [`reply`] routes that text back into the Hub, addressed to the original
+//! sender.
+
+mod reply;
+mod turn;
 
 use crate::{
     HarnessInjectRequest, HarnessInjectResult, HarnessSessionMode, HarnessSessionState, HubError,
     HubStore,
 };
-use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Write};
+use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use turn::CodexTurnOutcome;
+
+pub const CODEX_AGENT_ID: &str = "chat";
+
+pub use reply::record_codex_reply;
 
 pub fn latest_codex_thread_id(workspace: &Path) -> Option<String> {
     latest_codex_thread_id_from(&codex_sessions_dir(), workspace)
@@ -86,13 +99,13 @@ pub fn deliver_codex_task(
     store: &HubStore,
     request: &HarnessInjectRequest,
 ) -> Result<HarnessInjectResult, HubError> {
-    deliver_codex_task_with(store, request, send_codex_turn)
+    deliver_codex_task_with(store, request, turn::send_codex_turn)
 }
 
 fn deliver_codex_task_with(
     store: &HubStore,
     request: &HarnessInjectRequest,
-    send_turn: impl FnOnce(&str, &str) -> Result<String, String>,
+    send_turn: impl FnOnce(&str, &str) -> Result<CodexTurnOutcome, String>,
 ) -> Result<HarnessInjectResult, HubError> {
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
@@ -129,7 +142,8 @@ fn deliver_codex_task_with(
     // mode/writer/pid on conflict, so calling it over an existing managed
     // row would silently downgrade it.
     if registration.is_none() {
-        let _ = store.register_harness_session("chat", &workspace.to_string_lossy(), &thread_id, None);
+        let _ =
+            store.register_harness_session("chat", &workspace.to_string_lossy(), &thread_id, None);
     }
 
     // C14.2: a deliberately app-managed thread has one durable Hub writer.
@@ -168,15 +182,30 @@ fn deliver_codex_task_with(
     }
 
     match sent {
-        Ok(turn) => {
+        Ok(outcome) => {
             if let Some(message_id) = request.message_id.as_deref() {
                 let _ = store.set_message_status(message_id, crate::MessageStatus::Acked);
+            }
+            // Route Codex's captured reply back into the Hub, addressed to
+            // whoever sent the task. A long-running turn that produced no
+            // reply within the read budget (reply_text: None) still counts
+            // as delivered — turn/start already acked the turn.
+            if let Some(reply_text) = outcome.reply_text.as_deref() {
+                let _ = reply::record_codex_reply(
+                    store,
+                    request.message_id.as_deref(),
+                    request.session_id.as_deref(),
+                    reply_text,
+                );
             }
             Ok(HarnessInjectResult {
                 harness: "chat".into(),
                 pid: None,
                 status: "delivered".into(),
-                detail: format!("forwarded to Codex thread {thread_id} via app-server ({turn})"),
+                detail: format!(
+                    "forwarded to Codex thread {thread_id} via app-server ({})",
+                    outcome.turn_id
+                ),
             })
         }
         Err(error) if error.contains("already has an active writer") => Ok(queued(&format!(
@@ -184,94 +213,6 @@ fn deliver_codex_task_with(
         ))),
         Err(error) => Ok(unavailable(&error)),
     }
-}
-
-fn send_codex_turn(thread_id: &str, body: &str) -> Result<String, String> {
-    let mut child = Command::new("codex")
-        .args(["app-server", "--listen", "stdio://"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| format!("codex app-server unavailable: {error}"))?;
-    let result = (|| {
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "codex app-server stdin unavailable".to_string())?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| "codex app-server stdout unavailable".to_string())?;
-        let mut stdout = BufReader::new(stdout);
-        write_rpc(
-            &mut stdin,
-            1,
-            "initialize",
-            json!({ "clientInfo": { "name": "coding-assistants", "version": "0.1.0" } }),
-        )?;
-        writeln!(
-            stdin,
-            "{}",
-            json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} })
-        )
-        .and_then(|_| stdin.flush())
-        .map_err(|error| error.to_string())?;
-        read_rpc_result(&mut stdout, 1)?;
-        write_rpc(
-            &mut stdin,
-            2,
-            "thread/resume",
-            json!({ "threadId": thread_id }),
-        )?;
-        read_rpc_result(&mut stdout, 2)?;
-        write_rpc(
-            &mut stdin,
-            3,
-            "turn/start",
-            json!({
-                "threadId": thread_id,
-                "input": [{ "type": "text", "text": body }]
-            }),
-        )?;
-        let started = read_rpc_result(&mut stdout, 3)?;
-        let turn_id = started
-            .get("turn")
-            .and_then(|turn| turn.get("id"))
-            .and_then(Value::as_str)
-            .unwrap_or("started")
-            .to_string();
-        Ok(turn_id)
-    })();
-    let _ = child.kill();
-    result
-}
-
-fn write_rpc(stdin: &mut impl Write, id: i64, method: &str, params: Value) -> Result<(), String> {
-    writeln!(
-        stdin,
-        "{}",
-        json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
-    )
-    .and_then(|_| stdin.flush())
-    .map_err(|error| error.to_string())
-}
-
-fn read_rpc_result(stdout: &mut impl BufRead, id: i64) -> Result<Value, String> {
-    for line in stdout.lines().take(200) {
-        let line = line.map_err(|error| error.to_string())?;
-        let Ok(value) = serde_json::from_str::<Value>(&line) else {
-            continue;
-        };
-        if value.get("id") != Some(&Value::from(id)) {
-            continue;
-        }
-        if let Some(error) = value.get("error") {
-            return Err(format!("codex app-server error: {error}"));
-        }
-        return Ok(value.get("result").cloned().unwrap_or(json!({})));
-    }
-    Err("codex app-server returned no matching response".into())
 }
 
 fn unavailable(detail: &str) -> HarnessInjectResult {
@@ -307,6 +248,13 @@ mod tests {
             body: "review the adapter".into(),
             is_task: true,
             is_wake: false,
+        }
+    }
+
+    fn outcome(turn_id: &str) -> CodexTurnOutcome {
+        CodexTurnOutcome {
+            turn_id: turn_id.into(),
+            reply_text: None,
         }
     }
 
@@ -377,7 +325,12 @@ mod tests {
         let workspace = dir.path().join("workspace");
         std::fs::create_dir_all(&workspace).unwrap();
         let fake_home = dir.path().join("home");
-        let transcript_dir = fake_home.join(".codex").join("sessions").join("2026").join("08").join("13");
+        let transcript_dir = fake_home
+            .join(".codex")
+            .join("sessions")
+            .join("2026")
+            .join("08")
+            .join("13");
         std::fs::create_dir_all(&transcript_dir).unwrap();
         std::fs::write(
             transcript_dir.join("thread.jsonl"),
@@ -394,12 +347,16 @@ mod tests {
 
         let result = deliver_codex_task_with(&store, &request(&workspace), |thread, _body| {
             assert_eq!(thread, "thread-discovered");
-            Ok("turn-1".into())
+            Ok(outcome("turn-1"))
         })
         .unwrap();
         assert_eq!(result.status, "delivered");
 
-        let workspace_key = workspace.canonicalize().unwrap().to_string_lossy().into_owned();
+        let workspace_key = workspace
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let registration = store
             .get_harness_session("chat", &workspace_key)
             .unwrap()
@@ -421,7 +378,7 @@ mod tests {
             |thread, body| {
                 assert_eq!(thread, "thread-abc");
                 assert_eq!(body, "review the adapter");
-                Ok("turn-9".into())
+                Ok(outcome("turn-9"))
             },
         )
         .unwrap();
@@ -470,8 +427,47 @@ mod tests {
         let store = HubStore::open(dir.path()).unwrap();
         let mut empty = request(Path::new("/tmp/c12-codex"));
         empty.body = "  ".into();
-        assert!(deliver_codex_task_with(&store, &empty, |_, _| Ok("x".into())).is_err());
+        assert!(deliver_codex_task_with(&store, &empty, |_, _| Ok(outcome("x"))).is_err());
         let relative = request(Path::new("relative"));
-        assert!(deliver_codex_task_with(&store, &relative, |_, _| Ok("x".into())).is_err());
+        assert!(deliver_codex_task_with(&store, &relative, |_, _| Ok(outcome("x"))).is_err());
+    }
+
+    #[test]
+    fn a_captured_reply_is_routed_back_into_the_hub_addressed_to_the_sender() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store.set_team_member("orchestrator", true).unwrap();
+        let task_msg = store
+            .send_message(
+                "orchestrator",
+                CODEX_AGENT_ID,
+                crate::MessageKind::Message,
+                "please review",
+                None,
+                None,
+                Some("task-1"),
+            )
+            .unwrap();
+
+        let mut req = request(Path::new("/tmp/c12-codex"));
+        req.message_id = Some(task_msg.id.clone());
+        req.session_id = None;
+        store
+            .register_harness_session("chat", "/tmp/c12-codex", "thread-abc", None)
+            .unwrap();
+
+        let result = deliver_codex_task_with(&store, &req, |_thread, _body| {
+            Ok(CodexTurnOutcome {
+                turn_id: "turn-42".into(),
+                reply_text: Some("looks good, approved".into()),
+            })
+        })
+        .unwrap();
+        assert_eq!(result.status, "delivered");
+
+        let replies = store.list_messages(Some("orchestrator"), None).unwrap();
+        assert!(replies
+            .iter()
+            .any(|m| m.from_agent == CODEX_AGENT_ID && m.body == "looks good, approved"));
     }
 }

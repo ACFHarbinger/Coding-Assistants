@@ -22,7 +22,9 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
-pub use bridge::codex::{deliver_codex_task, latest_codex_thread_id};
+pub use bridge::codex::{
+    deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
+};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
     acp_initialize, acp_session_load, acp_session_prompt, active_grok_session_for,
@@ -42,17 +44,15 @@ pub use settings::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
     HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride, OrchestrationPolicy,
     ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind,
-    SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
-    MIN_BACKUP_RETENTION,
+    SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore, WorkspaceOverride,
+    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
     BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
     GateVerdict, GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration,
     HarnessSessionState, HubError, HubStore, LinkSuggestion, MemoryLinkRecord, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind,
-    MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault,
-    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, UNATTRIBUTED_AUTHOR, WakePolicy,
-    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep,
+    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
+    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
+    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
 };
