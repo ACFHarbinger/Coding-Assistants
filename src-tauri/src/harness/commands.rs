@@ -7,10 +7,11 @@ use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
     launch_claude_channel_session, list_active_grok_sessions, list_channel_workspaces,
-    relaunch_harness_in_terminal, rename_channel_workspace, start_harness, start_managed_harness,
-    ActiveGrokSession, ChannelWorkspace, GrokConnectResult, HarnessInjectRequest,
-    HarnessInjectResult, HarnessSessionRegistration, HarnessStartRequest, HarnessStartResult,
-    MessageRecord, RelaunchOutcome, SandboxStrictness, SettingsStore,
+    relaunch_harness_in_terminal, rename_channel_workspace, start_harness,
+    start_managed_claude_channel, start_managed_harness, ActiveGrokSession, ChannelWorkspace,
+    GrokConnectResult, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
+    HarnessStartRequest, HarnessStartResult, MessageRecord, RelaunchOutcome, SandboxStrictness,
+    SettingsStore,
 };
 use std::path::{Path, PathBuf};
 
@@ -70,10 +71,10 @@ pub struct StartManagedHarnessOutcome {
     pub registration: HarnessSessionRegistration,
 }
 
-/// "Start managed": spawns a headless one-shot worker and registers it as
-/// managed, killing any prior managed pid already registered for this
-/// (harness, workspace) first — the "Start managed" button previously
-/// orphaned the earlier process on a repeat click instead of replacing it.
+/// "Start managed": for Claude this opens a Channel-connected terminal
+/// (kill-prior first) instead of the one-shot `claude -p` spawn, which
+/// exits before any task can be delivered. Other harnesses still spawn a
+/// headless worker and register it, killing any prior managed pid first.
 #[tauri::command]
 pub fn hub_start_managed_harness(
     harness: String,
@@ -86,13 +87,19 @@ pub fn hub_start_managed_harness(
             "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
         ));
     }
-    let (start, registration) = start_managed_harness(
-        &open_store()?,
-        &harness,
-        Path::new(&workspace),
-        &disk_session_id,
-        &prompt,
-    )?;
+    let parsed = hub::HarnessId::parse(&harness).map_err(|error| error.to_string())?;
+    let store = open_store()?;
+    let (start, registration) = if parsed == hub::HarnessId::Claude {
+        start_managed_claude_channel(&store, Path::new(&workspace))?
+    } else {
+        start_managed_harness(
+            &store,
+            &harness,
+            Path::new(&workspace),
+            &disk_session_id,
+            &prompt,
+        )?
+    };
     Ok(StartManagedHarnessOutcome {
         start,
         registration,
@@ -226,7 +233,7 @@ pub fn claude_channel_is_connected(workspace: String) -> Result<bool, String> {
 /// detached background process — see `hub::launch_claude_channel_session`.
 #[tauri::command]
 pub fn claude_channel_connect(workspace: String) -> Result<(), String> {
-    launch_claude_channel_session(Path::new(&workspace))
+    launch_claude_channel_session(Path::new(&workspace)).map(|_| ())
 }
 
 /// Whether `~/.grok/leader.sock` (or `$GROK_LEADER_SOCKET`) exists, plus

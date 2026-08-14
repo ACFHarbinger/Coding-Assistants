@@ -82,7 +82,11 @@ fn terminal_exec_prefix(terminal: &str) -> &'static [&'static str] {
 /// succeeds on the first one that's installed; the workspace becomes the
 /// terminal's (and so `claude`'s) working directory via `current_dir`,
 /// never a shell `cd`.
-pub fn launch_claude_channel_session(workspace: &Path) -> Result<(), String> {
+///
+/// Returns the spawned terminal-emulator pid (not Claude Code's pid).
+/// Some emulators (`gnome-terminal`) hand off to a server and that pid
+/// may exit immediately — callers must not treat it as Channel liveness.
+pub fn launch_claude_channel_session(workspace: &Path) -> Result<u32, String> {
     let claude_args = [
         "--dangerously-skip-permissions",
         "--dangerously-load-development-channels",
@@ -98,7 +102,7 @@ pub fn launch_claude_channel_session(workspace: &Path) -> Result<(), String> {
             .arg("claude")
             .args(claude_args);
         match command.spawn() {
-            Ok(_) => return Ok(()),
+            Ok(child) => return Ok(child.id()),
             Err(error) => errors.push(format!("{terminal}: {error}")),
         }
     }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
-import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration, type RelaunchOutcome } from "./types";
+import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type HarnessSessionRegistration, type RelaunchOutcome, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
 
@@ -82,19 +82,18 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       if (harness === "grok") {
         throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
       }
-      if (!diskId.trim()) {
+      if (harness !== "claude" && !diskId.trim()) {
         throw new Error(`Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`);
       }
-      // A single atomic call: kills any prior managed pid already
-      // registered for this (harness, workspace) before spawning and
-      // registering the new one, so a repeat click can't orphan the
-      // earlier process the way the old two-step start+register flow did.
-      await invoke("hub_start_managed_harness", {
+      // Claude: Channel-connected terminal (no disk-session id). Others:
+      // kill any prior managed pid, spawn, register — one atomic call.
+      const outcome = await invoke<StartManagedHarnessOutcome>("hub_start_managed_harness", {
         harness,
         workspace,
-        diskSessionId: diskId.trim(),
+        diskSessionId: diskId.trim() || "channel",
         prompt: "Coding-Assistants managed session",
       });
+      setDetail(outcome.start.detail);
       setDiskId("");
       await refresh();
     } catch (cause) {
@@ -167,7 +166,9 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
         {HARNESS_PREREQUISITES[harness]} {harness === "grok"
           ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
-          : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
+          : harness === "claude"
+            ? "Start managed kills any prior registered Claude process, then opens a Channel-connected `claude` terminal (same as Channels → Connect). No thread id is required. The row is ready only once that Channel session is live."
+            : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
       </p>
 
       {harness === "grok" && (

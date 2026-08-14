@@ -2,6 +2,7 @@ use super::*;
 
 mod avatar;
 mod capture;
+mod sessions;
 mod team;
 impl HubStore {
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {

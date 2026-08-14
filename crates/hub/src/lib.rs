@@ -11,6 +11,9 @@ mod paths;
 mod settings;
 mod store;
 
+pub use bridge::channels::chat::{
+    deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
+};
 pub use bridge::channels::claude::{
     delete_channel_workspace, get_permission_request, is_channel_session_live,
     launch_claude_channel_session, list_channel_workspaces, poll_channel_events,
@@ -22,9 +25,6 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
-pub use bridge::channels::chat::{
-    deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
-};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
     acp_initialize, acp_session_load, acp_session_prompt, active_grok_session_for,
@@ -34,6 +34,7 @@ pub use bridge::grok::{
 };
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{relaunch_harness_in_terminal, start_managed_harness, RelaunchOutcome};
+pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,

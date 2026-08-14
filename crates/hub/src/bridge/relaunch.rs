@@ -185,6 +185,12 @@ pub fn start_managed_harness(
     prompt: &str,
 ) -> Result<(HarnessStartResult, HarnessSessionRegistration), String> {
     let harness = HarnessId::parse(harness_id).map_err(|error| error.to_string())?;
+    if harness == HarnessId::Claude {
+        return Err(
+            "Claude has no headless managed worker; Start managed must open a Channel-connected terminal"
+                .into(),
+        );
+    }
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
     }
@@ -292,6 +298,16 @@ mod tests {
         let err =
             start_managed_harness(&store, "grok", Path::new("/abs/repo"), "   ", "hi").unwrap_err();
         assert!(err.contains("real disk"), "{err}");
+    }
+
+    #[test]
+    fn start_managed_harness_rejects_claude_headless_spawn() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let err =
+            start_managed_harness(&store, "claude", Path::new("/abs/repo"), "session-1", "hi")
+                .unwrap_err();
+        assert!(err.contains("Channel-connected"), "{err}");
     }
 
     #[test]

@@ -6,3 +6,4 @@ pub mod gemini;
 pub mod grok;
 pub mod presence;
 pub mod relaunch;
+pub mod relaunch_claude;
