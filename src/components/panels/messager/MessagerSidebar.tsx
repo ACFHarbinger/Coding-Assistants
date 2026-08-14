@@ -191,9 +191,17 @@ export default function MessagerSidebar(props: any) {
                       minWidth: 0
                     }}
                   >
-                    <span style={{
+                    <span
+                      title={
+                        agentId === "human"
+                          ? "You"
+                          : info.isLive
+                            ? "Connected to this workspace"
+                            : "Not connected to this workspace"
+                      }
+                      style={{
                       width: "8px", height: "8px", borderRadius: "50%",
-                      background: agentId === "human" ? "#3b82f6" : info.isRunning ? "#10b981" : "#64748b",
+                      background: agentId === "human" ? "#3b82f6" : info.isLive ? "#10b981" : "#64748b",
                       flexShrink: 0
                     }} />
                     <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>

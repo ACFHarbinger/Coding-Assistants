@@ -62,6 +62,14 @@ export interface DetectedProcess {
   command: string;
 }
 
+/** Workspace-scoped Chat & Memory presence (see `hub::WorkspaceAgentPresence`). */
+export interface WorkspaceAgentPresence {
+  claude: boolean;
+  chat: boolean;
+  gemini: boolean;
+  grok: boolean;
+}
+
 export interface ChannelRecord {
   id: string;
   name: string;
@@ -79,7 +87,7 @@ export interface MessagerPanelProps {
   focusSessionToken?: number;
   workspacePath: string;
   onSelectWorkSession: (sessionId: string | null) => void;
-  onRefresh: () => Promise<void>;
+  onRefresh: (options?: { includeCapture?: boolean }) => Promise<void>;
 }
 
 export interface TaggedSendOutcome {

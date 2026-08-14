@@ -7,3 +7,4 @@ pub mod codex;
 pub mod commands;
 pub mod gemini;
 pub mod grok;
+pub mod presence;

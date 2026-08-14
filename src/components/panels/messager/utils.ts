@@ -1,4 +1,4 @@
-import type { DetectedProcess, HubAgent, HubMessage } from "./types";
+import type { HubAgent, HubMessage, WorkspaceAgentPresence } from "./types";
 
 export const AGENT_COLORS: Record<string, { bg: string; text: string; role: string }> = {
   human: { bg: "linear-gradient(135deg, #3b82f6, #1d4ed8)", text: "#93c5fd", role: "Human Developer" },
@@ -31,10 +31,21 @@ export function teamWakeTargets(hubAgents: HubAgent[]): string[] {
   return rosterAgentIds(hubAgents).filter(id => id !== "human" && id !== "system");
 }
 
+/** Workspace-scoped liveness — never a machine-wide process-name match. */
+export function agentIsLive(agentId: string, presence: WorkspaceAgentPresence | null): boolean {
+  const key = agentId.toLowerCase();
+  if (!presence) return false;
+  if (key === "chat" || key === "codex") return presence.chat;
+  if (key === "claude") return presence.claude;
+  if (key === "gemini" || key === "agy") return presence.gemini;
+  if (key === "grok") return presence.grok;
+  return false;
+}
+
 export function agentInfo(
   agentId: string,
   hubAgents: HubAgent[],
-  runningProcesses: DetectedProcess[],
+  presence: WorkspaceAgentPresence | null,
 ) {
   const key = agentId.toLowerCase();
   const info = AGENT_COLORS[key] || {
@@ -46,14 +57,10 @@ export function agentInfo(
   const displayName = agentId === "human"
     ? "Harbinger (Human Dev)"
     : record?.display_name || agentId;
-  const isRunning = runningProcesses.some((process) => {
-    const detected = process.agent.toLowerCase();
-    return detected === key || (key === "chat" && detected === "codex");
-  });
   return {
     ...info,
     displayName,
-    isRunning,
+    isLive: agentIsLive(agentId, presence),
     avatarAttachmentId: record?.avatar_attachment_id ?? null,
   };
 }

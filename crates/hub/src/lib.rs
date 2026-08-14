@@ -32,6 +32,7 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
+pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{relaunch_harness_in_terminal, start_managed_harness, RelaunchOutcome};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,

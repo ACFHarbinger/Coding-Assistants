@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
-import type { ChannelRecord, ContextMenuState, DetectedProcess, HubMessage, MemoryRecord, PendingAttachment, ReplyTarget, MessagerPanelProps } from "./messager/types";
+import type { ChannelRecord, ContextMenuState, HubMessage, MemoryRecord, PendingAttachment, ReplyTarget, MessagerPanelProps, WorkspaceAgentPresence } from "./messager/types";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
 import { useSendMessage } from "./messager/useSendMessage";
 import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
@@ -49,8 +49,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [memorySearch, setMemorySearch] = useState<string>("");
   const [selectedTierFilter, setSelectedTierFilter] = useState<string>("all");
 
-  // Running processes state for presence
-  const [runningProcesses, setRunningProcesses] = useState<DetectedProcess[]>([]);
+  // Workspace-scoped harness liveness (never a global process-name scan)
+  const [agentPresence, setAgentPresence] = useState<WorkspaceAgentPresence | null>(null);
 
   // Message context menu (CA-106: right-click Edit / Delete, Harbinger's posts only)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -93,7 +93,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     };
   }, [contextMenu]);
 
-  // Fetch memories and process presence
+  // Fetch memories and channels
   useEffect(() => {
     async function loadHubData() {
       if (!isTauriRuntime()) return;
@@ -105,18 +105,36 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       } catch (err) {
         console.error("Failed to load hub memories:", err);
       }
-
-      try {
-        const procs = await invoke<DetectedProcess[]>("detect_agent_processes");
-        setRunningProcesses(procs);
-      } catch (err) {
-        console.error("Failed to detect agent processes:", err);
-      }
     }
     loadHubData();
     const interval = setInterval(loadHubData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime() || !workspacePath) {
+      setAgentPresence(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadPresence() {
+      try {
+        const next = await invoke<WorkspaceAgentPresence>("hub_workspace_agent_presence", {
+          workspace: workspacePath,
+        });
+        if (!cancelled) setAgentPresence(next);
+      } catch (err) {
+        console.error("Failed to load workspace agent presence:", err);
+        if (!cancelled) setAgentPresence(null);
+      }
+    }
+    void loadPresence();
+    const interval = setInterval(() => { void loadPresence(); }, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [workspacePath]);
 
   useEffect(() => {
     const pool = activeChannel.startsWith("dm-")
@@ -278,7 +296,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   };
 
-  const getAgentInfo = (agentId: string) => agentInfo(agentId, hubAgents, runningProcesses);
+  const getAgentInfo = (agentId: string) => agentInfo(agentId, hubAgents, agentPresence);
 
   // Filter messages for active channel / DM view
   const channelMessages = (() => {
