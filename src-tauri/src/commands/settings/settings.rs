@@ -25,6 +25,7 @@ fn settings_field_name(field: SettingsField) -> &'static str {
         SettingsField::SandboxStrictness => "orchestration.sandbox_strictness",
         SettingsField::RetentionDays => "orchestration.retention_days",
         SettingsField::ExportEnabled => "orchestration.export_enabled",
+        SettingsField::LinkSuggestionMode => "orchestration.link_suggestion_mode",
     }
 }
 
