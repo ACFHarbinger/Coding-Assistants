@@ -3,6 +3,7 @@ mod client;
 mod commands;
 mod core;
 mod harness;
+mod pty;
 mod server;
 
 use agent::{AgentConfig, AgentSystem};
@@ -279,6 +280,7 @@ pub fn run() {
             user_input_tx: Mutex::new(None),
             tcp_server: Mutex::new(None),
         })
+        .manage(pty::PtySessions::default())
         .setup(|app| {
             let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -341,6 +343,11 @@ pub fn run() {
             start_tcp_server,
             stop_tcp_server,
             get_server_ip,
+            // Embedded PTY terminals (in-app "Resume in terminal")
+            pty::pty_spawn,
+            pty::pty_write,
+            pty::pty_resize,
+            pty::pty_kill,
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
             commands::commands::messaging::hub_data_dir,

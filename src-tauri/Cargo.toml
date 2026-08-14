@@ -36,6 +36,7 @@ governor = "0.10.4"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 base64 = "0.21"
 hub = { path = "../crates/hub" }
+portable-pty = "0.9"
 
 [dev-dependencies]
 tempfile = "3"
