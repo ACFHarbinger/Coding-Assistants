@@ -16,6 +16,8 @@ export interface HubAgent {
   id: string;
   display_name: string;
   team_member?: boolean;
+  /** Attachment id of the agent's profile image, when set. */
+  avatar_attachment_id?: string | null;
 }
 
 export interface WorkSession {
@@ -42,7 +44,8 @@ export function sameHubAgents(left: HubAgent[], right: HubAgent[]): boolean {
     const other = right[index];
     return agent.id === other.id
       && agent.display_name === other.display_name
-      && agent.team_member === other.team_member;
+      && agent.team_member === other.team_member
+      && agent.avatar_attachment_id === other.avatar_attachment_id;
   });
 }
 

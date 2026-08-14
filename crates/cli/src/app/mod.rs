@@ -1,9 +1,11 @@
 use clap::{ArgAction, Parser, Subcommand};
 use std::path::PathBuf;
 
+mod agent;
 mod harness;
 mod journal;
 
+pub(crate) use agent::AgentCommand;
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
 
@@ -215,32 +217,6 @@ pub(crate) enum BudgetCommand {
     },
     /// Clear a budget pause so the agent can receive wakes again.
     Resume { agent: String },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum AgentCommand {
-    /// List known agent identities.
-    List,
-    /// List agents with persisted Messager/Orchestrate team enrollment.
-    Team,
-    /// Enroll an existing agent on the team roster.
-    Enroll {
-        #[arg(long)]
-        id: String,
-    },
-    /// Remove an agent from the team roster (still privately addressable).
-    Unenroll {
-        #[arg(long)]
-        id: String,
-    },
-    /// Register an A2A Agent Card for discovery.
-    RegisterCard {
-        #[arg(long)]
-        agent: String,
-        /// Path to the agent.json card file
-        #[arg(long)]
-        path: PathBuf,
-    },
 }
 
 #[derive(Subcommand)]

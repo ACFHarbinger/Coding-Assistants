@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useRef } from "react";
+import { AgentAvatar } from "./AgentAvatar";
 import { attachmentToken, uploadAttachment } from "./attachments";
 export default function MessageComposer(props: any) {
   const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
@@ -213,8 +214,18 @@ export default function MessageComposer(props: any) {
                           const selected = selectedSubset[agentId] !== false;
                           return <button key={agentId} type="button" aria-pressed={selected}
                             onClick={() => setSelectedSubset((prev: Record<string, boolean>) => ({ ...prev, [agentId]: !selected }))}
-                            style={selectionStyle(selected, "teal")}
-                          >{selected ? "✓ " : "○ "}{getAgentInfo(agentId).displayName}</button>;
+                            style={{ ...selectionStyle(selected, "teal"), display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                          >
+                            {selected ? "✓ " : "○ "}
+                            <AgentAvatar
+                              agentId={agentId}
+                              displayName={getAgentInfo(agentId).displayName}
+                              avatarAttachmentId={getAgentInfo(agentId).avatarAttachmentId}
+                              background={getAgentInfo(agentId).bg}
+                              size={16}
+                            />
+                            {getAgentInfo(agentId).displayName}
+                          </button>;
                         })}
                       </div>
                     )}

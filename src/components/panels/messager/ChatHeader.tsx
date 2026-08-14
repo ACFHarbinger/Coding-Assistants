@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentAvatar } from "./AgentAvatar";
 export default function ChatHeader(props: any) {
   const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, jumpToStartRef, stickToBottomRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink } = props;
   return (
@@ -12,7 +13,23 @@ export default function ChatHeader(props: any) {
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span>{activeChannel.startsWith("dm-") ? `💬 Direct Message: ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}` : activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `◈ Work session: ${activeWorkSession.name}` : `#${activeChannel}`}</span>
+              {activeChannel.startsWith("dm-") ? (() => {
+                const peer = getAgentInfo(activeChannel.replace("dm-", ""));
+                return (
+                  <>
+                    <AgentAvatar
+                      agentId={activeChannel.replace("dm-", "")}
+                      displayName={peer.displayName}
+                      avatarAttachmentId={peer.avatarAttachmentId}
+                      background={peer.bg}
+                      size={28}
+                    />
+                    <span>Direct Message: {peer.displayName}</span>
+                  </>
+                );
+              })() : (
+                <span>{activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `◈ Work session: ${activeWorkSession.name}` : `#${activeChannel}`}</span>
+              )}
             </h2>
             <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0 0" }}>
               {activeWorkSession && activeChannel === `session:${activeWorkSession.id}` ? `${activeWorkSession.member_ids.length} members · messages from the human and agent harnesses` : channels.find(c => c.id === activeChannel)?.topic || "Agent interaction stream"}

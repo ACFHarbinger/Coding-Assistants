@@ -1,6 +1,7 @@
 // @ts-nocheck
+import { AgentAvatar } from "./AgentAvatar";
 export default function MessagerSidebar(props: any) {
-  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink } = props;
+  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink, onRefresh } = props;
   return (
       <div className="glass-card" style={{
         padding: "1.25rem 1rem",
@@ -151,34 +152,55 @@ export default function MessagerSidebar(props: any) {
               const dmId = `dm-${agentId}`;
               const isActive = activeChannel === dmId;
               return (
-                <button
+                <div
                   key={agentId}
-                  onClick={() => setActiveChannel(dmId)}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.6rem",
-                    padding: "0.5rem 0.75rem",
+                    gap: "0.35rem",
                     borderRadius: "8px",
-                    border: "none",
                     background: isActive ? "rgba(168, 85, 247, 0.2)" : "transparent",
-                    color: isActive ? "#fff" : "var(--text-muted)",
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    textAlign: "left"
+                    paddingRight: "0.35rem"
                   }}
                 >
-                  {/* Status Indicator Dot */}
-                  <span style={{
-                    width: "8px", height: "8px", borderRadius: "50%",
-                    background: agentId === "human" ? "#3b82f6" : info.isRunning ? "#10b981" : "#64748b",
-                    flexShrink: 0
-                  }} />
-                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                    {info.displayName}
-                  </div>
-                </button>
+                  <AgentAvatar
+                    agentId={agentId}
+                    displayName={info.displayName}
+                    avatarAttachmentId={info.avatarAttachmentId}
+                    background={info.bg}
+                    size={24}
+                    editable
+                    onChanged={() => { void onRefresh?.(); }}
+                  />
+                  <button
+                    onClick={() => setActiveChannel(dmId)}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.6rem",
+                      padding: "0.5rem 0.75rem 0.5rem 0.25rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: "transparent",
+                      color: isActive ? "#fff" : "var(--text-muted)",
+                      fontWeight: isActive ? 600 : 400,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      minWidth: 0
+                    }}
+                  >
+                    <span style={{
+                      width: "8px", height: "8px", borderRadius: "50%",
+                      background: agentId === "human" ? "#3b82f6" : info.isRunning ? "#10b981" : "#64748b",
+                      flexShrink: 0
+                    }} />
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {info.displayName}
+                    </div>
+                  </button>
+                </div>
               );
             })}
           </div>

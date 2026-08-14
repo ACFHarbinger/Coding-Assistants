@@ -16,6 +16,8 @@ export interface HubAgent {
   id: string;
   display_name: string;
   team_member?: boolean;
+  /** Attachment id of the agent's profile image, when set. */
+  avatar_attachment_id?: string | null;
 }
 
 export interface WorkSession {

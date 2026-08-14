@@ -9,6 +9,8 @@
 
 #[path = "messager/attachments.rs"]
 pub mod attachments;
+#[path = "hub/avatar.rs"]
+pub mod avatar;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]

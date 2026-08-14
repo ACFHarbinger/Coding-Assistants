@@ -1,4 +1,5 @@
 
+import { AgentAvatar } from "./messager/AgentAvatar";
 import { TeamMember } from "./ConfigPanel";
 
 interface AgentEvent {
@@ -21,6 +22,7 @@ interface HubMessage {
 interface HubAgent {
   id: string;
   display_name: string;
+  avatar_attachment_id?: string | null;
 }
 
 interface ActivityPanelProps {
@@ -57,6 +59,8 @@ export default function ActivityPanel({
   const agentName = (id: string) => id === "human"
     ? "Harbinger"
     : hubAgents.find(agent => agent.id === id)?.display_name || id;
+  const agentAvatarId = (id: string) =>
+    hubAgents.find(agent => agent.id === id)?.avatar_attachment_id ?? null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="glass-card fade-in" style={{ animationDelay: '0.2s' }}>
@@ -115,7 +119,13 @@ export default function ActivityPanel({
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {teamMembers.map(member => (
-              <span key={member.id} style={{ padding: '0.35rem 0.65rem', borderRadius: '999px', background: 'rgba(99, 102, 241, 0.14)', color: 'var(--primary)', fontSize: '0.8rem' }}>
+              <span key={member.id} style={{ padding: '0.35rem 0.65rem', borderRadius: '999px', background: 'rgba(99, 102, 241, 0.14)', color: 'var(--primary)', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <AgentAvatar
+                  agentId={member.target_id}
+                  displayName={member.name}
+                  avatarAttachmentId={agentAvatarId(member.target_id)}
+                  size={20}
+                />
                 {member.name}
               </span>
             ))}
@@ -200,7 +210,13 @@ export default function ActivityPanel({
               <div key={`hub-${message.id}`} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', background: message.from_agent === 'human' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.2)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                 <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255, 255, 255, 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <span style={{ background: 'rgba(99, 102, 241, 0.18)', color: 'var(--primary)', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span style={{ background: 'rgba(99, 102, 241, 0.18)', color: 'var(--primary)', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <AgentAvatar
+                        agentId={message.from_agent}
+                        displayName={agentName(message.from_agent)}
+                        avatarAttachmentId={agentAvatarId(message.from_agent)}
+                        size={18}
+                      />
                       {agentName(message.from_agent)}
                     </span>
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/tauri";
+import { AgentAvatar } from "./messager/AgentAvatar";
 
-interface AgentRecord { id: string; display_name: string; }
+interface AgentRecord { id: string; display_name: string; avatar_attachment_id?: string | null; }
 interface BudgetStatus { agent_id: string; limit_units: number; spent_units: number; paused: boolean; updated_at: string; }
 interface AgentMetrics { agent_id: string; lines_written: number; tokens_used: number; tokens_cached: number; provider_calls: number; output_chars: number; updated_at: string; }
 interface TaskRecord { id: string; title: string; status: string; updated_at: string; }
@@ -72,7 +73,7 @@ export default function DashboardPanel({ agents }: { agents: AgentRecord[] }) {
     </div>
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {agents.map((agent) => { const metric = metricFor(agent.id); const budget = budgetFor(agent.id); const percent = budget ? Math.min(100, budget.spent_units / budget.limit_units * 100) : 0; return <div key={agent.id} style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}><strong style={{ color: "var(--primary)" }}>{agent.display_name}</strong><span style={{ color: budget?.paused ? "#ef4444" : "var(--text-muted)", fontSize: "0.85rem" }}>{budget ? `${budget.spent_units} / ${budget.limit_units} budget units${budget.paused ? " · paused" : ""}` : "No budget configured"}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}><strong style={{ color: "var(--primary)", display: "inline-flex", alignItems: "center", gap: "0.5rem" }}><AgentAvatar agentId={agent.id} displayName={agent.display_name} avatarAttachmentId={agent.avatar_attachment_id} size={24} />{agent.display_name}</strong><span style={{ color: budget?.paused ? "#ef4444" : "var(--text-muted)", fontSize: "0.85rem" }}>{budget ? `${budget.spent_units} / ${budget.limit_units} budget units${budget.paused ? " · paused" : ""}` : "No budget configured"}</span></div>
         {budget && <div style={{ height: 7, background: "rgba(255,255,255,0.1)", borderRadius: 4, margin: "0.8rem 0" }}><div style={{ width: `${percent}%`, height: "100%", borderRadius: 4, background: budget.paused ? "#ef4444" : "var(--primary)" }} /></div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
           <span>Lines written<br /><b style={{ color: "var(--text-main)" }}>{number(metric?.lines_written || 0)}</b></span><span>Tokens used<br /><b style={{ color: "var(--text-main)" }}>{number(metric?.tokens_used || 0)} est.</b></span><span>Cached tokens<br /><b style={{ color: "var(--text-main)" }}>{number(metric?.tokens_cached || 0)} reported</b></span><span>Provider calls<br /><b style={{ color: "var(--text-main)" }}>{number(metric?.provider_calls || 0)}</b></span>

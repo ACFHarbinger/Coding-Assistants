@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentAvatar } from "./AgentAvatar";
 import { isNearNewestEdge, newestEdgeScrollTop } from "./utils";
 import { renderMessageBody } from "./attachments";
 export default function MessageStream(props: any) {
@@ -45,23 +46,13 @@ export default function MessageStream(props: any) {
               const rootSender = rootMessage ? getAgentInfo(rootMessage.from_agent) : null;
               return (
                 <div key={msg.id} style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
-                  {/* Sender Avatar Bubble */}
-                  <div style={{
-                    width: "38px",
-                    height: "38px",
-                    borderRadius: "12px",
-                    background: sender.bg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    color: "#fff",
-                    fontSize: "0.95rem",
-                    flexShrink: 0,
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.2)"
-                  }}>
-                    {msg.from_agent.slice(0, 2).toUpperCase()}
-                  </div>
+                  <AgentAvatar
+                    agentId={msg.from_agent}
+                    displayName={sender.displayName}
+                    avatarAttachmentId={sender.avatarAttachmentId}
+                    background={sender.bg}
+                    size={38}
+                  />
 
                   {/* Message Bubble Body */}
                   <div style={{ flex: 1 }}>

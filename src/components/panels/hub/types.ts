@@ -35,6 +35,7 @@ export interface WakeRecord {
 export interface AgentRecord {
   id: string;
   display_name: string;
+  avatar_attachment_id?: string | null;
 }
 
 export interface AuditEvent {

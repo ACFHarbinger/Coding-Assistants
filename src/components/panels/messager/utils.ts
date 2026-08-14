@@ -42,14 +42,20 @@ export function agentInfo(
     text: "#e2e8f0",
     role: "Agent Participant",
   };
+  const record = hubAgents.find((agent) => agent.id === agentId);
   const displayName = agentId === "human"
     ? "Harbinger (Human Dev)"
-    : hubAgents.find((agent) => agent.id === agentId)?.display_name || agentId;
+    : record?.display_name || agentId;
   const isRunning = runningProcesses.some((process) => {
     const detected = process.agent.toLowerCase();
     return detected === key || (key === "chat" && detected === "codex");
   });
-  return { ...info, displayName, isRunning };
+  return {
+    ...info,
+    displayName,
+    isRunning,
+    avatarAttachmentId: record?.avatar_attachment_id ?? null,
+  };
 }
 
 export const NEAR_BOTTOM_PX = 96;
