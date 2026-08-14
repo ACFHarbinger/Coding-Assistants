@@ -108,17 +108,43 @@ pub(crate) fn codex_quota() -> ProviderQuota {
             );
         }
     }
-    let mut response = None;
-    for line in BufReader::new(stdout).lines().take(200) {
-        let Ok(line) = line else { break };
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
-            continue;
-        };
-        if value.get("id") == Some(&serde_json::Value::from(2)) {
-            response = Some(value);
-            break;
+    // Read on a dedicated thread and wait for it with a timeout, rather
+    // than blocking here directly: `codex app-server` never responding
+    // (unauthenticated, hung, whatever) would otherwise leave this call
+    // parked forever, since `BufReader::lines()` has no way to time out a
+    // single `read` on its own. This is already inside a
+    // `spawn_blocking` task (see `hub_get_provider_quotas`), so an
+    // eventually-abandoned reader thread here can't freeze the app the
+    // way the original bug did — it would just leak one thread — but the
+    // timeout below means that shouldn't happen either: killing the
+    // child on timeout closes its stdout, which unblocks the reader.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut response = None;
+        for line in BufReader::new(stdout).lines().take(200) {
+            let Ok(line) = line else { break };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
+                continue;
+            };
+            if value.get("id") == Some(&serde_json::Value::from(2)) {
+                response = Some(value);
+                break;
+            }
         }
-    }
+        let _ = tx.send(response);
+    });
+    let response = match rx.recv_timeout(std::time::Duration::from_secs(10)) {
+        Ok(response) => response,
+        Err(_) => {
+            let _ = child.kill();
+            return unavailable_quota(
+                "chat",
+                "openai",
+                "OpenAI Codex",
+                "codex app-server did not answer the rate-limit query within 10s",
+            );
+        }
+    };
     let _ = child.kill();
     let Some(response) = response else {
         return unavailable_quota(
