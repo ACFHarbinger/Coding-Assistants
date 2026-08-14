@@ -79,9 +79,12 @@ fn stop_claude(store: &HubStore, workspace: &Path) -> Result<StopManagedOutcome,
     let mut killed = Vec::new();
 
     if let Ok(sessions) = list_active_claude_sessions() {
-        if let Some(live) = find_active_claude_session(&sessions, workspace) {
-            if terminate(HarnessId::Claude, live.pid) {
-                killed.push(live.pid);
+        // find_active_claude_session only ever returns an interactive
+        // entry with a real pid, but the field itself stays Option<u32>
+        // (background/Task-tool entries in the same roster have none).
+        if let Some(pid) = find_active_claude_session(&sessions, workspace).and_then(|s| s.pid) {
+            if terminate(HarnessId::Claude, pid) {
+                killed.push(pid);
             }
         }
     }

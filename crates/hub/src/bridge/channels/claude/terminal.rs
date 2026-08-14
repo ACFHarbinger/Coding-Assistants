@@ -60,8 +60,22 @@ pub fn channel_bridge_pids(workspace: &Path) -> Result<Vec<u32>, String> {
 /// `src-tauri::core::process_detector`): never touches the process's
 /// stdin/stdout, and this crate has no way to attach to it even if it
 /// wanted to — the bridge itself is what proves a session is connected.
+///
+/// The bridge subprocess existing is *not* sufficient on its own: it can
+/// outlive its parent Claude Code process as an orphan (confirmed live —
+/// a bridge subprocess kept running, reparented, for over an hour after
+/// its Claude Code TUI had already exited), which made this return `true`
+/// while `claude agents --json` — what actual delivery checks — correctly
+/// found nothing, so a "Managed · Ready" badge could sit there
+/// indefinitely while every delivery attempt failed as unavailable. Cross-
+/// checking both means a bare orphaned subprocess can no longer fake
+/// liveness by itself.
 pub fn is_channel_session_live(workspace: &Path) -> Result<bool, String> {
-    Ok(!channel_bridge_pids(workspace)?.is_empty())
+    if channel_bridge_pids(workspace)?.is_empty() {
+        return Ok(false);
+    }
+    let sessions = crate::bridge::claude::list_active_claude_sessions()?;
+    Ok(crate::bridge::claude::find_active_claude_session(&sessions, workspace).is_some())
 }
 
 /// Terminal emulators to try, in order — the system default alternative

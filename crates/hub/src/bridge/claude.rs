@@ -28,15 +28,26 @@ use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// One entry from `claude agents --json`.
+/// One entry from `claude agents --json`. `claude agents` lists both
+/// interactive and *background* sessions (e.g. a spawned Task-tool
+/// subagent) in the same array, and the two shapes genuinely differ: a
+/// background entry has no `pid` at all and reports `state` instead of
+/// `status` — confirmed live, not assumed from `--help` text. `pid` and
+/// `status` were previously required fields, so a real roster containing
+/// any background entry made `serde_json::from_slice` fail to parse the
+/// *entire* array — silently breaking Claude liveness/delivery for every
+/// workspace whenever any background session existed anywhere, not just
+/// a missing-match case for one workspace.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ClaudeAgentSession {
-    pub pid: u32,
+    #[serde(default)]
+    pub pid: Option<u32>,
     pub cwd: String,
     pub kind: String,
     #[serde(rename = "sessionId")]
     pub session_id: String,
-    pub status: String,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 /// Real, documented discovery: `claude agents --json`. Never mutates
@@ -56,7 +67,11 @@ pub fn list_active_claude_sessions() -> Result<Vec<ClaudeAgentSession>, String> 
         .map_err(|error| format!("unexpected `claude agents --json` output: {error}"))
 }
 
-/// Matches a listed session to a workspace by exact `cwd`.
+/// Matches a listed session to a workspace by exact `cwd`. Only
+/// `kind == "interactive"` sessions with a real `pid` can ever be "the
+/// live Claude Code session" a Channel bridge or delivery attaches to — a
+/// background/Task-tool entry is a different concept entirely and must
+/// never be treated as one, whatever else matches.
 pub fn find_active_claude_session(
     sessions: &[ClaudeAgentSession],
     workspace: &Path,
@@ -64,7 +79,9 @@ pub fn find_active_claude_session(
     let workspace = workspace.to_string_lossy();
     sessions
         .iter()
-        .find(|session| session.cwd == workspace)
+        .find(|session| {
+            session.cwd == workspace && session.kind == "interactive" && session.pid.is_some()
+        })
         .cloned()
 }
 
@@ -118,7 +135,7 @@ fn deliver_claude_task_with(
         .ok()
         .and_then(|sessions| find_active_claude_session(&sessions, &workspace));
 
-    let Some(pid) = live_session.as_ref().map(|session| session.pid) else {
+    let Some(pid) = live_session.as_ref().and_then(|session| session.pid) else {
         let hint = if registration.is_some() {
             " (a prior registration exists but no live session currently matches it)"
         } else {
@@ -166,15 +183,47 @@ mod tests {
     #[test]
     fn find_active_claude_session_matches_by_exact_cwd() {
         let sessions = vec![ClaudeAgentSession {
-            pid: 12345,
+            pid: Some(12345),
             cwd: "/tmp/ca-claude-bridge".into(),
             kind: "interactive".into(),
             session_id: "session-uuid-1".into(),
-            status: "busy".into(),
+            status: Some("busy".into()),
         }];
         let found = find_active_claude_session(&sessions, Path::new("/tmp/ca-claude-bridge"));
-        assert_eq!(found.map(|s| s.pid), Some(12345));
+        assert_eq!(found.and_then(|s| s.pid), Some(12345));
         assert!(find_active_claude_session(&sessions, Path::new("/tmp/other")).is_none());
+    }
+
+    #[test]
+    fn a_background_session_with_no_pid_is_never_matched_as_live() {
+        // The real bug this guards: `claude agents --json` lists
+        // background/Task-tool sessions in the same array as interactive
+        // ones, with no `pid` field at all. Even if one happened to share
+        // a cwd, it must never be treated as the live interactive session.
+        let sessions = vec![ClaudeAgentSession {
+            pid: None,
+            cwd: "/tmp/ca-claude-bridge".into(),
+            kind: "background".into(),
+            session_id: "bg-session".into(),
+            status: None,
+        }];
+        assert!(find_active_claude_session(&sessions, Path::new("/tmp/ca-claude-bridge")).is_none());
+    }
+
+    #[test]
+    fn a_mixed_roster_with_a_pidless_background_entry_still_parses() {
+        // Regression: pid/status were previously required fields, so any
+        // real roster containing a background entry made the *entire*
+        // array fail to deserialize -- breaking every workspace's
+        // liveness check, not just a missing-match for one.
+        let json = r#"[
+            {"id":"65bc2579","cwd":"/tmp/other","kind":"background","sessionId":"bg-1","state":"blocked"},
+            {"pid":516405,"cwd":"/tmp/ca-claude-bridge","kind":"interactive","sessionId":"int-1","status":"busy"}
+        ]"#;
+        let sessions: Vec<ClaudeAgentSession> = serde_json::from_str(json).unwrap();
+        assert_eq!(sessions.len(), 2);
+        let found = find_active_claude_session(&sessions, Path::new("/tmp/ca-claude-bridge"));
+        assert_eq!(found.and_then(|s| s.pid), Some(516405));
     }
 
     #[test]
@@ -238,11 +287,11 @@ mod tests {
         let fake_pid = 999_999;
         let list = move || {
             Ok(vec![ClaudeAgentSession {
-                pid: fake_pid,
+                pid: Some(fake_pid),
                 cwd: "/tmp/ca-claude-bridge-live".into(),
                 kind: "interactive".into(),
                 session_id: "session-uuid-live".into(),
-                status: "busy".into(),
+                status: Some("busy".into()),
             }])
         };
         let result = deliver_claude_task_with(

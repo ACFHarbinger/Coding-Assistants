@@ -36,7 +36,7 @@ fn wait_for_claude_channel(workspace: &Path) -> bool {
 
 fn claude_live_pid(workspace: &Path) -> Option<u32> {
     let sessions = crate::bridge::claude::list_active_claude_sessions().ok()?;
-    crate::bridge::claude::find_active_claude_session(&sessions, workspace).map(|s| s.pid)
+    crate::bridge::claude::find_active_claude_session(&sessions, workspace).and_then(|s| s.pid)
 }
 
 fn register_claude_channel(
