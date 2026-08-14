@@ -472,6 +472,7 @@ pub fn run() {
             commands::commands::attachments::hub_get_attachment,
             commands::commands::avatar::hub_set_agent_avatar,
             commands::commands::avatar::hub_clear_agent_avatar,
+            commands::commands::avatar::hub_read_avatar_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

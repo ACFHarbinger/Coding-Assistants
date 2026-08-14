@@ -1,6 +1,8 @@
-//! Agent profile-image commands. The picker in the desktop UI sends the
-//! image as base64 (same contract as `hub_save_attachment`);
-//! `hub_get_attachment` already resolves the stored bytes for rendering.
+//! Agent profile-image commands. The desktop crop tool reads the picked
+//! file via `hub_read_avatar_preview` (bytes for the canvas only — no
+//! store write), then `hub_set_agent_avatar` stores the cropped PNG as
+//! base64 (same contract as `hub_save_attachment`). `hub_get_attachment`
+//! resolves the stored bytes for rendering.
 
 use super::store::open_store;
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -52,6 +54,47 @@ pub fn hub_clear_agent_avatar(agent_id: String) -> Result<AgentRecord, String> {
     open_store()?
         .clear_agent_avatar(&agent_id)
         .map_err(|e| e.to_string())
+}
+
+/// Bytes + mime of a user-picked image, for the avatar crop preview only.
+/// Same filesystem trust as `hub_set_agent_avatar`'s empty-base64 fallback:
+/// the path came from the native file dialog, and this command does not
+/// write the store. Deliberately not a generic file-read primitive.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvatarPreview {
+    pub data_base64: String,
+    pub mime: String,
+}
+
+fn guess_image_mime(path: &std::path::Path) -> String {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    }
+    .to_string()
+}
+
+#[tauri::command]
+pub fn hub_read_avatar_preview(path: String) -> Result<AvatarPreview, String> {
+    let path = std::path::Path::new(&path);
+    if !path.is_file() {
+        return Err(format!("avatar preview file not found: {}", path.display()));
+    }
+    let data =
+        std::fs::read(path).map_err(|e| format!("failed to read {}: {e}", path.display()))?;
+    Ok(AvatarPreview {
+        data_base64: STANDARD.encode(data),
+        mime: guess_image_mime(path),
+    })
 }
 
 #[cfg(test)]
@@ -152,6 +195,31 @@ mod tests {
             });
             assert!(result.is_err());
             assert!(hub_clear_agent_avatar("does-not-exist".into()).is_err());
+        });
+    }
+
+    #[test]
+    fn read_preview_round_trips_file_bytes() {
+        with_ca_home("preview-ok", || {
+            let dir = std::env::var("CA_HOME").unwrap();
+            let image = std::path::Path::new(&dir).join("picked.jpeg");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(&image, b"preview-bytes").unwrap();
+
+            let preview = hub_read_avatar_preview(image.to_string_lossy().into()).expect("read");
+            assert_eq!(
+                STANDARD.decode(preview.data_base64).unwrap(),
+                b"preview-bytes"
+            );
+            assert_eq!(preview.mime, "image/jpeg");
+        });
+    }
+
+    #[test]
+    fn read_preview_missing_file_is_an_error() {
+        with_ca_home("preview-missing", || {
+            let result = hub_read_avatar_preview("/no/such/avatar-preview.png".into());
+            assert!(result.is_err());
         });
     }
 }

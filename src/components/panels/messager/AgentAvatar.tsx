@@ -1,48 +1,46 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "../../../lib/tauri";
+import { AvatarCropModal } from "./AvatarCropModal";
 import type { AttachmentPayload, HubAgent } from "./types";
 
 const IMAGE_FILTERS = [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }];
 
 const avatarUrlCache = new Map<string, string>();
 
-function guessImageMime(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "png") return "image/png";
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "gif") return "image/gif";
-  if (ext === "webp") return "image/webp";
-  return "application/octet-stream";
-}
+export type AvatarPreview = {
+  dataBase64: string;
+  mime: string;
+};
 
 // The native file-picker dialog returns an absolute filesystem path.
-// `hub_set_agent_avatar` reads it directly on the Rust side when
-// `dataBase64` is empty — deliberately not routed through the webview's
-// asset protocol (`convertFileSrc`/`fetch`), which would need a broad
-// filesystem-read scope (e.g. `$HOME/**`) just to preview-encode a file
-// the OS dialog already granted access to. One less capability to grant
-// for the same result.
-export async function setAgentAvatarFromPath(agentId: string, path: string): Promise<HubAgent> {
-  const filename = path.split(/[\\/]/).pop() || "avatar";
-  const mime = guessImageMime(filename);
-  return invoke<HubAgent>("hub_set_agent_avatar", {
-    args: {
-      agentId,
-      filename: path,
-      mime,
-      dataBase64: "",
-    },
-  });
-}
-
-export async function pickAndSetAgentAvatar(agentId: string): Promise<HubAgent | null> {
+// Bytes for the crop canvas come from `hub_read_avatar_preview`, a
+// single-purpose read that matches `hub_set_agent_avatar`'s own
+// empty-base64 path fallback — not the webview asset protocol, which
+// would need a standing `$HOME/**` scope just to preview a file the
+// OS dialog already granted access to.
+export async function pickAvatarImagePath(): Promise<string | null> {
   const selected = await open({
     multiple: false,
     filters: IMAGE_FILTERS,
   });
   if (!selected || Array.isArray(selected)) return null;
-  return setAgentAvatarFromPath(agentId, selected);
+  return selected;
+}
+
+export async function readAvatarPreview(path: string): Promise<AvatarPreview> {
+  return invoke<AvatarPreview>("hub_read_avatar_preview", { path });
+}
+
+export async function setAgentAvatarFromPng(agentId: string, dataBase64: string): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_avatar", {
+    args: {
+      agentId,
+      filename: "avatar.png",
+      mime: "image/png",
+      dataBase64,
+    },
+  });
 }
 
 export async function clearAgentAvatar(agentId: string): Promise<HubAgent> {
@@ -81,6 +79,7 @@ export function AgentAvatar(props: {
     () => (avatarAttachmentId ? avatarUrlCache.get(avatarAttachmentId) ?? null : null),
   );
   const [busy, setBusy] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!avatarAttachmentId) {
@@ -154,7 +153,13 @@ export function AgentAvatar(props: {
         disabled={busy}
         onClick={(event) => {
           event.stopPropagation();
-          void run(() => pickAndSetAgentAvatar(agentId));
+          void run(async () => {
+            const path = await pickAvatarImagePath();
+            if (!path) return null;
+            const preview = await readAvatarPreview(path);
+            setCropSrc(`data:${preview.mime};base64,${preview.dataBase64}`);
+            return null;
+          });
         }}
         style={{ ...box, border: "none", padding: 0, cursor: busy ? "wait" : "pointer" }}
       >
@@ -181,6 +186,17 @@ export function AgentAvatar(props: {
         >
           ×
         </button>
+      )}
+      {cropSrc && (
+        <AvatarCropModal
+          imageSrc={cropSrc}
+          onCancel={() => setCropSrc(null)}
+          onSave={async (pngBase64) => {
+            await setAgentAvatarFromPng(agentId, pngBase64);
+            setCropSrc(null);
+            onChanged?.();
+          }}
+        />
       )}
     </span>
   );
