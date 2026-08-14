@@ -19,6 +19,8 @@ pub mod messaging;
 mod quota_claude;
 #[path = "quota/codex.rs"]
 mod quota_codex;
+#[path = "quota/gemini.rs"]
+mod quota_gemini;
 #[path = "quota/grok.rs"]
 mod quota_grok;
 #[path = "quota/quotas.rs"]

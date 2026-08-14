@@ -1,58 +1,8 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
-use super::quota_codex::{
-    codex_quota, now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow,
-};
+use super::quota_codex::{codex_quota, unavailable_quota, ProviderQuota};
+use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
-fn gemini_quota() -> ProviderQuota {
-    let now = now_unix();
-    let windows = vec![
-        // Gemini Model Family
-        ProviderQuotaWindow {
-            label: "Weekly Limit Remaining".into(),
-            family: Some("Gemini Model Family".into()),
-            used_percent: 66,
-            remaining_percent: 34,
-            resets_at: Some(now + 108 * 3600 + 55 * 60),
-            window_minutes: Some(7 * 24 * 60),
-        },
-        ProviderQuotaWindow {
-            label: "Five Hour Limit Remaining".into(),
-            family: Some("Gemini Model Family".into()),
-            used_percent: 0,
-            remaining_percent: 100,
-            resets_at: None,
-            window_minutes: Some(5 * 60),
-        },
-        // Other Model Families (Claude & GPT models in Antigravity)
-        ProviderQuotaWindow {
-            label: "Weekly Limit Remaining".into(),
-            family: Some("Other Model Families".into()),
-            used_percent: 100,
-            remaining_percent: 0,
-            resets_at: Some(now + 27 * 3600 + 47 * 60),
-            window_minutes: Some(7 * 24 * 60),
-        },
-        ProviderQuotaWindow {
-            label: "Five Hour Limit Remaining".into(),
-            family: Some("Other Model Families".into()),
-            used_percent: 100,
-            remaining_percent: 0,
-            resets_at: None,
-            window_minutes: Some(5 * 60),
-        },
-    ];
-
-    ProviderQuota {
-        agent_id: "gemini".into(),
-        provider: "google".into(),
-        harness_title: "Google Antigravity CLI".into(),
-        status: "ok".into(),
-        detail: None,
-        windows,
-        fetched_at: now,
-    }
-}
 
 fn opencode_quota() -> ProviderQuota {
     unavailable_quota(
