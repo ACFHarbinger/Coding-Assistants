@@ -391,6 +391,7 @@ pub fn run() {
             harness::commands::hub_start_harness,
             harness::commands::hub_start_managed_harness,
             harness::commands::hub_relaunch_harness_in_terminal,
+            harness::commands::hub_relaunch_harness_embedded,
             harness::stop::hub_stop_managed_harness,
             harness::commands::hub_inject_harness,
             harness::commands::hub_register_harness_session,

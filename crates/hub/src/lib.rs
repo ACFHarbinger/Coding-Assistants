@@ -33,7 +33,10 @@ pub use bridge::grok::{
     GrokConnectResult,
 };
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
-pub use bridge::relaunch::{relaunch_harness_in_terminal, start_managed_harness, RelaunchOutcome};
+pub use bridge::relaunch::{
+    relaunch_harness_in_terminal, resolve_interactive_relaunch, start_managed_harness,
+    RelaunchOutcome, ResolvedRelaunch,
+};
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
 pub use harness::{

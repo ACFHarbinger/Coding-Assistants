@@ -135,16 +135,28 @@ pub struct RelaunchOutcome {
     pub detail: String,
 }
 
-/// Kills `existing_pid` if given and still alive, resolves a resume
-/// session id from disk, then opens a real terminal running the harness's
-/// interactive CLI — resumed if an id was found, fresh otherwise. Never a
-/// detached headless `Command`; the human is meant to sit in this session,
-/// same as the Claude Channel "Connect" terminal.
-pub fn relaunch_harness_in_terminal(
+/// Result of the kill/resolve step shared by both relaunch paths.
+pub struct ResolvedRelaunch {
+    pub harness: HarnessId,
+    pub killed_pid: Option<u32>,
+    pub resumed_session_id: Option<String>,
+    pub program: &'static str,
+    pub args: Vec<String>,
+}
+
+/// Kill/resolve step shared by both relaunch paths: kills `existing_pid` if
+/// given and still alive, then resolves a resume session id from disk and
+/// the resulting interactive argv. Neither spawns anything — the external-
+/// terminal path (`relaunch_harness_in_terminal`) and the embedded-PTY path
+/// (`src-tauri`'s `hub_relaunch_harness_embedded`) each do their own spawn
+/// on top of this, since only one of them wants the `hold_open_after_exit`
+/// wrapper (a PTY session doesn't flash-close the way a terminal-emulator
+/// window does — the frontend keeps it open and shows the exit itself).
+pub fn resolve_interactive_relaunch(
     harness_id: &str,
     workspace: &Path,
     existing_pid: Option<u32>,
-) -> Result<RelaunchOutcome, String> {
+) -> Result<ResolvedRelaunch, String> {
     let harness = HarnessId::parse(harness_id).map_err(|error| error.to_string())?;
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
@@ -160,6 +172,32 @@ pub fn relaunch_harness_in_terminal(
     let resumed_session_id = latest_session_id(harness, workspace);
     let args = interactive_resume_args(harness, resumed_session_id.as_deref());
     let program = harness.executable();
+    Ok(ResolvedRelaunch {
+        harness,
+        killed_pid,
+        resumed_session_id,
+        program,
+        args,
+    })
+}
+
+/// Kills `existing_pid` if given and still alive, resolves a resume
+/// session id from disk, then opens a real terminal running the harness's
+/// interactive CLI — resumed if an id was found, fresh otherwise. Never a
+/// detached headless `Command`; the human is meant to sit in this session,
+/// same as the Claude Channel "Connect" terminal.
+pub fn relaunch_harness_in_terminal(
+    harness_id: &str,
+    workspace: &Path,
+    existing_pid: Option<u32>,
+) -> Result<RelaunchOutcome, String> {
+    let ResolvedRelaunch {
+        harness,
+        killed_pid,
+        resumed_session_id,
+        program,
+        args,
+    } = resolve_interactive_relaunch(harness_id, workspace, existing_pid)?;
     let (wrapped_program, wrapped_args) = hold_open_after_exit(program, &args);
 
     let mut errors = Vec::new();
