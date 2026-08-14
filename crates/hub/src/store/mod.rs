@@ -211,6 +211,24 @@ pub struct MemoryRecord {
     pub source_event_id: Option<String>,
 }
 
+/// A directed edge between two memories (M-links). `relation` is deliberately
+/// freeform (e.g. "agrees", "contradicts", "extends") rather than an enum, so
+/// linking never blocks on a taxonomy decision; `None` just means "related."
+/// `created_by` is always set — unlike `MemoryRecord::agent_id`, provenance
+/// on a link is the whole point, not an optional detail. Auto-suggested edges
+/// that get accepted under `LinkSuggestionMode::Auto` are recorded with
+/// `created_by = "system:auto-link"`, never attributed to an agent, so a
+/// human browsing later can still tell a drawn connection from a computed one.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryLinkRecord {
+    pub id: String,
+    pub from_memory_id: String,
+    pub to_memory_id: String,
+    pub relation: Option<String>,
+    pub created_by: String,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageRecord {
     pub id: String,

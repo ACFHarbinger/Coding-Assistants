@@ -1,6 +1,8 @@
 use super::*;
 
 mod memories;
+mod memory_links;
+pub use memory_links::{LinkSuggestion, UNATTRIBUTED_AUTHOR};
 /// One step in a multi-agent workflow (C5).
 ///
 /// Consecutive steps that share the same non-empty `parallel_group` form a

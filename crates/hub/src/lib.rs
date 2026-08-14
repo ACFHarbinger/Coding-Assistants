@@ -40,17 +40,19 @@ pub use harness::{
 pub use paths::default_hub_home;
 pub use settings::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LoadStatus, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot,
-    ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind, SettingsError,
-    SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore, WorkspaceOverride,
-    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
+    HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride, OrchestrationPolicy,
+    ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind,
+    SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore,
+    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
+    MIN_BACKUP_RETENTION,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
     BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
     GateVerdict, GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration,
-    HarnessSessionState, HubError, HubStore, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
+    HarnessSessionState, HubError, HubStore, LinkSuggestion, MemoryLinkRecord, MemoryRecord,
+    MemoryScope, MemoryTier, MessageKind,
     MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault,
-    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
-    WorkSessionRecord, WorkflowStep,
+    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, UNATTRIBUTED_AUTHOR, WakePolicy,
+    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep,
 };

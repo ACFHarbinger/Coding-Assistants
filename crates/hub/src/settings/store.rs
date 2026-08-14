@@ -1,8 +1,9 @@
 use super::model::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot, ProviderProfile,
-    SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot, TuiSettings,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    HarnessSettings, LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy,
+    ProfileSnapshot, ProviderProfile, SandboxStrictness, SettingsError, SettingsField,
+    SettingsSnapshot, TuiSettings, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
+    DEFAULT_BACKUP_RETENTION,
 };
 use super::profiles::{
     default_profiles_from_table, effective_harnesses, harnesses_from_document,

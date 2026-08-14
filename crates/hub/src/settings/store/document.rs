@@ -51,6 +51,8 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     document["orchestration"]["auto_enrollment_allowed"] = value(orch.auto_enrollment_allowed);
     document["orchestration"]["sandbox_strictness"] = value(orch.sandbox_strictness.as_str());
     document["orchestration"]["export_enabled"] = value(orch.export_enabled);
+    document["orchestration"]["link_suggestion_mode"] =
+        value(orch.link_suggestion_mode.as_str());
     if let Some(days) = orch.retention_days {
         document["orchestration"]["retention_days"] = value(i64::from(days));
     } else if document
@@ -133,6 +135,10 @@ pub(super) fn effective_orchestration(
     };
     let (export_enabled, export_enabled_status) =
         merge(global.export_enabled, over.and_then(|o| o.export_enabled));
+    let (link_suggestion_mode, link_suggestion_mode_status) = merge(
+        global.link_suggestion_mode,
+        over.and_then(|o| o.link_suggestion_mode),
+    );
     EffectiveOrchestrationPolicy {
         confirm_new_enrollment,
         confirm_new_enrollment_status,
@@ -146,6 +152,8 @@ pub(super) fn effective_orchestration(
         retention_days_status,
         export_enabled,
         export_enabled_status,
+        link_suggestion_mode,
+        link_suggestion_mode_status,
     }
 }
 
@@ -175,6 +183,12 @@ pub(super) fn write_orchestration_override(table: &mut Table, over: &Orchestrati
     }
     if let Some(v) = over.export_enabled {
         inline.insert("export_enabled", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.link_suggestion_mode {
+        inline.insert(
+            "link_suggestion_mode",
+            value(v.as_str()).into_value().unwrap(),
+        );
     }
     table["orchestration"] = Item::Value(toml_edit::Value::InlineTable(inline));
 }
@@ -215,6 +229,14 @@ pub(super) fn orchestration_override_from_table(
         None => None,
     };
     let export_enabled = inner.get("export_enabled").and_then(|v| v.as_bool());
+    let link_suggestion_mode = match inner.get("link_suggestion_mode").and_then(|v| v.as_str()) {
+        Some(raw) => Some(LinkSuggestionMode::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.link_suggestion_mode {raw:?} is unknown"
+            ))
+        })?),
+        None => None,
+    };
     Ok(OrchestrationOverride {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -222,6 +244,7 @@ pub(super) fn orchestration_override_from_table(
         sandbox_strictness,
         retention_days,
         export_enabled,
+        link_suggestion_mode,
     })
 }
 
@@ -413,6 +436,14 @@ pub(super) fn orchestration_policy_from_table(
         )?),
         None => None,
     };
+    let link_suggestion_mode = match table.get("link_suggestion_mode").and_then(Item::as_str) {
+        Some(raw) => LinkSuggestionMode::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.link_suggestion_mode {raw:?} is unknown"
+            ))
+        })?,
+        None => defaults.link_suggestion_mode,
+    };
     Ok(OrchestrationPolicy {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -420,6 +451,7 @@ pub(super) fn orchestration_policy_from_table(
         sandbox_strictness,
         retention_days,
         export_enabled,
+        link_suggestion_mode,
     })
 }
 

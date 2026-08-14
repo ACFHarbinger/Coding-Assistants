@@ -282,6 +282,9 @@ impl SettingsStore {
                 SettingsField::SandboxStrictness => over.orchestration.sandbox_strictness = None,
                 SettingsField::RetentionDays => over.orchestration.retention_days = None,
                 SettingsField::ExportEnabled => over.orchestration.export_enabled = None,
+                SettingsField::LinkSuggestionMode => {
+                    over.orchestration.link_suggestion_mode = None
+                }
             }
             if over.is_empty() {
                 self.workspaces.remove(&workspace);

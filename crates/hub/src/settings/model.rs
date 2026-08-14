@@ -105,6 +105,7 @@ pub enum SettingsField {
     SandboxStrictness,
     RetentionDays,
     ExportEnabled,
+    LinkSuggestionMode,
 }
 
 /// Per-workspace overrides. Only fields present here differ from the global
@@ -174,6 +175,42 @@ impl SandboxStrictness {
     }
 }
 
+/// Whether newly written memories get candidate links to related existing
+/// memories proposed automatically (M-links). `Off` means links are only
+/// ever created by an explicit `link_memories` call — no proposer runs.
+/// `Suggest` surfaces candidates for a human/agent to confirm before an edge
+/// is written. `Auto` writes edges above a similarity/match threshold
+/// immediately, attributed to `created_by = "system:auto-link"` rather than
+/// whichever agent's memory triggered the suggestion, so provenance still
+/// distinguishes a drawn connection from a computed one even in this mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkSuggestionMode {
+    #[default]
+    Off,
+    Suggest,
+    Auto,
+}
+
+impl LinkSuggestionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Suggest => "suggest",
+            Self::Auto => "auto",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "off" => Some(Self::Off),
+            "suggest" => Some(Self::Suggest),
+            "auto" => Some(Self::Auto),
+            _ => None,
+        }
+    }
+}
+
 /// Standing orchestration policy (S5 / #131), owned by Settings. Wake
 /// human-gate approval (`allow_auto_wake` / `default_requires_human_gate`)
 /// deliberately stays in `HubStore`'s existing `WakePolicy` — every
@@ -194,6 +231,9 @@ pub struct OrchestrationPolicy {
     pub retention_days: Option<u32>,
     /// Whether non-destructive export actions are available.
     pub export_enabled: bool,
+    /// Whether writing a new memory proposes/creates candidate links to
+    /// related existing memories (M-links). See [`LinkSuggestionMode`].
+    pub link_suggestion_mode: LinkSuggestionMode,
 }
 
 impl Default for OrchestrationPolicy {
@@ -205,6 +245,7 @@ impl Default for OrchestrationPolicy {
             sandbox_strictness: SandboxStrictness::Standard,
             retention_days: None,
             export_enabled: true,
+            link_suggestion_mode: LinkSuggestionMode::Off,
         }
     }
 }
@@ -230,12 +271,14 @@ pub struct OrchestrationOverride {
     pub sandbox_strictness: Option<SandboxStrictness>,
     pub retention_days: Option<u32>,
     pub export_enabled: Option<bool>,
+    pub link_suggestion_mode: Option<LinkSuggestionMode>,
 }
 
 impl OrchestrationOverride {
     pub fn is_empty(&self) -> bool {
         self.confirm_new_enrollment.is_none()
             && self.confirm_broadcast.is_none()
+            && self.link_suggestion_mode.is_none()
             && self.auto_enrollment_allowed.is_none()
             && self.sandbox_strictness.is_none()
             && self.retention_days.is_none()
@@ -267,6 +310,8 @@ pub struct EffectiveOrchestrationPolicy {
     pub retention_days_status: FieldStatus,
     pub export_enabled: bool,
     pub export_enabled_status: FieldStatus,
+    pub link_suggestion_mode: LinkSuggestionMode,
+    pub link_suggestion_mode_status: FieldStatus,
 }
 
 /// Global defaults merged with an optional workspace override — the typed,
