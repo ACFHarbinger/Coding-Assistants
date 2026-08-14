@@ -171,8 +171,16 @@ pub fn gemini_managed_spawn_args(
             "Gemini spawn workspace must be an absolute path".into(),
         ));
     }
+    // Order matters here in a way `agy --help` does not document: verified
+    // directly against a live `agy` invocation (2026-08-14) that
+    // `--print --output-format stream-json <prompt>` (the previous order)
+    // makes agy misparse the prompt and reply with an off-topic explanation
+    // of the `--output-format` flag instead of answering it — the exact
+    // symptom #155 originally reported. `--output-format stream-json
+    // [--conversation <id>] --print <prompt>` (this order) reliably works;
+    // confirmed with both a fresh conversation and a `--conversation`-resumed
+    // one. Do not reorder without re-verifying against a real `agy` call.
     let mut args = vec![
-        OsString::from("--print"),
         OsString::from("--output-format"),
         OsString::from("stream-json"),
     ];
@@ -183,6 +191,7 @@ pub fn gemini_managed_spawn_args(
             args.push(OsString::from(conv_id));
         }
     }
+    args.push(OsString::from("--print"));
     args.push(OsString::from(prompt));
     Ok(args)
 }
@@ -396,15 +405,33 @@ mod tests {
 
     #[test]
     fn gemini_argv_is_explicit_and_rejects_relative_workspace() {
+        // Order verified against a live `agy` call (2026-08-14, #155):
+        // --output-format before --print, prompt immediately after --print.
+        // Putting --print first makes agy misparse the prompt entirely.
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
         let args = gemini_spawn_args(&ws, "build feature").unwrap();
-        assert_eq!(args[0], "--print");
-        assert_eq!(args[1], "--output-format");
-        assert_eq!(args[2], "stream-json");
+        assert_eq!(args[0], "--output-format");
+        assert_eq!(args[1], "stream-json");
+        assert_eq!(args[2], "--print");
         assert_eq!(args[3], "build feature");
         assert_eq!(args.len(), 4);
         assert!(gemini_spawn_args(Path::new("relative"), "x").is_err());
         assert!(gemini_spawn_args(&ws, "   ").is_err());
+    }
+
+    #[test]
+    fn gemini_managed_argv_places_conversation_before_print() {
+        // Also verified live: --conversation must sit between --output-format
+        // and --print, not after --print — same ordering sensitivity as above.
+        let ws = PathBuf::from("/tmp/coding-assistants-c12");
+        let args = gemini_managed_spawn_args(&ws, "continue", Some("conv-123")).unwrap();
+        assert_eq!(args[0], "--output-format");
+        assert_eq!(args[1], "stream-json");
+        assert_eq!(args[2], "--conversation");
+        assert_eq!(args[3], "conv-123");
+        assert_eq!(args[4], "--print");
+        assert_eq!(args[5], "continue");
+        assert_eq!(args.len(), 6);
     }
 
     #[test]
