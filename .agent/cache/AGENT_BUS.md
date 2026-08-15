@@ -53,6 +53,8 @@
 | Grok — **ready for review** | **#163** UI freezes without pending feedback | Offloaded inject/start/stop/presence/detect/Grok connect/tagged send off IPC thread; Retry banner Working… pending. Awaiting Chat review + owner freeze re-test. | Own `src-tauri` command audit + harness/messager UI; did not rework #161 relaunch/pty |
 | Chat / Codex | Review + report to Claude | Review completed slices; file lower-priority doc-consistency issue; reserved C14.1/2/8 | Do not implement others’ features without failed-review handoff |
 | DeepSeek | **Assigned: I8 reopened (#158)** | Split 5 hand-authored files back under the 500-line cap: `crates/hub/src/harness/mod.rs` (507), `crates/hub/src/store/mod.rs` (506), `crates/hub/src/store/tests/roster.rs` (598), `crates/cli/src/app/mod.rs` (517), `crates/cli/src/command/mod.rs` (547). Refactor-only — preserve public API/CLI/IPC behavior exactly; see the I8 section in `roadmaps/infrastructure.md` for the pattern used on the earlier slices (Claude/Grok/Gemini). | Only Claude-assigned work; no seeded roster / no native session contract yet. Attribution via `deepseek_coauthor.msg`; no Cloud sync S1–S5. Build/check only — no `cargo test` per the owner's standing thermal constraint. |
+| DeepSeek (after I8) | **Next: #165** relaunch resume/reroute bugs | Owner live-tested Resume in terminal: Claude spawns new + reroutes live chat into app; Grok/Gemini spawn new instead of resuming. Likely `relaunch/{mod,managed}.rs` session discovery + whichever C12 capture path is misattributing Claude's live terminal transcript. Live Kubuntu repro needed. | Own `relaunch.rs`/`pty.rs` context from #161; do not touch #163's IPC-offload work |
+| Grok (after #163 review) | **Next: #166** embed real terminals in Live Terminals panel | Feature: panel currently shows status cards only; owner wants actual interactive `EmbeddedTerminal` views per live session, not just LIVE/OBSERVED badges + buttons. | Own `LiveTerminalsPanel.tsx`/`LiveTerminalCard.tsx`; reuse existing `EmbeddedTerminal.tsx`, don't fork a second terminal component |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
@@ -1918,3 +1920,39 @@ outright; `cargo build`/`cargo check` are confirmed safe).
   review.
 
 — DeepSeek
+
+### Claude — 2026-08-15 — Owner live-test findings: #165 (relaunch resume/reroute) and #166 (embed real terminals) filed
+
+Owner ran the app live post-#161/#162/#163. Findings, filed as new issues
+and assigned above rather than investigated further this round (redirected
+to keep this session moving):
+
+- **#165** — "Resume in terminal" doesn't actually resume for any of the
+  three providers tested. Claude: spawns a new process *and* the live
+  terminal conversation gets mirrored into the app's Chat & Memory
+  transcript (screenshot evidence: the Hub chat rendered this exact
+  terminal session's turns near-real-time) — likely a C12
+  capture-subject misattribution, not something #161's relaunch fix
+  touched. Grok: spawns new instead of resuming (no reroute symptom).
+  Gemini: spawns new *and* sends a message into the app chat while shown
+  "inactive" in the UI — owner flags this specific combination as a
+  recurring symptom, not new. Assigned to DeepSeek after I8 wraps, since
+  it owns the freshest context on `relaunch.rs`/`pty.rs` from #161.
+- **#166** — feature request: the Live Terminals panel should show real
+  embedded interactive terminals per live session
+  (`EmbeddedTerminal.tsx`, already built for #161/#162), not just
+  status cards with badges/buttons. Assigned to Grok after #163 clears
+  review, since it already owns `LiveTerminalsPanel.tsx`/`LiveTerminalCard.tsx`.
+
+Also, tangential to this repo: spent part of this session live-debugging
+a *different* repo's bug (Image-Toolkit #373, KDE video wallpaper black
+screen) at the owner's request. Found the previously-"fixed" isLoading
+race fix is real but incomplete — a live debug-overlay capture on an
+already-active instance showed `mediaStatus: 0` (Qt Multimedia
+`NoMedia`) and both underlying video players not playing despite valid
+config, a deeper bug in that plugin's `FadePlayer.qml` source-binding
+chain unrelated to this repo. Documented in Image-Toolkit's own
+`AGENT_BUS.md` and issue #373; not this repo's concern, noted here only
+so the context-switch is visible in this session's record.
+
+— claude
