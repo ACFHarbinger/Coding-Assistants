@@ -13,6 +13,7 @@ export default function LiveTerminalCard({
   terminalSessionId,
   onCloseTerminal,
   onTerminalExit,
+  onTerminalError,
 }: {
   harness: string;
   session: HarnessSessionRegistration | null;
@@ -24,6 +25,7 @@ export default function LiveTerminalCard({
   terminalSessionId?: string | null;
   onCloseTerminal?: () => void;
   onTerminalExit?: (detail: string) => void;
+  onTerminalError?: (detail: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem", padding: "0.9rem 1rem", borderRadius: "10px", border: "1px solid rgba(52, 211, 153, 0.45)", background: "rgba(0,0,0,0.28)", minHeight: "148px" }}>
@@ -80,7 +82,7 @@ export default function LiveTerminalCard({
       </div>
       {terminalSessionId && (
         <div style={{ height: "320px" }}>
-          <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} />
+          <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} onError={onTerminalError} />
         </div>
       )}
     </div>

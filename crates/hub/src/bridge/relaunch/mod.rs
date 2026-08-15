@@ -7,9 +7,11 @@
 //! because the human wants to sit in the resumed session, not have the app
 //! deliver a single message and exit.
 
-use crate::harness::{HarnessId, HarnessStartRequest, HarnessStartResult};
-use crate::{HarnessSessionRegistration, HubStore};
-use std::path::Path;
+mod managed;
+pub use managed::start_managed_harness;
+
+use crate::harness::HarnessId;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Terminal emulators to try, in order. Duplicated from
@@ -56,13 +58,33 @@ exit "$status"
     ("sh", sh_args)
 }
 
-/// True if a process with this pid currently exists.
+/// True if a process with this pid currently exists and is not a zombie.
 pub fn is_pid_running(pid: u32) -> bool {
-    Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false)
+    if pid == 0 || pid > (i32::MAX as u32) {
+        return false;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(status) = std::fs::read_to_string(format!("/proc/{pid}/status")) {
+            for line in status.lines() {
+                if let Some(state) = line.strip_prefix("State:") {
+                    let s = state.trim();
+                    return !s.starts_with('Z') && !s.starts_with('X');
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false)
+    }
 }
 
 /// SIGTERM, then SIGKILL if it's still alive after a short grace period.
@@ -104,6 +126,45 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
     }
 }
 
+/// Bound on session discovery during a resume launch. Discovery can be
+/// slow — `claude agents --json` is a subprocess, the Codex lookup walks
+/// the whole `~/.codex/sessions` tree — and an unbounded wait makes the
+/// relaunch command hang with no feedback, the #161 "clicked, nothing
+/// happened" class. On timeout the caller proceeds with a fresh session
+/// and says so truthfully.
+const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Runs `latest_session_id` on a worker thread, returning the id or a
+/// timeout flag. On timeout the worker keeps running (a wedged provider
+/// subprocess cannot be aborted from here) but the launch no longer
+/// depends on it.
+fn discover_session_id_bounded(
+    harness: HarnessId,
+    workspace: &Path,
+    timeout: std::time::Duration,
+) -> (Option<String>, bool) {
+    let workspace = workspace.to_path_buf();
+    discover_session_id_bounded_with(harness, workspace, timeout, |h, w| latest_session_id(h, &w))
+}
+
+/// Injectable-lookup form of `discover_session_id_bounded` so tests can
+/// exercise the timeout path without touching a real provider CLI.
+fn discover_session_id_bounded_with(
+    harness: HarnessId,
+    workspace: PathBuf,
+    timeout: std::time::Duration,
+    lookup: impl FnOnce(HarnessId, PathBuf) -> Option<String> + Send + 'static,
+) -> (Option<String>, bool) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(lookup(harness, workspace));
+    });
+    match rx.recv_timeout(timeout) {
+        Ok(session_id) => (session_id, false),
+        Err(_) => (None, true),
+    }
+}
+
 /// Interactive argv for resuming `harness` at `session_id`, or a fresh
 /// session with no resume flag when `session_id` is `None`.
 ///
@@ -142,6 +203,9 @@ pub struct ResolvedRelaunch {
     pub resumed_session_id: Option<String>,
     pub program: &'static str,
     pub args: Vec<String>,
+    /// True when session discovery hit `DISCOVERY_TIMEOUT`; callers
+    /// should say so instead of pretending a fresh session is a resume.
+    pub discovery_timed_out: bool,
 }
 
 /// Kill/resolve step shared by both relaunch paths: kills `existing_pid` if
@@ -169,7 +233,8 @@ pub fn resolve_interactive_relaunch(
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
 
-    let resumed_session_id = latest_session_id(harness, workspace);
+    let (resumed_session_id, discovery_timed_out) =
+        discover_session_id_bounded(harness, workspace, DISCOVERY_TIMEOUT);
     let args = interactive_resume_args(harness, resumed_session_id.as_deref());
     let program = harness.executable();
     Ok(ResolvedRelaunch {
@@ -178,6 +243,7 @@ pub fn resolve_interactive_relaunch(
         resumed_session_id,
         program,
         args,
+        discovery_timed_out,
     })
 }
 
@@ -197,6 +263,7 @@ pub fn relaunch_harness_in_terminal(
         resumed_session_id,
         program,
         args,
+        discovery_timed_out,
     } = resolve_interactive_relaunch(harness_id, workspace, existing_pid)?;
     let (wrapped_program, wrapped_args) = hold_open_after_exit(program, &args);
 
@@ -210,7 +277,7 @@ pub fn relaunch_harness_in_terminal(
             .args(&wrapped_args);
         match command.spawn() {
             Ok(_) => {
-                let detail = match &resumed_session_id {
+                let mut detail = match &resumed_session_id {
                     Some(id) => {
                         format!("Relaunched {program} in a new terminal, resuming session {id}")
                     }
@@ -218,6 +285,11 @@ pub fn relaunch_harness_in_terminal(
                         "Launched a fresh {program} session in a new terminal (no prior session found to resume)"
                     ),
                 };
+                if discovery_timed_out {
+                    detail.push_str(
+                        " Session discovery timed out, so this is a fresh session, not a resume.",
+                    );
+                }
                 return Ok(RelaunchOutcome {
                     harness: harness.as_str().into(),
                     killed_pid,
@@ -235,68 +307,6 @@ pub fn relaunch_harness_in_terminal(
     ))
 }
 
-/// Starts a headless managed harness worker (`harness::start_harness`) and
-/// registers it, first killing any prior managed pid already registered for
-/// `(harness, workspace)`.
-///
-/// Without this, "Start managed" orphaned the previous process: each
-/// registration unconditionally overwrites `managed_pid` on the existing
-/// Hub row (`register_harness_session`'s documented conflict behavior), so
-/// a second click swapped which pid the Hub tracked without anything ever
-/// killing the one it stopped tracking. Same kill primitive as
-/// `relaunch_harness_in_terminal`, just for the headless one-shot spawn
-/// instead of an interactive terminal.
-pub fn start_managed_harness(
-    store: &HubStore,
-    harness_id: &str,
-    workspace: &Path,
-    disk_session_id: &str,
-    prompt: &str,
-) -> Result<(HarnessStartResult, HarnessSessionRegistration), String> {
-    let harness = HarnessId::parse(harness_id).map_err(|error| error.to_string())?;
-    if harness == HarnessId::Claude {
-        return Err(
-            "Claude has no headless managed worker; Start managed must open a Channel-connected terminal"
-                .into(),
-        );
-    }
-    if !workspace.is_absolute() {
-        return Err("workspace must be an absolute path".into());
-    }
-    let disk_session_id = disk_session_id.trim();
-    if disk_session_id.is_empty() {
-        return Err(
-            "start_managed_harness requires a real disk/thread/conversation id, not a placeholder"
-                .into(),
-        );
-    }
-    let workspace_key = workspace.to_string_lossy().to_string();
-
-    if let Ok(Some(existing)) = store.get_harness_session(harness.as_str(), &workspace_key) {
-        if let Some(pid) = existing.managed_pid {
-            kill_pid(pid);
-        }
-    }
-
-    let started = crate::harness::start_harness(&HarnessStartRequest {
-        harness: harness.as_str().into(),
-        workspace: workspace.to_path_buf(),
-        session_id: None,
-        prompt: prompt.into(),
-    })
-    .map_err(|error| error.to_string())?;
-
-    let Some(pid) = started.pid else {
-        return Err(started.detail);
-    };
-
-    let registration = store
-        .register_managed_harness_session(harness.as_str(), &workspace_key, disk_session_id, pid)
-        .map_err(|error| error.to_string())?;
-
-    Ok((started, registration))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,7 +316,10 @@ mod tests {
         let (program, args) = hold_open_after_exit("codex", &["resume".into(), "abc".into()]);
         assert_eq!(program, "sh");
         assert_eq!(args[0], "-c");
-        assert!(args[1].contains("\"$0\" \"$@\""), "script must exec via positionals, not interpolate");
+        assert!(
+            args[1].contains("\"$0\" \"$@\""),
+            "script must exec via positionals, not interpolate"
+        );
         assert_eq!(&args[2..], &["codex", "resume", "abc"]);
     }
 
@@ -363,6 +376,36 @@ mod tests {
     }
 
     #[test]
+    fn session_discovery_returns_a_fast_id_without_timing_out() {
+        let (id, timed_out) = discover_session_id_bounded_with(
+            HarnessId::Grok,
+            PathBuf::from("/nonexistent-workspace"),
+            std::time::Duration::from_millis(500),
+            |_harness, _workspace| Some("session-fast".into()),
+        );
+        assert_eq!(id.as_deref(), Some("session-fast"));
+        assert!(!timed_out);
+    }
+
+    #[test]
+    fn session_discovery_that_never_returns_times_out_truthfully() {
+        // The #161 "clicked, nothing happened" class: a wedged provider
+        // discovery (e.g. a hung `claude agents --json`) must not block the
+        // launch forever. The lingering worker thread dies with the test.
+        let (id, timed_out) = discover_session_id_bounded_with(
+            HarnessId::Grok,
+            PathBuf::from("/nonexistent-workspace"),
+            std::time::Duration::from_millis(150),
+            |_harness, _workspace| {
+                std::thread::sleep(std::time::Duration::from_secs(30));
+                Some("too-late".into())
+            },
+        );
+        assert_eq!(id, None);
+        assert!(timed_out);
+    }
+
+    #[test]
     fn relaunch_rejects_a_relative_workspace() {
         let err =
             relaunch_harness_in_terminal("claude", Path::new("relative/path"), None).unwrap_err();
@@ -374,80 +417,5 @@ mod tests {
         let err = relaunch_harness_in_terminal("not-a-harness", Path::new("/abs/repo"), None)
             .unwrap_err();
         assert!(err.contains("unknown harness"), "{err}");
-    }
-
-    #[test]
-    fn start_managed_harness_rejects_a_relative_workspace() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let err =
-            start_managed_harness(&store, "grok", Path::new("relative/path"), "thread-1", "hi")
-                .unwrap_err();
-        assert!(err.contains("absolute"), "{err}");
-    }
-
-    #[test]
-    fn start_managed_harness_rejects_an_empty_disk_session_id() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let err =
-            start_managed_harness(&store, "grok", Path::new("/abs/repo"), "   ", "hi").unwrap_err();
-        assert!(err.contains("real disk"), "{err}");
-    }
-
-    #[test]
-    fn start_managed_harness_rejects_claude_headless_spawn() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let err =
-            start_managed_harness(&store, "claude", Path::new("/abs/repo"), "session-1", "hi")
-                .unwrap_err();
-        assert!(err.contains("Channel-connected"), "{err}");
-    }
-
-    #[test]
-    fn start_managed_harness_rejects_an_unknown_harness() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let err = start_managed_harness(
-            &store,
-            "not-a-harness",
-            Path::new("/abs/repo"),
-            "thread-1",
-            "hi",
-        )
-        .unwrap_err();
-        assert!(err.contains("unknown harness"), "{err}");
-    }
-
-    #[test]
-    fn start_managed_harness_kills_a_prior_registered_managed_pid_before_replacing_it() {
-        // A real, controllable long-lived process this test owns end-to-end
-        // (not a harness CLI, which may not be installed wherever this runs).
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let mut sleeper = Command::new("sleep").arg("30").spawn().unwrap();
-        let prior_pid = sleeper.id();
-        store
-            .register_managed_harness_session("grok", "/abs/repo", "old-thread", prior_pid)
-            .unwrap();
-        assert!(
-            is_pid_running(prior_pid),
-            "precondition: sleeper must be alive"
-        );
-
-        // grok itself may not be installed in every environment this runs
-        // in; either outcome (spawn succeeds and re-registers, or grok is
-        // unavailable and this returns Err) is fine — the property under
-        // test is only that the *prior* pid was killed either way, since
-        // the kill happens before the new spawn is attempted.
-        let _ = start_managed_harness(&store, "grok", Path::new("/abs/repo"), "new-thread", "hi");
-
-        assert!(
-            !is_pid_running(prior_pid),
-            "the previously registered managed pid must be killed, not orphaned"
-        );
-        let _ = sleeper.kill();
-        let _ = sleeper.wait();
     }
 }

@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — truthful terminal launch/exit surfacing + relaunch hardening (#161) (2026-08-15)
+
+- **Root cause:** "Resume in terminal" / terminal-launch buttons sometimes
+  appeared to do nothing — no terminal, no visible error. Three compounding
+  gaps: (1) a fast-failing harness CLI (e.g. "codex resume <stale-id>" exits
+  in well under a second) could exit before the frontend attached its
+  pty-output / pty-exit listeners, leaving a silently blank terminal with
+  no exit reason; (2) the relaunch command could take many seconds or hang on
+  session discovery ("claude agents --json" subprocess, full
+  ~/.codex/sessions tree scan) plus kill/settle sleeps, all synchronous on
+  the Tauri command; (3) EmbeddedTerminal swallowed every
+  pty_write / pty_resize IPC error.
+- **Backend — src-tauri/src/pty.rs:** every session now retains a bounded
+  output tail (last 64 KiB) plus the real exit status for 60 s after exit;
+  the wait thread polls with non-blocking try_wait so the session lock is
+  never held across a wait (the reader thread needs it for tail appends);
+  new pty_session_status command returns {found, running, exited,
+  exit_detail, output_tail_b64}; pty_write / pty_resize / pty_kill are
+  truthful no-ops on exited sessions instead of erroring.
+- **Backend — crates/hub/src/bridge/relaunch.rs + src-tauri/src/harness/commands.rs:** session discovery is bounded to 3 s
+  (discover_session_id_bounded, injectable for tests); on timeout the
+  launch proceeds fresh and says so in the outcome detail; both relaunch
+  commands are now async and run their blocking resolve on the Tokio blocking
+  pool instead of occupying a worker (the shared #161/#163 "no feedback"
+  class). The external hub_relaunch_harness_in_terminal path is preserved.
+- **Frontend — EmbeddedTerminal.tsx + harness panels:** on mount the
+  component queries pty_session_status first — an already-exited session
+  shows its retained output plus a truthful "exited (code N)" line and an
+  "exited" chip; a missing session renders an explicit error state; IPC
+  failures on write/resize are surfaced through a new onError prop into
+  the panel error banner instead of being swallowed; panels show an immediate
+  "Starting <harness> terminal…" pending state while the launch resolves.
+- **Coexistence:** Gemini's #162 resize hardening in the same component is
+  preserved; the shared relaunch.rs / commands.rs area carries both fixes.
+- **Verification:** cargo build --workspace, clippy, and targeted tests
+  per the standing hardware constraint (full workspace test suite only with
+  owner go-ahead).
+
+### UI — Fix embedded terminal canvas / layout corruption on window resize (#162) (2026-08-15)
+
+- **Root cause & Fix:** Resizing the app window rapidly triggered unconstrained `fit.fit()` and `pty_resize` invocations even when the container dimensions were 0 during layout shifts, throwing exceptions inside xterm's DOM layout measurement and leaving terminal buffers blank/corrupted (~75% black screen).
+- **EmbeddedTerminal hardening (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
+  - Added debounced `requestAnimationFrame` for resize syncing with frame cancellation on rapid re-triggers and safe unmount cleanup.
+  - Added non-zero dimension bounds checks (`clientWidth > 0 && clientHeight > 0`, `rows > 0 && cols > 0`) before executing `fit.fit()` or `pty_resize`.
+  - Wrapped `fit.fit()`, `term.write()`, and `term.dispose()` in safe `try/catch` blocks.
+- **Backend & tests:**
+  - Added `std::path::PathBuf` and closure fixes in `crates/hub/src/bridge/relaunch.rs`.
+  - Enhanced `is_pid_running` on Linux to check `/proc/{pid}/status` and exclude zombie processes (`Z`/`X`).
+  - Added `discovery_timed_out: _` handling in `src-tauri/src/harness/commands.rs`.
+
 ### Docs — C14.4 Gemini roadmap row corrected to reflect landed work (#151) (2026-08-14)
 
 - The C14.4 roadmap row still described the original unimplemented plan

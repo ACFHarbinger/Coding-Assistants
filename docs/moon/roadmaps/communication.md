@@ -362,3 +362,15 @@ reading history (`947a43d`). Thread replies (CA-114, Chat) stay in the
 **2026-08-13 (cloud):** Multi-device replica of `.coding-assistants` is specified
 in [`cloud_sync.md`](cloud_sync.md) (S1–S13, issues #91–#103). Drive first;
 journal-integrity merge is S6 after the S5 snapshot gate. Not implemented.
+
+**2026-08-15 (DeepSeek, #161):** the Orchestrate "Resume in terminal"
+surface now reports truthfully instead of silently no-oping. Embedded PTY
+sessions retain a bounded output tail plus the real exit status
+(`pty_session_status`), so a fast-failing harness CLI (e.g. `codex resume
+<stale-id>`) shows its error output and an "exited" chip rather than a
+blank terminal; a missing session renders an explicit error state. Session
+discovery during a launch is bounded (3 s) with a truthful "fresh session,
+not a resume" note on timeout, and both relaunch commands run their
+blocking resolve off the Tokio worker. The external terminal path is
+preserved. Verification: build + clippy + targeted tests (per the standing
+hardware constraint).

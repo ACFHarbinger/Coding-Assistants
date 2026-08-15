@@ -79,6 +79,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
   };
 
   const resume = (harness: string) => void run(harness, async () => {
+    setDetail(`Starting ${harness} terminal…`);
     const row = findSession(sessions, harness, workspace);
     const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
       harness,
@@ -182,7 +183,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       </div>
       {terminals[id] && (
         <div style={{ height: "320px" }}>
-          <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} />
+          <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
         </div>
       )}
     </div>
@@ -254,6 +255,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
                   terminalSessionId={terminals[id] ?? null}
                   onCloseTerminal={() => void closeTerminal(id)}
                   onTerminalExit={(detail) => setDetail(`${id} terminal: ${detail}`)}
+                  onTerminalError={(detail) => setError(detail)}
                 />
               );
             })}

@@ -348,6 +348,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            pty::pty_session_status,
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
             commands::commands::store::hub_get_data_dir,
@@ -390,9 +391,11 @@ pub fn run() {
             commands::commands::messaging::hub_list_work_sessions,
             commands::commands::messaging::hub_add_work_session_member,
             harness::commands::hub_start_harness,
-            harness::commands::hub_start_managed_harness,
-            harness::commands::hub_relaunch_harness_in_terminal,
-            harness::commands::hub_relaunch_harness_embedded,
+            // Moved to the relaunch submodule when commands/ split (#158);
+            // the tauri macro-generated __cmd__ items live there too.
+            harness::commands::relaunch::hub_start_managed_harness,
+            harness::commands::relaunch::hub_relaunch_harness_in_terminal,
+            harness::commands::relaunch::hub_relaunch_harness_embedded,
             harness::stop::hub_stop_managed_harness,
             harness::commands::hub_inject_harness,
             harness::commands::hub_register_harness_session,

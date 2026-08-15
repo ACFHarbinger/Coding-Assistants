@@ -3,19 +3,15 @@
 //! only dispatches through the shared `hub` contract.
 
 use crate::commands::commands::store::open_store;
-use crate::pty::{self, PtySessions};
 use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
     launch_claude_channel_session, list_active_grok_sessions, list_channel_workspaces,
-    relaunch_harness_in_terminal, rename_channel_workspace, resolve_interactive_relaunch,
-    start_harness, start_managed_claude_channel, start_managed_harness, ActiveGrokSession,
-    ChannelWorkspace, GrokConnectResult, HarnessInjectRequest, HarnessInjectResult,
-    HarnessSessionRegistration, HarnessStartRequest, HarnessStartResult, MessageRecord,
-    RelaunchOutcome, ResolvedRelaunch, SandboxStrictness, SettingsStore,
+    rename_channel_workspace, start_harness, ActiveGrokSession, ChannelWorkspace,
+    GrokConnectResult, HarnessInjectRequest, HarnessInjectResult, HarnessSessionRegistration,
+    HarnessStartRequest, HarnessStartResult, MessageRecord, SandboxStrictness, SettingsStore,
 };
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, State};
 
 /// S5 / #131: `vibe` unconditionally passes `--trust`/`--auto-approve`
 /// (`crates/hub/src/harness/mod.rs::vibe_spawn_args`) — the one harness
@@ -53,115 +49,8 @@ pub fn hub_start_harness(
     .map_err(|error| error.to_string())
 }
 
-/// Kill an optional managed pid, then open a real terminal running this
-/// harness's interactive CLI (resumed from the latest on-disk session
-/// when one exists). This is the human-attended path, not the headless
-/// one-shot spawn used by `hub_start_harness`.
-#[tauri::command]
-pub fn hub_relaunch_harness_in_terminal(
-    harness: String,
-    workspace: String,
-    existing_pid: Option<u32>,
-) -> Result<RelaunchOutcome, String> {
-    relaunch_harness_in_terminal(&harness, Path::new(&workspace), existing_pid)
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EmbeddedRelaunchOutcome {
-    pub harness: String,
-    pub killed_pid: Option<u32>,
-    pub resumed_session_id: Option<String>,
-    pub session_id: String,
-    pub detail: String,
-}
-
-/// Same kill/resume-resolution as `hub_relaunch_harness_in_terminal`, but
-/// spawns the harness's interactive CLI into an in-app PTY (see `pty.rs`)
-/// instead of a separate terminal-emulator window. The frontend attaches
-/// to `pty-output:<session_id>` / `pty-exit:<session_id>` to render it.
-#[tauri::command]
-pub fn hub_relaunch_harness_embedded(
-    app: AppHandle,
-    pty_state: State<PtySessions>,
-    harness: String,
-    workspace: String,
-    existing_pid: Option<u32>,
-) -> Result<EmbeddedRelaunchOutcome, String> {
-    let ResolvedRelaunch {
-        harness: harness_id,
-        killed_pid,
-        resumed_session_id,
-        program,
-        args,
-    } = resolve_interactive_relaunch(&harness, Path::new(&workspace), existing_pid)?;
-    let session_id = format!("harness-terminal:{}:{}", harness_id.as_str(), workspace);
-    pty::pty_spawn(
-        app,
-        pty_state,
-        session_id.clone(),
-        program.to_string(),
-        args,
-        workspace,
-        24,
-        80,
-    )?;
-    let detail = match &resumed_session_id {
-        Some(id) => format!("Resumed {program} in-app, session {id}"),
-        None => {
-            format!("Started a fresh {program} session in-app (no prior session found to resume)")
-        }
-    };
-    Ok(EmbeddedRelaunchOutcome {
-        harness: harness_id.as_str().into(),
-        killed_pid,
-        resumed_session_id,
-        session_id,
-        detail,
-    })
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartManagedHarnessOutcome {
-    pub start: HarnessStartResult,
-    pub registration: HarnessSessionRegistration,
-}
-
-/// "Start managed": for Claude this opens a Channel-connected terminal
-/// (kill-prior first) instead of the one-shot `claude -p` spawn, which
-/// exits before any task can be delivered. Other harnesses still spawn a
-/// headless worker and register it, killing any prior managed pid first.
-#[tauri::command]
-pub fn hub_start_managed_harness(
-    harness: String,
-    workspace: String,
-    disk_session_id: String,
-    prompt: String,
-) -> Result<StartManagedHarnessOutcome, String> {
-    if sandbox_strictness_blocks(&harness, &workspace) {
-        return Err(format!(
-            "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
-        ));
-    }
-    let parsed = hub::HarnessId::parse(&harness).map_err(|error| error.to_string())?;
-    let store = open_store()?;
-    let (start, registration) = if parsed == hub::HarnessId::Claude {
-        start_managed_claude_channel(&store, Path::new(&workspace))?
-    } else {
-        start_managed_harness(
-            &store,
-            &harness,
-            Path::new(&workspace),
-            &disk_session_id,
-            &prompt,
-        )?
-    };
-    Ok(StartManagedHarnessOutcome {
-        start,
-        registration,
-    })
-}
+/// Relaunch/managed-harness commands (see `relaunch.rs`).
+pub mod relaunch;
 
 #[tauri::command]
 pub fn hub_inject_harness(
