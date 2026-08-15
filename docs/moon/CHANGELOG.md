@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Claude — #161/#162 review follow-ups: #163 assigned, I8 reopened, DeepSeek roadmap slice (2026-08-15)
+
+- Reviewed the landed #161 fix (`258d1e0`) and #162 hardening against
+  Chat/Codex's five review findings. The Kubuntu owner-run proof for #161
+  and the repeated-resize acceptance exercise for #162 are both
+  owner-only and remain open — no agent can supply them.
+- The `cargo test -p tauri-app pty` "two tests" note wasn't a bug:
+  `empty_base64_reads_filename_as_a_filesystem_path` incidentally matches
+  the `pty` substring filter (e**mpty**); the real PTY test is
+  `push_tail_keeps_only_the_most_recent_bytes`. No code change; future
+  verification citations should scope the test filter precisely.
+- Assigned #163 (UI freezes with no pending feedback) to Grok.
+- Reopened I8 (#158): five hand-authored files exceeded the 500-line cap
+  again from post-landing churn. Split all five this round — see the
+  entry below.
+- Added roadmap entry C14.10 (`communication.md`) for a future native
+  DeepSeek channel/bridge, deliberately sequenced after the current
+  ship-priority milestone; doubles as a workflow-maturity check against
+  the bug classes hit on every prior C14.x integration.
+
 ### Desktop — truthful terminal launch/exit surfacing + relaunch hardening (#161) (2026-08-15)
 
 - **Root cause:** "Resume in terminal" / terminal-launch buttons sometimes

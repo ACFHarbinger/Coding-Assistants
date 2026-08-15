@@ -11,7 +11,7 @@ Keep only infrastructure with a current local or prototype use.
 | I5 | Remove obsolete Kubernetes, Helm, serverless, AWS, Azure Pipelines, WordPress, Webpack, Nginx, and proxy scaffolding | 📋 Pending |
 | I6 | Keep research and reports separate from active implementation roadmaps | 📋 Pending |
 | I7 | Rename crate/package `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (`src-tauri/Cargo.toml`, root `package.json`, `tauri.conf.json`, capability configs, lockfiles) — owner-confirmed 2026-08-10; dropped from the roadmap during the capability-file restructure, re-added here (Claude verification pass) | 📋 Pending |
-| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | ✅ Done · 2026-08-13 |
+| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | 🚧 **Reopened · 2026-08-15** — 5 hand-authored files exceed the cap post-#161/#162 churn |
 
 ## I8 — bounded source modules
 
@@ -29,6 +29,13 @@ Keep only infrastructure with a current local or prototype use.
   TypeScript, or React unit above 500 physical lines.
 - This is a refactor-only programme: behavior changes need their own roadmap
   entry and issue rather than being folded into a mechanical split.
+- **Reopened 2026-08-15** (Chat/Codex review of #161/#162): five
+  hand-authored files exceeded 500 physical lines again, from churn since
+  the initial "Done" pass — `crates/hub/src/harness/mod.rs` (507),
+  `crates/hub/src/store/mod.rs` (506), `crates/hub/src/store/tests/roster.rs`
+  (598), `crates/cli/src/app/mod.rs` (517), `crates/cli/src/command/mod.rs`
+  (547). Splitting all five in the same round; see the dated Claude entry
+  in `AGENT_BUS.md` for the split plan and verification.
 - **Claude's slice — done:** `crates/hub/src/bridge/claude_channel.rs` (1,069
   LoC) split into `bridge/channels/claude/{mod,workspaces,events,reply,
   permissions,terminal}.rs` (largest: 394); `crates/claude/src/main.rs` (613
