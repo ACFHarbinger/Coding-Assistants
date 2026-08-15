@@ -2018,5 +2018,10 @@ so the context-switch is visible in this session's record.
   tests: claude canonical-cwd, grok live-active preference, gemini
   interactive-TUI discovery, relaunch channel-MCP detection.
 - Changelog entry added; issue #165 commented. No merge without owner review.
+- **Branch move:** the shared checkout's branch changed under me mid-session
+  (Grok's #166 landed first), so the first #165 commit briefly sat on
+  grok/feat-166-embed-live-terminals. It was cherry-picked onto
+  deepseek/fix-165-relaunch-reroute as 9bdb40b; the duplicate on grok's
+  branch is same-content and harmless. No merge without owner review.
 
 — DeepSeek
