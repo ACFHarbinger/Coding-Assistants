@@ -54,7 +54,7 @@
 | Chat / Codex | Review + report to Claude | Review completed slices; file lower-priority doc-consistency issue; reserved C14.1/2/8 | Do not implement others’ features without failed-review handoff |
 | DeepSeek | **Assigned: I8 reopened (#158)** | Split 5 hand-authored files back under the 500-line cap: `crates/hub/src/harness/mod.rs` (507), `crates/hub/src/store/mod.rs` (506), `crates/hub/src/store/tests/roster.rs` (598), `crates/cli/src/app/mod.rs` (517), `crates/cli/src/command/mod.rs` (547). Refactor-only — preserve public API/CLI/IPC behavior exactly; see the I8 section in `roadmaps/infrastructure.md` for the pattern used on the earlier slices (Claude/Grok/Gemini). | Only Claude-assigned work; no seeded roster / no native session contract yet. Attribution via `deepseek_coauthor.msg`; no Cloud sync S1–S5. Build/check only — no `cargo test` per the owner's standing thermal constraint. |
 | DeepSeek (after I8) | **Next: #165** relaunch resume/reroute bugs | Owner live-tested Resume in terminal: Claude spawns new + reroutes live chat into app; Grok/Gemini spawn new instead of resuming. Likely `relaunch/{mod,managed}.rs` session discovery + whichever C12 capture path is misattributing Claude's live terminal transcript. Live Kubuntu repro needed. | Own `relaunch.rs`/`pty.rs` context from #161; do not touch #163's IPC-offload work |
-| Grok (after #163 review) | **Next: #166** embed real terminals in Live Terminals panel | Feature: panel currently shows status cards only; owner wants actual interactive `EmbeddedTerminal` views per live session, not just LIVE/OBSERVED badges + buttons. | Own `LiveTerminalsPanel.tsx`/`LiveTerminalCard.tsx`; reuse existing `EmbeddedTerminal.tsx`, don't fork a second terminal component |
+| Grok — **ready for review** | **#166** embed real terminals in Live Terminals panel | Full-width live rows with primary `EmbeddedTerminal` + open/placeholder; reuses EmbeddedTerminal only. Awaiting Chat review + owner visual check. | Own LiveTerminalsPanel/LiveTerminalCard only; no second terminal component; no #165 relaunch/resume fixes |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
@@ -92,6 +92,18 @@ Historical detailed rows and dated implementation notes remain below for audit; 
   stands in Git/changelogs; **team-lead assignment process was superseded 2026-08-15**.
 
 ## 2026-08-15 updates
+
+### Grok — 2026-08-15 — #166 Live Terminals embed interactive PTYs ready for review
+
+- Claimed next Grok assignment #166 (after #163 handoff).
+- Redesigned Live terminals: full-width live rows; primary surface is EmbeddedTerminal (reused).
+- Placeholder + "Open interactive terminal" when no PTY; documented relaunch path only.
+- Changelog updated. tsc + npm run build pending this session.
+- Did not touch #165 relaunch bugs (DeepSeek) or Chat-reserved C14.
+
+— Grok
+
+
 
 ### Grok — 2026-08-15 — claiming and completing #163 (UI freezes / no pending)
 
@@ -1956,3 +1968,55 @@ chain unrelated to this repo. Documented in Image-Toolkit's own
 so the context-switch is visible in this session's record.
 
 — claude
+
+### DeepSeek — claiming #165 (Resume in terminal: duplicates sessions instead of resuming)
+
+- Claiming per the task-board row (assigned after I8 wraps). Own
+  `relaunch.rs`/`pty.rs` context from #161; will not touch #163's
+  IPC-offload work.
+- Three symptoms to investigate: (1) Claude spawns new instead of resuming
+  the live Channel session AND the live terminal transcript gets mirrored
+  into the app chat (C12 capture-subject attribution); (2) Grok spawns new
+  (`resumed_session_id` presumably None — live leader session not
+  discovered); (3) Gemini spawns new and messages the app chat while shown
+  inactive. Live Kubuntu repro needed; will also do a per-harness code
+  review of `latest_session_id`/`discover_session_id_bounded` and the
+  capture-subject selection.
+- Branch: `deepseek/fix-165-relaunch-reroute` (from the integrated HEAD
+  that contains #161/#162/#163 + I8). No merge without owner review.
+
+— DeepSeek
+
+### DeepSeek — #165 code review + discovery fixes ready for review
+
+- **Code review findings** (live Kubuntu repro still needed — this is
+  implementation + review, not a live-acceptance claim):
+  1. **Claude spawns-new:** `find_active_claude_session` matched cwd by
+     exact string; a trailing slash / "." segment / symlink hid the live
+     session, so `claude --resume <id>` never fired. Fixed with
+     canonicalized comparison on both sides.
+  2. **Grok spawns-new:** `latest_grok_session_id` only scanned on-disk
+     chat_history.jsonl dirs (can lag the live TUI). Now prefers the
+     workspace's active session from active_sessions.json first.
+  3. **Gemini spawns-new:** `latest_gemini_session_id` only recognized the
+     managed worker's transcript.jsonl marker. Now also accepts an
+     interactive TUI conversation dir (brain/<uuid>/conversation/), newest
+     wins.
+  4. **Claude channel reconnect:** a resumed claude now also gets
+     --dangerously-load-development-channels server:coding-assistants-channel
+     when the workspace .mcp.json has the channel server, so the resumed
+     session reconnects to the Hub (same flags as launch_claude_channel_session).
+- **Reroute/mirror symptom:** that is C12 capture working as designed — the
+  desktop polls the newest transcript per harness into the active work
+  session (content-hash deduped). With resume fixed, the resumed process
+  continues the SAME conversation, so no new turns are introduced by the
+  spawn. If specific observed sessions should be excluded from capture,
+  that's a separate product decision.
+- **Verification (no cargo test per the standing constraint):** cargo build
+  --workspace clean; cargo clippy -p hub --all-targets -- -D warnings clean;
+  cargo check -p hub --all-targets clean (tests compile, not run). New
+  tests: claude canonical-cwd, grok live-active preference, gemini
+  interactive-TUI discovery, relaunch channel-MCP detection.
+- Changelog entry added; issue #165 commented. No merge without owner review.
+
+— DeepSeek

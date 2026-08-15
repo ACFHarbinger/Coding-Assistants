@@ -67,20 +67,34 @@ pub fn list_active_claude_sessions() -> Result<Vec<ClaudeAgentSession>, String> 
         .map_err(|error| format!("unexpected `claude agents --json` output: {error}"))
 }
 
-/// Matches a listed session to a workspace by exact `cwd`. Only
-/// `kind == "interactive"` sessions with a real `pid` can ever be "the
-/// live Claude Code session" a Channel bridge or delivery attaches to — a
-/// background/Task-tool entry is a different concept entirely and must
-/// never be treated as one, whatever else matches.
+/// Canonicalize a path for workspace comparison. Falls back to the literal
+/// path when it does not exist, so a requested workspace or a stale recorded
+/// cwd still compares verbatim — the same shape the Codex thread discovery
+/// and presence checks use.
+fn canonical_workspace(path: &Path) -> std::path::PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Matches a listed session to a workspace. Only `kind == "interactive"`
+/// sessions with a real `pid` can ever be "the live Claude Code session" a
+/// Channel bridge or delivery attaches to — a background/Task-tool entry is
+/// a different concept entirely and must never be treated as one, whatever
+/// else matches.
+///
+/// #165: the cwd comparison canonicalizes both sides so a trailing slash, a
+/// `.` segment, or a symlink in the app's workspace string cannot hide the
+/// live session and make "Resume in terminal" spawn a fresh conversation.
 pub fn find_active_claude_session(
     sessions: &[ClaudeAgentSession],
     workspace: &Path,
 ) -> Option<ClaudeAgentSession> {
-    let workspace = workspace.to_string_lossy();
+    let workspace = canonical_workspace(workspace);
     sessions
         .iter()
         .find(|session| {
-            session.cwd == workspace && session.kind == "interactive" && session.pid.is_some()
+            session.kind == "interactive"
+                && session.pid.is_some()
+                && canonical_workspace(Path::new(&session.cwd)) == workspace
         })
         .cloned()
 }
@@ -195,6 +209,26 @@ mod tests {
     }
 
     #[test]
+    fn find_active_claude_session_matches_a_canonically_equivalent_cwd() {
+        // #165: the app's workspace string can differ from what Claude
+        // recorded (trailing slash, "." segment, symlink) and still be the
+        // same directory. Without canonicalization "Resume in terminal"
+        // fails to find the live session and spawns a fresh conversation.
+        let dir = tempdir().unwrap();
+        let sessions = vec![ClaudeAgentSession {
+            pid: Some(777),
+            cwd: dir.path().to_string_lossy().into_owned(),
+            kind: "interactive".into(),
+            session_id: "sess-canon".into(),
+            status: None,
+        }];
+        let requested = dir.path().join(".");
+        let found = find_active_claude_session(&sessions, &requested);
+        assert_eq!(found.and_then(|s| s.pid), Some(777));
+        assert!(find_active_claude_session(&sessions, &dir.path().join("nope")).is_none());
+    }
+
+    #[test]
     fn a_background_session_with_no_pid_is_never_matched_as_live() {
         // The real bug this guards: `claude agents --json` lists
         // background/Task-tool sessions in the same array as interactive
@@ -207,7 +241,9 @@ mod tests {
             session_id: "bg-session".into(),
             status: None,
         }];
-        assert!(find_active_claude_session(&sessions, Path::new("/tmp/ca-claude-bridge")).is_none());
+        assert!(
+            find_active_claude_session(&sessions, Path::new("/tmp/ca-claude-bridge")).is_none()
+        );
     }
 
     #[test]

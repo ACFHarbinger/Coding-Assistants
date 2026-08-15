@@ -26,6 +26,15 @@ pub fn gemini_brain_dir() -> PathBuf {
         .join("brain")
 }
 
+/// Most recent Antigravity (`agy`) conversation id, used by "Resume in
+/// terminal" and the managed-worker continuation flow.
+///
+/// #165: a conversation is any `brain/<uuid>` directory. App-managed
+/// workers write `.system_generated/logs/transcript.jsonl`; an interactive
+/// `agy` TUI keeps its data under `conversation/`. Accept either marker so
+/// a live interactive session can be resumed instead of spawning a fresh
+/// one. The workspace argument is currently unused (conversations are not
+/// workspace-scoped in the brain layout) and kept for signature parity.
 pub fn latest_gemini_session_id(_workspace: &Path) -> Option<String> {
     let brain_dir = gemini_brain_dir();
     let entries = std::fs::read_dir(&brain_dir).ok()?;
@@ -33,17 +42,21 @@ pub fn latest_gemini_session_id(_workspace: &Path) -> Option<String> {
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter_map(|dir| {
-            let log_file = dir
+            let managed_log = dir
                 .join(".system_generated")
                 .join("logs")
                 .join("transcript.jsonl");
-            if log_file.is_file() {
-                let modified = std::fs::metadata(&log_file).ok()?.modified().ok()?;
-                let conv_id = dir.file_name()?.to_string_lossy().into_owned();
-                Some((modified, conv_id))
+            let marker = if managed_log.is_file() {
+                managed_log
             } else {
-                None
+                dir.join("conversation")
+            };
+            if !marker.is_file() && !marker.is_dir() {
+                return None;
             }
+            let modified = std::fs::metadata(&marker).ok()?.modified().ok()?;
+            let conv_id = dir.file_name()?.to_string_lossy().into_owned();
+            Some((modified, conv_id))
         })
         .max_by_key(|(modified, _)| *modified)
         .map(|(_, conv_id)| conv_id)
@@ -322,6 +335,17 @@ mod tests {
     use crate::HubStore;
     use tempfile::tempdir;
 
+    /// Restores $HOME on drop even if the test body panics mid-way.
+    struct HomeEnvGuard(Option<String>);
+    impl Drop for HomeEnvGuard {
+        fn drop(&mut self) {
+            match self.0.take() {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
     #[test]
     fn unmanaged_gemini_delivery_returns_unavailable() {
         let dir = tempdir().unwrap();
@@ -341,6 +365,25 @@ mod tests {
         .unwrap();
         assert_eq!(result.status, "unavailable");
         assert!(result.detail.contains("managed session"));
+    }
+
+    #[test]
+    fn latest_gemini_session_finds_an_interactive_tui_conversation_dir() {
+        // #165: an interactive agy TUI conversation (brain/<uuid>/conversation/)
+        // must be discoverable for "Resume in terminal", not just the
+        // managed worker's transcript.jsonl layout.
+        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _lock = HOME_LOCK.lock().unwrap();
+        let _guard = HomeEnvGuard(std::env::var("HOME").ok());
+        let dir = tempdir().unwrap();
+        std::env::set_var("HOME", dir.path());
+        let conversation = gemini_brain_dir().join("conv-tui-1").join("conversation");
+        std::fs::create_dir_all(&conversation).unwrap();
+        std::fs::write(conversation.join("data.json"), "{}").unwrap();
+        assert_eq!(
+            latest_gemini_session_id(Path::new("/unused")).as_deref(),
+            Some("conv-tui-1")
+        );
     }
 
     #[test]

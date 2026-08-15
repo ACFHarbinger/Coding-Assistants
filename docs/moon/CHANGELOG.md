@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — "Resume in terminal" actually resumes live sessions (#165) (2026-08-15)
+
+- **Root cause (code review):** the generic relaunch's per-harness session
+  discovery could fail to find the live session, so "Resume in terminal"
+  spawned a fresh conversation for every provider. Three discovery gaps plus
+  a missing Channel reconnect:
+  1. **Claude:** `find_active_claude_session` compared the recorded `cwd`
+     to the app's workspace with an exact string match — a trailing slash, a
+     `.` segment, or a symlink hid the live session, so `claude --resume
+     <id>` never fired and a fresh conversation started. Now both sides are
+     canonicalized before comparison.
+  2. **Grok:** `latest_grok_session_id` only scanned on-disk
+     `chat_history.jsonl` directories, which can lag behind the live TUI;
+     it now prefers the workspace's active session from
+     `~/.grok/active_sessions.json` first.
+  3. **Gemini:** `latest_gemini_session_id` only recognized the managed
+     worker's `.system_generated/logs/transcript.jsonl` marker; it now also
+     accepts an interactive TUI conversation directory
+     (`brain/<uuid>/conversation/`), picking the newest.
+  4. **Claude Channel reconnect:** when a resume target is found *and* the
+     workspace's `.mcp.json` has the `coding-assistants-channel` server,
+     the resumed `claude` process now also gets
+     `--dangerously-load-development-channels server:coding-assistants-channel`
+     (same flags as `launch_claude_channel_session`) so the resumed session
+     reconnects to the Hub instead of running channel-less.
+- **Note on the "mirrored into app chat" symptom:** that is C12 capture
+  working as designed — the desktop polls each harness's newest transcript
+  and posts assistant replies into the active work session (deduped by
+  content hash). With resume fixed, the resumed process continues the *same*
+  conversation, so no new turns are introduced by the spawn. If the owner
+  wants specific observed sessions excluded from capture, that is a product
+  decision to track separately.
+- **Tests added (compile-verified; not run per the standing thermal
+  constraint):** Claude canonical-cwd match; Grok live-active-session
+  preference; Gemini interactive-TUI conversation discovery; relaunch
+  channel-MCP detection.
+- **Verification:** `cargo build --workspace`, `cargo clippy -p hub
+  --all-targets -- -D warnings`, `cargo check -p hub --all-targets` all
+  clean. Live Kubuntu owner repro still required (per the issue).
+
+### Desktop — Live Terminals embed interactive PTYs (#166) (2026-08-15)
+
+- Orchestrate **Live terminals** is no longer a compact status-card grid of
+  LIVE badges. Each live harness is a full-width row whose primary surface
+  is an interactive in-app PTY (`EmbeddedTerminal`, reused — no second
+  terminal component).
+- When no PTY is attached yet, the row shows a large honest placeholder
+  plus **Open interactive terminal** (same documented
+  `hub_relaunch_harness_embedded` path as before). Does not claim attach
+  to an unowned external TTY.
+- Idle / start-managed rows also keep an embedded pane once opened.
+- **Verification:** `npx tsc --noEmit` + `npm run build`. Owner Kubuntu
+  visual check still required before closing #166.
+
 ### Code org — I8 (#158) reopened: five over-cap files split back under 500 lines (2026-08-15)
 
 - The post-#161/#162 inventory found five hand-authored Rust units above the

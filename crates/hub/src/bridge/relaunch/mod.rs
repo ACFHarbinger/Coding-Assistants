@@ -235,7 +235,21 @@ pub fn resolve_interactive_relaunch(
 
     let (resumed_session_id, discovery_timed_out) =
         discover_session_id_bounded(harness, workspace, DISCOVERY_TIMEOUT);
-    let args = interactive_resume_args(harness, resumed_session_id.as_deref());
+    let mut args = interactive_resume_args(harness, resumed_session_id.as_deref());
+    // #165: a resumed Claude session must reconnect the Channel MCP bridge
+    // (same flags `launch_claude_channel_session` relies on) when the
+    // workspace is set up for it — otherwise the "resume" opens a plain
+    // session with no Hub round-trip, and the live Channel conversation the
+    // user is continuing stays disconnected from the app.
+    if harness == HarnessId::Claude
+        && resumed_session_id.is_some()
+        && workspace_has_channel_mcp(workspace)
+    {
+        args.extend([
+            "--dangerously-load-development-channels".into(),
+            "server:coding-assistants-channel".into(),
+        ]);
+    }
     let program = harness.executable();
     Ok(ResolvedRelaunch {
         harness,
@@ -245,6 +259,25 @@ pub fn resolve_interactive_relaunch(
         args,
         discovery_timed_out,
     })
+}
+
+const CHANNEL_SERVER_KEY: &str = "coding-assistants-channel";
+
+/// Whether `<workspace>/.mcp.json` already has the Channel server entry —
+/// the same condition `launch_claude_channel_session` checks before it
+/// opens a terminal. Kept as a small self-contained copy in this generic
+/// module rather than reaching into the Claude-reserved channel module.
+fn workspace_has_channel_mcp(workspace: &Path) -> bool {
+    let Ok(raw) = std::fs::read_to_string(workspace.join(".mcp.json")) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    value
+        .get("mcpServers")
+        .and_then(|servers| servers.get(CHANNEL_SERVER_KEY))
+        .is_some()
 }
 
 /// Kills `existing_pid` if given and still alive, resolves a resume
@@ -403,6 +436,33 @@ mod tests {
         );
         assert_eq!(id, None);
         assert!(timed_out);
+    }
+
+    #[test]
+    fn workspace_has_channel_mcp_detects_the_channel_server_entry() {
+        // #165: a resumed Claude session only gets the Channel-reconnect
+        // flags when the workspace's own .mcp.json actually has the server.
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        assert!(
+            !workspace_has_channel_mcp(&ws),
+            "no .mcp.json means no channel configured"
+        );
+        std::fs::write(
+            ws.join(".mcp.json"),
+            r#"{"mcpServers":{"coding-assistants-channel":{"command":"x"},"other":{"command":"y"}}}"#,
+        )
+        .unwrap();
+        assert!(workspace_has_channel_mcp(&ws));
+        std::fs::write(
+            ws.join(".mcp.json"),
+            r#"{"mcpServers":{"other":{"command":"y"}}}"#,
+        )
+        .unwrap();
+        assert!(!workspace_has_channel_mcp(&ws));
+        std::fs::write(ws.join(".mcp.json"), "not json").unwrap();
+        assert!(!workspace_has_channel_mcp(&ws));
     }
 
     #[test]
