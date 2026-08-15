@@ -14,6 +14,7 @@ export default function ChatCanvas(props: any) {
         notices={props.deliveryNotices ?? []}
         onRetry={props.onRetryDelivery}
         onDismiss={props.onDismissDelivery}
+        retryingHarness={props.retryingHarness ?? null}
       />
       <MessageStream {...props} />
       <MessageComposer {...props} />

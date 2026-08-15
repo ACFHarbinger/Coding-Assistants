@@ -114,9 +114,14 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
     })
 }
 
+/// `ps` process-table scan — offload so Orchestrate discovery does not
+/// freeze the window while the table is read (#163).
 #[tauri::command]
-fn detect_agent_processes() -> Result<Vec<core::process_detector::DetectedProcess>, String> {
-    core::process_detector::detect_agent_processes()
+async fn detect_agent_processes() -> Result<Vec<core::process_detector::DetectedProcess>, String> {
+    harness::blocking::run_blocking("detect_agent_processes", || {
+        core::process_detector::detect_agent_processes()
+    })
+    .await
 }
 
 #[tauri::command]

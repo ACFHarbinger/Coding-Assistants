@@ -127,33 +127,37 @@ pub struct StartManagedHarnessOutcome {
 /// (kill-prior first) instead of the one-shot `claude -p` spawn, which
 /// exits before any task can be delivered. Other harnesses still spawn a
 /// headless worker and register it, killing any prior managed pid first.
+/// Process spawn + discovery runs off the IPC thread (#163).
 #[tauri::command]
-pub fn hub_start_managed_harness(
+pub async fn hub_start_managed_harness(
     harness: String,
     workspace: String,
     disk_session_id: String,
     prompt: String,
 ) -> Result<StartManagedHarnessOutcome, String> {
-    if sandbox_strictness_blocks(&harness, &workspace) {
-        return Err(format!(
-            "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
-        ));
-    }
-    let parsed = hub::HarnessId::parse(&harness).map_err(|error| error.to_string())?;
-    let store = open_store()?;
-    let (start, registration) = if parsed == hub::HarnessId::Claude {
-        start_managed_claude_channel(&store, Path::new(&workspace))?
-    } else {
-        start_managed_harness(
-            &store,
-            &harness,
-            Path::new(&workspace),
-            &disk_session_id,
-            &prompt,
-        )?
-    };
-    Ok(StartManagedHarnessOutcome {
-        start,
-        registration,
+    crate::harness::blocking::run_blocking("hub_start_managed_harness", move || {
+        if sandbox_strictness_blocks(&harness, &workspace) {
+            return Err(format!(
+                "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
+            ));
+        }
+        let parsed = hub::HarnessId::parse(&harness).map_err(|error| error.to_string())?;
+        let store = open_store()?;
+        let (start, registration) = if parsed == hub::HarnessId::Claude {
+            start_managed_claude_channel(&store, Path::new(&workspace))?
+        } else {
+            start_managed_harness(
+                &store,
+                &harness,
+                Path::new(&workspace),
+                &disk_session_id,
+                &prompt,
+            )?
+        };
+        Ok(StartManagedHarnessOutcome {
+            start,
+            registration,
+        })
     })
+    .await
 }

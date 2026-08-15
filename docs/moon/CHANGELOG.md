@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop / Hub — UI freezes without pending feedback (#163) (2026-08-15)
+
+- **Root class (same as 726f28c):** non-`async` `#[tauri::command]` bodies run
+  on the Linux webview IPC thread, so any slow subprocess or process-table
+  work freezes the entire window with no panel-local pending state.
+- **Backend offload** (`async` + `spawn_blocking` via new
+  `src-tauri/src/harness/blocking.rs`): `hub_inject_harness`,
+  `hub_start_harness`, `hub_start_managed_harness`, `hub_stop_managed_harness`,
+  `hub_workspace_agent_presence` (polls `claude agents --json`),
+  `detect_agent_processes`, `hub_grok_connect` / `hub_grok_leader_status` /
+  `hub_grok_list_live_sessions`, `claude_channel_connect`, and
+  `hub_send_tagged_message`. Capture/relaunch/quota paths were already
+  offloaded (#161 / earlier freezes).
+- **Frontend pending:** harness inject **Retry** shows an immediate
+  Working… / busy banner and disables Retry/Dismiss while the inject
+  runs. Chat Send already showed "Sending…"; Config process detection
+  already had `detecting`. Live terminal / Grok connect buttons already
+  used busy labels.
+- **Verification:** `cargo build -p tauri-app` + `cargo clippy -p tauri-app
+  --all-targets -- -D warnings`; `npx tsc --noEmit`; `npm run build`.
+  Scoped `cargo test -p tauri-app harness::commands` when thermal budget
+  allows. Not a full workspace suite. Owner Kubuntu multi-action freeze
+  re-test still required before closing #163.
+
 ### Claude — #161/#162 review follow-ups: #163 assigned, I8 reopened, DeepSeek roadmap slice (2026-08-15)
 
 - Reviewed the landed #161 fix (`258d1e0`) and #162 hardening against

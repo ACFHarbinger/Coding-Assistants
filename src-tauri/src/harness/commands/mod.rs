@@ -3,6 +3,7 @@
 //! only dispatches through the shared `hub` contract.
 
 use crate::commands::commands::store::open_store;
+use crate::harness::blocking::{run_blocking, run_blocking_ok};
 use hub::{
     connect_grok_leader_session, default_leader_socket, delete_channel_workspace,
     grok_leader_status, inject_harness_with_store, is_channel_session_live, latest_grok_session_id,
@@ -28,8 +29,7 @@ fn sandbox_strictness_blocks(harness: &str, workspace: &str) -> bool {
     harness == "vibe" && strictness == SandboxStrictness::Strict
 }
 
-#[tauri::command]
-pub fn hub_start_harness(
+fn hub_start_harness_blocking(
     harness: String,
     workspace: String,
     session_id: Option<String>,
@@ -49,11 +49,24 @@ pub fn hub_start_harness(
     .map_err(|error| error.to_string())
 }
 
+/// Spawns a provider process — never run inline on the IPC thread (#163).
+#[tauri::command]
+pub async fn hub_start_harness(
+    harness: String,
+    workspace: String,
+    session_id: Option<String>,
+    prompt: String,
+) -> Result<HarnessStartResult, String> {
+    run_blocking("hub_start_harness", move || {
+        hub_start_harness_blocking(harness, workspace, session_id, prompt)
+    })
+    .await
+}
+
 /// Relaunch/managed-harness commands (see `relaunch.rs`).
 pub mod relaunch;
 
-#[tauri::command]
-pub fn hub_inject_harness(
+fn hub_inject_harness_blocking(
     harness: String,
     workspace: String,
     session_id: Option<String>,
@@ -80,6 +93,26 @@ pub fn hub_inject_harness(
         },
     )
     .map_err(|error| error.to_string())
+}
+
+/// Provider inject (Codex app-server, Grok leader, managed workers) can take
+/// seconds. Off the IPC thread so Chat send stays non-freezing (#163).
+#[tauri::command]
+pub async fn hub_inject_harness(
+    harness: String,
+    workspace: String,
+    session_id: Option<String>,
+    message_id: Option<String>,
+    body: String,
+    is_task: bool,
+    is_wake: bool,
+) -> Result<HarnessInjectResult, String> {
+    run_blocking("hub_inject_harness", move || {
+        hub_inject_harness_blocking(
+            harness, workspace, session_id, message_id, body, is_task, is_wake,
+        )
+    })
+    .await
 }
 
 #[tauri::command]
@@ -186,29 +219,44 @@ pub async fn claude_channel_is_connected(workspace: String) -> Result<bool, Stri
 /// Code's Channel research preview is an interactive TUI with no headless
 /// daemon mode, so this always opens a real terminal window rather than a
 /// detached background process — see `hub::launch_claude_channel_session`.
+/// Opens a real terminal — process spawn belongs on a worker thread (#163).
 #[tauri::command]
-pub fn claude_channel_connect(workspace: String) -> Result<(), String> {
-    launch_claude_channel_session(Path::new(&workspace)).map(|_| ())
+pub async fn claude_channel_connect(workspace: String) -> Result<(), String> {
+    run_blocking("claude_channel_connect", move || {
+        launch_claude_channel_session(Path::new(&workspace)).map(|_| ())
+    })
+    .await
 }
 
 /// Whether `~/.grok/leader.sock` (or `$GROK_LEADER_SOCKET`) exists, plus
-/// any live Grok TUI listed for `workspace`.
+/// any live Grok TUI listed for `workspace`. Process-table scan — off IPC.
 #[tauri::command]
-pub fn hub_grok_leader_status(workspace: Option<String>) -> GrokConnectResult {
-    grok_leader_status(workspace.as_deref().map(Path::new))
+pub async fn hub_grok_leader_status(
+    workspace: Option<String>,
+) -> Result<GrokConnectResult, String> {
+    run_blocking_ok("hub_grok_leader_status", move || {
+        grok_leader_status(workspace.as_deref().map(Path::new))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn hub_grok_list_live_sessions() -> Vec<ActiveGrokSession> {
-    list_active_grok_sessions()
+pub async fn hub_grok_list_live_sessions() -> Result<Vec<ActiveGrokSession>, String> {
+    run_blocking_ok("hub_grok_list_live_sessions", list_active_grok_sessions).await
 }
 
 /// Start or attach to a documented Grok leader for `workspace`.
 /// `resume` opens `grok --leader --resume <live-or-latest session>`.
 #[tauri::command]
-pub fn hub_grok_connect(workspace: String, resume: bool) -> Result<GrokConnectResult, String> {
-    connect_grok_leader_session(&open_store()?, Path::new(&workspace), resume)
-        .map_err(|error| error.to_string())
+pub async fn hub_grok_connect(
+    workspace: String,
+    resume: bool,
+) -> Result<GrokConnectResult, String> {
+    run_blocking("hub_grok_connect", move || {
+        connect_grok_leader_session(&open_store()?, Path::new(&workspace), resume)
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -290,7 +338,7 @@ mod tests {
                 .unwrap();
             settings.save().unwrap();
 
-            let error = hub_start_harness(
+            let error = hub_start_harness_blocking(
                 "vibe".into(),
                 "/abs/repo".into(),
                 None,
@@ -360,7 +408,7 @@ mod tests {
                 .unwrap();
             settings.save().unwrap();
 
-            let error = hub_inject_harness(
+            let error = hub_inject_harness_blocking(
                 "vibe".into(),
                 "/abs/repo".into(),
                 None,

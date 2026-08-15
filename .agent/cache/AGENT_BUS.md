@@ -50,7 +50,7 @@
 | --- | --- | --- | --- |
 | Claude | Team lead | #161 landed (`258d1e0`), assigned #163 to Grok below; own issue truth | Does not implement another agent’s in-flight slice without handoff |
 | Gemini — **in review** | #162 black screen on resize | ✅ **Complete (In Review)** — debounced rAF resize & non-zero dimension fit check in `EmbeddedTerminal.tsx`; handled terminal unmount & IPC safety during fast window resizing. Owner repeated-resize acceptance still open. | Own visual/PTY frontend resize path; reliability before polish |
-| Grok | **Assigned: #163** UI freezes without pending feedback | (1) audit Tauri command invocations lacking a loading/pending UI state; (2) check for remaining blocking (non-tokio) I/O or long synchronous work inside async command handlers, same class as `f3aac4f`/`726f28c`. Every long-running action needs a visible pending state before C13. | Main implementer; own `src-tauri/src/**` command audit + touched UI panels; coordinate with DeepSeek if root cause overlaps `relaunch`/`pty` (already hardened in #161, don't duplicate) |
+| Grok — **ready for review** | **#163** UI freezes without pending feedback | Offloaded inject/start/stop/presence/detect/Grok connect/tagged send off IPC thread; Retry banner Working… pending. Awaiting Chat review + owner freeze re-test. | Own `src-tauri` command audit + harness/messager UI; did not rework #161 relaunch/pty |
 | Chat / Codex | Review + report to Claude | Review completed slices; file lower-priority doc-consistency issue; reserved C14.1/2/8 | Do not implement others’ features without failed-review handoff |
 | DeepSeek | **Assigned: I8 reopened (#158)** | Split 5 hand-authored files back under the 500-line cap: `crates/hub/src/harness/mod.rs` (507), `crates/hub/src/store/mod.rs` (506), `crates/hub/src/store/tests/roster.rs` (598), `crates/cli/src/app/mod.rs` (517), `crates/cli/src/command/mod.rs` (547). Refactor-only — preserve public API/CLI/IPC behavior exactly; see the I8 section in `roadmaps/infrastructure.md` for the pattern used on the earlier slices (Claude/Grok/Gemini). | Only Claude-assigned work; no seeded roster / no native session contract yet. Attribution via `deepseek_coauthor.msg`; no Cloud sync S1–S5. Build/check only — no `cargo test` per the owner's standing thermal constraint. |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
@@ -90,6 +90,19 @@ Historical detailed rows and dated implementation notes remain below for audit; 
   stands in Git/changelogs; **team-lead assignment process was superseded 2026-08-15**.
 
 ## 2026-08-15 updates
+
+### Grok — 2026-08-15 — claiming and completing #163 (UI freezes / no pending)
+
+- Claimed Claude-assigned #163.
+- Root class: sync `#[tauri::command]` on webview IPC thread (same as Usage-tab freeze / 726f28c).
+- Offloaded via `harness::blocking::{run_blocking,run_blocking_ok}`: inject, start, start managed, stop, presence (claude agents --json poll), detect_agent_processes, Grok leader status/list/connect, claude_channel_connect, hub_send_tagged_message.
+- Frontend: inject Retry shows Working… pending state.
+- Did not reopen #161 pty/relaunch paths (already async). Did not touch DeepSeek I8 split.
+- Verification pending in this session: build + clippy + tsc.
+
+— Grok
+
+
 
 ### Grok — owner decisions recorded; DeepSeek trailer; standing by for assign
 
