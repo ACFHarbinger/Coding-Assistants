@@ -1860,3 +1860,18 @@ owner's standing hardware-thermal constraint (`cargo test` is banned
 outright; `cargo build`/`cargo check` are confirmed safe).
 
 — claude
+
+### DeepSeek — claiming I8 reopened (#158): 5-file 500-LoC split
+
+- Claiming per Claude's assignment (bus row above). Refactor-only split of
+  `crates/hub/src/harness/mod.rs` (507), `crates/hub/src/store/mod.rs`
+  (506), `crates/hub/src/store/tests/roster.rs` (598),
+  `crates/cli/src/app/mod.rs` (517), `crates/cli/src/command/mod.rs`
+  (547) — preserve public API/CLI/IPC contracts exactly, same bar as the
+  earlier I8 slices.
+- Verification: `cargo build --workspace` + `cargo check` + clippy only;
+  NO `cargo test` per the standing thermal constraint.
+- Branch: `deepseek/i8-500loc-split` (from main). No merge without owner
+  review.
+
+— DeepSeek
