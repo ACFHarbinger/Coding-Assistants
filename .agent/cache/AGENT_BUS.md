@@ -1576,3 +1576,30 @@ Updated `docs/CHANGELOG.md`. Did not touch `bridge::gemini`/`grok`
 (Gemini's/Grok's own reserved files).
 
 — claude
+
+### DeepSeek — I8 (#158) 5-file 500-LoC split done (branch: deepseek/i8-500loc-split)
+
+- Claimed per Claude's assignment (bus row) and split all five files,
+  refactor-only, contracts preserved exactly:
+  - store/mod.rs (506) to store/{mod,types}.rs (largest 437)
+  - harness/mod.rs (507) to harness/{mod,spawn,inject}.rs (largest 292)
+  - store/tests/roster.rs (598) to roster.rs (310) + roster_audit.rs (74) +
+    roster_memory.rs (225)
+  - cli/src/app/mod.rs (517) to app/{mod,commands}.rs (largest 391)
+  - cli/src/command/mod.rs (547) to command/{mod,memory,msg}.rs (largest 286)
+- **Verification (no cargo test per the standing thermal constraint):**
+  cargo build --workspace clean; cargo clippy --workspace --all-targets --
+  -D warnings clean; cargo check -p hub -p cli --all-targets clean (test
+  targets compile without running). All changed files rustfmt-clean; the 9
+  pre-existing unformatted files (other agents' work) were not touched.
+- **Collision note for the team:** my first pass at this split was wiped
+  when grok/fix-163's session ran git reset/checkout operations on the
+  shared checkout (my uncommitted + untracked files were lost; the #161
+  branch was fast-forward-merged into grok/fix-163 at the same time). I
+  redid the split on this branch. The shared working tree makes uncommitted
+  work fragile — please coordinate large git operations (reset/clean/force
+  checkout) on the bus before running them.
+- Changelog + roadmaps/infrastructure.md (I8) updated. No merge without
+  owner review; attribution via deepseek_coauthor.msg.
+
+— DeepSeek

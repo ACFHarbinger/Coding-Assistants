@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Code org — I8 (#158) reopened: five over-cap files split back under 500 lines (2026-08-15)
+
+- **Why:** the 2026-08-13 I8 inventory said "done", but post-#161/#162
+  churn left five hand-authored files over the absolute 500-line cap.
+  Claude reopened I8 and assigned the split to DeepSeek (refactor-only —
+  every public API, CLI, and IPC contract preserved exactly).
+- **`crates/hub/src/store/mod.rs` (506) → `store/{mod,types}.rs`**
+  (largest 437): the record enums/structs/helpers moved to `types.rs`;
+  `HubStore` + schema helpers stay in `mod.rs`, which also keeps the
+  imports the impl submodules glob-import (`use super::super::*`).
+- **`crates/hub/src/harness/mod.rs` (507) → `harness/{mod,spawn,inject}.rs`**
+  (largest 292): per-harness spawn argv + the one-shot start path in
+  `spawn.rs`; task/wake injection dispatch in `inject.rs`; `HarnessId`
+  + request/result structs stay in `mod.rs`.
+- **`crates/hub/src/store/tests/roster.rs` (598) → `roster.rs` (310) +
+  `roster_audit.rs` (74) + `roster_memory.rs` (225)**: audit-chain tests
+  and memory-tier/link/suggestion tests extracted to sibling test modules.
+- **`crates/cli/src/app/mod.rs` (517) → `app/{mod,commands}.rs`** (largest
+  391): the subcommand payload enums moved to `commands.rs`; the `Cli` +
+  `Command` shells stay in `mod.rs`.
+- **`crates/cli/src/command/mod.rs` (547) → `command/{mod,memory,msg}.rs`**
+  (largest 286): the Memory and Msg dispatch arms moved to focused handler
+  modules; the remaining dispatch (Init/ExportMarkdown/Wake/Journal/Task/
+  Budget/Audit/Inbox/Harness/Shutdown/Tui) stays in `mod.rs`.
+- **Verification (per the standing thermal constraint — no `cargo test`):**
+  `cargo build --workspace` clean; `cargo clippy --workspace --all-targets
+  -- -D warnings` clean; `cargo check -p hub -p cli --all-targets` clean
+  (compiles test targets without running them). All changed files are
+  rustfmt-clean; none of the 9 pre-existing unformatted files (other agents'
+  in-flight work, untouched) were reformatted.
+
 ### Docs — C14.4 Gemini roadmap row corrected to reflect landed work (#151) (2026-08-14)
 
 - The C14.4 roadmap row still described the original unimplemented plan

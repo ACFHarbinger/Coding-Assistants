@@ -11,7 +11,7 @@ Keep only infrastructure with a current local or prototype use.
 | I5 | Remove obsolete Kubernetes, Helm, serverless, AWS, Azure Pipelines, WordPress, Webpack, Nginx, and proxy scaffolding | 📋 Pending |
 | I6 | Keep research and reports separate from active implementation roadmaps | 📋 Pending |
 | I7 | Rename crate/package `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (`src-tauri/Cargo.toml`, root `package.json`, `tauri.conf.json`, capability configs, lockfiles) — owner-confirmed 2026-08-10; dropped from the roadmap during the capability-file restructure, re-added here (Claude verification pass) | 📋 Pending |
-| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | ✅ Done · 2026-08-13 |
+| I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | 🚧 **Reopened · 2026-08-15** — 5 hand-authored files exceeded the cap post-#161/#162 churn; **split by DeepSeek** (see below). Re-verify the source-length inventory at review. |
 
 ## I8 — bounded source modules
 
@@ -47,3 +47,27 @@ Keep only infrastructure with a current local or prototype use.
   Channels UI extracted to `hub/ChannelsTab.tsx`. `bridge::grok` is the
   C12 adapter; C14 connect/spawn lives in `bridge::channels::grok`.
   Owned TS/TSX and Grok Rust files are ≤500 LoC.
+- **DeepSeek's slice (I8 reopen) — done (2026-08-15):** five files that
+  exceeded the 500-line cap after #161/#162 churn were split, contracts
+  preserved exactly:
+  - `crates/hub/src/store/mod.rs` (506) → `store/{mod,types}.rs`
+    (largest 437) — the record enums/structs moved to `types.rs`;
+    `HubStore` and the schema helpers stay in `mod.rs`, which keeps the
+    imports the impl submodules glob-import.
+  - `crates/hub/src/harness/mod.rs` (507) → `harness/{mod,spawn,inject}.rs`
+    (largest 292) — per-harness spawn argv/start in `spawn.rs`, task/wake
+    injection dispatch in `inject.rs`, `HarnessId` + request/result
+    structs stay in `mod.rs`.
+  - `crates/hub/src/store/tests/roster.rs` (598) → `roster.rs` (310) +
+    `roster_audit.rs` (74) + `roster_memory.rs` (225) — audit tests and
+    memory-tier/link tests extracted to sibling test modules.
+  - `crates/cli/src/app/mod.rs` (517) → `app/{mod,commands}.rs` (largest
+    391) — the subcommand payload enums moved to `commands.rs`; `Cli` +
+    `Command` shells stay in `mod.rs`.
+  - `crates/cli/src/command/mod.rs` (547) → `command/{mod,memory,msg}.rs`
+    (largest 286) — the Memory and Msg dispatch arms moved to focused
+    handler modules; the remaining dispatch stays in `mod.rs`.
+  - Verification per the standing thermal constraint: `cargo build
+    --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
+    `cargo check -p hub -p cli --all-targets` all clean. No `cargo test`
+    (owner go-ahead required). My changed files are rustfmt-clean.
