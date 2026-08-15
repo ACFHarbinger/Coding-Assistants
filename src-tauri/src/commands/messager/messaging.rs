@@ -26,7 +26,18 @@ pub struct SendMessageArgs {
 }
 
 #[tauri::command]
-pub fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> {
+pub async fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, String> {
+    // Plain and team sends write SQLite rows and can fan out to the whole
+    // roster. Keep the ordinary composer path off the IPC thread too (#163),
+    // rather than only protecting tagged sends.
+    tauri::async_runtime::spawn_blocking(move || hub_send_message_blocking(args))
+    .await
+    .map_err(|error| format!("hub_send_message task panicked: {error}"))?
+}
+
+/// Synchronous send implementation used only from the blocking-pool command
+/// wrapper and focused command tests.
+pub(crate) fn hub_send_message_blocking(args: SendMessageArgs) -> Result<MessageRecord, String> {
     let store = open_store()?;
     let kind =
         MessageKind::parse(args.kind.as_deref().unwrap_or("message")).map_err(|e| e.to_string())?;
@@ -85,23 +96,31 @@ pub struct SendTaggedMessageArgs {
 /// quota or broadcast-recipient limit gets a durable pending approval
 /// instead of immediate delivery, rather than the raw, ungated
 /// `send_tagged_message`.
+///
+/// Async + spawn_blocking: wake enrollment and SQLite writes can stall the
+/// webview when run as a sync command (#163). Chat's Send button already
+/// shows "Sending…"; this keeps window drag/tab switches responsive too.
 #[tauri::command]
-pub fn hub_send_tagged_message(
+pub async fn hub_send_tagged_message(
     args: SendTaggedMessageArgs,
 ) -> Result<Vec<hub::SendOutcome>, String> {
-    open_store()?
-        .send_tagged_message_gated(
-            &args.from,
-            &args.to,
-            args.is_task,
-            args.is_wake,
-            &args.body,
-            args.subject.as_deref(),
-            args.workspace.as_deref(),
-            args.task.as_deref(),
-            args.session_id.as_deref(),
-        )
-        .map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        open_store()?
+            .send_tagged_message_gated(
+                &args.from,
+                &args.to,
+                args.is_task,
+                args.is_wake,
+                &args.body,
+                args.subject.as_deref(),
+                args.workspace.as_deref(),
+                args.task.as_deref(),
+                args.session_id.as_deref(),
+            )
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|error| format!("hub_send_tagged_message task panicked: {error}"))?
 }
 
 #[derive(serde::Deserialize)]
@@ -117,20 +136,24 @@ pub struct SendSessionMessageArgs {
 }
 
 #[tauri::command]
-pub fn hub_send_session_message(
+pub async fn hub_send_session_message(
     args: SendSessionMessageArgs,
 ) -> Result<Vec<MessageRecord>, String> {
-    open_store()?
-        .send_session_message(
-            &args.from,
-            &args.session_id,
-            &args.to,
-            &args.body,
-            args.subject.as_deref(),
-            args.workspace.as_deref(),
-            args.task.as_deref(),
-        )
-        .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        open_store()?
+            .send_session_message(
+                &args.from,
+                &args.session_id,
+                &args.to,
+                &args.body,
+                args.subject.as_deref(),
+                args.workspace.as_deref(),
+                args.task.as_deref(),
+            )
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("hub_send_session_message task panicked: {error}"))?
 }
 
 #[tauri::command]

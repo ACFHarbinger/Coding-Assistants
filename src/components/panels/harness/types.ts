@@ -29,6 +29,15 @@ export interface EmbeddedRelaunchOutcome {
   detail: string;
 }
 
+/** Truthful snapshot of one in-app PTY session (pty_session_status). */
+export interface PtySessionStatus {
+  found: boolean;
+  running: boolean;
+  exited: boolean;
+  exit_detail: string | null;
+  output_tail_b64: string;
+}
+
 export interface StartManagedHarnessOutcome {
   start: { harness: string; pid: number | null; status: string; detail: string };
   registration: HarnessSessionRegistration;

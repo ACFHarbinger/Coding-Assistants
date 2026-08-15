@@ -50,7 +50,7 @@ fn hub_send_message_rejects_untagged_wake_kind() {
         now_unix()
     ));
     std::env::set_var("CA_HOME", &dir);
-    let error = hub_send_message(SendMessageArgs {
+    let error = hub_send_message_blocking(SendMessageArgs {
         from: "human".into(),
         to: "grok".into(),
         kind: Some("wake".into()),

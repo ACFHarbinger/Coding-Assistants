@@ -7,6 +7,7 @@ import type { HarnessInjectResult } from "./types";
 export function useHarnessDelivery(workspacePath: string, activeWorkSessionId: string | null) {
   const [harnessSessions, setHarnessSessions] = useState<HarnessSessionRegistration[]>([]);
   const [deliveryNotices, setDeliveryNotices] = useState<HarnessDeliveryNotice[]>([]);
+  const [retryingHarness, setRetryingHarness] = useState<string | null>(null);
 
   const refreshHarnessSessions = async () => {
     if (!isTauriRuntime()) return;
@@ -24,7 +25,11 @@ export function useHarnessDelivery(workspacePath: string, activeWorkSessionId: s
   }, [workspacePath]);
 
   const retryDelivery = async (notice: HarnessDeliveryNotice) => {
-    if (!notice.messageId || !notice.body) return;
+    if (!notice.messageId || !notice.body || retryingHarness) return;
+    setRetryingHarness(notice.harness);
+    setDeliveryNotices((current) => current.map((item) => item.harness === notice.harness
+      ? { ...item, status: "busy", detail: `Retrying inject into ${notice.harness}…`, retryable: false }
+      : item));
     try {
       const result = await invoke<HarnessInjectResult>("hub_inject_harness", {
         harness: notice.harness,
@@ -37,13 +42,33 @@ export function useHarnessDelivery(workspacePath: string, activeWorkSessionId: s
       });
       const next = injectNotice(result.status, result.detail);
       setDeliveryNotices((current) => current.map((item) => item.harness === notice.harness
-        ? { ...item, status: result.status, detail: result.detail, retryable: next.retryable }
+        ? {
+          ...item,
+          status: result.status,
+          detail: result.detail,
+          retryable: next.retryable,
+          messageId: notice.messageId,
+          body: notice.body,
+          isTask: notice.isTask,
+          isWake: notice.isWake,
+        }
         : item));
       await refreshHarnessSessions();
     } catch (error) {
       setDeliveryNotices((current) => current.map((item) => item.harness === notice.harness
-        ? { ...item, status: "unavailable", detail: String(error), retryable: true }
+        ? {
+          ...item,
+          status: "unavailable",
+          detail: String(error),
+          retryable: true,
+          messageId: notice.messageId,
+          body: notice.body,
+          isTask: notice.isTask,
+          isWake: notice.isWake,
+        }
         : item));
+    } finally {
+      setRetryingHarness(null);
     }
   };
 
@@ -53,6 +78,7 @@ export function useHarnessDelivery(workspacePath: string, activeWorkSessionId: s
     setDeliveryNotices,
     refreshHarnessSessions,
     retryDelivery,
+    retryingHarness,
     dismissDelivery: (harness: string) => setDeliveryNotices((current) => current.filter((item) => item.harness !== harness)),
   };
 }

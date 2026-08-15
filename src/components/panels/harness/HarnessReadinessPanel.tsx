@@ -61,6 +61,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     setRelaunching(target);
     try {
       requireWorkspace();
+      setDetail(`Starting ${target} terminal…`);
       const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
         harness: target,
         workspace,
@@ -188,7 +189,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       </div>
       {terminals[harness] && (
         <div style={{ height: "320px", marginBottom: "0.85rem" }}>
-          <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} />
+          <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
         </div>
       )}
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
@@ -241,7 +242,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
             </div>
             {terminals[row.harness] && (
               <div style={{ height: "320px" }}>
-                <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} />
+                <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
               </div>
             )}
           </div>

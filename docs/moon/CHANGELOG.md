@@ -9,34 +9,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Code org — I8 (#158) reopened: five over-cap files split back under 500 lines (2026-08-15)
 
-- **Why:** the 2026-08-13 I8 inventory said "done", but post-#161/#162
-  churn left five hand-authored files over the absolute 500-line cap.
-  Claude reopened I8 and assigned the split to DeepSeek (refactor-only —
-  every public API, CLI, and IPC contract preserved exactly).
-- **`crates/hub/src/store/mod.rs` (506) → `store/{mod,types}.rs`**
-  (largest 437): the record enums/structs/helpers moved to `types.rs`;
-  `HubStore` + schema helpers stay in `mod.rs`, which also keeps the
-  imports the impl submodules glob-import (`use super::super::*`).
-- **`crates/hub/src/harness/mod.rs` (507) → `harness/{mod,spawn,inject}.rs`**
-  (largest 292): per-harness spawn argv + the one-shot start path in
-  `spawn.rs`; task/wake injection dispatch in `inject.rs`; `HarnessId`
-  + request/result structs stay in `mod.rs`.
-- **`crates/hub/src/store/tests/roster.rs` (598) → `roster.rs` (310) +
-  `roster_audit.rs` (74) + `roster_memory.rs` (225)**: audit-chain tests
-  and memory-tier/link/suggestion tests extracted to sibling test modules.
-- **`crates/cli/src/app/mod.rs` (517) → `app/{mod,commands}.rs`** (largest
-  391): the subcommand payload enums moved to `commands.rs`; the `Cli` +
-  `Command` shells stay in `mod.rs`.
-- **`crates/cli/src/command/mod.rs` (547) → `command/{mod,memory,msg}.rs`**
-  (largest 286): the Memory and Msg dispatch arms moved to focused handler
-  modules; the remaining dispatch (Init/ExportMarkdown/Wake/Journal/Task/
-  Budget/Audit/Inbox/Harness/Shutdown/Tui) stays in `mod.rs`.
-- **Verification (per the standing thermal constraint — no `cargo test`):**
-  `cargo build --workspace` clean; `cargo clippy --workspace --all-targets
-  -- -D warnings` clean; `cargo check -p hub -p cli --all-targets` clean
-  (compiles test targets without running them). All changed files are
-  rustfmt-clean; none of the 9 pre-existing unformatted files (other agents'
-  in-flight work, untouched) were reformatted.
+- The post-#161/#162 inventory found five hand-authored Rust units above the
+  absolute cap. DeepSeek split them without changing public API, CLI, or IPC
+  contracts: Hub store types, harness spawn/inject, roster tests, and the CLI
+  app/command branches now live in focused modules no larger than 437 lines.
+- **Verification:** `cargo build --workspace`, workspace Clippy, and
+  `cargo check -p hub -p cli --all-targets` passed under the thermal limit;
+  tests were compiled but not run under the standing owner constraint.
+
+### Desktop / Hub — UI freezes without pending feedback (#163) (2026-08-15)
+
+- **Root class (same as 726f28c):** non-`async` `#[tauri::command]` bodies run
+  on the Linux webview IPC thread, so any slow subprocess or process-table
+  work freezes the entire window with no panel-local pending state.
+- **Backend offload** (`async` + `spawn_blocking` via new
+  `src-tauri/src/harness/blocking.rs`): `hub_inject_harness`,
+  `hub_start_harness`, `hub_start_managed_harness`, `hub_stop_managed_harness`,
+  `hub_workspace_agent_presence` (polls `claude agents --json`),
+  `detect_agent_processes`, `hub_grok_connect` / `hub_grok_leader_status` /
+  `hub_grok_list_live_sessions`, `claude_channel_connect`, and
+  `hub_send_tagged_message`. Capture/relaunch/quota paths were already
+  offloaded (#161 / earlier freezes).
+- **Review completion:** ordinary `hub_send_message` and
+  `hub_send_session_message` now use the same off-IPC path, so untagged and
+  named-session Chat sends cannot retain the original freeze class.
+- **Frontend pending:** harness inject **Retry** shows an immediate
+  Working… / busy banner and disables Retry/Dismiss while the inject
+  runs. Chat Send already showed "Sending…"; Config process detection
+  already had `detecting`. Live terminal / Grok connect buttons already
+  used busy labels.
+- **Verification:** `cargo build -p tauri-app` + `cargo clippy -p tauri-app
+  --all-targets -- -D warnings`; `npx tsc --noEmit`; `npm run build`.
+  Scoped `cargo test -p tauri-app harness::commands` when thermal budget
+  allows. Not a full workspace suite. Owner Kubuntu multi-action freeze
+  re-test still required before closing #163.
+
+### Claude — #161/#162 review follow-ups: #163 assigned, I8 reopened, DeepSeek roadmap slice (2026-08-15)
+
+- Reviewed the landed #161 fix (`258d1e0`) and #162 hardening against
+  Chat/Codex's five review findings. The Kubuntu owner-run proof for #161
+  and the repeated-resize acceptance exercise for #162 are both
+  owner-only and remain open — no agent can supply them.
+- The `cargo test -p tauri-app pty` "two tests" note wasn't a bug:
+  `empty_base64_reads_filename_as_a_filesystem_path` incidentally matches
+  the `pty` substring filter (e**mpty**); the real PTY test is
+  `push_tail_keeps_only_the_most_recent_bytes`. No code change; future
+  verification citations should scope the test filter precisely.
+- Assigned #163 (UI freezes with no pending feedback) to Grok.
+- Reopened I8 (#158): five hand-authored files exceeded the 500-line cap
+  again from post-landing churn. Split all five this round — see the
+  entry below.
+- Added roadmap entry C14.10 (`communication.md`) for a future native
+  DeepSeek channel/bridge, deliberately sequenced after the current
+  ship-priority milestone; doubles as a workflow-maturity check against
+  the bug classes hit on every prior C14.x integration.
+
+### Desktop — truthful terminal launch/exit surfacing + relaunch hardening (#161) (2026-08-15)
+
+- **Root cause:** "Resume in terminal" / terminal-launch buttons sometimes
+  appeared to do nothing — no terminal, no visible error. Three compounding
+  gaps: (1) a fast-failing harness CLI (e.g. "codex resume <stale-id>" exits
+  in well under a second) could exit before the frontend attached its
+  pty-output / pty-exit listeners, leaving a silently blank terminal with
+  no exit reason; (2) the relaunch command could take many seconds or hang on
+  session discovery ("claude agents --json" subprocess, full
+  ~/.codex/sessions tree scan) plus kill/settle sleeps, all synchronous on
+  the Tauri command; (3) EmbeddedTerminal swallowed every
+  pty_write / pty_resize IPC error.
+- **Backend — src-tauri/src/pty.rs:** every session now retains a bounded
+  output tail (last 64 KiB) plus the real exit status for 60 s after exit;
+  the wait thread polls with non-blocking try_wait so the session lock is
+  never held across a wait (the reader thread needs it for tail appends);
+  new pty_session_status command returns {found, running, exited,
+  exit_detail, output_tail_b64}; pty_write / pty_resize / pty_kill are
+  truthful no-ops on exited sessions instead of erroring.
+- **Backend — crates/hub/src/bridge/relaunch.rs + src-tauri/src/harness/commands.rs:** session discovery is bounded to 3 s
+  (discover_session_id_bounded, injectable for tests); on timeout the
+  launch proceeds fresh and says so in the outcome detail; both relaunch
+  commands are now async and run their blocking resolve on the Tokio blocking
+  pool instead of occupying a worker (the shared #161/#163 "no feedback"
+  class). The external hub_relaunch_harness_in_terminal path is preserved.
+- **Frontend — EmbeddedTerminal.tsx + harness panels:** on mount the
+  component queries pty_session_status first — an already-exited session
+  shows its retained output plus a truthful "exited (code N)" line and an
+  "exited" chip; a missing session renders an explicit error state; IPC
+  failures on write/resize are surfaced through a new onError prop into
+  the panel error banner instead of being swallowed; panels show an immediate
+  "Starting <harness> terminal…" pending state while the launch resolves.
+- **Coexistence:** Gemini's #162 resize hardening in the same component is
+  preserved; the shared relaunch.rs / commands.rs area carries both fixes.
+- **Verification:** cargo build --workspace, clippy, and targeted tests
+  per the standing hardware constraint (full workspace test suite only with
+  owner go-ahead).
+
+### UI — Fix embedded terminal canvas / layout corruption on window resize (#162) (2026-08-15)
+
+- **Root cause & Fix:** Resizing the app window rapidly triggered unconstrained `fit.fit()` and `pty_resize` invocations even when the container dimensions were 0 during layout shifts, throwing exceptions inside xterm's DOM layout measurement and leaving terminal buffers blank/corrupted (~75% black screen).
+- **EmbeddedTerminal hardening (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
+  - Added debounced `requestAnimationFrame` for resize syncing with frame cancellation on rapid re-triggers and safe unmount cleanup.
+  - Added non-zero dimension bounds checks (`clientWidth > 0 && clientHeight > 0`, `rows > 0 && cols > 0`) before executing `fit.fit()` or `pty_resize`.
+  - Wrapped `fit.fit()`, `term.write()`, and `term.dispose()` in safe `try/catch` blocks.
+- **Backend & tests:**
+  - Added `std::path::PathBuf` and closure fixes in `crates/hub/src/bridge/relaunch.rs`.
+  - Enhanced `is_pid_running` on Linux to check `/proc/{pid}/status` and exclude zombie processes (`Z`/`X`).
+  - Added `discovery_timed_out: _` handling in `src-tauri/src/harness/commands.rs`.
 
 ### Docs — C14.4 Gemini roadmap row corrected to reflect landed work (#151) (2026-08-14)
 

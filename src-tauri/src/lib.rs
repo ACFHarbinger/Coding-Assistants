@@ -114,9 +114,14 @@ async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String>
     })
 }
 
+/// `ps` process-table scan — offload so Orchestrate discovery does not
+/// freeze the window while the table is read (#163).
 #[tauri::command]
-fn detect_agent_processes() -> Result<Vec<core::process_detector::DetectedProcess>, String> {
-    core::process_detector::detect_agent_processes()
+async fn detect_agent_processes() -> Result<Vec<core::process_detector::DetectedProcess>, String> {
+    harness::blocking::run_blocking("detect_agent_processes", || {
+        core::process_detector::detect_agent_processes()
+    })
+    .await
 }
 
 #[tauri::command]
@@ -348,6 +353,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            pty::pty_session_status,
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
             commands::commands::store::hub_get_data_dir,
@@ -390,9 +396,11 @@ pub fn run() {
             commands::commands::messaging::hub_list_work_sessions,
             commands::commands::messaging::hub_add_work_session_member,
             harness::commands::hub_start_harness,
-            harness::commands::hub_start_managed_harness,
-            harness::commands::hub_relaunch_harness_in_terminal,
-            harness::commands::hub_relaunch_harness_embedded,
+            // Moved to the relaunch submodule when commands/ split (#158);
+            // the tauri macro-generated __cmd__ items live there too.
+            harness::commands::relaunch::hub_start_managed_harness,
+            harness::commands::relaunch::hub_relaunch_harness_in_terminal,
+            harness::commands::relaunch::hub_relaunch_harness_embedded,
             harness::stop::hub_stop_managed_harness,
             harness::commands::hub_inject_harness,
             harness::commands::hub_register_harness_session,
