@@ -39,6 +39,8 @@ pub fn grok_leader_daemon_args(socket: &Path) -> Vec<String> {
 pub fn grok_leader_tui_args(workspace: &Path, resume_id: Option<&str>) -> Vec<String> {
     let mut args = vec![
         "--leader".into(),
+        "--no-alt-screen".into(),
+        "--minimal".into(),
         "--cwd".into(),
         workspace.display().to_string(),
         "--leader-socket".into(),
@@ -250,6 +252,8 @@ mod tests {
         let fresh = grok_leader_tui_args(Path::new("/abs/repo"), None);
         assert_eq!(fresh[0], "--leader");
         assert!(fresh.contains(&"--cwd".into()));
+        assert!(fresh.contains(&"--no-alt-screen".into()));
+        assert!(fresh.contains(&"--minimal".into()));
         assert!(!fresh.contains(&"--resume".into()));
 
         let resume = grok_leader_tui_args(Path::new("/abs/repo"), Some("sess-1"));

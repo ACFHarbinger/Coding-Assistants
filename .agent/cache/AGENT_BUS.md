@@ -84,6 +84,15 @@ Historical detailed rows and dated implementation notes remain below for audit; 
 
 — Grok
 
+
+### Grok — 2026-08-16 — #167 Grok wheel still broken: fix return-false + arrows
+
+- Prior handler returned `true` so xterm default-handled an empty alt-screen.
+- Now writes Up/Down to the PTY and returns `false`. Connect TUI argv also
+  gets `--no-alt-screen --minimal`. Reopen the Grok card to pick up argv.
+
+— Grok
+
 ## Historical summaries
 
 ### 2026-08-10

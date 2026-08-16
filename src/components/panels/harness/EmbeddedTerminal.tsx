@@ -32,14 +32,10 @@ function applyDecPrivateModes(chunk: string, modes: { mouse: boolean; alt: boole
   }
 }
 
-function wheelToPtyData(deltaY: number, mouseTracking: boolean): string {
-  const steps = Math.max(1, Math.min(8, Math.round(Math.abs(deltaY) / 40) || 1));
-  const up = deltaY < 0;
-  if (mouseTracking) {
-    const button = up ? 64 : 65;
-    return Array.from({ length: steps }, () => `\x1b[<${button};1;1M`).join("");
-  }
-  return (up ? "\x1b[5~" : "\x1b[6~").repeat(Math.min(steps, 3));
+/** Arrow keys — Ratatui/crossterm viewports honor these even when mouse CSI is ignored. */
+function wheelToPtyData(deltaY: number): string {
+  const steps = Math.max(1, Math.min(12, Math.round(Math.abs(deltaY) / 30) || 1));
+  return (deltaY < 0 ? "\x1b[A" : "\x1b[B").repeat(steps);
 }
 
 /**
@@ -193,11 +189,13 @@ export default function EmbeddedTerminal({
             if (tuiOwnsWheel) {
               e.preventDefault();
               e.stopPropagation();
-              const data = wheelToPtyData(e.deltaY, grokSession || decModes.mouse || decModes.alt);
+              const data = wheelToPtyData(e.deltaY);
               void invoke("pty_write", { sessionId, data }).catch((cause) =>
                 reportErrorOnce(String(cause).replace(/^Error:\s*/, "")),
               );
-              return true;
+              // false = skip xterm default. true let it try to scroll an empty
+              // alt-screen buffer and the event never reached the TUI.
+              return false;
             }
             e.stopPropagation();
             return true;

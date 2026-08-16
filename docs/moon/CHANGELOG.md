@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — Grok leader wheel actually reaches the TUI (#167) (2026-08-16)
+
+- Previous in-app handler returned `true` after injecting CSI, so xterm
+  still ran default wheel handling on an empty alt-screen and Grok never
+  scrolled. It now writes **Up/Down** to the PTY and returns `false`.
+- Connect/`grok_leader_tui_args` also pass documented `--no-alt-screen
+  --minimal` (same as embedded resume) so a reopen is not stuck in
+  fullscreen alt-screen.
+
 ### Desktop — Grok embedded `--leader` TUI wheel-scroll (#167 follow-up) (2026-08-16)
 
 - Grok's in-app card did not wheel-scroll while Claude's did. Cause: `grok
