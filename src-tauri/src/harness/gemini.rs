@@ -148,11 +148,22 @@ pub fn capture_gemini_session(
     gemini_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<GeminiCaptureOutcome, String> {
+    // #165 capture-identity gate (see claude.rs): only registered or
+    // explicitly named sessions are captured.
+    let Some(session_id) =
+        super::resolve_capture_session_id(store, "gemini", workspace, gemini_session_id)?
+    else {
+        return Ok(GeminiCaptureOutcome {
+            transcript_found: false,
+            scanned: 0,
+            captured: Vec::new(),
+        });
+    };
     capture_gemini_session_from(
         &gemini_brain_dir(),
         store,
         workspace,
-        gemini_session_id,
+        Some(&session_id),
         hub_session_id,
     )
 }

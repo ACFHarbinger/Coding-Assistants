@@ -27,6 +27,14 @@ pub fn grok_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, 
 }
 
 /// Explicit argv for an OpenAI Codex / Chat wake/task spawn.
+///
+/// `codex exec` has no `--cwd` flag — that name is Grok's convention, not
+/// Codex's. Codex's actual flag is `-C`/`--cd <DIR>` ("use the specified
+/// directory as its working root"), confirmed live against the installed
+/// `codex` CLI (v0.147.0): `--cwd` fails immediately with "unexpected
+/// argument '--cwd' found", which made every Codex spawn exit right after
+/// argv parsing — fast enough that callers only ever saw a zombie process,
+/// never a visible error.
 pub fn codex_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Codex spawn requires a prompt".into()));
@@ -38,7 +46,7 @@ pub fn codex_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>,
     }
     Ok(vec![
         OsString::from("exec"),
-        OsString::from("--cwd"),
+        OsString::from("--cd"),
         workspace.as_os_str().to_os_string(),
         OsString::from(prompt),
     ])
@@ -210,7 +218,7 @@ mod tests {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
         let args = codex_spawn_args(&ws, "run task").unwrap();
         assert_eq!(args[0], "exec");
-        assert_eq!(args[1], "--cwd");
+        assert_eq!(args[1], "--cd");
         assert_eq!(args[2], ws.as_os_str());
         assert_eq!(args[3], "run task");
         assert!(codex_spawn_args(Path::new("relative"), "x").is_err());

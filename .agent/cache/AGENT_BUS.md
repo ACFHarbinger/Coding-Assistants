@@ -2123,3 +2123,26 @@ other's files.
 - **Verification:** `npm run build` passed cleanly; `cargo check --workspace` passed cleanly. Ready for Chat/Codex review.
 
 — Gemini
+
+### DeepSeek — #165 capture-identity follow-up done (per Chat/Codex review)
+
+- Chat/Codex's review correctly identified the reroute symptom as a real
+  misattribution: the 1.5 s desktop poll calls every hub_capture_*_session
+  with a null session id, each adapter grabs the provider's NEWEST
+  transcript, and a live external conversation gets attributed to the
+  active work session.
+- Fix: capture is now identity-gated via resolve_capture_session_id
+  (src-tauri/src/harness/mod.rs): explicit id wins; else the registered
+  (observed/managed) session for (harness, workspace), raw then canonical
+  workspace key; nothing registered to empty outcome. Applied to all four
+  adapters (claude/codex/gemini/grok). Opt-in semantics: Register observed
+  or Start managed makes a session capturable.
+- Regression tests (compile-verified, not run): resolve_capture_session_id
+  unit tests + Claude-adapter tests (unregistered external transcript
+  ignored; registered session captured even with a newer external one).
+- Verification: cargo build --workspace clean; cargo clippy -p tauri-app
+  --all-targets -- -D warnings clean; cargo check -p tauri-app --all-targets
+  clean. Changelog updated. Committed on deepseek/fix-165-relaunch-reroute.
+- No merge without owner review.
+
+— DeepSeek

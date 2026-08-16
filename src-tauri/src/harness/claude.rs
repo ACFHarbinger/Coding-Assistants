@@ -142,11 +142,24 @@ pub fn capture_claude_session(
     disk_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<ClaudeCaptureOutcome, String> {
+    // #165 capture-identity gate: only capture a session the app has
+    // registered (observed/managed) or explicitly named. Without it, the
+    // 1.5 s desktop poll would grab the newest external transcript and
+    // attribute a live outside conversation to the active work session.
+    let Some(session_id) =
+        super::resolve_capture_session_id(store, "claude", workspace, disk_session_id)?
+    else {
+        return Ok(ClaudeCaptureOutcome {
+            transcript_found: false,
+            scanned: 0,
+            captured: Vec::new(),
+        });
+    };
     capture_claude_session_from(
         &claude_home().join("projects"),
         store,
         workspace,
-        disk_session_id,
+        Some(&session_id),
         hub_session_id,
     )
 }
@@ -194,6 +207,17 @@ mod tests {
     use std::io::Write;
     use tempfile::tempdir;
 
+    /// Restores $HOME on drop even if the test body panics mid-way.
+    struct HomeEnvGuard(Option<String>);
+    impl Drop for HomeEnvGuard {
+        fn drop(&mut self) {
+            match self.0.take() {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
     #[test]
     fn encodes_workspace_path_the_same_way_the_official_cli_does() {
         let workspace = Path::new("/home/pkhunter/Repositories/Repos/Coding-Assistants");
@@ -211,6 +235,71 @@ mod tests {
             writeln!(file, "{line}").unwrap();
         }
         path
+    }
+
+    #[test]
+    fn capture_gate_ignores_an_unregistered_external_transcript() {
+        // #165 regression: the 1.5 s desktop poll calls the capture command
+        // with a null session id. Without the capture-identity gate it would
+        // grab this workspace's newest transcript — a live external
+        // conversation the app never launched — and attribute it to the
+        // active work session (the reroute symptom).
+        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _lock = HOME_LOCK.lock().unwrap();
+        let _guard = HomeEnvGuard(std::env::var("HOME").ok());
+        let home = tempdir().unwrap();
+        std::env::set_var("HOME", home.path());
+        let workspace = home.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        write_transcript(
+            &session_transcript_dir(&claude_home().join("projects"), &workspace),
+            "external-session",
+            &[
+                r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"external reply"}]}}"#,
+            ],
+        );
+        let outcome = capture_claude_session(&store, &workspace, None, None).unwrap();
+        assert!(!outcome.transcript_found);
+        assert!(outcome.captured.is_empty());
+    }
+
+    #[test]
+    fn capture_gate_captures_the_registered_session_not_the_newest_external_one() {
+        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _lock = HOME_LOCK.lock().unwrap();
+        let _guard = HomeEnvGuard(std::env::var("HOME").ok());
+        let home = tempdir().unwrap();
+        std::env::set_var("HOME", home.path());
+        let workspace = home.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        store
+            .register_harness_session("claude", &workspace.to_string_lossy(), "registered-1", None)
+            .unwrap();
+        let session_dir = session_transcript_dir(&claude_home().join("projects"), &workspace);
+        write_transcript(
+            &session_dir,
+            "registered-1",
+            &[
+                r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"registered reply"}]}}"#,
+            ],
+        );
+        // A newer unregistered external transcript must NOT win.
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        write_transcript(
+            &session_dir,
+            "external-newer",
+            &[
+                r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"external reply"}]}}"#,
+            ],
+        );
+        let outcome = capture_claude_session(&store, &workspace, None, None).unwrap();
+        assert!(outcome.transcript_found);
+        assert_eq!(outcome.captured.len(), 1);
+        assert!(outcome.captured[0].body.contains("registered reply"));
     }
 
     #[test]

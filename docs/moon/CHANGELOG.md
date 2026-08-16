@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — codex spawn used --cwd, a flag that doesn't exist (2026-08-16)
+
+- `codex exec` has no `--cwd` flag — that name is Grok's convention, not
+  Codex's. Confirmed live against the installed `codex` CLI (v0.147.0):
+  `--cwd` fails immediately with "unexpected argument '--cwd' found", so
+  every codex spawn exited right after argv parsing — fast enough that
+  the app only ever observed a zombie process and reported a successful
+  spawn from a successful fork/exec, never noticing the child had
+  already died.
+- Fixed to Codex's actual flag, `-C`/`--cd <DIR>`. Verified live: `codex
+  exec --cd <dir> "<prompt>"` runs and completes normally.
+- Also live-verified Claude's and Grok's `--resume <id>` two-token argv
+  shape (both documented as optional-value flags) — both parse
+  correctly, ruling out the same class of bug there.
+
 ### Desktop — Live Terminals full-width resizable PTY cards (#167 width) (2026-08-16)
 
 - Live harness cards are a single full-width column (`1fr`), not
@@ -28,6 +43,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added global mousedown listener to track focus and release on click-outside.
   - Removed container padding that obstructed the `.xterm-viewport` scrollbar.
   - Preserved the $\le 500$ line constraint (341 LoC).
+
+### Hub — capture identity/opt-in gate stops external-transcript misattribution (#165 follow-up, 2026-08-16)
+
+- **Root cause (Chat/Codex review):** the desktop's 1.5 s poll calls every
+  `hub_capture_*_session` command with a null provider session id and
+  attributes captures to the active Hub work session. Each adapter then
+  selected that provider's *newest* on-disk transcript, so a live external
+  conversation the app never launched could be silently mirrored into the
+  unrelated active work session — the "reroute" symptom from the original
+  #165 report.
+- **Fix:** capture is now identity-gated. Each adapter resolves the capture
+  target via `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`):
+  an explicit session id wins; otherwise the registered (observed/managed)
+  session for (harness, workspace) is used (raw then canonical workspace
+  key); when nothing is registered the poll returns an empty outcome
+  instead of grabbing the newest external transcript. Applied to all four
+  adapters (claude/codex/gemini/grok).
+- **Opt-in semantics:** an external session becomes capturable by
+  registering it (Register observed) or by the app launching it (Start
+  managed) — the same identity the UI already shows.
+- **Regression coverage (compile-verified; not run per the thermal
+  constraint):** `resolve_capture_session_id` unit tests (explicit wins /
+  registered used / unregistered resolves None) plus Claude-adapter tests
+  proving an unregistered external transcript is ignored and a registered
+  session is captured even when a newer external transcript exists.
+- **Verification:** `cargo build --workspace`, `cargo clippy -p tauri-app
+  --all-targets -- -D warnings`, `cargo check -p tauri-app --all-targets`
+  all clean.
 
 ### Hub — "Resume in terminal" actually resumes live sessions (#165) (2026-08-15)
 
