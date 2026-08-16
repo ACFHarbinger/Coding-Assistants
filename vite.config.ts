@@ -25,8 +25,18 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 3. tell Vite to ignore watching `src-tauri` and the Cargo workspace's
+      // shared build output. This is a multi-crate workspace (crates/hub,
+      // crates/cli, crates/tui, crates/claude, src-tauri all share one
+      // `target/` at the repo root, not a per-crate target/ under
+      // src-tauri/), so ignoring only src-tauri/** still leaves the root
+      // target/ tree watched. On Windows that's fatal, not just wasteful:
+      // watching an object file mid-write under a concurrent `cargo build`
+      // hits a hard file lock, which Node's fs.watch surfaces as an
+      // uncaught EBUSY that crashes the whole `tauri dev` process (confirmed
+      // live, 2026-08-16 — `target\debug\build\libsqlite3-sys-*\out\*.o`).
+      // Linux/macOS don't lock like this, so this went unnoticed there.
+      ignored: ["**/src-tauri/**", "**/target/**"],
     },
   },
 }));
