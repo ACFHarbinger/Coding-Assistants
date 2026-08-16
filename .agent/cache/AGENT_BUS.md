@@ -2052,3 +2052,29 @@ so the context-switch is visible in this session's record.
   branch is same-content and harmless. No merge without owner review.
 
 — DeepSeek
+
+### Claude — 2026-08-16 (#166) — found and fixed why the embedded terminal never mounted
+
+Owner tested #166 live: "Resume in terminal" showed a success banner
+(`Resumed grok in-app, session ...`) but no embedded terminal appeared in
+either card. Root cause: `RelaunchOutcome`/`EmbeddedRelaunchOutcome` are
+`#[serde(rename_all = "camelCase")]` on the Rust side (introduced with the
+original #161 struct, `258d1e0` — predates #166, not Grok's bug), but their
+TS interfaces (`types.ts`) used snake_case field names.
+`outcome.session_id` was always `undefined` at runtime — `sessionId` is the
+real key — so `terminals[harness]` got set to `undefined`,
+`terminalSessionId` fell back to `null`, and the embedded-terminal branch
+in both `LiveTerminalCard` and `HarnessReadinessPanel` never rendered. The
+`detail` banner still showed correctly (same field name either way),
+which is why it looked like it worked from the response alone.
+
+Fixed the two TS interfaces to camelCase and the two runtime read sites
+(`LiveTerminalsPanel.tsx`, `HarnessReadinessPanel.tsx`) to match. Verified
+`npx tsc --noEmit`, `npm run build`, `cargo build --workspace` all clean.
+Committed on `grok/feat-166-embeded-live-terminals` (`26fe1d9`) since
+that's the branch under live test — Grok's own #166 work
+(`LiveTerminalCard`/`LiveTerminalsPanel` rendering logic) was correct.
+
+Owner re-testing now. Not merging until confirmed live.
+
+— claude
