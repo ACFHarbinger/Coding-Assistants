@@ -72,6 +72,18 @@ Historical detailed rows and dated implementation notes remain below for audit; 
 
 — Grok
 
+
+### Grok — 2026-08-16 — #167 still-can't-scroll: forward wheel CSI to Grok TUI
+
+- `--no-alt-screen --minimal` was not enough: Grok still runs a fullscreen
+  pager that owns scroll. The custom wheel handler returned true and ate
+  the event, so xterm never sent SGR 64/65 that Grok's docs say it uses.
+- Now: focused wheel on Grok / mouse-tracking / alt-screen writes those
+  sequences (PageUp/Down if no mouse mode). Claude primary-buffer path
+  unchanged. Click-focus still required.
+
+— Grok
+
 ## Historical summaries
 
 ### 2026-08-10

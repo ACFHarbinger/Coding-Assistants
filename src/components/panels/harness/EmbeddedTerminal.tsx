@@ -15,6 +15,33 @@ function decodeBase64(raw: string): Uint8Array {
   return buf;
 }
 
+/** CSI ? 1000/1002/1003/1006 h = mouse tracking; 1049/1047/47 = alt screen. */
+function applyDecPrivateModes(chunk: string, modes: { mouse: boolean; alt: boolean }): void {
+  const re = /\x1b\[\?([\d;]+)([hl])/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(chunk)) !== null) {
+    const on = match[2] === "h";
+    for (const mode of match[1].split(";")) {
+      if (mode === "1000" || mode === "1002" || mode === "1003" || mode === "1006" || mode === "1015" || mode === "1016") {
+        modes.mouse = on;
+      }
+      if (mode === "1049" || mode === "1047" || mode === "47") {
+        modes.alt = on;
+      }
+    }
+  }
+}
+
+function wheelToPtyData(deltaY: number, mouseTracking: boolean): string {
+  const steps = Math.max(1, Math.min(8, Math.round(Math.abs(deltaY) / 40) || 1));
+  const up = deltaY < 0;
+  if (mouseTracking) {
+    const button = up ? 64 : 65;
+    return Array.from({ length: steps }, () => `\x1b[<${button};1;1M`).join("");
+  }
+  return (up ? "\x1b[5~" : "\x1b[6~").repeat(Math.min(steps, 3));
+}
+
 /**
  * Renders one in-app PTY session (see `src-tauri/src/pty.rs`) via xterm.js.
  * `sessionId` must already be spawned (`pty_spawn` / `hub_relaunch_harness_embedded`)
@@ -52,6 +79,12 @@ export default function EmbeddedTerminal({
     let resizeRafId: number | null = null;
     const unlistenPromises: Promise<() => void>[] = [];
     const reportedError = { current: false };
+    const decModes = { mouse: false, alt: false };
+    const latin1 = new TextDecoder("latin-1");
+
+    const noteOutput = (bytes: Uint8Array) => {
+      applyDecPrivateModes(latin1.decode(bytes), decModes);
+    };
 
     const handleWindowClick = (e: MouseEvent) => {
       if (wrapperRef.current && wrapperRef.current.contains(e.target as Node)) {
@@ -94,7 +127,9 @@ export default function EmbeddedTerminal({
     const writeTail = (b64: string) => {
       if (!b64 || !term) return;
       try {
-        term.write(decodeBase64(b64));
+        const bytes = decodeBase64(b64);
+        noteOutput(bytes);
+        term.write(bytes);
       } catch {
         // Ignore corrupted payload or closed terminal writes
       }
@@ -139,15 +174,33 @@ export default function EmbeddedTerminal({
             fastScrollSensitivity: 5,
           });
 
-          // Focus detection and wheel event capturing:
-          // Wheel events only scroll the terminal if the user has clicked inside it.
-          // Otherwise, the wheel event passes through to allow normal page scrolling.
-          term.attachCustomWheelEventHandler((e: WheelEvent) => {
+          // Focused wheel: Claude (primary buffer, no mouse mode) keeps
+          // native .xterm-viewport overflow scroll. Grok's fullscreen TUI
+          // enables mouse tracking / alt-screen — returning true here used
+          // to *eat* the event so xterm never sent SGR wheel CSI, and there
+          // is no local scrollback. Forward wheel to the PTY instead.
+          const opened = term;
+          opened.attachCustomWheelEventHandler((e: WheelEvent) => {
             if (!isFocusedRef.current) {
-              return false; // let the parent/page container scroll
+              return false;
+            }
+            const grokSession = sessionId.startsWith("harness-terminal:grok:");
+            const tuiOwnsWheel =
+              grokSession
+              || decModes.mouse
+              || decModes.alt
+              || opened.buffer.active.type === "alternate";
+            if (tuiOwnsWheel) {
+              e.preventDefault();
+              e.stopPropagation();
+              const data = wheelToPtyData(e.deltaY, grokSession || decModes.mouse || decModes.alt);
+              void invoke("pty_write", { sessionId, data }).catch((cause) =>
+                reportErrorOnce(String(cause).replace(/^Error:\s*/, "")),
+              );
+              return true;
             }
             e.stopPropagation();
-            return true; // let xterm handle the scroll
+            return true;
           });
 
           fit = new FitAddon();
@@ -194,7 +247,9 @@ export default function EmbeddedTerminal({
           listen<string>(`pty-output:${sessionId}`, (event) => {
             if (disposed) return;
             try {
-              term?.write(decodeBase64(event.payload));
+              const bytes = decodeBase64(event.payload);
+              noteOutput(bytes);
+              term?.write(bytes);
             } catch {
               // Ignore corrupted payload or closed terminal writes
             }
