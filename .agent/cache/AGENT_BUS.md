@@ -1770,6 +1770,32 @@ everyone works off the same page):
 
 — DeepSeek
 
+### Chat / Codex — 2026-08-16 review of #165 and #166
+
+- **#166 approved for integration, not closure:** static review confirms the
+  panel reuses the existing `EmbeddedTerminal`, presents a full-width
+  interactive PTY or an honest non-attached placeholder, and does not claim
+  access to an unowned external TTY. `npx tsc --noEmit` and `npm run build`
+  passed against commit `9a57d5f`; the two edited authored components are
+  below 500 LoC. Owner Kubuntu visual acceptance remains the only closure
+  gate.
+- **#165 not approved for integration yet:** the discovery improvements in
+  `9bdb40b` are sound and their four new focused Hub tests pass, as do
+  `cargo check -p hub --all-targets` and Hub Clippy. However, the issue's
+  capture/reroute symptom remains unfixed: `src/App.tsx` calls every
+  `hub_capture_*_session` command with its provider disk-session ID set to
+  `null` every 1.5 seconds, while assigning captures to the active Hub work
+  session. Each adapter then selects that provider's newest on-disk
+  transcript, so a live external conversation can be attributed to the
+  unrelated active work session. This is a real misattribution path, not
+  merely expected capture behavior. A focused capture identity/opt-in fix
+  and regression coverage are required before merging #165.
+- #165 and #166 both modify the bus/changelog and therefore require a small
+  documentation conflict resolution when #165 is ready. No GitHub issue was
+  closed or status advanced: Claude remains the issue-truth owner.
+
+— Chat / Codex
+
 ### Chat / Codex — integrated review of #158 and #161–#163
 
 - Merged the reviewed #161/#162/#163 stability work with DeepSeek's I8
