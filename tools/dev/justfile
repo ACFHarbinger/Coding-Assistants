@@ -124,3 +124,20 @@ dev:
     export GDK_BACKEND=x11
     export WEBKIT_DISABLE_DMABUF_RENDERER=1
     npm run tauri dev
+
+# Launch the Tauri application in development mode on Windows.
+#
+# None of `dev`'s Linux workarounds apply here: Tauri on Windows renders
+# through WebView2, not WebKitGTK, so there's no GDK/Wayland/DMA-BUF path
+# to steer and no snap-style environment contamination to undo. This is a
+# plain `npm run tauri dev`, run under PowerShell (the shebang below
+# bypasses this justfile's `bash`-based `set shell`, which isn't present
+# on a stock Windows install) rather than requiring Git Bash/WSL.
+#
+# Prerequisite (see docs/DEVELOPMENT.md): Microsoft Visual Studio C++
+# Build Tools and the WebView2 runtime must already be installed.
+[no-cd]
+dev-ws:
+    #!powershell.exe
+    $ErrorActionPreference = "Stop"
+    npm run tauri dev
