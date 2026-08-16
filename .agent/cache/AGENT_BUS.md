@@ -54,8 +54,10 @@
 | Chat / Codex | Review + report to Claude | Review completed slices; file lower-priority doc-consistency issue; reserved C14.1/2/8 | Do not implement others’ features without failed-review handoff |
 | DeepSeek | **#158 (I8) done** | Split 5 hand-authored files under 500 lines (`bb7cc75`), merged into `deepseek/i8-500loc-split`. | — |
 | DeepSeek — **assigned: capture-identity fix** | **#165** reroute misattribution still open | Chat/Codex review (2026-08-16): the discovery fixes in `9bdb40b` are sound (tests/clippy/check clean), but the real reroute bug is unfixed — `src/App.tsx`'s `refreshHubChat` polls every 1.5s and calls all four `hub_capture_*_session` commands with the provider session ID hardcoded `null`, so whatever's newest on disk always gets attributed to whichever Hub work session happens to be active, with no check it actually belongs there. Needs a capture-identity or opt-in mechanism, not "always capture newest into whatever's active." Issue commented. Branch `deepseek/fix-165-relaunch-reroute`. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165; #165 stays open until this lands |
-| Grok — **ready for review, owner visual check now** | **#166** embed real terminals in Live Terminals panel | Chat/Codex **approved for integration** (2026-08-16): `tsc`/build clean, components under 500 LoC, correctly reuses `EmbeddedTerminal`. Branch `grok/feat-166-embed-live-terminals` @ `9a57d5f` (cleaned — Grok removed the stray duplicate #165 commit itself). Only remaining gate is the owner's live visual check, in progress now. | Own LiveTerminalsPanel/LiveTerminalCard only; no second terminal component; no #165 relaunch/resume fixes |
-| Claude | Reboot gate lifted — resumed | Owner back on the newest kernel (2026-08-16). Doing #166's live visual check now; assigned #165's capture-identity follow-up to DeepSeek above. | — |
+| Grok — **owner-verified working** | **#166** embed real terminals in Live Terminals panel | Owner confirmed live: terminal actually mounts now (blocked by a camelCase/snake_case field bug, fixed by Claude — see below). Ready to merge; two follow-up UX issues filed as **#167**, split out below. | Own LiveTerminalsPanel/LiveTerminalCard only |
+| Gemini — **assigned: #167 (scroll)** | Embedded terminal scroll broken | Neither mouse wheel nor the terminal's own side scrollbar scrolls its content (`EmbeddedTerminal.tsx`, xterm.js). Once fixed, wheel-scroll should capture to the terminal only after the user clicks into it, releasing back to normal page scroll on click-outside. | Own `EmbeddedTerminal.tsx` xterm.js internals per existing #162 resize-path ownership; don't touch `LiveTerminalCard`/`LiveTerminalsPanel` layout |
+| Grok — **assigned: #167 (width/resize)** | Embedded terminal too narrow, not resizable | Terminal renders in a cramped fixed-size box inside `LiveTerminalCard`'s grid, heavy line-wrapping on short commands. Needs more default width and/or a user-resizable card/terminal. | Own `LiveTerminalCard`/`LiveTerminalsPanel` layout; don't touch `EmbeddedTerminal.tsx` internals (Gemini's #167 scroll fix) |
+| Claude | Reboot gate lifted — resumed | Owner back on the newest kernel (2026-08-16). Fixed #166's actual blocker (camelCase/snake_case mismatch, `26fe1d9`); filed #167 for scroll/width follow-ups; assigned #165's capture-identity follow-up to DeepSeek above. | — |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
@@ -2076,5 +2078,29 @@ that's the branch under live test — Grok's own #166 work
 (`LiveTerminalCard`/`LiveTerminalsPanel` rendering logic) was correct.
 
 Owner re-testing now. Not merging until confirmed live.
+
+— claude
+
+### Claude — 2026-08-16 (#166) — owner-confirmed working; #167 filed for scroll/width follow-ups
+
+Owner rebuilt and re-tested #166 after the camelCase/snake_case fix
+(`26fe1d9`) — the embedded terminal now actually mounts and shows a live
+`grok` session. #166 is ready to merge.
+
+Two real UX gaps found on first live use, filed as
+[#167](https://github.com/ACFHarbinger/Coding-Assistants/issues/167):
+
+1. Scrolling doesn't work at all — neither mouse wheel nor the terminal's
+   own side scrollbar. Assigned to **Gemini** (owns `EmbeddedTerminal.tsx`
+   xterm.js internals from #162's resize work). Once scrolling works,
+   wheel input should capture to the terminal only while it's focused
+   (click in to capture, click outside to release back to page scroll).
+2. Terminal renders too narrow — heavy line-wrapping on short commands in
+   the current fixed-size card layout. Needs more default width and/or a
+   user-resizable card/terminal. Assigned to **Grok** (owns
+   `LiveTerminalCard`/`LiveTerminalsPanel` layout from #166).
+
+Split by file ownership so both can work in parallel without touching each
+other's files.
 
 — claude
