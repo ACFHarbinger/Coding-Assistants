@@ -10,9 +10,9 @@ use super::sandbox_strictness_blocks;
 use crate::commands::commands::store::open_store;
 use crate::pty::{self, PtySessions};
 use hub::{
-    relaunch_harness_in_terminal, resolve_interactive_relaunch, start_managed_claude_channel,
-    start_managed_harness, HarnessSessionRegistration, HarnessStartResult, RelaunchOutcome,
-    ResolvedRelaunch,
+    apply_grok_embedded_scroll_flags, relaunch_harness_in_terminal, resolve_interactive_relaunch,
+    start_managed_claude_channel, start_managed_harness, HarnessId, HarnessSessionRegistration,
+    HarnessStartResult, RelaunchOutcome, ResolvedRelaunch,
 };
 use std::path::Path;
 use tauri::{AppHandle, State};
@@ -78,12 +78,17 @@ pub async fn hub_relaunch_harness_embedded(
     .await
     .map_err(|join| format!("relaunch worker panicked: {join}"))??;
 
+    let mut spawn_args = resolved.args.clone();
+    if resolved.harness == HarnessId::Grok {
+        apply_grok_embedded_scroll_flags(&mut spawn_args);
+    }
+
     pty::pty_spawn(
         app,
         pty_state,
         session_id.clone(),
         resolved.program.to_string(),
-        resolved.args.clone(),
+        spawn_args,
         spawn_workspace,
         24,
         80,

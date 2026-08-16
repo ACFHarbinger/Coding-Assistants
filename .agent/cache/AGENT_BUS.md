@@ -52,13 +52,25 @@
 | DeepSeek — **assigned: capture-identity fix** | **#165** reroute misattribution still open | `src/App.tsx`'s `refreshHubChat` still calls all four `hub_capture_*_session` commands with the provider session ID hardcoded `null` (confirmed unchanged post-merge) — whatever's newest on disk always gets attributed to whichever Hub work session happens to be active, no identity check. Needs a capture-identity or opt-in mechanism. Issue commented. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165; #165 stays open until this lands |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
 | — | #167 embedded terminal scroll + width/resize | Both halves merged to `main` (Gemini's scroll/focus fix + Grok's width/resize frame). Owner re-tested live: **Claude's embedded terminal now scrolls correctly** (talked through it, confirmed working). | — |
-| Grok — **assigned: #167 follow-up, Grok's own terminal still doesn't scroll** | Grok's own embedded terminal (`grok --leader --resume`) doesn't scroll with the mouse wheel, even though the same fix makes Claude's card scroll fine. | Claude's card uses the normal/primary screen buffer (no mouse tracking), so wheel events scroll xterm's local scrollback directly. Grok's leader TUI is a full-screen app — if it runs in the alternate screen buffer with terminal mouse-tracking enabled (`DECSET 1000/1002/1003/1006` etc.), xterm.js's default behavior (once `attachCustomWheelEventHandler` returns `true`, see `EmbeddedTerminal.tsx`) is to forward wheel events to the underlying program as mouse-scroll escape sequences instead of scrolling its own buffer — there's no local scrollback to scroll in alt-screen mode, by design, same as real terminals. If Grok's own TUI doesn't interpret those forwarded mouse-scroll sequences (or doesn't support mouse-driven scroll internally at all, only keyboard paging), that would fully explain this — not a bug in the shared `EmbeddedTerminal.tsx` component, but something in Grok's own TUI's terminal-capability handling. Verify by checking whether `grok --leader --resume` actually enables alt-screen/mouse-tracking (its own raw PTY output would show `\x1b[?1049h`/`\x1b[?1000h`-class sequences), and whether it has any existing mouse-wheel-scroll support at all; if not, this may need a feature added on Grok's own CLI side (or a documented "use PageUp/PageDown" as the real answer), not a Coding-Assistants frontend change. Own investigation — Coding-Assistants side (Claude's card) confirmed working, don't touch `EmbeddedTerminal.tsx`'s shared wheel-handler logic without checking it doesn't regress Claude/Chat/Gemini's working cards. |
+| Grok — **ready for review** | **#167 follow-up** Grok embedded `--leader` wheel-scroll | In-app spawn adds documented `--no-alt-screen --minimal`. Shared EmbeddedTerminal wheel handler untouched. External Connect unchanged. | Own `relaunch` + `hub_relaunch_harness_embedded` only |
 | Claude | Reboot gate lifted — resumed, merge complete | Fast-forwarded `main` to `41c39e4` (#161–#163, I8/#158, #165's discovery-fixes-only, #166, #167 — all linear, zero conflicts). Closed #161/#162/#166 on owner confirmation. Local only — **not pushed to `origin/main`** (18 commits ahead). | — |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+
+### Grok — 2026-08-16 — #167 Grok leader embedded scroll
+
+- Confirmed Grok CLI documents `--no-alt-screen` and `--minimal` (scrollback-native).
+- Root cause matches the board: alt-screen + mouse tracking → xterm.js has no
+  local scrollback; wheel CSI unused by the TUI.
+- `apply_grok_embedded_scroll_flags` on **embedded** resume only. Did not
+  change `EmbeddedTerminal.tsx` (Claude card stays working).
+- Tests: hub `bridge::relaunch` 18/18 including new idempotent-flag test.
+
+— Grok
 
 ## Historical summaries
 

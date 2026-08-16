@@ -31,8 +31,8 @@ pub async fn hub_send_message(args: SendMessageArgs) -> Result<MessageRecord, St
     // roster. Keep the ordinary composer path off the IPC thread too (#163),
     // rather than only protecting tagged sends.
     tauri::async_runtime::spawn_blocking(move || hub_send_message_blocking(args))
-    .await
-    .map_err(|error| format!("hub_send_message task panicked: {error}"))?
+        .await
+        .map_err(|error| format!("hub_send_message task panicked: {error}"))?
 }
 
 /// Synchronous send implementation used only from the blocking-pool command

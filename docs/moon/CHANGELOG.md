@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — Grok embedded `--leader` TUI wheel-scroll (#167 follow-up) (2026-08-16)
+
+- Grok's in-app card did not wheel-scroll while Claude's did. Cause: `grok
+  --leader` uses the alternate screen (and typically mouse-tracking), so
+  xterm.js has no local scrollback and forwards wheel as unused mouse CSI.
+- In-app Grok resume/spawn now adds documented `--no-alt-screen --minimal`
+  so finalized turns go to native scrollback. External Konsole Connect is
+  unchanged. `EmbeddedTerminal.tsx` wheel handler is untouched (Claude/
+  Chat/Gemini cards stay as they are).
+- **Verification:** `cargo test -p hub --lib bridge::relaunch` 18/18;
+  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean.
+
 ### Hub — codex spawn used --cwd, a flag that doesn't exist (2026-08-16)
 
 - `codex exec` has no `--cwd` flag — that name is Grok's convention, not

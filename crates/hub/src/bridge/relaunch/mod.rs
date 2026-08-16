@@ -188,6 +188,23 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
     }
 }
 
+/// Documented `grok` flags for an **in-app PTY**. Fullscreen `--leader`
+/// uses the alternate screen (`\x1b[?1049h`) and typically mouse-tracking
+/// (`DECSET 1000/1002/1003/1006`). xterm.js then has no local scrollback
+/// and forwards wheel events as unused mouse CSI — wheel appears dead.
+/// Claude's card is a primary-buffer CLI, so it is unaffected.
+///
+/// `--no-alt-screen` + `--minimal` keep the primary buffer and print
+/// finalized turns into native scrollback (Grok Build TUI help text).
+pub fn apply_grok_embedded_scroll_flags(args: &mut Vec<String>) {
+    if !args.iter().any(|a| a == "--no-alt-screen") {
+        args.push("--no-alt-screen".into());
+    }
+    if !args.iter().any(|a| a == "--minimal") {
+        args.push("--minimal".into());
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RelaunchOutcome {
     pub harness: String,
@@ -396,6 +413,18 @@ mod tests {
             interactive_resume_args(HarnessId::Gemini, Some("abc")),
             vec!["--conversation", "abc"]
         );
+    }
+
+    #[test]
+    fn grok_embedded_scroll_flags_are_documented_and_idempotent() {
+        let mut args = interactive_resume_args(HarnessId::Grok, Some("abc"));
+        apply_grok_embedded_scroll_flags(&mut args);
+        apply_grok_embedded_scroll_flags(&mut args);
+        assert!(args.windows(2).any(|pair| pair == ["--resume", "abc"]));
+        assert_eq!(args.iter().filter(|a| *a == "--no-alt-screen").count(), 1);
+        assert_eq!(args.iter().filter(|a| *a == "--minimal").count(), 1);
+        let claude = interactive_resume_args(HarnessId::Claude, Some("abc"));
+        assert!(!claude.iter().any(|a| a == "--no-alt-screen"));
     }
 
     #[test]
