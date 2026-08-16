@@ -139,6 +139,18 @@ pub fn capture_codex_session(
     disk_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<CodexCaptureOutcome, String> {
+    // #165 capture-identity gate (see claude.rs): only registered or
+    // explicitly named sessions are captured; the workspace string is
+    // resolved before canonicalization so the registration key matches.
+    let Some(session_id) =
+        super::resolve_capture_session_id(store, "codex", workspace, disk_session_id)?
+    else {
+        return Ok(CodexCaptureOutcome {
+            transcript_found: false,
+            scanned: 0,
+            captured: Vec::new(),
+        });
+    };
     let workspace = workspace
         .canonicalize()
         .unwrap_or_else(|_| workspace.to_path_buf());
@@ -146,7 +158,7 @@ pub fn capture_codex_session(
         &codex_sessions_dir(),
         store,
         &workspace,
-        disk_session_id,
+        Some(&session_id),
         hub_session_id,
     )
 }

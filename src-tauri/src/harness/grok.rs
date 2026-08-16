@@ -101,6 +101,18 @@ pub fn capture_grok_session(
     grok_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<GrokCaptureOutcome, String> {
+    // #165 capture-identity gate (see claude.rs): only registered or
+    // explicitly named sessions are captured; resolved before
+    // canonicalization so the registration key matches.
+    let Some(session_id) =
+        super::resolve_capture_session_id(store, "grok", workspace, grok_session_id)?
+    else {
+        return Ok(GrokCaptureOutcome {
+            transcript_found: false,
+            scanned: 0,
+            captured: Vec::new(),
+        });
+    };
     let workspace = workspace
         .canonicalize()
         .unwrap_or_else(|_| workspace.to_path_buf());
@@ -108,7 +120,7 @@ pub fn capture_grok_session(
         &grok_home().join("sessions"),
         store,
         &workspace,
-        grok_session_id,
+        Some(&session_id),
         hub_session_id,
     )
 }

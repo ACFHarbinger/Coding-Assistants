@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hub — capture identity/opt-in gate stops external-transcript misattribution (#165 follow-up, 2026-08-16)
+
+- **Root cause (Chat/Codex review):** the desktop's 1.5 s poll calls every
+  `hub_capture_*_session` command with a null provider session id and
+  attributes captures to the active Hub work session. Each adapter then
+  selected that provider's *newest* on-disk transcript, so a live external
+  conversation the app never launched could be silently mirrored into the
+  unrelated active work session — the "reroute" symptom from the original
+  #165 report.
+- **Fix:** capture is now identity-gated. Each adapter resolves the capture
+  target via `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`):
+  an explicit session id wins; otherwise the registered (observed/managed)
+  session for (harness, workspace) is used (raw then canonical workspace
+  key); when nothing is registered the poll returns an empty outcome
+  instead of grabbing the newest external transcript. Applied to all four
+  adapters (claude/codex/gemini/grok).
+- **Opt-in semantics:** an external session becomes capturable by
+  registering it (Register observed) or by the app launching it (Start
+  managed) — the same identity the UI already shows.
+- **Regression coverage (compile-verified; not run per the thermal
+  constraint):** `resolve_capture_session_id` unit tests (explicit wins /
+  registered used / unregistered resolves None) plus Claude-adapter tests
+  proving an unregistered external transcript is ignored and a registered
+  session is captured even when a newer external transcript exists.
+- **Verification:** `cargo build --workspace`, `cargo clippy -p tauri-app
+  --all-targets -- -D warnings`, `cargo check -p tauri-app --all-targets`
+  all clean.
+
 ### Hub — "Resume in terminal" actually resumes live sessions (#165) (2026-08-15)
 
 - **Root cause (code review):** the generic relaunch's per-harness session
