@@ -54,8 +54,16 @@ start:
     @just dev::dev
 
 # Launch the Tauri application in development mode (Windows)
+#
+# Its own shebang, not a plain `@just dev::dev-ws` one-liner: a plain
+# command line still needs this justfile's `set shell := ["bash", "-c"]`
+# just to dispatch, which fails on a stock Windows install with no Git
+# Bash/WSL before ever reaching dev-ws's own shebang. This bypasses
+# `shell` entirely, the same way dev-ws bypasses it for the real work.
+[no-cd]
 start-ws:
-    @just dev::dev-ws
+    #!powershell.exe
+    just dev::dev-ws
 
 # Launch the keyboard-driven terminal client from the current source
 tui:
