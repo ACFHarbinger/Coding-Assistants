@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — Resume in terminal no longer replaces the app with recovery (#167)
+
+- Clicking **Resume in terminal** mounted `EmbeddedTerminal`, which threw
+  (`TextDecoder("latin-1")` is invalid in WebKitGTK) and/or read
+  snake_case PTY status after a camelCase rename. That took down the
+  whole window via the app error boundary.
+- Decode bytes with `windows-1252`; accept `outputTailB64` / `exitDetail`
+  (and the old snake_case names). A pane-local error boundary keeps a
+  terminal crash from forcing "needs to reload".
+
 ### Desktop — Grok leader wheel actually reaches the TUI (#167) (2026-08-16)
 
 - Previous in-app handler returned `true` after injecting CSI, so xterm

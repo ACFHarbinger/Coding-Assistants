@@ -38,8 +38,8 @@ export interface PtySessionStatus {
   found: boolean;
   running: boolean;
   exited: boolean;
-  exit_detail: string | null;
-  output_tail_b64: string;
+  exitDetail: string | null;
+  outputTailB64: string;
 }
 
 export interface StartManagedHarnessOutcome {

@@ -4,6 +4,7 @@ import type { ActiveGrokSession, GrokConnectResult } from "../hub/types";
 import LiveTerminalCard from "./LiveTerminalCard";
 import EmbeddedTerminal from "./EmbeddedTerminal";
 import ResizableTerminalFrame from "./ResizableTerminalFrame";
+import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import {
   LIVE_TERMINAL_HARNESSES,
   presenceLive,
@@ -87,7 +88,11 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       workspace,
       existingPid: row?.managed_pid ?? null,
     });
-    setTerminals((prev) => ({ ...prev, [harness]: outcome.sessionId }));
+    const sid = outcome.sessionId ?? (outcome as { session_id?: string }).session_id;
+    if (!sid) {
+      throw new Error("Resume did not return an in-app terminal session id.");
+    }
+    setTerminals((prev) => ({ ...prev, [harness]: sid }));
     return outcome.detail;
   });
 
@@ -184,7 +189,9 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       </div>
       {terminals[id] && (
         <ResizableTerminalFrame persistId={`idle-${id}`}>
-          <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+          <TerminalPaneErrorBoundary>
+            <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+          </TerminalPaneErrorBoundary>
         </ResizableTerminalFrame>
       )}
     </div>

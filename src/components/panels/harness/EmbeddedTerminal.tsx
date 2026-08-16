@@ -8,11 +8,26 @@ import type { PtySessionStatus } from "./types";
 
 type TerminalState = "pending" | "running" | "exited" | "missing";
 
-function decodeBase64(raw: string): Uint8Array {
-  const bytes = atob(raw);
-  const buf = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i += 1) buf[i] = bytes.charCodeAt(i);
-  return buf;
+function decodeBase64(raw: string | null | undefined): Uint8Array {
+  if (!raw) return new Uint8Array();
+  try {
+    const bytes = atob(raw);
+    const buf = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i += 1) buf[i] = bytes.charCodeAt(i);
+    return buf;
+  } catch {
+    return new Uint8Array();
+  }
+}
+
+function tailB64(status: PtySessionStatus): string {
+  return status.outputTailB64 ?? (status as { output_tail_b64?: string }).output_tail_b64 ?? "";
+}
+
+function exitDetailOf(status: PtySessionStatus): string {
+  return status.exitDetail
+    ?? (status as { exit_detail?: string | null }).exit_detail
+    ?? "exited";
 }
 
 /** CSI ? 1000/1002/1003/1006 h = mouse tracking; 1049/1047/47 = alt screen. */
@@ -76,10 +91,10 @@ export default function EmbeddedTerminal({
     const unlistenPromises: Promise<() => void>[] = [];
     const reportedError = { current: false };
     const decModes = { mouse: false, alt: false };
-    const latin1 = new TextDecoder("latin-1");
+    const byteText = new TextDecoder("windows-1252");
 
     const noteOutput = (bytes: Uint8Array) => {
-      applyDecPrivateModes(latin1.decode(bytes), decModes);
+      applyDecPrivateModes(byteText.decode(bytes), decModes);
     };
 
     const handleWindowClick = (e: MouseEvent) => {
@@ -175,17 +190,23 @@ export default function EmbeddedTerminal({
           // enables mouse tracking / alt-screen — returning true here used
           // to *eat* the event so xterm never sent SGR wheel CSI, and there
           // is no local scrollback. Forward wheel to the PTY instead.
+          fit = new FitAddon();
+          term.loadAddon(fit);
+          term.open(containerRef.current);
+
           const opened = term;
           opened.attachCustomWheelEventHandler((e: WheelEvent) => {
             if (!isFocusedRef.current) {
               return false;
             }
+            let altBuffer = false;
+            try {
+              altBuffer = opened.buffer.active.type === "alternate";
+            } catch {
+              altBuffer = false;
+            }
             const grokSession = sessionId.startsWith("harness-terminal:grok:");
-            const tuiOwnsWheel =
-              grokSession
-              || decModes.mouse
-              || decModes.alt
-              || opened.buffer.active.type === "alternate";
+            const tuiOwnsWheel = grokSession || decModes.mouse || decModes.alt || altBuffer;
             if (tuiOwnsWheel) {
               e.preventDefault();
               e.stopPropagation();
@@ -193,17 +214,11 @@ export default function EmbeddedTerminal({
               void invoke("pty_write", { sessionId, data }).catch((cause) =>
                 reportErrorOnce(String(cause).replace(/^Error:\s*/, "")),
               );
-              // false = skip xterm default. true let it try to scroll an empty
-              // alt-screen buffer and the event never reached the TUI.
               return false;
             }
             e.stopPropagation();
             return true;
           });
-
-          fit = new FitAddon();
-          term.loadAddon(fit);
-          term.open(containerRef.current);
           // Only fit if the container has non-zero dimensions
           if (containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
             try {
@@ -217,8 +232,8 @@ export default function EmbeddedTerminal({
         if (firstStatus.exited) {
           // Fast exit happened before we attached: show the retained output
           // and the real exit reason instead of a silently blank terminal.
-          writeTail(firstStatus.output_tail_b64);
-          const detail = firstStatus.exit_detail ?? "exited";
+          writeTail(tailB64(firstStatus));
+          const detail = exitDetailOf(firstStatus);
           writeExitLine(detail);
           setState("exited");
           onExit?.(detail);
@@ -226,7 +241,7 @@ export default function EmbeddedTerminal({
         }
 
         setState("running");
-        writeTail(firstStatus.output_tail_b64);
+        writeTail(tailB64(firstStatus));
 
         if (term) {
           writeSub = term.onData((data) => {
@@ -267,15 +282,15 @@ export default function EmbeddedTerminal({
         const latest = await invoke<PtySessionStatus>("pty_session_status", { sessionId });
         if (disposed) return;
         if (latest.exited) {
-          const first = decodeBase64(firstStatus.output_tail_b64);
-          const second = decodeBase64(latest.output_tail_b64);
+          const first = decodeBase64(tailB64(firstStatus));
+          const second = decodeBase64(tailB64(latest));
           if (second.length > first.length) {
             const prefixMatches =
               first.length === 0 ||
               second.subarray(0, first.length).every((byte, index) => byte === first[index]);
             term?.write(second.subarray(prefixMatches ? first.length : 0));
           }
-          const detail = latest.exit_detail ?? "exited";
+          const detail = exitDetailOf(latest);
           writeExitLine(detail);
           setState("exited");
           onExit?.(detail);

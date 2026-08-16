@@ -3,6 +3,7 @@ import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
 import EmbeddedTerminal from "./EmbeddedTerminal";
+import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
@@ -69,7 +70,11 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       });
       setDetail(outcome.detail);
       setError("");
-      setTerminals((prev) => ({ ...prev, [outcome.harness]: outcome.sessionId }));
+      const sid = outcome.sessionId ?? (outcome as { session_id?: string }).session_id;
+      if (!sid) {
+        throw new Error("Resume did not return an in-app terminal session id.");
+      }
+      setTerminals((prev) => ({ ...prev, [outcome.harness]: sid }));
       await refresh();
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
@@ -189,7 +194,9 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       </div>
       {terminals[harness] && (
         <div style={{ height: "320px", marginBottom: "0.85rem" }}>
-          <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+          <TerminalPaneErrorBoundary>
+            <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+          </TerminalPaneErrorBoundary>
         </div>
       )}
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
@@ -242,7 +249,9 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
             </div>
             {terminals[row.harness] && (
               <div style={{ height: "320px" }}>
-                <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+                <TerminalPaneErrorBoundary>
+                  <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+                </TerminalPaneErrorBoundary>
               </div>
             )}
           </div>

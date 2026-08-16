@@ -1,6 +1,7 @@
 import HarnessBadge from "./HarnessBadge";
 import EmbeddedTerminal from "./EmbeddedTerminal";
 import ResizableTerminalFrame from "./ResizableTerminalFrame";
+import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import type { HarnessSessionRegistration } from "./types";
 
 export default function LiveTerminalCard({
@@ -83,7 +84,9 @@ export default function LiveTerminalCard({
       </div>
       {terminalSessionId && (
         <ResizableTerminalFrame persistId={harness}>
-          <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} onError={onTerminalError} />
+          <TerminalPaneErrorBoundary>
+            <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} onError={onTerminalError} />
+          </TerminalPaneErrorBoundary>
         </ResizableTerminalFrame>
       )}
     </div>
