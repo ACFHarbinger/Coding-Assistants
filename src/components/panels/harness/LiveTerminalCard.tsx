@@ -1,5 +1,6 @@
 import HarnessBadge from "./HarnessBadge";
 import EmbeddedTerminal from "./EmbeddedTerminal";
+import ResizableTerminalFrame from "./ResizableTerminalFrame";
 import type { HarnessSessionRegistration } from "./types";
 
 export default function LiveTerminalCard({
@@ -28,7 +29,7 @@ export default function LiveTerminalCard({
   onTerminalError?: (detail: string) => void;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem", padding: "0.9rem 1rem", borderRadius: "10px", border: "1px solid rgba(52, 211, 153, 0.45)", background: "rgba(0,0,0,0.28)", minHeight: "148px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem", padding: "0.9rem 1rem", borderRadius: "10px", border: "1px solid rgba(52, 211, 153, 0.45)", background: "rgba(0,0,0,0.28)", minHeight: "148px", width: "100%", minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
           <strong style={{ color: "var(--text-main)", textTransform: "capitalize" }}>{harness}</strong>
@@ -81,9 +82,9 @@ export default function LiveTerminalCard({
         )}
       </div>
       {terminalSessionId && (
-        <div style={{ height: "320px" }}>
+        <ResizableTerminalFrame persistId={harness}>
           <EmbeddedTerminal sessionId={terminalSessionId} onExit={onTerminalExit} onError={onTerminalError} />
-        </div>
+        </ResizableTerminalFrame>
       )}
     </div>
   );

@@ -55,8 +55,8 @@
 | DeepSeek | **#158 (I8) done** | Split 5 hand-authored files under 500 lines (`bb7cc75`), merged into `deepseek/i8-500loc-split`. | — |
 | DeepSeek — **assigned: capture-identity fix** | **#165** reroute misattribution still open | Chat/Codex review (2026-08-16): the discovery fixes in `9bdb40b` are sound (tests/clippy/check clean), but the real reroute bug is unfixed — `src/App.tsx`'s `refreshHubChat` polls every 1.5s and calls all four `hub_capture_*_session` commands with the provider session ID hardcoded `null`, so whatever's newest on disk always gets attributed to whichever Hub work session happens to be active, with no check it actually belongs there. Needs a capture-identity or opt-in mechanism, not "always capture newest into whatever's active." Issue commented. Branch `deepseek/fix-165-relaunch-reroute`. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165; #165 stays open until this lands |
 | Grok — **owner-verified working** | **#166** embed real terminals in Live Terminals panel | Owner confirmed live: terminal actually mounts now (blocked by a camelCase/snake_case field bug, fixed by Claude — see below). Ready to merge; two follow-up UX issues filed as **#167**, split out below. | Own LiveTerminalsPanel/LiveTerminalCard only |
-| Gemini — **assigned: #167 (scroll)** | Embedded terminal scroll broken | Neither mouse wheel nor the terminal's own side scrollbar scrolls its content (`EmbeddedTerminal.tsx`, xterm.js). Once fixed, wheel-scroll should capture to the terminal only after the user clicks into it, releasing back to normal page scroll on click-outside. | Own `EmbeddedTerminal.tsx` xterm.js internals per existing #162 resize-path ownership; don't touch `LiveTerminalCard`/`LiveTerminalsPanel` layout |
-| Grok — **assigned: #167 (width/resize)** | Embedded terminal too narrow, not resizable | Terminal renders in a cramped fixed-size box inside `LiveTerminalCard`'s grid, heavy line-wrapping on short commands. Needs more default width and/or a user-resizable card/terminal. | Own `LiveTerminalCard`/`LiveTerminalsPanel` layout; don't touch `EmbeddedTerminal.tsx` internals (Gemini's #167 scroll fix) |
+| Gemini — **in review** | **#167** Embedded terminal scroll fix | ✅ **Complete (In Review)** — configured scrollback/sensitivity in `EmbeddedTerminal.tsx`, removed viewport-clipping padding, implemented click-to-focus wheel capture & click-outside release. Ready for review. | Own `EmbeddedTerminal.tsx` xterm.js internals per existing #162 resize-path ownership; don't touch `LiveTerminalCard`/`LiveTerminalsPanel` layout |
+| Grok — **ready for review** | **#167 (width/resize)** | Full-width live-card column + `ResizableTerminalFrame` (drag, persist, default 480px tall). Did not touch `EmbeddedTerminal.tsx`. | Own LiveTerminalCard/LiveTerminalsPanel/ResizableTerminalFrame only |
 | Claude | Reboot gate lifted — resumed | Owner back on the newest kernel (2026-08-16). Fixed #166's actual blocker (camelCase/snake_case mismatch, `26fe1d9`); filed #167 for scroll/width follow-ups; assigned #165's capture-identity follow-up to DeepSeek above. | — |
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
@@ -93,6 +93,17 @@ Historical detailed rows and dated implementation notes remain below for audit; 
 
 - Snapshot date for the long chronological log below. Delivery work that day still
   stands in Git/changelogs; **team-lead assignment process was superseded 2026-08-15**.
+
+
+### Grok — 2026-08-16 — claiming and completing #167 width/resize
+
+- Claimed the width/resize half of #167 (Gemini owns scroll/focus in EmbeddedTerminal).
+- Live cards: `grid-template-columns: 1fr` (no 280px auto-fill).
+- Added `ResizableTerminalFrame` around existing EmbeddedTerminal: default 480px
+  height, min 480×280, drag resize, localStorage persist. No EmbeddedTerminal edits.
+- Changelog updated. tsc/build pending this session.
+
+— Grok
 
 ## 2026-08-15 updates
 
@@ -2104,3 +2115,16 @@ Split by file ownership so both can work in parallel without touching each
 other's files.
 
 — claude
+
+### Gemini — #167 (embedded terminal scrolling & focused wheel capture) completed
+
+- **Root Cause & Fix:** In `EmbeddedTerminal.tsx`, padding on the container element clipped the absolute-positioned `.xterm-viewport` element, preventing its scrollbar from displaying or receiving scroll interactions. Furthermore, mouse wheel events were not captured with focus awareness.
+- **EmbeddedTerminal enhancements (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
+  - Configured `scrollback: 5000`, `scrollSensitivity: 1`, and `fastScrollSensitivity: 5` in xterm options.
+  - Attached custom wheel event handler via `term.attachCustomWheelEventHandler` to capture wheel scrolling to the terminal when focused (via click-in) while allowing wheel events to pass through to the page scroll when unfocused.
+  - Added global mousedown listener to track focus and release on click-outside.
+  - Removed container padding that obstructed the `.xterm-viewport` scrollbar.
+  - Preserved the $\le 500$ line constraint (341 LoC).
+- **Verification:** `npm run build` passed cleanly; `cargo check --workspace` passed cleanly. Ready for Chat/Codex review.
+
+— Gemini

@@ -3,6 +3,7 @@ import { invoke } from "../../../lib/tauri";
 import type { ActiveGrokSession, GrokConnectResult } from "../hub/types";
 import LiveTerminalCard from "./LiveTerminalCard";
 import EmbeddedTerminal from "./EmbeddedTerminal";
+import ResizableTerminalFrame from "./ResizableTerminalFrame";
 import {
   LIVE_TERMINAL_HARNESSES,
   presenceLive,
@@ -182,9 +183,9 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
         </div>
       </div>
       {terminals[id] && (
-        <div style={{ height: "320px" }}>
+        <ResizableTerminalFrame persistId={`idle-${id}`}>
           <EmbeddedTerminal sessionId={terminals[id]} onExit={(detail) => setDetail(`${id} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
-        </div>
+        </ResizableTerminalFrame>
       )}
     </div>
   );
@@ -238,7 +239,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "0.85rem", marginTop: "0.95rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.85rem", marginTop: "0.95rem" }}>
             {liveIds.map((id) => {
               const row = findSession(sessions, id, workspace);
               const { text, pid } = signalFor(id, row);

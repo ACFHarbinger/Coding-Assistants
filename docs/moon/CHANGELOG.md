@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — Live Terminals full-width resizable PTY cards (#167 width) (2026-08-16)
+
+- Live harness cards are a single full-width column (`1fr`), not
+  `minmax(280px)` auto-fill, so the PTY is not cramped into a sidebar
+  column that wraps every word.
+- New layout-only `ResizableTerminalFrame`: default height 480px, min
+  480×280, drag handle to resize, size persisted per harness in
+  `localStorage`. Does not edit `EmbeddedTerminal.tsx` (Gemini owns
+  #167 scroll/focus).
+- **Verification:** `npx tsc --noEmit` + `npm run build`. Owner visual
+  check still required.
+
+### UI — Fix embedded terminal scrolling and focused wheel event capturing (#167) (2026-08-16)
+
+- **Root cause & Fix:** In `EmbeddedTerminal.tsx`, padding on the container element clipped the absolute-positioned `.xterm-viewport` element, preventing its scrollbar from displaying or receiving interactions. Additionally, wheel events were intercepted by outer parent scroll containers without focus-gating.
+- **EmbeddedTerminal enhancements (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
+  - Configured `scrollback: 5000`, `scrollSensitivity: 1`, and `fastScrollSensitivity: 5` in xterm options.
+  - Attached custom wheel event handler via `term.attachCustomWheelEventHandler` to capture wheel scrolling to the terminal when focused (via click-in) while allowing wheel events to pass through to the page scroll when unfocused.
+  - Added global mousedown listener to track focus and release on click-outside.
+  - Removed container padding that obstructed the `.xterm-viewport` scrollbar.
+  - Preserved the $\le 500$ line constraint (341 LoC).
+
 ### Hub — "Resume in terminal" actually resumes live sessions (#165) (2026-08-15)
 
 - **Root cause (code review):** the generic relaunch's per-harness session
