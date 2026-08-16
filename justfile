@@ -53,6 +53,10 @@ install-ca:
 start:
     @just dev::dev
 
+# Launch the Tauri application in development mode (Windows)
+start-ws:
+    @just dev::dev-ws
+
 # Launch the keyboard-driven terminal client from the current source
 tui:
     @just dev::tui

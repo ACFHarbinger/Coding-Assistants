@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Desktop — Grok leader wheel actually reaches the TUI (#167) (2026-08-16)
+
+- Previous in-app handler returned `true` after injecting CSI, so xterm
+  still ran default wheel handling on an empty alt-screen and Grok never
+  scrolled. It now writes **Up/Down** to the PTY and returns `false`.
+- Connect/`grok_leader_tui_args` also pass documented `--no-alt-screen
+  --minimal` (same as embedded resume) so a reopen is not stuck in
+  fullscreen alt-screen.
+
+### Desktop — Grok embedded `--leader` TUI wheel-scroll (#167 follow-up) (2026-08-16)
+
+- Grok's in-app card did not wheel-scroll while Claude's did. Cause: `grok
+  --leader` uses the alternate screen (and typically mouse-tracking), so
+  xterm.js has no local scrollback and forwards wheel as unused mouse CSI.
+- In-app Grok resume/spawn now adds documented `--no-alt-screen --minimal`
+  so finalized turns go to native scrollback. External Konsole Connect is
+  unchanged.
+- **Still-broken follow-up:** the shared wheel handler returned `true`
+  (xterm "already handled") without sending SGR wheel CSI, so Grok's TUI
+  never saw the wheel (it documents scroll-wheel on its own scrollback).
+  Focused wheel on Grok / mouse-tracking / alt-screen now writes SGR
+  `64`/`65` (or PageUp/PageDown) to the PTY. Claude's primary-buffer path
+  is unchanged (still native viewport overflow).
+- **Verification:** `cargo test -p hub --lib bridge::relaunch` 18/18;
+  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean;
+  `npx tsc --noEmit` clean.
+
 ### Hub — codex spawn used --cwd, a flag that doesn't exist (2026-08-16)
 
 - `codex exec` has no `--cwd` flag — that name is Grok's convention, not
