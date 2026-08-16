@@ -86,7 +86,7 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       workspace,
       existingPid: row?.managed_pid ?? null,
     });
-    setTerminals((prev) => ({ ...prev, [harness]: outcome.session_id }));
+    setTerminals((prev) => ({ ...prev, [harness]: outcome.sessionId }));
     return outcome.detail;
   });
 

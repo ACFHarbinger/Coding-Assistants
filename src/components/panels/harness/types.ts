@@ -14,18 +14,22 @@ export interface HarnessSessionRegistration {
   writer_acquired_at: string | null;
 }
 
+// These two mirror src-tauri's RelaunchOutcome / EmbeddedRelaunchOutcome,
+// both #[serde(rename_all = "camelCase")] — unlike most other Tauri command
+// result types in this file, which stay snake_case to match their Rust
+// struct's default (un-renamed) field names.
 export interface RelaunchOutcome {
   harness: string;
-  killed_pid: number | null;
-  resumed_session_id: string | null;
+  killedPid: number | null;
+  resumedSessionId: string | null;
   detail: string;
 }
 
 export interface EmbeddedRelaunchOutcome {
   harness: string;
-  killed_pid: number | null;
-  resumed_session_id: string | null;
-  session_id: string;
+  killedPid: number | null;
+  resumedSessionId: string | null;
+  sessionId: string;
   detail: string;
 }
 

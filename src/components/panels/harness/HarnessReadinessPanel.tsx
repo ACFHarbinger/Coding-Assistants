@@ -69,7 +69,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
       });
       setDetail(outcome.detail);
       setError("");
-      setTerminals((prev) => ({ ...prev, [outcome.harness]: outcome.session_id }));
+      setTerminals((prev) => ({ ...prev, [outcome.harness]: outcome.sessionId }));
       await refresh();
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
