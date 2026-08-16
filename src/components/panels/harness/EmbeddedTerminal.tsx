@@ -39,8 +39,10 @@ export default function EmbeddedTerminal({
   onError?: (detail: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<TerminalState>("pending");
   const [failureDetail, setFailureDetail] = useState("");
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -50,6 +52,15 @@ export default function EmbeddedTerminal({
     let resizeRafId: number | null = null;
     const unlistenPromises: Promise<() => void>[] = [];
     const reportedError = { current: false };
+
+    const handleWindowClick = (e: MouseEvent) => {
+      if (wrapperRef.current && wrapperRef.current.contains(e.target as Node)) {
+        isFocusedRef.current = true;
+      } else {
+        isFocusedRef.current = false;
+      }
+    };
+    window.addEventListener("mousedown", handleWindowClick, true);
 
     const reportErrorOnce = (detail: string) => {
       if (reportedError.current) return;
@@ -123,7 +134,22 @@ export default function EmbeddedTerminal({
             fontSize: 13,
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             theme: { background: "#0b0f14" },
+            scrollback: 5000,
+            scrollSensitivity: 1,
+            fastScrollSensitivity: 5,
           });
+
+          // Focus detection and wheel event capturing:
+          // Wheel events only scroll the terminal if the user has clicked inside it.
+          // Otherwise, the wheel event passes through to allow normal page scrolling.
+          term.attachCustomWheelEventHandler((e: WheelEvent) => {
+            if (!isFocusedRef.current) {
+              return false; // let the parent/page container scroll
+            }
+            e.stopPropagation();
+            return true; // let xterm handle the scroll
+          });
+
           fit = new FitAddon();
           term.loadAddon(fit);
           term.open(containerRef.current);
@@ -214,6 +240,7 @@ export default function EmbeddedTerminal({
 
     return () => {
       disposed = true;
+      window.removeEventListener("mousedown", handleWindowClick, true);
       if (resizeRafId !== null) {
         cancelAnimationFrame(resizeRafId);
       }
@@ -235,6 +262,7 @@ export default function EmbeddedTerminal({
 
   return (
     <div
+      ref={wrapperRef}
       style={{
         position: "relative",
         width: "100%",
@@ -244,8 +272,11 @@ export default function EmbeddedTerminal({
         overflow: "hidden",
         background: "#0b0f14",
       }}
+      onClick={() => {
+        isFocusedRef.current = true;
+      }}
     >
-      <div ref={containerRef} style={{ width: "100%", height: "100%", padding: "0.4rem" }} />
+      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }} />
       {state === "pending" && (
         <div
           style={{
