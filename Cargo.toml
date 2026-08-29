@@ -8,4 +8,5 @@ members = [
     "crates/claude",
     "crates/mcp-core",
     "crates/mcp-echo",
+    "crates/mcp-blender",
 ]
