@@ -18,6 +18,8 @@
 //! non-standard notification method (handled in
 //! [`ToolProvider::on_notification`]).
 
+pub mod app_link;
+
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::sync::{Arc, Mutex};
