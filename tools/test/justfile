@@ -6,6 +6,27 @@ set shell := ["bash", "-c"]
 [no-cd]
 all: backend frontend
 
+# WebDriver end-to-end checks (tauri-driver + Xvfb). Requires, one-time:
+#   sudo apt-get install -y webkitgtk-webdriver xvfb
+#   cargo install tauri-driver --locked
+# See tests/e2e/README.md.
+[no-cd]
+e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v Xvfb >/dev/null            || { echo "missing: Xvfb — sudo apt-get install -y xvfb"; exit 2; }
+    test -x /usr/bin/WebKitWebDriver      || { echo "missing: WebKitWebDriver — sudo apt-get install -y webkitgtk-webdriver"; exit 2; }
+    test -x "$HOME/.cargo/bin/tauri-driver" || { echo "missing: tauri-driver — cargo install tauri-driver --locked"; exit 2; }
+    npx tauri build --debug --no-bundle
+    ( cd tests/e2e && test -d node_modules || npm ci --no-audit --no-fund )
+    ( cd tests/e2e && node smoke.mjs )
+    ( cd tests/e2e && node run.mjs )
+
+# Just the transport smoke check (no assertions about app behavior).
+[no-cd]
+e2e-smoke:
+    ( cd tests/e2e && test -d node_modules || npm ci --no-audit --no-fund ) && cd tests/e2e && node smoke.mjs
+
 [no-cd]
 backend:
     cd src-tauri && cargo test
