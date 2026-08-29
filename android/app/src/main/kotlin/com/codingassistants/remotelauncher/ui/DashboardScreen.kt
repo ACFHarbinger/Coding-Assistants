@@ -1,13 +1,29 @@
-package com.example.remotelauncher.ui
+package com.codingassistants.remotelauncher.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,8 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.remotelauncher.network.WakeRecord
-import com.example.remotelauncher.viewmodel.AppState
+import com.codingassistants.remotelauncher.network.WakeRecord
+import com.codingassistants.remotelauncher.viewmodel.AppState
 
 @Composable
 fun DashboardScreen(
@@ -24,120 +40,125 @@ fun DashboardScreen(
     onResolveWake: (String, Boolean) -> Unit,
     onRefreshWakes: () -> Unit,
     onConfigureTask: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "Dashboard",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
             )
             Button(
                 onClick = onDisconnect,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
                 Text("Disconnect")
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "Status: Connected to ${state.serverAddress}",
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.secondary,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onConfigureTask,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Configure & Start Task")
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "Pending Human Approvals",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
             TextButton(onClick = onRefreshWakes) {
                 Text("Refresh")
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         if (state.pendingWakes.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .background(Color(0x1AFFFFFF), shape = MaterialTheme.shapes.medium),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .background(Color(0x1AFFFFFF), shape = MaterialTheme.shapes.medium),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "No pending approvals.",
-                    color = Color.LightGray
+                    color = Color.LightGray,
                 )
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.pendingWakes) { wake ->
                     WakeCard(wake = wake, onResolve = onResolveWake)
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Text(
             text = "Active Events Log",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF0F172A), shape = MaterialTheme.shapes.medium)
-                .padding(12.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFF0F172A), shape = MaterialTheme.shapes.medium)
+                    .padding(12.dp),
         ) {
             LazyColumn {
                 items(state.activeEvents.reversed()) { event ->
                     Text(
-                        text = "[${event.source}] ${event.event_type}: ${event.content.take(100)}${if (event.content.length > 100) "..." else ""}",
+                        text = "[${event.source}] ${event.event_type}: ${event.content.take(
+                            100,
+                        )}${if (event.content.length > 100) "..." else ""}",
                         color = Color.Green,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
             }
@@ -148,56 +169,56 @@ fun DashboardScreen(
 @Composable
 fun WakeCard(
     wake: WakeRecord,
-    onResolve: (String, Boolean) -> Unit
+    onResolve: (String, Boolean) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
                     text = "Agent: ${wake.target_agent}",
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.secondary,
                 )
                 Text(
                     text = wake.id.take(8),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = Color.Gray,
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = "Reason: ${wake.reason ?: "Unspecified"}",
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(
                     onClick = { onResolve(wake.id, false) },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.padding(end = 8.dp),
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Reject")
                     Spacer(Modifier.width(4.dp))
                     Text("Reject")
                 }
-                
+
                 Button(
                     onClick = { onResolve(wake.id, true) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                 ) {
                     Icon(Icons.Default.Check, contentDescription = "Approve")
                     Spacer(Modifier.width(4.dp))

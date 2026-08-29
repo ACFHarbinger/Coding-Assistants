@@ -9,7 +9,7 @@ The Android app is located in the `android/` directory. It is built using modern
 - **Architecture**: MVVM using `ViewModel` and `MutableSharedFlow`.
 
 ### Core Files
-- `android/app/src/main/kotlin/com/example/remotelauncher/`: Core source code.
+- `android/app/src/main/kotlin/com/codingassistants/remotelauncher/`: Core source code.
 - `Models.kt`: Defines the shared JSON protocol used with the PC backend.
 - `TcpClient.kt`: Handles the raw socket communication and event broadcasting.
 - `MainViewModel.kt`: Manages UI state and connects the client to the Compose views.

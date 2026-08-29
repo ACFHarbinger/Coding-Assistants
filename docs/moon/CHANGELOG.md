@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Android Companion — Release Signing and Identity Rename (2026-08-29)
+
+- Renamed Android application package from `com.example.remotelauncher` to `com.codingassistants.remotelauncher` across all Gradle build scripts, Android manifest, and Kotlin source directory trees.
+- Added release signing configuration to `android/app/build.gradle.kts` supporting local development (`android/keystore.properties`) and CI builds via environment variables (`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEYSTORE_BASE64`), failing fast if release signing credentials are missing.
+- Generated release keystore `android/keystore/release.jks` and verified signed release APK (`assembleRelease`) and signed release AAB (`bundleRelease`) outputs with `apksigner`.
+- Added `android/RELEASE_SIGNING.md` documenting keystore secrets, regeneration, and verification workflow.
+
 ### Desktop — Resume in terminal no longer replaces the app with recovery (#167)
 
 - Clicking **Resume in terminal** mounted `EmbeddedTerminal`, which threw
