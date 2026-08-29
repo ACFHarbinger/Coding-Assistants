@@ -49,7 +49,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
-| DeepSeek — **assigned: capture-identity fix** | **#165** reroute misattribution still open | `src/App.tsx`'s `refreshHubChat` still calls all four `hub_capture_*_session` commands with the provider session ID hardcoded `null` (confirmed unchanged post-merge) — whatever's newest on disk always gets attributed to whichever Hub work session happens to be active, no identity check. Needs a capture-identity or opt-in mechanism. Issue commented. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165; #165 stays open until this lands |
+| DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
 | — | #167 embedded terminal scroll + width/resize | Both halves merged to `main` (Gemini's scroll/focus fix + Grok's width/resize frame). Owner re-tested live: **Claude's embedded terminal now scrolls correctly** (talked through it, confirmed working). | — |
 | Grok — **ready for review** | **#167 follow-up** Grok embedded `--leader` wheel-scroll | In-app spawn adds documented `--no-alt-screen --minimal`. Shared EmbeddedTerminal wheel handler untouched. External Connect unchanged. | Own `relaunch` + `hub_relaunch_harness_embedded` only |
@@ -59,6 +59,28 @@
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+
+### Gemini — 2026-08-29 — Settings S4 Agents & harnesses UI completed (#130)
+
+- Implemented `AgentsTab.tsx` in `src/components/settings/tabs/` to provide full desktop UI for Settings S4:
+  - Named provider profiles management (CRUD) with non-secret source badges (`Keychain ID`, `Env Var $NAME`, `CLI Native Login`) without accepting or exposing raw secrets.
+  - Workspace-level default profile selection per harness with `Inherited` / `Workspace Override` status pills and one-click "Reset to Global".
+  - Runtime harness settings for capture polling and task injection permissions.
+- Integrated `AgentsTab` into `SettingsApp.tsx` navigation and glass-morphism panel layout.
+- **Verification:** all 295 unit and integration tests across `tauri-app`, `hub`, `cli`, and `tui` pass (`cargo test -p tauri-app -p hub -p cli -p tui`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
+
+
+### Gemini — 2026-08-29 — #163 batch 2 avatar & attachment async offload + pending states
+
+- Converted `hub_read_avatar_preview`, `hub_set_agent_avatar`, `hub_clear_agent_avatar`, `hub_save_attachment`, and `hub_get_attachment` to async commands wrapping `tauri::async_runtime::spawn_blocking` (retaining `_blocking` synchronous inner methods for tests), removing blocking file I/O and store writes from the webview dispatch thread.
+- Added visual pending status feedback (`"Working…"`) and opacity indicators for avatar updates in `AgentAvatar.tsx` and memory/audit actions in `HubPanel.tsx`.
+- Symmetrically padded `logo_lines` in `crates/tui/src/theme.rs` ensuring uniform row widths across animated color sweep phases.
+- **Verification:** all 295 unit and integration tests across `tauri-app`, `hub`, `cli`, and `tui` pass (`cargo test -p tauri-app -p hub -p cli -p tui`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
 
 
 ### Grok — 2026-08-16 — #167 Grok leader embedded scroll
@@ -2178,5 +2200,52 @@ other's files.
   --all-targets -- -D warnings clean; cargo check -p tauri-app --all-targets
   clean. Changelog updated. Committed on deepseek/fix-165-relaunch-reroute.
 - No merge without owner review.
+
+— DeepSeek
+
+### DeepSeek — 2026-08-29 — #165 capture-identity gate test-verified on `main`
+
+- The capture identity/opt-in gate (`resolve_capture_session_id`,
+  `5eb2f56`) is merged on `main`. Re-ran the previously compile-only
+  verification now the cooler constraint is lifted:
+  `cargo test -p tauri-app harness::` — **34 passed / 1 ignored**
+  (ignored is the manual smoke test that reads real `~/.claude` data).
+  Key green tests: `explicit_session_id_wins_over_any_registration`,
+  `registered_session_is_used_when_no_explicit_id`,
+  `unregistered_workspace_resolves_to_none`,
+  `capture_gate_ignores_an_unregistered_external_transcript`,
+  `capture_gate_captures_the_registered_session_not_the_newest_external_one`.
+  `cargo clippy -p tauri-app --all-targets -- -D warnings` clean.
+- No code change this round — confirmation only. #165 overall remains open
+  (Claude issue-truth) for the owner's desktop live re-verification of the
+  remaining resume/reroute items; my capture-identity slice is done.
+
+— DeepSeek
+
+### DeepSeek — 2026-08-29 — I8 (#158) 500-LoC continuation: `bridge/relaunch` split
+
+- Re-ran the I8 size inventory after the earlier `bb7cc75` five-file split.
+  One hand-authored source was still over the 500-LoC cap:
+  `crates/hub/src/bridge/relaunch/mod.rs` (510) — in my `relaunch.rs`/`pty.rs`
+  ownership area from #161/#165.
+- Split the low-level process/terminal helpers into
+  `crates/hub/src/bridge/relaunch/process.rs` (`TERMINAL_CANDIDATES`,
+  `terminal_exec_prefix`, `hold_open_after_exit`, `is_pid_running`,
+  `kill_pid` + their four tests). `mod.rs` now re-exports
+  `pub use process::{is_pid_running, kill_pid}` so every existing consumer
+  path (`bridge::relaunch::{is_pid_running,kill_pid}`, `relaunch_claude`,
+  `stop`, `managed`, `presence`) is unchanged.
+- Result: `relaunch/mod.rs` 378 LoC, `process.rs` 140 LoC (post-`rustfmt`).
+  Full inventory now clean — **no hand-authored Rust/TS/TSX source (incl.
+  test files) over 500 lines anywhere** (only generated `target/build`
+  artifacts exceed it).
+- Verification: `cargo check -p hub` + `cargo check -p cli -p tauri-app`
+  clean; `cargo clippy -p hub --all-targets -- -D warnings` clean;
+  `rustfmt --check` on the two touched files clean;
+  `cargo test -p hub --lib` **203/203** pass (incl. `bridge::relaunch`
+  18/18, `bridge::` 94/94).
+- No commit (owner-review gate; scoped commit pending explicit go-ahead).
+  Did not touch `docs/moon/CHANGELOG.md` — it is mid-edit by another
+  agent's in-flight pass (Gemini's S4/#163 entries currently uncommitted).
 
 — DeepSeek

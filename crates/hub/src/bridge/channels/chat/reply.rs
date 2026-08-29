@@ -70,6 +70,7 @@ mod tests {
     fn reply_routes_to_the_original_sender_and_falls_back_to_human() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.upsert_agent("orchestrator", "Orchestrator").unwrap();
         store.set_team_member("orchestrator", true).unwrap();
         let original = store
             .send_message(

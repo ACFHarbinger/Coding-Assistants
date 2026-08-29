@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Desktop — Settings Agents & Harnesses Tab (S4 / #130) (2026-08-29)
+
+- Implemented `AgentsTab.tsx` in `src/components/settings/tabs/` enabling management of named provider profiles (`claude`, `codex`, `gemini`, `grok`, `custom`), non-secret source badges (`Keychain ID` / `Env Var $NAME` / `CLI Native Login`), workspace default profile selection with `Inherited` / `Workspace Override` status pills, and runtime harness policies (capture polling, task inject permissions).
+- Integrated `AgentsTab` into `SettingsApp.tsx` tab navigation and responsive glass-morphism panels.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+### Desktop — UI freeze audit offloading and pending states (#163 batch 2) (2026-08-29)
+
+- Offloaded `hub_read_avatar_preview`, `hub_set_agent_avatar`, `hub_clear_agent_avatar`, `hub_save_attachment`, and `hub_get_attachment` off the webview IPC dispatch thread by converting them to async commands utilizing `tauri::async_runtime::spawn_blocking`.
+- Added visual pending status feedback (`"Working…"`) and opacity transitions for avatar updates in `AgentAvatar.tsx` and memory/audit actions in `HubPanel.tsx`.
+- Symmetrically padded `logo_lines` in `crates/tui` ensuring uniform rendered row widths across animated color sweep phases.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 unit and integration tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
 ### Android Companion — Release Signing and Identity Rename (2026-08-29)
 
 - Renamed Android application package from `com.example.remotelauncher` to `com.codingassistants.remotelauncher` across all Gradle build scripts, Android manifest, and Kotlin source directory trees.

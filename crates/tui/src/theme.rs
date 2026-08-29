@@ -166,6 +166,7 @@ pub fn logo_lines(theme: &Theme, phase: f32) -> Vec<Line<'static>> {
                 let color = lerp_color(theme.accent, theme.accent2, t);
                 spans.push(Span::styled("██", Style::default().fg(color)));
             }
+            spans.push(Span::raw(" ".repeat(pad * 2)));
             Line::from(spans)
         })
         .collect()

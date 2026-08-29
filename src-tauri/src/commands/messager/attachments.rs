@@ -18,7 +18,13 @@ pub struct SaveAttachmentArgs {
 }
 
 #[tauri::command]
-pub fn hub_save_attachment(args: SaveAttachmentArgs) -> Result<AttachmentRecord, String> {
+pub async fn hub_save_attachment(args: SaveAttachmentArgs) -> Result<AttachmentRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || hub_save_attachment_blocking(args))
+        .await
+        .map_err(|e| format!("hub_save_attachment worker panic: {e}"))?
+}
+
+pub fn hub_save_attachment_blocking(args: SaveAttachmentArgs) -> Result<AttachmentRecord, String> {
     let data = STANDARD
         .decode(args.data_base64.as_bytes())
         .map_err(|e| format!("invalid base64 attachment data: {e}"))?;
@@ -34,7 +40,13 @@ pub struct AttachmentPayload {
 }
 
 #[tauri::command]
-pub fn hub_get_attachment(id: String) -> Result<Option<AttachmentPayload>, String> {
+pub async fn hub_get_attachment(id: String) -> Result<Option<AttachmentPayload>, String> {
+    tauri::async_runtime::spawn_blocking(move || hub_get_attachment_blocking(id))
+        .await
+        .map_err(|e| format!("hub_get_attachment worker panic: {e}"))?
+}
+
+pub fn hub_get_attachment_blocking(id: String) -> Result<Option<AttachmentPayload>, String> {
     let found = open_store()?
         .read_attachment(&id)
         .map_err(|e| e.to_string())?;
@@ -69,7 +81,7 @@ mod tests {
     #[test]
     fn save_and_fetch_round_trips_through_base64() {
         with_ca_home("roundtrip", || {
-            let saved = hub_save_attachment(SaveAttachmentArgs {
+            let saved = hub_save_attachment_blocking(SaveAttachmentArgs {
                 filename: "screenshot.png".into(),
                 mime: "image/png".into(),
                 data_base64: STANDARD.encode(b"pretend-png-bytes"),
@@ -78,7 +90,7 @@ mod tests {
             assert_eq!(saved.filename, "screenshot.png");
             assert_eq!(saved.mime, "image/png");
 
-            let fetched = hub_get_attachment(saved.id.clone())
+            let fetched = hub_get_attachment_blocking(saved.id.clone())
                 .expect("fetch")
                 .expect("present");
             assert_eq!(fetched.record.id, saved.id);
@@ -92,7 +104,7 @@ mod tests {
     #[test]
     fn invalid_base64_is_rejected_before_touching_the_store() {
         with_ca_home("bad-b64", || {
-            let result = hub_save_attachment(SaveAttachmentArgs {
+            let result = hub_save_attachment_blocking(SaveAttachmentArgs {
                 filename: "x.png".into(),
                 mime: "image/png".into(),
                 data_base64: "not-valid-base64!!".into(),
@@ -104,7 +116,7 @@ mod tests {
     #[test]
     fn unknown_id_fetches_as_none() {
         with_ca_home("missing", || {
-            assert!(hub_get_attachment("does-not-exist".into())
+            assert!(hub_get_attachment_blocking("does-not-exist".into())
                 .unwrap()
                 .is_none());
         });
