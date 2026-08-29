@@ -205,7 +205,23 @@ pub(crate) fn capture_claude_session_from(
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    /// Serializes every test that mutates the process-global `$HOME`. It has to
+    /// be shared across all of them: a per-test `static` mutex gives each test
+    /// its own lock and lets them race, which flaked
+    /// `capture_gate_captures_the_registered_session_not_the_newest_external_one`
+    /// when a sibling test restored `$HOME` mid-run and `claude_home()` then
+    /// pointed at the wrong projects dir.
+    static HOME_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Locks `HOME_LOCK`, tolerating poisoning from an unrelated test's panic.
+    fn lock_home() -> std::sync::MutexGuard<'static, ()> {
+        HOME_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     /// Restores $HOME on drop even if the test body panics mid-way.
     struct HomeEnvGuard(Option<String>);
@@ -244,8 +260,7 @@ mod tests {
         // grab this workspace's newest transcript — a live external
         // conversation the app never launched — and attribute it to the
         // active work session (the reroute symptom).
-        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _lock = HOME_LOCK.lock().unwrap();
+        let _lock = lock_home();
         let _guard = HomeEnvGuard(std::env::var("HOME").ok());
         let home = tempdir().unwrap();
         std::env::set_var("HOME", home.path());
@@ -267,8 +282,7 @@ mod tests {
 
     #[test]
     fn capture_gate_captures_the_registered_session_not_the_newest_external_one() {
-        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _lock = HOME_LOCK.lock().unwrap();
+        let _lock = lock_home();
         let _guard = HomeEnvGuard(std::env::var("HOME").ok());
         let home = tempdir().unwrap();
         std::env::set_var("HOME", home.path());
