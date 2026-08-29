@@ -118,7 +118,7 @@ The app uses a JSON-based TCP protocol on port 5555. Messages are newline-delimi
 ```
 android/
 ├── app/
-│   ├── src/main/kotlin/com/example/remotelauncher/
+│   ├── src/main/kotlin/com/codingassistants/remotelauncher/
 │   │   ├── MainActivity.kt           # Main activity
 │   │   ├── network/                  # Network layer
 │   │   │   └── TcpClient.kt          # TCP network client & Protocol definitions

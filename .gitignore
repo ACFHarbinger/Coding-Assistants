@@ -36,3 +36,13 @@ coding_assistants.egg-info
 
 # Force include
 !tools/build/
+
+# Android signing secrets & local environment
+android/keystore/
+*.jks
+*.keystore
+android/keystore.properties
+keystore.properties
+android/local.properties
+local.properties
+

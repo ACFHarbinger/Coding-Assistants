@@ -1,14 +1,14 @@
-package com.example.remotelauncher.network
+package com.codingassistants.remotelauncher.network
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -23,24 +23,24 @@ sealed class ClientRequest {
     @Serializable
     @SerialName("GetModels")
     class GetModels : ClientRequest()
-    
+
     @Serializable
     @SerialName("StartTask")
     data class StartTask(
         val config: AgentConfig,
-        val task: String
+        val task: String,
     ) : ClientRequest()
-    
+
     @Serializable
     @SerialName("CancelTask")
     class CancelTask : ClientRequest()
-    
+
     @Serializable
     @SerialName("SubmitInput")
     data class SubmitInput(
-        val input: String
+        val input: String,
     ) : ClientRequest()
-    
+
     @Serializable
     @SerialName("GetStatus")
     class GetStatus : ClientRequest()
@@ -48,12 +48,12 @@ sealed class ClientRequest {
     @Serializable
     @SerialName("GetPendingWakes")
     class GetPendingWakes : ClientRequest()
-    
+
     @Serializable
     @SerialName("ResolveWake")
     data class ResolveWake(
         val wake_id: String,
-        val approve: Boolean
+        val approve: Boolean,
     ) : ClientRequest()
 }
 
@@ -61,13 +61,13 @@ sealed class ClientRequest {
 data class AgentConfig(
     val roles: List<RoleConfig>,
     val work_dir: String,
-    val mcp_config: String
+    val mcp_config: String,
 )
 
 @Serializable
 data class RoleConfig(
     val name: String,
-    val config: ModelConfig
+    val config: ModelConfig,
 )
 
 @Serializable
@@ -76,7 +76,7 @@ data class ModelConfig(
     val model: String,
     val prompt_file: String? = null,
     val rule_file: String? = null,
-    val workflow_file: String? = null
+    val workflow_file: String? = null,
 )
 
 @Serializable
@@ -84,50 +84,50 @@ sealed class ServerResponse {
     @Serializable
     @SerialName("ModelsList")
     data class ModelsList(
-        val models: Map<String, List<String>>
+        val models: Map<String, List<String>>,
     ) : ServerResponse()
-    
+
     @Serializable
     @SerialName("TaskStarted")
     class TaskStarted : ServerResponse()
-    
+
     @Serializable
     @SerialName("TaskEvent")
     data class TaskEvent(
         val source: String,
         val event_type: String,
-        val content: String
+        val content: String,
     ) : ServerResponse()
-    
+
     @Serializable
     @SerialName("TaskComplete")
     data class TaskComplete(
-        val result: String
+        val result: String,
     ) : ServerResponse()
-    
+
     @Serializable
     @SerialName("Status")
     data class Status(
         val running: Boolean,
-        val message: String
+        val message: String,
     ) : ServerResponse()
-    
+
     @Serializable
     @SerialName("Error")
     data class Error(
-        val message: String
+        val message: String,
     ) : ServerResponse()
 
     @Serializable
     @SerialName("PendingWakesList")
     data class PendingWakesList(
-        val wakes: List<WakeRecord>
+        val wakes: List<WakeRecord>,
     ) : ServerResponse()
-    
+
     @Serializable
     @SerialName("WakeResolved")
     data class WakeResolved(
-        val wake_id: String
+        val wake_id: String,
     ) : ServerResponse()
 }
 
@@ -139,45 +139,47 @@ data class WakeRecord(
     val reason: String? = null,
     val status: String,
     val requires_human_gate: Boolean,
-    val created_at: String
+    val created_at: String,
 )
 
 class TcpClient(private val host: String, private val port: Int = 5555) {
     private var socket: Socket? = null
     private var writer: PrintWriter? = null
     private var reader: BufferedReader? = null
-    
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
+
     private val _messages = MutableSharedFlow<ServerResponse>()
     val messages = _messages.asSharedFlow()
-    
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
-    
-    suspend fun connect(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            socket = Socket(host, port)
-            writer = PrintWriter(socket!!.getOutputStream(), true)
-            reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
-            
-            startListening()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
         }
-    }
-    
+
+    suspend fun connect(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                socket = Socket(host, port)
+                writer = PrintWriter(socket!!.getOutputStream(), true)
+                reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
+
+                startListening()
+
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
     private fun startListening() {
         scope.launch {
             try {
                 while (isActive) {
                     val line = reader?.readLine() ?: break
                     if (line.isBlank()) continue
-                    
+
                     try {
                         val response = json.decodeFromString<ServerResponse>(line)
                         _messages.emit(response)
@@ -192,36 +194,45 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             }
         }
     }
-    
-    suspend fun sendRequest(request: ClientRequest): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val jsonString = json.encodeToString(request)
-            writer?.println(jsonString)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+
+    suspend fun sendRequest(request: ClientRequest): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val jsonString = json.encodeToString(request)
+                writer?.println(jsonString)
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
-    }
-    
+
     suspend fun getModels(): Result<Unit> = sendRequest(ClientRequest.GetModels())
-    
-    suspend fun startTask(config: AgentConfig, task: String): Result<Unit> = 
-        sendRequest(ClientRequest.StartTask(config = config, task = task))
-    
-    suspend fun cancelTask(): Result<Unit> = withContext(Dispatchers.IO) {
-        sendRequest(ClientRequest.CancelTask())
-    }
-    
-    suspend fun getPendingWakes(): Result<Unit> = withContext(Dispatchers.IO) {
-        sendRequest(ClientRequest.GetPendingWakes())
-    }
-    
-    suspend fun resolveWake(wakeId: String, approve: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
-        sendRequest(ClientRequest.ResolveWake(wakeId, approve))
-    }
+
+    suspend fun startTask(
+        config: AgentConfig,
+        task: String,
+    ): Result<Unit> = sendRequest(ClientRequest.StartTask(config = config, task = task))
+
+    suspend fun cancelTask(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.CancelTask())
+        }
+
+    suspend fun getPendingWakes(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.GetPendingWakes())
+        }
+
+    suspend fun resolveWake(
+        wakeId: String,
+        approve: Boolean,
+    ): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.ResolveWake(wakeId, approve))
+        }
 
     suspend fun submitInput(input: String): Result<Unit> = sendRequest(ClientRequest.SubmitInput(input = input))
-    
+
     fun disconnect() {
         try {
             scope.coroutineContext.cancelChildren()
@@ -232,6 +243,6 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             e.printStackTrace()
         }
     }
-    
+
     fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
 }
