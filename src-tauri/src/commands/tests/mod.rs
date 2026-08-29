@@ -409,13 +409,15 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
     )
     .expect("disable export via Settings");
 
-    let blocked = hub_export_markdown();
+    // The `#[tauri::command]` wrappers are async (spawn_blocking, #163); the
+    // policy logic under test lives in the `_blocking` bodies.
+    let blocked = hub_export_markdown_blocking();
     assert!(blocked.is_err(), "{blocked:?}");
     assert!(blocked
         .unwrap_err()
         .contains("disabled by orchestration policy"));
 
-    let blocked_git = hub_export_markdown_git(None);
+    let blocked_git = hub_export_markdown_git_blocking(None);
     assert!(blocked_git.is_err(), "{blocked_git:?}");
 
     settings_update_orchestration(
@@ -430,7 +432,7 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
     )
     .expect("re-enable export via Settings");
 
-    hub_export_markdown().expect("export must succeed once re-enabled");
+    hub_export_markdown_blocking().expect("export must succeed once re-enabled");
 
     std::env::remove_var("CA_HOME");
     let _ = std::fs::remove_dir_all(&dir);
