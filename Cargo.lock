@@ -667,6 +667,7 @@ name = "claude"
 version = "0.1.0"
 dependencies = [
  "hub",
+ "mcp-core",
  "serde_json",
  "tempfile",
 ]
@@ -2793,6 +2794,22 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms",
+]
+
+[[package]]
+name = "mcp-core"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "mcp-echo"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde_json",
 ]
 
 [[package]]

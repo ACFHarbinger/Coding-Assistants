@@ -1,0 +1,12 @@
+[package]
+name = "mcp-core"
+version = "0.1.0"
+edition = "2021"
+description = "Reusable stdio MCP server core for Coding-Assistants tool bridges"
+license = "AGPL-3.0-only"
+
+[dependencies]
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
