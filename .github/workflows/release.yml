@@ -67,6 +67,11 @@ jobs:
 
       - run: npm ci
 
+      # tauri-action creates/updates a Release ONLY when `tagName` is non-empty.
+      # On a real `v*` tag push that is the tag name → a draft Release. On
+      # `workflow_dispatch` (dry run) `tagName` is empty → it just builds and,
+      # with `uploadWorkflowArtifacts`, attaches the bundles as run artifacts
+      # without creating any tag or Release.
       - name: Build and bundle (tauri-action)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -75,24 +80,12 @@ jobs:
           projectPath: src-tauri
           tauriScript: npm run tauri
           args: --bundles ${{ matrix.bundles }}
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-dispatch-{0}', github.run_number) }}
-          releaseName: "Coding Assistants ${{ github.ref_type == 'tag' && github.ref_name || 'dev build' }}"
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('Coding Assistants {0}', github.ref_name) || '' }}
           releaseDraft: true
           prerelease: false
-          # workflow_dispatch dry runs still build; they just skip the upload.
-          uploadReleaseAssets: ${{ github.ref_type == 'tag' || inputs.dry_run == false }}
-
-      - name: Stage artifacts for dry runs
-        if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.os }}
-          path: |
-            target/release/bundle/deb/*.deb
-            target/release/bundle/appimage/*.AppImage
-            target/release/bundle/msi/*.msi
-            target/release/bundle/nsis/*-setup.exe
-          if-no-files-found: warn
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: "desktop-${{ matrix.os }}"
 
   android:
     runs-on: ubuntu-22.04

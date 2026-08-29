@@ -18,9 +18,9 @@ android {
         minSdk = 24
         targetSdk = 34
         // Monotonically derived: major*10000 + minor*100 + patch; set by just release::bump
-        versionCode = 10000
+        versionCode = 100
         // Semver string; set by just release::bump
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
