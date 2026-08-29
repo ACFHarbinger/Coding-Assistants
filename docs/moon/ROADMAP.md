@@ -64,6 +64,32 @@ roadmap must add acceptance criteria at least every few entries.
 | Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
 | Multi-human, multi-team coordination | [`roadmaps/multi_human.md`](roadmaps/multi_human.md) | Research · not urgent as of 2026-08-14 |
 
+## v1.0 Release Milestone
+
+Packaging pipeline for the **v1.0** stable desktop app plus the Android
+companion (`android/` RemoteLauncher). Product scope: stable desktop app + core
+orchestration + persistent [Settings] + [C14] provider-native managed harness
+integration. **Deferred:** [TUI], Android *main* app, cloud-sync S1–S14, A2A.
+Build targets: Linux **AppImage + .deb**, Windows **.msi + NSIS .exe**, Android
+**APK + AAB**. No macOS.
+
+**Acceptance criterion:** a green `.github/workflows/release.yml` run on a
+`v1.0.0` tag with all 6 artifacts (`.deb`, `.AppImage`, `.msi`, NSIS
+`-setup.exe`, `.apk`, `.aab`) attached to the published GitHub Release.
+
+| Workstream | Scope | Owner |
+| --- | --- | --- |
+| A | `tauri.conf.json` bundle config + rename (`mainBinaryName`, bundle targets/metadata) | Claude |
+| B | `tools/release/justfile` — `release::bump`, `bundle-*`, `artifacts`, `release` recipes | Codex |
+| C | Android companion release build — identity rename, keystore, `signingConfigs` | Agy |
+| D | `.github/workflows/release.yml` — tag + `workflow_dispatch` (dry_run), desktop/android jobs | Claude |
+| E | Docs — app release checklist, ROADMAP milestone, CHANGELOG scaffold | Opencode |
+
+v1.0-scope issues: [Settings] #126/#131/#132/#133, [C14] #147–#157, bugs
+#163/#165/#167/#143. Sequencing: A + D first (define the contract), then B/C/E
+in parallel, then a `v0.1.x-rc1` dry-run tag to validate the pipeline before
+bumping to `1.0.0`.
+
 ## Product gates
 
 - **Memory gate:** two agents retrieve and correctly use a prior handoff on a
