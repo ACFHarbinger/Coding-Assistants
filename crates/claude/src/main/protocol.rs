@@ -1,9 +1,11 @@
-//! Pure MCP payload shaping: tool schemas and the response bodies for
+//! Pure MCP payload shaping: tool schemas and the `ToolResult` bodies for
 //! `reply`/`check_inbox` tool calls. No I/O, no Hub connection — everything
-//! here is a value-in, `Value`-out function so it's exercised directly by
-//! unit tests without spawning a real stdio server.
+//! here is a value-in, value-out function so it's exercised directly by
+//! unit tests without spawning a real stdio server. `mcp-core` owns the
+//! JSON-RPC envelope; this module only decides the text and the ok/err flag.
 
 use hub::ChannelEvent;
+use mcp_core::ToolResult;
 use serde_json::{json, Value};
 
 pub fn reply_tool_schema() -> Value {
@@ -44,39 +46,30 @@ pub fn format_quiet_events(events: &[ChannelEvent]) -> String {
         .join("\n")
 }
 
-pub fn check_inbox_response(id: Value, result: Result<Vec<ChannelEvent>, hub::HubError>) -> Value {
+pub fn check_inbox_outcome(result: Result<Vec<ChannelEvent>, hub::HubError>) -> ToolResult {
     match result {
-        Ok(events) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": { "content": [{ "type": "text", "text": format_quiet_events(&events) }] },
-        }),
-        Err(error) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": { "content": [{ "type": "text", "text": format!("failed to check inbox: {error}") }], "isError": true },
-        }),
+        Ok(events) => ToolResult::Ok(format_quiet_events(&events)),
+        Err(error) => ToolResult::Err(format!("failed to check inbox: {error}")),
     }
 }
 
-pub fn tool_call_response(id: Value, result: Result<hub::MessageRecord, hub::HubError>) -> Value {
+pub fn reply_outcome(result: Result<hub::MessageRecord, hub::HubError>) -> ToolResult {
     match result {
-        Ok(message) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": { "content": [{ "type": "text", "text": format!("relayed to Hub as message {}", message.id) }] },
-        }),
-        Err(error) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": { "content": [{ "type": "text", "text": format!("failed to relay reply: {error}") }], "isError": true },
-        }),
+        Ok(message) => ToolResult::Ok(format!("relayed to Hub as message {}", message.id)),
+        Err(error) => ToolResult::Err(format!("failed to relay reply: {error}")),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn text_of(outcome: &ToolResult) -> (&str, bool) {
+        match outcome {
+            ToolResult::Ok(t) => (t.as_str(), false),
+            ToolResult::Err(t) => (t.as_str(), true),
+        }
+    }
 
     #[test]
     fn reply_tool_schema_requires_text_only() {
@@ -120,36 +113,32 @@ mod tests {
     }
 
     #[test]
-    fn check_inbox_response_reports_success_and_failure_distinctly() {
-        let ok = check_inbox_response(json!(1), Ok(vec![sample_event("message", "grok", "hi")]));
-        assert_eq!(ok["result"]["isError"], Value::Null);
-        assert_eq!(ok["result"]["content"][0]["text"], "[message] grok: hi");
+    fn check_inbox_outcome_reports_success_and_failure_distinctly() {
+        let ok = check_inbox_outcome(Ok(vec![sample_event("message", "grok", "hi")]));
+        assert_eq!(text_of(&ok), ("[message] grok: hi", false));
 
-        let err = check_inbox_response(json!(2), Err(hub::HubError::Invalid("bad".into())));
-        assert_eq!(err["result"]["isError"], json!(true));
+        let err = check_inbox_outcome(Err(hub::HubError::Invalid("bad".into())));
+        assert!(text_of(&err).1);
     }
 
     #[test]
-    fn tool_call_response_reports_success_and_failure_distinctly() {
-        let ok = tool_call_response(
-            json!(1),
-            Ok(hub::MessageRecord {
-                id: "msg-1".into(),
-                from_agent: "claude".into(),
-                to_agent: "human".into(),
-                workspace_path: None,
-                task_id: None,
-                kind: "message".into(),
-                status: "pending".into(),
-                subject: None,
-                body: "hi".into(),
-                created_at: "now".into(),
-                acked_at: None,
-            }),
-        );
-        assert_eq!(ok["result"]["isError"], Value::Null);
+    fn reply_outcome_reports_success_and_failure_distinctly() {
+        let ok = reply_outcome(Ok(hub::MessageRecord {
+            id: "msg-1".into(),
+            from_agent: "claude".into(),
+            to_agent: "human".into(),
+            workspace_path: None,
+            task_id: None,
+            kind: "message".into(),
+            status: "pending".into(),
+            subject: None,
+            body: "hi".into(),
+            created_at: "now".into(),
+            acked_at: None,
+        }));
+        assert_eq!(text_of(&ok), ("relayed to Hub as message msg-1", false));
 
-        let err = tool_call_response(json!(2), Err(hub::HubError::Invalid("bad".into())));
-        assert_eq!(err["result"]["isError"], json!(true));
+        let err = reply_outcome(Err(hub::HubError::Invalid("bad".into())));
+        assert!(text_of(&err).1);
     }
 }
