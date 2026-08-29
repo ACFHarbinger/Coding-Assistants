@@ -1,0 +1,135 @@
+# tools/release — versioning, packaging, and local release artifact collection.
+
+set shell := ["bash", "-c"]
+
+# Update every release-version source from the canonical package.json version.
+[no-cd]
+bump semver:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="{{ semver }}"
+    if [[ ! "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+        echo "error: expected a SemVer version (for example, 1.0.0): ${version}" >&2
+        exit 1
+    fi
+    IFS='.' read -r major minor patch <<< "${version%%[-+]*}"
+    version_code=$((10#${major} * 10000 + 10#${minor} * 100 + 10#${patch}))
+
+    package_tmp="$(mktemp package.json.XXXXXX)"
+    cargo_tmp="$(mktemp src-tauri/Cargo.toml.XXXXXX)"
+    gradle_tmp="$(mktemp android/app/build.gradle.kts.XXXXXX)"
+    trap 'rm -f "${package_tmp}" "${cargo_tmp}" "${gradle_tmp}"' EXIT
+
+    if command -v jq >/dev/null 2>&1; then
+        jq --arg version "${version}" '.version = $version' package.json > "${package_tmp}"
+    else
+        awk -v version="${version}" '
+            BEGIN { updated = 0 }
+            /^[[:space:]]*"version"[[:space:]]*:/ {
+                sub(/"version"[[:space:]]*:[[:space:]]*"[^"]*"/, "\"version\": \"" version "\"")
+                updated++
+            }
+            { print }
+            END { if (updated != 1) exit 1 }
+        ' package.json > "${package_tmp}" || { echo "error: could not update package.json version" >&2; exit 1; }
+    fi
+    awk -v version="${version}" '
+        BEGIN { in_package = 0; updated = 0 }
+        /^[[:space:]]*\[package\][[:space:]]*$/ { in_package = 1 }
+        in_package && /^[[:space:]]*\[/ && !/^[[:space:]]*\[package\][[:space:]]*$/ { in_package = 0 }
+        in_package && /^[[:space:]]*version[[:space:]]*=[[:space:]]*"[^"]*"[[:space:]]*$/ {
+            print "version = \"" version "\""
+            updated++
+            next
+        }
+        { print }
+        END { if (updated != 1) exit 1 }
+    ' src-tauri/Cargo.toml > "${cargo_tmp}" || { echo "error: could not update src-tauri/Cargo.toml package version" >&2; exit 1; }
+    awk -v version="${version}" -v version_code="${version_code}" '
+        BEGIN { version_name_updated = 0; version_code_updated = 0 }
+        /^[[:space:]]*versionName[[:space:]]*=/ {
+            sub(/=.*/, "= \"" version "\"")
+            version_name_updated++
+        }
+        /^[[:space:]]*versionCode[[:space:]]*=/ {
+            sub(/=.*/, "= " version_code)
+            version_code_updated++
+        }
+        { print }
+        END { if (version_name_updated != 1 || version_code_updated != 1) exit 1 }
+    ' android/app/build.gradle.kts > "${gradle_tmp}" || { echo "error: could not update Android version fields" >&2; exit 1; }
+
+    mv "${package_tmp}" package.json
+    mv "${cargo_tmp}" src-tauri/Cargo.toml
+    mv "${gradle_tmp}" android/app/build.gradle.kts
+    trap - EXIT
+
+    npm i --package-lock-only
+    cargo update -p tauri-app --precise "${version}"
+    git diff -- package.json package-lock.json src-tauri/Cargo.toml Cargo.lock android/app/build.gradle.kts
+
+# Build Linux .deb and AppImage bundles with the pinned local Tauri CLI.
+[no-cd]
+bundle-linux:
+    npm run tauri build -- --bundles deb,appimage
+
+# Build Windows MSI and NSIS bundles with the pinned local Tauri CLI.
+[no-cd]
+bundle-windows:
+    npm run tauri build -- --bundles msi,nsis
+
+# Build the Android companion's release APK and AAB.
+[no-cd]
+bundle-android:
+    cd android && ./gradlew assembleRelease bundleRelease
+
+# Collect locally built desktop and Android artifacts under dist/release/.
+[no-cd]
+artifacts:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf dist/release
+    mkdir -p dist/release/desktop dist/release/android
+    if [[ -d target/release/bundle ]]; then
+        while IFS= read -r -d '' artifact; do
+            relative="${artifact#target/release/bundle/}"
+            destination="dist/release/desktop/${relative}"
+            mkdir -p "$(dirname "${destination}")"
+            cp "${artifact}" "${destination}"
+        done < <(find target/release/bundle -type f -print0 | sort -z)
+    fi
+    if [[ -d android/app/build/outputs ]]; then
+        while IFS= read -r -d '' artifact; do
+            relative="${artifact#android/app/build/outputs/}"
+            destination="dist/release/android/${relative}"
+            mkdir -p "$(dirname "${destination}")"
+            cp "${artifact}" "${destination}"
+        done < <(find android/app/build/outputs -type f -print0 | sort -z)
+    fi
+    find dist/release -type f -print | sort
+
+# Bump, build targets available on this host, collect artifacts, then print manual tag steps.
+[no-cd]
+release semver:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just release::bump "{{ semver }}"
+    case "$(uname -s)" in
+        Linux*)
+            just release::bundle-linux
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            just release::bundle-windows
+            ;;
+        *)
+            echo "Skipping desktop bundle: unsupported local platform $(uname -s)."
+            ;;
+    esac
+    just release::bundle-android
+    just release::artifacts
+    echo
+    echo "Review the version and artifact changes, then tag and push manually:"
+    echo "  git add package.json package-lock.json src-tauri/Cargo.toml Cargo.lock android/app/build.gradle.kts dist/release"
+    echo "  git commit -m 'release: v{{ semver }}'"
+    echo "  git tag v{{ semver }}"
+    echo "  git push origin HEAD --tags"
