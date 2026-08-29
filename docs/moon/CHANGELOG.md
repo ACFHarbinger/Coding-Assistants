@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Release packaging pipeline: `just release::*` recipes and
+- Release packaging pipeline: `just release::*` recipes (`bump`, `bundle-linux`,
+  `bundle-windows`, `bundle-android`, `artifacts`, `release`) and
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
-  (.msi/NSIS), and Android (APK/AAB) artifacts.
-
-- Added `just release::*` recipes to synchronize release versions, build platform bundles, collect artifacts, and guide manual tagging.
+  (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
 ### Desktop — Resume in terminal no longer replaces the app with recovery (#167)
 
