@@ -68,6 +68,10 @@ export default function HubPanelView(props: any) {
             <button
               className="btn-secondary"
               onClick={async () => {
+                // #163: this shells out to git (add + commit) and can take a
+                // few seconds on a large store; show a pending state while it
+                // runs. The command is off the IPC thread now, so this paints.
+                setStatus("Exporting + committing…");
                 const outcome = await run("export_committed", () =>
                   invoke<{ path: string; committed: boolean; detail: string }>(
                     "hub_export_markdown_git",

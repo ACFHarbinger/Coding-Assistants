@@ -327,7 +327,15 @@ pub fn hub_list_wakes(
 }
 
 #[tauri::command]
-pub fn hub_export_markdown() -> Result<String, String> {
+pub async fn hub_export_markdown() -> Result<String, String> {
+    // Serializes the whole store to a markdown tree on disk; keep it off the
+    // IPC thread so a large export never freezes the window (#163).
+    tauri::async_runtime::spawn_blocking(hub_export_markdown_blocking)
+        .await
+        .map_err(|error| format!("hub_export_markdown task panicked: {error}"))?
+}
+
+pub(crate) fn hub_export_markdown_blocking() -> Result<String, String> {
     if !export_enabled() {
         return Err("export is disabled by orchestration policy".to_string());
     }
@@ -340,7 +348,18 @@ pub fn hub_export_markdown() -> Result<String, String> {
 /// Export + `git add`/`git commit` if the markdown dir is inside a work tree
 /// (M3). Never fails solely because there's no repo there — see `detail`.
 #[tauri::command]
-pub fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+pub async fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+    // `export_markdown_git` shells out to `git rev-parse`/`add`/`commit`
+    // (three blocking subprocesses); on the IPC thread that's a multi-second
+    // window freeze with no feedback (#163).
+    tauri::async_runtime::spawn_blocking(move || hub_export_markdown_git_blocking(message))
+        .await
+        .map_err(|error| format!("hub_export_markdown_git task panicked: {error}"))?
+}
+
+pub(crate) fn hub_export_markdown_git_blocking(
+    message: Option<String>,
+) -> Result<GitExportOutcome, String> {
     if !export_enabled() {
         return Err("export is disabled by orchestration policy".to_string());
     }
