@@ -108,54 +108,35 @@ app has zero vitest — only `docs/website` has one). Either stand up vitest for
 `src/` (also serves #167) as its own task, or document the test strategy and
 close #143.
 
-## What's next (do these in order)
+## What's next (current, as of session `session_01RrZbBjc6u8x5yrEhdis6Zx`)
 
-### 1. Land PR #168
+**Steps 1–2 of the original plan are DONE** (pipeline merged, dry-run + RC
+E2E both green, RC deleted). What remains for v1.0.0:
 
-Failing checks on the PR are **all pre-existing on `main`**, none introduced
-by this branch:
-- `lint-test-rust` — `cargo clippy --all-targets -- -D warnings` pedantry.
-  Red on `main` already. The release workflow deliberately does not run clippy.
-- `cargo-audit`, `pip-audit` — dependency advisory failures. Confirm they're
-  also red on `main` (they almost certainly are) before dismissing.
-- `lint-test-android` now **passes** thanks to WS-C's ktlint plugin.
-- `build`, `lint-test-frontend`, `npm-audit` pass.
+### A. In flight — four parallel work items, not yet merged
 
-Decision for Harbinger: merge PR #168 despite the pre-existing red (they're
-tracked for the *bugs* phase), or fix `clippy -D warnings` + the audits
-first. Recommend **merge now** — the pipeline is orthogonal to those, and
-`release.yml` can't be dispatched until it's on `main` (see next).
+| Slice | Owner | Branch (expected) |
+|---|---|---|
+| #165 resume-vs-fresh-session (grok/gemini discovery in `crates/hub/src/bridge/relaunch/`) | `deepseek` (Harbinger's persistent session) | — |
+| `cargo-audit` + `pip-audit` → green (dep bumps: `src-tauri`, `git/pyproject.toml`+`uv.lock`) | `codex/chat` (persistent session) | — |
+| Android versioned APK/AAB filenames (`android/app/build.gradle.kts` archivesName + `release.yml`) | `gemini/Agy` (persistent session) | — |
+| #163 batch 2 (avatar/attachment base64 → `spawn_blocking`) + more | parallel `coding-assistants-c1` session — large uncommitted tree touching `crates/hub/src/bridge/`, `crates/tui/`, settings tabs, `relaunch/mod.rs` (**overlaps #165 — reconcile**) | — |
 
-### 2. Validate the pipeline (needs #168 merged first)
+Review each PR as it lands. Watch for #165 collision between `deepseek` and
+`coding-assistants-c1` (both editing `relaunch/mod.rs`).
 
-`release.yml` currently 404s from the Actions API because
-`workflow_dispatch` requires the workflow file on the **default branch**. Once
-#168 is merged into `main`:
+### B. Then — cut v1.0.0
 
-a. **Dry run:** Actions → Release → Run workflow → `dry_run: true`. Confirms
-   the desktop bundles build on both runners and the Android job signs. No
-   tag/Release created; bundles come back as run artifacts.
-b. **RC tag:** `git tag v0.1.1-rc1 && git push origin v0.1.1-rc1` → full
-   end-to-end: draft Release with all 6 artifacts (`.deb`, `.AppImage`,
-   `.msi`, NSIS `-setup.exe`, `.apk`, `.aab`). Iterate `release.yml` if
-   anything is missing.
-c. **v1.0.0:** `just release::bump 1.0.0`, freeze `docs/moon/CHANGELOG.md`
-   (`[1.0.0] - Unreleased` → dated), commit, `git tag v1.0.0 && git push`.
-   Follow `docs/RELEASE_CHECKLIST.md`.
+1. `just release::bump 1.0.0` — **verified working** this session on a scratch
+   worktree: syncs `package.json` + `src-tauri/Cargo.toml` + root `Cargo.lock`
+   (the `cargo update -p tauri-app --precise` step) + gradle
+   `versionName=1.0.0`/`versionCode=10000`; `cargo metadata` stays consistent.
+2. Freeze `docs/moon/CHANGELOG.md` `[1.0.0]` → dated.
+3. `git commit`, `git tag v1.0.0 && git push origin v1.0.0`.
+4. `release.yml` fires on the tag → draft Release with all 6 artifacts. Review,
+   then publish. Follow `docs/RELEASE_CHECKLIST.md`.
 
-Known unverified: `cargo update -p tauri-app --precise <ver>` inside `just
-release::bump` — Codex claimed it works on a workspace member; only exercised
-with an unchanged 0.1.0 so far. Watch it on the real 1.0.0 bump.
-
-### 3. Phase 2 — bugs
-
-`#163` (UI freezes several seconds, no feedback), `#165` (resume duplicates
-sessions / Claude reroutes live chat / Gemini messages while inactive),
-`#167` (terminal scroll/resize — partially fixed already, commit `dfb518f`),
-`#143` (no frontend crash-recovery boundary). Also fold in the pre-existing
-CI red (`clippy -D warnings`, `cargo-audit`, `pip-audit`) here.
-
-### 4. Phase 3 — features
+### Phase 3 — features
 
 **[Settings]** epic: #126, #131, #132, #133 (persistent local config,
 migration/recovery, danger-zone actions). **[C14]** provider-native managed
