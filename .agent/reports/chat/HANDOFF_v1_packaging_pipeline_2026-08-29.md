@@ -59,6 +59,55 @@ key `apksigner verify` passed). Durable copies:
 
 ---
 
+## PROGRESS UPDATE — session `session_01RrZbBjc6u8x5yrEhdis6Zx` (2026-08-29 afternoon)
+
+Steps 1–2 below are **DONE**. Pipeline phase complete; Phase 2 (bugs) started.
+
+- **PR #168 MERGED** (`7d338b8`) — pipeline on `main`.
+- **PR #169 MERGED** (`093e647`) — `tauri-action@v0` has **no** `uploadWorkflowArtifacts`
+  input (the pipeline assumed it did); on dispatch it logs "No releaseId or
+  tagName provided, skipping all uploads". Added an explicit
+  `actions/upload-artifact@v4` step to the desktop job, guarded
+  `if: github.ref_type != 'tag'`.
+- **Dry run GREEN** (run 33258273556) — `desktop-ubuntu-22.04` (deb+AppImage,
+  96 MB), `desktop-windows-latest` (msi+nsis, 12 MB), `android` (apk+aab, 21 MB)
+  all returned as run artifacts.
+- **RC tag `v0.1.1-rc1` pushed → full E2E GREEN.** Draft Release `v0.1.1-rc1`
+  built with all 6 assets. **The draft + tag still exist** — delete both before
+  cutting v1.0.0 (`gh release delete v0.1.1-rc1 --cleanup-tag`).
+- **PR #170 MERGED** (`822b4c8`) — the pre-existing `lint-test-rust` red was
+  **not a lint issue**: the CI job never installed the GTK/WebKit system libs,
+  so `glib-sys`'s build script died at `pkg-config` and clippy/test never ran.
+  Added the apt set `release.yml` already uses + `swatinem/rust-cache`. Also
+  deflaked a `$HOME` test-isolation race in `src-tauri/src/harness/claude.rs`
+  (two capture-gate tests each had their own function-local `static HOME_LOCK`
+  → didn't mutually exclude). `lint-test-rust` is **now green on `main`**.
+- **PR #171 OPEN** — #163 batch 1: `hub_export_markdown` + `hub_export_markdown_git`
+  moved off the IPC thread (`async` + `spawn_blocking`; `git` subprocess was
+  freezing the whole window). Audit of remaining freeze candidates in
+  `.agent/reports/chat/163_ui_freeze_audit_2026-08-29.md`.
+
+### Still red on `main` (deferred): `cargo-audit`, `pip-audit`
+Dependency-advisory failures, unrelated to `lint-test-rust`. Weekly-scheduled
+`Security Audit` workflow. Not yet triaged.
+
+### BLOCKS v1.0.0 — asset naming
+The `v0.1.1-rc1` draft shipped desktop bundles named `Coding.Assistants_0.1.0_*`
+(package.json is still `0.1.0` — the RC tag was just a probe) and Android assets
+named `app-release.apk` / `app-release.aab` with **no version**. Before the real
+`v1.0.0` tag: (a) `just release::bump 1.0.0` fixes the desktop version string,
+(b) fix the Android Gradle output so the APK/AAB carry the version (rename in
+the `release.yml` android job, or `archivesName` / `setProperty("archivesBaseName", …)`
+in `android/app/build.gradle.kts`).
+
+### #143 is already done
+Top-level `AppErrorBoundary` implemented in `2ba53a5` and wired in `main.tsx`;
+roadmap `ui.md` marks U14 "In Review". Only open item: a forced-throw boundary
+test, which needs a root frontend test harness that **does not exist** (the main
+app has zero vitest — only `docs/website` has one). Either stand up vitest for
+`src/` (also serves #167) as its own task, or document the test strategy and
+close #143.
+
 ## What's next (do these in order)
 
 ### 1. Land PR #168
