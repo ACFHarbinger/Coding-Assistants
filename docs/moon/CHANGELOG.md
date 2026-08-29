@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-08-29
 
 ### Added
 
@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bundle-windows`, `bundle-android`, `artifacts`, `release`) and
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
+
+### Desktop — Settings Diagnostics & Danger Zone Tabs (S6 / #132) (2026-08-29)
+
+- Implemented `DiagnosticsTab.tsx` in `src/components/settings/tabs/` providing configuration store status checks, application log level selection, and sanitized, zero-secret redacted diagnostics export.
+- Implemented `DangerTab.tsx` in `src/components/settings/tabs/` establishing a high-contrast red/amber warning container framework with default-focused Cancel buttons, typed workspace target confirmation, and multi-field workspace override reset.
+- Extracted `SettingsAuditDrawer.tsx` preserving modularity and adhering to the 500-LoC repository rule across all Settings components.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
 
 ### Desktop — Settings Agents & Harnesses Tab (S4 / #130) (2026-08-29)
 

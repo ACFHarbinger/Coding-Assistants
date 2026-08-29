@@ -14,11 +14,26 @@ export const inputStyle: React.CSSProperties = {
   fontSize: "0.85rem",
 };
 
+import { isTauriRuntime } from "../../../lib/tauri";
+
 export function readWorkspaceRoot(): string | null {
   try {
     return localStorage.getItem("ca.workspaceRoot");
   } catch {
     return null;
+  }
+}
+
+export async function closeSettingsWindow(): Promise<void> {
+  if (!isTauriRuntime()) {
+    window.close();
+    return;
+  }
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  try {
+    await getCurrentWindow().close();
+  } catch (error) {
+    console.error("Failed to close the Settings window:", error);
   }
 }
 
