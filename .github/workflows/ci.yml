@@ -31,6 +31,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      # The Tauri crate links against the system GTK/WebKit stack; without
+      # these, `glib-sys`'s build script fails at pkg-config and clippy/test
+      # never even run (this is what made lint-test-rust red on main).
+      - name: Install Linux GTK/WebKit dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            build-essential \
+            curl wget file
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> ../target"
       - run: cargo fmt -- --check
         working-directory: src-tauri
       - run: cargo clippy --all-targets -- -D warnings
