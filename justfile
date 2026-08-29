@@ -13,6 +13,7 @@ set unstable := true
 mod helper     "tools/helper/justfile"
 mod dev        "tools/dev/justfile"
 mod build      "tools/build/justfile"
+mod release    "tools/release/justfile"
 mod test       "tools/test/justfile"
 mod validation "tools/validation/justfile"
 mod docs       "tools/docs/justfile"
@@ -74,6 +75,14 @@ tui:
 # Build the app (frontend + Rust backend)
 build-all:
     @just build::all
+
+# Bump release version sources and refresh their lockfiles
+release-bump semver:
+    @just release::bump "{{semver}}"
+
+# Build locally available release targets and collect their artifacts
+package semver:
+    @just release::release "{{semver}}"
 
 # --- Test (→ tools/test) ---
 

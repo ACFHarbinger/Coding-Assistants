@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts.
 
+- Added `just release::*` recipes to synchronize release versions, build platform bundles, collect artifacts, and guide manual tagging.
+
 ### Desktop — Resume in terminal no longer replaces the app with recovery (#167)
 
 - Clicking **Resume in terminal** mounted `EmbeddedTerminal`, which threw
