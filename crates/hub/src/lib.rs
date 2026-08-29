@@ -7,6 +7,7 @@
 
 mod bridge;
 mod harness;
+pub mod mcp;
 mod paths;
 mod settings;
 mod store;
