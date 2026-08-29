@@ -1,88 +1,17 @@
 //! MCP bridge to a running Blender instance.
 //!
-//! Transport contract (see `crates/mcp-core/CONTRACT.md`): the
-//! `plugins/blender/` addon opens a line-JSON TCP server on
-//! `127.0.0.1:<port>` (default [`DEFAULT_PORT`]). This crate is the
-//! client: for each `tools/call`, connect, send one
-//! `{ "op": <tool>, "args": {...} }` line, read one
-//! `{ "ok": bool, "result"|"error": ... }` line, close.
-//!
-//! Per-call connections keep the bridge stateless and resilient to the
-//! addon restarting; Blender operations are not latency-sensitive.
+//! The `plugins/blender/` addon opens a line-JSON TCP server; this crate
+//! is the client via [`mcp_core::app_link`]. Per `tools/call`: connect,
+//! send `{ "op": <tool>, "args": {...} }`, read `{ "ok", "result"|"error" }`.
 
+use mcp_core::app_link::{result_to_text, AppLink};
 use mcp_core::{ServerInfo, ToolProvider, ToolResult};
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Write};
-use std::net::TcpStream;
-use std::time::Duration;
 
 pub const DEFAULT_PORT: u16 = 9765;
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const IO_TIMEOUT: Duration = Duration::from_secs(30);
+pub const APP_LABEL: &str = "Blender";
 
-/// Sends one line-JSON request to the addon and returns its `result`
-/// payload, or an error string. Abstracted behind a trait so the provider
-/// is unit-testable against a mock peer.
-pub trait BlenderLink: Send + Sync {
-    fn request(&self, op: &str, args: &Value) -> Result<Value, String>;
-}
-
-/// The real link: a fresh TCP connection to `127.0.0.1:<port>` per call.
-pub struct TcpLink {
-    pub port: u16,
-}
-
-impl BlenderLink for TcpLink {
-    fn request(&self, op: &str, args: &Value) -> Result<Value, String> {
-        let addr = format!("127.0.0.1:{}", self.port);
-        let stream = TcpStream::connect_timeout(
-            &addr
-                .parse()
-                .map_err(|e| format!("bad address {addr}: {e}"))?,
-            CONNECT_TIMEOUT,
-        )
-        .map_err(|e| {
-            format!(
-                "could not reach the Blender addon on {addr}: {e}. \
-                 Is Blender running with the Coding-Assistants addon enabled?"
-            )
-        })?;
-        stream.set_read_timeout(Some(IO_TIMEOUT)).ok();
-        stream.set_write_timeout(Some(IO_TIMEOUT)).ok();
-
-        let mut writer = &stream;
-        let payload = json!({ "op": op, "args": args });
-        writeln!(writer, "{payload}").map_err(|e| format!("write to addon failed: {e}"))?;
-        writer.flush().ok();
-
-        let mut line = String::new();
-        BufReader::new(&stream)
-            .read_line(&mut line)
-            .map_err(|e| format!("read from addon failed: {e}"))?;
-        parse_response(&line)
-    }
-}
-
-/// Interpret one response line from the addon.
-pub fn parse_response(line: &str) -> Result<Value, String> {
-    let line = line.trim();
-    if line.is_empty() {
-        return Err("empty response from the Blender addon".to_string());
-    }
-    let value: Value =
-        serde_json::from_str(line).map_err(|e| format!("addon sent invalid JSON: {e}"))?;
-    match value.get("ok").and_then(Value::as_bool) {
-        Some(true) => Ok(value.get("result").cloned().unwrap_or(Value::Null)),
-        Some(false) => Err(value
-            .get("error")
-            .and_then(Value::as_str)
-            .unwrap_or("unspecified Blender error")
-            .to_string()),
-        None => Err("addon response missing the `ok` field".to_string()),
-    }
-}
-
-pub struct BlenderProvider<L: BlenderLink> {
+pub struct BlenderProvider<L: AppLink> {
     link: L,
     /// `run_python` is arbitrary code execution inside Blender. Off unless
     /// the server was started with `--allow-run-python` (or, later, enabled
@@ -90,23 +19,16 @@ pub struct BlenderProvider<L: BlenderLink> {
     allow_run_python: bool,
 }
 
-impl<L: BlenderLink> BlenderProvider<L> {
+impl<L: AppLink> BlenderProvider<L> {
     pub fn new(link: L, allow_run_python: bool) -> Self {
         Self {
             link,
             allow_run_python,
         }
     }
-
-    fn to_text(value: &Value) -> String {
-        match value {
-            Value::String(s) => s.clone(),
-            other => serde_json::to_string_pretty(other).unwrap_or_else(|_| other.to_string()),
-        }
-    }
 }
 
-impl<L: BlenderLink + 'static> ToolProvider for BlenderProvider<L> {
+impl<L: AppLink + 'static> ToolProvider for BlenderProvider<L> {
     fn server_info(&self) -> ServerInfo {
         ServerInfo {
             name: "coding-assistants-mcp-blender".into(),
@@ -193,7 +115,7 @@ impl<L: BlenderLink + 'static> ToolProvider for BlenderProvider<L> {
             );
         }
         match self.link.request(name, arguments) {
-            Ok(result) => ToolResult::Ok(Self::to_text(&result)),
+            Ok(result) => ToolResult::Ok(result_to_text(&result)),
             Err(error) => ToolResult::Err(error),
         }
     }
@@ -205,21 +127,17 @@ mod tests {
 
     type ReplyFn = dyn Fn(&str, &Value) -> Result<Value, String> + Send + Sync;
 
-    struct MockLink {
-        reply: Box<ReplyFn>,
-    }
+    struct MockLink(Box<ReplyFn>);
     impl MockLink {
         fn new(
             reply: impl Fn(&str, &Value) -> Result<Value, String> + Send + Sync + 'static,
         ) -> Self {
-            Self {
-                reply: Box::new(reply),
-            }
+            Self(Box::new(reply))
         }
     }
-    impl BlenderLink for MockLink {
+    impl AppLink for MockLink {
         fn request(&self, op: &str, args: &Value) -> Result<Value, String> {
-            (self.reply)(op, args)
+            (self.0)(op, args)
         }
     }
 
@@ -228,21 +146,6 @@ mod tests {
             ToolResult::Ok(t) => (t, false),
             ToolResult::Err(t) => (t, true),
         }
-    }
-
-    #[test]
-    fn parse_response_maps_ok_err_and_malformed() {
-        assert_eq!(
-            parse_response(r#"{"ok":true,"result":{"n":3}}"#).unwrap(),
-            json!({ "n": 3 })
-        );
-        assert_eq!(
-            parse_response(r#"{"ok":false,"error":"no active object"}"#).unwrap_err(),
-            "no active object"
-        );
-        assert!(parse_response("").is_err());
-        assert!(parse_response("not json").is_err());
-        assert!(parse_response(r#"{"result":1}"#).is_err());
     }
 
     #[test]
@@ -257,16 +160,11 @@ mod tests {
         assert!(!names.contains(&"run_python".to_string()));
 
         let open = BlenderProvider::new(MockLink::new(|_, _| Ok(Value::Null)), true);
-        let names: Vec<_> = open
-            .tools()
-            .iter()
-            .map(|t| t["name"].as_str().unwrap().to_string())
-            .collect();
-        assert!(names.contains(&"run_python".to_string()));
+        assert!(open.tools().iter().any(|t| t["name"] == "run_python"));
     }
 
     #[test]
-    fn call_forwards_op_and_args_and_stringifies_result() {
+    fn call_forwards_op_and_stringifies_result() {
         let provider = BlenderProvider::new(
             MockLink::new(|op, _| {
                 assert_eq!(op, "create_primitive");
@@ -294,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn run_python_is_refused_when_gated_without_ever_hitting_the_link() {
+    fn run_python_is_refused_when_gated_without_hitting_the_link() {
         let provider = BlenderProvider::new(
             MockLink::new(|_, _| panic!("link must not be called when run_python is gated")),
             false,

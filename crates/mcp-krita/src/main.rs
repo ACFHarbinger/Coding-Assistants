@@ -1,16 +1,13 @@
-//! `coding-assistants-mcp-blender` — the stdio MCP server an agent's config
-//! points at. Talks to a running Blender instance through the
-//! `plugins/blender/` addon's TCP line-JSON socket.
+//! `coding-assistants-mcp-krita` — stdio MCP server bridging to a running
+//! Krita instance through the `plugins/krita/` extension's TCP socket.
 //!
-//! Usage (as an MCP `command` entry):
-//!   coding-assistants-mcp-blender [--port <N>] [--allow-run-python]
+//!   coding-assistants-mcp-krita [--port <N>] [--allow-run-python]
 //!
-//! `--port` must match the addon's configured port (default 9765).
-//! `--allow-run-python` exposes an arbitrary-`bpy`-code tool; off by default.
+//! `--port` must match the plugin's configured port (default 9766).
 
-use mcp_blender::{BlenderProvider, APP_LABEL, DEFAULT_PORT};
 use mcp_core::app_link::TcpAppLink;
 use mcp_core::McpServer;
+use mcp_krita::{KritaProvider, APP_LABEL, DEFAULT_PORT};
 use std::sync::Arc;
 
 fn main() {
@@ -34,6 +31,6 @@ fn main() {
         i += 1;
     }
 
-    let provider = BlenderProvider::new(TcpAppLink::new(port, APP_LABEL), allow_run_python);
+    let provider = KritaProvider::new(TcpAppLink::new(port, APP_LABEL), allow_run_python);
     McpServer::new(Arc::new(provider)).run();
 }
