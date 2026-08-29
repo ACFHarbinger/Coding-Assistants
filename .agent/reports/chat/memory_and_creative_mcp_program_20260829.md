@@ -279,3 +279,37 @@ Slices are large and parallelizable **after C-1 + M1 land**. When delegating:
 3. **M1a** schema + `sqlite-vec` load + `meta.schema_version` — unblocks all of Track M.
 
 C-1 and M1a are independent and can run in parallel in two worktrees.
+
+---
+
+## Progress log
+
+**2026-08-29 (session `session_01RrZbBjc6u8x5yrEhdis6Zx`)**
+- **#176** design doc merged.
+- **C-1a #177** merged — `crates/mcp-core` (stdio JSON-RPC server, `ToolProvider`,
+  `Emitter`); `crates/claude` Channel bridge migrated onto it, 15 tests unchanged;
+  `crates/mcp-echo` reference server.
+- **C-1b #178** merged — `hub::mcp` client-agnostic config rendering
+  (`render_merged(ClientKind, &[McpServerEntry], existing)`) for Claude `.mcp.json`,
+  Gemini `.gemini/settings.json`, opencode `opencode.json`, Codex `~/.codex/config.toml`.
+  Idempotent, preserves hand-added servers. Existing `channels/claude/workspaces`
+  registry left untouched.
+- **C-2 #179** merged — `crates/mcp-blender` (`coding-assistants-mcp-blender`,
+  port 9765) + `plugins/blender/coding_assistants_bridge.py`. 7 tools
+  (`run_python` gated behind `--allow-run-python`). bpy addon marshals to main
+  thread via `bpy.app.timers`.
+- **C-3 #180** merged — `crates/mcp-krita` (port 9766) + `plugins/krita/`
+  (PyKrita `.py` + `.desktop`, QTimer pump). **Also** extracted the shared socket
+  transport into `mcp_core::app_link` (`AppLink` trait, `TcpAppLink`,
+  `parse_response`, `result_to_text`); `mcp-blender` shrank ~120 lines.
+
+**Framework validated across 2 consumers — abstraction held, no mcp-core refactor
+needed beyond the app_link extraction.** Per-tool code is now `tools()` + the
+`--allow-run-python` gate string only.
+
+**Not yet done:** C-4 Godot, C-5 Aseprite, C-6 Unreal, C-7 Unity, C-8 OpenToonz
+(viability spike). Track M (memory) entirely unstarted — M1 vector retrieval is
+the foundational piece. `hub::mcp` is not yet wired into a Settings "Creative
+Tools" tab or invoked anywhere (C-1b is the library; the UI/registration is
+follow-up). Pre-existing `crates/hub` fmt drift keeps resurfacing (CI only
+fmt-checks `src-tauri`) — worth a one-shot `cargo fmt` cleanup PR.
