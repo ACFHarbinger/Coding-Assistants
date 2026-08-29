@@ -161,7 +161,14 @@ export function AgentAvatar(props: {
             return null;
           });
         }}
-        style={{ ...box, border: "none", padding: 0, cursor: busy ? "wait" : "pointer" }}
+        style={{
+          ...box,
+          border: "none",
+          padding: 0,
+          cursor: busy ? "wait" : "pointer",
+          opacity: busy ? 0.6 : 1,
+          transition: "opacity 0.2s ease",
+        }}
       >
         {picture}
       </button>

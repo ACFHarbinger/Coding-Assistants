@@ -52,14 +52,18 @@ export default function HubPanel() {
   const [channelConnected, setChannelConnected] = useState<Record<string, boolean>>({});
   const [channelConnecting, setChannelConnecting] = useState<Record<string, boolean>>({});
 
-  const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+  const run = useCallback(async <T,>(label: string, fn: () => Promise<T>, pendingMessage?: string): Promise<T | null> => {
     setError("");
+    if (pendingMessage) {
+      setStatus(pendingMessage);
+    }
     try {
       const result = await fn();
       setStatus(label);
       return result;
     } catch (e) {
       setError(String(e));
+      setStatus("");
       return null;
     }
   }, []);

@@ -5,7 +5,7 @@ import ChannelsTab from "./ChannelsTab";
 import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 
 export default function HubPanelView(props: any) {
-  const { hubTab, dataDir, error, status, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace } = props;
+  const { hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace } = props;
 
 
   return (
@@ -59,7 +59,7 @@ export default function HubPanelView(props: any) {
             <button
               className="btn-secondary"
               onClick={async () => {
-                await run("compacted", () => invoke("hub_compact_short_term", { keepNewest: 20 }));
+                await run("compacted", () => invoke("hub_compact_short_term", { keepNewest: 20 }), "Compacting short-term memories…");
                 await refreshMemories();
               }}
             >
@@ -71,12 +71,14 @@ export default function HubPanelView(props: any) {
                 // #163: this shells out to git (add + commit) and can take a
                 // few seconds on a large store; show a pending state while it
                 // runs. The command is off the IPC thread now, so this paints.
-                setStatus("Exporting + committing…");
-                const outcome = await run("export_committed", () =>
-                  invoke<{ path: string; committed: boolean; detail: string }>(
-                    "hub_export_markdown_git",
-                    { message: null },
-                  ),
+                const outcome = await run(
+                  "export_committed",
+                  () =>
+                    invoke<{ path: string; committed: boolean; detail: string }>(
+                      "hub_export_markdown_git",
+                      { message: null },
+                    ),
+                  "Exporting + committing…",
                 );
                 if (outcome) {
                   setStatus(

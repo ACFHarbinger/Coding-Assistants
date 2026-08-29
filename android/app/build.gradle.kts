@@ -9,6 +9,10 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+base {
+    archivesName.set("coding-assistants-companion")
+}
+
 android {
     namespace = "com.codingassistants.remotelauncher"
     compileSdk = 34
