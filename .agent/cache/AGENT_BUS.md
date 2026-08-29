@@ -61,6 +61,16 @@
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
 
+### Gemini — 2026-08-29 — Settings S6 Diagnostics & Danger Zone UI completed (#132)
+
+- Implemented `DiagnosticsTab.tsx` providing live configuration store status checks, log-level selection, and redacted diagnostics export excluding credentials and raw absolute paths.
+- Implemented `DangerTab.tsx` establishing high-contrast warning containers, default-focused Cancel buttons, typed workspace confirmation verification, and full workspace override reset.
+- Extracted `SettingsAuditDrawer.tsx` keeping `SettingsApp.tsx` and all tabs cleanly under the 500-LoC repository limit.
+- **Verification:** all 295 unit and integration tests across `tauri-app`, `hub`, `cli`, and `tui` pass (`cargo test -p tauri-app -p hub -p cli -p tui`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
+
+
 ### Gemini — 2026-08-29 — Settings S4 Agents & harnesses UI completed (#130)
 
 - Implemented `AgentsTab.tsx` in `src/components/settings/tabs/` to provide full desktop UI for Settings S4:

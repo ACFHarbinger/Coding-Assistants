@@ -13,7 +13,8 @@ export type SettingsField =
   | "auto_enrollment_allowed"
   | "sandbox_strictness"
   | "retention_days"
-  | "export_enabled";
+  | "export_enabled"
+  | "link_suggestion_mode";
 
 // Mirrors `hub::SandboxStrictness`.
 export type SandboxStrictness = "strict" | "standard" | "permissive";

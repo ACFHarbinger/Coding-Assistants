@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Desktop — Settings Diagnostics & Danger Zone Tabs (S6 / #132) (2026-08-29)
+
+- Implemented `DiagnosticsTab.tsx` in `src/components/settings/tabs/` providing configuration store status checks, application log level selection, and sanitized, zero-secret redacted diagnostics export.
+- Implemented `DangerTab.tsx` in `src/components/settings/tabs/` establishing a high-contrast red/amber warning container framework with default-focused Cancel buttons, typed workspace target confirmation, and multi-field workspace override reset.
+- Extracted `SettingsAuditDrawer.tsx` preserving modularity and adhering to the 500-LoC repository rule across all Settings components.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
 ### Desktop — Settings Agents & Harnesses Tab (S4 / #130) (2026-08-29)
 
 - Implemented `AgentsTab.tsx` in `src/components/settings/tabs/` enabling management of named provider profiles (`claude`, `codex`, `gemini`, `grok`, `custom`), non-secret source badges (`Keychain ID` / `Env Var $NAME` / `CLI Native Login`), workspace default profile selection with `Inherited` / `Workspace Override` status pills, and runtime harness policies (capture polling, task inject permissions).

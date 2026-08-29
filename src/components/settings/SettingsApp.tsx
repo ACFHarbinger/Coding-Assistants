@@ -6,6 +6,7 @@ import {
   getStandingPolicy,
   listAgentBudgets,
   listSettingsAuditEvents,
+  resetWorkspaceDefaultProfile,
   resetSettingsField,
   setAgentBudget,
   setAllowAutoWake,
@@ -29,6 +30,10 @@ import WorkspaceTab from "./tabs/WorkspaceTab";
 import MemoryTab from "./tabs/MemoryTab";
 import OrchestrationTab from "./tabs/OrchestrationTab";
 import AgentsTab from "./tabs/AgentsTab";
+import DiagnosticsTab from "./tabs/DiagnosticsTab";
+import DangerTab from "./tabs/DangerTab";
+import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
+import { closeSettingsWindow, readWorkspaceRoot } from "./tabs/shared";
 
 type TabId = "general" | "workspace" | "agents" | "orchestration" | "memory" | "diagnostics" | "danger";
 
@@ -46,30 +51,9 @@ const TABS: TabDef[] = [
   { id: "agents", label: "Agents & harnesses", summary: "Named provider profiles and per-harness settings.", implemented: true },
   { id: "orchestration", label: "Orchestration", summary: "Task/wake confirmation, auto-enrollment, budgets, tool/sandbox policy.", implemented: true },
   { id: "memory", label: "Memory & storage", summary: "Retention, export, and settings-backup policy.", implemented: true },
-  { id: "diagnostics", label: "Diagnostics", summary: "Log level, configuration health, redacted diagnostics export.", implemented: false },
-  { id: "danger", label: "Danger zone", summary: "Confirmed reset, removal, and purge operations.", dangerous: true, implemented: false },
+  { id: "diagnostics", label: "Diagnostics", summary: "Log level, configuration health, redacted diagnostics export.", implemented: true },
+  { id: "danger", label: "Danger zone", summary: "Confirmed reset, removal, and purge operations.", dangerous: true, implemented: true },
 ];
-
-function readWorkspaceRoot(): string | null {
-  try {
-    return localStorage.getItem("ca.workspaceRoot");
-  } catch {
-    return null;
-  }
-}
-
-async function closeSettingsWindow(): Promise<void> {
-  if (!isTauriRuntime()) {
-    window.close();
-    return;
-  }
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  try {
-    await getCurrentWindow().close();
-  } catch (error) {
-    console.error("Failed to close the Settings window:", error);
-  }
-}
 
 export default function SettingsApp() {
   const workspaceRoot = useMemo(readWorkspaceRoot, []);
@@ -78,7 +62,6 @@ export default function SettingsApp() {
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
   const [loadStatus, setLoadStatus] = useState<SettingsLoadStatus | null>(null);
   const [auditEvents, setAuditEvents] = useState<SettingsAuditEvent[]>([]);
-  const [showAudit, setShowAudit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -276,6 +259,42 @@ export default function SettingsApp() {
     }
   };
 
+  const handleResetWorkspaceOverrides = async () => {
+    if (!workspaceRoot) return;
+    const fieldsToReset: SettingsField[] = [
+      "backup_retention",
+      "default_session",
+      "confirm_new_enrollment",
+      "confirm_broadcast",
+      "auto_enrollment_allowed",
+      "sandbox_strictness",
+      "retention_days",
+      "export_enabled",
+      "link_suggestion_mode",
+    ];
+    setBusy(true);
+    setError(null);
+    try {
+      // Read the workspace-scoped snapshot first: profile selection is not a
+      // SettingsField, so it has its own reset command.
+      const workspaceSettings = await getEffectiveSettings(workspaceRoot);
+      for (const field of fieldsToReset) {
+        await resetSettingsField(workspaceRoot, field);
+      }
+      for (const harness of workspaceSettings.harnesses) {
+        if (harness.default_profile_status === "override") {
+          await resetWorkspaceDefaultProfile(workspaceRoot, harness.harness);
+        }
+      }
+      await refresh();
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "1.5rem", gap: "1.25rem" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
@@ -443,27 +462,28 @@ export default function SettingsApp() {
               saveBudget={() => void saveBudget()}
             />
           )}
+
+          {activeTab.id === "diagnostics" && effective && (
+            <DiagnosticsTab
+              effective={effective}
+              loadStatus={loadStatus}
+              workspaceRoot={workspaceRoot}
+              busy={busy}
+            />
+          )}
+
+          {activeTab.id === "danger" && effective && (
+            <DangerTab
+              workspaceRoot={workspaceRoot}
+              busy={busy}
+              onResetWorkspaceOverrides={handleResetWorkspaceOverrides}
+              onChanged={() => void refresh()}
+            />
+          )}
         </div>
       </div>
 
-      <div>
-        <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.4rem 0.8rem", fontSize: "0.78rem" }} onClick={() => setShowAudit((value) => !value)}>
-          {showAudit ? "Hide" : "Show"} recent settings changes ({auditEvents.length})
-        </button>
-        {showAudit && (
-          <div style={{ marginTop: "0.6rem", maxHeight: "160px", overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "0.5rem 0.75rem" }}>
-            {auditEvents.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>No settings changes recorded yet.</p>}
-            {auditEvents
-              .slice()
-              .reverse()
-              .map((event) => (
-                <div key={event.id} style={{ fontSize: "0.78rem", color: "var(--text-muted)", padding: "0.25rem 0", borderBottom: "1px solid var(--border-color)" }}>
-                  <span style={{ color: "var(--text-main)" }}>{event.operation}</span> {event.path} — {event.observed_at}
-                </div>
-              ))}
-          </div>
-        )}
-      </div>
+      <SettingsAuditDrawer auditEvents={auditEvents} />
     </div>
   );
 }
