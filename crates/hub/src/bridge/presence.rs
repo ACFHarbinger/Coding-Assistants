@@ -2,10 +2,14 @@
 //!
 //! Never derived from a global process-name scan. Claude uses the
 //! Channel-bridge check for this workspace. Chat / Gemini / Grok claim
-//! live only for a Hub-registered *managed* session whose `managed_pid`
-//! is still running. Observed registrations stay unclaimed. Grok may
-//! also claim live when a workspace-scoped `--leader` TUI is up *and*
-//! the leader socket exists — that is the documented Hub inject path.
+//! live for a Hub-registered session that is in an active state, aligned
+//! with the #165 capture-identity gate: a *managed* session must still be
+//! running (`managed_pid` alive) so a dead app-spawned process never shows
+//! live; an *observed* session is considered present because the capture
+//! identity gate is already mirroring its turns into the app (the "inactive
+//! but messaging" symptom — observed was previously never claimed). Grok may
+//! also claim live when a workspace-scoped `--leader` TUI is up *and* the
+//! leader socket exists — that is the documented Hub inject path.
 
 use crate::bridge::channels::claude::is_channel_session_live;
 use crate::bridge::grok::grok_leader_status;
@@ -34,13 +38,22 @@ const CHAT_ALIASES: &[&str] = &["chat", "codex"];
 const GEMINI_ALIASES: &[&str] = &["gemini", "agy"];
 const GROK_ALIASES: &[&str] = &["grok"];
 
-pub fn managed_session_is_live(session: &HarnessSessionRegistration) -> bool {
-    session.mode == HarnessSessionMode::Managed
-        && matches!(
-            session.state,
-            HarnessSessionState::Ready | HarnessSessionState::Busy | HarnessSessionState::Queued
-        )
-        && session.managed_pid.is_some_and(is_pid_running)
+pub fn registered_session_is_present(session: &HarnessSessionRegistration) -> bool {
+    if !matches!(
+        session.state,
+        HarnessSessionState::Ready | HarnessSessionState::Busy | HarnessSessionState::Queued
+    ) {
+        return false;
+    }
+    match session.mode {
+        // A managed session we launched must still be running to be present —
+        // otherwise a dead app-spawned process would show a live dot.
+        HarnessSessionMode::Managed => session.managed_pid.is_some_and(is_pid_running),
+        // An observed session is being tracked/captured by the capture-identity
+        // gate (that's why its turns appear in the app), so align presence with
+        // that and show it present rather than "inactive but messaging".
+        HarnessSessionMode::Observed => true,
+    }
 }
 
 fn any_managed_live(
@@ -51,7 +64,7 @@ fn any_managed_live(
     sessions.iter().any(|session| {
         aliases.contains(&session.harness.as_str())
             && same_workspace(&session.workspace, workspace)
-            && managed_session_is_live(session)
+            && registered_session_is_present(session)
     })
 }
 
@@ -97,35 +110,39 @@ mod tests {
     }
 
     #[test]
-    fn observed_registration_is_never_live() {
+    fn observed_registration_is_present() {
+        // #165 option 1: an observed session is tracked/captured by the
+        // capture-identity gate, so it shows present rather than the
+        // "inactive but messaging" mismatch. It has no managed pid, so its
+        // liveness is the registration's active state, not a pid check.
         let observed = session(
             "chat",
             HarnessSessionMode::Observed,
             HarnessSessionState::Ready,
             None,
         );
-        assert!(!managed_session_is_live(&observed));
+        assert!(registered_session_is_present(&observed));
     }
 
     #[test]
-    fn managed_with_a_dead_pid_is_not_live() {
+    fn managed_with_a_dead_pid_is_not_present() {
         let dead = session(
             "gemini",
             HarnessSessionMode::Managed,
             HarnessSessionState::Ready,
             Some(u32::MAX),
         );
-        assert!(!managed_session_is_live(&dead));
+        assert!(!registered_session_is_present(&dead));
     }
 
     #[test]
-    fn stopped_or_unavailable_managed_is_not_live() {
+    fn stopped_or_unavailable_managed_is_not_present() {
         let stopped = session(
             "chat",
             HarnessSessionMode::Managed,
             HarnessSessionState::Stopped,
             Some(u32::MAX),
         );
-        assert!(!managed_session_is_live(&stopped));
+        assert!(!registered_session_is_present(&stopped));
     }
 }
