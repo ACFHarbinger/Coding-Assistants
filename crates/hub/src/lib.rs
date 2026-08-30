@@ -19,8 +19,8 @@ pub use bridge::channels::claude::{
     delete_channel_workspace, get_permission_request, is_channel_session_live,
     launch_claude_channel_session, list_channel_workspaces, poll_channel_events,
     poll_quiet_channel_events, record_channel_reply, record_permission_request,
-    rename_channel_workspace, resolve_permission_request, setup_claude_channel, ChannelEvent,
-    ChannelWorkspace, PermissionVerdict, CLAUDE_AGENT_ID,
+    rename_channel_workspace, resolve_permission_request, servers_dir, setup_claude_channel,
+    workspace_server_name, ChannelEvent, ChannelWorkspace, PermissionVerdict, CLAUDE_AGENT_ID,
 };
 pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,

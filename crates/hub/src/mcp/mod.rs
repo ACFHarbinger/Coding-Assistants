@@ -17,6 +17,8 @@
 //! registry (`bridge::channels::claude::workspaces`) keeps working
 //! unchanged; it can move onto this later.
 
+pub mod creative;
+
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 
@@ -124,26 +126,90 @@ fn merge_json_map(base: &Value, addition: &Value, object_key: &str) -> Value {
 /// Render `entries` into `client`'s config, merged idempotently on top of
 /// `existing_config` (pass the current file contents, or an empty string
 /// for a fresh file). Returns the full new file contents.
+///
+/// This only ever *adds or overwrites* keys. It has no way to know a
+/// previously-app-managed server should now be gone — use
+/// [`render_replacing`] when the caller owns a known set of keys and needs
+/// removals to take effect (e.g. the user disabling a creative tool).
 pub fn render_merged(
     client: ClientKind,
     entries: &[McpServerEntry],
     existing_config: &str,
 ) -> String {
+    render_replacing(client, &[], entries, existing_config)
+}
+
+/// Like [`render_merged`], but first drops every key in `owned_keys` that
+/// is *not* present in `entries`. Keys in neither list — servers a user
+/// added by hand — always survive. Use this when the app owns a fixed
+/// namespace of server keys (the `crates/mcp-<tool>` bridges) and a
+/// toggle-off has to actually remove the entry, not just stop refreshing
+/// it.
+///
+/// Still idempotent: rendering the output through it again is a no-op.
+pub fn render_replacing(
+    client: ClientKind,
+    owned_keys: &[&str],
+    entries: &[McpServerEntry],
+    existing_config: &str,
+) -> String {
+    let to_remove: Vec<&str> = owned_keys
+        .iter()
+        .copied()
+        .filter(|key| !entries.iter().any(|e| e.key == *key))
+        .collect();
+
     match client {
         ClientKind::Claude | ClientKind::Gemini => {
-            let base: Value = serde_json::from_str(existing_config)
+            let mut base: Value = serde_json::from_str(existing_config)
                 .unwrap_or_else(|_| json!({ "mcpServers": {} }));
+            prune_json_map(&mut base, "mcpServers", &to_remove);
             let merged = merge_json_map(&base, &mcp_servers_shape(entries), "mcpServers");
             serde_json::to_string_pretty(&merged).expect("serialize mcp json") + "\n"
         }
         ClientKind::Opencode => {
-            let base: Value =
+            let mut base: Value =
                 serde_json::from_str(existing_config).unwrap_or_else(|_| json!({ "mcp": {} }));
+            prune_json_map(&mut base, "mcp", &to_remove);
             let merged = merge_json_map(&base, &opencode_shape(entries), "mcp");
             serde_json::to_string_pretty(&merged).expect("serialize opencode json") + "\n"
         }
-        ClientKind::Codex => render_codex_toml(entries, existing_config),
+        ClientKind::Codex => {
+            let pruned = prune_codex_toml(existing_config, &to_remove);
+            render_codex_toml(entries, &pruned)
+        }
     }
+}
+
+/// Remove `keys` from the object at `base[object_key]`, if that object
+/// exists. Leaves everything else untouched.
+fn prune_json_map(base: &mut Value, object_key: &str, keys: &[&str]) {
+    if keys.is_empty() {
+        return;
+    }
+    if let Some(target) = base.get_mut(object_key).and_then(Value::as_object_mut) {
+        for key in keys {
+            target.remove(*key);
+        }
+    }
+}
+
+/// Drop `[mcp_servers.<key>]` tables for each of `keys` from a Codex
+/// `config.toml`, preserving the rest of the document.
+fn prune_codex_toml(existing_config: &str, keys: &[&str]) -> String {
+    if keys.is_empty() {
+        return existing_config.to_string();
+    }
+    use toml_edit::DocumentMut;
+    let Ok(mut doc) = existing_config.parse::<DocumentMut>() else {
+        return existing_config.to_string();
+    };
+    if let Some(servers) = doc.get_mut("mcp_servers").and_then(|i| i.as_table_mut()) {
+        for key in keys {
+            servers.remove(key);
+        }
+    }
+    doc.to_string()
 }
 
 /// Codex's `~/.codex/config.toml`: a `[mcp_servers.<key>]` table each.
@@ -278,6 +344,71 @@ mod tests {
         // idempotent
         let twice = render_codex_toml(&sample(), &out);
         assert_eq!(out, twice);
+    }
+
+    #[test]
+    fn render_replacing_removes_a_disabled_owned_key_but_keeps_hand_added_servers() {
+        let owned = [
+            "coding-assistants-mcp-blender",
+            "coding-assistants-mcp-krita",
+        ];
+        // Start: blender + krita both app-managed, plus a user server.
+        let both = vec![
+            McpServerEntry::new("coding-assistants-mcp-blender", "/b", &["--port", "9765"]),
+            McpServerEntry::new("coding-assistants-mcp-krita", "/k", &["--port", "9766"]),
+        ];
+        let start = render_replacing(ClientKind::Claude, &owned, &both, "");
+        let with_user: Value = {
+            let mut v: Value = serde_json::from_str(&start).unwrap();
+            v["mcpServers"]["user-fs"] = json!({ "command": "npx", "args": ["-y", "@mcp/fs"] });
+            v
+        };
+        // Now only blender stays enabled.
+        let only_blender = vec![McpServerEntry::new(
+            "coding-assistants-mcp-blender",
+            "/b",
+            &["--port", "9765"],
+        )];
+        let out = render_replacing(
+            ClientKind::Claude,
+            &owned,
+            &only_blender,
+            &with_user.to_string(),
+        );
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert!(v["mcpServers"]["coding-assistants-mcp-blender"].is_object());
+        assert!(
+            v["mcpServers"]["coding-assistants-mcp-krita"].is_null(),
+            "disabled owned key must be removed"
+        );
+        assert_eq!(
+            v["mcpServers"]["user-fs"]["command"], "npx",
+            "a hand-added server must survive"
+        );
+    }
+
+    #[test]
+    fn render_replacing_removes_a_disabled_codex_table() {
+        let owned = ["coding-assistants-mcp-blender"];
+        let with_it = vec![McpServerEntry::new(
+            "coding-assistants-mcp-blender",
+            "/b",
+            &[],
+        )];
+        let start = render_replacing(ClientKind::Codex, &owned, &with_it, "model = \"o3\"\n");
+        assert!(start.contains("[mcp_servers.coding-assistants-mcp-blender]"));
+        let out = render_replacing(ClientKind::Codex, &owned, &[], &start);
+        assert!(!out.contains("coding-assistants-mcp-blender"));
+        assert!(out.contains("model = \"o3\""));
+    }
+
+    #[test]
+    fn render_replacing_with_no_owned_keys_matches_render_merged() {
+        let existing = json!({ "mcpServers": { "x": { "command": "y" } } }).to_string();
+        assert_eq!(
+            render_replacing(ClientKind::Claude, &[], &sample(), &existing),
+            render_merged(ClientKind::Claude, &sample(), &existing),
+        );
     }
 
     #[test]

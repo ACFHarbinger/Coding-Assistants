@@ -324,3 +324,42 @@ fmt-checks `src-tauri`) — worth a one-shot `cargo fmt` cleanup PR.
 **Track C is now feature-complete for all 7 targets** (Blender/Krita/Godot fully, Aseprite via CLI, Unreal/Unity untested against real editors, OpenToonz minimal-by-necessity). `AppLink` held across socket + subprocess + file-read transports with no changes. **Still not wired anywhere**: no Settings "Creative Tools" tab, no registration flow — `hub::mcp` (C-1b) is library-only. Every gated tool (`run_python`/`run_gdscript`/`execute_menu_item`/`render`/`apply_script`) is off by default.
 
 **Track M (memory) still entirely unstarted.**
+
+- **C-9a** (this session, backend only) — the registration/wiring layer:
+  - `hub::mcp::render_replacing(client, owned_keys, entries, existing)` — like
+    `render_merged` but drops any `owned_keys` entry not in `entries`, so a
+    toggle-off actually removes the server. `render_merged` now delegates to it
+    with `&[]`. Codex TOML tables pruned via `toml_edit`.
+  - `hub::mcp::creative` — `CATALOG` (7 `CreativeTool`s: key = `[[bin]]` name,
+    display name, default args, `Transport` {socket|subprocess|file-parse}, port,
+    `--allow-*` flag string, app process names). Per-workspace **enabled set**
+    persisted under `servers_dir(store)/<workspace_server_name>.creative.json`
+    (same storage shape as the Channel registry). `apply_to_workspace(ws, entries)`
+    rewrites `.mcp.json` / `.gemini/settings.json` / `opencode.json` via
+    `render_replacing`; idempotent, spares hand-added servers, won't create empty
+    config files. **Codex deliberately excluded** — global `~/.codex/config.toml`,
+    never written by a per-workspace toggle.
+  - `hub` re-exports `servers_dir` + `workspace_server_name`.
+  - Tauri commands (`src-tauri/.../settings/creative_tools.rs`, registered in
+    `lib.rs`): `creative_tools_status(workspace)`, `creative_tools_set_enabled(
+    workspace, key, enabled)`, `creative_tools_reapply(workspace)`,
+    `creative_tools_codex_snippet(workspace)`. Bridge binary resolved against the
+    app dir then `$PATH`; **`binaryFound` / `binaryPath` surfaced per tool** so a
+    missing bridge is visible rather than a silent MCP start failure. Enabled keys
+    with an unresolved binary stay in the set but are not written to a config.
+    Best-effort `app_running` via one `ps` sweep.
+  - 26 new tests (hub 19 in `mcp::`, tauri-app 3, + advisor-mandated
+    enable→disable-removes-key / hand-added-survives at both the renderer and the
+    `apply_to_workspace` level). `cargo clippy -p hub -p tauri-app --all-targets
+    -D warnings` clean; `src-tauri` fmt clean.
+
+**C-9a open question flagged to Harbinger:** the `mcp-<tool>` bridge binaries are
+built into `target/` in dev but **not declared as sidecars/extra binaries in
+`tauri.conf.json`** (that config predates these crates) — a packaged v1.0.0 build
+ships none of them, so `binaryFound` will be false everywhere until bundling is
+decided. C-9a surfaces the state; it does not solve bundling.
+
+**C-9b (next): the Settings "Creative Tools" tab** — `CreativeToolsTab.tsx` +
+`"creative-tools"` TabId, per-tool rows (status chips: installed / running /
+registered, enable toggle, Codex snippet copy). Depends on the C-9a command
+shapes above.
