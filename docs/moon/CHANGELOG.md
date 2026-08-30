@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Desktop — Settings Creative Tools MCP Tab (Track C-9 / #187) (2026-08-30)
+
+- Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
+- Surfaces live bridge binary resolution status (`Installed` vs. `Binary Missing`), application runtime detection via process monitoring (`App Running` vs. `App Idle`), transport type (socket with port, subprocess, file-parse), and code execution / gated flag indicators (`--allow-*`).
+- Added workspace-scoped MCP configuration auto-synchronization (`.mcp.json`, `.gemini/settings.json`, `opencode.json`), a 1-click "Re-apply to Configs" action, and a "Copy Codex Snippet" TOML exporter for user configuration.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz` (337 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
 ### Desktop — Settings Diagnostics & Danger Zone Tabs (S6 / #132) (2026-08-29)
 
 - Implemented `DiagnosticsTab.tsx` in `src/components/settings/tabs/` providing configuration store status checks, application log level selection, and sanitized, zero-secret redacted diagnostics export.

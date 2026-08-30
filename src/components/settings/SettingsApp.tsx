@@ -30,12 +30,13 @@ import WorkspaceTab from "./tabs/WorkspaceTab";
 import MemoryTab from "./tabs/MemoryTab";
 import OrchestrationTab from "./tabs/OrchestrationTab";
 import AgentsTab from "./tabs/AgentsTab";
+import CreativeToolsTab from "./tabs/CreativeToolsTab";
 import DiagnosticsTab from "./tabs/DiagnosticsTab";
 import DangerTab from "./tabs/DangerTab";
 import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
 import { closeSettingsWindow, readWorkspaceRoot } from "./tabs/shared";
 
-type TabId = "general" | "workspace" | "agents" | "orchestration" | "memory" | "diagnostics" | "danger";
+type TabId = "general" | "workspace" | "agents" | "creative" | "orchestration" | "memory" | "diagnostics" | "danger";
 
 interface TabDef {
   id: TabId;
@@ -49,6 +50,7 @@ const TABS: TabDef[] = [
   { id: "general", label: "General", summary: "App-wide defaults, such as which workspace opens on launch.", implemented: true },
   { id: "workspace", label: "Workspace & sessions", summary: "Global default vs. this workspace's default chat session.", implemented: true },
   { id: "agents", label: "Agents & harnesses", summary: "Named provider profiles and per-harness settings.", implemented: true },
+  { id: "creative", label: "Creative Tools", summary: "Expose local creative app MCP bridges (Blender, Krita, Godot, etc.) to coding agents.", implemented: true },
   { id: "orchestration", label: "Orchestration", summary: "Task/wake confirmation, auto-enrollment, budgets, tool/sandbox policy.", implemented: true },
   { id: "memory", label: "Memory & storage", summary: "Retention, export, and settings-backup policy.", implemented: true },
   { id: "diagnostics", label: "Diagnostics", summary: "Log level, configuration health, redacted diagnostics export.", implemented: true },
@@ -420,6 +422,13 @@ export default function SettingsApp() {
               workspaceRoot={workspaceRoot}
               busy={busy}
               onChanged={() => void refresh()}
+            />
+          )}
+
+          {activeTab.id === "creative" && (
+            <CreativeToolsTab
+              workspaceRoot={workspaceRoot}
+              busy={busy}
             />
           )}
 

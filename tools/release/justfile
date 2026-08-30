@@ -73,12 +73,35 @@ bump semver:
 # Build Linux .deb and AppImage bundles with the pinned local Tauri CLI.
 [no-cd]
 bundle-linux:
+    just release::stage-sidecars
     npm run tauri build -- --bundles deb,appimage
 
 # Build Windows MSI and NSIS bundles with the pinned local Tauri CLI.
 [no-cd]
 bundle-windows:
+    just release::stage-sidecars
     npm run tauri build -- --bundles msi,nsis
+
+# Build all Creative Tools MCP bridges and stage the target-qualified names
+# Tauri requires for `bundle.externalBin`. Pass a target triple when
+# cross-compiling; by default this uses rustc's host triple.
+[no-cd]
+stage-sidecars target="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    target="{{ target }}"
+    if [[ -z "${target}" ]]; then
+        target="$(rustc -vV | awk '/^host: / { print $2 }')"
+    fi
+    cargo build --release --target "${target}" \
+        -p mcp-blender \
+        -p mcp-krita \
+        -p mcp-godot \
+        -p mcp-aseprite \
+        -p mcp-unreal \
+        -p mcp-unity \
+        -p mcp-opentoonz
+    node tools/release/stage-mcp-sidecars.mjs "${target}"
 
 # Build the Android companion's release APK and AAB.
 [no-cd]
