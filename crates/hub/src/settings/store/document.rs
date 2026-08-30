@@ -51,8 +51,7 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     document["orchestration"]["auto_enrollment_allowed"] = value(orch.auto_enrollment_allowed);
     document["orchestration"]["sandbox_strictness"] = value(orch.sandbox_strictness.as_str());
     document["orchestration"]["export_enabled"] = value(orch.export_enabled);
-    document["orchestration"]["link_suggestion_mode"] =
-        value(orch.link_suggestion_mode.as_str());
+    document["orchestration"]["link_suggestion_mode"] = value(orch.link_suggestion_mode.as_str());
     if let Some(days) = orch.retention_days {
         document["orchestration"]["retention_days"] = value(i64::from(days));
     } else if document

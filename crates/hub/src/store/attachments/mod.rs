@@ -62,7 +62,9 @@ impl HubStore {
         data: &[u8],
     ) -> Result<AttachmentRecord, HubError> {
         if data.is_empty() {
-            return Err(HubError::Invalid("attachment data must not be empty".into()));
+            return Err(HubError::Invalid(
+                "attachment data must not be empty".into(),
+            ));
         }
         if data.len() > MAX_ATTACHMENT_BYTES {
             return Err(HubError::Invalid(format!(
@@ -86,7 +88,14 @@ impl HubStore {
             &format!(
                 "INSERT INTO attachments ({ATTACHMENT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
             ),
-            params![id, safe_name, mime, data.len() as i64, relative_path, created_at],
+            params![
+                id,
+                safe_name,
+                mime,
+                data.len() as i64,
+                relative_path,
+                created_at
+            ],
         )?;
         self.get_attachment_record(&id)?
             .ok_or_else(|| HubError::NotFound(id))
@@ -106,7 +115,10 @@ impl HubStore {
 
     /// Reads the attachment's metadata and raw bytes back from disk,
     /// for the composer/message stream to render or hand to a harness.
-    pub fn read_attachment(&self, id: &str) -> Result<Option<(AttachmentRecord, Vec<u8>)>, HubError> {
+    pub fn read_attachment(
+        &self,
+        id: &str,
+    ) -> Result<Option<(AttachmentRecord, Vec<u8>)>, HubError> {
         let Some(record) = self.get_attachment_record(id)? else {
             return Ok(None);
         };
@@ -142,7 +154,9 @@ mod tests {
         let store = HubStore::open(dir.path()).unwrap();
         assert!(store.save_attachment("a.txt", "text/plain", b"").is_err());
         let oversized = vec![0u8; MAX_ATTACHMENT_BYTES + 1];
-        assert!(store.save_attachment("a.bin", "application/octet-stream", &oversized).is_err());
+        assert!(store
+            .save_attachment("a.bin", "application/octet-stream", &oversized)
+            .is_err());
     }
 
     #[test]
