@@ -2846,6 +2846,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-unreal"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde_json",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
