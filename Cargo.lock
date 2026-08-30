@@ -2821,6 +2821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-godot"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde_json",
+]
+
+[[package]]
 name = "mcp-krita"
 version = "0.1.0"
 dependencies = [
