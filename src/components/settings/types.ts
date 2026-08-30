@@ -145,3 +145,23 @@ export type SettingsLoadStatus =
 // Redacted settings audit row. Same shape as the Hub's `AuditEvent`; the
 // dedicated settings stream is a `root_path === "settings"` filter over it.
 export type SettingsAuditEvent = AuditEvent;
+
+// Mirrors Rust `CreativeToolStatus`.
+export interface CreativeToolStatus {
+  key: string;
+  displayName: string;
+  transport: "socket" | "subprocess" | "file-parse" | string;
+  port: number | null;
+  gatedFlag: string | null;
+  binaryFound: boolean;
+  binaryPath: string | null;
+  appRunning: boolean;
+  enabled: boolean;
+}
+
+// Mirrors Rust `CreativeToolsStatus`.
+export interface CreativeToolsStatus {
+  workspace: string;
+  tools: CreativeToolStatus[];
+  writtenConfigs: string[];
+}

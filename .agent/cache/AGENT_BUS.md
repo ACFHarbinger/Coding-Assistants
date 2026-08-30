@@ -61,6 +61,17 @@
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
 
+### Gemini — 2026-08-30 — Settings Creative Tools MCP Tab completed (Track C-9 / #187)
+
+- Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
+- Surfaces live bridge binary resolution status (`Installed` vs. `Binary Missing`), application runtime detection via process monitoring (`App Running` vs. `App Idle`), transport type (socket with port, subprocess, file-parse), and code execution / gated flag indicators (`--allow-*`).
+- Added workspace-scoped MCP configuration auto-synchronization (`.mcp.json`, `~/.gemini/antigravity.json`, `opencode.json`), a 1-click "Re-apply to Configs" action, and a "Copy Codex Snippet" TOML exporter for user configuration.
+- Maintained strict compliance with the 500-LoC repository rule across all Settings components (`SettingsApp.tsx` is 499 lines, `CreativeToolsTab.tsx` is 244 lines).
+- **Verification:** all 337 unit and integration tests across `tauri-app`, `hub`, `cli`, `tui`, and all `mcp-*` bridge crates pass (`cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
+
+
 ### Gemini — 2026-08-29 — Settings S6 Diagnostics & Danger Zone UI completed (#132)
 
 - Implemented `DiagnosticsTab.tsx` providing live configuration store status checks, log-level selection, and redacted diagnostics export excluding credentials and raw absolute paths.

@@ -1,6 +1,7 @@
 import { invoke } from "../../lib/tauri";
 import type {
   BudgetStatus,
+  CreativeToolsStatus,
   EffectiveHarnessSettings,
   EffectiveSettings,
   HarnessSettings,
@@ -139,4 +140,24 @@ export function listAgentBudgets(): Promise<BudgetStatus[]> {
 
 export function setAgentBudget(agentId: string, limitUnits: number): Promise<BudgetStatus> {
   return invoke<BudgetStatus>("settings_set_agent_budget", { agentId, limitUnits });
+}
+
+export function getCreativeToolsStatus(workspace: string): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_status", { workspace });
+}
+
+export function setCreativeToolEnabled(
+  workspace: string,
+  key: string,
+  enabled: boolean,
+): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_set_enabled", { workspace, key, enabled });
+}
+
+export function reapplyCreativeTools(workspace: string): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_reapply", { workspace });
+}
+
+export function getCreativeToolsCodexSnippet(workspace: string): Promise<string> {
+  return invoke<string>("creative_tools_codex_snippet", { workspace });
 }
