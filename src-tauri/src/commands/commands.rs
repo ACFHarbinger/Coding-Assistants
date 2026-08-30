@@ -11,6 +11,8 @@
 pub mod attachments;
 #[path = "hub/avatar.rs"]
 pub mod avatar;
+#[path = "settings/creative_tools.rs"]
+pub mod creative_tools;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]

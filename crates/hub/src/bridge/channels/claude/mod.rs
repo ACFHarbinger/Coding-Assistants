@@ -50,6 +50,6 @@ pub use permissions::{
 pub use reply::record_channel_reply;
 pub use terminal::{channel_bridge_pids, is_channel_session_live, launch_claude_channel_session};
 pub use workspaces::{
-    delete_channel_workspace, list_channel_workspaces, rename_channel_workspace,
-    setup_claude_channel, ChannelWorkspace,
+    delete_channel_workspace, list_channel_workspaces, rename_channel_workspace, servers_dir,
+    setup_claude_channel, workspace_server_name, ChannelWorkspace,
 };
