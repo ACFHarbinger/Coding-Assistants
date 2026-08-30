@@ -10,4 +10,5 @@ members = [
     "crates/mcp-echo",
     "crates/mcp-blender",
     "crates/mcp-krita",
+    "crates/mcp-godot",
 ]
