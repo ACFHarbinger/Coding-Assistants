@@ -2846,6 +2846,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-opentoonz"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "mcp-unity"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,17 @@
+[package]
+name = "mcp-opentoonz"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal MCP bridge for OpenToonz — .tnz scene inspection + a best-effort CLI render passthrough"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "coding-assistants-mcp-opentoonz"
+path = "src/main.rs"
+
+[dependencies]
+mcp-core = { path = "../mcp-core" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
