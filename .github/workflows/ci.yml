@@ -48,8 +48,8 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> ../target"
-      - run: cargo fmt -- --check
-        working-directory: src-tauri
+      - name: Format check (whole workspace)
+        run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
       - run: cargo test

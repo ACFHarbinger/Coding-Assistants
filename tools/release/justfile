@@ -47,13 +47,15 @@ bump semver:
     ' src-tauri/Cargo.toml > "${cargo_tmp}" || { echo "error: could not update src-tauri/Cargo.toml package version" >&2; exit 1; }
     awk -v version="${version}" -v version_code="${version_code}" '
         BEGIN { version_name_updated = 0; version_code_updated = 0 }
-        /^[[:space:]]*versionName[[:space:]]*=/ {
-            sub(/=.*/, "= \"" version "\"")
+        /^[[:space:]]*val releaseVersionName[[:space:]]*=[[:space:]]*".*"[[:space:]]*$/ {
+            print "val releaseVersionName = \"" version "\""
             version_name_updated++
+            next
         }
-        /^[[:space:]]*versionCode[[:space:]]*=/ {
-            sub(/=.*/, "= " version_code)
+        /^[[:space:]]*val releaseVersionCode[[:space:]]*=[[:space:]]*[0-9]+[[:space:]]*$/ {
+            print "val releaseVersionCode = " version_code
             version_code_updated++
+            next
         }
         { print }
         END { if (version_name_updated != 1 || version_code_updated != 1) exit 1 }

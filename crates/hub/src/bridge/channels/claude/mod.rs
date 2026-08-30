@@ -32,13 +32,13 @@
 //! approved relay lifecycle), and [`terminal`] (detecting and launching a
 //! live Channel-connected session).
 
+#[cfg(test)]
+mod acceptance;
 mod events;
 mod permissions;
 mod reply;
 mod terminal;
 mod workspaces;
-#[cfg(test)]
-mod acceptance;
 
 pub const CLAUDE_AGENT_ID: &str = "claude";
 

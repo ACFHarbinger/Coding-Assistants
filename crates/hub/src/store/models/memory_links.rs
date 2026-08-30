@@ -227,10 +227,7 @@ impl HubStore {
                 .agent_id
                 .clone()
                 .unwrap_or_else(|| UNATTRIBUTED_AUTHOR.to_string());
-            grouped
-                .entry(key)
-                .or_default()
-                .push(memory);
+            grouped.entry(key).or_default().push(memory);
         }
         Ok(grouped)
     }
@@ -308,7 +305,11 @@ impl HubStore {
             })
             .collect();
 
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(limit);
         Ok(scored)
     }
@@ -342,7 +343,12 @@ impl HubStore {
         if mode == LinkSuggestionMode::Auto {
             for suggestion in &suggestions {
                 if suggestion.score >= AUTO_ACCEPT_THRESHOLD {
-                    self.link_memories(memory_id, &suggestion.candidate.id, None, "system:auto-link")?;
+                    self.link_memories(
+                        memory_id,
+                        &suggestion.candidate.id,
+                        None,
+                        "system:auto-link",
+                    )?;
                 }
             }
         }

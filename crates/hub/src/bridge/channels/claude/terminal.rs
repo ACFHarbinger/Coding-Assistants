@@ -52,7 +52,9 @@ fn ensure_claude_channel_setup(workspace: &Path) -> Result<(), String> {
     let bridge_binary = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join(CHANNEL_BRIDGE_EXECUTABLE)))
-        .ok_or_else(|| "could not resolve the Claude Channel bridge binary's own directory".to_string())?;
+        .ok_or_else(|| {
+            "could not resolve the Claude Channel bridge binary's own directory".to_string()
+        })?;
     if !bridge_binary.is_file() {
         return Err(format!(
             "Claude Channel bridge binary not found at {} — build it with `cargo build -p claude`",
