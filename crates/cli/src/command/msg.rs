@@ -71,7 +71,18 @@ pub(super) fn run(store: &HubStore, action: MsgCommand) -> anyhow::Result<()> {
                 session.as_deref(),
             )?;
             if let Some(workspace) = dispatch_workspace {
+                // Settings are shared by every recipient in this dispatch.
+                // Load and parse them once rather than once per accepted
+                // recipient, which matters for a team-wide wake.
+                let settings = hub::SettingsStore::open(hub::default_hub_home());
+                let ws_str = workspace.to_string_lossy();
                 for outcome in outcomes.iter().filter(|outcome| outcome.accepted) {
+                    let (model, effort) = match settings
+                        .effective_harness(Some(ws_str.as_ref()), &outcome.to_agent)
+                    {
+                        Ok(eff) => (eff.selected_model, eff.selected_effort),
+                        Err(_) => (None, None),
+                    };
                     let dispatch_result = inject_harness_with_store(
                         store,
                         &HarnessInjectRequest {
@@ -82,6 +93,8 @@ pub(super) fn run(store: &HubStore, action: MsgCommand) -> anyhow::Result<()> {
                             body: body.clone(),
                             is_task: task,
                             is_wake: wake,
+                            model,
+                            effort,
                         },
                     );
                     let dispatch_event = match dispatch_result {

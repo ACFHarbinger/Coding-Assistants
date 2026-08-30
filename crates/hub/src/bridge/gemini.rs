@@ -274,7 +274,7 @@ pub(crate) fn run_agy_worker(
     prompt: &str,
     conversation_id: Option<&str>,
 ) -> Result<(Option<u32>, AgyStreamOutput), String> {
-    let args = gemini_managed_spawn_args(workspace, prompt, conversation_id)
+    let args = gemini_managed_spawn_args(workspace, prompt, conversation_id, None, None)
         .map_err(|e| format!("invalid spawn args: {e}"))?;
 
     let mut child = Command::new("agy")
@@ -360,6 +360,7 @@ mod tests {
                 body: "hello gemini".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -416,6 +417,7 @@ mod tests {
             body: "build worker component".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         };
 
         let result = deliver_gemini_task_with(&store, &req, |_ws, _prompt, conv_id| {
@@ -464,6 +466,7 @@ mod tests {
             body: "second task".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         };
 
         let result = deliver_gemini_task_with(&store, &req, |_ws, _prompt, _conv| {
@@ -489,6 +492,7 @@ mod tests {
                 body: "hello".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         );
         assert!(result.is_err());

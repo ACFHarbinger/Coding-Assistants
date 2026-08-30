@@ -4,146 +4,10 @@ use super::model::{
     EffectiveHarnessSettings, FieldStatus, HarnessSettings, ProviderProfile, SecretReference,
     SettingsError,
 };
-use crate::HarnessId;
 use std::collections::BTreeMap;
-use std::path::Path;
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
-pub fn validate_profile_name(name: &str) -> Result<String, SettingsError> {
-    let name = name.trim();
-    if name.is_empty() || name.len() > 64 {
-        return Err(SettingsError::Invalid(
-            "profile name must be 1..=64 characters".into(),
-        ));
-    }
-    if !name
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-')
-    {
-        return Err(SettingsError::Invalid(
-            "profile name may contain only letters, digits, '.', '_' and '-'".into(),
-        ));
-    }
-    reject_secret_looking(name, "profile name")?;
-    Ok(name.to_string())
-}
-
-pub fn validate_provider(provider: &str) -> Result<String, SettingsError> {
-    HarnessId::parse(provider)
-        .map(|id| id.as_str().to_string())
-        .map_err(|err| SettingsError::Invalid(err.to_string()))
-}
-
-pub fn validate_secret(secret: &SecretReference) -> Result<(), SettingsError> {
-    match secret {
-        SecretReference::Keychain { id } => {
-            let id = id.trim();
-            if id.is_empty() || id.len() > 128 {
-                return Err(SettingsError::Invalid(
-                    "keychain id must be 1..=128 characters".into(),
-                ));
-            }
-            reject_secret_looking(id, "keychain id")?;
-        }
-        SecretReference::EnvVar { name } => {
-            let name = name.trim();
-            if name.is_empty()
-                || !name.starts_with(|ch: char| ch.is_ascii_alphabetic() || ch == '_')
-                || !name
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-            {
-                return Err(SettingsError::Invalid(
-                    "environment variable name must look like FOO_BAR, not a value".into(),
-                ));
-            }
-        }
-        SecretReference::ProviderLogin => {}
-    }
-    Ok(())
-}
-
-pub fn validate_executable(executable: &str) -> Result<String, SettingsError> {
-    let executable = executable.trim();
-    if executable.is_empty() {
-        return Err(SettingsError::Invalid(
-            "executable must not be empty".into(),
-        ));
-    }
-    if executable.split_whitespace().count() != 1
-        || executable.chars().any(|ch| {
-            matches!(
-                ch,
-                ';' | '|' | '&' | '$' | '`' | '<' | '>' | '\n' | '\r' | '\0'
-            )
-        })
-    {
-        return Err(SettingsError::Invalid(
-            "executable must be a single program name or path, not a shell command".into(),
-        ));
-    }
-    Ok(executable.to_string())
-}
-
-pub fn validate_workdir(workdir: &str) -> Result<String, SettingsError> {
-    let workdir = workdir.trim();
-    if workdir.is_empty() {
-        return Err(SettingsError::Invalid("workdir must not be empty".into()));
-    }
-    if !Path::new(workdir).is_absolute() {
-        return Err(SettingsError::Invalid(
-            "workdir must be an absolute path".into(),
-        ));
-    }
-    if workdir.contains('\0') || workdir.contains('\n') {
-        return Err(SettingsError::Invalid(
-            "workdir contains invalid characters".into(),
-        ));
-    }
-    Ok(workdir.to_string())
-}
-
-pub fn validate_profile(profile: &ProviderProfile) -> Result<(), SettingsError> {
-    validate_profile_name(&profile.name)?;
-    validate_provider(&profile.provider)?;
-    if let Some(model) = &profile.model {
-        reject_secret_looking(model, "model")?;
-    }
-    if let Some(base_url) = &profile.base_url {
-        reject_secret_looking(base_url, "base_url")?;
-        if !(base_url.starts_with("https://") || base_url.starts_with("http://")) {
-            return Err(SettingsError::Invalid(
-                "base_url must be an http(s) URL".into(),
-            ));
-        }
-    }
-    validate_secret(&profile.secret)?;
-    Ok(())
-}
-
-pub fn validate_harness(settings: &HarnessSettings) -> Result<(), SettingsError> {
-    validate_provider(&settings.harness)?;
-    validate_executable(&settings.executable)?;
-    if let Some(workdir) = &settings.workdir {
-        validate_workdir(workdir)?;
-    }
-    Ok(())
-}
-
-fn reject_secret_looking(value: &str, field: &str) -> Result<(), SettingsError> {
-    let lower = value.to_ascii_lowercase();
-    if lower.contains("sk-")
-        || lower.contains("bearer ")
-        || lower.contains("api_key=")
-        || lower.contains("token=")
-        || value.contains('\n')
-    {
-        return Err(SettingsError::Invalid(format!(
-            "{field} must not contain a credential value"
-        )));
-    }
-    Ok(())
-}
+pub use super::validation::*;
 
 pub fn write_profile_fields(
     document: &mut DocumentMut,
@@ -207,6 +71,12 @@ pub fn write_harness_fields(
         }
         table["capture_polling"] = value(settings.capture_polling);
         table["inject_permission"] = value(settings.inject_permission);
+        if let Some(model) = &settings.default_model {
+            table["default_model"] = value(model.as_str());
+        }
+        if let Some(effort) = &settings.default_effort {
+            table["default_effort"] = value(effort.as_str());
+        }
         document["harness"][settings.harness.as_str()] = Item::Table(table);
     }
 }
@@ -314,6 +184,14 @@ pub fn harnesses_from_document(
                 .get("inject_permission")
                 .and_then(Item::as_bool)
                 .unwrap_or(true),
+            default_model: inner
+                .get("default_model")
+                .and_then(Item::as_str)
+                .map(str::to_string),
+            default_effort: inner
+                .get("default_effort")
+                .and_then(Item::as_str)
+                .map(str::to_string),
         };
         validate_harness(&settings)?;
         map.insert(settings.harness.clone(), settings);
@@ -359,17 +237,89 @@ pub fn write_default_profiles(table: &mut Table, defaults: &BTreeMap<String, Str
     table["default_profiles"] = Item::Value(toml_edit::Value::InlineTable(inline));
 }
 
+pub fn default_models_from_table(table: &Table) -> Result<BTreeMap<String, String>, SettingsError> {
+    let mut map = BTreeMap::new();
+    let Some(inner) = table.get("default_models").and_then(Item::as_inline_table) else {
+        if table.get("default_models").is_some() {
+            return Err(SettingsError::Invalid(
+                "workspace default_models must be an inline table".into(),
+            ));
+        }
+        return Ok(map);
+    };
+    for (harness, item) in inner.iter() {
+        let model = item.as_str().ok_or_else(|| {
+            SettingsError::Invalid(format!("default model for {harness} must be a string"))
+        })?;
+        let harness = validate_provider(harness)?;
+        map.insert(harness, model.to_string());
+    }
+    Ok(map)
+}
+
+pub fn write_default_models(table: &mut Table, defaults: &BTreeMap<String, String>) {
+    if defaults.is_empty() {
+        table.remove("default_models");
+        return;
+    }
+    let mut inline = toml_edit::InlineTable::new();
+    for (harness, model) in defaults {
+        inline.insert(harness, value(model.as_str()).into_value().unwrap());
+    }
+    table["default_models"] = Item::Value(toml_edit::Value::InlineTable(inline));
+}
+
+pub fn default_efforts_from_table(
+    table: &Table,
+) -> Result<BTreeMap<String, String>, SettingsError> {
+    let mut map = BTreeMap::new();
+    let Some(inner) = table.get("default_efforts").and_then(Item::as_inline_table) else {
+        if table.get("default_efforts").is_some() {
+            return Err(SettingsError::Invalid(
+                "workspace default_efforts must be an inline table".into(),
+            ));
+        }
+        return Ok(map);
+    };
+    for (harness, item) in inner.iter() {
+        let effort = item.as_str().ok_or_else(|| {
+            SettingsError::Invalid(format!("default effort for {harness} must be a string"))
+        })?;
+        let harness = validate_provider(harness)?;
+        map.insert(harness, effort.to_string());
+    }
+    Ok(map)
+}
+
+pub fn write_default_efforts(table: &mut Table, defaults: &BTreeMap<String, String>) {
+    if defaults.is_empty() {
+        table.remove("default_efforts");
+        return;
+    }
+    let mut inline = toml_edit::InlineTable::new();
+    for (harness, effort) in defaults {
+        inline.insert(harness, value(effort.as_str()).into_value().unwrap());
+    }
+    table["default_efforts"] = Item::Value(toml_edit::Value::InlineTable(inline));
+}
+
 pub fn effective_harnesses(
     harnesses: &BTreeMap<String, HarnessSettings>,
     profiles: &BTreeMap<String, ProviderProfile>,
-    workspace_defaults: Option<&BTreeMap<String, String>>,
+    workspace_override: Option<&super::model::WorkspaceOverride>,
 ) -> Vec<EffectiveHarnessSettings> {
     let mut ids: BTreeMap<String, ()> = BTreeMap::new();
     for key in harnesses.keys() {
         ids.insert(key.clone(), ());
     }
-    if let Some(defaults) = workspace_defaults {
-        for key in defaults.keys() {
+    if let Some(over) = workspace_override {
+        for key in over.default_profiles.keys() {
+            ids.insert(key.clone(), ());
+        }
+        for key in over.default_models.keys() {
+            ids.insert(key.clone(), ());
+        }
+        for key in over.default_efforts.keys() {
             ids.insert(key.clone(), ());
         }
     }
@@ -379,8 +329,8 @@ pub fn effective_harnesses(
                 .get(&harness)
                 .cloned()
                 .or_else(|| HarnessSettings::default_for(&harness).ok())?;
-            let (default_profile, default_profile_status) = match workspace_defaults
-                .and_then(|map| map.get(&harness))
+            let (default_profile, default_profile_status) = match workspace_override
+                .and_then(|over| over.default_profiles.get(&harness))
                 .cloned()
             {
                 Some(name) => (Some(name), FieldStatus::Override),
@@ -389,6 +339,23 @@ pub fn effective_harnesses(
             let default_profile_badge = default_profile
                 .as_ref()
                 .and_then(|name| profiles.get(name).map(|profile| profile.secret.badge()));
+
+            let (selected_model, selected_model_status) = match workspace_override
+                .and_then(|over| over.default_models.get(&harness))
+                .cloned()
+            {
+                Some(model) => (Some(model), FieldStatus::Override),
+                None => (settings.default_model.clone(), FieldStatus::Inherited),
+            };
+
+            let (selected_effort, selected_effort_status) = match workspace_override
+                .and_then(|over| over.default_efforts.get(&harness))
+                .cloned()
+            {
+                Some(effort) => (Some(effort), FieldStatus::Override),
+                None => (settings.default_effort.clone(), FieldStatus::Inherited),
+            };
+
             Some(EffectiveHarnessSettings {
                 harness: settings.harness,
                 executable: settings.executable,
@@ -398,6 +365,10 @@ pub fn effective_harnesses(
                 default_profile,
                 default_profile_status,
                 default_profile_badge,
+                selected_model,
+                selected_model_status,
+                selected_effort,
+                selected_effort_status,
             })
         })
         .collect()

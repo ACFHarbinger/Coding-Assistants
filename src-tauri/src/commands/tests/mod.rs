@@ -346,6 +346,8 @@ fn settings_profile_and_harness_commands_are_redacted_and_durable() {
         workdir: Some("/abs/ws".into()),
         capture_polling: false,
         inject_permission: true,
+        default_model: None,
+        default_effort: None,
     })
     .expect("update harness");
     assert_eq!(harness.executable, "/usr/bin/grok");
@@ -377,6 +379,8 @@ fn settings_profile_and_harness_commands_are_redacted_and_durable() {
         workdir: None,
         capture_polling: true,
         inject_permission: true,
+        default_model: None,
+        default_effort: None,
     });
     assert!(rejected_shell.is_err(), "{rejected_shell:?}");
 

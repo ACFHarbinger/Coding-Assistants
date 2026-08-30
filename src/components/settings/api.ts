@@ -161,3 +161,80 @@ export function reapplyCreativeTools(workspace: string): Promise<CreativeToolsSt
 export function getCreativeToolsCodexSnippet(workspace: string): Promise<string> {
   return invoke<string>("creative_tools_codex_snippet", { workspace });
 }
+
+export function getHarnessModelOptions(
+  harness: string,
+  refresh: boolean = false,
+): Promise<import("./types").HarnessModelCatalog> {
+  return invoke<import("./types").HarnessModelCatalog>("settings_get_harness_model_options", {
+    harness,
+    refresh,
+  });
+}
+
+export function getAllHarnessOptions(
+  refresh: boolean = false,
+): Promise<Record<string, import("./types").HarnessModelCatalog>> {
+  return invoke<Record<string, import("./types").HarnessModelCatalog>>(
+    "settings_get_all_harness_options",
+    { refresh },
+  );
+}
+
+export function setHarnessModel(
+  harness: string,
+  model: string | null,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_harness_model", { harness, model });
+}
+
+export function setHarnessEffort(
+  harness: string,
+  effort: string | null,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_harness_effort", { harness, effort });
+}
+
+export function setWorkspaceHarnessModel(
+  workspace: string,
+  harness: string,
+  model: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_workspace_harness_model", {
+    workspace,
+    harness,
+    model,
+  });
+}
+
+export function resetWorkspaceHarnessModel(
+  workspace: string,
+  harness: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_reset_workspace_harness_model", {
+    workspace,
+    harness,
+  });
+}
+
+export function setWorkspaceHarnessEffort(
+  workspace: string,
+  harness: string,
+  effort: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_workspace_harness_effort", {
+    workspace,
+    harness,
+    effort,
+  });
+}
+
+export function resetWorkspaceHarnessEffort(
+  workspace: string,
+  harness: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_reset_workspace_harness_effort", {
+    workspace,
+    harness,
+  });
+}

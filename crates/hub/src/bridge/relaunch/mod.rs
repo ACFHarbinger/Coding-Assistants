@@ -35,7 +35,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
-        HarnessId::OpenCode | HarnessId::Vibe => None,
+        HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
     }
 }
 
@@ -97,7 +97,7 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Chat, None) => vec![],
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
-        (HarnessId::OpenCode, _) | (HarnessId::Vibe, _) => vec![],
+        (HarnessId::OpenCode, _) | (HarnessId::DeepSeek, _) | (HarnessId::Vibe, _) => vec![],
     }
 }
 

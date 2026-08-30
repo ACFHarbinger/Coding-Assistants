@@ -10,6 +10,7 @@
 mod model;
 mod profiles;
 mod store;
+pub(crate) mod validation;
 
 pub use model::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,

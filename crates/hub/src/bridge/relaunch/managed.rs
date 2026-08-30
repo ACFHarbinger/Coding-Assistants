@@ -61,6 +61,7 @@ pub fn start_managed_harness(
         workspace: workspace.to_path_buf(),
         session_id: None,
         prompt: prompt.into(),
+        ..Default::default()
     })
     .map_err(|error| error.to_string())?;
 

@@ -121,6 +121,10 @@ pub struct WorkspaceOverride {
     #[serde(default)]
     pub default_profiles: std::collections::BTreeMap<String, String>,
     #[serde(default)]
+    pub default_models: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub default_efforts: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
     pub orchestration: OrchestrationOverride,
 }
 
@@ -129,6 +133,8 @@ impl WorkspaceOverride {
         self.backup_retention.is_none()
             && self.default_session.is_none()
             && self.default_profiles.is_empty()
+            && self.default_models.is_empty()
+            && self.default_efforts.is_empty()
             && self.orchestration.is_empty()
     }
 
@@ -418,18 +424,40 @@ pub struct HarnessSettings {
     pub workdir: Option<String>,
     pub capture_polling: bool,
     pub inject_permission: bool,
+    pub default_model: Option<String>,
+    pub default_effort: Option<String>,
 }
 
 impl HarnessSettings {
     pub fn default_for(harness: &str) -> Result<Self, SettingsError> {
         let id = crate::HarnessId::parse(harness)
             .map_err(|err| SettingsError::Invalid(err.to_string()))?;
+        let default_model = match id {
+            crate::HarnessId::OpenCode => Some(crate::harness::DEFAULT_OPENCODE_MODEL.to_string()),
+            crate::HarnessId::DeepSeek => Some(crate::harness::DEFAULT_DEEPSEEK_MODEL.to_string()),
+            crate::HarnessId::Claude => Some("claude-3-7-sonnet-20250219".to_string()),
+            crate::HarnessId::Chat => Some("gpt-4o".to_string()),
+            crate::HarnessId::Gemini => Some("gemini-3.7-flash-medium".to_string()),
+            crate::HarnessId::Grok => Some("grok-4.6".to_string()),
+            crate::HarnessId::Vibe => Some("mistral-medium-3.5".to_string()),
+        };
+        let default_effort = match id {
+            crate::HarnessId::Claude
+            | crate::HarnessId::Chat
+            | crate::HarnessId::Gemini
+            | crate::HarnessId::Grok
+            | crate::HarnessId::OpenCode
+            | crate::HarnessId::DeepSeek => Some("medium".to_string()),
+            crate::HarnessId::Vibe => None,
+        };
         Ok(Self {
             harness: id.as_str().to_string(),
             executable: id.executable().to_string(),
             workdir: None,
             capture_polling: true,
             inject_permission: true,
+            default_model,
+            default_effort,
         })
     }
 }
@@ -446,4 +474,8 @@ pub struct EffectiveHarnessSettings {
     pub default_profile: Option<String>,
     pub default_profile_status: FieldStatus,
     pub default_profile_badge: Option<String>,
+    pub selected_model: Option<String>,
+    pub selected_model_status: FieldStatus,
+    pub selected_effort: Option<String>,
+    pub selected_effort_status: FieldStatus,
 }

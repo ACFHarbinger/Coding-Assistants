@@ -189,6 +189,7 @@ mod tests {
             body: "   ".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         });
         assert!(empty_body.is_err(), "an empty body must be rejected");
 
@@ -200,6 +201,7 @@ mod tests {
             body: "do the thing".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         });
         assert!(
             relative_workspace.is_err(),
@@ -214,6 +216,7 @@ mod tests {
             body: "do the thing".into(),
             is_task: false,
             is_wake: true,
+            ..Default::default()
         });
         assert!(
             unknown_harness.is_err(),
@@ -230,22 +233,22 @@ mod tests {
         let workspace = PathBuf::from("/tmp/c12-acceptance-shell-safety");
         let dangerous = "; rm -rf / && echo pwned $(whoami) `id` | cat > /tmp/evil";
 
-        let grok_args = grok_spawn_args(&workspace, dangerous).unwrap();
+        let grok_args = grok_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(grok_args.iter().any(|arg| arg == dangerous));
 
-        let codex_args = codex_spawn_args(&workspace, dangerous).unwrap();
+        let codex_args = codex_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(codex_args.iter().any(|arg| arg == dangerous));
 
-        let claude_args = claude_spawn_args(&workspace, dangerous).unwrap();
+        let claude_args = claude_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(claude_args.iter().any(|arg| arg == dangerous));
 
-        let gemini_args = gemini_spawn_args(&workspace, dangerous).unwrap();
+        let gemini_args = gemini_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(gemini_args.iter().any(|arg| arg == dangerous));
 
-        let opencode_args = opencode_spawn_args(&workspace, dangerous).unwrap();
+        let opencode_args = opencode_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(opencode_args.iter().any(|arg| arg == dangerous));
 
-        let vibe_args = vibe_spawn_args(&workspace, dangerous).unwrap();
+        let vibe_args = vibe_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(vibe_args.iter().any(|arg| arg == dangerous));
 
         // None of the builders may have split the dangerous string into
@@ -377,6 +380,7 @@ mod tests {
                     body: "do not spawn a replacement".into(),
                     is_task: true,
                     is_wake: false,
+                    ..Default::default()
                 },
             )
             .unwrap();

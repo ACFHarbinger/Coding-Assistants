@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Completed the review of the per-harness model and reasoning-effort settings:
+  the legacy harness-toggle update no longer clears those newly added defaults,
+  and all model/effort mutations now run off the Tauri webview IPC thread.
+
+### Performance
+
+- Cache discovered harness model catalogs for the app lifetime and probe
+  independent provider CLIs concurrently. Opening or refreshing Settings now
+  takes at most one probe timeout instead of serially waiting for each CLI.
+
+### Packaging
+
+- Bundle all seven Creative Tools MCP bridge executables as target-qualified
+  Tauri `externalBin` sidecars. The release workflow and local release recipe
+  build and stage the matching binaries before Tauri packages the app.
+
 ## [1.0.0] - 2026-08-29
 
 ### Added
