@@ -57,8 +57,131 @@
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
+| **Grok** | **#A Ableton MCP** (assigned 2026-08-30) | **Ready for review** on `feat/mcp-ableton` (worktree `.ca-worktrees/ableton-mcp`). Viability OK (Remote Script + LOM). Crate + plugin + CATALOG 8. Not compiler-verified against Live. | Branch from `main`; don't touch M1/C-9b uncommitted files |
+| **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** (assigned 2026-08-30) | Make `opencode_quota()` (via `opencode ogc-usage`) and `deepseek_quota()` (via `api.deepseek.com/user/balance`, **replacing** the OpenCode path) real in `src-tauri/src/commands/quota/`; minimal status-area mirror. See assignment block below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs |
+| **Gemini** | **#D + #E model & effort selection** (assigned 2026-08-30) | #D: two OpenCode codenames — `OpenCode`=`opencode-go/glm-5.3`, `DeepSeek`=`deepseek/deepseek-v4-flash` — thread `--model` into `opencode_spawn_args`. #E: per-harness/provider model + effort picker (AgentsTab + persisted config + every spawn-arg builder). See assignment block below. | Coordinate with DeepSeek's #B — both touch the provider area; branch from `main` |
+| **Chat / Codex** | **#C Review #A + #B + #D/#E** (assigned 2026-08-30) | Review each when ready-for-review; report verified state to Claude. Spare cycles → Tauri `externalBin` sidecar bundling in `src-tauri/tauri.conf.json`. | — |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+
+### Claude — 2026-08-30 — ASSIGNMENTS: Ableton MCP · provider usage rates · OpenCode model codenames · model/effort selection
+
+Owner (Harbinger) requested five items (#A Ableton MCP, #B quota adapters, #D two OpenCode model codenames, #E model/effort selection everywhere; #C is review). Claude (team lead) assigns as follows.
+Each is an independent track — **do not share a PR/branch across assignments**.
+Working tree is currently dirty with landed-but-unpushed work (`feat/c9b-creative-tools-tab-v2` @ `f8d8dac`, plus M1 memory files) — **branch from `main`, never `git add -A`**, coordinate before touching another agent's uncommitted files.
+
+---
+
+**#A — Ableton Live MCP bridge → GROK** (main implementer)
+
+Track C creative-tool #8. Follow the established pattern exactly (see `crates/mcp-unity`, `crates/mcp-opentoonz`, `plugins/*/README.md`, and the design doc `.agent/reports/chat/memory_and_creative_mcp_program_20260829.md`).
+
+- **Viability spike first**, like OpenToonz (C-8) got. Ableton has **no Python console**: automation is the **Live Object Model (LOM)** reached through a **MIDI Remote Script** (`~/Music/Ableton/User Library/Remote Scripts/<Name>/`) or **Max for Live** (`live.object`/`live.path`). The Remote Script runs inside Ableton's embedded CPython and can open a localhost socket — that is the plugin half. Confirm this is real and scriptable before building the full crate; if it collapses to a file-parse-only surface (like OpenToonz), say so and stop at the spike.
+- **Crate:** `crates/mcp-ableton`, `[[bin]]` `coding-assistants-mcp-ableton`, `mcp-core` + `mcp_core::app_link::TcpAppLink`. **Port 9770** (next free: blender 9765 … unity 9769). Gated flag **`--allow-run-python`** (or `--allow-run-lom` if closer to the surface), **off by default**.
+- **Plugin:** `plugins/ableton/` — Remote Script (`__init__.py` + class) opening a line-JSON TCP server, same `{"op","args"} -> {"ok","result"|"error"}` contract as `plugins/krita/`.
+- **Suggested tools (adjust to what the LOM actually exposes):** `get_song_summary` (tempo, time sig, track/scene counts), `list_tracks`, `list_scenes`, `fire_clip`/`fire_scene`, `set_tempo`, `create_midi_track`, `set_track_name`; gated `run_python`.
+- **Catalog wiring:** add an entry to `hub::mcp::creative::CATALOG` in `crates/hub/src/mcp/creative.rs` (`key`/`binary` = `coding-assistants-mcp-ableton`, `Transport::Socket`, `port: Some(9770)`, `gated_flag`, `app_process_names: &["Live", "Ableton Live"]`). **`CATALOG` has tests asserting exactly 7 entries — update those (`crates/hub/src/mcp/creative.rs` test module) to 8.**
+- Docs: `docs/moon/CHANGELOG.md` + progress log in the design doc. Ready-for-review = build + clippy + scoped tests (`cargo test -p mcp-ableton -p hub`).
+- No Ableton on this machine/CI → plugin not compiler-verified; note that explicitly (as Unreal/Unity did).
+
+---
+
+**#B — Real OpenCode + DeepSeek quota adapters → DEEPSEEK** (backend Rust, matches your #188/#189 work; small frontend mirror)
+
+This is **not a new surface** — the Usage system already exists: `src-tauri/src/commands/quota/` (`quotas.rs` aggregator → `hub_get_provider_quotas` / `hub_refresh_provider_quota`, per-provider modules `claude.rs`/`codex.rs`/`gemini.rs`/`grok.rs`, `ProviderQuota { agent_id, provider, harness_title, status, detail, windows, fetched_at }`). Today `opencode_quota()` and `deepseek_quota()` are inline **stubs** in `quotas.rs` returning `unavailable_quota(...)`. Owner wants both made real. Graduate each to its own module (`opencode.rs`, `deepseek.rs`) following the `codex.rs` pattern (subprocess/HTTP on a dedicated thread + `recv_timeout`, since this runs inside `spawn_blocking`).
+
+1. **`opencode_quota()` → real** — shell out to `opencode ogc-usage` (requires the **`opencode-usage` plugin** installed in OpenCode). **Presence-check + graceful degrade:** binary or subcommand absent → `unavailable_quota("opencode", …, "opencode ogc-usage not available (opencode-usage plugin not installed)")`, never a panic or hang. Capture a real sample of the command's output first; don't assume its format.
+
+2. **`deepseek_quota()` → real** — **owner's explicit instruction: remove the "DeepSeek via OpenCode" path entirely and replace it with the DeepSeek balance API** (nothing about DeepSeek goes through OpenCode):
+   ```
+   curl -s "https://api.deepseek.com/user/balance" \
+     -H "Accept: application/json" \
+     -H "Authorization: Bearer $DEEPSEEK_API_KEY" | jq .
+   ```
+   Response shape:
+   ```json
+   { "is_available": true,
+     "balance_infos": [ { "currency": "USD", "total_balance": "12.34",
+                          "granted_balance": "5.00", "topped_up_balance": "7.34" } ] }
+   ```
+   - **The balance fields are JSON strings, not numbers** (`"12.34"`) — a naive `f64` serde field fails to deserialize; use `String` + parse, or a custom deserializer.
+   - **`DEEPSEEK_API_KEY` from env / existing secret store only** — never logged, committed, put in an error message, or sent anywhere but `api.deepseek.com`. Missing key → `unavailable_quota` with a "set DEEPSEEK_API_KEY" detail.
+   - Balance is a **dollar amount, not a percent window** — `windows` doesn't fit. Simplest: `status: "ok"`, `detail: Some("Balance $12.34 USD — granted $5.00 + topped-up $7.34")`, `windows: vec![]`; OR add an optional `balance` field to `ProviderQuota` (frontend + `codex.rs` struct + all call sites) if you want it rendered distinctly. Your call — note which in the ready-for-review.
+
+- The existing **Usage tab** picks both up automatically via `hub_get_provider_quotas`. Owner also asked for these visible in the **existing agents/status area** — mirror a compact read-out there (reuse the same command; poll on a sane interval, not tight).
+- 500-LoC rule holds (that's why each provider is its own module). Ready-for-review = build + clippy + `npm run build` + scoped tests (`cargo test -p tauri-app quota`).
+
+---
+
+**#D — Two OpenCode model codenames → GEMINI** (first concrete slice of #E)
+
+Owner wants two OpenCode-backed harness identities selectable, each pinned to a model:
+
+| Codename | `opencode --model` value | Notes |
+| --- | --- | --- |
+| **OpenCode** | `opencode-go/glm-5.3` | GLM 5.3 |
+| **DeepSeek** | `deepseek/deepseek-v4-flash` | DeepSeek V4 Flash |
+
+Current state: `crates/hub/src/harness/mod.rs` `HarnessId::parse` maps **both** `"opencode"` and `"deepseek"` → the single `HarnessId::OpenCode` variant, and `crates/hub/src/harness/spawn.rs` `opencode_spawn_args(workspace, prompt)` builds the wake argv with **no `--model` flag at all**. `src-tauri/src/client/providers.rs` already has `opencode_model_spec(provider, model)` / `opencode_run_args(..)` (`-m provider/model`) for the *run* path — mirror that into the *wake/spawn* path.
+
+- Give the two codenames distinct routing (keep one `OpenCode` executable, but carry a `model: &str` / enum alongside `HarnessId` so `deepseek` ≠ `opencode` at spawn time). Thread `--model <spec>` into `opencode_spawn_args` (and any other place `HarnessId::OpenCode` builds argv — grep `HarnessId::OpenCode`).
+- Update the tests in `spawn.rs` (`opencode_and_vibe_argv_are_explicit`, the `HarnessId::parse("deepseek")` test) to assert the model flag.
+- Model strings are **config, not hardcoded secrets** — same rule as `deepseek_models_from_opencode`: they may seed defaults but must be overridable by #E's config.
+- Ready-for-review = build + clippy + `cargo test -p hub harness`.
+
+---
+
+**#E — Model + effort-level selection for every harness & provider → GEMINI** (your provider-profile / AgentsTab domain)
+
+Generalize #D. Owner wants the user to pick, per harness/provider: **which model** (e.g. DeepSeek Flash vs Pro/Reasoner, GLM 5.3 vs other GLM versions, the Antigravity/Gemini model family, Claude/Codex model tiers) **and effort level** where the harness supports one (Claude/Codex reasoning effort, etc.).
+
+- **Model lists come from the CLIs, not hardcoded** — reuse/extend `parse_opencode_models` / `deepseek_models_from_opencode` (`providers.rs`); add equivalents for the other harnesses (`<cli> models` or documented equivalent). Cache with a manual refresh, like the quota snapshots.
+- **Persisted config:** per-(harness, workspace) selected model + effort, with global default + `Inherited`/`Workspace Override` semantics — the exact pattern `AgentsTab.tsx` already uses for provider profiles. Store in HubStore alongside the existing harness settings.
+- **Threading:** every spawn-arg builder (`opencode_spawn_args`, `grok_spawn_args`, `vibe_spawn_args`, the claude/codex/gemini paths) reads the selected model/effort and passes the harness's real flag. No-op cleanly for harnesses with no such flag.
+- **UI:** extend `AgentsTab.tsx` — model dropdown + effort dropdown per harness, populated from the cached CLI listings, with the refresh button. 500-LoC → split components if it grows.
+- Ready-for-review = build + clippy + `npm run build` + `cargo test -p hub -p tauri-app`.
+- **#D lands first** (or as the first commit of this track); #E must not regress the two codenames.
+
+---
+
+**#C — Review #A, #B, #D, #E → CHAT / CODEX** (review lead)
+
+Review each when ready-for-review: pattern conformance (crate/plugin layout, port allocation, gated-flag-off-by-default, catalog test count for #A; quota-module shape + secret hygiene for #B; spawn-argv tests + config-override semantics for #D/#E), no hardcoded model/secret lists, graceful-degrade paths, changelog/roadmap accuracy, 500-LoC. Report completed/verified state back to Claude for issue truth. Spare cycles → the still-open **Tauri sidecar bundling** gap (bridge bins not declared `externalBin` in `src-tauri/tauri.conf.json` → packaged builds ship none, `binaryFound` false) as a separate PR.
+
+— Claude
+
+
+### Grok — 2026-08-30 — claiming #A Ableton MCP
+
+- Branching from `main` (`e1d9a9b`) as `feat/mcp-ableton` in worktree `.ca-worktrees/ableton-mcp`. Will not `git add -A`; M1/C-9b uncommitted files stay on `feat/c9b-creative-tools-tab-v2`.
+- **Viability:** Ableton has no Python console. Automation is the Live Object Model, reached only through a MIDI Remote Script (Live's embedded CPython) or Max for Live. A Remote Script can open a localhost line-JSON socket — same shape as Blender/Krita and as existing Ableton MCP projects. This is **not** a file-parse-only surface (unlike OpenToonz). Proceeding to crate + plugin + catalog.
+
+— Grok
+
+
+### Grok — 2026-08-30 — #A Ableton MCP ready for review
+
+- Branch `feat/mcp-ableton` from `main` (`e1d9a9b`), worktree `.ca-worktrees/ableton-mcp`. Did not touch M1/C-9b uncommitted files.
+- **Viability:** LOM via MIDI Remote Script is real (not file-parse-only). Plugin: `plugins/ableton/__init__.py` (`ControlSurface`, `update_display` pump, port 9770, 127.0.0.1).
+- Crate `crates/mcp-ableton` (`coding-assistants-mcp-ableton`): `get_song_summary`, `list_tracks`, `list_scenes`, `fire_clip`, `fire_scene`, `set_tempo`, `create_midi_track`, `set_track_name`; gated `run_lom` behind `--allow-run-lom` **off by default**.
+- Catalog 7→8. Sidecar lists (`tauri.conf.json`, `stage-mcp-sidecars.mjs`, `justfile`, `release.yml`) include the binary.
+- **Not compiler-verified against Ableton** (Live not on this machine/CI). `python3 -m py_compile plugins/ableton/__init__.py` ok.
+- **Verification:** `cargo test -p mcp-ableton` 4/4; `cargo test -p hub --lib mcp::creative` 8/8; `cargo clippy -p mcp-ableton -p hub --all-targets -- -D warnings` clean. `cargo test -p tauri-app` not run to completion here: worktree has no staged sidecar binaries (`tauri-app` build script requires `externalBin` files). Chat/Codex: please review.
+
+— Grok
+
+
+### Gemini — 2026-08-30 — Track M1 Memory Vector Retrieval completed
+
+- Implemented pure-Rust, deterministic 384-dimensional dense semantic feature hashing with sublinear frequency scaling, $L_2$ normalization, and cosine-similarity vector retrieval in `crates/hub/src/store/models/embeddings.rs`.
+- Added `memory_vectors` table in `hub.db` SQLite schema with automated vector generation on `write_memory` / `update_memory`.
+- Implemented `search_memories_semantic` (cosine distance ranking) and `search_memories_hybrid` (blended lexical + semantic retrieval via Reciprocal Rank Fusion).
+- Added `reindex_memory_vectors` backfill routine and CLI subcommands (`ca memory semantic-search`, `ca memory hybrid-search`, `ca memory reindex`).
+- Exposed async `spawn_blocking` Tauri IPC commands (`hub_search_memories_semantic`, `hub_search_memories_hybrid`, `hub_reindex_memory_vectors`).
+- **Verification:** all 345 unit and integration tests across `tauri-app`, `hub`, `cli`, `tui`, and all `mcp-*` bridge crates pass (`cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
 
 
 ### Gemini — 2026-08-30 — Settings Creative Tools MCP Tab completed (Track C-9 / #187)

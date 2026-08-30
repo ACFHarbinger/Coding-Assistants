@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Shared Hub & Memory — Semantic Vector Retrieval (Track M1) (2026-08-30)
+
+- Implemented deterministic dense 384-dimensional semantic feature hashing with sublinear frequency weighting, $L_2$ normalization, and cosine-similarity vector ranking in `crates/hub/src/store/models/embeddings.rs`.
+- Added `memory_vectors` table in SQLite schema (`hub.db`) with automatic vector upsert on `write_memory` / `update_memory`.
+- Implemented `search_memories_semantic` (cosine distance ranking) and `search_memories_hybrid` (blended lexical + semantic retrieval using Reciprocal Rank Fusion, $K=60$).
+- Added vector backfill routine `reindex_memory_vectors` and CLI subcommands `ca memory semantic-search`, `ca memory hybrid-search`, and `ca memory reindex`.
+- Exposed async non-blocking Tauri commands `hub_search_memories_semantic`, `hub_search_memories_hybrid`, and `hub_reindex_memory_vectors`.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz` (345 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
 ### Desktop — Settings Creative Tools MCP Tab (Track C-9 / #187) (2026-08-30)
 
 - Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
