@@ -13,4 +13,5 @@ members = [
     "crates/mcp-godot",
     "crates/mcp-aseprite",
     "crates/mcp-unreal",
+    "crates/mcp-unity",
 ]

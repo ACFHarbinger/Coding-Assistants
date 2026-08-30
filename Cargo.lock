@@ -2846,6 +2846,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-unity"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde_json",
+]
+
+[[package]]
 name = "mcp-unreal"
 version = "0.1.0"
 dependencies = [
