@@ -9,8 +9,13 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+// Single source of truth for the Android version; `just release::bump` keeps
+// these in sync with package.json (see tools/release/justfile).
+val releaseVersionName = "1.0.0"
+val releaseVersionCode = 10000
+
 base {
-    archivesName.set("coding-assistants-companion")
+    archivesName.set("coding-assistants-companion-${releaseVersionName}")
 }
 
 android {
@@ -22,9 +27,9 @@ android {
         minSdk = 24
         targetSdk = 34
         // Monotonically derived: major*10000 + minor*100 + patch; set by just release::bump
-        versionCode = 10000
+        versionCode = releaseVersionCode
         // Semver string; set by just release::bump
-        versionName = "1.0.0"
+        versionName = releaseVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
