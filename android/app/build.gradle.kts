@@ -15,7 +15,7 @@ val releaseVersionName = "1.0.0"
 val releaseVersionCode = 10000
 
 base {
-    archivesName.set("coding-assistants-companion-${releaseVersionName}")
+    archivesName.set("coding-assistants-companion-$releaseVersionName")
 }
 
 android {
