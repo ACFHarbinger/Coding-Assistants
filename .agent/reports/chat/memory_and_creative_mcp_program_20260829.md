@@ -313,3 +313,14 @@ the foundational piece. `hub::mcp` is not yet wired into a Settings "Creative
 Tools" tab or invoked anywhere (C-1b is the library; the UI/registration is
 follow-up). Pre-existing `crates/hub` fmt drift keeps resurfacing (CI only
 fmt-checks `src-tauri`) — worth a one-shot `cargo fmt` cleanup PR.
+
+**2026-08-30**
+- **C-4 #182** merged — Godot bridge (`crates/mcp-godot` port 9767 + `plugins/godot/` EditorPlugin, GDScript, no thread marshalling — `_process` poll).
+- **C-5 #183** merged — Aseprite bridge (`crates/mcp-aseprite` + `plugins/aseprite/dispatch.lua`). First **non-socket** transport: `CliAsepriteLink` spawns `aseprite -b --script` per call. `AppLink` trait held unchanged.
+- **C-6 #184** merged — Unreal bridge (`crates/mcp-unreal` port 9768 + `plugins/unreal/init_unreal.py`, slate-post-tick pump). Tier 3, uncompiled against a real editor.
+- **C-7 #185** — Unity bridge (`crates/mcp-unity` port 9769 + `plugins/unity/` C# Editor package w/ embedded MiniJSON, `EditorApplication.update` pump). Tier 3, not compiler-verified.
+- **C-8** — OpenToonz **viability spike → confirmed does not fit** the socket-bridge model (no scripting API, no plugin IPC, `toonz_plugin` SDK is image-effects only, no mainline headless render). Shipped a deliberately minimal `crates/mcp-opentoonz`: `scene_info` (parses `.tnz` XML directly, no binary) + gated best-effort `render` passthrough. `plugins/opentoonz/README.md` is the finding. No `plugins/opentoonz/` code.
+
+**Track C is now feature-complete for all 7 targets** (Blender/Krita/Godot fully, Aseprite via CLI, Unreal/Unity untested against real editors, OpenToonz minimal-by-necessity). `AppLink` held across socket + subprocess + file-read transports with no changes. **Still not wired anywhere**: no Settings "Creative Tools" tab, no registration flow — `hub::mcp` (C-1b) is library-only. Every gated tool (`run_python`/`run_gdscript`/`execute_menu_item`/`render`/`apply_script`) is off by default.
+
+**Track M (memory) still entirely unstarted.**
