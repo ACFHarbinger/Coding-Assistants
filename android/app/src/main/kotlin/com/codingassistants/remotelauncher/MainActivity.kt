@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                                 onRefreshWakes = { viewModel.refreshWakes() },
                                 onConfigureTask = { viewModel.fetchModelsAndNavigate() },
                                 onDisconnect = { viewModel.disconnect() },
+                                onReconnect = { viewModel.reconnect() },
                             )
                         is Screen.ModelSelection ->
                             ModelSelectionScreen(
@@ -54,7 +55,7 @@ class MainActivity : ComponentActivity() {
                                 onAddRole = { viewModel.addRole() },
                                 onRemoveRole = { viewModel.removeRole(it) },
                                 onNext = { viewModel.navigateTo(Screen.TaskExecution) },
-                                onBack = { viewModel.disconnect() },
+                                onBack = { viewModel.navigateTo(Screen.Dashboard) },
                             )
                         is Screen.TaskExecution ->
                             TaskExecutionScreen(

@@ -1,5 +1,6 @@
 package com.codingassistants.remotelauncher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -46,13 +47,17 @@ fun TaskExecutionScreen(
     onBack: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
+    BackHandler {
+        onBack()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Execute Task") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 actions = {
@@ -71,11 +76,18 @@ fun TaskExecutionScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            val isLive = state.isConnected && !state.isConnectionLost
+
             // Server info card
             Card(
                 colors =
                     CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        containerColor =
+                            if (isLive) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.errorContainer
+                            },
                     ),
             ) {
                 Row(
@@ -87,20 +99,35 @@ fun TaskExecutionScreen(
                 ) {
                     Column {
                         Text(
-                            "Connected to",
+                            if (isLive) "Connected to" else "Connection lost",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color =
+                                if (isLive) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                },
                         )
                         Text(
                             state.serverAddress,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color =
+                                if (isLive) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                },
                         )
                     }
                     Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Connected",
-                        tint = MaterialTheme.colorScheme.primary,
+                        if (isLive) Icons.Default.CheckCircle else Icons.Default.Info,
+                        contentDescription = if (isLive) "Connected" else "Connection lost",
+                        tint =
+                            if (isLive) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
                     )
                 }
             }
@@ -207,11 +234,11 @@ fun TaskExecutionScreen(
                         Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                    enabled = state.task.isNotBlank(),
+                    enabled = isLive && state.task.isNotBlank(),
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Launch Sequence")
+                    Text(if (isLive) "Launch Sequence" else "Launch Sequence (Disconnected)")
                 }
             }
         }

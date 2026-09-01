@@ -5,6 +5,7 @@ export interface ModelConfig {
   prompt_file?: string;
   rule_file?: string;
   workflow_file?: string;
+  skill_file?: string;
 }
 
 export interface RoleConfig {
@@ -24,6 +25,7 @@ export interface AgentResources {
   prompts: string[];
   rules: string[];
   workflows: string[];
+  skills?: string[];
 }
 
 export interface TeamMember {

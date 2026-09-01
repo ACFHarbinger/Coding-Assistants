@@ -8,6 +8,7 @@ mod server;
 mod tray;
 
 use agent::{AgentConfig, AgentSystem};
+use core::agent_resources::AgentResources;
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,13 +21,6 @@ struct AppState {
     cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
     user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
     tcp_server: Mutex<Option<TcpServer>>,
-}
-
-#[derive(serde::Serialize)]
-struct AgentResources {
-    prompts: Vec<String>,
-    rules: Vec<String>,
-    workflows: Vec<String>,
 }
 
 #[tauri::command]
@@ -84,33 +78,7 @@ fn cancel_task(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String> {
-    // Note: tools variable is unused in this logic but keeping structure for potential future use or removing if completely unneeded.
-    // For now we just scan directories.
-
-    let base_path = std::path::Path::new(&work_dir).join(".agent");
-    let prompts_dir = base_path.join("prompts");
-    let rules_dir = base_path.join("rules");
-    let workflows_dir = base_path.join("workflows");
-
-    async fn list_files(dir: &std::path::Path, prefix: &str) -> Vec<String> {
-        let mut out = Vec::new();
-        let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
-            return out;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            if entry.path().is_file() {
-                let filename = entry.file_name().to_string_lossy().to_string();
-                out.push(format!("{}/{}", prefix, filename));
-            }
-        }
-        out
-    }
-
-    Ok(AgentResources {
-        prompts: list_files(&prompts_dir, ".agent/prompts").await,
-        rules: list_files(&rules_dir, ".agent/rules").await,
-        workflows: list_files(&workflows_dir, ".agent/workflows").await,
-    })
+    Ok(core::agent_resources::list_agent_resources(&work_dir))
 }
 
 /// `ps` process-table scan — offload so Orchestrate discovery does not
@@ -146,8 +114,29 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn bootstrap_workspace(work_dir: String) -> Result<(), String> {
-    let base = std::path::Path::new(&work_dir).join(".agent");
+async fn bootstrap_workspace(work_dir: String, create_dir: Option<bool>) -> Result<(), String> {
+    let trimmed = work_dir.trim();
+    if trimmed.is_empty() {
+        return Err("Workspace path cannot be empty".to_string());
+    }
+
+    let work_path = std::path::Path::new(trimmed);
+    if !work_path.is_absolute() {
+        return Err("Workspace root must be an absolute path".to_string());
+    }
+
+    if !work_path.exists() {
+        if create_dir != Some(true) {
+            return Err(format!("Workspace directory '{}' does not exist", trimmed));
+        }
+        tokio::fs::create_dir_all(work_path)
+            .await
+            .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
+    } else if !work_path.is_dir() {
+        return Err(format!("Workspace path '{}' is not a directory", trimmed));
+    }
+
+    let base = work_path.join(".agent");
     if base.exists() {
         return Err("Workspace is already bootstrapped (.agent directory exists)".to_string());
     }
