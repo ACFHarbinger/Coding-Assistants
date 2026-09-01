@@ -59,6 +59,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
 
+### Provider Quotas — Real OpenCode Go + DeepSeek balance adapters (#B / 2026-08-30)
+
+- Made `opencode_quota()` real: shells out to `opencode run "/ogc-usage"` (the `opencode-go-usage` plugin's slash command; the bare `opencode ogc-usage` form is parsed by the CLI as a directory) and parses its Rolling / Weekly / Monthly rows into percent windows with computed resets-at times, captured from a live invocation — not assumed from docs. Presence-check + graceful degrade to `unavailable_quota` when the binary or plugin is absent, with a 30s bounded read on a dedicated thread (never a panic or hang).
+- Replaced the `deepseek_quota()` "DeepSeek via OpenCode" stub with a direct call to `GET api.deepseek.com/user/balance` — nothing about DeepSeek goes through OpenCode. Reads `DEEPSEEK_API_KEY` from the environment only (never logged, echoed, or sent anywhere but `api.deepseek.com`); missing key → `unavailable_quota` with a "set DEEPSEEK_API_KEY" hint.
+- Handles the balance API's **string-typed** monetary fields (`"12.34"`) with explicit finite, non-negative validation, and surfaces the balance through a new optional `ProviderQuota.balance` field rendered distinctly in the Usage tab's `QuotaChart` (account-balance row) instead of forcing it into percent windows. Authenticated redirects are disabled so the environment-only API key cannot be forwarded away from the fixed DeepSeek endpoint.
+- Added a compact `QuotaStatusStrip` in the Messager sidebar's agents/status area mirroring DeepSeek + OpenCode Go usage on a 60s poll. It requests only those two providers, skips overlapping refreshes, and the OpenCode adapter kills and reaps its child on completion or timeout.
+- Both adapters follow the `codex.rs` pattern (own module, dedicated-thread read + `recv_timeout`) and stay within the 500-LoC rule.
+- **Verification:** `cargo test -p tauri-app quota` (17 passing incl. new `quota_opencode` / `quota_deepseek` tests), full `cargo test -p tauri-app` (84 passing), `cargo test -p hub -p cli` (233 passing), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean, `npm run build` clean.
+
 ### Desktop — Settings Creative Tools MCP Tab (Track C-9 / #187) (2026-08-30)
 
 - Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).

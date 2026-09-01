@@ -210,5 +210,6 @@ pub(crate) fn claude_quota() -> ProviderQuota {
         },
         windows,
         fetched_at: now_unix(),
+        balance: None,
     }
 }

@@ -23,10 +23,14 @@ pub mod messaging;
 mod quota_claude;
 #[path = "quota/codex.rs"]
 mod quota_codex;
+#[path = "quota/deepseek.rs"]
+mod quota_deepseek;
 #[path = "quota/gemini.rs"]
 mod quota_gemini;
 #[path = "quota/grok.rs"]
 mod quota_grok;
+#[path = "quota/opencode.rs"]
+mod quota_opencode;
 #[path = "quota/quotas.rs"]
 pub mod quotas;
 #[path = "settings/roles.rs"]

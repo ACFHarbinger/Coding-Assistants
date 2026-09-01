@@ -76,6 +76,7 @@ export interface ProviderQuota {
   detail?: string | null;
   windows: ProviderQuotaWindow[];
   fetched_at: number;
+  balance?: string | null;
 }
 
 export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels";

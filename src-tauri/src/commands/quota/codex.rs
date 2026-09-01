@@ -22,6 +22,11 @@ pub struct ProviderQuota {
     pub detail: Option<String>,
     pub windows: Vec<ProviderQuotaWindow>,
     pub fetched_at: i64,
+    /// Optional human-readable account balance (dollar amount, e.g. DeepSeek).
+    /// Balance is a currency figure, not a percent window, so it does not fit
+    /// `windows` — frontends render it distinctly when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance: Option<String>,
 }
 
 pub(crate) fn now_unix() -> i64 {
@@ -45,6 +50,7 @@ pub(crate) fn unavailable_quota(
         detail: Some(detail.into()),
         windows: Vec::new(),
         fetched_at: now_unix(),
+        balance: None,
     }
 }
 
@@ -212,5 +218,6 @@ pub(crate) fn codex_quota() -> ProviderQuota {
         },
         windows,
         fetched_at: now_unix(),
+        balance: None,
     }
 }

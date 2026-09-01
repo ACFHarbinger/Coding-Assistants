@@ -122,6 +122,7 @@ pub(crate) fn gemini_quota() -> ProviderQuota {
         detail: None,
         windows,
         fetched_at: now_unix(),
+        balance: None,
     }
 }
 
