@@ -1,5 +1,6 @@
 package com.codingassistants.remotelauncher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -54,13 +55,17 @@ fun ModelSelectionScreen(
     onNext: () -> Unit,
     onBack: () -> Unit,
 ) {
+    BackHandler {
+        onBack()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Configure Agents") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
             )
@@ -92,7 +97,7 @@ fun ModelSelectionScreen(
                     ) {
                         Text("Next")
                         Spacer(Modifier.width(8.dp))
-                        Icon(Icons.Default.ArrowForward, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                     }
                 }
             }

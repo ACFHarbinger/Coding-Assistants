@@ -1,5 +1,6 @@
 package com.codingassistants.remotelauncher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -28,6 +30,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +51,35 @@ fun DashboardScreen(
     onConfigureTask: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
+    var showDisconnectDialog by remember { mutableStateOf(false) }
+
+    BackHandler {
+        showDisconnectDialog = true
+    }
+
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            title = { Text("Disconnect") },
+            text = { Text("Are you sure you want to disconnect from ${state.serverAddress}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDisconnectDialog = false
+                        onDisconnect()
+                    },
+                ) {
+                    Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
     Column(
         modifier =
             Modifier

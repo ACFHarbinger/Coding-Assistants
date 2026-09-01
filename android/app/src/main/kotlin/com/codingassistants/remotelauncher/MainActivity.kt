@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                                 onAddRole = { viewModel.addRole() },
                                 onRemoveRole = { viewModel.removeRole(it) },
                                 onNext = { viewModel.navigateTo(Screen.TaskExecution) },
-                                onBack = { viewModel.disconnect() },
+                                onBack = { viewModel.navigateTo(Screen.Dashboard) },
                             )
                         is Screen.TaskExecution ->
                             TaskExecutionScreen(
