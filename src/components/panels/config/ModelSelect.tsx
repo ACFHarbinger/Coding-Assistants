@@ -124,7 +124,7 @@ export const ModelSelect = ({
         <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Uses an OpenAI-compatible service already running. Leave blank to let Coding Assistants start the provider.</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <label
             className="label"
@@ -183,6 +183,26 @@ export const ModelSelect = ({
           >
             <option value="">None</option>
             {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-muted)', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+            onClick={() => onPreview('skill', roleConfig.skill_file)}
+            title="Click to preview selected skill"
+          >
+            Skill 🔍
+          </label>
+          <select
+            value={roleConfig.skill_file || ""}
+            onChange={(e) => onConfigChange(index, 'skill_file', e.target.value)}
+            style={{ fontSize: '0.85rem', padding: '0.4rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+          >
+            <option value="">None</option>
+            {(resources.skills || []).map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
           </select>
         </div>
       </div>

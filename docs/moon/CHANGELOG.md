@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Android Configure & Start Task can rename roles and attach workspace
+  prompts, rules, workflows, and skills. The companion fetches them over a
+  new `GetAgentResources` TCP request that lists `.agent` files from the
+  desktop default workspace (same fields as the Orchestrate role card).
+
 ## [1.0.0] - 2026-09-01
 
 ### Fixed

@@ -453,6 +453,11 @@ impl AgentSystem {
             full_prompt.push_str(&format!("Rules:\n{}\n\n", rule));
         }
 
+        if let Some(skill_path) = &config.skill_file {
+            let skill = self.get_file_content(&Some(skill_path.clone())).await?;
+            full_prompt.push_str(&format!("Skill:\n{}\n\n", skill));
+        }
+
         let memory_file = ".agent/project_memory.md";
         if let Ok(memory) = self.get_file_content(&Some(memory_file.to_string())).await {
             if !memory.is_empty() {

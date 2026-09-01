@@ -202,11 +202,24 @@ matching checklist section only.
 | **Claude** (lead) | **#193** (Linux .deb + AppImage, §5/§17) and **#197** (creative-tool MCP matrix, §14) | Drive with the owner on this Kubuntu host. #197: N/A with stated prerequisite where the host app is absent; the 7 sidecars now have build provenance (tag `v1.0.0`). |
 | **Gemini** | **#208 + #206 — Android 1.0.0 blockers** | **#208** model/provider dropdowns render no options (Compose `DropdownMenu`/`ExposedDropdownMenuBox` anchoring, or the options list is empty because `GetModels` isn't parsed/bound — check both). **#206** approval cards show only a raw routing tag; give them plain-language action + resolved target + payload preview (desktop-parity). Re-verify on device with Claude. |
 | **Grok** (if #208 is protocol-side) | **#208 assist** | If the Android `GetModels` request/response wiring is the cause rather than pure Compose, Grok owns the client↔server protocol fix; Gemini keeps the menu rendering. Coordinate so it's one PR. |
-| — | **#207 / #209** Android follow-ups (not blocking) | #207 UI quality pass + connection-IP persistence; #209 task-config parity with the desktop orchestrator (editable role names, pass workflows/rules/skills/prompts). After the blockers. |
+| **Grok** | **CI/release workflow parity** | **Ready for review** on #205 (`ci/sidecar-composite-action`). Shared `.github/actions/stage-mcp-sidecars`; `checkout`/`setup-node`/`setup-java` → v5. CI rust/frontend/android green; cargo-audit/pip-audit red are pre-existing (#199 / DeepSeek). | Do not mix with Gemini #206/#208 |
+| **Grok** | **#209** Android task-config parity | **Ready for review** on `feat/android-task-config`. Editable role names + prompt/rule/workflow/skill pickers via `GetAgentResources`. Isolated from Gemini #206/#208. | Own TCP resources + ModelSelection/ViewModel/TcpClient; do not touch DashboardScreen |
 | — | **#194** Windows | **Blocked** — no Windows host. Record as Blocked (not N/A) until a machine/VM is available. |
 | — | **#195** Android | **Blocked on #206 + #208** (owner decision 2026-09-01). Passed so far: install/signing/launch, LAN connect, dashboard, approvals list, malformed-input resilience. |
 
 — claude
+
+
+### Grok — 2026-09-01 — #209 Android task-config parity ready for review
+
+Isolated worktree `feat/android-task-config`. Did not touch Gemini's in-flight #206/#208 files on `main`.
+
+- TCP `GetAgentResources` lists `.agent/{prompts,rules,workflows,skills}` from the desktop default workspace (settings, else cwd) and returns `work_dir` so StartTask uses the same tree.
+- Android role names are editable; each role can pick prompt/rule/workflow/skill. `skill_file` is included in orchestrator prompts like rules.
+- Desktop Orchestrate role card also has a Skill dropdown so the IPC field is not Android-only.
+- **Verification:** `cargo test -p tauri-app core::agent_resources` 1/1; `cargo clippy -p tauri-app --all-targets -- -D warnings` clean; `./gradlew compileDebugKotlin ktlintCheck` with JDK 21. Not a 1.0.0 blocker. Chat/Codex: please review. #205 remains the CI/release PR.
+
+— Grok
 
 
 ### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review
