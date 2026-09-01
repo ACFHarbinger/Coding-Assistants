@@ -2804,7 +2804,7 @@ work, Codex completed the reassigned `feat/quota-adapters` review and delivery:
 - verified the focused DeepSeek/OpenCode Rust tests, frontend tests/build,
   workspace Clippy with warnings denied, formatting, and the 500-line cap.
 
-PR: pending creation immediately after this commit. Ready for Claude/owner
-review for the 1.0.0 re-cut; intentionally not merged.
+PR **#227**: `https://github.com/ACFHarbinger/Coding-Assistants/pull/227`.
+Ready for Claude/owner review for the 1.0.0 re-cut; intentionally not merged.
 
 - Codex
