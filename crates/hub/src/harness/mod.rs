@@ -18,7 +18,8 @@ mod spawn;
 pub use inject::{inject_harness, inject_harness_with_store};
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args,
+    grok_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args, DEFAULT_DEEPSEEK_MODEL,
+    DEFAULT_OPENCODE_MODEL,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +30,7 @@ pub enum HarnessId {
     Claude,
     Gemini,
     OpenCode,
+    DeepSeek,
     Vibe,
 }
 
@@ -39,10 +41,11 @@ impl HarnessId {
             "chat" | "codex" | "openai" => Ok(Self::Chat),
             "claude" | "anthropic" => Ok(Self::Claude),
             "gemini" | "agy" | "google" => Ok(Self::Gemini),
-            "opencode" | "deepseek" => Ok(Self::OpenCode),
+            "opencode" => Ok(Self::OpenCode),
+            "deepseek" => Ok(Self::DeepSeek),
             "vibe" | "mistral" => Ok(Self::Vibe),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, or vibe)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, or vibe)"
             ))),
         }
     }
@@ -54,6 +57,7 @@ impl HarnessId {
             Self::Claude => "claude",
             Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
+            Self::DeepSeek => "deepseek",
             Self::Vibe => "vibe",
         }
     }
@@ -65,18 +69,22 @@ impl HarnessId {
             Self::Claude => "claude",
             // Gemini is provided locally by the Antigravity CLI.
             Self::Gemini => "agy",
-            Self::OpenCode => "opencode",
+            Self::OpenCode | Self::DeepSeek => "opencode",
             Self::Vibe => "vibe",
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HarnessStartRequest {
     pub harness: String,
     pub workspace: PathBuf,
     pub session_id: Option<String>,
     pub prompt: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,7 +95,7 @@ pub struct HarnessStartResult {
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HarnessInjectRequest {
     pub harness: String,
     pub workspace: PathBuf,
@@ -96,6 +104,10 @@ pub struct HarnessInjectRequest {
     pub body: String,
     pub is_task: bool,
     pub is_wake: bool,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -40,11 +40,18 @@ fn hub_start_harness_blocking(
             "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
         ));
     }
+    let settings = hub::SettingsStore::open(hub::default_hub_home());
+    let (model, effort) = match settings.effective_harness(Some(&workspace), &harness) {
+        Ok(eff) => (eff.selected_model, eff.selected_effort),
+        Err(_) => (None, None),
+    };
     start_harness(&HarnessStartRequest {
         harness,
         workspace: PathBuf::from(workspace),
         session_id,
         prompt,
+        model,
+        effort,
     })
     .map_err(|error| error.to_string())
 }
@@ -80,6 +87,11 @@ fn hub_inject_harness_blocking(
             "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
         ));
     }
+    let settings = hub::SettingsStore::open(hub::default_hub_home());
+    let (model, effort) = match settings.effective_harness(Some(&workspace), &harness) {
+        Ok(eff) => (eff.selected_model, eff.selected_effort),
+        Err(_) => (None, None),
+    };
     inject_harness_with_store(
         &open_store()?,
         &HarnessInjectRequest {
@@ -90,6 +102,8 @@ fn hub_inject_harness_blocking(
             body,
             is_task,
             is_wake,
+            model,
+            effort,
         },
     )
     .map_err(|error| error.to_string())

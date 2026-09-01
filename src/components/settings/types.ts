@@ -54,6 +54,8 @@ export interface HarnessSettings {
   workdir: string | null;
   capture_polling: boolean;
   inject_permission: boolean;
+  default_model?: string | null;
+  default_effort?: string | null;
 }
 
 // Mirrors `hub::EffectiveHarnessSettings`.
@@ -66,6 +68,16 @@ export interface EffectiveHarnessSettings {
   default_profile: string | null;
   default_profile_status: SettingsFieldStatus;
   default_profile_badge: string | null;
+  selected_model?: string | null;
+  selected_model_status?: SettingsFieldStatus;
+  selected_effort?: string | null;
+  selected_effort_status?: SettingsFieldStatus;
+}
+
+export interface HarnessModelCatalog {
+  harness: string;
+  models: string[];
+  effort_options: string[];
 }
 
 // Mirrors `hub::EffectiveSettings`. Global defaults merged with an optional
@@ -145,3 +157,23 @@ export type SettingsLoadStatus =
 // Redacted settings audit row. Same shape as the Hub's `AuditEvent`; the
 // dedicated settings stream is a `root_path === "settings"` filter over it.
 export type SettingsAuditEvent = AuditEvent;
+
+// Mirrors Rust `CreativeToolStatus`.
+export interface CreativeToolStatus {
+  key: string;
+  displayName: string;
+  transport: "socket" | "subprocess" | "file-parse" | string;
+  port: number | null;
+  gatedFlag: string | null;
+  binaryFound: boolean;
+  binaryPath: string | null;
+  appRunning: boolean;
+  enabled: boolean;
+}
+
+// Mirrors Rust `CreativeToolsStatus`.
+export interface CreativeToolsStatus {
+  workspace: string;
+  tools: CreativeToolStatus[];
+  writtenConfigs: string[];
+}

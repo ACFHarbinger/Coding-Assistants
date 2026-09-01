@@ -13,6 +13,8 @@ pub mod attachments;
 pub mod avatar;
 #[path = "settings/creative_tools.rs"]
 pub mod creative_tools;
+#[path = "settings/harness_models.rs"]
+pub mod harness_models;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]

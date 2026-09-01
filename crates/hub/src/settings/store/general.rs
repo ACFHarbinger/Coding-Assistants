@@ -106,11 +106,7 @@ impl SettingsStore {
             .values()
             .map(ProviderProfile::snapshot)
             .collect();
-        let harnesses = effective_harnesses(
-            &self.harnesses,
-            &self.profiles,
-            over.map(|o| &o.default_profiles),
-        );
+        let harnesses = effective_harnesses(&self.harnesses, &self.profiles, over);
         let orchestration =
             effective_orchestration(&self.snapshot.orchestration, over.map(|o| &o.orchestration));
         EffectiveSettings {

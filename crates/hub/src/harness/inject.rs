@@ -78,13 +78,26 @@ fn inject_harness_inner(
         request.body.clone()
     };
 
+    let model = request.model.as_deref().or(match harness {
+        HarnessId::OpenCode => Some(crate::harness::DEFAULT_OPENCODE_MODEL),
+        HarnessId::DeepSeek => Some(crate::harness::DEFAULT_DEEPSEEK_MODEL),
+        _ => None,
+    });
+    let effort = request.effort.as_deref();
+
     let args = match harness {
-        HarnessId::Grok => grok_spawn_args(&request.workspace, &prompt)?,
-        HarnessId::Chat => codex_spawn_args(&request.workspace, &prompt)?,
-        HarnessId::Claude => claude_spawn_args(&request.workspace, &prompt)?,
-        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &prompt)?,
-        HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &prompt)?,
-        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt)?,
+        HarnessId::Grok => grok_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Chat => codex_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Claude => claude_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::DeepSeek => opencode_spawn_args(
+            &request.workspace,
+            &prompt,
+            Some(model.unwrap_or(crate::harness::DEFAULT_DEEPSEEK_MODEL)),
+            effort,
+        )?,
+        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt, model, effort)?,
     };
 
     let started = spawn_explicit(harness.executable(), &request.workspace, &args)?;
@@ -115,6 +128,7 @@ mod tests {
             body: "review this".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         })
         .unwrap();
         assert_eq!(result.status, "queued");
@@ -135,6 +149,7 @@ mod tests {
                 body: "review this".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         )
         .unwrap();

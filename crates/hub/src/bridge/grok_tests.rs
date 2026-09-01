@@ -100,6 +100,7 @@ fn missing_leader_is_unavailable_and_does_not_spawn_a_tui() {
             body: "review the hub".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         },
     )
     .unwrap();
@@ -122,6 +123,7 @@ fn registration_is_required_or_inferred_from_disk() {
             body: "hello".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         },
     )
     .unwrap();

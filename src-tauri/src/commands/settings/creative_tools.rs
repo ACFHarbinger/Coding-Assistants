@@ -185,7 +185,15 @@ fn resolved_entries(enabled: &BTreeSet<String>) -> Vec<McpServerEntry> {
 
 /// Read-only: per-workspace status of every creative-tool bridge.
 #[tauri::command]
-pub fn creative_tools_status(workspace: String) -> Result<CreativeToolsStatus, String> {
+pub async fn creative_tools_status(workspace: String) -> Result<CreativeToolsStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || creative_tools_status_blocking(workspace))
+        .await
+        .map_err(|error| format!("creative_tools_status worker panic: {error}"))?
+}
+
+pub(crate) fn creative_tools_status_blocking(
+    workspace: String,
+) -> Result<CreativeToolsStatus, String> {
     let path = require_absolute(&workspace)?;
     let store = open_store()?;
     let enabled = creative::enabled_keys(&store, &path);
@@ -196,7 +204,19 @@ pub fn creative_tools_status(workspace: String) -> Result<CreativeToolsStatus, S
 /// rewrite the workspace's Claude / Gemini / opencode MCP configs so the
 /// change takes effect. Returns fresh status including the files written.
 #[tauri::command]
-pub fn creative_tools_set_enabled(
+pub async fn creative_tools_set_enabled(
+    workspace: String,
+    key: String,
+    enabled: bool,
+) -> Result<CreativeToolsStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        creative_tools_set_enabled_blocking(workspace, key, enabled)
+    })
+    .await
+    .map_err(|error| format!("creative_tools_set_enabled worker panic: {error}"))?
+}
+
+pub(crate) fn creative_tools_set_enabled_blocking(
     workspace: String,
     key: String,
     enabled: bool,
@@ -229,7 +249,15 @@ pub fn creative_tools_set_enabled(
 /// tab's "Re-apply" action after a bridge binary is installed or the
 /// config files were edited by hand.
 #[tauri::command]
-pub fn creative_tools_reapply(workspace: String) -> Result<CreativeToolsStatus, String> {
+pub async fn creative_tools_reapply(workspace: String) -> Result<CreativeToolsStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || creative_tools_reapply_blocking(workspace))
+        .await
+        .map_err(|error| format!("creative_tools_reapply worker panic: {error}"))?
+}
+
+pub(crate) fn creative_tools_reapply_blocking(
+    workspace: String,
+) -> Result<CreativeToolsStatus, String> {
     let path = require_absolute(&workspace)?;
     let store = open_store()?;
     let keys = creative::enabled_keys(&store, &path);
@@ -246,7 +274,13 @@ pub fn creative_tools_reapply(workspace: String) -> Result<CreativeToolsStatus, 
 /// bridges, for the user to paste into `~/.codex/config.toml` themselves
 /// (Codex has no per-workspace config the app can safely write).
 #[tauri::command]
-pub fn creative_tools_codex_snippet(workspace: String) -> Result<String, String> {
+pub async fn creative_tools_codex_snippet(workspace: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || creative_tools_codex_snippet_blocking(workspace))
+        .await
+        .map_err(|error| format!("creative_tools_codex_snippet worker panic: {error}"))?
+}
+
+pub(crate) fn creative_tools_codex_snippet_blocking(workspace: String) -> Result<String, String> {
     let path = require_absolute(&workspace)?;
     let store = open_store()?;
     let keys = creative::enabled_keys(&store, &path);

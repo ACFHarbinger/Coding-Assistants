@@ -67,6 +67,22 @@ jobs:
 
       - run: npm ci
 
+      # Tauri's externalBin entries expect target-qualified files. Build all
+      # Creative Tools bridges first, then stage those names for the bundle.
+      - name: Build Creative Tools MCP sidecars
+        shell: bash
+        run: |
+          target="$(rustc -vV | awk '/^host: / { print $2 }')"
+          cargo build --release --target "${target}" \
+            -p mcp-blender \
+            -p mcp-krita \
+            -p mcp-godot \
+            -p mcp-aseprite \
+            -p mcp-unreal \
+            -p mcp-unity \
+            -p mcp-opentoonz
+          node tools/release/stage-mcp-sidecars.mjs "${target}"
+
       # tauri-action creates/updates a Release ONLY when `tagName` is non-empty.
       # On a real `v*` tag push that is the tag name → a draft Release. On
       # `workflow_dispatch` (dry run) `tagName` is empty → tauri-action just

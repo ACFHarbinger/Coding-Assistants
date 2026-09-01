@@ -264,6 +264,7 @@ mod tests {
             body: "review the adapter".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         }
     }
 

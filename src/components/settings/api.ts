@@ -1,6 +1,7 @@
 import { invoke } from "../../lib/tauri";
 import type {
   BudgetStatus,
+  CreativeToolsStatus,
   EffectiveHarnessSettings,
   EffectiveSettings,
   HarnessSettings,
@@ -139,4 +140,101 @@ export function listAgentBudgets(): Promise<BudgetStatus[]> {
 
 export function setAgentBudget(agentId: string, limitUnits: number): Promise<BudgetStatus> {
   return invoke<BudgetStatus>("settings_set_agent_budget", { agentId, limitUnits });
+}
+
+export function getCreativeToolsStatus(workspace: string): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_status", { workspace });
+}
+
+export function setCreativeToolEnabled(
+  workspace: string,
+  key: string,
+  enabled: boolean,
+): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_set_enabled", { workspace, key, enabled });
+}
+
+export function reapplyCreativeTools(workspace: string): Promise<CreativeToolsStatus> {
+  return invoke<CreativeToolsStatus>("creative_tools_reapply", { workspace });
+}
+
+export function getCreativeToolsCodexSnippet(workspace: string): Promise<string> {
+  return invoke<string>("creative_tools_codex_snippet", { workspace });
+}
+
+export function getHarnessModelOptions(
+  harness: string,
+  refresh: boolean = false,
+): Promise<import("./types").HarnessModelCatalog> {
+  return invoke<import("./types").HarnessModelCatalog>("settings_get_harness_model_options", {
+    harness,
+    refresh,
+  });
+}
+
+export function getAllHarnessOptions(
+  refresh: boolean = false,
+): Promise<Record<string, import("./types").HarnessModelCatalog>> {
+  return invoke<Record<string, import("./types").HarnessModelCatalog>>(
+    "settings_get_all_harness_options",
+    { refresh },
+  );
+}
+
+export function setHarnessModel(
+  harness: string,
+  model: string | null,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_harness_model", { harness, model });
+}
+
+export function setHarnessEffort(
+  harness: string,
+  effort: string | null,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_harness_effort", { harness, effort });
+}
+
+export function setWorkspaceHarnessModel(
+  workspace: string,
+  harness: string,
+  model: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_workspace_harness_model", {
+    workspace,
+    harness,
+    model,
+  });
+}
+
+export function resetWorkspaceHarnessModel(
+  workspace: string,
+  harness: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_reset_workspace_harness_model", {
+    workspace,
+    harness,
+  });
+}
+
+export function setWorkspaceHarnessEffort(
+  workspace: string,
+  harness: string,
+  effort: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_set_workspace_harness_effort", {
+    workspace,
+    harness,
+    effort,
+  });
+}
+
+export function resetWorkspaceHarnessEffort(
+  workspace: string,
+  harness: string,
+): Promise<EffectiveHarnessSettings> {
+  return invoke<EffectiveHarnessSettings>("settings_reset_workspace_harness_effort", {
+    workspace,
+    harness,
+  });
 }

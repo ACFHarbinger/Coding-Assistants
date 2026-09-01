@@ -262,6 +262,17 @@ pub fn settings_list_harnesses(
 #[tauri::command]
 pub fn settings_update_harness(settings: HarnessSettings) -> Result<HarnessSettings, String> {
     let mut store = open_settings_store();
+    // This older full-record endpoint backs the capture/injection toggles.
+    // Model and effort now have dedicated update endpoints; callers that do
+    // not know about those newer optional fields must not erase them.
+    let current = store
+        .harness_settings(&settings.harness)
+        .map_err(|e| e.to_string())?;
+    let settings = HarnessSettings {
+        default_model: settings.default_model.or(current.default_model),
+        default_effort: settings.default_effort.or(current.default_effort),
+        ..settings
+    };
     store
         .set_harness_settings(settings.clone())
         .map_err(|e| e.to_string())?;

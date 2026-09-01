@@ -5,7 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-08-29
+## [Unreleased]
+
+## [1.0.0] - 2026-09-01
+
+### Fixed
+
+- Completed the review of the per-harness model and reasoning-effort settings:
+  the legacy harness-toggle update no longer clears those newly added defaults,
+  and all model/effort mutations now run off the Tauri webview IPC thread.
+
+### Performance
+
+- Cache discovered harness model catalogs for the app lifetime and probe
+  independent provider CLIs concurrently. Opening or refreshing Settings now
+  takes at most one probe timeout instead of serially waiting for each CLI.
+
+### Packaging
+
+- Bundle all seven Creative Tools MCP bridge executables as target-qualified
+  Tauri `externalBin` sidecars. The release workflow and local release recipe
+  build and stage the matching binaries before Tauri packages the app.
 
 ### Added
 
@@ -13,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bundle-windows`, `bundle-android`, `artifacts`, `release`) and
   `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
   (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
+
+### Desktop — Settings Creative Tools MCP Tab (Track C-9 / #187) (2026-08-30)
+
+- Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
+- Surfaces live bridge binary resolution status (`Installed` vs. `Binary Missing`), application runtime detection via process monitoring (`App Running` vs. `App Idle`), transport type (socket with port, subprocess, file-parse), and code execution / gated flag indicators (`--allow-*`).
+- Added workspace-scoped MCP configuration auto-synchronization (`.mcp.json`, `.gemini/settings.json`, `opencode.json`), a 1-click "Re-apply to Configs" action, and a "Copy Codex Snippet" TOML exporter for user configuration.
+- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz` (337 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
 
 ### Desktop — Settings Diagnostics & Danger Zone Tabs (S6 / #132) (2026-08-29)
 

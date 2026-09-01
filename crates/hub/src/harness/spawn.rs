@@ -9,8 +9,28 @@ use std::process::{Command, Stdio};
 
 use super::{HarnessId, HarnessStartRequest, HarnessStartResult};
 
+pub const DEFAULT_OPENCODE_MODEL: &str = "opencode-go/glm-5.3";
+pub const DEFAULT_DEEPSEEK_MODEL: &str = "deepseek/deepseek-v4-flash";
+
+fn codex_config_string(key: &str, value: &str) -> Result<OsString, HubError> {
+    if value.chars().any(char::is_control) {
+        return Err(HubError::Invalid(format!(
+            "Codex {key} must not contain control characters"
+        )));
+    }
+    // Codex parses `-c` as TOML. This remains one process argument, but the
+    // value still needs TOML escaping so a quote cannot alter the setting.
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    Ok(OsString::from(format!("{key}=\"{escaped}\"")))
+}
+
 /// Explicit argv for a Grok wake/task spawn. Never concatenated into a shell.
-pub fn grok_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+pub fn grok_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Grok spawn requires a prompt".into()));
     }
@@ -19,11 +39,20 @@ pub fn grok_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, 
             "Grok spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![
+    let mut args = vec![
         OsString::from("--cwd"),
         workspace.as_os_str().to_os_string(),
-        OsString::from(prompt),
-    ])
+    ];
+    if let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("--reasoning-effort"));
+        args.push(OsString::from(effort));
+    }
+    args.push(OsString::from(prompt));
+    Ok(args)
 }
 
 /// Explicit argv for an OpenAI Codex / Chat wake/task spawn.
@@ -35,7 +64,12 @@ pub fn grok_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, 
 /// argument '--cwd' found", which made every Codex spawn exit right after
 /// argv parsing — fast enough that callers only ever saw a zombie process,
 /// never a visible error.
-pub fn codex_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+pub fn codex_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Codex spawn requires a prompt".into()));
     }
@@ -44,16 +78,30 @@ pub fn codex_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>,
             "Codex spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![
+    let mut args = vec![
         OsString::from("exec"),
         OsString::from("--cd"),
         workspace.as_os_str().to_os_string(),
-        OsString::from(prompt),
-    ])
+    ];
+    if let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("-c"));
+        args.push(codex_config_string("model_reasoning_effort", effort)?);
+    }
+    args.push(OsString::from(prompt));
+    Ok(args)
 }
 
 /// Explicit argv for an Anthropic Claude Code wake/task spawn.
-pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+pub fn claude_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Claude spawn requires a prompt".into()));
     }
@@ -62,7 +110,18 @@ pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
             "Claude spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![OsString::from("-p"), OsString::from(prompt)])
+    let mut args = Vec::new();
+    if let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("--effort"));
+        args.push(OsString::from(effort));
+    }
+    args.push(OsString::from("-p"));
+    args.push(OsString::from(prompt));
+    Ok(args)
 }
 
 /// Explicit argv for a Google Antigravity CLI (agy) wake/task spawn.
@@ -72,8 +131,13 @@ pub fn claude_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>
 /// contract is `--print` with an optional machine-readable output format.
 /// A future managed-session adapter may add `--conversation <id>` when it
 /// owns that session, but a wake must never guess an existing conversation.
-pub fn gemini_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
-    gemini_managed_spawn_args(workspace, prompt, None)
+pub fn gemini_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
+    gemini_managed_spawn_args(workspace, prompt, None, model, effort)
 }
 
 /// Explicit argv for an app-managed Antigravity (`agy`) worker run.
@@ -82,6 +146,8 @@ pub fn gemini_managed_spawn_args(
     workspace: &Path,
     prompt: &str,
     conversation_id: Option<&str>,
+    model: Option<&str>,
+    effort: Option<&str>,
 ) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Gemini spawn requires a prompt".into()));
@@ -91,15 +157,6 @@ pub fn gemini_managed_spawn_args(
             "Gemini spawn workspace must be an absolute path".into(),
         ));
     }
-    // Order matters here in a way `agy --help` does not document: verified
-    // directly against a live `agy` invocation (2026-08-14) that
-    // `--print --output-format stream-json <prompt>` (the previous order)
-    // makes agy misparse the prompt and reply with an off-topic explanation
-    // of the `--output-format` flag instead of answering it — the exact
-    // symptom #155 originally reported. `--output-format stream-json
-    // [--conversation <id>] --print <prompt>` (this order) reliably works;
-    // confirmed with both a fresh conversation and a `--conversation`-resumed
-    // one. Do not reorder without re-verifying against a real `agy` call.
     let mut args = vec![
         OsString::from("--output-format"),
         OsString::from("stream-json"),
@@ -111,13 +168,26 @@ pub fn gemini_managed_spawn_args(
             args.push(OsString::from(conv_id));
         }
     }
+    if let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("--effort"));
+        args.push(OsString::from(effort));
+    }
     args.push(OsString::from("--print"));
     args.push(OsString::from(prompt));
     Ok(args)
 }
 
 /// Explicit argv for an OpenCode (including DeepSeek) wake spawn.
-pub fn opencode_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+pub fn opencode_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("OpenCode spawn requires a prompt".into()));
     }
@@ -126,16 +196,29 @@ pub fn opencode_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsStrin
             "OpenCode spawn workspace must be an absolute path".into(),
         ));
     }
-    Ok(vec![
+    let model = model.unwrap_or(DEFAULT_OPENCODE_MODEL);
+    let mut args = vec![
         OsString::from("run"),
         OsString::from(prompt),
-        OsString::from("--dir"),
-        workspace.as_os_str().to_os_string(),
-    ])
+        OsString::from("--model"),
+        OsString::from(model),
+    ];
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("--variant"));
+        args.push(OsString::from(effort));
+    }
+    args.push(OsString::from("--dir"));
+    args.push(workspace.as_os_str().to_os_string());
+    Ok(args)
 }
 
 /// Explicit argv for a Mistral Vibe wake spawn.
-pub fn vibe_spawn_args(workspace: &Path, prompt: &str) -> Result<Vec<OsString>, HubError> {
+pub fn vibe_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    _model: Option<&str>,
+    _effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
     if prompt.trim().is_empty() {
         return Err(HubError::Invalid("Vibe spawn requires a prompt".into()));
     }
@@ -186,13 +269,27 @@ pub(super) fn spawn_explicit(
 
 pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
     let harness = HarnessId::parse(&request.harness)?;
+    let model = request.model.as_deref().or(match harness {
+        HarnessId::OpenCode => Some(DEFAULT_OPENCODE_MODEL),
+        HarnessId::DeepSeek => Some(DEFAULT_DEEPSEEK_MODEL),
+        _ => None,
+    });
+    let effort = request.effort.as_deref();
     let args = match harness {
-        HarnessId::Grok => grok_spawn_args(&request.workspace, &request.prompt)?,
-        HarnessId::Chat => codex_spawn_args(&request.workspace, &request.prompt)?,
-        HarnessId::Claude => claude_spawn_args(&request.workspace, &request.prompt)?,
-        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &request.prompt)?,
-        HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &request.prompt)?,
-        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt)?,
+        HarnessId::Grok => grok_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Chat => codex_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Claude => claude_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::OpenCode => {
+            opencode_spawn_args(&request.workspace, &request.prompt, model, effort)?
+        }
+        HarnessId::DeepSeek => opencode_spawn_args(
+            &request.workspace,
+            &request.prompt,
+            Some(model.unwrap_or(DEFAULT_DEEPSEEK_MODEL)),
+            effort,
+        )?,
+        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt, model, effort)?,
     };
     spawn_explicit(harness.executable(), &request.workspace, &args)
 }
@@ -205,58 +302,108 @@ mod tests {
     #[test]
     fn grok_argv_is_explicit_and_rejects_relative_workspace() {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let args = grok_spawn_args(&ws, "review the hub").unwrap();
+        let args = grok_spawn_args(&ws, "review the hub", None, None).unwrap();
         assert_eq!(args[0], "--cwd");
         assert_eq!(args[1], ws.as_os_str());
         assert_eq!(args[2], "review the hub");
-        assert!(grok_spawn_args(Path::new("relative"), "x").is_err());
-        assert!(grok_spawn_args(&ws, "   ").is_err());
+
+        let custom = grok_spawn_args(&ws, "review", Some("grok-4.6"), Some("high")).unwrap();
+        assert_eq!(custom[0], "--cwd");
+        assert_eq!(custom[1], ws.as_os_str());
+        assert_eq!(custom[2], "--model");
+        assert_eq!(custom[3], "grok-4.6");
+        assert_eq!(custom[4], "--reasoning-effort");
+        assert_eq!(custom[5], "high");
+        assert_eq!(custom[6], "review");
+
+        assert!(grok_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(grok_spawn_args(&ws, "   ", None, None).is_err());
     }
 
     #[test]
     fn codex_argv_is_explicit_and_rejects_relative_workspace() {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let args = codex_spawn_args(&ws, "run task").unwrap();
+        let args = codex_spawn_args(&ws, "run task", None, None).unwrap();
         assert_eq!(args[0], "exec");
         assert_eq!(args[1], "--cd");
         assert_eq!(args[2], ws.as_os_str());
         assert_eq!(args[3], "run task");
-        assert!(codex_spawn_args(Path::new("relative"), "x").is_err());
-        assert!(codex_spawn_args(&ws, "   ").is_err());
+
+        let custom = codex_spawn_args(&ws, "run", Some("o3"), Some("high")).unwrap();
+        assert_eq!(custom[0], "exec");
+        assert_eq!(custom[1], "--cd");
+        assert_eq!(custom[2], ws.as_os_str());
+        assert_eq!(custom[3], "--model");
+        assert_eq!(custom[4], "o3");
+        assert_eq!(custom[5], "-c");
+        assert_eq!(custom[6], "model_reasoning_effort=\"high\"");
+        assert_eq!(custom[7], "run");
+
+        let escaped = codex_spawn_args(&ws, "run", None, Some("high\"; model=\"other")).unwrap();
+        assert_eq!(
+            escaped[4],
+            "model_reasoning_effort=\"high\\\"; model=\\\"other\""
+        );
+        assert!(codex_spawn_args(&ws, "run", None, Some("high\nother")).is_err());
+
+        assert!(codex_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(codex_spawn_args(&ws, "   ", None, None).is_err());
     }
 
     #[test]
     fn claude_argv_is_explicit_and_rejects_relative_workspace() {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let args = claude_spawn_args(&ws, "fix bug").unwrap();
+        let args = claude_spawn_args(&ws, "fix bug", None, None).unwrap();
         assert_eq!(args[0], "-p");
         assert_eq!(args[1], "fix bug");
-        assert!(claude_spawn_args(Path::new("relative"), "x").is_err());
-        assert!(claude_spawn_args(&ws, "   ").is_err());
+
+        let custom = claude_spawn_args(&ws, "fix bug", Some("sonnet"), Some("high")).unwrap();
+        assert_eq!(custom[0], "--model");
+        assert_eq!(custom[1], "sonnet");
+        assert_eq!(custom[2], "--effort");
+        assert_eq!(custom[3], "high");
+        assert_eq!(custom[4], "-p");
+        assert_eq!(custom[5], "fix bug");
+
+        assert!(claude_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(claude_spawn_args(&ws, "   ", None, None).is_err());
     }
 
     #[test]
     fn gemini_argv_is_explicit_and_rejects_relative_workspace() {
-        // Order verified against a live `agy` call (2026-08-14, #155):
-        // --output-format before --print, prompt immediately after --print.
-        // Putting --print first makes agy misparse the prompt entirely.
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let args = gemini_spawn_args(&ws, "build feature").unwrap();
+        let args = gemini_spawn_args(&ws, "build feature", None, None).unwrap();
         assert_eq!(args[0], "--output-format");
         assert_eq!(args[1], "stream-json");
         assert_eq!(args[2], "--print");
         assert_eq!(args[3], "build feature");
         assert_eq!(args.len(), 4);
-        assert!(gemini_spawn_args(Path::new("relative"), "x").is_err());
-        assert!(gemini_spawn_args(&ws, "   ").is_err());
+
+        let custom = gemini_spawn_args(
+            &ws,
+            "build feature",
+            Some("gemini-3.7-flash-high"),
+            Some("high"),
+        )
+        .unwrap();
+        assert_eq!(custom[0], "--output-format");
+        assert_eq!(custom[1], "stream-json");
+        assert_eq!(custom[2], "--model");
+        assert_eq!(custom[3], "gemini-3.7-flash-high");
+        assert_eq!(custom[4], "--effort");
+        assert_eq!(custom[5], "high");
+        assert_eq!(custom[6], "--print");
+        assert_eq!(custom[7], "build feature");
+
+        assert!(gemini_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(gemini_spawn_args(&ws, "   ", None, None).is_err());
     }
 
     #[test]
     fn gemini_managed_argv_places_conversation_before_print() {
-        // Also verified live: --conversation must sit between --output-format
-        // and --print, not after --print — same ordering sensitivity as above.
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let args = gemini_managed_spawn_args(&ws, "continue", Some("conv-123")).unwrap();
+        let args =
+            gemini_managed_spawn_args(&ws, "continue", Some("conv-123"), None, None).unwrap();
         assert_eq!(args[0], "--output-format");
         assert_eq!(args[1], "stream-json");
         assert_eq!(args[2], "--conversation");
@@ -272,7 +419,8 @@ mod tests {
         assert_eq!(HarnessId::parse("codex").unwrap(), HarnessId::Chat);
         assert_eq!(HarnessId::parse("claude").unwrap(), HarnessId::Claude);
         assert_eq!(HarnessId::parse("agy").unwrap(), HarnessId::Gemini);
-        assert_eq!(HarnessId::parse("deepseek").unwrap(), HarnessId::OpenCode);
+        assert_eq!(HarnessId::parse("opencode").unwrap(), HarnessId::OpenCode);
+        assert_eq!(HarnessId::parse("deepseek").unwrap(), HarnessId::DeepSeek);
         assert_eq!(HarnessId::parse("mistral").unwrap(), HarnessId::Vibe);
         assert!(HarnessId::parse("ollama").is_err());
     }
@@ -280,18 +428,33 @@ mod tests {
     #[test]
     fn opencode_and_vibe_argv_are_explicit() {
         let ws = PathBuf::from("/tmp/coding-assistants-c12");
-        let oc = opencode_spawn_args(&ws, "review").unwrap();
+        let oc = opencode_spawn_args(&ws, "review", None, None).unwrap();
         assert_eq!(oc[0], "run");
         assert_eq!(oc[1], "review");
-        assert_eq!(oc[2], "--dir");
-        assert_eq!(oc[3], ws.as_os_str());
-        let vibe = vibe_spawn_args(&ws, "review").unwrap();
+        assert_eq!(oc[2], "--model");
+        assert_eq!(oc[3], "opencode-go/glm-5.3");
+        assert_eq!(oc[4], "--dir");
+        assert_eq!(oc[5], ws.as_os_str());
+
+        let ds =
+            opencode_spawn_args(&ws, "review", Some(DEFAULT_DEEPSEEK_MODEL), Some("high")).unwrap();
+        assert_eq!(ds[0], "run");
+        assert_eq!(ds[1], "review");
+        assert_eq!(ds[2], "--model");
+        assert_eq!(ds[3], "deepseek/deepseek-v4-flash");
+        assert_eq!(ds[4], "--variant");
+        assert_eq!(ds[5], "high");
+        assert_eq!(ds[6], "--dir");
+        assert_eq!(ds[7], ws.as_os_str());
+
+        let vibe = vibe_spawn_args(&ws, "review", None, None).unwrap();
         assert_eq!(vibe[0], "-p");
         assert_eq!(vibe[1], "review");
         assert_eq!(HarnessId::OpenCode.executable(), "opencode");
+        assert_eq!(HarnessId::DeepSeek.executable(), "opencode");
         assert_eq!(HarnessId::Vibe.executable(), "vibe");
-        assert!(opencode_spawn_args(Path::new("relative"), "x").is_err());
-        assert!(vibe_spawn_args(Path::new("relative"), "x").is_err());
+        assert!(opencode_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(vibe_spawn_args(Path::new("relative"), "x", None, None).is_err());
     }
 
     #[test]

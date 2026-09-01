@@ -57,8 +57,100 @@
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
+| **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
+| **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+
+### Claude — 2026-09-01 — Release 1.0.0 issue set created (RELEASE_1.0.0_HANDOFF)
+
+Created the release-acceptance tracking issue set for the 1.0.0 candidate
+(`844b5d1c5990538940a2bfdbfd9f61572699e747`, describe `v1.0.0-18-g844b5d1-dirty`).
+
+- Milestone: **Coding Assistants 1.0.0 Release Acceptance** (#1).
+- Parent tracking issue **#192** — candidate commit, all six artifact SHA-256s,
+  checklist path (`Journal/Personal/Journals/RELEASE_CHECKLIST_CA.md`), release
+  plumbing pointers, acceptance rules, child task list.
+- Children, each with the fields-to-record block + "no close on build-only":
+  - **#193** Linux AppImage + Debian install/launch/upgrade/uninstall (§5, §17)
+  - **#194** Windows MSI + NSIS install/launch/upgrade/uninstall (§17) — real Windows host required; Blocked (not N/A) if none
+  - **#195** Android APK/AAB install, signing, remote-control (§15) — real Android 7.0+ device on LAN; Blocked if none
+  - **#196** Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13)
+  - **#197** Creative-tool MCP sidecar matrix — Blender/Krita/Godot/Aseprite/Unreal/Unity/OpenToonz (§14), unavailable host = explicit N/A
+  - **#198** Documentation website: deployed site + accessibility/privacy (§16)
+  - **#199** Publication / sign-off: artifact metadata, release notes, caveats, post-publish smoke (§17–§18)
+
+No artifact installed or live-tested yet. Milestone stays open until every
+child's disposition and final live verification are recorded on #192. Owners
+per this board; defects link to #192 and block the release until dispositioned.
+
+
+### Claude — 2026-09-01 — Release 1.0.0 acceptance PAUSED: candidate is not a cut release
+
+Ran checklist §3 line 1 (working tree / tag point to the intended commit)
+before any install. It **fails**. Full detail:
+`.agent/cache/RELEASE_1.0.0_BLOCKER.md`.
+
+- `git describe --tags 844b5d1` → `v1.0.0-18-g844b5d1`. The `v1.0.0` tag
+  points at `41c47cf` (PR #175 merge, 2026-08-29), **18 real source commits
+  behind** the candidate — the entire creative-tool MCP bridge suite
+  (Blender/Krita/Godot/Aseprite/Unreal/Unity/OpenToonz), model+effort
+  selection, Android artifact versioning, presence fix #165.
+- Candidate `844b5d1` is **not on `main`** — only on
+  `feat/model-effort-selection` (fast-forwardable from `main`, no
+  divergence).
+- GitHub `v1.0.0` release is still a **draft** (not public) — retag is
+  low-risk.
+- Local `release/*.appimage` (lowercase) ≠ the draft's `*.AppImage` assets;
+  build tree was `-dirty` (`.gitignore` `release/` line only, cosmetic).
+  Artifact provenance cannot be tied to a commit.
+- `docs/moon/CHANGELOG.md` `## [Unreleased]` still holds the candidate's
+  headline Packaging change — changelog not frozen.
+- Version strings are all `1.0.0` / `versionCode 10000` — consistent, fine.
+
+**Owner decision (2026-09-01): pause all release-acceptance work** until the
+candidate is landed on `main`, changelog frozen, `v1.0.0` retagged on that
+HEAD, and artifacts rebuilt + SHA-256 re-verified (BLOCKER.md §A–D). #193–#199
+stay open and blocked; no installs, no live matrix, no per-agent farm-out
+until the pause clears. Remediation git/tag/build actions are owner-run;
+Claude updates #192/#199, the child candidate-commit fields, and the external
+checklist §1 once the rebuild lands.
+
+— claude
+
+
+### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review
+
+- Branch `feat/quota-adapters` from `main` (`e1d9a9b`), three scoped commits. Did not touch M1/C-9b files or Gemini's uncommitted #D/#E settings work.
+- **`opencode_quota()` real** — shells out to `opencode run "/ogc-usage"` (bare `opencode ogc-usage` is parsed by the CLI as a project dir, so it must go through `run`). Parses `Rolling:`/`Weekly:`/`Monthly:` rows (tolerates both `- ` and plugin-style formatting) into percent windows with computed `resets_at`; 30s dedicated-thread read + `recv_timeout`, graceful `unavailable_quota` when the binary or opencode-usage plugin is absent. Sample captured live, not assumed.
+- **`deepseek_quota()` real** — replaced the "DeepSeek via OpenCode" stub with a direct `GET api.deepseek.com/user/balance` call (nothing about DeepSeek goes through OpenCode). `DEEPSEEK_API_KEY` from env only, never logged/echoed/sent elsewhere; missing key → `unavailable_quota` "set DEEPSEEK_API_KEY" hint. Balance fields are JSON **strings** (`"12.34"`) — parsed explicitly, surfaced via new optional `ProviderQuota.balance` (dollar amount, not a percent window) rendered distinctly in the Usage tab `QuotaChart`.
+- **Frontend mirror** — compact `QuotaStatusStrip` in the Messager sidebar agents/status area polls `hub_get_provider_quotas` every 60s (sane interval, not tight) and shows DeepSeek balance + OpenCode Go used% or a muted `unavailable` dot.
+- **Verification:** `cargo test -p tauri-app quota` 17/17 (incl. new `quota_opencode`/`quota_deepseek` tests); full `cargo test -p tauri-app` 84 passed/1 ignored; `cargo test -p hub -p cli` 233 passed; `cargo clippy -p tauri-app --all-targets -- -D warnings` clean; `npm run build` clean. Chat/Codex: please review.
+
+— DeepSeek
+
+
+### Grok — 2026-08-30 — #A Ableton MCP ready for review
+
+- Worktree `.ca-worktrees/ableton-mcp`, branch `feat/mcp-ableton` (`eab445a` + `12811ff`). Did not touch M1/C-9b files.
+- **Viability:** LOM via MIDI Remote Script is real (not file-parse-only). Port **9770**, gated `run_lom` / `--allow-run-lom` off by default.
+- Hardening: dummy-song `plugins/ableton/smoke.py`, Live 12 `ableton.v2` fallback, bind-failure log, drain `update_display` queue, `create_midi_track(len(tracks))`.
+- **Not compiler-verified against Ableton.** Chat/Codex: please review.
+- **Verification:** `python3 plugins/ableton/smoke.py` SMOKE OK; `cargo test -p mcp-ableton` 4/4; `cargo test -p hub --lib mcp::creative` 9/9; `cargo clippy -p mcp-ableton -p hub --all-targets -- -D warnings` clean.
+
+— Grok
+
+
+### Gemini — 2026-08-30 — Settings Creative Tools MCP Tab completed (Track C-9 / #187)
+
+- Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
+- Surfaces live bridge binary resolution status (`Installed` vs. `Binary Missing`), application runtime detection via process monitoring (`App Running` vs. `App Idle`), transport type (socket with port, subprocess, file-parse), and code execution / gated flag indicators (`--allow-*`).
+- Added workspace-scoped MCP configuration auto-synchronization (`.mcp.json`, `~/.gemini/antigravity.json`, `opencode.json`), a 1-click "Re-apply to Configs" action, and a "Copy Codex Snippet" TOML exporter for user configuration.
+- Maintained strict compliance with the 500-LoC repository rule across all Settings components (`SettingsApp.tsx` is 499 lines, `CreativeToolsTab.tsx` is 244 lines).
+- **Verification:** all 337 unit and integration tests across `tauri-app`, `hub`, `cli`, `tui`, and all `mcp-*` bridge crates pass (`cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz`), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
+
+— Gemini
 
 
 ### Gemini — 2026-08-29 — Settings S6 Diagnostics & Danger Zone UI completed (#132)
@@ -2259,3 +2351,34 @@ other's files.
   agent's in-flight pass (Gemini's S4/#163 entries currently uncommitted).
 
 — DeepSeek
+
+### Antigravity / DeepSeek — 2026-08-30 — Tasks #D & #E completed (Model & Effort Selection)
+
+- **Task #D (OpenCode Model Codenames & DeepSeek Harness Identity):**
+  - Added distinct `HarnessId::DeepSeek` variant alongside `HarnessId::OpenCode` (both using the `"opencode"` executable).
+  - Defaults: `DEFAULT_OPENCODE_MODEL = "opencode-go/glm-5.3"`, `DEFAULT_DEEPSEEK_MODEL = "deepseek/deepseek-v4-flash"`.
+  - Threaded `--model <model>` and `--variant <effort>` flags into `opencode_spawn_args`.
+- **Task #E (Per-Harness/Provider Model + Effort Picker across Hub, Tauri IPC & Settings UI):**
+  - **Hub Settings Persistence (`crates/hub/src/settings`):**
+    - `HarnessSettings` and `EffectiveHarnessSettings` updated with `default_model`, `default_effort`, `selected_model`, `selected_effort`, and status indicators (`Inherited` / `Workspace Override`).
+    - `WorkspaceOverride` supports `default_models` and `default_efforts` map tables in `settings.toml`.
+    - Added setters/resetters in `crates/hub/src/settings/store/workspace.rs` with full audit logging.
+    - Added comprehensive unit tests in `crates/hub/src/settings/tests/profiles.rs`.
+  - **Spawn builders across all harnesses:**
+    - `grok_spawn_args`: `--model <model>`, `--reasoning-effort <effort>`
+    - `codex_spawn_args`: `--model <model>`, `-c model_reasoning_effort="<effort>"`
+    - `claude_spawn_args`: `--model <model>`, `--effort <effort>`
+    - `gemini_spawn_args` / `gemini_managed_spawn_args`: `--model <model>`, `--effort <effort>`
+    - `opencode_spawn_args`: `--model <model>`, `--variant <effort>`
+    - `vibe_spawn_args`: model via environment in runner
+  - **Tauri IPC (`src-tauri/src/commands/settings/harness_models.rs`):**
+    - Dynamic CLI model discovery (`opencode models`, `agy models`, `grok models`) with safe 2.5s timeouts and fallback catalogs.
+    - Registered IPC commands: `settings_get_harness_model_options`, `settings_get_all_harness_options`, `settings_set_harness_model`, `settings_set_harness_effort`, `settings_set_workspace_harness_model`, `settings_reset_workspace_harness_model`, `settings_set_workspace_harness_effort`, `settings_reset_workspace_harness_effort`.
+  - **Frontend UI (`src/components/settings/`):**
+    - Extracted `src/components/settings/tabs/agents/HarnessCard.tsx` (214 LoC) and `src/components/settings/tabs/agents/ProfileSection.tsx` (294 LoC).
+    - `AgentsTab.tsx` streamlined to 257 LoC with dynamic model & effort dropdowns, status pills, override resets, and global defaults.
+  - **Strict ≤ 500 LoC Compliance:** All 20 touched/created files verified strictly under 500 lines.
+  - **Verification:**
+    - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+    - `cargo test --workspace`: all tests passed across all crates (`hub`, `tauri-app`, `cli`, `tui`, `claude`).
+    - `npm run build`: Vite build passed cleanly.

@@ -130,7 +130,9 @@ fn harness_settings_validate_executable_and_absolute_workdir() {
             executable: "grok --evil".into(),
             workdir: None,
             capture_polling: true,
-            inject_permission: true
+            inject_permission: true,
+            default_model: None,
+            default_effort: None,
         })
         .is_err());
     assert!(store
@@ -139,7 +141,9 @@ fn harness_settings_validate_executable_and_absolute_workdir() {
             executable: "grok".into(),
             workdir: Some("relative".into()),
             capture_polling: true,
-            inject_permission: false
+            inject_permission: false,
+            default_model: None,
+            default_effort: None,
         })
         .is_err());
     store
@@ -149,6 +153,8 @@ fn harness_settings_validate_executable_and_absolute_workdir() {
             workdir: Some("/abs/ws".into()),
             capture_polling: false,
             inject_permission: false,
+            default_model: Some("grok-4.6".into()),
+            default_effort: Some("high".into()),
         })
         .unwrap();
     store.save().unwrap();
@@ -159,6 +165,8 @@ fn harness_settings_validate_executable_and_absolute_workdir() {
     assert_eq!(harness.workdir.as_deref(), Some("/abs/ws"));
     assert!(!harness.capture_polling);
     assert!(!harness.inject_permission);
+    assert_eq!(harness.default_model.as_deref(), Some("grok-4.6"));
+    assert_eq!(harness.default_effort.as_deref(), Some("high"));
 }
 
 #[test]
@@ -200,4 +208,53 @@ fn workspace_default_profile_is_a_name_reference_not_a_copy() {
         store.profile("work").unwrap().model.as_deref(),
         Some("grok-4.1")
     );
+}
+
+#[test]
+fn workspace_default_model_and_effort_overrides_behave_properly() {
+    let dir = tempdir().unwrap();
+    let mut store = SettingsStore::open(dir.path());
+
+    let eff_global = store.effective_harness(None, "opencode").unwrap();
+    assert_eq!(
+        eff_global.selected_model.as_deref(),
+        Some("opencode-go/glm-5.3")
+    );
+    assert_eq!(eff_global.selected_model_status, FieldStatus::Inherited);
+
+    store
+        .set_workspace_default_model("/abs/myproject", "opencode", "deepseek/deepseek-v4-flash")
+        .unwrap();
+    store
+        .set_workspace_default_effort("/abs/myproject", "opencode", "high")
+        .unwrap();
+    store.save().unwrap();
+
+    let eff_ws = store
+        .effective_harness(Some("/abs/myproject"), "opencode")
+        .unwrap();
+    assert_eq!(
+        eff_ws.selected_model.as_deref(),
+        Some("deepseek/deepseek-v4-flash")
+    );
+    assert_eq!(eff_ws.selected_model_status, FieldStatus::Override);
+    assert_eq!(eff_ws.selected_effort.as_deref(), Some("high"));
+    assert_eq!(eff_ws.selected_effort_status, FieldStatus::Override);
+
+    store
+        .reset_workspace_default_model("/abs/myproject", "opencode")
+        .unwrap();
+    store
+        .reset_workspace_default_effort("/abs/myproject", "opencode")
+        .unwrap();
+    store.save().unwrap();
+
+    let eff_reset = store
+        .effective_harness(Some("/abs/myproject"), "opencode")
+        .unwrap();
+    assert_eq!(
+        eff_reset.selected_model.as_deref(),
+        Some("opencode-go/glm-5.3")
+    );
+    assert_eq!(eff_reset.selected_model_status, FieldStatus::Inherited);
 }

@@ -5,14 +5,13 @@ mod core;
 mod harness;
 mod pty;
 mod server;
+mod tray;
 
 use agent::{AgentConfig, AgentSystem};
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State};
 use tokio::sync::mpsc;
 
@@ -286,39 +285,7 @@ pub fn run() {
             tcp_server: Mutex::new(None),
         })
         .manage(pty::PtySessions::default())
-        .setup(|app| {
-            let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
-            let menu = MenuBuilder::new(app).item(&show_i).item(&quit_i).build()?;
-
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
-
-            Ok(())
-        })
+        .setup(tray::setup_tray)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Only the main window is tray-resident (hide instead of
@@ -475,6 +442,14 @@ pub fn run() {
             commands::commands::settings::settings_set_allow_auto_wake,
             commands::commands::settings::settings_list_agent_budgets,
             commands::commands::settings::settings_set_agent_budget,
+            commands::commands::harness_models::settings_get_harness_model_options,
+            commands::commands::harness_models::settings_get_all_harness_options,
+            commands::commands::harness_models::settings_set_harness_model,
+            commands::commands::harness_models::settings_set_harness_effort,
+            commands::commands::harness_models::settings_set_workspace_harness_model,
+            commands::commands::harness_models::settings_reset_workspace_harness_model,
+            commands::commands::harness_models::settings_set_workspace_harness_effort,
+            commands::commands::harness_models::settings_reset_workspace_harness_effort,
             commands::commands::creative_tools::creative_tools_status,
             commands::commands::creative_tools::creative_tools_set_enabled,
             commands::commands::creative_tools::creative_tools_reapply,

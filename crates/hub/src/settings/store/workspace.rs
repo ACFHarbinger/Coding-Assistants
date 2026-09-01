@@ -230,6 +230,106 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_harness_default_model(
+        &mut self,
+        harness: &str,
+        model: Option<&str>,
+    ) -> Result<(), SettingsError> {
+        let harness_id = validate_provider(harness)?;
+        let mut settings = self.harness_settings(&harness_id)?;
+        settings.default_model = model
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        self.set_harness_settings(settings)
+    }
+
+    pub fn set_harness_default_effort(
+        &mut self,
+        harness: &str,
+        effort: Option<&str>,
+    ) -> Result<(), SettingsError> {
+        let harness_id = validate_provider(harness)?;
+        let mut settings = self.harness_settings(&harness_id)?;
+        settings.default_effort = effort
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        self.set_harness_settings(settings)
+    }
+
+    pub fn set_workspace_default_model(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+        model: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        let model = model.trim();
+        if model.is_empty() {
+            return Err(SettingsError::Invalid("model must not be empty".into()));
+        }
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.default_models.insert(harness, model.to_string());
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn reset_workspace_default_model(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        if let Some(over) = self.workspaces.get_mut(&workspace) {
+            over.default_models.remove(&harness);
+            if over.is_empty() {
+                self.workspaces.remove(&workspace);
+            }
+            write_workspace_fields(&mut self.document, &self.workspaces);
+        }
+        Ok(())
+    }
+
+    pub fn set_workspace_default_effort(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+        effort: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        let effort = effort.trim();
+        if effort.is_empty() {
+            return Err(SettingsError::Invalid("effort must not be empty".into()));
+        }
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.default_efforts.insert(harness, effort.to_string());
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn reset_workspace_default_effort(
+        &mut self,
+        workspace: &str,
+        harness: &str,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let harness = validate_provider(harness)?;
+        if let Some(over) = self.workspaces.get_mut(&workspace) {
+            over.default_efforts.remove(&harness);
+            if over.is_empty() {
+                self.workspaces.remove(&workspace);
+            }
+            write_workspace_fields(&mut self.document, &self.workspaces);
+        }
+        Ok(())
+    }
+
     pub fn effective_harness(
         &self,
         workspace: Option<&str>,
@@ -239,7 +339,7 @@ impl SettingsStore {
         Ok(effective_harnesses(
             &self.harnesses,
             &self.profiles,
-            workspace.and_then(|path| self.workspaces.get(path).map(|over| &over.default_profiles)),
+            workspace.and_then(|path| self.workspaces.get(path)),
         )
         .into_iter()
         .find(|entry| entry.harness == harness)
@@ -254,6 +354,10 @@ impl SettingsStore {
                 default_profile: None,
                 default_profile_status: FieldStatus::Inherited,
                 default_profile_badge: None,
+                selected_model: settings.default_model,
+                selected_model_status: FieldStatus::Inherited,
+                selected_effort: settings.default_effort,
+                selected_effort_status: FieldStatus::Inherited,
             }
         }))
     }
