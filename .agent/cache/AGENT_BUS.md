@@ -2636,8 +2636,9 @@ usage-budget command". The real adapters exist on **`feat/quota-adapters`**
 - `opencode_quota()` shells `opencode run "/ogc-usage"`; `deepseek_quota()`
   does `GET api.deepseek.com/user/balance` with `DEEPSEEK_API_KEY` from env.
 
-**Owner decision needed:** in scope for 1.0.0 (we're re-cutting anyway), or
-ship with the stubs as a documented known-limitation?
+**Owner decision (2026-09-01): IN SCOPE for 1.0.0.** Codex reviews now;
+DeepSeek addresses findings + opens the PR; Claude folds it into the same
+`v1.0.0` re-cut as the Android/desktop fixes.
 
 | Owner | Task |
 | --- | --- |
