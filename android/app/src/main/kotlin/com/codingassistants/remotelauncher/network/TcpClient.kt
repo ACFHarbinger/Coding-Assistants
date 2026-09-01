@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
@@ -152,20 +153,29 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
     private val _messages = MutableSharedFlow<ServerResponse>()
     val messages = _messages.asSharedFlow()
 
+    private var onConnectionLostListener: (() -> Unit)? = null
+    private var userInitiatedDisconnect = false
+
     private val json =
         Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
         }
 
+    fun setOnConnectionLostListener(listener: () -> Unit) {
+        onConnectionLostListener = listener
+    }
+
     suspend fun connect(): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
+                userInitiatedDisconnect = false
                 socket = Socket(host, port)
                 writer = PrintWriter(socket!!.getOutputStream(), true)
                 reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
 
                 startListening()
+                startHeartbeat()
 
                 Result.success(Unit)
             } catch (e: Exception) {
@@ -190,8 +200,36 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                disconnect()
+                handleSocketClosed()
             }
+        }
+    }
+
+    private fun startHeartbeat() {
+        scope.launch {
+            while (isActive && isConnected()) {
+                delay(5000)
+                if (!isActive || !isConnected()) break
+                try {
+                    val jsonString = json.encodeToString<ClientRequest>(ClientRequest.GetStatus())
+                    writer?.println(jsonString)
+                    if (writer?.checkError() == true) {
+                        handleSocketClosed()
+                        break
+                    }
+                } catch (e: Exception) {
+                    handleSocketClosed()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun handleSocketClosed() {
+        val wasExplicit = userInitiatedDisconnect
+        disconnectInternal()
+        if (!wasExplicit) {
+            onConnectionLostListener?.invoke()
         }
     }
 
@@ -200,8 +238,14 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             try {
                 val jsonString = json.encodeToString(request)
                 writer?.println(jsonString)
-                Result.success(Unit)
+                if (writer?.checkError() == true) {
+                    handleSocketClosed()
+                    Result.failure(java.io.IOException("Socket write error"))
+                } else {
+                    Result.success(Unit)
+                }
             } catch (e: Exception) {
+                handleSocketClosed()
                 Result.failure(e)
             }
         }
@@ -234,6 +278,11 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
     suspend fun submitInput(input: String): Result<Unit> = sendRequest(ClientRequest.SubmitInput(input = input))
 
     fun disconnect() {
+        userInitiatedDisconnect = true
+        disconnectInternal()
+    }
+
+    private fun disconnectInternal() {
         try {
             scope.coroutineContext.cancelChildren()
             writer?.close()

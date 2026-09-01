@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,8 +52,10 @@ fun DashboardScreen(
     onRefreshWakes: () -> Unit,
     onConfigureTask: () -> Unit,
     onDisconnect: () -> Unit,
+    onReconnect: () -> Unit = {},
 ) {
     var showDisconnectDialog by remember { mutableStateOf(false) }
+    val isLive = state.isConnected && !state.isConnectionLost
 
     BackHandler {
         showDisconnectDialog = true
@@ -107,19 +111,80 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (!isLive) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Connection Lost",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        Text(
+                            text =
+                                if (state.isReconnecting) {
+                                    "Reconnecting to ${state.serverAddress}..."
+                                } else {
+                                    "Disconnected from ${state.serverAddress}"
+                                },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                    if (state.isReconnecting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    } else {
+                        Button(
+                            onClick = onReconnect,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text("Reconnect")
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Status: Connected to ${state.serverAddress}",
-                    color = MaterialTheme.colorScheme.secondary,
+                    text =
+                        if (isLive) {
+                            "Status: Connected to ${state.serverAddress}"
+                        } else {
+                            "Status: Disconnected (${state.serverAddress})"
+                        },
+                    color =
+                        if (isLive) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onConfigureTask,
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = isLive,
                 ) {
                     Text("Configure & Start Task")
                 }
@@ -138,7 +203,10 @@ fun DashboardScreen(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            TextButton(onClick = onRefreshWakes) {
+            TextButton(
+                onClick = onRefreshWakes,
+                enabled = isLive,
+            ) {
                 Text("Refresh")
             }
         }
@@ -165,7 +233,11 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.pendingWakes) { wake ->
-                    WakeCard(wake = wake, onResolve = onResolveWake)
+                    WakeCard(
+                        wake = wake,
+                        enabled = isLive,
+                        onResolve = onResolveWake,
+                    )
                 }
             }
         }
@@ -191,9 +263,10 @@ fun DashboardScreen(
             LazyColumn {
                 items(state.activeEvents.reversed()) { event ->
                     Text(
-                        text = "[${event.source}] ${event.event_type}: ${event.content.take(
-                            100,
-                        )}${if (event.content.length > 100) "..." else ""}",
+                        text =
+                            "[${event.source}] ${event.event_type}: ${event.content.take(
+                                100,
+                            )}${if (event.content.length > 100) "..." else ""}",
                         color = Color.Green,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 4.dp),
@@ -207,6 +280,7 @@ fun DashboardScreen(
 @Composable
 fun WakeCard(
     wake: WakeRecord,
+    enabled: Boolean = true,
     onResolve: (String, Boolean) -> Unit,
 ) {
     val context = wake.toDisplayContext()
@@ -310,6 +384,7 @@ fun WakeCard(
             ) {
                 Button(
                     onClick = { onResolve(wake.id, false) },
+                    enabled = enabled,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.padding(end = 8.dp),
                 ) {
@@ -320,6 +395,7 @@ fun WakeCard(
 
                 Button(
                     onClick = { onResolve(wake.id, true) },
+                    enabled = enabled,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                 ) {
                     Icon(Icons.Default.Check, contentDescription = "Approve")

@@ -9,6 +9,7 @@ import com.codingassistants.remotelauncher.network.RoleConfig
 import com.codingassistants.remotelauncher.network.ServerResponse
 import com.codingassistants.remotelauncher.network.TcpClient
 import com.codingassistants.remotelauncher.network.WakeRecord
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,8 @@ sealed class Screen {
 data class AppState(
     val currentScreen: Screen = Screen.Connection,
     val isConnected: Boolean = false,
+    val isConnectionLost: Boolean = false,
+    val isReconnecting: Boolean = false,
     val serverAddress: String = "",
     val errorMessage: String? = null,
     val availableModels: Map<String, List<String>> = ProviderCatalog.merge(emptyMap()),
@@ -69,43 +72,126 @@ class MainViewModel : ViewModel() {
                     _state.value.copy(
                         errorMessage = null,
                         serverAddress = ipAddress,
+                        isConnectionLost = false,
+                        isReconnecting = false,
                     )
 
-                tcpClient = TcpClient(ipAddress)
-                val connectResult = tcpClient?.connect()
+                val client = TcpClient(ipAddress)
+                val connectResult = client.connect()
 
-                if (connectResult?.isSuccess == true) {
+                if (connectResult.isSuccess) {
+                    tcpClient = client
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
+                            isConnectionLost = false,
+                            isReconnecting = false,
+                            currentScreen = Screen.Dashboard,
                         )
+
+                    client.setOnConnectionLostListener {
+                        viewModelScope.launch {
+                            handleConnectionLost()
+                        }
+                    }
 
                     // Start listening to messages
                     launch {
-                        tcpClient?.messages?.collect { response ->
+                        client.messages.collect { response ->
                             handleResponse(response)
                         }
                     }
 
-                    // Jump to Dashboard instead of fetching models right away
-                    _state.value =
-                        _state.value.copy(
-                            currentScreen = Screen.Dashboard,
-                        )
                     refreshWakes()
                 } else {
                     _state.value =
                         _state.value.copy(
-                            errorMessage = "Connection failed: ${connectResult?.exceptionOrNull()?.message}",
+                            isConnected = false,
+                            errorMessage = "Connection failed: ${connectResult.exceptionOrNull()?.message}",
                         )
                 }
             } catch (e: Exception) {
                 _state.value =
                     _state.value.copy(
+                        isConnected = false,
                         errorMessage = "Error: ${e.message}",
                     )
             }
         }
+    }
+
+    private fun handleConnectionLost() {
+        _state.value =
+            _state.value.copy(
+                isConnected = false,
+                isConnectionLost = true,
+            )
+        attemptAutoReconnect()
+    }
+
+    fun reconnect() {
+        viewModelScope.launch {
+            attemptReconnect(maxAttempts = 1)
+        }
+    }
+
+    private fun attemptAutoReconnect() {
+        viewModelScope.launch {
+            attemptReconnect(maxAttempts = 3)
+        }
+    }
+
+    private suspend fun attemptReconnect(maxAttempts: Int) {
+        val address = _state.value.serverAddress
+        if (address.isBlank()) return
+
+        _state.value = _state.value.copy(isReconnecting = true)
+
+        for (attempt in 1..maxAttempts) {
+            if (_state.value.isConnected && !_state.value.isConnectionLost) {
+                _state.value = _state.value.copy(isReconnecting = false)
+                return
+            }
+            if (attempt > 1) {
+                delay(2000)
+            }
+            try {
+                val client = TcpClient(address)
+                val connectResult = client.connect()
+                if (connectResult.isSuccess) {
+                    tcpClient = client
+                    _state.value =
+                        _state.value.copy(
+                            isConnected = true,
+                            isConnectionLost = false,
+                            isReconnecting = false,
+                            errorMessage = null,
+                        )
+
+                    client.setOnConnectionLostListener {
+                        viewModelScope.launch {
+                            handleConnectionLost()
+                        }
+                    }
+
+                    viewModelScope.launch {
+                        client.messages.collect { response ->
+                            handleResponse(response)
+                        }
+                    }
+
+                    refreshWakes()
+                    return
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        _state.value =
+            _state.value.copy(
+                isReconnecting = false,
+                errorMessage = "Connection to $address lost. Tap Reconnect to try again.",
+            )
     }
 
     private fun handleResponse(response: ServerResponse) {
@@ -166,6 +252,7 @@ class MainViewModel : ViewModel() {
 
     fun disconnect() {
         tcpClient?.disconnect()
+        tcpClient = null
         _state.value = AppState()
     }
 

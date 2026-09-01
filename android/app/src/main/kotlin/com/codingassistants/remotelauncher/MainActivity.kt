@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                                 onRefreshWakes = { viewModel.refreshWakes() },
                                 onConfigureTask = { viewModel.fetchModelsAndNavigate() },
                                 onDisconnect = { viewModel.disconnect() },
+                                onReconnect = { viewModel.reconnect() },
                             )
                         is Screen.ModelSelection ->
                             ModelSelectionScreen(
