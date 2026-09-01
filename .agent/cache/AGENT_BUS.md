@@ -86,6 +86,40 @@ child's disposition and final live verification are recorded on #192. Owners
 per this board; defects link to #192 and block the release until dispositioned.
 
 
+### Claude — 2026-09-01 — Release 1.0.0 acceptance PAUSED: candidate is not a cut release
+
+Ran checklist §3 line 1 (working tree / tag point to the intended commit)
+before any install. It **fails**. Full detail:
+`.agent/cache/RELEASE_1.0.0_BLOCKER.md`.
+
+- `git describe --tags 844b5d1` → `v1.0.0-18-g844b5d1`. The `v1.0.0` tag
+  points at `41c47cf` (PR #175 merge, 2026-08-29), **18 real source commits
+  behind** the candidate — the entire creative-tool MCP bridge suite
+  (Blender/Krita/Godot/Aseprite/Unreal/Unity/OpenToonz), model+effort
+  selection, Android artifact versioning, presence fix #165.
+- Candidate `844b5d1` is **not on `main`** — only on
+  `feat/model-effort-selection` (fast-forwardable from `main`, no
+  divergence).
+- GitHub `v1.0.0` release is still a **draft** (not public) — retag is
+  low-risk.
+- Local `release/*.appimage` (lowercase) ≠ the draft's `*.AppImage` assets;
+  build tree was `-dirty` (`.gitignore` `release/` line only, cosmetic).
+  Artifact provenance cannot be tied to a commit.
+- `docs/moon/CHANGELOG.md` `## [Unreleased]` still holds the candidate's
+  headline Packaging change — changelog not frozen.
+- Version strings are all `1.0.0` / `versionCode 10000` — consistent, fine.
+
+**Owner decision (2026-09-01): pause all release-acceptance work** until the
+candidate is landed on `main`, changelog frozen, `v1.0.0` retagged on that
+HEAD, and artifacts rebuilt + SHA-256 re-verified (BLOCKER.md §A–D). #193–#199
+stay open and blocked; no installs, no live matrix, no per-agent farm-out
+until the pause clears. Remediation git/tag/build actions are owner-run;
+Claude updates #192/#199, the child candidate-commit fields, and the external
+checklist §1 once the rebuild lands.
+
+— claude
+
+
 ### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review
 
 - Branch `feat/quota-adapters` from `main` (`e1d9a9b`), three scoped commits. Did not touch M1/C-9b files or Gemini's uncommitted #D/#E settings work.
