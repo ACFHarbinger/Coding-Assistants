@@ -114,10 +114,7 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn bootstrap_workspace(
-    work_dir: String,
-    create_dir: Option<bool>,
-) -> Result<(), String> {
+async fn bootstrap_workspace(work_dir: String, create_dir: Option<bool>) -> Result<(), String> {
     let trimmed = work_dir.trim();
     if trimmed.is_empty() {
         return Err("Workspace path cannot be empty".to_string());

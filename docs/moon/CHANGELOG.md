@@ -12,13 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Android Configure & Start Task can rename roles and attach workspace
   prompts, rules, workflows, and skills. The companion fetches them over a
   new `GetAgentResources` TCP request that lists `.agent` files from the
-  desktop default workspace (same fields as the Orchestrate role card).
+  desktop default workspace (same fields as the Orchestrate role card) (#209).
 
 ### Fixed
 
 - **Android Companion — Provider & Model Fallbacks (#208) & Wake Approval Context (#206):**
   - The agent provider dropdown is never empty — it unions the desktop GetModels map with a static provider/model catalog so selection works offline and before the TCP reply, and the model field accepts a typed name (#208).
   - Pending human-approval cards parse wake routing tags into an action label, resolved target, payload preview, and a human-gate badge (#206).
+- **Android Companion — Navigation & Disconnect Handling (#211, #212, #207):**
+  - System Back pops the in-session screen stack instead of dropping the TCP connection; Dashboard Back asks before disconnect (#211).
+  - Socket loss is detected and shown as a reconnectable Connection Lost state instead of a stale live Dashboard (#212).
+  - Android connection screen remembers the last successful host, validates input, and keeps long ids/addresses selectable (#207).
 
 - **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
   - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
@@ -32,10 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Desktop Workspace Bootstrap Validation (#215-B):**
+  - Initialize .agent/ requires an absolute path and an explicit `create_dir` flag, asking for confirmation if the workspace directory does not exist.
+
 - **Desktop UI — File Picker Path Input & Config Loading (#215-A):**
   - Added manual path input fallback with Enter key handling and "Load Path" button next to "Browse…" in `ConfigPanel.tsx` for MCP Configuration loading.
   - Configured file dialog filters and default paths for workspace root and MCP configuration dialogs.
-  - Added confirmation dialog for `.agent/` workspace bootstrapping with `createDir: true` parameter support.
 
 ## [1.0.0] - 2026-09-01
 

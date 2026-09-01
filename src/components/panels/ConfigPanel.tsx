@@ -54,6 +54,7 @@ export default function ConfigPanel({
   const [creatingWorkSession, setCreatingWorkSession] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [externalConfigPath, setExternalConfigPath] = useState("");
+  const [bootstrapping, setBootstrapping] = useState(false);
 
   const loadConfigFromPath = async (inputPath: string) => {
     const trimmed = inputPath.trim();
@@ -90,6 +91,44 @@ export default function ConfigPanel({
       setSessionError(msg.replace(/^Error:\s*/, ""));
     } finally {
       setCreatingWorkSession(false);
+    }
+  };
+
+  const invokeErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    return String(error);
+  };
+
+  const bootstrapWorkspace = async (createDir = false) => {
+    await invoke("bootstrap_workspace", { workDir: config.work_dir.trim(), createDir });
+  };
+
+  const initializeAgentDir = async () => {
+    const path = config.work_dir.trim();
+    if (!path) {
+      alert("Set an absolute workspace path first.");
+      return;
+    }
+    if (bootstrapping) return;
+    setBootstrapping(true);
+    try {
+      try {
+        await bootstrapWorkspace(false);
+      } catch (error) {
+        const message = invokeErrorMessage(error);
+        if (!/does not exist/i.test(message)) throw error;
+        const confirmed = window.confirm(
+          `${path} does not exist. Create this directory and initialize .agent/ in it?`,
+        );
+        if (!confirmed) return;
+        await bootstrapWorkspace(true);
+      }
+      alert(`Successfully bootstrapped .agent/ in ${path}`);
+    } catch (error) {
+      alert(`Failed to bootstrap: ${invokeErrorMessage(error)}`);
+    } finally {
+      setBootstrapping(false);
     }
   };
 
@@ -266,23 +305,10 @@ export default function ConfigPanel({
           <button
             className="btn-secondary"
             style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-            onClick={async () => {
-              const trimmed = (config.work_dir || "").trim();
-              if (!trimmed) {
-                alert("Please specify a workspace root directory first.");
-                return;
-              }
-              const confirmCreate = confirm(`Initialize .agent/ directory structure in ${trimmed}? If the folder does not exist, it will be created.`);
-              if (!confirmCreate) return;
-              try {
-                await invoke("bootstrap_workspace", { workDir: trimmed, createDir: true });
-                alert(`Successfully bootstrapped .agent/ in ${trimmed}`);
-              } catch (err) {
-                alert(`Failed to bootstrap: ${err}`);
-              }
-            }}
+            onClick={() => void initializeAgentDir()}
+            disabled={bootstrapping}
           >
-            Initialize .agent/
+            {bootstrapping ? "Initializing…" : "Initialize .agent/"}
           </button>
         </div>
       </section>
