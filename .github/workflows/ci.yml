@@ -48,6 +48,22 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> ../target"
+      # `tauri.conf.json` bundle.externalBin requires the Creative Tools MCP
+      # sidecar binaries to exist before any cargo invocation of `tauri-app`
+      # (its build script resolves the target-qualified names). Mirror the
+      # release workflow: build the seven bridges, then stage them.
+      - name: Build and stage Creative Tools MCP sidecars
+        run: |
+          target="$(rustc -vV | awk '/^host: / { print $2 }')"
+          cargo build --release --target "${target}" \
+            -p mcp-blender \
+            -p mcp-krita \
+            -p mcp-godot \
+            -p mcp-aseprite \
+            -p mcp-unreal \
+            -p mcp-unity \
+            -p mcp-opentoonz
+          node tools/release/stage-mcp-sidecars.mjs "${target}"
       - name: Format check (whole workspace)
         run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
