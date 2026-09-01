@@ -116,6 +116,46 @@ pub(super) fn run(store: &HubStore, action: MemoryCommand) -> anyhow::Result<()>
             let suggestions = store.apply_link_suggestions(&memory_id, mode, limit)?;
             println!("{}", serde_json::to_string_pretty(&suggestions)?);
         }
+        MemoryCommand::SemanticSearch {
+            query,
+            limit,
+            scope,
+            tier,
+            workspace,
+        } => {
+            let scope = scope.map(|s| MemoryScope::parse(&s)).transpose()?;
+            let tier = tier.map(|t| MemoryTier::parse(&t)).transpose()?;
+            let results = store.search_memories_semantic(
+                &query,
+                limit,
+                scope,
+                tier,
+                workspace.as_deref(),
+            )?;
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        }
+        MemoryCommand::HybridSearch {
+            query,
+            limit,
+            scope,
+            tier,
+            workspace,
+        } => {
+            let scope = scope.map(|s| MemoryScope::parse(&s)).transpose()?;
+            let tier = tier.map(|t| MemoryTier::parse(&t)).transpose()?;
+            let results = store.search_memories_hybrid(
+                &query,
+                limit,
+                scope,
+                tier,
+                workspace.as_deref(),
+            )?;
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        }
+        MemoryCommand::Reindex => {
+            let count = store.reindex_memory_vectors()?;
+            println!("{{\"reindexed\":{count}}}");
+        }
     }
     Ok(())
 }

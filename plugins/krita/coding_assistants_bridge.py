@@ -27,7 +27,11 @@ from contextlib import redirect_stdout
 
 try:
     from krita import Extension, InfoObject, Krita  # type: ignore
-    from PyQt5.QtCore import QTimer  # type: ignore
+
+    try:
+        from PyQt6.QtCore import QTimer  # type: ignore  # Krita 6 (Qt6 port)
+    except ImportError:
+        from PyQt5.QtCore import QTimer  # type: ignore  # Krita 5
 
     _IN_KRITA = True
 except ImportError:  # allow py_compile / ruff outside Krita
@@ -130,7 +134,14 @@ def _op_set_layer_opacity(args):
 def _op_export_document(args):
     doc = _active_doc()
     path = args["path"]
-    ok = doc.exportImage(path, InfoObject())
+    # Batch mode suppresses the format-options dialog exportImage() would
+    # otherwise pop on the GUI thread, which would deadlock the pump.
+    was_batch = doc.batchmode()
+    doc.setBatchmode(True)
+    try:
+        ok = doc.exportImage(path, InfoObject())
+    finally:
+        doc.setBatchmode(was_batch)
     if not ok:
         raise RuntimeError(f"Krita refused to export to {path!r} (unsupported format?)")
     return {"exported": path}

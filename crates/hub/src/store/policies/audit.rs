@@ -79,6 +79,17 @@ impl HubStore {
             CREATE INDEX IF NOT EXISTS idx_memories_workspace
                 ON memories(workspace_path);
 
+            CREATE TABLE IF NOT EXISTS memory_vectors (
+                memory_id TEXT PRIMARY KEY NOT NULL,
+                dimensions INTEGER NOT NULL,
+                vector_blob BLOB NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_memory_vectors_created
+                ON memory_vectors(created_at);
+
             CREATE TABLE IF NOT EXISTS memory_links (
                 id TEXT PRIMARY KEY NOT NULL,
                 from_memory_id TEXT NOT NULL,
