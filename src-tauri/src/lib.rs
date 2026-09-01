@@ -8,6 +8,7 @@ mod server;
 mod tray;
 
 use agent::{AgentConfig, AgentSystem};
+use core::agent_resources::AgentResources;
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,13 +21,6 @@ struct AppState {
     cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
     user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
     tcp_server: Mutex<Option<TcpServer>>,
-}
-
-#[derive(serde::Serialize)]
-struct AgentResources {
-    prompts: Vec<String>,
-    rules: Vec<String>,
-    workflows: Vec<String>,
 }
 
 #[tauri::command]
@@ -84,33 +78,7 @@ fn cancel_task(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String> {
-    // Note: tools variable is unused in this logic but keeping structure for potential future use or removing if completely unneeded.
-    // For now we just scan directories.
-
-    let base_path = std::path::Path::new(&work_dir).join(".agent");
-    let prompts_dir = base_path.join("prompts");
-    let rules_dir = base_path.join("rules");
-    let workflows_dir = base_path.join("workflows");
-
-    async fn list_files(dir: &std::path::Path, prefix: &str) -> Vec<String> {
-        let mut out = Vec::new();
-        let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
-            return out;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            if entry.path().is_file() {
-                let filename = entry.file_name().to_string_lossy().to_string();
-                out.push(format!("{}/{}", prefix, filename));
-            }
-        }
-        out
-    }
-
-    Ok(AgentResources {
-        prompts: list_files(&prompts_dir, ".agent/prompts").await,
-        rules: list_files(&rules_dir, ".agent/rules").await,
-        workflows: list_files(&workflows_dir, ".agent/workflows").await,
-    })
+    Ok(core::agent_resources::list_agent_resources(&work_dir))
 }
 
 /// `ps` process-table scan — offload so Orchestrate discovery does not

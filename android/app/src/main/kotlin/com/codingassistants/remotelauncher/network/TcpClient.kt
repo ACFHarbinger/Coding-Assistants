@@ -56,6 +56,10 @@ sealed class ClientRequest {
         val wake_id: String,
         val approve: Boolean,
     ) : ClientRequest()
+
+    @Serializable
+    @SerialName("GetAgentResources")
+    class GetAgentResources : ClientRequest()
 }
 
 @Serializable
@@ -78,6 +82,7 @@ data class ModelConfig(
     val prompt_file: String? = null,
     val rule_file: String? = null,
     val workflow_file: String? = null,
+    val skill_file: String? = null,
 )
 
 @Serializable
@@ -130,7 +135,25 @@ sealed class ServerResponse {
     data class WakeResolved(
         val wake_id: String,
     ) : ServerResponse()
+
+    @Serializable
+    @SerialName("AgentResourcesList")
+    data class AgentResourcesList(
+        val work_dir: String,
+        val prompts: List<String> = emptyList(),
+        val rules: List<String> = emptyList(),
+        val workflows: List<String> = emptyList(),
+        val skills: List<String> = emptyList(),
+    ) : ServerResponse()
 }
+
+@Serializable
+data class AgentResources(
+    val prompts: List<String> = emptyList(),
+    val rules: List<String> = emptyList(),
+    val workflows: List<String> = emptyList(),
+    val skills: List<String> = emptyList(),
+)
 
 @Serializable
 data class WakeRecord(
@@ -251,6 +274,8 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
         }
 
     suspend fun getModels(): Result<Unit> = sendRequest(ClientRequest.GetModels())
+
+    suspend fun getAgentResources(): Result<Unit> = sendRequest(ClientRequest.GetAgentResources())
 
     suspend fun startTask(
         config: AgentConfig,

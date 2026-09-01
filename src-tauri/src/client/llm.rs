@@ -64,6 +64,8 @@ pub struct ModelConfig {
     pub prompt_file: Option<String>,
     pub rule_file: Option<String>,
     pub workflow_file: Option<String>,
+    #[serde(default)]
+    pub skill_file: Option<String>,
 }
 
 impl Default for ModelConfig {
@@ -75,6 +77,7 @@ impl Default for ModelConfig {
             prompt_file: None,
             rule_file: None,
             workflow_file: None,
+            skill_file: None,
         }
     }
 }

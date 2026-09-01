@@ -39,8 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.codingassistants.remotelauncher.network.AgentResources
 import com.codingassistants.remotelauncher.network.ProviderCatalog
 import com.codingassistants.remotelauncher.network.RoleConfig
 import com.codingassistants.remotelauncher.viewmodel.AppState
@@ -119,6 +119,7 @@ fun ModelSelectionScreen(
                 RoleCard(
                     role = role,
                     availableModels = state.availableModels,
+                    resources = state.agentResources,
                     onUpdate = { onUpdateRole(index, it) },
                     onRemove = { onRemoveRole(index) },
                 )
@@ -136,6 +137,7 @@ fun ModelSelectionScreen(
 fun RoleCard(
     role: RoleConfig,
     availableModels: Map<String, List<String>>,
+    resources: AgentResources,
     onUpdate: (RoleConfig) -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -161,10 +163,11 @@ fun RoleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = role.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                OutlinedTextField(
+                    value = role.name,
+                    onValueChange = { onUpdate(role.copy(name = it)) },
+                    label = { Text("Role name") },
+                    singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onRemove) {
@@ -260,6 +263,14 @@ fun RoleCard(
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+
+            RoleResourcePickers(
+                role = role,
+                resources = resources,
+                onUpdate = onUpdate,
+            )
         }
     }
 }

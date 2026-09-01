@@ -3,6 +3,7 @@ package com.codingassistants.remotelauncher.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codingassistants.remotelauncher.network.AgentConfig
+import com.codingassistants.remotelauncher.network.AgentResources
 import com.codingassistants.remotelauncher.network.ModelConfig
 import com.codingassistants.remotelauncher.network.ProviderCatalog
 import com.codingassistants.remotelauncher.network.RoleConfig
@@ -57,6 +58,7 @@ data class AppState(
     val isExecutingTask: Boolean = false,
     val pendingWakes: List<WakeRecord> = emptyList(),
     val activeEvents: List<ServerResponse.TaskEvent> = emptyList(),
+    val agentResources: AgentResources = AgentResources(),
 )
 
 class MainViewModel : ViewModel() {
@@ -234,6 +236,20 @@ class MainViewModel : ViewModel() {
             is ServerResponse.WakeResolved -> {
                 refreshWakes()
             }
+            is ServerResponse.AgentResourcesList -> {
+                val resolved = response.work_dir.trim()
+                _state.value =
+                    _state.value.copy(
+                        agentResources =
+                            AgentResources(
+                                prompts = response.prompts,
+                                rules = response.rules,
+                                workflows = response.workflows,
+                                skills = response.skills,
+                            ),
+                        workDir = resolved.ifEmpty { _state.value.workDir },
+                    )
+            }
             is ServerResponse.Error -> {
                 _state.value =
                     _state.value.copy(
@@ -374,6 +390,7 @@ class MainViewModel : ViewModel() {
     fun fetchModelsAndNavigate() {
         viewModelScope.launch {
             tcpClient?.getModels()
+            tcpClient?.getAgentResources()
             _state.value = _state.value.copy(currentScreen = Screen.ModelSelection)
         }
     }

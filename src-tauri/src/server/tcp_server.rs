@@ -19,6 +19,7 @@ pub enum ClientRequest {
     GetPendingWakes,
     ResolveWake { wake_id: String, approve: bool },
     GetAgentCards,
+    GetAgentResources,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +52,13 @@ pub enum ServerResponse {
     },
     AgentCardsList {
         cards: Vec<hub::AgentRecord>,
+    },
+    AgentResourcesList {
+        work_dir: String,
+        prompts: Vec<String>,
+        rules: Vec<String>,
+        workflows: Vec<String>,
+        skills: Vec<String>,
     },
 }
 
@@ -314,6 +322,17 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
                 message: e.to_string(),
             },
         },
+        ClientRequest::GetAgentResources => {
+            let work_dir = crate::core::agent_resources::resolve_desktop_workspace();
+            let resources = crate::core::agent_resources::list_agent_resources(&work_dir);
+            ServerResponse::AgentResourcesList {
+                work_dir,
+                prompts: resources.prompts,
+                rules: resources.rules,
+                workflows: resources.workflows,
+                skills: resources.skills,
+            }
+        }
     }
 }
 
