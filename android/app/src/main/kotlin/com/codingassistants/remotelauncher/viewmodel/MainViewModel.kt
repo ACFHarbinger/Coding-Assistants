@@ -1,6 +1,8 @@
 package com.codingassistants.remotelauncher.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.codingassistants.remotelauncher.network.AgentConfig
 import com.codingassistants.remotelauncher.network.AgentResources
@@ -59,13 +61,24 @@ data class AppState(
     val pendingWakes: List<WakeRecord> = emptyList(),
     val activeEvents: List<ServerResponse.TaskEvent> = emptyList(),
     val agentResources: AgentResources = AgentResources(),
+    val lastServerIp: String = "",
 )
 
-class MainViewModel : ViewModel() {
-    private val _state = MutableStateFlow(AppState())
+class MainViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+    private val prefs =
+        application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val _state =
+        MutableStateFlow(AppState(lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: ""))
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     private var tcpClient: TcpClient? = null
+
+    private fun persistServerIp(ipAddress: String) {
+        prefs.edit().putString(PREF_LAST_SERVER_IP, ipAddress).apply()
+    }
 
     fun connectToServer(ipAddress: String) {
         viewModelScope.launch {
@@ -83,11 +96,13 @@ class MainViewModel : ViewModel() {
 
                 if (connectResult.isSuccess) {
                     tcpClient = client
+                    persistServerIp(ipAddress)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
+                            lastServerIp = ipAddress,
                             currentScreen = Screen.Dashboard,
                         )
 
@@ -162,11 +177,13 @@ class MainViewModel : ViewModel() {
                 val connectResult = client.connect()
                 if (connectResult.isSuccess) {
                     tcpClient = client
+                    persistServerIp(address)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
+                            lastServerIp = address,
                             errorMessage = null,
                         )
 
@@ -398,5 +415,10 @@ class MainViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         tcpClient?.disconnect()
+    }
+
+    companion object {
+        private const val PREFS_NAME = "ca_remote_prefs"
+        private const val PREF_LAST_SERVER_IP = "last_server_ip"
     }
 }

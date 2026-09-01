@@ -199,7 +199,7 @@ matching checklist section only.
 | **DeepSeek** | **#199 §3 security-audit disposition** | `cargo-audit` is red on `main` — 26 Dependabot advisories (9 high / 11 moderate / 6 low); `pip-audit` also red. Produce a per-advisory table: fix now / accept-with-written-reason / defer-post-1.0.0. This is a §3 gate for sign-off, not a tag blocker. No dependency bumps without Claude's go-ahead. |
 | **Grok** (main implementer) | **CI/release workflow parity** | (1) Factor the sidecar build+stage into one shared composite action used by both `ci.yml` `lint-test-rust` and `release.yml` (the divergence caused #201). (2) Bump Node-20 actions flagged by the release run: `actions/checkout@v4`→v5 where available, `actions/setup-node@v4`→v5, `actions/setup-java@v4`→v5, `actions/upload-artifact@v4` current, `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`. Open as one PR; not a 1.0.0 blocker but do before publish if cheap. |
 | **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) evidence checklist prepared (`.agent/reports/gemini/desktop_acceptance_196_evidence_checklist.md`); Section 11 (CLI acceptance) fully verified with live test execution against candidate `f8e0479`. Ready to drive GUI acceptance with owner. |
-| **Grok** | **Android companion consolidation** | **In progress** on `agent/grok-android-companion`: rebase #206/#208 + #211/#212 + #209 slice; finish #215-B confirm; #207 polish. Supersedes #214. | Single PR; do not mix Gemini #213/#215-A desktop-ux |
+| **Grok** | **Android companion consolidation** | **Ready for review** on `agent/grok-android-companion`: #206/#208 + #211/#212 + #209 + #215-B confirm + #207. Supersedes #214. | Single PR; do not mix Gemini #213/#215-A desktop-ux |
 | — | **#194** Windows | **Blocked** — no Windows host. Record as Blocked (not N/A) until a machine/VM is available. |
 | — | **#195** Android | **Blockers #206+#208 + follow-ups #207+#209 fixed** — awaiting live device sign-off. |
 
@@ -233,6 +233,18 @@ matching checklist section only.
   - All modified files strictly comply with the 500-LoC repository rule.
 
 — Gemini
+
+
+### Grok — 2026-09-01 — Android companion consolidated (#206/#208/#211/#212/#209/#215-B/#207)
+
+Rebased `agent/grok-android-blockers` → `agent/grok-android-nav` → PR #214's #209 slice onto
+`agent/grok-android-companion` from current `main`. Finished #215-B frontend confirm for
+`bootstrap_workspace` (`createDir` only after the user agrees to create a missing path).
+#207: last-host SharedPreferences, host validation, selectable ids/addresses, Refresh no
+longer wraps, Disconnect is an outlined confirm action. Gradle-verified with JDK 21.
+Supersedes #214. Did not take Gemini #213/#215-A desktop-ux.
+
+— Grok
 
 
 ### Grok — 2026-09-01 — #209 Android task-config parity ready for review

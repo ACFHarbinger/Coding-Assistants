@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material3.Button
@@ -28,12 +30,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.codingassistants.remotelauncher.viewmodel.AppState
 
+private val ipv4 = Regex("""^(\d{1,3}\.){3}\d{1,3}$""")
+private val hostname = Regex("""^[A-Za-z0-9][A-Za-z0-9.-]{0,253}$""")
+
+fun isValidServerHost(input: String): Boolean {
+    val trimmed = input.trim()
+    if (trimmed.isEmpty()) return false
+    val host = trimmed.substringBefore(':')
+    val portPart = if (trimmed.contains(':')) trimmed.substringAfter(':') else ""
+    if (portPart.isNotEmpty()) {
+        val port = portPart.toIntOrNull() ?: return false
+        if (port !in 1..65535) return false
+    }
+    if (host.matches(ipv4)) {
+        return host.split('.').all { it.toInt() in 0..255 }
+    }
+    return host.matches(hostname)
+}
+
 @Composable
 fun ConnectionScreen(
     state: AppState,
     onConnect: (String) -> Unit,
 ) {
-    var ipAddress by remember { mutableStateOf("192.168.1.") }
+    var ipAddress by remember(state.lastServerIp) { mutableStateOf(state.lastServerIp) }
+    val valid = isValidServerHost(ipAddress)
 
     Column(
         modifier =
@@ -43,72 +64,94 @@ fun ConnectionScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Default.Computer,
-            contentDescription = "Server",
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = "Coding Assistants",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Text(
-            text = "Remote Control",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        OutlinedTextField(
-            value = ipAddress,
-            onValueChange = { ipAddress = it },
-            label = { Text("PC IP Address") },
-            placeholder = { Text("e.g. 192.168.1.100") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Enter the IP address shown in your PC app",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = { onConnect(ipAddress) },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-            enabled = ipAddress.isNotBlank(),
+        Column(
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Connect")
-        }
+            Icon(
+                imageVector = Icons.Default.Computer,
+                contentDescription = "Server",
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
 
-        state.errorMessage?.let { error ->
-            Spacer(modifier = Modifier.height(16.dp))
-            Card(
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Coding Assistants",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Text(
+                text = "Remote Control",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(36.dp))
+
+            OutlinedTextField(
+                value = ipAddress,
+                onValueChange = { ipAddress = it },
+                label = { Text("PC IP address") },
+                placeholder = { Text("10.0.0.12") },
+                supportingText = {
+                    Text(
+                        if (ipAddress.isBlank()) {
+                            "Use the IPv4 address shown in the desktop app."
+                        } else if (!valid) {
+                            "Enter a valid IPv4 address or hostname (optional :port)."
+                        } else {
+                            "Port 5555 is used unless you append :port."
+                        },
+                    )
+                },
+                isError = ipAddress.isNotBlank() && !valid,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            if (state.lastServerIp.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SelectionContainer {
+                    Text(
+                        text = "Last connected: ${state.lastServerIp}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Button(
+                onClick = { onConnect(ipAddress.trim()) },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                enabled = valid,
             ) {
-                Text(
-                    text = error,
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
+                Text("Connect")
+            }
+
+            state.errorMessage?.let { error ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                ) {
+                    SelectionContainer {
+                        Text(
+                            text = error,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                }
             }
         }
     }
