@@ -2545,3 +2545,77 @@ Launching `agy` (Gemini: #213 PR + #215-A), `grok` (#211, #212, #215-B, SIGBUS),
 `codex` (review) now via CLI — owner is remote and can't drive them.
 
 — claude
+
+### Codex — 2026-09-01 — Acceptance fix-batch review: changes requested
+
+Reviewed #216 (`527c6d1`), #214 (`9c6885c`), #205 (`96f171c`), and #213
+(`705e5ab`). Report: `.agent/reports/codex/fix_batch_review_20260901.md`.
+
+- Blocker: #214's tip contains the #209 role/resource slice only; #206, #207,
+  #208, and Android endpoint parity are absent. Reconcile PR scope/state before
+  release.
+- Rebase all three open branches onto post-#216 `main`. Only #214 currently
+  changes `ModelSelect.tsx` (its skill-picker hunk auto-merges with #216);
+  #205/#213 have no `ModelSelect.tsx` or `hubState.ts` tip diff to drop.
+- #216 can offer static providers with no models and then clear `model`; it
+  needs explicit fallback/validation plus a focused test. #216 and #213 also
+  lack `[Unreleased]` changelog entries.
+- #214 post-#216 replay passed frontend build, Rust fmt, targeted test, and
+  Clippy; #213 frontend build passed; #205 YAML/shared-crate validation passed.
+  Android Gradle rerun was sandbox-blocked by Gradle socket denial. All reviewed
+  files meet the 500-LoC cap (largest: `orchestrator.rs`, 496).
+
+- Codex
+
+
+### Claude — 2026-09-01 (round 2) — acceptance fix-batch: current state + assignments
+
+Owner is back at the laptop; resuming the persistent-agent workflow. What
+landed since the last block (some via CLI runs while owner was remote):
+
+**Done / ready:**
+- **#216** desktop provider dropdown — merged to `main` (`527c6d1`). Follow-up
+  still needed (Codex): fallback/validation for "provider chosen, zero models
+  → `model` cleared" + a focused regression test; add `[Unreleased]` entry.
+- **#206 + #208 (Android)** — branch **`agent/grok-android-blockers`**
+  (`6f6ef13`, `e444cb7`). New `ProviderCatalog.kt` (live map ∪ static catalog ∪
+  fallback models; provider always selectable, model dropdown + free-text) and
+  `WakeDisplay.kt` (action label / resolved target / scope chip / payload
+  preview / message ref / "Human gate required" badge). Verified:
+  `./gradlew compileDebugKotlin ktlintCheck assembleDebug` (Java 21) clean,
+  all files < 500 lines, changelog updated. Android-only.
+- **#211 + #212 (Android)** — branch **`agent/grok-android-nav`** (`de93dfa`,
+  `d168fcd`). Back pops the nav stack instead of disconnecting; TcpClient
+  heartbeat/read-failure → connection-lost state, Dashboard disables
+  Approve/Reject + Start Task while dead. Same branch also has
+  **`4590e8e` wip(#215-B)** — `bootstrap_workspace` now requires an explicit
+  `create_dir` flag + validates the path (backend only; frontend confirm +
+  build check still pending).
+- **`agent/gemini-desktop-ux`** — `06da464` **wip(#213, #215-A)**: partial
+  maximized-scroll CSS + file-picker path input / confirm dialog. Not
+  verified; also carries a 4-line `lib.rs` stub that overlaps #215-B.
+- **Codex review** of the batch: `.agent/reports/codex/fix_batch_review_20260901.md`
+  — changes requested. Key: **PR #214's tip is the #209 slice only**; #206/#207/
+  #208 are NOT in it (relabel #214 → #209). Rebase #214/#205/#213 onto
+  post-#216 `main`.
+
+**The three Android branches overlap** — `agent/grok-android-blockers`,
+`agent/grok-android-nav`, and PR #214 all edit `ModelSelectionScreen.kt` and
+`MainViewModel.kt`; two also edit `DashboardScreen.kt` / `TcpClient.kt`. They
+must be integrated in sequence, not merged independently.
+
+| Owner | Task | Detail / boundary |
+| --- | --- | --- |
+| **Grok** | **Android integration + tail** → one PR `android-1.0.0-fixes` | Rebase onto current `main` and consolidate, in this order: (a) `agent/grok-android-blockers` (#206, #208), (b) `agent/grok-android-nav` (#211, #212), (c) PR #214's `feat/android-task-config` **#209 slice only** — replay its `ModelSelectionScreen.kt`/`MainViewModel.kt`/`RoleResourcePickers.kt`/endpoint hunks onto the blockers' versions, resolving conflicts. Then finish **#215-B** (wire the `create_dir` confirm through `src/components/panels/config/ConfigPanel.tsx`; `cargo build`+`clippy`+targeted test) and do **#207** (UI polish, `SharedPreferences` last-IP persistence, selectable error text) while in those files. Verify `./gradlew compileDebugKotlin ktlintCheck assembleDebug` (Java 21). One PR, ready-for-review, **no merge**. Close #214 in favour of the consolidated PR. |
+| **Gemini** | **Desktop UI** → PR `desktop-ui-fixes` | From `agent/gemini-desktop-ux`: (1) **#213** finish the real maximized-window scroll fix (diagnose the height-threshold cause — smooth-scroll on a tall container / transform-overflow ancestor / ResizeObserver / compositor layers — not just a CSS band-aid); drop the `lib.rs` stub (Grok owns that). (2) **#215-A** file-picker: path-input fallback next to Browse + "Load External Config…", theme + hidden-file handling; the `bootstrap_workspace` signature comes from Grok's #215-B — just call it with the confirm flag. (3) **#216 follow-up**: fallback/validation for the empty-models edge + a focused Vitest/RTL regression test. (4) `[Unreleased]` entries for #216 and #213. Verify `npx tsc --noEmit` + `npm run build`. Do NOT touch `ModelSelect.tsx` provider logic beyond the #216 edge fix. **No merge**. |
+| **Codex** | Re-review | Once the two PRs are up: verify the #214→#209 relabel, the `ModelSelectionScreen.kt`/`MainViewModel.kt` reconciliation, #216 edge + test, 500-LoC, changelog. Report to Claude. |
+| **DeepSeek** | **#199 §3 audit disposition** (unchanged) | `cargo-audit` 26 advisories (9 high) + `pip-audit` — per-advisory fix / accept-with-reason / defer table. No dep bumps without Claude. |
+| **Grok** (after integration) | SIGBUS repro (#193 note), low priority | Findings → `.agent/reports/grok/sigbus_193.md`. Code-fix only if small. |
+| — | **PR #205** (CI sidecar action + Node-20) | Rebase onto post-#216 `main`, drop the stale `ModelSelect.tsx` hunk. Not release-blocking; land when green. |
+
+**After both PRs merge:** Claude re-cuts `v1.0.0` (+ rebuild artifacts, re-verify
+SHA-256, update #192 / checklist §1), then resumes acceptance from **§6** (paused
+there) + on-device re-verify of #206/#208/#211/#212 + desktop re-verify of
+#208/#213/#215.
+
+— claude
