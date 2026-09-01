@@ -49,17 +49,40 @@ fn format_balance(info: &BalanceInfo) -> String {
     if let Some(granted) = info.granted_balance.as_deref().filter(|v| !v.is_empty()) {
         breakdown.push(format!("granted ${granted}"));
     }
-    if let Some(topped) = info
-        .topped_up_balance
-        .as_deref()
-        .filter(|v| !v.is_empty())
-    {
+    if let Some(topped) = info.topped_up_balance.as_deref().filter(|v| !v.is_empty()) {
         breakdown.push(format!("topped-up ${topped}"));
     }
     if !breakdown.is_empty() {
         parts.push(breakdown.join(" + "));
     }
     parts.join(" — ")
+}
+
+fn valid_amount(value: &str) -> bool {
+    value
+        .parse::<f64>()
+        .is_ok_and(|amount| amount.is_finite() && amount >= 0.0)
+}
+
+fn validate_balance(info: &BalanceInfo) -> Result<(), &'static str> {
+    if info.currency.trim().is_empty() {
+        return Err("DeepSeek returned an empty balance currency");
+    }
+    if !valid_amount(info.total_balance.trim()) {
+        return Err("DeepSeek returned an invalid total balance");
+    }
+    if info
+        .granted_balance
+        .as_deref()
+        .is_some_and(|value| !valid_amount(value.trim()))
+        || info
+            .topped_up_balance
+            .as_deref()
+            .is_some_and(|value| !valid_amount(value.trim()))
+    {
+        return Err("DeepSeek returned an invalid balance breakdown");
+    }
+    Ok(())
 }
 
 pub(crate) fn deepseek_quota() -> ProviderQuota {
@@ -76,6 +99,9 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
+        // Never forward the bearer credential through an HTTP redirect. The
+        // balance endpoint is fixed and redirects are not part of its API.
+        .redirect(reqwest::redirect::Policy::none())
         .build()
     {
         Ok(client) => client,
@@ -97,7 +123,9 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
     let balance: BalanceResponse = match response.json() {
         Ok(balance) => balance,
         Err(error) => {
-            return unavailable(format!("Unexpected response shape from DeepSeek balance: {error}"))
+            return unavailable(format!(
+                "Unexpected response shape from DeepSeek balance: {error}"
+            ))
         }
     };
 
@@ -107,8 +135,8 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
     let Some(info) = balance.balance_infos.first() else {
         return unavailable("DeepSeek returned no balance info");
     };
-    if info.total_balance.trim().is_empty() {
-        return unavailable("DeepSeek returned an empty total balance");
+    if let Err(detail) = validate_balance(info) {
+        return unavailable(detail);
     }
 
     let balance_text = format_balance(info);
@@ -178,5 +206,18 @@ mod tests {
         assert_eq!(response.balance_infos.len(), 1);
         assert_eq!(response.balance_infos[0].total_balance, "12.34");
         assert_eq!(response.balance_infos[0].currency, "USD");
+    }
+
+    #[test]
+    fn rejects_non_numeric_or_non_finite_amounts() {
+        for amount in ["", "not-a-number", "NaN", "inf", "-1.00"] {
+            let info = BalanceInfo {
+                currency: "USD".into(),
+                total_balance: amount.into(),
+                granted_balance: None,
+                topped_up_balance: None,
+            };
+            assert!(validate_balance(&info).is_err(), "accepted {amount:?}");
+        }
     }
 }

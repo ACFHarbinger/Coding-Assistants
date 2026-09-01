@@ -22,7 +22,7 @@
 
 use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 const HARNESS_TITLE: &str = "OpenCode Go";
 const AGENT_ID: &str = "opencode";
@@ -30,6 +30,13 @@ const PROVIDER: &str = "opencode-go";
 
 fn unavailable(detail: impl Into<String>) -> ProviderQuota {
     unavailable_quota(AGENT_ID, PROVIDER, HARNESS_TITLE, detail)
+}
+
+fn terminate_child(child: &mut Child) {
+    // `kill` does not reap the process. Always wait as well so repeated quota
+    // refreshes cannot accumulate zombies after success or timeout.
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 /// Parse a duration like "4h 56m", "19d", "2d 18h" into seconds.
@@ -77,13 +84,7 @@ fn parse_usage_line(line: &str) -> Option<ProviderQuotaWindow> {
     } else {
         return None;
     };
-    let used: i32 = rest
-        .split('%')
-        .next()?
-        .trim()
-        .parse::<f64>()
-        .ok()?
-        .round() as i32;
+    let used: i32 = rest.split('%').next()?.trim().parse::<f64>().ok()?.round() as i32;
     let used = used.clamp(0, 100);
     let resets_in = rest
         .rsplit_once("resets in")
@@ -99,9 +100,8 @@ fn parse_usage_line(line: &str) -> Option<ProviderQuotaWindow> {
     })
 }
 
-pub(crate) fn opencode_quota() -> ProviderQuota {
-    let mut child = match Command::new("opencode")
-        .args(["run", "/ogc-usage"])
+fn run_opencode_quota(mut command: Command, timeout: std::time::Duration) -> ProviderQuota {
+    let mut child = match command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -115,7 +115,7 @@ pub(crate) fn opencode_quota() -> ProviderQuota {
         }
     };
     let Some(stdout) = child.stdout.take() else {
-        let _ = child.kill();
+        terminate_child(&mut child);
         return unavailable("opencode produced no stdout for /ogc-usage");
     };
     // Read on a dedicated thread and wait with a timeout, mirroring the Codex
@@ -124,7 +124,7 @@ pub(crate) fn opencode_quota() -> ProviderQuota {
     // are already inside a `spawn_blocking` task, but a bounded wait keeps the
     // quota fetch from hanging the refresh call indefinitely.
     let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
+    let reader = std::thread::spawn(move || {
         let windows: Vec<ProviderQuotaWindow> = BufReader::new(stdout)
             .lines()
             .take(500)
@@ -133,16 +133,19 @@ pub(crate) fn opencode_quota() -> ProviderQuota {
             .collect();
         let _ = tx.send(windows);
     });
-    let windows = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+    let windows = match rx.recv_timeout(timeout) {
         Ok(windows) => windows,
         Err(_) => {
-            let _ = child.kill();
+            terminate_child(&mut child);
+            // Do not join the reader on timeout: a descendant may still hold
+            // the inherited stdout pipe even after the direct child is dead.
             return unavailable(
                 "opencode run \"/ogc-usage\" did not answer within 30s (is the opencode-usage plugin installed and authenticated?)",
             );
         }
     };
-    let _ = child.kill();
+    terminate_child(&mut child);
+    let _ = reader.join();
 
     if windows.is_empty() {
         return unavailable(
@@ -160,6 +163,12 @@ pub(crate) fn opencode_quota() -> ProviderQuota {
         fetched_at: now_unix(),
         balance: None,
     }
+}
+
+pub(crate) fn opencode_quota() -> ProviderQuota {
+    let mut command = Command::new("opencode");
+    command.args(["run", "/ogc-usage"]);
+    run_opencode_quota(command, std::time::Duration::from_secs(30))
 }
 
 #[cfg(test)]
@@ -211,5 +220,19 @@ mod tests {
         assert_eq!(reset_seconds("45s"), Some(45));
         assert_eq!(reset_seconds(""), None);
         assert_eq!(reset_seconds("bogus"), None);
+    }
+
+    #[test]
+    fn missing_binary_degrades_without_panicking() {
+        let quota = run_opencode_quota(
+            Command::new("/definitely/missing/coding-assistants-opencode"),
+            std::time::Duration::from_millis(20),
+        );
+        assert_eq!(quota.status, "unavailable");
+        assert!(quota
+            .detail
+            .as_deref()
+            .unwrap_or_default()
+            .contains("unavailable"));
     }
 }

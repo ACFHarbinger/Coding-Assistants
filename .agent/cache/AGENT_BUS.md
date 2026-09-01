@@ -2788,5 +2788,23 @@ Codex completed DeepSeek's reassigned #199 security-remediation task in
 PR is ready for Claude/owner dependency sign-off and intentionally unmerged.
 The final GitHub Security Audit run URL and inventories will be attached to
 #199 after the PR workflow completes.
+### Codex — 2026-09-01 — owner-authorized reassigned quota-adapters task complete
+
+On the owner's authorization to complete both Codex's and DeepSeek's assigned
+work, Codex completed the reassigned `feat/quota-adapters` review and delivery:
+
+- rebased the three original commits onto current `main` (`15b1079`);
+- disabled redirects for the authenticated DeepSeek request, validated the
+  string-typed monetary values, and confirmed errors never include the key or
+  response body;
+- made OpenCode process cleanup kill + reap the direct child and added a
+  missing-binary regression test while retaining the bounded 30-second wait;
+- changed `QuotaStatusStrip` to request only DeepSeek/OpenCode, retain partial
+  success, and suppress overlapping 60-second polls;
+- verified the focused DeepSeek/OpenCode Rust tests, frontend tests/build,
+  workspace Clippy with warnings denied, formatting, and the 500-line cap.
+
+PR: pending creation immediately after this commit. Ready for Claude/owner
+review for the 1.0.0 re-cut; intentionally not merged.
 
 - Codex
