@@ -2832,3 +2832,44 @@ PR **#227**: `https://github.com/ACFHarbinger/Coding-Assistants/pull/227`.
 Ready for Claude/owner review for the 1.0.0 re-cut; intentionally not merged.
 
 - Codex
+
+
+### Claude — 2026-09-01 — `v1.0.0` re-cut on `3c2a1e2` (acceptance fix batch folded in)
+
+All acceptance-fix-batch PRs merged and `v1.0.0` re-cut:
+
+| PR | Merged | Scope |
+| --- | --- | --- |
+| #216 | ✅ | Desktop Orchestrate provider dropdown was empty (`PROVIDERS = {}` since `de6297b`) — now derived from `availableModels` |
+| #221 | ✅ | #213 maximized scroll (owner-verified "perfect"), #215-A file-picker path input, #216 empty-models edge + Vitest/RTL |
+| #228 | ✅ | #199 audit reproducibility — deleted the **stale `src-tauri/Cargo.lock`** (the "11 cargo vulns" were phantom; nothing builds against it), `cargo audit` runs from the root lock → **0 vulns**; `dotenv`→`dotenvy`; `pip-audit` a uv dev dep → **green**. `cargo-audit` + `pip-audit` now pass on `main`. |
+| #227 | ✅ | Live OpenCode Go + DeepSeek balance quota adapters (env-only `DEEPSEEK_API_KEY`, redirects disabled, graceful degrade) |
+| #223 | ✅ | Android companion: #206 approval context, #208 provider catalog, #211 back-nav, #212 disconnect detection, #207 host:port + IP persist + selectable text, #209 role/resource parity, #215-B bootstrap confirm. Verified JDK 21 Gradle + cargo + npm. Supersedes #214 (closed). |
+
+- Changelog re-frozen (`## [Unreleased]` → `## [1.0.0] - 2026-09-01`).
+- Old `v1.0.0` tag + draft Release deleted; **re-cut on `main` @ `3c2a1e221abde18fe75781838241cb6b25671e99`**, `git describe` = `v1.0.0` exact.
+- `release.yml` run [33511278849] green ×3 → fresh draft Release, all 6 assets.
+- New SHA-256 on #192; #193–#199 candidate-commit updated; external checklist §1 updated.
+
+| Artifact | SHA-256 (`3c2a1e2`) |
+| --- | --- |
+| `Coding.Assistants_1.0.0_amd64.AppImage` | `a5be650103291bffa2b8b6b90810e6fa3e99b39c473fab8e2b93dc9af82dc012` |
+| `Coding.Assistants_1.0.0_amd64.deb` | `fd4fde1482133d6ec2c622ecefda98244eb16355dac65b1254e87137251d9668` |
+| `Coding.Assistants_1.0.0_x64-setup.exe` | `4be96bce5897de249eb3446445224ea319849f473851ceb9b0177d3ff7b8c07d` |
+| `Coding.Assistants_1.0.0_x64_en-US.msi` | `fbfc4ed715a7843feb7b32c1e6da4d4a2c57ca4eadbdc999b76bec3e3ae09445` |
+| `coding-assistants-companion-1.0.0-release.aab` | `9537dada31864160404e04a33e5d0c888ff42fb5cf28f62f7a5ec4caf1962541` |
+| `coding-assistants-companion-1.0.0-release.apk` | `515e3e6498989f578bb51359d4e28e829bb681c67e66c88c0fa2907208a9bcb7` |
+
+**Remaining before publish:**
+- **Owner** — written accept/defer exceptions for the deferred rows in
+  `issue_199_section_3_audit_disposition_20260901.md` (GTK3/Tauri unmaintained
+  crates → defer-with-migration; 2 `rand` reachability accepts); attach the clean
+  Security Audit run to #199.
+- **Claude + owner** — acceptance re-run from §6 against the `3c2a1e2` AppImage
+  (isolated `CA_HOME`); on-device Android re-verify #206/#208/#211/#212;
+  disposition #222 (§9 zombie reap) and #225 (§10 Shared-Hub enroll UX) on #196.
+- **#194 Windows** — Blocked (no host).
+- **#205** — CI sidecar-composite-action / Node-20 PR: rebase onto current `main`,
+  land when green. Not release-blocking.
+
+— claude
