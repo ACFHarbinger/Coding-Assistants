@@ -5,31 +5,23 @@
   will-change: auto;
 }
 
-/* Skip layout/paint work for top-level sections outside the scroll viewport. */
-.main-content > .fade-in,
-.main-content > div > .fade-in {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 600px;
+/* Do not use content-visibility on children of `.main-content`.
+   WebKit substitutes `contain-intrinsic-size` while those panels are offscreen,
+   then corrects the scroll range as they enter view. In a tall maximized
+   window that correction occurs during a wheel/scrollbar gesture and makes
+   the document crawl or jump to an edge. */
+
+/* Keep the app scroller cheap at every CSS viewport size. Display scaling can
+   make a physically maximized window fall below a width/height media-query
+   threshold, which left the expensive path enabled on the affected systems. */
+.main-content .glass-card,
+.main-content .btn-primary,
+.main-content .btn-secondary {
+  box-shadow: none;
 }
 
-/* Maximized desktop windows expose the largest possible repaint surface.
-   Keep the glassmorphism look on smaller windows, but avoid repeatedly
-   rasterizing large blurred/shadowed surfaces while the user scrolls. */
-@media (min-width: 1200px) and (min-height: 700px) {
-  .app-container::before {
-    opacity: 0.45;
-  }
-
-  .glass-card {
-    box-shadow: none;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    box-shadow: none;
-  }
-
-  header {
-    backdrop-filter: none !important;
-  }
+/* The header is a flex sibling of the scroller, so no content is visible
+   behind it and backdrop blur only adds a large WebKitGTK repaint surface. */
+.app-container > header {
+  backdrop-filter: none !important;
 }

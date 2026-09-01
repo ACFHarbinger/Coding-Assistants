@@ -120,10 +120,25 @@ export const ModelSelect = ({
           onChange={(e) => onConfigChange(index, 'model', e.target.value)}
           style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
         >
+          {(!availableModels[roleConfig.provider] || availableModels[roleConfig.provider].length === 0) && (
+            <option value={roleConfig.model || ""}>
+              {roleConfig.model ? roleConfig.model : "No models available"}
+            </option>
+          )}
           {(availableModels[roleConfig.provider] || []).map(model => (
             <option key={model} value={model}>{model}</option>
           ))}
+          {roleConfig.model &&
+            availableModels[roleConfig.provider]?.length > 0 &&
+            !availableModels[roleConfig.provider].includes(roleConfig.model) && (
+              <option value={roleConfig.model}>{roleConfig.model}</option>
+            )}
         </select>
+        {(!availableModels[roleConfig.provider] || availableModels[roleConfig.provider].length === 0) && !roleConfig.endpoint && (
+          <span style={{ color: '#f59e0b', fontSize: '0.75rem' }}>
+            No models discovered for this provider. Configure an existing process endpoint below or verify provider installation.
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

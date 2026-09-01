@@ -30,31 +30,26 @@ body,
 
 .app-container {
   display: flex;
-  height: 100vh;
-  width: 100vw;
-  /* Background colour only — gradient is in ::before so it never repaints
-     during scroll (it lives on its own fixed compositor layer). */
-  background: var(--bg-dark);
-  position: relative;
-}
-
-/* Gradient background on a fixed, isolated layer so it is composited once
-   and never invalidated when the scroll container repaints. */
-.app-container::before {
-  content: '';
-  position: fixed;
-  inset: 0;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  /* Keep the decorative background on the non-scrolling flex parent. A fixed
+     pseudo-element behind an overflow scroller is not reliably promoted by
+     WebKitGTK and can force a full-window repaint for every scroll frame. */
   background:
     radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
+    radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
+    var(--bg-dark);
+  position: relative;
 }
 
 .main-content {
   flex: 1;
+  min-height: 0;
   padding: 2.5rem;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -64,6 +59,8 @@ body,
      every scroll gesture to find the anchor node. Removing it eliminates
      that forced-layout stall at the beginning of each scroll. */
   overflow-anchor: none;
+  scroll-behavior: auto;
+  overscroll-behavior-y: contain;
 }
 
 .glass-card {

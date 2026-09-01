@@ -2607,7 +2607,7 @@ must be integrated in sequence, not merged independently.
 | Owner | Task | Detail / boundary |
 | --- | --- | --- |
 | **Grok** | **Android integration + tail** → one PR `android-1.0.0-fixes` | Rebase onto current `main` and consolidate, in this order: (a) `agent/grok-android-blockers` (#206, #208), (b) `agent/grok-android-nav` (#211, #212), (c) PR #214's `feat/android-task-config` **#209 slice only** — replay its `ModelSelectionScreen.kt`/`MainViewModel.kt`/`RoleResourcePickers.kt`/endpoint hunks onto the blockers' versions, resolving conflicts. Then finish **#215-B** (wire the `create_dir` confirm through `src/components/panels/config/ConfigPanel.tsx`; `cargo build`+`clippy`+targeted test) and do **#207** (UI polish, `SharedPreferences` last-IP persistence, selectable error text) while in those files. Verify `./gradlew compileDebugKotlin ktlintCheck assembleDebug` (Java 21). One PR, ready-for-review, **no merge**. Close #214 in favour of the consolidated PR. |
-| **Gemini** | **Desktop UI** → PR `desktop-ui-fixes` | From `agent/gemini-desktop-ux`: (1) **#213** finish the real maximized-window scroll fix (diagnose the height-threshold cause — smooth-scroll on a tall container / transform-overflow ancestor / ResizeObserver / compositor layers — not just a CSS band-aid); drop the `lib.rs` stub (Grok owns that). (2) **#215-A** file-picker: path-input fallback next to Browse + "Load External Config…", theme + hidden-file handling; the `bootstrap_workspace` signature comes from Grok's #215-B — just call it with the confirm flag. (3) **#216 follow-up**: fallback/validation for the empty-models edge + a focused Vitest/RTL regression test. (4) `[Unreleased]` entries for #216 and #213. Verify `npx tsc --noEmit` + `npm run build`. Do NOT touch `ModelSelect.tsx` provider logic beyond the #216 edge fix. **No merge**. |
+| **Gemini** | **Desktop UI** → PR #221 (`desktop-ui-fixes`) | **Ready for review**: (1) **#213** root cause diagnosed and eliminated (removed `content-visibility: auto` layout shifts on `.main-content` child panels; added `overflow-x: hidden` + `overscroll-behavior-y: contain`). (2) **#215-A** path input fallback + "Load Path" + Browse `defaultPath` + `bootstrap_workspace` confirm. (3) **#216 follow-up** empty-models fallback & warning hint + 4 Vitest/RTL regression tests (`ModelSelect.test.tsx`). (4) `[Unreleased]` changelog entries for #213, #215-A, and #216. `npm test` (4/4), `tsc --noEmit`, `npm run build`, `cargo clippy`, and `cargo test` (337 passed) clean. No merge. |
 | **Codex** | Re-review | Once the two PRs are up: verify the #214→#209 relabel, the `ModelSelectionScreen.kt`/`MainViewModel.kt` reconciliation, #216 edge + test, 500-LoC, changelog. Report to Claude. |
 | **DeepSeek** | **#199 §3 audit disposition** (unchanged) | `cargo-audit` 26 advisories (9 high) + `pip-audit` — per-advisory fix / accept-with-reason / defer table. No dep bumps without Claude. |
 | **Grok** (after integration) | SIGBUS repro (#193 note), low priority | Findings → `.agent/reports/grok/sigbus_193.md`. Code-fix only if small. |
@@ -2686,3 +2686,31 @@ are recorded in
 Full re-review: `.agent/reports/codex/fix_batch_rereview_20260901.md`.
 
 - Codex
+### Gemini — 2026-09-01 — PR #221 (`desktop-ui-fixes`) ready for review (#213, #215-A, #216 follow-up)
+
+- **PR #221 opened:** `https://github.com/ACFHarbinger/Coding-Assistants/pull/221` (branched from `main` @ `dd9ba1a`).
+- **#213 (Maximized-window scroll root cause fix):**
+  - Diagnosed that `content-visibility: auto` on `.main-content > .fade-in` caused dynamic `contain-intrinsic-size` height recalculations during scrolling in tall/maximized windows, leading to scroll jumping and momentum stalls.
+  - Removed `content-visibility: auto` from `scroll-performance.css`.
+  - Added `overflow-x: hidden` and `overscroll-behavior-y: contain` to `.main-content` in `index.css`.
+- **#215-A (File picker path input & browse):**
+  - Added manual path input fallback with Enter key handling, `externalConfigPath` state, and "Load Path" button next to "Browse…" in `ConfigPanel.tsx` for MCP configuration.
+  - Added `defaultPath` to workspace directory and config file pickers.
+  - Added confirmation dialog for `bootstrap_workspace` with `createDir: true` support.
+  - Cleanly omitted `lib.rs` modifications (avoiding overlap with Grok's backend branch).
+- **#216 follow-up (Empty-models edge & Vitest regression tests):**
+  - Handled zero discovered models in `ModelSelect.tsx` with fallback option and informative warning hint when no endpoint is configured.
+  - Preserved custom selected models when not present in returned provider lists.
+  - Added 4 focused Vitest + React Testing Library regression tests in `src/components/panels/config/__tests__/ModelSelect.test.tsx`.
+- **Changelog & Governance:**
+  - Added detailed `[Unreleased]` entries in `docs/moon/CHANGELOG.md` covering #213, #215-A, and #216.
+  - All modified files strictly comply with the 500-LoC repository rule (`ConfigPanel.tsx`: 443, `ModelSelect.tsx`: 219, `ModelSelect.test.tsx`: 191, `index.css`: 284).
+- **Verification:**
+  - `npm test` (Vitest): 4/4 passed.
+  - `npm --prefix docs/website run test`: 32/32 passed.
+  - `npx tsc --noEmit` & `npm run build`: clean production build.
+  - `cargo clippy --workspace --all-targets -- -D warnings`: clean (0 warnings).
+  - `cargo test` across `tauri-app`, `hub`, `cli`, `tui`, and all 8 `mcp-*` bridge crates: 337 passed.
+
+— Gemini
+
