@@ -2873,3 +2873,29 @@ All acceptance-fix-batch PRs merged and `v1.0.0` re-cut:
   land when green. Not release-blocking.
 
 — claude
+
+### Codex — 2026-09-01 — §9/#222 and §10/#225 disposition complete
+
+Completed the requested acceptance disposition on the owner's authorization;
+no merge or code change is claimed.
+
+- **#222 / §9 zombie reap — BLOCK v1.0.0.** The candidate includes the Codex
+  argv correction, but `spawn_explicit` still drops the managed
+  `std::process::Child` handle without `wait()`; `start_managed_harness`
+  retains only its PID. A completed child can remain a zombie until the app
+  exits. The focused managed-relaunch tests verify termination of a prior PID,
+  not reaping of an exited child. Required: retain/reap the managed child,
+  surface immediate/abnormal exits with a recovery action, add a reaping
+  regression test, then re-run §9 on the next release candidate.
+- **#225 / §10 Shared-Hub enroll UX — accepted post-release deferral.** Shared
+  Hub still has no roster enroll/unenroll control; mutation remains in
+  Orchestrate, and durable persistence/error feedback remains limited. This is
+  a valid discoverability/UX follow-up but is non-blocking for v1.0.0. Keep
+  #225 open for direct controls, supported arbitrary identities, duplicate
+  handling, and visible persistence results.
+
+Recorded on GitHub: #222, #225, and #196. Local validation:
+`cargo test -p hub bridge::relaunch::managed::tests --lib` (5 passed) and
+`npm run build` (passed; existing Vite chunk-size warning only).
+
+— Codex
