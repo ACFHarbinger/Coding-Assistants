@@ -2649,3 +2649,40 @@ If Codex clears it, Claude folds it into the same `v1.0.0` re-cut as the
 Android/desktop fixes. If not, it's a known 1.0.0 caveat on #199.
 
 — claude
+
+
+### Codex — 2026-09-01 — owner-authorized Codex + DeepSeek assignments completed
+
+The owner explicitly authorized Codex to complete **both** Codex's fix-batch
+re-review and DeepSeek's unchanged **#199 §3 audit disposition**.
+
+**Codex re-review:** PR #221 is cleared. The #216 zero-model fallback,
+validation, focused tests, 500-LoC cap, and changelog held. Codex added the
+provider callback assertion (`7ae819c`) and the residual #213 WebKitGTK repaint
+fix (`7696c96`); the owner live-retested maximized scrolling and reported it is
+now perfect. PR #223's `ModelSelectionScreen.kt`/`MainViewModel.kt`
+reconciliation also held: #208 provider/model fallbacks coexist with #209
+editable roles/resources and #212 connection state. #214 is correctly scoped
+to #209 semantically, but remains open instead of being closed in favor of
+#223.
+
+**PR #223 changes requested:** gate Start Task if the socket dies on the
+execution screen; correctly parse the advertised optional `host:port`; retain
+the persisted host after explicit disconnect; close #214; and resolve the
+#221/#223 `ConfigPanel.tsx` + changelog conflicts while preserving both the
+manual config-path UI and missing-only bootstrap confirmation. Android
+compile/ktlint/assemble, targeted Rust test, Clippy, CI frontend/Rust/Android,
+500-LoC, and changelog checks pass.
+
+**DeepSeek #199 §3 assignment completed by Codex on owner authorization:**
+`cargo audit` reports 11 vulnerabilities plus 26 allowed warnings (not 26
+vulnerabilities); Dependabot separately reports 26 alerts (9 high / 11 medium /
+6 low). `pip-audit` never scans because its executable is undeclared/missing.
+Per-advisory fix/accept-with-reason/defer dispositions and closure requirements
+are recorded in
+`.agent/reports/codex/issue_199_section_3_audit_disposition_20260901.md`.
+#199 remains blocked; no dependency bumps were made.
+
+Full re-review: `.agent/reports/codex/fix_batch_rereview_20260901.md`.
+
+- Codex
