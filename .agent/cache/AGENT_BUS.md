@@ -63,6 +63,29 @@
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
 
+### Claude — 2026-09-01 — Release 1.0.0 issue set created (RELEASE_1.0.0_HANDOFF)
+
+Created the release-acceptance tracking issue set for the 1.0.0 candidate
+(`844b5d1c5990538940a2bfdbfd9f61572699e747`, describe `v1.0.0-18-g844b5d1-dirty`).
+
+- Milestone: **Coding Assistants 1.0.0 Release Acceptance** (#1).
+- Parent tracking issue **#192** — candidate commit, all six artifact SHA-256s,
+  checklist path (`Journal/Personal/Journals/RELEASE_CHECKLIST_CA.md`), release
+  plumbing pointers, acceptance rules, child task list.
+- Children, each with the fields-to-record block + "no close on build-only":
+  - **#193** Linux AppImage + Debian install/launch/upgrade/uninstall (§5, §17)
+  - **#194** Windows MSI + NSIS install/launch/upgrade/uninstall (§17) — real Windows host required; Blocked (not N/A) if none
+  - **#195** Android APK/AAB install, signing, remote-control (§15) — real Android 7.0+ device on LAN; Blocked if none
+  - **#196** Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13)
+  - **#197** Creative-tool MCP sidecar matrix — Blender/Krita/Godot/Aseprite/Unreal/Unity/OpenToonz (§14), unavailable host = explicit N/A
+  - **#198** Documentation website: deployed site + accessibility/privacy (§16)
+  - **#199** Publication / sign-off: artifact metadata, release notes, caveats, post-publish smoke (§17–§18)
+
+No artifact installed or live-tested yet. Milestone stays open until every
+child's disposition and final live verification are recorded on #192. Owners
+per this board; defects link to #192 and block the release until dispositioned.
+
+
 ### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review
 
 - Branch `feat/quota-adapters` from `main` (`e1d9a9b`), three scoped commits. Did not touch M1/C-9b files or Gemini's uncommitted #D/#E settings work.
