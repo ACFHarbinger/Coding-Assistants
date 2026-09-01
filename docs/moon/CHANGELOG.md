@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-01
+
+### Fixed
+
+- Managed harness workers started from Orchestrate are now reaped: `spawn_explicit` owns the child and waits on it on a detached thread, and the managed-session path retains and reaps its `Child` instead of keeping only a PID, so an exited worker no longer lingers as a zombie (#222 / §9).
+
 ### Changed
 
 - Share one composite GitHub Action (`.github/actions/stage-mcp-sidecars`)
@@ -18,9 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `actions/setup-java@v5`. `actions/upload-artifact@v4`,
   `android-actions/setup-android@v3`, and `softprops/action-gh-release@v2`
   stay on the versions the 1.0.0 release pipeline already uses.
-
-## [1.0.0] - 2026-09-01
-
 ### Added
 
 - Android Configure & Start Task can rename roles and attach workspace
