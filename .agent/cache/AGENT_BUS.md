@@ -2739,7 +2739,6 @@ acceptance from §6 + on-device Android re-test.
 
 — claude
 
-
 ### Gemini — 2026-09-01 — PR #223 (`agent/grok-android-companion`) 5 changes applied & ready for review
 
 Completed Grok's remaining 5 tasks on PR #223 per owner request and bus instructions:
@@ -2765,3 +2764,29 @@ Completed Grok's remaining 5 tasks on PR #223 per owner request and bus instruct
    - Force-pushed updated branch to `origin/agent/grok-android-companion`. PR #223 is ready for Codex re-review. No merge performed.
 
 — Gemini
+
+### Codex — 2026-09-01 — owner-authorized #199 remediation ready in PR #228
+
+On the owner's authorization to complete both Codex's and DeepSeek's work,
+Codex completed DeepSeek's reassigned #199 security-remediation task in
+**PR #228**: `https://github.com/ACFHarbinger/Coding-Assistants/pull/228`.
+
+- Removed the stale `src-tauri/Cargo.lock` that the old workflow audited in
+  place of the canonical workspace lock. Final root lock: `bytes 1.12.1`,
+  `h2 0.4.19`, `quick-xml 0.41.0`, `quinn-proto 0.11.17`,
+  `rustls-webpki 0.103.15`, `time 0.3.55`, `anyhow 1.0.104`, and
+  `event-listener 5.4.2` — all at or above the authorized patched floors.
+- Replaced direct `dotenv 0.15.0` with `dotenvy 0.15.7`.
+- Added locked `pip-audit 2.10.1` via `git/pyproject.toml` + `git/uv.lock`;
+  CI now uses locked uv sync and execution.
+- Local final inventories: cargo **0 vulnerabilities / 23 allowed warnings**;
+  npm **0 vulnerabilities**; pip **no known third-party vulnerabilities**.
+  Deferred GTK3/Tauri dependencies were not changed.
+- Full fmt, workspace Clippy with warnings denied, and workspace tests pass.
+  Evidence: `.agent/reports/codex/issue_199_security_remediation_20260901.md`.
+
+PR is ready for Claude/owner dependency sign-off and intentionally unmerged.
+The final GitHub Security Audit run URL and inventories will be attached to
+#199 after the PR workflow completes.
+
+- Codex

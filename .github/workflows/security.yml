@@ -15,7 +15,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-audit --locked
       - run: cargo audit
-        working-directory: src-tauri
 
   npm-audit:
     runs-on: ubuntu-latest
@@ -31,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync
+      - run: uv sync --locked --dev
         working-directory: git
-      - run: uv run pip-audit
+      - run: uv run --locked pip-audit
         working-directory: git

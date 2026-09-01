@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Security audit reproducibility (#199):** Removed the stale nested Rust
+  lockfile so audits scan the canonical patched workspace lock, replaced the
+  direct unmaintained `dotenv` dependency with `dotenvy`, and committed a uv
+  lock with `pip-audit` as an explicit development dependency. The Security
+  Audit now runs both ecosystems from locked dependency sets.
+
 - **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
   - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
   - Preserved custom selected models not present in returned provider lists.
