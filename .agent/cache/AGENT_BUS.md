@@ -113,9 +113,62 @@ before any install. It **fails**. Full detail:
 candidate is landed on `main`, changelog frozen, `v1.0.0` retagged on that
 HEAD, and artifacts rebuilt + SHA-256 re-verified (BLOCKER.md §A–D). #193–#199
 stay open and blocked; no installs, no live matrix, no per-agent farm-out
-until the pause clears. Remediation git/tag/build actions are owner-run;
-Claude updates #192/#199, the child candidate-commit fields, and the external
-checklist §1 once the rebuild lands.
+until the pause clears.
+
+— claude
+
+### Claude — 2026-09-01 — Release 1.0.0 candidate remediated, PAUSE CLEARED
+
+BLOCKER.md §A–D done:
+
+- **PR #200** (merged `568a4e3`): landed the candidate line
+  (`f8d8dac`→`d998f94`) on `main`; folded `CHANGELOG.md` `[Unreleased]` into
+  `## [1.0.0] - 2026-09-01`; committed the `.gitignore` `release/` rule with a
+  trailing newline (clean tree).
+- **PR #201** (merged `432cf96`): `ci.yml` `lint-test-rust` re-broke on `main`
+  because `768fee0` added the 7 bridges to `tauri.conf.json` `bundle.externalBin`
+  and that job never staged the sidecars → `resource path … doesn't exist`.
+  Fix mirrors the `release.yml` step (build 7 `mcp-*` crates → `stage-mcp-sidecars.mjs`)
+  before fmt/clippy/test. Verified green on a real runner.
+- Deleted the stale `v1.0.0` tag (local + origin) and its draft Release.
+- Re-cut annotated **`v1.0.0` on `main` @ `432cf96`** — `git describe` = `v1.0.0`
+  exact. Tag push ran `release.yml` [33489692492] green on all 3 legs
+  (linux deb/appimage, windows msi/nsis, android) → fresh **draft** Release
+  `v1.0.0` with all 6 assets.
+- `release.yml` `dry_run` was run first (33488665592) — also green — to prove
+  the never-before-executed sidecar release path before the tag.
+- **New candidate commit: `432cf96d463202453d4cf13eb8cc3bcd5b9c1dc8`.**
+  #192 body + artifact SHA-256 table updated; candidate-commit note posted on
+  #193–#199; external checklist §1 updated (`Journal/Personal/Journals/RELEASE_CHECKLIST_CA.md`
+  — outside this repo).
+
+| Artifact | SHA-256 |
+|---|---|
+| `Coding.Assistants_1.0.0_amd64.AppImage` | `ea2cb9e4e215394691b182c7999c204dd01ce7663172ff8faa67a72503b21c1e` |
+| `Coding.Assistants_1.0.0_amd64.deb` | `0d0b59a6258d0ff30d95a815541d3882c60e83f2341dd8184bb6ef6cde1495c0` |
+| `Coding.Assistants_1.0.0_x64-setup.exe` | `2c95c9a38ae03fb42b47ed091ecabd30dd9411d77587ae66ea501881c21b130e` |
+| `Coding.Assistants_1.0.0_x64_en-US.msi` | `8c4c7c7b158059e7c6294719a87255073582ff2b2476d8005d48d5d2c0e96eee` |
+| `coding-assistants-companion-1.0.0-release.aab` | `19e1941d5c015a489d2b33daa0cf055b6906de4e141b5d64690fe21708bb0bcf` |
+| `coding-assistants-companion-1.0.0-release.apk` | `95571765c52de5eae1b468a5b810eef1551bc9a9849e9ac96707c2420ceef82d` |
+
+**Release acceptance is UNPAUSED.** Child acceptance may proceed from
+checklist §3 against `432cf96`.
+
+### Claude — 2026-09-01 — Release 1.0.0 task assignments
+
+Peer sessions are offline; these are queued for pickup. Claude owns issue
+truth and updates #192/#199; report verified results back before marking any
+child done. Do **not** close a child on a build alone — live evidence per the
+matching checklist section only.
+
+| Owner | Task | Scope / boundary |
+| --- | --- | --- |
+| **Codex** (review lead) | Governance review of the release remediation | Verify PR #200 (changelog freeze accuracy, no history dropped), PR #201 (CI fix correctness), the retag (`v1.0.0` → `432cf96`, old draft gone), and `RELEASE_1.0.0_BLOCKER.md` as an accurate record. Report to Claude. Then own **#199** publication/sign-off review. |
+| **DeepSeek** | **#199 §3 security-audit disposition** | `cargo-audit` is red on `main` — 26 Dependabot advisories (9 high / 11 moderate / 6 low); `pip-audit` also red. Produce a per-advisory table: fix now / accept-with-written-reason / defer-post-1.0.0. This is a §3 gate for sign-off, not a tag blocker. No dependency bumps without Claude's go-ahead. |
+| **Grok** (main implementer) | **CI/release workflow parity** | (1) Factor the sidecar build+stage into one shared composite action used by both `ci.yml` `lint-test-rust` and `release.yml` (the divergence caused #201). (2) Bump Node-20 actions flagged by the release run: `actions/checkout@v4`→v5 where available, `actions/setup-node@v4`→v5, `actions/setup-java@v4`→v5, `actions/upload-artifact@v4` current, `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`. Open as one PR; not a 1.0.0 blocker but do before publish if cheap. |
+| **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) against the rebuilt Linux build on the owner's machine. Build the §6–§13 evidence checklist now; run once the owner is available. |
+| **Claude** (lead) | **#193** (Linux .deb + AppImage, §5/§17) and **#197** (creative-tool MCP matrix, §14) | Drive with the owner on this Kubuntu host. #197: N/A with stated prerequisite where the host app is absent; the 7 sidecars now have build provenance (tag `v1.0.0`). |
+| — | **#194** Windows / **#195** Android | **Blocked** — no Windows host, no Android device / `adb`. Record as Blocked (not N/A) until hardware is available. |
 
 — claude
 
