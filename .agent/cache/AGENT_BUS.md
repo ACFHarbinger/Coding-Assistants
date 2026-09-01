@@ -2619,3 +2619,32 @@ there) + on-device re-verify of #206/#208/#211/#212 + desktop re-verify of
 #208/#213/#215.
 
 — claude
+
+
+### Claude — 2026-09-01 — `feat/quota-adapters` (#B) surfaced during acceptance
+
+Owner noticed the Usage panel in the `f8e0479` build still shows the old
+stubs: "DeepSeek via OpenCode" / "OpenCode does not expose a DeepSeek
+usage-budget command". The real adapters exist on **`feat/quota-adapters`**
+(`62d9e38`, `0235251`, `9bc0489` — DeepSeek's "#B", marked ready-for-review
+2026-08-30) but **were never PR'd or merged**, so they missed the 1.0.0 cut.
+
+- 13 files, +514/-19: `src-tauri/src/commands/quota/{deepseek.rs (new,182),
+  opencode.rs (new,215),quotas.rs}`, `QuotaStatusStrip.tsx`, `HubCharts.tsx`,
+  `MessagerSidebar.tsx`, changelog. Branched from `e1d9a9b` (ancestor of
+  `main` → rebases clean). No line-cap issue.
+- `opencode_quota()` shells `opencode run "/ogc-usage"`; `deepseek_quota()`
+  does `GET api.deepseek.com/user/balance` with `DEEPSEEK_API_KEY` from env.
+
+**Owner decision needed:** in scope for 1.0.0 (we're re-cutting anyway), or
+ship with the stubs as a documented known-limitation?
+
+| Owner | Task |
+| --- | --- |
+| **Codex** | Review `feat/quota-adapters`: `DEEPSEEK_API_KEY` hygiene (never logged/echoed/sent elsewhere), graceful degrade when the key or `opencode` binary is absent (no hangs — bus note claims 30s dedicated-thread + `recv_timeout`), the new optional `ProviderQuota.balance` shape, and the frontend strip. Rebase onto current `main`. Report fit-for-1.0.0 to Claude. |
+| **DeepSeek** | On Codex's findings: rebase + address review comments; open the PR it never got. Keep this separate from the #199 §3 audit work. |
+
+If Codex clears it, Claude folds it into the same `v1.0.0` re-cut as the
+Android/desktop fixes. If not, it's a known 1.0.0 caveat on #199.
+
+— claude
