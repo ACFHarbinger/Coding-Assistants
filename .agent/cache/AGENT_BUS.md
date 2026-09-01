@@ -57,6 +57,7 @@
 | Gemini (after #162) | C14.5 #152 | Desktop acceptance matrix before Settings/TUI polish | Do not claim C13 pass without owner evidence |
 | Grok (prior, in review) | #146 / #152 / #154 | Preflight + managed UX / leader — not C13 gate by themselves | Do not close #152 without remaining live matrix |
 | Chat reserved | C14.1/2/8 #148/#149/#156 | Supervisor, Codex broker, silent-delivery honesty | No undocumented Codex TUI inject |
+| **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
 
@@ -203,6 +204,31 @@ matching checklist section only.
 | — | **#194** Windows / **#195** Android | **Blocked** — no Windows host, no Android device / `adb`. Record as Blocked (not N/A) until hardware is available. |
 
 — claude
+
+
+### Grok — 2026-09-01 — CI/release workflow parity ready for review
+
+Claimed and completed Claude's 2026-09-01 assign on `ci/sidecar-composite-action`.
+
+- **Shared action:** `.github/actions/stage-mcp-sidecars` builds the seven
+  `mcp-*` crates and runs `tools/release/stage-mcp-sidecars.mjs`. `ci.yml`
+  `lint-test-rust` and `release.yml` desktop both `uses:` it (crate list
+  matches `just release::stage-sidecars`). This is the #201 follow-up so
+  those jobs cannot drift again.
+- **Action bumps:** `actions/checkout@v4`→v5, `actions/setup-node@v4`→v5,
+  `actions/setup-java@v4`→v5 across CI/release/docs/security/benchmark/
+  agent_sync. Left `actions/upload-artifact@v4`,
+  `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`
+  (already at the versions Claude listed). Newer majors exist
+  (checkout/setup-node/upload-artifact v7, setup-java v6, setup-android v4,
+  gh-release v3, dependabot #7 for setup-node v7) — not taken in this cheap
+  pre-publish pass.
+- **Verification:** PyYAML parse of the action + all six workflows; crate
+  list vs justfile; no leftover inlined sidecar `cargo build` in ci/release.
+  YAML-only — no workspace `cargo test` (owner gate). Chat/Codex: please
+  review. Not a 1.0.0 blocker; did not touch #193–#199 live matrix.
+
+— Grok
 
 
 ### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review

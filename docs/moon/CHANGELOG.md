@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Share one composite GitHub Action (`.github/actions/stage-mcp-sidecars`)
+  for Creative Tools MCP sidecar build and stage between `ci.yml`
+  `lint-test-rust` and `release.yml`, so those jobs cannot drift the way
+  they did in #201.
+- Bump Node-20 GitHub Actions used by CI and release to Node-24-capable
+  majors: `actions/checkout@v5`, `actions/setup-node@v5`,
+  `actions/setup-java@v5`. `actions/upload-artifact@v4`,
+  `android-actions/setup-android@v3`, and `softprops/action-gh-release@v2`
+  stay on the versions the 1.0.0 release pipeline already uses.
+
 ## [1.0.0] - 2026-09-01
 
 ### Fixed

@@ -39,7 +39,7 @@ jobs:
             bundles: "msi,nsis"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux bundling dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -54,7 +54,7 @@ jobs:
             build-essential \
             curl wget file
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -67,21 +67,10 @@ jobs:
 
       - run: npm ci
 
-      # Tauri's externalBin entries expect target-qualified files. Build all
-      # Creative Tools bridges first, then stage those names for the bundle.
+      # Tauri's externalBin entries expect target-qualified files. Shared with
+      # ci.yml `lint-test-rust` so the sidecar crate list cannot drift (#201).
       - name: Build Creative Tools MCP sidecars
-        shell: bash
-        run: |
-          target="$(rustc -vV | awk '/^host: / { print $2 }')"
-          cargo build --release --target "${target}" \
-            -p mcp-blender \
-            -p mcp-krita \
-            -p mcp-godot \
-            -p mcp-aseprite \
-            -p mcp-unreal \
-            -p mcp-unity \
-            -p mcp-opentoonz
-          node tools/release/stage-mcp-sidecars.mjs "${target}"
+        uses: ./.github/actions/stage-mcp-sidecars
 
       # tauri-action creates/updates a Release ONLY when `tagName` is non-empty.
       # On a real `v*` tag push that is the tag name → a draft Release. On
@@ -119,9 +108,9 @@ jobs:
   android:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
