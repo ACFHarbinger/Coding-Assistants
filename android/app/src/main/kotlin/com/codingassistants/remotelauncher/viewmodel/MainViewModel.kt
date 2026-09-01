@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codingassistants.remotelauncher.network.AgentConfig
 import com.codingassistants.remotelauncher.network.ModelConfig
+import com.codingassistants.remotelauncher.network.ProviderCatalog
 import com.codingassistants.remotelauncher.network.RoleConfig
 import com.codingassistants.remotelauncher.network.ServerResponse
 import com.codingassistants.remotelauncher.network.TcpClient
@@ -28,7 +29,7 @@ data class AppState(
     val isConnected: Boolean = false,
     val serverAddress: String = "",
     val errorMessage: String? = null,
-    val availableModels: Map<String, List<String>> = emptyMap(),
+    val availableModels: Map<String, List<String>> = ProviderCatalog.merge(emptyMap()),
     val selectedRoles: List<RoleConfig> =
         listOf(
             RoleConfig("Planner", ModelConfig("openai", "gpt-4o")),
@@ -112,7 +113,7 @@ class MainViewModel : ViewModel() {
             is ServerResponse.ModelsList -> {
                 _state.value =
                     _state.value.copy(
-                        availableModels = response.models,
+                        availableModels = ProviderCatalog.merge(response.models),
                     )
             }
             is ServerResponse.TaskStarted -> {

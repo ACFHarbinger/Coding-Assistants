@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.codingassistants.remotelauncher.network.ProviderCatalog
 import com.codingassistants.remotelauncher.network.RoleConfig
 import com.codingassistants.remotelauncher.viewmodel.AppState
 
@@ -133,18 +134,16 @@ fun RoleCard(
     onUpdate: (RoleConfig) -> Unit,
     onRemove: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
-    val providerNames =
-        mapOf(
-            "opencode" to "OpenCode Zen",
-            "google" to "Google",
-            "anthropic" to "Anthropic",
-            "openai" to "OpenAI",
-            "github_copilot" to "GitHub Copilot",
-        )
+    val providerOptions =
+        remember(availableModels, role.config.provider) {
+            (availableModels.keys + ProviderCatalog.labels.keys + role.config.provider)
+                .filter { it.isNotBlank() }
+                .toSortedSet()
+                .toList()
+        }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -180,7 +179,7 @@ fun RoleCard(
                 onExpandedChange = { providerExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = providerNames[role.config.provider] ?: role.config.provider,
+                    value = ProviderCatalog.displayName(role.config.provider),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Provider") },
@@ -194,17 +193,21 @@ fun RoleCard(
                     expanded = providerExpanded,
                     onDismissRequest = { providerExpanded = false },
                 ) {
-                    availableModels.keys.forEach { provider ->
+                    providerOptions.forEach { provider ->
                         DropdownMenuItem(
-                            text = { Text(providerNames[provider] ?: provider) },
+                            text = { Text(ProviderCatalog.displayName(provider)) },
                             onClick = {
                                 val models = availableModels[provider] ?: emptyList()
+                                val keepModel =
+                                    role.config.model.takeIf { model ->
+                                        model.isNotBlank() && (models.isEmpty() || model in models)
+                                    }
                                 onUpdate(
                                     role.copy(
                                         config =
                                             role.config.copy(
                                                 provider = provider,
-                                                model = models.firstOrNull() ?: "",
+                                                model = keepModel ?: models.firstOrNull() ?: role.config.model,
                                             ),
                                     ),
                                 )
@@ -225,9 +228,12 @@ fun RoleCard(
             ) {
                 OutlinedTextField(
                     value = role.config.model,
-                    onValueChange = {},
-                    readOnly = true,
+                    onValueChange = { typed ->
+                        onUpdate(role.copy(config = role.config.copy(model = typed)))
+                    },
+                    readOnly = false,
                     label = { Text("Model") },
+                    placeholder = { Text("Type a model name") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                     modifier =
                         Modifier

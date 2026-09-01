@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Android Companion — Provider & Model Fallbacks (#208):**
+  - The agent provider dropdown is never empty — it unions the desktop GetModels map with a static provider/model catalog so selection works offline and before the TCP reply, and the model field accepts a typed name.
+
 - **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
   - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
   - Preserved custom selected models not present in returned provider lists.
