@@ -2793,7 +2793,8 @@ The final GitHub Security Audit run URL and inventories will be attached to
 On the owner's authorization to complete both Codex's and DeepSeek's assigned
 work, Codex completed the reassigned `feat/quota-adapters` review and delivery:
 
-- rebased the three original commits onto current `main` (`15b1079`);
+- rebased the branch onto current `main` (`ee3a2b2`), preserving the latest
+  PR #223 bus reconciliation;
 - disabled redirects for the authenticated DeepSeek request, validated the
   string-typed monetary values, and confirmed errors never include the key or
   response body;

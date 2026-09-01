@@ -79,10 +79,8 @@ fn parse_usage_line(line: &str) -> Option<ProviderQuotaWindow> {
         ("Rolling", rest)
     } else if let Some(rest) = line.strip_prefix("Weekly:") {
         ("Weekly", rest)
-    } else if let Some(rest) = line.strip_prefix("Monthly:") {
-        ("Monthly", rest)
     } else {
-        return None;
+        ("Monthly", line.strip_prefix("Monthly:")?)
     };
     let used: i32 = rest.split('%').next()?.trim().parse::<f64>().ok()?.round() as i32;
     let used = used.clamp(0, 100);
