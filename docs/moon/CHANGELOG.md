@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-01
+
 ### Added
 
 - Android Configure & Start Task can rename roles and attach workspace
@@ -50,9 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop UI — File Picker Path Input & Config Loading (#215-A):**
   - Added manual path input fallback with Enter key handling and "Load Path" button next to "Browse…" in `ConfigPanel.tsx` for MCP Configuration loading.
   - Configured file dialog filters and default paths for workspace root and MCP configuration dialogs.
-
-## [1.0.0] - 2026-09-01
-
 ### Fixed
 
 - Completed the review of the per-harness model and reasoning-effort settings:
