@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-01
+
 ### Fixed
 
 - Completed the review of the per-harness model and reasoning-effort settings:
@@ -24,8 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bundle all seven Creative Tools MCP bridge executables as target-qualified
   Tauri `externalBin` sidecars. The release workflow and local release recipe
   build and stage the matching binaries before Tauri packages the app.
-
-## [1.0.0] - 2026-08-29
 
 ### Added
 
