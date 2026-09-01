@@ -64,6 +64,23 @@ data class AppState(
     val lastServerIp: String = "",
 )
 
+fun parseHostPort(
+    input: String,
+    defaultPort: Int = 5555,
+): Pair<String, Int> {
+    val trimmed = input.trim()
+    if (trimmed.isEmpty()) return Pair("", defaultPort)
+    val colonIdx = trimmed.lastIndexOf(':')
+    if (colonIdx > 0 && colonIdx < trimmed.length - 1) {
+        val hostPart = trimmed.substring(0, colonIdx)
+        val portPart = trimmed.substring(colonIdx + 1).toIntOrNull()
+        if (portPart != null && portPart in 1..65535) {
+            return Pair(hostPart, portPart)
+        }
+    }
+    return Pair(trimmed, defaultPort)
+}
+
 class MainViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -82,27 +99,28 @@ class MainViewModel(
 
     fun connectToServer(ipAddress: String) {
         viewModelScope.launch {
+            val (host, port) = parseHostPort(ipAddress)
             try {
                 _state.value =
                     _state.value.copy(
                         errorMessage = null,
-                        serverAddress = ipAddress,
+                        serverAddress = ipAddress.trim(),
                         isConnectionLost = false,
                         isReconnecting = false,
                     )
 
-                val client = TcpClient(ipAddress)
+                val client = TcpClient(host, port)
                 val connectResult = client.connect()
 
                 if (connectResult.isSuccess) {
                     tcpClient = client
-                    persistServerIp(ipAddress)
+                    persistServerIp(ipAddress.trim())
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
-                            lastServerIp = ipAddress,
+                            lastServerIp = ipAddress.trim(),
                             currentScreen = Screen.Dashboard,
                         )
 
@@ -173,17 +191,18 @@ class MainViewModel(
                 delay(2000)
             }
             try {
-                val client = TcpClient(address)
+                val (host, port) = parseHostPort(address)
+                val client = TcpClient(host, port)
                 val connectResult = client.connect()
                 if (connectResult.isSuccess) {
                     tcpClient = client
-                    persistServerIp(address)
+                    persistServerIp(address.trim())
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
-                            lastServerIp = address,
+                            lastServerIp = address.trim(),
                             errorMessage = null,
                         )
 
@@ -286,7 +305,8 @@ class MainViewModel(
     fun disconnect() {
         tcpClient?.disconnect()
         tcpClient = null
-        _state.value = AppState()
+        val preservedHost = _state.value.lastServerIp.ifBlank { prefs.getString(PREF_LAST_SERVER_IP, "") ?: "" }
+        _state.value = AppState(lastServerIp = preservedHost)
     }
 
     fun navigateTo(screen: Screen) {

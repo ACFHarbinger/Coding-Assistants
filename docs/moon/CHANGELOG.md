@@ -19,10 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Android Companion — Provider & Model Fallbacks (#208) & Wake Approval Context (#206):**
   - The agent provider dropdown is never empty — it unions the desktop GetModels map with a static provider/model catalog so selection works offline and before the TCP reply, and the model field accepts a typed name (#208).
   - Pending human-approval cards parse wake routing tags into an action label, resolved target, payload preview, and a human-gate badge (#206).
-- **Android Companion — Navigation & Disconnect Handling (#211, #212, #207):**
+- **Android Companion — Navigation, Connection Gating & Disconnect Handling (#211, #212, #207):**
   - System Back pops the in-session screen stack instead of dropping the TCP connection; Dashboard Back asks before disconnect (#211).
   - Socket loss is detected and shown as a reconnectable Connection Lost state instead of a stale live Dashboard (#212).
-  - Android connection screen remembers the last successful host, validates input, and keeps long ids/addresses selectable (#207).
+  - Task execution screen dynamically gates task launching on live socket connection and reflects lost connection state (#212).
+  - Connection screen and view model parse and handle custom `host:port` addresses for initial connections and auto-reconnect (#207).
+  - Explicit disconnect resets active session state while preserving the last connected host address for seamless prefill (#207).
+  - Android connection screen validates input and keeps long ids/addresses selectable (#207).
 
 - **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
   - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
