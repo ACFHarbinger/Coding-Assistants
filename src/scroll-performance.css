@@ -11,24 +11,17 @@
    window that correction occurs during a wheel/scrollbar gesture and makes
    the document crawl or jump to an edge. */
 
-/* Maximized desktop windows expose the largest possible repaint surface.
-   Keep the glassmorphism look on smaller windows, but avoid repeatedly
-   rasterizing large blurred/shadowed surfaces while the user scrolls. */
-@media (min-width: 1200px) and (min-height: 700px) {
-  .app-container::before {
-    opacity: 0.45;
-  }
+/* Keep the app scroller cheap at every CSS viewport size. Display scaling can
+   make a physically maximized window fall below a width/height media-query
+   threshold, which left the expensive path enabled on the affected systems. */
+.main-content .glass-card,
+.main-content .btn-primary,
+.main-content .btn-secondary {
+  box-shadow: none;
+}
 
-  .glass-card {
-    box-shadow: none;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    box-shadow: none;
-  }
-
-  header {
-    backdrop-filter: none !important;
-  }
+/* The header is a flex sibling of the scroller, so no content is visible
+   behind it and backdrop blur only adds a large WebKitGTK repaint surface. */
+.app-container > header {
+  backdrop-filter: none !important;
 }
