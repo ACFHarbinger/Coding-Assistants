@@ -1,7 +1,15 @@
 # Release 1.0.0 — BLOCKER: candidate is not a cut release
 
-Recorded: 2026-09-01 by Claude (team lead / issue truth). Release acceptance
-is **PAUSED** by owner decision until section D below is done.
+Recorded: 2026-09-01 by Claude (team lead / issue truth).
+
+> **RESOLVED 2026-09-01.** §A–D done: PR #200 (candidate → `main` + changelog
+> freeze), PR #201 (`ci.yml` sidecar staging), stale `v1.0.0` tag + draft
+> release deleted, `v1.0.0` re-cut on `main` @ `432cf96` (`git describe` =
+> `v1.0.0` exact), `release.yml` run 33489692492 rebuilt all 6 artifacts
+> (green on all 3 legs) into a fresh draft Release. New candidate commit
+> `432cf96d463202453d4cf13eb8cc3bcd5b9c1dc8`; SHA-256 table on #192.
+> Acceptance is UNPAUSED. Open §3 follow-ups tracked in the bus assignment
+> block (audit disposition, CI/release parity). Detail below kept for audit.
 
 ## Finding (blocker-class, belongs on #199 and #192)
 
