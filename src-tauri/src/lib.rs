@@ -146,8 +146,32 @@ async fn read_file_absolute(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn bootstrap_workspace(work_dir: String) -> Result<(), String> {
-    let base = std::path::Path::new(&work_dir).join(".agent");
+async fn bootstrap_workspace(
+    work_dir: String,
+    create_dir: Option<bool>,
+) -> Result<(), String> {
+    let trimmed = work_dir.trim();
+    if trimmed.is_empty() {
+        return Err("Workspace path cannot be empty".to_string());
+    }
+
+    let work_path = std::path::Path::new(trimmed);
+    if !work_path.is_absolute() {
+        return Err("Workspace root must be an absolute path".to_string());
+    }
+
+    if !work_path.exists() {
+        if create_dir != Some(true) {
+            return Err(format!("Workspace directory '{}' does not exist", trimmed));
+        }
+        tokio::fs::create_dir_all(work_path)
+            .await
+            .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
+    } else if !work_path.is_dir() {
+        return Err(format!("Workspace path '{}' is not a directory", trimmed));
+    }
+
+    let base = work_path.join(".agent");
     if base.exists() {
         return Err("Workspace is already bootstrapped (.agent directory exists)".to_string());
     }
