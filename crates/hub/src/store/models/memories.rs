@@ -70,7 +70,9 @@ impl HubStore {
             ],
         )?;
 
-        let record = self.get_memory(&id)?.ok_or_else(|| HubError::NotFound(id))?;
+        let record = self
+            .get_memory(&id)?
+            .ok_or_else(|| HubError::NotFound(id))?;
         let _ = self.upsert_memory_vector(&record.id, title, body, tags);
         Ok(record)
     }
@@ -136,7 +138,8 @@ impl HubStore {
             }
         }
 
-        let record = self.get_memory(id)?
+        let record = self
+            .get_memory(id)?
             .ok_or_else(|| HubError::NotFound(id.to_string()))?;
         let tags_vec: Vec<String> = serde_json::from_str(&record.tags_json).unwrap_or_default();
         let _ = self.upsert_memory_vector(&record.id, title, body, &tags_vec);

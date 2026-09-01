@@ -59,7 +59,11 @@ pub fn compute_embedding(text: &str) -> Vec<f32> {
         let weight = (1.0 + count.ln()).max(0.1);
         let hash = fnv1a_hash(feature.as_bytes());
         let dim = (hash as usize) % VECTOR_DIMENSIONS;
-        let sign = if ((hash >> 32) & 1) == 0 { 1.0f32 } else { -1.0f32 };
+        let sign = if ((hash >> 32) & 1) == 0 {
+            1.0f32
+        } else {
+            -1.0f32
+        };
         vec[dim] += sign * weight;
     }
 
@@ -163,7 +167,9 @@ impl HubStore {
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
-            return Err(HubError::Invalid("semantic search query must not be empty".into()));
+            return Err(HubError::Invalid(
+                "semantic search query must not be empty".into(),
+            ));
         }
 
         let query_vector = compute_embedding(trimmed);
@@ -245,17 +251,14 @@ impl HubStore {
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
-            return Err(HubError::Invalid("hybrid search query must not be empty".into()));
+            return Err(HubError::Invalid(
+                "hybrid search query must not be empty".into(),
+            ));
         }
 
         // 1. Semantic search results
-        let semantic_results = self.search_memories_semantic(
-            trimmed,
-            limit * 2,
-            scope,
-            tier,
-            workspace_path,
-        )?;
+        let semantic_results =
+            self.search_memories_semantic(trimmed, limit * 2, scope, tier, workspace_path)?;
 
         // 2. Lexical search results
         let lexical_candidates = self.search_memories(trimmed)?;
@@ -319,14 +322,7 @@ impl HubStore {
         )?;
 
         let unindexed: Vec<(String, Option<String>, String, String)> = stmt
-            .query_map([], |r| {
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    r.get(3)?,
-                ))
-            })?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
             .collect::<Result<Vec<_>, _>>()?;
 
         let count = unindexed.len();
@@ -366,7 +362,8 @@ mod tests {
     #[test]
     fn related_texts_have_higher_cosine_similarity() {
         let query = compute_embedding("Rust vector search sqlite");
-        let similar = compute_embedding("Vector database embedding indexing in SQLite database with Rust");
+        let similar =
+            compute_embedding("Vector database embedding indexing in SQLite database with Rust");
         let unrelated = compute_embedding("Watercolor painting canvas brush acrylic colors");
 
         let sim_related = cosine_similarity(&query, &similar);
@@ -426,7 +423,10 @@ mod tests {
         // Delete a vector directly to test backfill
         store
             .conn
-            .execute("DELETE FROM memory_vectors WHERE memory_id = ?1", rusqlite::params![mem2.id])
+            .execute(
+                "DELETE FROM memory_vectors WHERE memory_id = ?1",
+                rusqlite::params![mem2.id],
+            )
             .unwrap();
         let reindexed = store.reindex_memory_vectors().unwrap();
         assert_eq!(reindexed, 1);

@@ -1,7 +1,7 @@
 use super::*;
 
-mod memories;
 pub mod embeddings;
+mod memories;
 mod memory_links;
 pub use memory_links::{LinkSuggestion, UNATTRIBUTED_AUTHOR};
 /// One step in a multi-agent workflow (C5).

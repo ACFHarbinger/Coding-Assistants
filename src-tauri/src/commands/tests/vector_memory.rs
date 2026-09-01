@@ -37,13 +37,7 @@ fn tauri_semantic_and_hybrid_memory_search() {
 
     // 1. Semantic search
     let semantic_hits = store
-        .search_memories_semantic(
-            "dense feature hashing embeddings",
-            10,
-            None,
-            None,
-            None,
-        )
+        .search_memories_semantic("dense feature hashing embeddings", 10, None, None, None)
         .expect("semantic search should succeed");
 
     assert!(!semantic_hits.is_empty());
@@ -52,13 +46,7 @@ fn tauri_semantic_and_hybrid_memory_search() {
 
     // 2. Hybrid search
     let hybrid_hits = store
-        .search_memories_hybrid(
-            "vector embeddings",
-            10,
-            None,
-            None,
-            None,
-        )
+        .search_memories_hybrid("vector embeddings", 10, None, None, None)
         .expect("hybrid search should succeed");
 
     assert!(!hybrid_hits.is_empty());

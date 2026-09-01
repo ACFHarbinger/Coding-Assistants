@@ -125,13 +125,8 @@ pub(super) fn run(store: &HubStore, action: MemoryCommand) -> anyhow::Result<()>
         } => {
             let scope = scope.map(|s| MemoryScope::parse(&s)).transpose()?;
             let tier = tier.map(|t| MemoryTier::parse(&t)).transpose()?;
-            let results = store.search_memories_semantic(
-                &query,
-                limit,
-                scope,
-                tier,
-                workspace.as_deref(),
-            )?;
+            let results =
+                store.search_memories_semantic(&query, limit, scope, tier, workspace.as_deref())?;
             println!("{}", serde_json::to_string_pretty(&results)?);
         }
         MemoryCommand::HybridSearch {
@@ -143,13 +138,8 @@ pub(super) fn run(store: &HubStore, action: MemoryCommand) -> anyhow::Result<()>
         } => {
             let scope = scope.map(|s| MemoryScope::parse(&s)).transpose()?;
             let tier = tier.map(|t| MemoryTier::parse(&t)).transpose()?;
-            let results = store.search_memories_hybrid(
-                &query,
-                limit,
-                scope,
-                tier,
-                workspace.as_deref(),
-            )?;
+            let results =
+                store.search_memories_hybrid(&query, limit, scope, tier, workspace.as_deref())?;
             println!("{}", serde_json::to_string_pretty(&results)?);
         }
         MemoryCommand::Reindex => {
