@@ -55,6 +55,7 @@ body,
   flex: 1;
   padding: 2.5rem;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -64,6 +65,7 @@ body,
      every scroll gesture to find the anchor node. Removing it eliminates
      that forced-layout stall at the beginning of each scroll. */
   overflow-anchor: none;
+  overscroll-behavior-y: contain;
 }
 
 .glass-card {

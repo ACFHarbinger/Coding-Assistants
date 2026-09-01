@@ -53,6 +53,24 @@ export default function ConfigPanel({
   const [workSessionName, setWorkSessionName] = useState("");
   const [creatingWorkSession, setCreatingWorkSession] = useState(false);
   const [sessionError, setSessionError] = useState("");
+  const [externalConfigPath, setExternalConfigPath] = useState("");
+
+  const loadConfigFromPath = async (inputPath: string) => {
+    const trimmed = inputPath.trim();
+    if (!trimmed) return;
+    try {
+      let resolvedPath = trimmed;
+      if (!trimmed.startsWith("/") && !trimmed.startsWith("~") && config.work_dir) {
+        resolvedPath = `${config.work_dir.replace(/\/+$/, "")}/${trimmed.replace(/^\/+/, "")}`;
+      }
+      const content = await invoke<string>("read_file_absolute", { path: resolvedPath });
+      setConfig(prev => ({ ...prev, mcp_config: content }));
+      setExternalConfigPath(trimmed);
+    } catch (err) {
+      console.error("Failed to load config from path", err);
+      alert(`Failed to load config from ${trimmed}: ${err}`);
+    }
+  };
 
   const createWorkSession = async () => {
     const trimmed = workSessionName.trim();
@@ -239,7 +257,7 @@ export default function ConfigPanel({
           <button
             className="btn-secondary"
             onClick={async () => {
-              const selected = await open({ directory: true, multiple: false });
+              const selected = await open({ directory: true, multiple: false, defaultPath: config.work_dir || undefined });
               if (selected) setConfig({ ...config, work_dir: selected as string });
             }}
           >
@@ -249,9 +267,16 @@ export default function ConfigPanel({
             className="btn-secondary"
             style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
             onClick={async () => {
+              const trimmed = (config.work_dir || "").trim();
+              if (!trimmed) {
+                alert("Please specify a workspace root directory first.");
+                return;
+              }
+              const confirmCreate = confirm(`Initialize .agent/ directory structure in ${trimmed}? If the folder does not exist, it will be created.`);
+              if (!confirmCreate) return;
               try {
-                await invoke("bootstrap_workspace", { workDir: config.work_dir });
-                alert(`Successfully bootstrapped .agent/ in ${config.work_dir}`);
+                await invoke("bootstrap_workspace", { workDir: trimmed, createDir: true });
+                alert(`Successfully bootstrapped .agent/ in ${trimmed}`);
               } catch (err) {
                 alert(`Failed to bootstrap: ${err}`);
               }
@@ -346,26 +371,48 @@ export default function ConfigPanel({
         </div>
 
         <div style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
             <label className="label" style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>MCP Configuration (JSON)</label>
-            <button
-              className="btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
-              onClick={async () => {
-                try {
-                  const selected = await open({ multiple: false });
-                  if (selected) {
-                    const content = await invoke<string>("read_file_absolute", { path: selected as string });
-                    setConfig({ ...config, mcp_config: content });
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                style={{ width: '260px', padding: '0.4rem 0.65rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
+                placeholder=".agent/mcp.json or /path/to/config.json"
+                value={externalConfigPath}
+                onChange={e => setExternalConfigPath(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") void loadConfigFromPath(externalConfigPath); }}
+              />
+              <button
+                className="btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
+                onClick={() => void loadConfigFromPath(externalConfigPath)}
+                disabled={!externalConfigPath.trim()}
+              >
+                Load Path
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
+                onClick={async () => {
+                  try {
+                    const selected = await open({
+                      multiple: false,
+                      defaultPath: config.work_dir || undefined,
+                      filters: [{ name: 'JSON Config', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }]
+                    });
+                    if (selected) {
+                      const content = await invoke<string>("read_file_absolute", { path: selected as string });
+                      setConfig(prev => ({ ...prev, mcp_config: content }));
+                      setExternalConfigPath(selected as string);
+                    }
+                  } catch (err) {
+                    console.error("Failed to load config", err);
+                    alert("Failed to load config: " + err);
                   }
-                } catch (err) {
-                  console.error("Failed to load config", err);
-                  alert("Failed to load config: " + err);
-                }
-              }}
-            >
-              Load External Config...
-            </button>
+                }}
+              >
+                Browse…
+              </button>
+            </div>
           </div>
           <textarea
             value={config.mcp_config}

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
+  - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
+  - Preserved custom selected models not present in returned provider lists.
+  - Added focused Vitest/RTL regression tests verifying component rendering and interaction across populated and empty model catalogs.
+
+- **Desktop UI — Maximized Window Scrolling (#213):**
+  - Eliminated scroll crawling, jumping, and momentum stalls in maximized desktop windows by removing `content-visibility: auto` and `contain-intrinsic-size` layout shifts on `.main-content` child panels.
+  - Added `overflow-x: hidden` and `overscroll-behavior-y: contain` to `.main-content` to prevent horizontal micro-shifts.
+
+### Added
+
+- **Desktop UI — File Picker Path Input & Config Loading (#215-A):**
+  - Added manual path input fallback with Enter key handling and "Load Path" button next to "Browse…" in `ConfigPanel.tsx` for MCP Configuration loading.
+  - Configured file dialog filters and default paths for workspace root and MCP configuration dialogs.
+  - Added confirmation dialog for `.agent/` workspace bootstrapping with `createDir: true` parameter support.
+
 ## [1.0.0] - 2026-09-01
 
 ### Fixed
