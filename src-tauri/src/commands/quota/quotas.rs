@@ -1,17 +1,10 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
 use super::quota_codex::{codex_quota, unavailable_quota, ProviderQuota};
+use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
-
-fn opencode_quota() -> ProviderQuota {
-    unavailable_quota(
-        "opencode",
-        "anomaly",
-        "Anomaly Opencode",
-        "Anomaly Opencode instance offline or unmetered local execution",
-    )
-}
+use super::quota_opencode::opencode_quota;
 
 fn llamacpp_quota() -> ProviderQuota {
     unavailable_quota(
@@ -28,15 +21,6 @@ fn ollama_quota() -> ProviderQuota {
         "local",
         "Local Ollama",
         "Local Ollama server offline or unmetered local execution",
-    )
-}
-
-fn deepseek_quota() -> ProviderQuota {
-    unavailable_quota(
-        "deepseek",
-        "deepseek",
-        "DeepSeek via OpenCode",
-        "OpenCode does not expose a DeepSeek usage-budget command",
     )
 }
 

@@ -125,7 +125,14 @@ export function QuotaChart({
                   )}
                 </div>
               </div>
-              {quota.windows.length === 0 ? (
+              {quota.balance ? (
+                <div style={{ display: "grid", gap: "0.25rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                    <span>Account balance</span>
+                    <strong style={{ color: "#22c55e" }}>{quota.balance}</strong>
+                  </div>
+                </div>
+              ) : quota.windows.length === 0 ? (
                 <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
               ) : families.length > 0 ? (
                 families.map((family) => {
