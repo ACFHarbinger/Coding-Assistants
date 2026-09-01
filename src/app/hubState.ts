@@ -1,4 +1,21 @@
-export const PROVIDERS = {
+/**
+ * Display-name labels for known providers. This is only a label map — the
+ * actual list of selectable providers is driven by what
+ * `get_available_models` returns (see `providerOptions` in ModelSelect).
+ */
+export const PROVIDERS: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  claude: "Claude",
+  gemini: "Gemini",
+  google: "Google",
+  grok: "Grok",
+  opencode: "OpenCode",
+  deepseek: "DeepSeek",
+  vibe: "Vibe",
+  chat: "Chat",
+  codex: "Codex",
+  github_copilot: "GitHub Copilot",
 };
 
 export interface HubMessage {

@@ -31,6 +31,14 @@ export const ModelSelect = ({
 }) => {
   const roleConfig = role.config;
 
+  // The selectable providers are whatever the backend actually offers
+  // (`get_available_models` → `availableModels`), unioned with any known
+  // label ids so a saved role's provider still renders even before models
+  // finish loading. `PROVIDERS` is only the display-name map.
+  const providerOptions = Array.from(
+    new Set([...Object.keys(availableModels), ...Object.keys(PROVIDERS)])
+  ).sort();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.02)', position: 'relative', transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease' }}
          onMouseEnter={(e) => {
@@ -95,8 +103,13 @@ export const ModelSelect = ({
           onChange={(e) => onProviderChange(index, e.target.value)}
           style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
         >
-          {Object.entries(PROVIDERS).map(([id, name]) => (
-            <option key={id} value={id}>{name}</option>
+          {(!roleConfig.provider || !providerOptions.includes(roleConfig.provider)) && (
+            <option value={roleConfig.provider || ""}>
+              {providerOptions.length ? "Select a provider…" : "No providers available"}
+            </option>
+          )}
+          {providerOptions.map(id => (
+            <option key={id} value={id}>{PROVIDERS[id] ?? id}</option>
           ))}
         </select>
       </div>
