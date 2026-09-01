@@ -2498,3 +2498,50 @@ other's files.
     - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
     - `cargo test --workspace`: all tests passed across all crates (`hub`, `tauri-app`, `cli`, `tui`, `claude`).
     - `npm run build`: Vite build passed cleanly.
+
+
+### Claude — 2026-09-01 — Acceptance defect batch: reconciled state + remaining assignments
+
+Live #193/#195/#196 acceptance (owner + Claude) filed a defect pile. Reconciling
+with in-flight agent work:
+
+**Already covered (branches/PRs exist — need review + conflict resolution):**
+- **#216** (merged) — desktop provider dropdown: `PROVIDERS` was `{}` since `de6297b`;
+  now derived from `availableModels`. On `main`.
+- **PR #214** `feat/android-task-config` (Gemini) — Android #206/#207/#208/#209 +
+  desktop resource plumbing. **Conflicts incoming**: it re-edits
+  `src/components/panels/config/ModelSelect.tsx` and `src/app/hubState.ts` which
+  #216 already changed on `main`. Must rebase onto post-#216 `main` and reconcile
+  so the provider-list logic isn't done two different ways.
+- **PR #205** `ci/sidecar-composite-action` (Grok) — shared sidecar action + Node-20
+  bumps. Also carries a stale `ModelSelect.tsx` hunk — drop it on rebase (superseded
+  by #216).
+- **`fix/213-maximized-scroll`** (unmerged, no PR) — #213 desktop scroll. Also carries
+  a `ModelSelect.tsx` hunk — same: rebase, drop the stale hunk, open the PR.
+
+**ModelSelect.tsx / provider-dropdown = single owner: Gemini.** #216 is the baseline.
+#214, #205, fix/213 must rebase onto it; nobody else edits that file's provider logic
+in this batch.
+
+**Not yet covered — assigned now:**
+
+| # | Issue | Owner | Notes |
+| --- | --- | --- | --- |
+| **#211** | Android: system Back disconnects instead of popping the nav stack | **Grok** | Back from an inner screen → previous screen, keep the socket; only the explicit Disconnect button (or a confirm at the root) tears down. `android/.../ui` + nav host. |
+| **#212** | Android: no disconnect detection — Dashboard shows stale state after Wi-Fi/server loss | **Grok** | Heartbeat / read-failure detection in `TcpClient.kt` → surface a lost-connection state; disable live-only actions (Approve/Reject, Start Task) when dead; optional bounded auto-reconnect. Pairs with #206. |
+| **#215-A** | Desktop file picker: light theme, no path entry, hidden files not shown (can't reach `.agent/`) | **Gemini** | Tauri `open()` dialog / `xdg-desktop-portal`. Request a portal that honors theme + exposes a location bar, or add a plain path-input fallback next to Browse / "Load External Config…". |
+| **#215-B** | `bootstrap_workspace` (`src-tauri/src/lib.rs:149`) creates dir trees anywhere from free text, reports success for a "missing" path | **Grok** | Confirm-before-create ("<path> doesn't exist — create it?"), validate/constrain the target, keep the existing "already bootstrapped" guard. |
+| SIGBUS repro | 3× SIGBUS (`coding-assistants` + both WebKit procs) when a 2nd AppImage instance launched over a 1st on the real profile, with the TCP server thrashing start/stop | **Grok** | Recorded on #193. Investigate: single-instance guard, FUSE-mount interaction, server start/stop lifecycle. Needs-repro; not a clean-start defect. |
+
+**Standing:** DeepSeek keeps #199 §3 audit disposition. Codex reviews this whole
+batch (PRs #214/#205/#216 + fix/213 + the new work) — flag the `ModelSelect.tsx`
+reconciliation explicitly. All work: branch + build + clippy + targeted tests +
+changelog, ready-for-review, **no merge without Claude**. 500-LoC hard rule.
+
+**After the batch lands:** Claude re-cuts `v1.0.0`, re-runs acceptance from §6
+(paused there), re-verifies #206/#208/#211/#212 on device + #208/#213/#215 on desktop.
+
+Launching `agy` (Gemini: #213 PR + #215-A), `grok` (#211, #212, #215-B, SIGBUS),
+`codex` (review) now via CLI — owner is remote and can't drive them.
+
+— claude
