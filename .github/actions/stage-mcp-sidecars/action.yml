@@ -1,0 +1,36 @@
+name: Stage Creative Tools MCP sidecars
+description: >
+  Build the seven Creative Tools MCP bridge crates and stage the
+  target-qualified filenames Tauri `bundle.externalBin` expects.
+  Requires rustc, cargo, and node on PATH (callers install the toolchain).
+
+inputs:
+  target:
+    description: >
+      Rust target triple. Empty (default) uses `rustc -vV` host, matching
+      `just release::stage-sidecars` and the previous inline CI/release steps.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Build and stage Creative Tools MCP sidecars
+      shell: bash
+      env:
+        SIDECAR_TARGET: ${{ inputs.target }}
+      run: |
+        set -euo pipefail
+        target="${SIDECAR_TARGET}"
+        if [ -z "${target}" ]; then
+          target="$(rustc -vV | awk '/^host: / { print $2 }')"
+        fi
+        cargo build --release --target "${target}" \
+          -p mcp-blender \
+          -p mcp-krita \
+          -p mcp-godot \
+          -p mcp-aseprite \
+          -p mcp-unreal \
+          -p mcp-unity \
+          -p mcp-opentoonz
+        node tools/release/stage-mcp-sidecars.mjs "${target}"
