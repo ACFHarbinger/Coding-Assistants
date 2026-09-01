@@ -184,6 +184,10 @@ describe("ModelSelect Component (#216 follow-up)", () => {
     fireEvent.change(nameInput, { target: { value: "Lead Reviewer" } });
     expect(onNameChange).toHaveBeenCalledWith(1, "Lead Reviewer");
 
+    const providerSelect = screen.getAllByRole("combobox")[0];
+    fireEvent.change(providerSelect, { target: { value: "gemini" } });
+    expect(onProviderChange).toHaveBeenCalledWith(1, "gemini");
+
     const removeBtn = screen.getByRole("button", { name: "Remove" });
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledWith(1);
