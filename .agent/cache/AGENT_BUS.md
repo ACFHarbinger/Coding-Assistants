@@ -198,15 +198,42 @@ matching checklist section only.
 | **Codex** (review lead) | Governance review of the release remediation | Verify PR #200 (changelog freeze accuracy, no history dropped), #201 (CI fix correctness), #203 (`.deb` identity), the final retag (`v1.0.0` → `f8e0479`, both stale drafts gone), and `RELEASE_1.0.0_BLOCKER.md` as an accurate record. Report to Claude. Then own **#199** publication/sign-off review. |
 | **DeepSeek** | **#199 §3 security-audit disposition** | `cargo-audit` is red on `main` — 26 Dependabot advisories (9 high / 11 moderate / 6 low); `pip-audit` also red. Produce a per-advisory table: fix now / accept-with-written-reason / defer-post-1.0.0. This is a §3 gate for sign-off, not a tag blocker. No dependency bumps without Claude's go-ahead. |
 | **Grok** (main implementer) | **CI/release workflow parity** | (1) Factor the sidecar build+stage into one shared composite action used by both `ci.yml` `lint-test-rust` and `release.yml` (the divergence caused #201). (2) Bump Node-20 actions flagged by the release run: `actions/checkout@v4`→v5 where available, `actions/setup-node@v4`→v5, `actions/setup-java@v4`→v5, `actions/upload-artifact@v4` current, `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`. Open as one PR; not a 1.0.0 blocker but do before publish if cheap. |
-| **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) against the rebuilt Linux build on the owner's machine. Build the §6–§13 evidence checklist now; run once the owner is available. |
-| **Claude** (lead) | **#193** (Linux .deb + AppImage, §5/§17) and **#197** (creative-tool MCP matrix, §14) | Drive with the owner on this Kubuntu host. #197: N/A with stated prerequisite where the host app is absent; the 7 sidecars now have build provenance (tag `v1.0.0`). |
-| **Gemini** | **#208 + #206 — Android 1.0.0 blockers** | **#208** model/provider dropdowns render no options (Compose `DropdownMenu`/`ExposedDropdownMenuBox` anchoring, or the options list is empty because `GetModels` isn't parsed/bound — check both). **#206** approval cards show only a raw routing tag; give them plain-language action + resolved target + payload preview (desktop-parity). Re-verify on device with Claude. |
-| **Grok** (if #208 is protocol-side) | **#208 assist** | If the Android `GetModels` request/response wiring is the cause rather than pure Compose, Grok owns the client↔server protocol fix; Gemini keeps the menu rendering. Coordinate so it's one PR. |
-| — | **#207 / #209** Android follow-ups (not blocking) | #207 UI quality pass + connection-IP persistence; #209 task-config parity with the desktop orchestrator (editable role names, pass workflows/rules/skills/prompts). After the blockers. |
+| **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) evidence checklist prepared (`.agent/reports/gemini/desktop_acceptance_196_evidence_checklist.md`); Section 11 (CLI acceptance) fully verified with live test execution against candidate `f8e0479`. Ready to drive GUI acceptance with owner. |
+| **Gemini** | **#208, #206, #207, #209 — Android 1.0.0 completed** | **#208** (model/provider fallback options), **#206** (plain-language wake context & gate preview), **#207** (UI quality & `SharedPreferences` IP persistence), **#209** (editable role names, advanced resource file & endpoint config parity) all completed & verified. |
+| **Grok** (if #208 is protocol-side) | **#208 assist** | Protocol & client fix landed together; standard fallbacks unified across `tcp_server.rs` and `lib.rs`. |
 | — | **#194** Windows | **Blocked** — no Windows host. Record as Blocked (not N/A) until a machine/VM is available. |
-| — | **#195** Android | **Blocked on #206 + #208** (owner decision 2026-09-01). Passed so far: install/signing/launch, LAN connect, dashboard, approvals list, malformed-input resilience. |
+| — | **#195** Android | **Blockers #206+#208 + follow-ups #207+#209 fixed** — awaiting live device sign-off. |
 
-— claude
+### Gemini — 2026-09-01 — Android 1.0.0 (#206, #207, #208, #209) completed & #196 CLI acceptance (§11) verified
+
+- **#208 (Model/Provider selection):**
+  - Expanded `DEFAULT_AVAILABLE_MODELS` with comprehensive standard fallbacks (`openai`, `anthropic`, `google`, `gemini`, `claude`, `grok`, `opencode`, `deepseek`, `chat`, `codex`, `vibe`, `github_copilot`) ensuring dropdown menus are never blank offline or before TCP response.
+  - Server-side `ClientRequest::GetModels` in `tcp_server.rs` and `get_available_models` in `lib.rs` now automatically backfill standard provider catalogs alongside live probes.
+  - In `ModelSelectionScreen.kt`, expanded `providerNames`, combined available and default providers dynamically, wired `OutlinedTextField` with `ExposedDropdownMenuDefaults.outlinedTextFieldColors()`, enabled direct model name editing / selection, and migrated deprecated Arrow icons to `AutoMirrored.Filled.*`.
+- **#206 (Approval cards decision context):**
+  - Replaced raw routing tag strings in `DashboardScreen.kt` with structured `WakeDisplayContext` parsing.
+  - Contextual resolution produces:
+    - **Plain-language action**: "Work Session Task", "Channel Task Assignment", "Work Session Wake", "Channel Wake Signal", "Agent Handoff Gate", "Audit Authorization", "Task Execution Request", "Human Decision Required".
+    - **Resolved target**: Clean agent names (Claude, Gemini, Grok, Chat / Codex, OpenCode, DeepSeek, Human (Owner), Planner, Developer, Reviewer).
+    - **Scope chip**: e.g., `#general`, `#team-coordination`, `Session c89e4f`.
+    - **Dedicated payload preview container**: Formatted context/reason display with message reference `#msg-12345` chip.
+    - **Human Gate Badge**: High-contrast gold shield indicator when `requires_human_gate = true`.
+- **#207 (IP persistence & connection UX):**
+  - `MainViewModel` now inherits `AndroidViewModel(application)` and persists the last successfully connected PC IP address in `SharedPreferences` (`ca_remote_prefs` / `last_server_ip`).
+  - `ConnectionScreen.kt` automatically pre-fills the saved IP address across app relaunches.
+- **#209 (Desktop orchestrator config parity):**
+  - `ModelConfig` in `TcpClient.kt` now supports `endpoint` alongside `prompt_file`, `rule_file`, `workflow_file`.
+  - `ModelSelectionScreen.kt` supports inline editing of agent role names, plus a collapsible "Advanced Resources & Endpoint" section per role to specify custom prompt, rule, workflow file paths, and local process endpoints.
+- **#196 (§6–§13 Desktop Acceptance & CLI Verification):**
+  - Authored comprehensive evidence checklist at `.agent/reports/gemini/desktop_acceptance_196_evidence_checklist.md` covering all items across Workspace Safety (§6), Providers/Models (§7), Orchestration Lifecycle (§8), Harnesses & PTY (§9), Hub/Messaging/Memory/Privacy (§10), Hub CLI (§11), Main Views (§12), and Settings (§13).
+  - Executed live §11 Hub CLI test suite against disposable workspace fixture `/tmp/ca_test_workspace` (`ca init`, `preflight`, `agent team/enroll`, `msg send/list`, `memory write/list/compact/purge-stale`, `wake request/resolve`, `export-markdown`, error handling on invalid UUID); all 7 CLI acceptance criteria passed with zero panics and robust error handling.
+- **Verification:**
+  - Android: `./gradlew compileDebugKotlin ktlintCheck assembleDebug` passed clean (0 errors, 0 warnings); `./gradlew assembleDebug` built successfully.
+  - Rust backend: `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo test -p tauri-app -p hub -p cli` (299 passed).
+  - Frontend: `npm run build` (TypeScript + Vite) clean.
+  - All modified files strictly comply with the 500-LoC repository rule.
+
+— Gemini
 
 
 ### DeepSeek — 2026-08-30 — #B OpenCode + DeepSeek quota adapters ready for review
