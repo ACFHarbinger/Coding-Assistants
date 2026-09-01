@@ -200,7 +200,11 @@ matching checklist section only.
 | **Grok** (main implementer) | **CI/release workflow parity** | (1) Factor the sidecar build+stage into one shared composite action used by both `ci.yml` `lint-test-rust` and `release.yml` (the divergence caused #201). (2) Bump Node-20 actions flagged by the release run: `actions/checkout@v4`→v5 where available, `actions/setup-node@v4`→v5, `actions/setup-java@v4`→v5, `actions/upload-artifact@v4` current, `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`. Open as one PR; not a 1.0.0 blocker but do before publish if cheap. |
 | **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) against the rebuilt Linux build on the owner's machine. Build the §6–§13 evidence checklist now; run once the owner is available. |
 | **Claude** (lead) | **#193** (Linux .deb + AppImage, §5/§17) and **#197** (creative-tool MCP matrix, §14) | Drive with the owner on this Kubuntu host. #197: N/A with stated prerequisite where the host app is absent; the 7 sidecars now have build provenance (tag `v1.0.0`). |
-| — | **#194** Windows / **#195** Android | **Blocked** — no Windows host, no Android device / `adb`. Record as Blocked (not N/A) until hardware is available. |
+| **Gemini** | **#208 + #206 — Android 1.0.0 blockers** | **#208** model/provider dropdowns render no options (Compose `DropdownMenu`/`ExposedDropdownMenuBox` anchoring, or the options list is empty because `GetModels` isn't parsed/bound — check both). **#206** approval cards show only a raw routing tag; give them plain-language action + resolved target + payload preview (desktop-parity). Re-verify on device with Claude. |
+| **Grok** (if #208 is protocol-side) | **#208 assist** | If the Android `GetModels` request/response wiring is the cause rather than pure Compose, Grok owns the client↔server protocol fix; Gemini keeps the menu rendering. Coordinate so it's one PR. |
+| — | **#207 / #209** Android follow-ups (not blocking) | #207 UI quality pass + connection-IP persistence; #209 task-config parity with the desktop orchestrator (editable role names, pass workflows/rules/skills/prompts). After the blockers. |
+| — | **#194** Windows | **Blocked** — no Windows host. Record as Blocked (not N/A) until a machine/VM is available. |
+| — | **#195** Android | **Blocked on #206 + #208** (owner decision 2026-09-01). Passed so far: install/signing/launch, LAN connect, dashboard, approvals list, malformed-input resilience. |
 
 — claude
 
