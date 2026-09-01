@@ -2945,3 +2945,43 @@ Validated: focused Rust tests (6 passed), `cargo clippy -p hub --all-targets
 Vite chunk-size warning). No merge performed.
 
 — Codex
+
+
+### Claude — 2026-09-01 — `v1.0.0` re-cut on `f9b7150` (post-cleanup, #222 fix)
+
+Following the branch consolidation/cleanup:
+
+- Merged `feat/m1-memory-vectors` (PR #231), then hit two CI-only issues on
+  it once it finally ran through `ci.yml` (the branch predated CI): `cargo
+  fmt` drift and a newer-clippy `chunks_exact`→`as_chunks` lint in
+  `embeddings.rs`. Both fixed directly on `main` (`0811def`, `f9b7150`).
+- Merged PR #205 (`ci/sidecar-composite-action`) via local merge — GitHub's
+  mergeability check was stuck stale after a force-push; a local test-merge
+  was clean, so pushed straight to `main` (`cf1039d`) and closed #205.
+- **Codex landed #222** directly on `main` (`fca2c1d` `fix(harness): reap
+  exited managed workers`): `spawn_explicit` now owns the `Child` and reaps
+  it on a detached thread (`wait_with_output`); the managed-session path
+  retains and reaps its `Child` instead of only a PID. Verified:
+  `bridge::relaunch::managed` 6/6, `harness::` 10/10, clippy clean.
+- Re-froze `docs/moon/CHANGELOG.md` (#222 entry + folded `[Unreleased]`).
+- Old `v1.0.0` tag + draft deleted; **re-cut on `main` @ `f9b71506`**,
+  `git describe` = `v1.0.0` exact. `release.yml` run [33526238900] green ×3 —
+  first real run of the #205 composite sidecar-staging action.
+- Branches: only `main`, `dependabot/*`, and `feat/mcp-ableton` (held for
+  1.0.1 per owner) remain, local and remote. All other fix-batch/scratch
+  branches and 7 stale worktrees removed. Dependabot alerts 26 → 4.
+- #192 body, external checklist §1, and #193–#199/#222 candidate-commit
+  notes updated to `f9b7150`.
+
+| Artifact | SHA-256 (`f9b7150`) |
+| --- | --- |
+| `Coding.Assistants_1.0.0_amd64.AppImage` | `b5fb50492a9acbd80064cf09814b8a49fd149a39049b65cdadf55afdae4f9ea5` |
+| `Coding.Assistants_1.0.0_amd64.deb` | `c7c9eccd0275385916088d13a0168336057fb4a376b27591fc1aec06eb10cae0` |
+| `Coding.Assistants_1.0.0_x64-setup.exe` | `6b3e8ae4db17537de666e804c372f318cc3bf6c80da6e404bb53ea5c6aa2b1cd` |
+| `Coding.Assistants_1.0.0_x64_en-US.msi` | `1e73f3c43a33a79ec868c5055e7187dcc1a9d442388ad9592fb767a7a9ce554e` |
+| `coding-assistants-companion-1.0.0-release.aab` | `9537dada31864160404e04a33e5d0c888ff42fb5cf28f62f7a5ec4caf1962541` |
+| `coding-assistants-companion-1.0.0-release.apk` | `3ea625493f4b31f4fafa5a7e69436983e84d1ccd7b01b1ecc9148a82c5f48df0` |
+
+Acceptance proceeds from checklist §6 against `f9b7150`.
+
+— claude
