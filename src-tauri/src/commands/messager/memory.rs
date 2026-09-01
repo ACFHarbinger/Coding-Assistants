@@ -189,3 +189,100 @@ pub fn hub_apply_link_suggestions(
         .apply_link_suggestions(&memory_id, mode, limit.unwrap_or(10))
         .map_err(|e| e.to_string())
 }
+
+// ── Vector / Semantic Retrieval (M1) ──────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoredMemoryRecord {
+    #[serde(flatten)]
+    pub record: MemoryRecord,
+    pub score: f32,
+}
+
+#[tauri::command]
+pub async fn hub_search_memories_semantic(
+    query: String,
+    limit: Option<usize>,
+    scope: Option<String>,
+    tier: Option<String>,
+    workspace: Option<String>,
+) -> Result<Vec<ScoredMemoryRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = open_store()?;
+        let scope = scope
+            .as_deref()
+            .map(MemoryScope::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let tier = tier
+            .as_deref()
+            .map(MemoryTier::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let hits = store
+            .search_memories_semantic(
+                &query,
+                limit.unwrap_or(20),
+                scope,
+                tier,
+                workspace.as_deref(),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(hits
+            .into_iter()
+            .map(|(record, score)| ScoredMemoryRecord { record, score })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("search task panicked: {e}"))?
+}
+
+#[tauri::command]
+pub async fn hub_search_memories_hybrid(
+    query: String,
+    limit: Option<usize>,
+    scope: Option<String>,
+    tier: Option<String>,
+    workspace: Option<String>,
+) -> Result<Vec<ScoredMemoryRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = open_store()?;
+        let scope = scope
+            .as_deref()
+            .map(MemoryScope::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let tier = tier
+            .as_deref()
+            .map(MemoryTier::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let hits = store
+            .search_memories_hybrid(
+                &query,
+                limit.unwrap_or(20),
+                scope,
+                tier,
+                workspace.as_deref(),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(hits
+            .into_iter()
+            .map(|(record, score)| ScoredMemoryRecord { record, score })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("hybrid search task panicked: {e}"))?
+}
+
+#[tauri::command]
+pub async fn hub_reindex_memory_vectors() -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        open_store()?
+            .reindex_memory_vectors()
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("reindex task panicked: {e}"))?
+}

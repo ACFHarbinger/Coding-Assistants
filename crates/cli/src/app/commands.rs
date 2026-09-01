@@ -251,6 +251,32 @@ pub(crate) enum MemoryCommand {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
+    /// Semantic vector search across memories using cosine distance.
+    SemanticSearch {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long)]
+        tier: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+    /// Hybrid search blending lexical and semantic retrieval (RRF).
+    HybridSearch {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long)]
+        tier: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+    /// Backfill embedding vectors for all memories lacking one.
+    Reindex,
 }
 
 #[derive(Subcommand)]

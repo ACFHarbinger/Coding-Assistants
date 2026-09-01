@@ -9,6 +9,7 @@ use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
 mod quota;
+mod vector_memory;
 
 #[test]
 fn tagged_and_session_send_args_accept_tauri_camel_case_payloads() {
