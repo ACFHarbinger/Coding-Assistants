@@ -127,6 +127,9 @@ export default function LiveTerminalsPanel({ workspace }: { workspace: string })
       prompt: "Coding-Assistants managed session",
     });
     setDiskId("");
+    if (outcome.start.status !== "started") {
+      throw new Error(outcome.start.detail);
+    }
     return outcome.start.detail;
   });
 

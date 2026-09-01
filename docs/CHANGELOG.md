@@ -43,6 +43,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Fixed
 
+- **Managed harness worker reaping (#222):** Start managed now retains ownership
+  of its child process instead of dropping it after recording the PID. A worker
+  that exits during the short startup grace period is waited/reaped and the UI
+  reports its exit code with a **Start managed** retry action. Longer-running
+  workers are reaped on completion and atomically clear only their matching
+  managed-session PID, so an old reaper cannot mark a replacement worker dead.
+  Ordinary one-shot harness spawns also drain and reap their child process.
 - **Blank white main window:** `harness/types.ts` was accidentally overwritten with Orchestrate config types, so Vite failed to load harness exports and React never mounted. Restored the harness session/delivery types.
 - **Orchestrate persistence and process discovery:** the selected workspace
   root and persisted team roster survive restart. The discovery action now

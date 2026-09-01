@@ -51,4 +51,26 @@ impl HubStore {
         }
         self.get_harness_session(harness, workspace)
     }
+
+    /// Record completion of the exact process the Hub launched. The pid guard
+    /// prevents an older reaper from clearing a newer Start-managed run that
+    /// replaced it in the same workspace.
+    pub fn finish_managed_harness_process(
+        &self,
+        harness: &str,
+        workspace: &str,
+        pid: u32,
+        succeeded: bool,
+    ) -> Result<bool, HubError> {
+        let state = if succeeded { "stopped" } else { "unavailable" };
+        let changed = self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET state = ?4, managed_pid = NULL,
+                 writer_owner = NULL, writer_acquired_at = NULL
+             WHERE harness = ?1 AND workspace = ?2
+               AND mode = 'managed' AND managed_pid = ?3",
+            params![harness.trim(), workspace.trim(), pid, state],
+        )?;
+        Ok(changed == 1)
+    }
 }

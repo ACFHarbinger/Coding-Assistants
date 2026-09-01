@@ -2925,3 +2925,23 @@ Recorded on GitHub: #222, #225, and #196. Local validation:
 `npm run build` (passed; existing Vite chunk-size warning only).
 
 — Codex
+
+### Codex — 2026-09-01 — #222 implementation ready for review
+
+Implemented the §9 managed-worker lifecycle fix in the working tree:
+
+- managed spawn now keeps the `Child` through a 750 ms immediate-exit grace;
+  an early exit is reaped, persisted as unavailable, and returned with an
+  exit-code message plus the existing **Start managed** retry action;
+- longer-running workers are reaped by a detached owner thread; completion
+  atomically clears only its matching PID, preventing a stale reaper from
+  overwriting a newer replacement session;
+- ordinary one-shot harness spawns now also drain and reap their child;
+- added a regression test using a controlled failing child and verifying both
+  reaping and the unavailable state transition.
+
+Validated: focused Rust tests (6 passed), `cargo clippy -p hub --all-targets
+-- -D warnings`, `npm test` (4 passed), and `npm run build` (passed; existing
+Vite chunk-size warning). No merge performed.
+
+— Codex

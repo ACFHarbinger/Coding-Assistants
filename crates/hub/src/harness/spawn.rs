@@ -5,7 +5,7 @@
 use crate::HubError;
 use std::ffi::OsString;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 use super::{HarnessId, HarnessStartRequest, HarnessStartResult};
 
@@ -239,25 +239,38 @@ pub fn vibe_spawn_args(
     ])
 }
 
+fn spawn_explicit_owned(
+    program: &str,
+    workspace: &Path,
+    args: &[OsString],
+) -> Result<Child, std::io::Error> {
+    Command::new(program)
+        .current_dir(workspace)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+}
+
 pub(super) fn spawn_explicit(
     program: &str,
     workspace: &Path,
     args: &[OsString],
 ) -> Result<HarnessStartResult, HubError> {
-    match Command::new(program)
-        .current_dir(workspace)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-    {
-        Ok(child) => Ok(HarnessStartResult {
-            harness: program.into(),
-            pid: Some(child.id()),
-            status: "started".into(),
-            detail: format!("spawned {program} pid {}", child.id()),
-        }),
+    match spawn_explicit_owned(program, workspace, args) {
+        Ok(child) => {
+            let pid = child.id();
+            std::thread::spawn(move || {
+                let _ = child.wait_with_output();
+            });
+            Ok(HarnessStartResult {
+                harness: program.into(),
+                pid: Some(pid),
+                status: "started".into(),
+                detail: format!("spawned {program} pid {pid}"),
+            })
+        }
         Err(error) => Ok(HarnessStartResult {
             harness: program.into(),
             pid: None,
@@ -267,7 +280,9 @@ pub(super) fn spawn_explicit(
     }
 }
 
-pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
+fn harness_command(
+    request: &HarnessStartRequest,
+) -> Result<(&'static str, Vec<OsString>), HubError> {
     let harness = HarnessId::parse(&request.harness)?;
     let model = request.model.as_deref().or(match harness {
         HarnessId::OpenCode => Some(DEFAULT_OPENCODE_MODEL),
@@ -291,7 +306,27 @@ pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult
         )?,
         HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt, model, effort)?,
     };
-    spawn_explicit(harness.executable(), &request.workspace, &args)
+    Ok((harness.executable(), args))
+}
+
+pub(crate) fn start_harness_owned(
+    request: &HarnessStartRequest,
+) -> Result<(HarnessStartResult, Child), HubError> {
+    let (program, args) = harness_command(request)?;
+    let child = spawn_explicit_owned(program, &request.workspace, &args)
+        .map_err(|error| HubError::Invalid(format!("{program} unavailable: {error}")))?;
+    let result = HarnessStartResult {
+        harness: program.into(),
+        pid: Some(child.id()),
+        status: "started".into(),
+        detail: format!("spawned {program} pid {}", child.id()),
+    };
+    Ok((result, child))
+}
+
+pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
+    let (program, args) = harness_command(request)?;
+    spawn_explicit(program, &request.workspace, &args)
 }
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ use std::path::PathBuf;
 mod inject;
 mod spawn;
 pub use inject::{inject_harness, inject_harness_with_store};
+pub(crate) use spawn::start_harness_owned;
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args, DEFAULT_DEEPSEEK_MODEL,

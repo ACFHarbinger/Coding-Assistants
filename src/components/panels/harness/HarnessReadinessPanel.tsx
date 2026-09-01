@@ -117,6 +117,9 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         diskSessionId: diskId.trim() || "channel",
         prompt: "Coding-Assistants managed session",
       });
+      if (outcome.start.status !== "started") {
+        throw new Error(outcome.start.detail);
+      }
       setDetail(outcome.start.detail);
       setDiskId("");
       await refresh();

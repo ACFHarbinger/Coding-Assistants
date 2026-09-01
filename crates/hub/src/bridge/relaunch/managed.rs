@@ -7,11 +7,48 @@
 //! 500-line cap (#158). The interactive kill/resume helpers stay in the
 //! parent module.
 
-use crate::harness::{HarnessId, HarnessStartRequest, HarnessStartResult};
+use crate::harness::{start_harness_owned, HarnessId, HarnessStartRequest, HarnessStartResult};
 use crate::{HarnessSessionRegistration, HubStore};
 use std::path::Path;
+use std::process::{Child, ExitStatus};
+use std::time::Duration;
 
 use super::kill_pid;
+
+const IMMEDIATE_EXIT_GRACE: Duration = Duration::from_millis(750);
+
+fn exit_detail(harness: &str, status: ExitStatus) -> String {
+    match status.code() {
+        Some(code) => format!(
+            "{harness} managed worker exited immediately (exit code {code}). Retry Start managed."
+        ),
+        None => format!(
+            "{harness} managed worker exited immediately after a signal. Retry Start managed."
+        ),
+    }
+}
+
+fn finish_child(store: &HubStore, harness: &str, workspace: &str, pid: u32, status: ExitStatus) {
+    let _ = store.finish_managed_harness_process(harness, workspace, pid, status.success());
+}
+
+fn reap_managed_child(
+    child: Child,
+    data_dir: std::path::PathBuf,
+    harness: String,
+    workspace: String,
+    pid: u32,
+) {
+    std::thread::spawn(move || {
+        let Ok(output) = child.wait_with_output() else {
+            return;
+        };
+        let Ok(store) = HubStore::open(data_dir) else {
+            return;
+        };
+        finish_child(&store, &harness, &workspace, pid, output.status);
+    });
+}
 
 /// Starts a headless managed harness worker (`harness::start_harness`) and
 /// registers it, first killing any prior managed pid already registered for
@@ -56,7 +93,7 @@ pub fn start_managed_harness(
         }
     }
 
-    let started = crate::harness::start_harness(&HarnessStartRequest {
+    let (mut started, mut child) = start_harness_owned(&HarnessStartRequest {
         harness: harness.as_str().into(),
         workspace: workspace.to_path_buf(),
         session_id: None,
@@ -73,6 +110,30 @@ pub fn start_managed_harness(
         .register_managed_harness_session(harness.as_str(), &workspace_key, disk_session_id, pid)
         .map_err(|error| error.to_string())?;
 
+    // A bad argv, missing TTY, or rejected startup commonly exits before the
+    // first liveness poll. Wait briefly while we still own the Child so the
+    // UI receives a truthful, retryable error and the process is reaped.
+    std::thread::sleep(IMMEDIATE_EXIT_GRACE);
+    if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+        finish_child(store, harness.as_str(), &workspace_key, pid, status);
+        started.pid = None;
+        started.status = "unavailable".into();
+        started.detail = exit_detail(harness.as_str(), status);
+        let registration = store
+            .get_harness_session(harness.as_str(), &workspace_key)
+            .map_err(|error| error.to_string())?
+            .unwrap_or(registration);
+        return Ok((started, registration));
+    }
+
+    reap_managed_child(
+        child,
+        store.data_dir().to_path_buf(),
+        harness.as_str().into(),
+        workspace_key,
+        pid,
+    );
+
     Ok((started, registration))
 }
 
@@ -81,6 +142,7 @@ mod tests {
     use super::*;
     use crate::bridge::relaunch::is_pid_running;
     use std::process::Command;
+    use std::time::Instant;
 
     #[test]
     fn start_managed_harness_rejects_a_relative_workspace() {
@@ -155,5 +217,49 @@ mod tests {
         );
         let _ = sleeper.kill();
         let _ = sleeper.wait();
+    }
+
+    #[test]
+    fn managed_reaper_waits_for_exit_and_marks_only_its_pid_unavailable() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let child = Command::new("sh")
+            .args(["-c", "exit 23"])
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        store
+            .register_managed_harness_session("chat", "/abs/repo", "thread-1", pid)
+            .unwrap();
+
+        reap_managed_child(
+            child,
+            dir.path().to_path_buf(),
+            "chat".into(),
+            "/abs/repo".into(),
+            pid,
+        );
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let row = store
+                .get_harness_session("chat", "/abs/repo")
+                .unwrap()
+                .unwrap();
+            if row.state == crate::HarnessSessionState::Unavailable {
+                assert_eq!(row.managed_pid, None);
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "managed child was not reaped in time"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            !is_pid_running(pid),
+            "completed managed child must be reaped"
+        );
     }
 }
