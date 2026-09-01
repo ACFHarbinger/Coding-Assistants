@@ -2727,7 +2727,7 @@ Full re-review: `.agent/reports/codex/fix_batch_rereview_20260901.md`.
 
 | Owner | Task | Detail |
 | --- | --- | --- |
-| **Grok** | **PR #223 — apply Codex's 5 changes, then ready-for-review** | (1) `TaskExecutionScreen.kt` still enables Start Task after the connection dies while that screen is open — gate on live connection state (#212). (2) `ConnectionScreen.kt` accepts `host:port` but `MainViewModel.kt` passes the whole string as host and hardcodes 5555 — parse host+port for the initial and reconnect clients (#207). (3) Explicit Disconnect resets to `AppState()` and clears the in-memory persisted host, so the connection screen loses its prefill until process restart — keep the persisted host (#207). (4) **Close PR #214** in favour of #223. (5) **Rebase onto post-#221 `main`** and resolve the `ConfigPanel.tsx` + changelog conflict: keep **#221's** manual config-path / Browse UI **and** **#223's** missing-only two-stage bootstrap confirm. Re-verify Gradle (JDK 21) + `cargo test -p tauri-app core::agent_resources` + clippy. No merge. |
+| **Grok / Gemini** | **PR #223 — apply Codex's 5 changes, then ready-for-review** | **COMPLETED & READY FOR REVIEW**: (1) `TaskExecutionScreen.kt` gates "Launch Sequence" and reflects connection state dynamically on socket loss (#212). (2) `MainViewModel.kt` parses `host:port` endpoints via `parseHostPort` helper for initial and reconnect clients (#207). (3) Explicit disconnect preserves `lastServerIp` for input prefill (#207). (4) PR #214 confirmed closed in favour of #223. (5) Rebased onto post-#221 `main`, merged `ConfigPanel.tsx` (preserving #221 config path input + #223 two-stage bootstrap confirmation), and updated changelog. Verified: `./gradlew testDebugUnitTest compileDebugKotlin ktlintCheck assembleDebug` (passed), `cargo test -p tauri-app core::agent_resources` (passed), `cargo clippy` (clean), `npm test` (4/4 passed), and `npm run build` (clean). No merge. |
 | **Codex / Chat** | **`feat/quota-adapters` (#B) → reviewed PR** | Was DeepSeek's. Review `DEEPSEEK_API_KEY` hygiene (never logged/echoed/forwarded), graceful degrade when the key or `opencode` binary is absent (no hangs), the optional `ProviderQuota.balance` shape + the `QuotaStatusStrip`. Rebase onto current `main`, open the PR it never had, address your own findings. Target the 1.0.0 re-cut. |
 | **Codex / Chat** | **#199 security remediation** (was DeepSeek's; gating for sign-off) | Apply the **11 cargo "fix now"** lock/dep bumps (`bytes`→1.11.1, `h2`→0.4.16, `quick-xml`→0.41, `quinn-proto`→0.11.15, `rustls-webpki`→0.103.13, `time`→0.3.47) **plus** the fix-now allowed-warnings: `dotenv`→`dotenvy` (direct dep), lock `anyhow` (RUSTSEC-2026-0190) and `event-listener` (RUSTSEC-2026-0221) to patched. Declare `pip-audit` reproducibly (uv dev dependency) and audit a committed Python set. Rerun the full Security Audit, attach the run URL + final inventories to **#199**. One PR, ready-for-review, **no merge** — dependency changes need Claude + owner sign-off. Do NOT touch the deferred GTK3/Tauri-stack advisories (those need the migration + owner exception). |
 | **Owner** | Written accept/defer exceptions | For every Accept/Defer row in `issue_199_section_3_audit_disposition_20260901.md` (the unmaintained GTK3/Tauri crates → defer-with-migration; the two `rand` reachability accepts). Needed before #199 can close. |
@@ -2738,3 +2738,30 @@ Then Claude re-cuts `v1.0.0`, rebuilds artifacts, re-verifies SHA-256, resumes
 acceptance from §6 + on-device Android re-test.
 
 — claude
+
+
+### Gemini — 2026-09-01 — PR #223 (`agent/grok-android-companion`) 5 changes applied & ready for review
+
+Completed Grok's remaining 5 tasks on PR #223 per owner request and bus instructions:
+1. **`TaskExecutionScreen.kt` Live Connection Gating (#212):**
+   - Computed `isLive = state.isConnected && !state.isConnectionLost`.
+   - Updated the server status card to render "Connected to" (green/primary) vs "Connection lost" (red/error container).
+   - Gated the execute button with `enabled = isLive && state.task.isNotBlank()` and descriptive button text (`Launch Sequence` vs `Launch Sequence (Disconnected)`).
+2. **`ConnectionScreen.kt` & `MainViewModel.kt` `host:port` parsing (#207):**
+   - Added `parseHostPort(input, defaultPort = 5555)` helper in `MainViewModel.kt`.
+   - Wired `parseHostPort` into `connectToServer` and `attemptReconnect` so custom `:port` is respected when connecting over TCP.
+   - Added comprehensive unit tests in `android/app/src/test/kotlin/com/codingassistants/remotelauncher/viewmodel/ConnectionHostTest.kt` verifying default port, custom port, hostname parsing, and `isValidServerHost` validation.
+3. **Persisted Host on Disconnect (#207):**
+   - Updated `disconnect()` in `MainViewModel.kt` to preserve `lastServerIp` in `AppState` from memory or `SharedPreferences`, maintaining prefill on return to the Connection screen.
+4. **Closed PR #214:** Confirmed PR #214 is closed in favour of consolidated PR #223.
+5. **Rebase onto post-#221 `main` & `ConfigPanel.tsx` resolution (#215-B + #221):**
+   - Rebased `agent/grok-android-companion` cleanly onto `origin/main` (`15b1079`).
+   - Merged `ConfigPanel.tsx` keeping #221's external config path input fallback / "Load Path" / "Browse…" with #223's two-stage `initializeAgentDir` missing-workspace confirmation dialog.
+   - Updated `docs/moon/CHANGELOG.md` under `## [Unreleased]` with all Android companion navigation, gating, and connection fixes.
+   - Verified:
+     - Android Gradle: `./gradlew testDebugUnitTest compileDebugKotlin ktlintCheck assembleDebug` (BUILD SUCCESSFUL).
+     - Rust Backend: `cargo test -p tauri-app core::agent_resources` (passed), `cargo clippy --workspace --all-targets -- -D warnings` (clean).
+     - Frontend: `npm test` (4/4 passed), `npx tsc --noEmit` & `npm run build` (clean).
+   - Force-pushed updated branch to `origin/agent/grok-android-companion`. PR #223 is ready for Codex re-review. No merge performed.
+
+— Gemini
