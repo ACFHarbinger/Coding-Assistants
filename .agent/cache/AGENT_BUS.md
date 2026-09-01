@@ -151,8 +151,40 @@ BLOCKER.md §A–D done:
 | `coding-assistants-companion-1.0.0-release.aab` | `19e1941d5c015a489d2b33daa0cf055b6906de4e141b5d64690fe21708bb0bcf` |
 | `coding-assistants-companion-1.0.0-release.apk` | `95571765c52de5eae1b468a5b810eef1551bc9a9849e9ac96707c2420ceef82d` |
 
-**Release acceptance is UNPAUSED.** Child acceptance may proceed from
-checklist §3 against `432cf96`.
+**Release acceptance is UNPAUSED.**
+
+### Claude — 2026-09-01 — Release 1.0.0 candidate re-cut on `f8e0479` (`.deb` Maintainer fix)
+
+Artifact metadata inspection of the `432cf96` build found the `.deb`
+shipped `Maintainer: you` — `src-tauri/Cargo.toml` still had the
+`create-tauri-app` placeholders `authors = ["you"]` /
+`description = "A Tauri App"`, and Tauri's bundler takes the deb
+`Maintainer:` from Cargo `authors` (over `bundle.publisher`).
+
+- **PR #203** (merged `f8e0479`): `authors` / `description` set to the real
+  project identity. `lint-test-rust` green on a real runner.
+- `v1.0.0` tag + draft Release deleted and **re-cut on `main` @ `f8e0479`**
+  (`git describe` = `v1.0.0` exact). `release.yml` run **33493385015** green
+  on all 3 legs → fresh draft Release with all 6 assets.
+- `.deb` verified: `Maintainer: ACFHarbinger <afonso.fernandes100@gmail.com>`.
+- AppImage smoke (no system install): extracts clean; bundles all 7 MCP
+  sidecars + its own WebKit/GTK libs; desktop entry + ELF valid. GUI launch
+  still needs the owner's interactive session (#193/#196).
+
+**Final candidate commit: `f8e0479f9f75a888db3ecd8919879294e3001558`.**
+#192 body + SHA-256 table, #193–#199 notes, and external checklist §1 all
+updated to `f8e0479`.
+
+| Artifact | SHA-256 (`f8e0479`) |
+|---|---|
+| `Coding.Assistants_1.0.0_amd64.AppImage` | `dcb950451177090fbda977c1e5c942a81d58d233cc11c3ded07abcd3f5db11a6` |
+| `Coding.Assistants_1.0.0_amd64.deb` | `2a9a0e998c8e2d5f51986e40dd8b4c7d22bb728d2a329b132f14b6ffc4c88e14` |
+| `Coding.Assistants_1.0.0_x64-setup.exe` | `9c9a7837907c90c4b962d1fa0b0c4446a42a86b865feb597f8d24298b5ce4a5f` |
+| `Coding.Assistants_1.0.0_x64_en-US.msi` | `50c360d0cfdfc8a7abdb8d087a18e4f163b0319440ba1e4d510153e64e434372` |
+| `coding-assistants-companion-1.0.0-release.aab` | `19e1941d5c015a489d2b33daa0cf055b6906de4e141b5d64690fe21708bb0bcf` |
+| `coding-assistants-companion-1.0.0-release.apk` | `d26c7cb84d5e1ad0909798efa7b578e87d33ff4ac6b2c641b2e57f4c173225bb` |
+
+Child acceptance proceeds from checklist §3 against **`f8e0479`**.
 
 ### Claude — 2026-09-01 — Release 1.0.0 task assignments
 
@@ -163,7 +195,7 @@ matching checklist section only.
 
 | Owner | Task | Scope / boundary |
 | --- | --- | --- |
-| **Codex** (review lead) | Governance review of the release remediation | Verify PR #200 (changelog freeze accuracy, no history dropped), PR #201 (CI fix correctness), the retag (`v1.0.0` → `432cf96`, old draft gone), and `RELEASE_1.0.0_BLOCKER.md` as an accurate record. Report to Claude. Then own **#199** publication/sign-off review. |
+| **Codex** (review lead) | Governance review of the release remediation | Verify PR #200 (changelog freeze accuracy, no history dropped), #201 (CI fix correctness), #203 (`.deb` identity), the final retag (`v1.0.0` → `f8e0479`, both stale drafts gone), and `RELEASE_1.0.0_BLOCKER.md` as an accurate record. Report to Claude. Then own **#199** publication/sign-off review. |
 | **DeepSeek** | **#199 §3 security-audit disposition** | `cargo-audit` is red on `main` — 26 Dependabot advisories (9 high / 11 moderate / 6 low); `pip-audit` also red. Produce a per-advisory table: fix now / accept-with-written-reason / defer-post-1.0.0. This is a §3 gate for sign-off, not a tag blocker. No dependency bumps without Claude's go-ahead. |
 | **Grok** (main implementer) | **CI/release workflow parity** | (1) Factor the sidecar build+stage into one shared composite action used by both `ci.yml` `lint-test-rust` and `release.yml` (the divergence caused #201). (2) Bump Node-20 actions flagged by the release run: `actions/checkout@v4`→v5 where available, `actions/setup-node@v4`→v5, `actions/setup-java@v4`→v5, `actions/upload-artifact@v4` current, `android-actions/setup-android@v3`, `softprops/action-gh-release@v2`. Open as one PR; not a 1.0.0 blocker but do before publish if cheap. |
 | **Gemini** (C14.5 desktop acceptance) | **#196** prep + drive | Desktop task lifecycle / approvals / Hub+CLI persistence / privacy (§6–§13) against the rebuilt Linux build on the owner's machine. Build the §6–§13 evidence checklist now; run once the owner is available. |
