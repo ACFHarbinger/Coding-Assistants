@@ -3,6 +3,7 @@ import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
 import EmbeddedTerminal from "./EmbeddedTerminal";
+import ResizableTerminalFrame from "./ResizableTerminalFrame";
 import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
@@ -196,10 +197,12 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         )}
       </div>
       {terminals[harness] && (
-        <div style={{ height: "320px", marginBottom: "0.85rem" }}>
-          <TerminalPaneErrorBoundary>
-            <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
-          </TerminalPaneErrorBoundary>
+        <div style={{ marginBottom: "0.85rem" }}>
+          <ResizableTerminalFrame persistId={harness}>
+            <TerminalPaneErrorBoundary>
+              <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
+            </TerminalPaneErrorBoundary>
+          </ResizableTerminalFrame>
         </div>
       )}
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
@@ -251,11 +254,11 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
               </div>
             </div>
             {terminals[row.harness] && (
-              <div style={{ height: "320px" }}>
+              <ResizableTerminalFrame persistId={row.harness}>
                 <TerminalPaneErrorBoundary>
                   <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
                 </TerminalPaneErrorBoundary>
-              </div>
+              </ResizableTerminalFrame>
             )}
           </div>
         ))}

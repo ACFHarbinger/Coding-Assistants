@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Stage the Creative Tools MCP bridge binaries under the filenames Tauri's
+ * Stage the bundled bridge binaries under the filenames Tauri's
  * `bundle.externalBin` convention consumes. Cargo produces an unsuffixed
  * binary; Tauri requires `<name>-<target-triple>[.exe]` as its build input.
  *
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const bridgeNames = [
+  "coding-assistants-claude-channel",
   "coding-assistants-mcp-blender",
   "coding-assistants-mcp-krita",
   "coding-assistants-mcp-godot",
@@ -51,7 +52,7 @@ for (const name of bridgeNames) {
 }
 
 if (missing.length > 0) {
-  console.error("MCP sidecars were not built:");
+  console.error("Bundled bridge sidecars were not built:");
   for (const file of missing) console.error(`  ${file}`);
   process.exit(1);
 }

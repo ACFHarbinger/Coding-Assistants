@@ -35,27 +35,8 @@ import DiagnosticsTab from "./tabs/DiagnosticsTab";
 import DangerTab from "./tabs/DangerTab";
 import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
 import { closeSettingsWindow, readWorkspaceRoot } from "./tabs/shared";
-
-type TabId = "general" | "workspace" | "agents" | "creative" | "orchestration" | "memory" | "diagnostics" | "danger";
-
-interface TabDef {
-  id: TabId;
-  label: string;
-  summary: string;
-  dangerous?: boolean;
-  implemented: boolean;
-}
-
-const TABS: TabDef[] = [
-  { id: "general", label: "General", summary: "App-wide defaults, such as which workspace opens on launch.", implemented: true },
-  { id: "workspace", label: "Workspace & sessions", summary: "Global default vs. this workspace's default chat session.", implemented: true },
-  { id: "agents", label: "Agents & harnesses", summary: "Named provider profiles and per-harness settings.", implemented: true },
-  { id: "creative", label: "Creative Tools", summary: "Expose local creative app MCP bridges (Blender, Krita, Godot, etc.) to coding agents.", implemented: true },
-  { id: "orchestration", label: "Orchestration", summary: "Task/wake confirmation, auto-enrollment, budgets, tool/sandbox policy.", implemented: true },
-  { id: "memory", label: "Memory & storage", summary: "Retention, export, and settings-backup policy.", implemented: true },
-  { id: "diagnostics", label: "Diagnostics", summary: "Log level, configuration health, redacted diagnostics export.", implemented: true },
-  { id: "danger", label: "Danger zone", summary: "Confirmed reset, removal, and purge operations.", dangerous: true, implemented: true },
-];
+import { TABS, type TabId } from "./tabsConfig";
+import { invoke } from "../../lib/tauri";
 
 export default function SettingsApp() {
   const workspaceRoot = useMemo(readWorkspaceRoot, []);
@@ -63,6 +44,7 @@ export default function SettingsApp() {
   const [activeTabId, setActiveTabId] = useState<TabId>("general");
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
   const [loadStatus, setLoadStatus] = useState<SettingsLoadStatus | null>(null);
+  const [storeDir, setStoreDir] = useState<string>("");
   const [auditEvents, setAuditEvents] = useState<SettingsAuditEvent[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,9 +74,14 @@ export default function SettingsApp() {
   const refresh = useCallback(async () => {
     if (!isTauriRuntime()) return;
     try {
-      const [snapshot, status] = await Promise.all([getEffectiveSettings(targetWorkspace), getSettingsLoadStatus()]);
+      const [snapshot, status, dir] = await Promise.all([
+        getEffectiveSettings(targetWorkspace),
+        getSettingsLoadStatus(),
+        invoke<string>("hub_get_data_dir").catch(() => ""),
+      ]);
       applySnapshot(snapshot);
       setLoadStatus(status);
+      if (dir) setStoreDir(dir);
       setError(null);
     } catch (err) {
       setError(String(err));
@@ -303,7 +290,7 @@ export default function SettingsApp() {
         <div>
           <h1 style={{ fontSize: "1.4rem", fontWeight: 800 }}>Settings</h1>
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
-            Global defaults with workspace-specific overrides, persisted under <code>~/.coding-assistants</code>.
+            Global defaults with workspace-specific overrides, persisted under <code>{storeDir || "~/.coding-assistants"}</code>.
           </p>
         </div>
         <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeSettingsWindow()}>

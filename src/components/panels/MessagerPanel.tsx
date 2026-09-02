@@ -3,7 +3,7 @@ import { invoke, isTauriRuntime } from "../../lib/tauri";
 import type { ChannelRecord, ContextMenuState, HubMessage, MemoryRecord, PendingAttachment, ReplyTarget, MessagerPanelProps, WorkspaceAgentPresence } from "./messager/types";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
 import { useSendMessage } from "./messager/useSendMessage";
-import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, channelDedupeKey, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
+import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
 import MemoryDrawer from "./messager/MemoryDrawer";
@@ -337,13 +337,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       return sortByCreatedAt(matches, sortOrder);
     }
 
-    const seen = new Set<string>();
-    const deduped = matches.filter(msg => {
-      const key = channelDedupeKey(msg, activeChannel);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const deduped = uniqueChannelPosts(matches, activeChannel);
     return sortByCreatedAt(deduped, sortOrder);
   })();
 

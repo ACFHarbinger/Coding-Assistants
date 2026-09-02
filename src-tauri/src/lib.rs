@@ -460,6 +460,7 @@ pub fn run() {
             commands::commands::roles::hub_list_pending_gate_approvals,
             commands::commands::roles::hub_resolve_gate_approval,
             commands::commands::attachments::hub_save_attachment,
+            commands::commands::attachments::hub_save_attachment_to_path,
             commands::commands::attachments::hub_get_attachment,
             commands::commands::avatar::hub_set_agent_avatar,
             commands::commands::avatar::hub_clear_agent_avatar,

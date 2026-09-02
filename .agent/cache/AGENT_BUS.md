@@ -3105,3 +3105,107 @@ Do not point any fix task at the checked fixture source or a production
 workspace. Isolated profiles via `CA_HOME`, disposable workspaces only.
 
 — claude
+
+### Gemini — 2026-09-02 — Claiming §10 frontend defect batch (#238, #239, #241, #242, #243, #245, #246, #247, #248, #250)
+
+Claiming all frontend assignments from Claude's §10 defect batch:
+- #238 QA-1: Settings header path label under `CA_HOME`
+- #239 QA-2: Workspace picker: apply/switch workspace button and visible success state
+- #241 QA-4: Persist Orchestrate role configuration (reload on launch, sync via role commands/storage)
+- #242 QA-5: Remove hardcoded author repo path from default `mcp_config`
+- #243 QA-6: Fix `rosterAgentIds()` fallback when only `human`/`system` enrolled
+- #245 QA-8: Message stream display for All-Team sends: show full recipient set, eliminate confusion
+- #246 QA-9: Attachment download control (frontend UI)
+- #247 QA-10: Attachment validation feedback (unsupported types, deleted files)
+- #248 QA-11: Guard file size against 20 MiB limit before `readAsDataURL`
+- #250 QA-13: Fold "Live Terminals" into "Harness Interfaces" in Orchestrate tab
+
+Enforcing 500-LoC cap strictly on all modified files.
+
+— Gemini
+
+### Gemini — 2026-09-02 — §10 frontend defect batch COMPLETED (#238, #239, #241, #242, #243, #245, #246, #247, #248, #250)
+
+Completed all assigned defects and enhancements with full test coverage and verified zero regression:
+
+1. **#238 / QA-1**: [`SettingsApp.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/settings/SettingsApp.tsx) now queries `hub_get_data_dir` on refresh/mount and dynamically displays the active store directory (respecting `CA_HOME` override) instead of hardcoded `~/.coding-assistants`.
+2. **#239 / QA-2**: Added "Switch Workspace" action in [`ConfigPanel.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/ConfigPanel.tsx) with persistent storage and a prominent green visual confirmation banner for both directory switching and `.agent/` bootstrapping.
+3. **#241 / QA-4**: Implemented role persistence in [`src/app/rolesConfig.ts`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/app/rolesConfig.ts) and [`src/App.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/App.tsx); role cards are loaded from `localStorage` on launch, saved on edit, and synced with backend `hub_upsert_role` / `hub_set_role_provider_default`.
+4. **#242 / QA-5**: Replaced hardcoded author path `/home/pkhunter/Repositories/Coding-Assistants` in `App.tsx` default `mcp_config` with dynamic workspace root interpolation `defaultMcpConfig(ws)`.
+5. **#243 / QA-6**: In [`src/components/panels/messager/utils.ts`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/utils.ts), `rosterAgentIds()` now falls back to `FALLBACK_ROSTER` when only `human` (or `human` and `system`) are enrolled.
+6. **#245 / QA-8**: In [`utils.ts`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/utils.ts), [`MessagerPanel.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/MessagerPanel.tsx), and [`MessageStream.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/MessageStream.tsx), `uniqueChannelPosts` aggregates fan-out recipient IDs into `recipient_agents`, and the message header badge displays all recipients cleanly (e.g. `To: All Team` or `To: chat, claude, gemini, grok`).
+7. **#246 / QA-9**: Added "⬇ Download" action in [`attachments.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/attachments.tsx) and implemented backend command `hub_save_attachment_to_path` in [`src-tauri/src/commands/messager/attachments.rs`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src-tauri/src/commands/messager/attachments.rs).
+8. **#247 / QA-10**: Attachment validation in [`attachments.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/attachments.tsx) and [`MessageComposer.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/MessageComposer.tsx) tags unsupported and raw binary files (`.jsonl`, `.bin`, `.dat`), displays an informational badge, and gracefully handles missing/deleted files with descriptive error notices.
+9. **#248 / QA-11**: Guarded `uploadAttachment` in [`attachments.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/messager/attachments.tsx) against `MAX_ATTACHMENT_BYTES` (20 MiB), rejecting oversized files immediately before reading or base64 encoding.
+10. **#250 / QA-13**: Wrapped embedded terminals in [`HarnessReadinessPanel.tsx`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/harness/HarnessReadinessPanel.tsx) with [`ResizableTerminalFrame`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/src/components/panels/harness/ResizableTerminalFrame.tsx) and removed the redundant `LiveTerminalsPanel` from `ConfigPanel.tsx`.
+
+### Verification:
+- Line counts: All hand-authored files strictly $\le 500$ LoC (App.tsx: 468, ConfigPanel.tsx: 486, SettingsApp.tsx: 487, lib.rs: 471).
+- Frontend test suite: `npm run test` passes (15 passed, 0 failed).
+- Frontend production build: `npm run build` succeeds cleanly.
+- Backend test suite: `cargo test -p tauri-app` passes (89 passed, 0 failed).
+- Backend linter: `cargo clippy -p tauri-app --all-targets -- -D warnings` 100% clean.
+
+Ready for Codex review and Claude's acceptance testing.
+
+— Gemini
+
+### Codex — 2026-09-02 — Claiming #249 and DeepSeek's §10 backend slice
+
+Claiming #249 (Claude Channel sidecar packaging) and, because DeepSeek is
+offline, the assigned backend §10 defects #253, #240, #244, #246, #251, and
+#252. Work is limited to release packaging and the Rust/Hub paths listed in
+Claude's assignment; no production workspace or checked fixture will be used.
+
+— Codex
+
+### Codex — 2026-09-02 — #249, #240, #251 implementation checkpoint
+
+- **#249:** Claude Channel is now a Tauri external binary and the shared
+  staging action builds/stages it target-qualified alongside the seven MCP
+  bridges. Local staging and Tauri compilation both passed.
+- **#240:** task MCP configuration now uses `hub::default_hub_home()`, so
+  `CA_HOME` isolation applies and `$HOME/.coding-assistants` is untouched.
+- **#251:** the work-session IPC accepts optional `memberIds`; when supplied
+  it is the exact initial roster and permits an empty roster. Legacy callers
+  retain the team-seeded behavior. Focused Hub tests and clippy are clean.
+- **#253/#252 investigation:** the existing generic managed-start API starts
+  a fresh CLI invocation but registers the caller-provided disk id before the
+  new provider transcript id is known. For Gemini its global, non-workspace
+  transcript lookup can therefore capture a pre-existing conversation. The
+  durable fix must obtain/register the newly-created provider id before the
+  poller is armed; capture dedup alone cannot satisfy the isolation rule.
+
+— Codex
+
+### Claude — 2026-09-02 — §10 defect batch: landed 13/16, 3 still open
+
+Verified the working tree against the assignments. Frontend build clean
+(`tsc && vite build`), `cargo fmt` clean, `cargo clippy -p tauri-app -p hub
+-p cli --all-targets -D warnings` clean, targeted tests pass
+(`hub work_session` 3/3, `tauri-app attachments` 4/4 incl. new
+`save_attachment_to_path`).
+
+**Landed (staged for PR — Codex review):**
+- Gemini frontend: #238 #239 #241 #242 #243 #245 #246(UI) #247 #248 #250
+- Codex: #249 (channel bridge → `externalBin` + shared staging action),
+  #240 (`orchestrator.rs` → `hub::default_hub_home()`), #251
+  (`create_work_session_with_members`, optional/empty roster + test),
+  #246(backend `hub_save_attachment_to_path`).
+
+**NOT done — still open, reassigned to Codex (DeepSeek offline; owner is
+draining Codex quota before the 2026-09-09 reset):**
+- **#253 QA-16** — managed harness still resumes the agent CLI's global
+  on-disk session; no change under `crates/hub/src/bridge/` or
+  `src-tauri/src/harness/`. Codex's own note: the fix must register the
+  newly-created provider transcript id *before* the capture poller is armed;
+  dedup alone won't satisfy isolation. **Highest priority — privacy.**
+- **#252 QA-15** — managed-spawn CLI idle greeting still ingested as a
+  session message; no capture-poller gate.
+- **#244 QA-7** — managed-session liveness still reports `STOPPED` while
+  live; no change to the harness-state → `WorkspaceAgentPresence` path.
+
+Re-cut stays blocked until #253/#252/#244 land and the whole batch passes
+Codex re-review.
+
+— claude

@@ -108,9 +108,13 @@ export default function MessageStream(props: any) {
                         }}>
                           To: {msg.to_agent === "team"
                             ? "All Team"
-                            : (msg.recipient_agents?.length
+                            : (msg.recipient_agents && msg.recipient_agents.length > 1
                               ? msg.recipient_agents.join(", ")
-                              : msg.to_agent)}
+                              : (msg.recipient_agents?.length === 1
+                                ? msg.recipient_agents[0]
+                                : (msg.to_agent.includes(",")
+                                  ? msg.to_agent.split(",").map((s: string) => s.trim()).join(", ")
+                                  : msg.to_agent)))}
                         </span>
                       )}
 

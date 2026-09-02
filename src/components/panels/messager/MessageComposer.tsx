@@ -1,23 +1,29 @@
 // @ts-nocheck
-import { useRef } from "react";
+import { useState, useRef } from "react";
 import { AgentAvatar } from "./AgentAvatar";
-import { attachmentToken, uploadAttachment } from "./attachments";
+import { attachmentToken, uploadAttachment, isUnsupportedOrRawMime } from "./attachments";
 export default function MessageComposer(props: any) {
   const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentNotice, setAttachmentNotice] = useState("");
   const attachFiles = async (files: FileList | File[]) => {
     setAttachmentError("");
+    setAttachmentNotice("");
     for (const file of Array.from(files)) {
       try {
         const record = await uploadAttachment(file);
         const previewUrl = URL.createObjectURL(file);
         setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
+        if (isUnsupportedOrRawMime(record.mime, record.filename)) {
+          setAttachmentNotice(`"${record.filename}" attached as raw binary (no preview available).`);
+        }
         setMessageInput((prev: string) => {
           const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
           return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
         });
-      } catch (err) {
-        setAttachmentError(`Failed to attach "${file.name}": ${err}`);
+      } catch (err: any) {
+        const msg = err instanceof Error ? err.message : String(err?.message || err);
+        setAttachmentError(`Failed to attach "${file.name}": ${msg}`);
       }
     }
   };
@@ -136,6 +142,9 @@ export default function MessageComposer(props: any) {
             {attachmentError && (
               <p style={{ margin: 0, color: "#f87171", fontSize: "0.78rem" }}>{attachmentError}</p>
             )}
+            {attachmentNotice && !attachmentError && (
+              <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.78rem" }}>ℹ {attachmentNotice}</p>
+            )}
 
             {pendingAttachments.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
@@ -160,6 +169,11 @@ export default function MessageComposer(props: any) {
                       <span>📎</span>
                     )}
                     <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pending.record.filename}</span>
+                    {isUnsupportedOrRawMime(pending.record.mime, pending.record.filename) && (
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.08)", padding: "0.1rem 0.25rem", borderRadius: "3px" }}>
+                        raw
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeAttachment(pending.record.id)}

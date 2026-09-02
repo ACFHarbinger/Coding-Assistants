@@ -39,6 +39,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
+      "binaries/coding-assistants-claude-channel",
       "binaries/coding-assistants-mcp-blender",
       "binaries/coding-assistants-mcp-krita",
       "binaries/coding-assistants-mcp-godot",

@@ -22,7 +22,8 @@ export function rosterAgentIds(hubAgents: HubAgent[]): string[] {
   const enrolled = hubAgents
     .filter(agent => agent.team_member && agent.id !== "system")
     .map(agent => agent.id);
-  const ids = enrolled.length > 0 ? enrolled : FALLBACK_ROSTER;
+  const nonHumanEnrolled = enrolled.filter(id => id !== "human");
+  const ids = nonHumanEnrolled.length > 0 ? enrolled : FALLBACK_ROSTER;
   const rest = ids.filter(id => id !== "human");
   return ids.includes("human") ? ["human", ...rest] : ids;
 }
@@ -135,21 +136,30 @@ export function belongsToChannel(message: HubMessage, channelId: string): boolea
 export function uniqueChannelPosts(messages: HubMessage[], channelId: string): HubMessage[] {
   const postsByKey = new Map<string, HubMessage>();
   const posts: HubMessage[] = [];
+  const parseRecipients = (to: string | undefined): string[] => {
+    if (!to || to === "team") return [];
+    return to.split(",").map(s => s.trim()).filter(Boolean);
+  };
+
   for (const message of messages) {
     if (!belongsToChannel(message, channelId)) continue;
     const key = channelDedupeKey(message, channelId);
     const existing = postsByKey.get(key);
     if (existing) {
-      if (message.to_agent && message.to_agent !== "team") {
-        const recipients = existing.recipient_agents ?? [existing.to_agent].filter(Boolean);
-        if (!recipients.includes(message.to_agent)) recipients.push(message.to_agent);
+      if (message.to_agent === "team") {
+        existing.to_agent = "team";
+      } else {
+        const recipients = [...(existing.recipient_agents ?? parseRecipients(existing.to_agent))];
+        for (const r of parseRecipients(message.to_agent)) {
+          if (!recipients.includes(r)) recipients.push(r);
+        }
         existing.recipient_agents = recipients;
       }
       continue;
     }
-    const post = {
+    const post: HubMessage = {
       ...message,
-      recipient_agents: message.to_agent && message.to_agent !== "team" ? [message.to_agent] : [],
+      recipient_agents: parseRecipients(message.to_agent),
     };
     postsByKey.set(key, post);
     posts.push(post);
