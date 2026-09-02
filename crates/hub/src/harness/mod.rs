@@ -15,13 +15,15 @@ use std::path::PathBuf;
 
 mod inject;
 mod spawn;
+mod start;
 pub use inject::{inject_harness, inject_harness_with_store};
-pub(crate) use spawn::start_harness_owned;
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args, DEFAULT_DEEPSEEK_MODEL,
+    grok_spawn_args, opencode_spawn_args, vibe_spawn_args, DEFAULT_DEEPSEEK_MODEL,
     DEFAULT_OPENCODE_MODEL,
 };
+pub use start::start_harness;
+pub(crate) use start::start_harness_owned;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

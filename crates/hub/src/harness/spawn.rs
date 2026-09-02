@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
-use super::{HarnessId, HarnessStartRequest, HarnessStartResult};
+use super::HarnessStartResult;
 
 pub const DEFAULT_OPENCODE_MODEL: &str = "opencode-go/glm-5.3";
 pub const DEFAULT_DEEPSEEK_MODEL: &str = "deepseek/deepseek-v4-flash";
@@ -239,7 +239,7 @@ pub fn vibe_spawn_args(
     ])
 }
 
-fn spawn_explicit_owned(
+pub(super) fn spawn_explicit_owned(
     program: &str,
     workspace: &Path,
     args: &[OsString],
@@ -280,58 +280,10 @@ pub(super) fn spawn_explicit(
     }
 }
 
-fn harness_command(
-    request: &HarnessStartRequest,
-) -> Result<(&'static str, Vec<OsString>), HubError> {
-    let harness = HarnessId::parse(&request.harness)?;
-    let model = request.model.as_deref().or(match harness {
-        HarnessId::OpenCode => Some(DEFAULT_OPENCODE_MODEL),
-        HarnessId::DeepSeek => Some(DEFAULT_DEEPSEEK_MODEL),
-        _ => None,
-    });
-    let effort = request.effort.as_deref();
-    let args = match harness {
-        HarnessId::Grok => grok_spawn_args(&request.workspace, &request.prompt, model, effort)?,
-        HarnessId::Chat => codex_spawn_args(&request.workspace, &request.prompt, model, effort)?,
-        HarnessId::Claude => claude_spawn_args(&request.workspace, &request.prompt, model, effort)?,
-        HarnessId::Gemini => gemini_spawn_args(&request.workspace, &request.prompt, model, effort)?,
-        HarnessId::OpenCode => {
-            opencode_spawn_args(&request.workspace, &request.prompt, model, effort)?
-        }
-        HarnessId::DeepSeek => opencode_spawn_args(
-            &request.workspace,
-            &request.prompt,
-            Some(model.unwrap_or(DEFAULT_DEEPSEEK_MODEL)),
-            effort,
-        )?,
-        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt, model, effort)?,
-    };
-    Ok((harness.executable(), args))
-}
-
-pub(crate) fn start_harness_owned(
-    request: &HarnessStartRequest,
-) -> Result<(HarnessStartResult, Child), HubError> {
-    let (program, args) = harness_command(request)?;
-    let child = spawn_explicit_owned(program, &request.workspace, &args)
-        .map_err(|error| HubError::Invalid(format!("{program} unavailable: {error}")))?;
-    let result = HarnessStartResult {
-        harness: program.into(),
-        pid: Some(child.id()),
-        status: "started".into(),
-        detail: format!("spawned {program} pid {}", child.id()),
-    };
-    Ok((result, child))
-}
-
-pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
-    let (program, args) = harness_command(request)?;
-    spawn_explicit(program, &request.workspace, &args)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::harness::HarnessId;
     use std::path::PathBuf;
 
     #[test]
