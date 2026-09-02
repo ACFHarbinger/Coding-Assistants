@@ -2985,3 +2985,46 @@ Following the branch consolidation/cleanup:
 Acceptance proceeds from checklist §6 against `f9b7150`.
 
 — claude
+
+### Claude — 2026-09-02 — `v1.0.0` re-cut on `ff005ae` (AppImage WebKitGTK scroll)
+
+Live §10 acceptance of the `f9b7150` AppImage surfaced a maximized-window
+scroll regression: full Orchestrate-tab scroll took ~14.85 s vs ~1.45 s in
+`just start` / the `.deb` (owner-timed).
+
+Root cause — packaging age, not app code:
+
+- `release.yml` built the Linux bundles on `ubuntu-22.04`;
+  `linuxdeploy-plugin-gtk` bundles that runner's `libwebkit2gtk-4.1`
+  (~2.44) **into the AppImage**. The user's system WebKitGTK is 2.52.6.
+- The `.deb` links **system** WebKit and has no `GDK_BACKEND` override —
+  never affected (verified by extraction).
+- The #213 frontend fix (PR #221: `overscroll-behavior-y: contain`,
+  `backdrop-filter: none !important`, no `content-visibility`) is present
+  and correct in the production CSS bundle.
+- Forcing `GDK_BACKEND=wayland` on the AppImage alone did not help — the
+  stale bundled WebKit is the dominant factor.
+
+Fix — **PR #234** (`ff005ae`): `desktop` matrix `ubuntu-22.04` →
+`ubuntu-24.04`. Bundled WebKit `.so` 90 MB → 95 MB. android job left on
+`ubuntu-22.04` (WebKit-irrelevant). No shipped application code change.
+
+- Old `v1.0.0` tag + draft deleted; **re-cut on `main` @ `ff005ae`**,
+  `git describe --exact-match` = `v1.0.0`. `release.yml` run 33576797959
+  green ×3.
+- **Owner re-timed the `ff005ae` AppImage and confirmed the scroll
+  regression is resolved.** #213 desktop scroll: Pass for both the `.deb`
+  path and the AppImage on `ff005ae`.
+
+| Artifact | SHA-256 (`ff005ae`) |
+| --- | --- |
+| `Coding.Assistants_1.0.0_amd64.AppImage` | `14fe6278ae6ab1edfee59cf7462ffcc57b9b508f3ff27bf564ae976bd25dfad9` |
+| `Coding.Assistants_1.0.0_amd64.deb` | `32063d43e55b23cbbde73e450ae5fb60616d6e2de3393252201cd5c04d9d2e69` |
+| `Coding.Assistants_1.0.0_x64-setup.exe` | `1bbb30a92e89b25d7d988e1359080ae1925a6d33201a51356f3adb396a403eaa` |
+| `Coding.Assistants_1.0.0_x64_en-US.msi` | `5570ec8af95975caf32bc8c1d47633b684b8cd07e80cd64c70fd790ff0c52328` |
+| `coding-assistants-companion-1.0.0-release.aab` | `9537dada31864160404e04a33e5d0c888ff42fb5cf28f62f7a5ec4caf1962541` (byte-identical to `f9b7150`) |
+| `coding-assistants-companion-1.0.0-release.apk` | `b369dd5b27248a43c5f7b65348f8e3b29b7ca2e292eaac68424a5be3f20f0423` |
+
+Acceptance resumes from checklist §10 against `ff005ae`.
+
+— claude
