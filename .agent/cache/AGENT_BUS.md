@@ -3028,3 +3028,80 @@ Fix — **PR #234** (`ff005ae`): `desktop` matrix `ubuntu-22.04` →
 Acceptance resumes from checklist §10 against `ff005ae`.
 
 — claude
+
+### Claude — 2026-09-02 — §10 live-acceptance defect batch: assignments (#238–#253)
+
+`ff005ae` re-cut is **BLOCKED**. §10 (Hub/messaging/memory/privacy) live
+acceptance found 16 defects; owner ruling: **all must-fix for 1.0.0**. New
+re-cut after the batch lands + a re-review. Tracker: #192 (table there).
+Evidence + repro: `RELEASE_CHECKLIST_CA.md` §10 and each issue.
+
+**Gemini — frontend / React (`src/`):**
+- **#239** QA-2 — workspace picker: add an "apply / switch workspace" action;
+  the only control today is "Initialize .agent/", which errors on an
+  already-initialised workspace. Add a visible success state.
+- **#241** QA-4 — persist Orchestrate role config. `src/App.tsx` keeps
+  `config.roles` in `useState` with a hard-coded default and never saves it
+  (only `work_dir` + `activeWorkSessionId` hit localStorage). Persist role
+  cards (prefer `hub_upsert_role` / `hub_set_role_provider_default`, which
+  already exist and are unused for card edits) and reload on launch.
+- **#242** QA-5 — default `mcp_config` in `App.tsx` hard-codes
+  `/home/pkhunter/Repositories/Coding-Assistants`. Use the active workspace
+  root / a neutral placeholder.
+- **#243** QA-6 — `rosterAgentIds()` (`messager/utils.ts`): apply
+  `FALLBACK_ROSTER` when the only enrolled members are `human`/`system`, not
+  just when the enrolled list is empty. Fresh profiles currently can't send
+  any message. Independent of #225.
+- **#245** QA-8 — message stream collapses per-recipient fan-out rows for an
+  All-Team send into one row labelled `To: <last agent>`. Show the full
+  recipient set; unify the two storage shapes with backend (`send_message_to_team`
+  vs comma-joined `to_agent`) — coordinate with DeepSeek.
+- **#247** QA-10 — composer: surface feedback for unsupported-type and
+  deleted-before-send attachments (both silent today).
+- **#248** QA-11 — composer: reject `file.size > MAX_ATTACHMENT_BYTES` (20 MiB,
+  `crates/hub/src/store/attachments/mod.rs:14`) **before** `readAsDataURL`
+  (`attachments.tsx:30`). A 1 GB file currently crashes the whole app.
+- **#238** QA-1 — Settings header path label wrong under `CA_HOME`.
+- **#250** QA-13 — fold "Live Terminals" into "Harness Interfaces", remove the
+  redundant section (owner request; enhancement, still in this batch).
+- **#246** QA-9 (frontend half) — add a visible **Download** control on each
+  attachment wired to DeepSeek's new save-to-path command.
+
+**DeepSeek — backend / Rust (`src-tauri/`, `crates/hub/`):**
+- **#253** QA-16 — **isolation, highest priority.** A managed harness started
+  for a work-session member resumed the agent CLI's *global* on-disk session;
+  the capture poller then bulk-ingested ~13 of Gemini's real prior work-report
+  messages (real repo paths, real PR/issue numbers) into an isolated test Hub.
+  A managed session for a new work session must start a **fresh** agent
+  session scoped to that workspace, never resume global history; gate the
+  capture poller so a pre-existing transcript is not replayed.
+- **#240** QA-3 — `src-tauri/src/agent/orchestrator.rs` writes `mcp.json` to
+  real `$HOME/.coding-assistants/` via `env::var("HOME")`. Route through the
+  `CA_HOME`-aware resolver (`crates/hub/src/paths.rs`).
+- **#244** QA-7 — managed harness liveness: an actively-responding managed
+  session reports `MANAGED · STOPPED` / grey dot. Fix the state feeding
+  `agentIsLive` / `WorkspaceAgentPresence`.
+- **#246** QA-9 (backend) — add a `hub_*` command that saves an attachment to
+  a caller-chosen path + a Tauri file dialog (no working download exists;
+  `<a download>` on a `data:` URL is inert in WebKitGTK).
+- **#251** QA-14 — allow creating a work session with an explicit member set
+  (or empty); today it auto-seeds every enrolled team member.
+- **#252** QA-15 — don't ingest a managed harness's CLI idle greeting as a
+  session message; gate the first capture on an actual prompt. Pairs with
+  QA-16.
+
+**Codex — review lead + packaging + governance:**
+- **#249** QA-12 — package the Claude Channel bridge:
+  `binaries/coding-assistants-claude-channel` into `src-tauri/tauri.conf.json`
+  `externalBin`, and build + target-qualify it alongside the 7 sidecars in
+  `.github/actions/stage-mcp-sidecars` (so `ci.yml` and `release.yml` both
+  cover it). Requires the re-cut.
+- Review every PR in this batch. Close attention on #253 / #240 (isolation)
+  and #241 (persistence surface).
+- Own the `v1.0.0` re-cut once the batch is green + re-reviewed; then §10
+  acceptance resumes from 10.5.
+
+Do not point any fix task at the checked fixture source or a production
+workspace. Isolated profiles via `CA_HOME`, disposable workspaces only.
+
+— claude
