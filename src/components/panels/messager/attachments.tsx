@@ -18,10 +18,25 @@ export function extractAttachmentTokens(body: string): { id: string; filename: s
   return found;
 }
 
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024; // 20 MiB
+
+export function isUnsupportedOrRawMime(mime: string, filename: string): boolean {
+  if (!mime || mime === "application/octet-stream") return true;
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".jsonl") || lower.endsWith(".bin") || lower.endsWith(".dat")) return true;
+  return false;
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error("failed to read file"));
+    reader.onerror = () => {
+      const err = reader.error;
+      const msg = err
+        ? (err.name === "NotFoundError" ? "File was moved or deleted from disk before reading" : err.message)
+        : "Failed to read file from disk";
+      reject(new Error(msg));
+    };
     reader.onload = () => {
       const result = String(reader.result || "");
       const comma = result.indexOf(",");
@@ -51,6 +66,10 @@ export function resolveDispatchBody(
 }
 
 export async function uploadAttachment(file: File) {
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    throw new Error(`File "${file.name}" (${sizeMb} MiB) exceeds the 20 MiB limit.`);
+  }
   const dataBase64 = await fileToBase64(file);
   return invoke("hub_save_attachment", {
     args: {
@@ -85,6 +104,8 @@ const attachmentCache = new Map<string, any>();
 export function AttachmentInline({ id, filename }: { id: string; filename: string }) {
   const [payload, setPayload] = useState(() => attachmentCache.get(id) ?? null);
   const [failed, setFailed] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState("");
 
   useEffect(() => {
     if (payload || failed) return;
@@ -107,6 +128,41 @@ export function AttachmentInline({ id, filename }: { id: string; filename: strin
     };
   }, [id, payload, failed]);
 
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!payload?.record) return;
+    try {
+      setDownloading(true);
+      setDownloadNotice("");
+      let targetPath: string | null = null;
+      try {
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        targetPath = await save({ defaultPath: payload.record.filename });
+      } catch {
+        // Fallback if plugin-dialog is not available
+      }
+      if (targetPath) {
+        await invoke("hub_save_attachment_to_path", {
+          args: { id: payload.record.id, targetPath },
+        });
+        setDownloadNotice("Saved!");
+        setTimeout(() => setDownloadNotice(""), 3000);
+      } else if (targetPath === null) {
+        // Direct browser download trigger
+        const link = document.createElement("a");
+        link.href = `data:${payload.record.mime};base64,${payload.data_base64}`;
+        link.download = payload.record.filename;
+        link.click();
+      }
+    } catch {
+      setDownloadNotice("Error");
+      setTimeout(() => setDownloadNotice(""), 3000);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const chipStyle: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -122,6 +178,21 @@ export function AttachmentInline({ id, filename }: { id: string; filename: strin
     margin: "0.15rem 0",
   };
 
+  const downloadBtnStyle: React.CSSProperties = {
+    background: "rgba(255, 255, 255, 0.12)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "5px",
+    color: "#e2e8f0",
+    cursor: "pointer",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    padding: "0.15rem 0.45rem",
+    marginLeft: "0.35rem",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+  };
+
   if (failed) {
     return <span style={{ ...chipStyle, color: "#f87171" }}>⚠ Attachment unavailable: {filename}</span>;
   }
@@ -135,7 +206,7 @@ export function AttachmentInline({ id, filename }: { id: string; filename: strin
 
   if (record.mime.startsWith("image/")) {
     return (
-      <a href={dataUrl} download={record.filename} style={{ display: "block", margin: "0.35rem 0" }}>
+      <div style={{ display: "inline-block", margin: "0.35rem 0", verticalAlign: "middle" }}>
         <img
           src={dataUrl}
           alt={record.filename}
@@ -145,15 +216,36 @@ export function AttachmentInline({ id, filename }: { id: string; filename: strin
             borderRadius: "10px",
             border: "1px solid var(--border-color)",
             display: "block",
+            marginBottom: "0.35rem",
           }}
         />
-      </a>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", marginTop: 0 }}
+            onClick={handleDownload}
+            disabled={downloading}
+          >
+            {downloading ? "Saving…" : downloadNotice || `⬇ Download (${sizeKb} KB)`}
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <a href={dataUrl} download={record.filename} style={chipStyle}>
+    <span style={chipStyle}>
       📎 {record.filename} <span style={{ color: "var(--text-muted)" }}>({sizeKb} KB)</span>
-    </a>
+      <button
+        type="button"
+        style={downloadBtnStyle}
+        onClick={handleDownload}
+        disabled={downloading}
+        title="Download attachment to disk"
+      >
+        {downloading ? "Saving…" : downloadNotice || "⬇ Download"}
+      </button>
+    </span>
   );
 }

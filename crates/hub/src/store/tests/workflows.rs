@@ -198,6 +198,26 @@ fn work_sessions_start_with_the_team_and_accept_later_team_members() {
 }
 
 #[test]
+fn work_sessions_can_start_with_an_explicit_or_empty_roster() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_team_member("grok", true).unwrap();
+
+    let explicit = store
+        .create_work_session_with_members("Focused work", Some(&["claude".into()]))
+        .unwrap();
+    assert_eq!(explicit.member_ids, vec!["claude"]);
+
+    let empty = store
+        .create_work_session_with_members("Private draft", Some(&[]))
+        .unwrap();
+    assert!(empty.member_ids.is_empty());
+    assert!(store
+        .create_work_session_with_members("Missing", Some(&["absent".into()]))
+        .is_err());
+}
+
+#[test]
 fn work_sessions_reject_empty_or_oversized_name() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

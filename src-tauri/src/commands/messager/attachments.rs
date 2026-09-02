@@ -56,6 +56,31 @@ pub fn hub_get_attachment_blocking(id: String) -> Result<Option<AttachmentPayloa
     }))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAttachmentToPathArgs {
+    pub id: String,
+    pub target_path: String,
+}
+
+#[tauri::command]
+pub async fn hub_save_attachment_to_path(args: SaveAttachmentToPathArgs) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || hub_save_attachment_to_path_blocking(args))
+        .await
+        .map_err(|e| format!("hub_save_attachment_to_path worker panic: {e}"))?
+}
+
+pub fn hub_save_attachment_to_path_blocking(args: SaveAttachmentToPathArgs) -> Result<(), String> {
+    let found = open_store()?
+        .read_attachment(&args.id)
+        .map_err(|e| e.to_string())?;
+    match found {
+        Some((_record, data)) => std::fs::write(&args.target_path, data)
+            .map_err(|e| format!("Failed to write attachment to {}: {e}", args.target_path)),
+        None => Err(format!("Attachment not found: {}", args.id)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,6 +144,38 @@ mod tests {
             assert!(hub_get_attachment_blocking("does-not-exist".into())
                 .unwrap()
                 .is_none());
+        });
+    }
+
+    #[test]
+    fn save_attachment_to_path_writes_file_to_disk() {
+        with_ca_home("save-to-path", || {
+            let saved = hub_save_attachment_blocking(SaveAttachmentArgs {
+                filename: "export.txt".into(),
+                mime: "text/plain".into(),
+                data_base64: STANDARD.encode(b"hello attachment"),
+            })
+            .expect("save");
+
+            let target = std::env::temp_dir().join(format!(
+                "test-export-{}.txt",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+
+            hub_save_attachment_to_path_blocking(SaveAttachmentToPathArgs {
+                id: saved.id.clone(),
+                target_path: target.to_string_lossy().to_string(),
+            })
+            .expect("save to path");
+
+            assert_eq!(
+                std::fs::read_to_string(&target).unwrap(),
+                "hello attachment"
+            );
+            let _ = std::fs::remove_file(target);
         });
     }
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Managed harness starts now generate a fresh provider-session identity instead
+  of accepting a caller-supplied transcript id, keep capture unarmed until a
+  real task runs, and retain managed presence after a one-shot worker exits.
+  This prevents global transcript replay and startup greetings from entering a
+  work-session feed (#253, #252, #244).
+
 ## [1.0.0] - 2026-09-01
 
 ### Fixed

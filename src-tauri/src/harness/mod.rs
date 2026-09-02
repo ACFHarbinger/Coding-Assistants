@@ -33,7 +33,23 @@ pub(crate) fn resolve_capture_session_id(
     if let Some(id) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(Some(id.to_string()));
     }
-    registered_disk_session(store, harness, workspace)
+    let Some(session_id) = registered_disk_session(store, harness, workspace)? else {
+        return Ok(None);
+    };
+    let registration = store
+        .get_harness_session(harness, &workspace.to_string_lossy())
+        .map_err(|error| error.to_string())?;
+    // A managed start first records only an opaque, freshly generated id.
+    // Do not poll any transcript until a real task has acquired and released
+    // the writer lease (state becomes ready). This drops CLI greetings and
+    // makes a pre-existing global transcript unreachable from a new session.
+    if registration.is_some_and(|row| {
+        row.mode == hub::HarnessSessionMode::Managed
+            && row.state == hub::HarnessSessionState::Queued
+    }) {
+        return Ok(None);
+    }
+    Ok(Some(session_id))
 }
 
 fn registered_disk_session(
@@ -103,6 +119,25 @@ mod tests {
         // A blank explicit id is treated the same as no id.
         let resolved =
             resolve_capture_session_id(&store, "claude", Path::new("/abs/ws"), Some("  ")).unwrap();
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn queued_managed_session_does_not_arm_capture_of_a_prior_transcript() {
+        let dir = tempdir().unwrap();
+        let store = hub::HubStore::open(dir.path()).unwrap();
+        store
+            .register_managed_harness_session_with_state(
+                "gemini",
+                "/abs/fresh-workspace",
+                "managed-fresh-id",
+                None,
+                hub::HarnessSessionState::Queued,
+            )
+            .unwrap();
+        let resolved =
+            resolve_capture_session_id(&store, "gemini", Path::new("/abs/fresh-workspace"), None)
+                .unwrap();
         assert_eq!(resolved, None);
     }
 }

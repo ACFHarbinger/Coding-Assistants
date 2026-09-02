@@ -59,11 +59,12 @@ impl AgentSystem {
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        // Write MCP Config to ~/.coding-assistants/mcp.json
+        // Keep task-scoped MCP config in the same CA_HOME-aware Hub directory
+        // as the rest of this application's state.  Writing through HOME here
+        // leaks an isolated/profiled task into the user's real configuration.
         let mut mcp_abs_path = None;
         if !self.config.mcp_config.is_empty() {
-            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let config_dir = std::path::Path::new(&home_dir).join(".coding-assistants");
+            let config_dir = hub::default_hub_home();
             let mcp_config_file = config_dir.join("mcp.json");
 
             if let Err(e) = tokio::fs::create_dir_all(&config_dir).await {

@@ -3,10 +3,10 @@ import { useState } from "react";
 import { invoke } from "../../lib/tauri";
 import { ModelSelect } from "./config/ModelSelect";
 import WorkSessionSection from "./config/WorkSessionSection";
+import DetectedProcessesSection from "./config/DetectedProcessesSection";
 import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
-import { processTargetId } from "./config/types";
+import { processTargetId, spawnedRoleTeamMember } from "./config/types";
 import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
-import LiveTerminalsPanel from "./harness/LiveTerminalsPanel";
 
 export type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 
@@ -55,6 +55,7 @@ export default function ConfigPanel({
   const [sessionError, setSessionError] = useState("");
   const [externalConfigPath, setExternalConfigPath] = useState("");
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
 
   const loadConfigFromPath = async (inputPath: string) => {
     const trimmed = inputPath.trim();
@@ -100,6 +101,20 @@ export default function ConfigPanel({
     return String(error);
   };
 
+  const applyWorkspace = (newPath?: string) => {
+    const path = (newPath ?? config.work_dir).trim();
+    if (!path) {
+      alert("Set an absolute workspace path first.");
+      return;
+    }
+    try {
+      localStorage.setItem("ca.workspaceRoot", path);
+    } catch {}
+    setConfig({ ...config, work_dir: path });
+    setWorkspaceNotice(`Workspace active: ${path}`);
+    setTimeout(() => setWorkspaceNotice(""), 4000);
+  };
+
   const bootstrapWorkspace = async (createDir = false) => {
     await invoke("bootstrap_workspace", { workDir: config.work_dir.trim(), createDir });
   };
@@ -124,7 +139,8 @@ export default function ConfigPanel({
         if (!confirmed) return;
         await bootstrapWorkspace(true);
       }
-      alert(`Successfully bootstrapped .agent/ in ${path}`);
+      setWorkspaceNotice(`Successfully bootstrapped .agent/ in ${path}`);
+      setTimeout(() => setWorkspaceNotice(""), 4000);
     } catch (error) {
       alert(`Failed to bootstrap: ${invokeErrorMessage(error)}`);
     } finally {
@@ -199,15 +215,6 @@ export default function ConfigPanel({
       origin: "existing"
     });
   };
-
-  const spawnedRoleTeamMember = (index: number, role: RoleConfig): TeamMember => ({
-    id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
-    target_id: role.process_pid ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid }) : `role:${index}`,
-    name: role.name,
-    provider: role.config.provider,
-    model: role.config.model,
-    origin: role.origin || "spawned"
-  });
 
   const addSpawnedRole = (index: number, role: RoleConfig) => {
     onAddAgent(spawnedRoleTeamMember(index, role));
@@ -286,34 +293,49 @@ export default function ConfigPanel({
       <section style={{ marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(16, 185, 129, 0.32)', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.06)' }}>
         <label className="label" style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'block' }}>Workspace Root</label>
         <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>All team sessions, harness capture, and task delivery use this absolute repository path.</div>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <input
-            style={{ flex: '1 1 420px', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+            style={{ flex: '1 1 360px', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
             placeholder="/absolute/path/to/workspace"
             value={config.work_dir}
             onChange={e => setConfig({ ...config, work_dir: e.target.value })}
           />
           <button
+            className="btn-primary"
+            style={{ marginTop: 0 }}
+            onClick={() => applyWorkspace()}
+            title="Switch active workspace to this directory"
+          >
+            Switch Workspace
+          </button>
+          <button
             className="btn-secondary"
+            style={{ marginTop: 0 }}
             onClick={async () => {
               const selected = await open({ directory: true, multiple: false, defaultPath: config.work_dir || undefined });
-              if (selected) setConfig({ ...config, work_dir: selected as string });
+              if (selected) {
+                applyWorkspace(selected as string);
+              }
             }}
           >
             Browse
           </button>
           <button
             className="btn-secondary"
-            style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+            style={{ marginTop: 0, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
             onClick={() => void initializeAgentDir()}
             disabled={bootstrapping}
           >
             {bootstrapping ? "Initializing…" : "Initialize .agent/"}
           </button>
         </div>
+        {workspaceNotice && (
+          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", borderRadius: "8px", background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", color: "#34d399", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span>✓</span> {workspaceNotice}
+          </div>
+        )}
       </section>
 
-      <LiveTerminalsPanel workspace={config.work_dir} />
       <HarnessReadinessPanel workspace={config.work_dir} />
 
       <WorkSessionSection
@@ -330,20 +352,15 @@ export default function ConfigPanel({
         onSelectWorkSession={onSelectWorkSession}
       />
 
-      {detectError && <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>{detectError}</div>}
-      {hasScanned && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.06)' }}>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>External agent binaries currently running anywhere on this machine (not workspace-scoped, not a live Chat & Memory connection). Selecting one adds its identity to the team; it does not take ownership of or terminate the process. A task executes automatically only when that provider has a registered, supported active-session bridge.</div>
-        {detectedProcesses.map(process => <div key={process.pid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.65rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)' }}>
-          <div style={{ minWidth: 0 }}><strong style={{ color: 'var(--primary)' }}>{process.agent}</strong><span style={{ color: 'var(--text-muted)', marginLeft: '0.6rem', fontSize: '0.8rem' }}>PID {process.pid}</span><div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'min(65vw, 680px)' }}>{process.command}</div></div>
-          <button
-            className={addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? "btn-secondary" : "btn-primary"}
-            onClick={() => addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? removeDetectedProcess(process) : addDetectedProcess(process)}
-          >
-            {addedPids.includes(process.pid) || teamMemberIds.includes(processTargetId(process)) ? "Remove from team" : "Add to team"}
-          </button>
-        </div>)}
-        {detectedProcesses.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No supported agent processes found.</span>}
-      </div>}
+      <DetectedProcessesSection
+        hasScanned={hasScanned}
+        detectError={detectError}
+        detectedProcesses={detectedProcesses}
+        addedPids={addedPids}
+        teamMemberIds={teamMemberIds}
+        onAddProcess={addDetectedProcess}
+        onRemoveProcess={removeDetectedProcess}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
         {config.roles.map((role, index) => (

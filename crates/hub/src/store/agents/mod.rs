@@ -4,6 +4,7 @@ mod avatar;
 mod capture;
 mod sessions;
 mod team;
+mod work_sessions;
 impl HubStore {
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {
         self.conn.execute(
@@ -63,31 +64,6 @@ impl HubStore {
             .into_iter()
             .find(|agent| agent.id == id)
             .ok_or_else(|| HubError::NotFound(id.to_string()))
-    }
-
-    /// Creates a named work-session chat and enrolls the current persisted team.
-    pub fn create_work_session(&self, name: &str) -> Result<WorkSessionRecord, HubError> {
-        let name = name.trim();
-        if name.is_empty() || name.len() > 120 {
-            return Err(HubError::Invalid(
-                "work session name must be between 1 and 120 characters".into(),
-            ));
-        }
-        let id = Uuid::new_v4().to_string();
-        let created_at = Utc::now().to_rfc3339();
-        let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
-            "INSERT INTO work_sessions(id, name, created_at) VALUES (?1, ?2, ?3)",
-            params![id, name, created_at],
-        )?;
-        tx.execute(
-            "INSERT INTO work_session_members(session_id, agent_id, created_at)
-             SELECT ?1, id, ?2 FROM agents WHERE team_member = 1",
-            params![id, created_at],
-        )?;
-        tx.commit()?;
-        self.get_work_session(&id)?
-            .ok_or_else(|| HubError::NotFound(id))
     }
 
     pub fn list_work_sessions(&self) -> Result<Vec<WorkSessionRecord>, HubError> {

@@ -8,34 +8,17 @@ import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./componen
 import RemotePanel from "./components/panels/RemotePanel";
 import MessagerPanel from "./components/panels/MessagerPanel";
 import { openSettingsWindow } from "./lib/settingsWindow";
+import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
 
 
 function App() {
-  const [config, setConfig] = useState<AgentConfig>({
-    roles: [
-      { name: "Planner", config: { provider: "openai", model: "gpt-4o" } },
-      { name: "Developer", config: { provider: "openai", model: "gpt-4o-mini" } },
-      { name: "Reviewer", config: { provider: "openai", model: "gpt-4o" } },
-    ],
-    work_dir: loadWorkspaceRoot(),
-    mcp_config: `{
-  "mcpServers": {
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-      "env": {}
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/pkhunter/Repositories/Coding-Assistants"],
-      "disabledTools": ["read_file"]
-    },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"]
-    }
-  }
-}`
+  const [config, setConfig] = useState<AgentConfig>(() => {
+    const ws = loadWorkspaceRoot();
+    return {
+      roles: loadPersistedRoles(),
+      work_dir: ws,
+      mcp_config: defaultMcpConfig(ws),
+    };
   });
 
   const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
@@ -89,6 +72,10 @@ function App() {
       /* ignore quota / private mode */
     }
   }, [config.work_dir]);
+
+  useEffect(() => {
+    savePersistedRoles(config.roles);
+  }, [config.roles]);
 
   useEffect(() => {
     async function loadModels() {

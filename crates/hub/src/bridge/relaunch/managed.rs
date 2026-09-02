@@ -12,10 +12,15 @@ use crate::{HarnessSessionRegistration, HubStore};
 use std::path::Path;
 use std::process::{Child, ExitStatus};
 use std::time::Duration;
+use uuid::Uuid;
 
 use super::kill_pid;
 
 const IMMEDIATE_EXIT_GRACE: Duration = Duration::from_millis(750);
+
+fn fresh_managed_session_id() -> String {
+    format!("managed-{}", Uuid::new_v4())
+}
 
 fn exit_detail(harness: &str, status: ExitStatus) -> String {
     match status.code() {
@@ -78,13 +83,13 @@ pub fn start_managed_harness(
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
     }
-    let disk_session_id = disk_session_id.trim();
-    if disk_session_id.is_empty() {
-        return Err(
-            "start_managed_harness requires a real disk/thread/conversation id, not a placeholder"
-                .into(),
-        );
-    }
+    // A caller-provided id may name a global, pre-existing provider session.
+    // Never register it for a new managed worker: doing so arms the capture
+    // poller against someone else's transcript. Gemini accepts this UUID as
+    // its new conversation id; other one-shot CLIs create their own session,
+    // which remains unarmed until a provider bridge can identify it.
+    let _requested_disk_session_id = disk_session_id;
+    let disk_session_id = fresh_managed_session_id();
     let workspace_key = workspace.to_string_lossy().to_string();
 
     if let Ok(Some(existing)) = store.get_harness_session(harness.as_str(), &workspace_key) {
@@ -96,7 +101,7 @@ pub fn start_managed_harness(
     let (mut started, mut child) = start_harness_owned(&HarnessStartRequest {
         harness: harness.as_str().into(),
         workspace: workspace.to_path_buf(),
-        session_id: None,
+        session_id: Some(disk_session_id.clone()),
         prompt: prompt.into(),
         ..Default::default()
     })
@@ -107,7 +112,13 @@ pub fn start_managed_harness(
     };
 
     let registration = store
-        .register_managed_harness_session(harness.as_str(), &workspace_key, disk_session_id, pid)
+        .register_managed_harness_session_with_state(
+            harness.as_str(),
+            &workspace_key,
+            &disk_session_id,
+            Some(pid),
+            crate::HarnessSessionState::Queued,
+        )
         .map_err(|error| error.to_string())?;
 
     // A bad argv, missing TTY, or rejected startup commonly exits before the
@@ -115,10 +126,18 @@ pub fn start_managed_harness(
     // UI receives a truthful, retryable error and the process is reaped.
     std::thread::sleep(IMMEDIATE_EXIT_GRACE);
     if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-        finish_child(store, harness.as_str(), &workspace_key, pid, status);
         started.pid = None;
-        started.status = "unavailable".into();
-        started.detail = exit_detail(harness.as_str(), status);
+        if status.success() {
+            started.status = "started".into();
+            started.detail = format!(
+                "{} managed startup completed; session is awaiting its first task before capture starts.",
+                harness.as_str()
+            );
+        } else {
+            finish_child(store, harness.as_str(), &workspace_key, pid, status);
+            started.status = "unavailable".into();
+            started.detail = exit_detail(harness.as_str(), status);
+        }
         let registration = store
             .get_harness_session(harness.as_str(), &workspace_key)
             .map_err(|error| error.to_string())?
@@ -155,12 +174,12 @@ mod tests {
     }
 
     #[test]
-    fn start_managed_harness_rejects_an_empty_disk_session_id() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let err =
-            start_managed_harness(&store, "grok", Path::new("/abs/repo"), "   ", "hi").unwrap_err();
-        assert!(err.contains("real disk"), "{err}");
+    fn managed_start_id_is_fresh_and_never_uses_a_requested_provider_id() {
+        let first = fresh_managed_session_id();
+        let second = fresh_managed_session_id();
+        assert!(first.starts_with("managed-"));
+        assert_ne!(first, second);
+        assert_ne!(first, "global-provider-session");
     }
 
     #[test]

@@ -60,3 +60,16 @@ export function processTargetId(process: Pick<DetectedProcess, "agent" | "pid">)
   if (normalized === "grok") return "grok";
   return `process:${process.pid}`;
 }
+
+export function spawnedRoleTeamMember(index: number, role: RoleConfig): TeamMember {
+  return {
+    id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
+    target_id: role.process_pid
+      ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid })
+      : `role:${index}`,
+    name: role.name,
+    provider: role.config.provider,
+    model: role.config.model,
+    origin: role.origin || "spawned",
+  };
+}

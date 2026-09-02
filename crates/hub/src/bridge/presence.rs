@@ -46,9 +46,11 @@ pub fn registered_session_is_present(session: &HarnessSessionRegistration) -> bo
         return false;
     }
     match session.mode {
-        // A managed session we launched must still be running to be present —
-        // otherwise a dead app-spawned process would show a live dot.
-        HarnessSessionMode::Managed => session.managed_pid.is_some_and(is_pid_running),
+        // A managed worker's pid is only its current task process. A clean
+        // one-shot exit leaves a managed provider session queued for its next
+        // task, so absence of a pid must not turn that live session grey.
+        // Explicit stop/unavailable states above remain authoritative.
+        HarnessSessionMode::Managed => session.managed_pid.is_none_or(is_pid_running),
         // An observed session is being tracked/captured by the capture-identity
         // gate (that's why its turns appear in the app), so align presence with
         // that and show it present rather than "inactive but messaging".
@@ -144,5 +146,16 @@ mod tests {
             Some(u32::MAX),
         );
         assert!(!registered_session_is_present(&stopped));
+    }
+
+    #[test]
+    fn queued_managed_session_without_a_current_worker_is_still_present() {
+        let queued = session(
+            "gemini",
+            HarnessSessionMode::Managed,
+            HarnessSessionState::Queued,
+            None,
+        );
+        assert!(registered_session_is_present(&queued));
     }
 }
