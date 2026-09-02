@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `actions/setup-java@v5`. `actions/upload-artifact@v4`,
   `android-actions/setup-android@v3`, and `softprops/action-gh-release@v2`
   stay on the versions the 1.0.0 release pipeline already uses.
+- Build the Linux `.deb` and AppImage on `ubuntu-24.04` instead of
+  `ubuntu-22.04`. `linuxdeploy-plugin-gtk` bundles the build box's
+  `libwebkit2gtk-4.1` into the AppImage, and 22.04's WebKitGTK (~2.44)
+  scrolled a maximized window about an order of magnitude slower than the
+  `.deb` (which links the user's system WebKit). 24.04 ships a much newer
+  WebKitGTK. No shipped application code changed (#213 follow-up).
 ### Added
 
 - Android Configure & Start Task can rename roles and attach workspace
