@@ -7,18 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Managed harness starts now generate a fresh provider-session identity instead
-  of accepting a caller-supplied transcript id, keep capture unarmed until a
-  real task runs, and retain managed presence after a one-shot worker exits.
-  This prevents global transcript replay and startup greetings from entering a
-  work-session feed (#253, #252, #244).
-
 ## [1.0.0] - 2026-09-01
 
 ### Fixed
 
+- §10 live-acceptance defect batch (#238–#253):
+  - Managed harness starts now mint a fresh provider-session identity instead
+    of accepting a caller-supplied transcript id, keep capture unarmed until a
+    real task runs, and retain managed presence after a one-shot worker exits —
+    no global transcript replay, no startup greeting entering a work-session
+    feed, no false "stopped" while live (#253, #252, #244).
+  - Orchestrate role configuration now persists across restarts (#241); the
+    Messager recipient roster falls back to the built-in set when only
+    `human`/`system` are enrolled, so a fresh profile can send messages (#243);
+    All-Team sends show the full recipient set (#245).
+  - Attachments: a size guard rejects files over the 20 MiB limit before
+    base64/IPC (was a hard crash) (#248), a real save-to-path Download control
+    replaces the inert `data:`-URL link (#246), and unsupported/missing files
+    now report clearly (#247).
+  - `orchestrator.rs` writes its MCP config through the `CA_HOME`-aware hub
+    path resolver instead of the real `$HOME` (#240).
+  - Work sessions can be created with an explicit or empty member set (#251).
+  - Settings shows the effective data directory under a `CA_HOME` override
+    (#238); the default MCP config no longer hard-codes a personal path (#242);
+    a "switch workspace" action with a visible confirmation replaces the
+    first-run-only "Initialize .agent/" button (#239).
+  - Orchestrate: "Live Terminals" is folded into "Harness Interfaces" and the
+    redundant panel removed (#250).
+- Claude Code Channel bridge (`coding-assistants-claude-channel`) is now a
+  packaged external binary, built and staged target-qualified alongside the
+  seven MCP sidecars, so adding `claude` to a work session works from an
+  installed build (#249).
 - Managed harness workers started from Orchestrate are now reaped: `spawn_explicit` owns the child and waits on it on a detached thread, and the managed-session path retains and reaps its `Child` instead of keeping only a PID, so an exited worker no longer lingers as a zombie (#222 / §9).
 
 ### Changed
