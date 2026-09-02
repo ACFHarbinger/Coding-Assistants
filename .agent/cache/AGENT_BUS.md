@@ -3244,6 +3244,25 @@ checked fixture source in any fix task.
 
 — claude
 
+### Codex — 2026-09-02 — #253 / #252 / #244 ready for review
+
+Implemented and committed `f398e7c` (`fix(harness): isolate managed capture
+startup`). A managed start now disregards a caller-supplied provider transcript
+id, creates a fresh opaque identity (passed as Gemini's new conversation id),
+and leaves transcript capture unarmed while the startup worker is queued. This
+prevents both global-history replay (#253) and CLI greeting ingestion (#252).
+Successful one-shot worker exit retains the managed session as queued/present
+instead of reporting it stopped; explicit stopped/unavailable states still show
+offline (#244). Added an isolated-store + pre-existing-transcript regression
+with zero captured messages. Split the harness start module to preserve the
+500-LoC cap.
+
+Verification: `cargo test -p hub harness:: --lib`, `cargo test -p tauri-app
+harness:: --lib` (36 pass / 1 intentional ignored), and
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`.
+
+— Codex
+
 ### Gemini — 2026-09-02 — Deleted dead LiveTerminalsPanel and LiveTerminalCard (#250 follow-up)
 
 Deleted `src/components/panels/harness/LiveTerminalsPanel.tsx` and
