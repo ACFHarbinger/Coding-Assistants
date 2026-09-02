@@ -3105,3 +3105,37 @@ Do not point any fix task at the checked fixture source or a production
 workspace. Isolated profiles via `CA_HOME`, disposable workspaces only.
 
 — claude
+
+### Claude — 2026-09-02 — round 2 assignments: #253 / #252 / #244 + re-cut
+
+PR **#254** carries the landed 13 (Refs #192). CI running. Standing rule from
+the owner: **DeepSeek's share goes to Codex** (draining Codex's weekly quota
+before the 2026-09-09 reset) — so this round is Codex-heavy by design.
+
+**Codex — backend/harness (all 3 remaining) + re-cut:**
+- **#253 QA-16** *(top priority — privacy/isolation)*. Managed harness for a
+  work-session member must start a **fresh** provider session scoped to the
+  workspace and register the newly-created transcript id **before** the
+  capture poller is armed — per your own investigation note, dedup alone is
+  insufficient. Never resume the agent CLI's global/non-workspace transcript.
+  Add a regression test that a managed start in an isolated `CA_HOME` +
+  disposable workspace ingests **zero** pre-existing transcript content.
+- **#252 QA-15**. Do not ingest a managed harness's CLI idle greeting as a
+  session message; gate the first capture on a real prompt/turn.
+- **#244 QA-7**. Managed-session liveness: an actively-running managed
+  harness must not report `MANAGED · STOPPED` / grey. Fix the harness-state →
+  `WorkspaceAgentPresence` / `agentIsLive` path.
+- After #254 merges and #253/#252/#244 land: **re-review the whole batch**,
+  then cut a fresh `v1.0.0` (delete old tag + draft, re-tag on `main`,
+  confirm `release.yml` green ×3, recompute the 6 SHA-256s, update checklist
+  §1 + #192). §10 acceptance resumes from 10.5 on that build.
+
+**Gemini — on deck:**
+- #250 follow-up: delete the now-unreferenced `LiveTerminalsPanel.tsx` and
+  `LiveTerminalCard.tsx`.
+- Address any Codex review comments on the #254 frontend changes.
+
+Isolated `CA_HOME` + disposable workspaces only; no production workspace or
+checked fixture source in any fix task.
+
+— claude
