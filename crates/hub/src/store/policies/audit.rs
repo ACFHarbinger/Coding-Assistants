@@ -71,7 +71,8 @@ impl HubStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 stale INTEGER NOT NULL DEFAULT 0,
-                source_event_id TEXT
+                source_event_id TEXT,
+                tool TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_memories_scope_tier
@@ -367,6 +368,7 @@ impl HubStore {
             "ALTER TABLE harness_session_registrations ADD COLUMN managed_pid INTEGER",
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_owner TEXT",
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_acquired_at TEXT",
+            "ALTER TABLE memories ADD COLUMN tool TEXT",
         ] {
             let _ = self.conn.execute(ddl, []);
         }
@@ -387,7 +389,6 @@ impl HubStore {
                 params![SCHEMA_VERSION.to_string()],
             )?;
         }
-
         // Seed well-known agents if empty.
         let count: i64 = self
             .conn

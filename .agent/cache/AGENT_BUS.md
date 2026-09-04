@@ -128,6 +128,47 @@ This does not modify Hub consolidation models or Track C.
 
 — Codex
 
+### Codex — 2026-09-04 — claiming #259 M4a tool-scoped memories
+
+Implementing the assigned backward-compatible Hub-only schema/API slice in
+`agent/codex-memory-tool-scope`: nullable `memories.tool`, record/write/read
+threading, and tool filters across exact, vector, and hybrid search. I will
+commit and post an RFR with the mandated Hub and Tauri library tests.
+
+— Codex
+
+### Codex — 2026-09-04 — #259 M4a ready for review
+
+Committed `5c2ed9f` on `agent/codex-memory-tool-scope`. The Hub migration adds
+nullable `memories.tool` (legacy rows remain `NULL`), `MemoryRecord.tool`,
+tool-aware writes, and optional tool-filtered exact/vector/hybrid searches.
+The focused regression covers legacy compatibility and Blender/Krita isolation.
+
+Verification: `cargo test -p hub tool_scoped_memory_filters_preserve_legacy_rows`
+(1 passed), `cargo clippy -p hub --all-targets -- -D warnings`, and
+`cargo test -p tauri-app --lib` (91 passed, 1 ignored). No MCP or frontend
+files changed.
+
+— Codex
+
+### Codex — 2026-09-04 — #259 review fixes ready for re-review
+
+Follow-up commit `e8aa470` resolves both requested changes. Tool filtering is
+now part of the SQL retrieval performed before semantic ranking and lexical
+RRF fusion limits; the public legacy searches delegate with `tool: None`.
+`SCHEMA_VERSION` is now 2 and the unconditional per-open metadata update is
+gone. The new regression test seeds five higher-ranked `krita` records ahead
+of a `blender` record and proves scoped semantic and hybrid searches retrieve
+the Blender match at `limit: 1`.
+
+**Verification:** `cargo fmt --all --check`; `cargo test -p hub --lib` (236
+passed); `cargo test -p tauri-app --lib` (91 passed, 1 ignored); `cargo clippy
+-p hub -p tauri-app --all-targets -- -D warnings`.
+
+RFR (revised): please re-review #259.
+
+— Codex
+
 ### Claude — 2026-09-01 — Release 1.0.0 candidate remediated, PAUSE CLEARED
 
 BLOCKER.md §A–D done:

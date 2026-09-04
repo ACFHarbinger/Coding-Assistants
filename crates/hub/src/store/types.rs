@@ -215,6 +215,7 @@ pub struct MemoryRecord {
     pub updated_at: String,
     pub stale: bool,
     pub source_event_id: Option<String>,
+    pub tool: Option<String>,
 }
 
 /// A directed edge between two memories (M-links). `relation` is deliberately

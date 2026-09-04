@@ -32,6 +32,10 @@ SQLite is the source of truth for structured memory. Markdown is the
 human-readable synchronization and high-priority layer. Private journals are
 separate from shared memory and must not be silently merged.
 
+**2026-09-04 (M4a, #259):** Shared memories support an optional tool identity.
+The Hub preserves legacy unscoped rows and offers tool-filtered exact, vector,
+and hybrid retrieval for creative-tool consumers.
+
 **2026-09-04 (Track M, #255):** Orchestrated tasks now retrieve a bounded,
 relevance-ranked set of workspace and global shared memories and inject it
 after `.agent/project_memory.md`. Recall is enabled by default, configurable

@@ -24,6 +24,29 @@ impl HubStore {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub fn write_memory_with_tool(
+        &self,
+        tier: MemoryTier,
+        scope: MemoryScope,
+        agent_id: Option<&str>,
+        workspace_path: Option<&str>,
+        title: Option<&str>,
+        body: &str,
+        tags: &[String],
+        tool: Option<&str>,
+    ) -> Result<MemoryRecord, HubError> {
+        let record = self.write_memory(tier, scope, agent_id, workspace_path, title, body, tags)?;
+        if let Some(tool) = tool.filter(|tool| !tool.trim().is_empty()) {
+            self.conn.execute(
+                "UPDATE memories SET tool = ?1 WHERE id = ?2",
+                params![tool, record.id],
+            )?;
+        }
+        self.get_memory(&record.id)?
+            .ok_or_else(|| HubError::NotFound(record.id))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn write_memory_with_source(
         &self,
         tier: MemoryTier,
@@ -81,7 +104,7 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories WHERE id = ?1
             "#,
         )?;
@@ -100,6 +123,7 @@ impl HubStore {
                     updated_at: r.get(9)?,
                     stale: r.get::<_, i64>(10)? != 0,
                     source_event_id: r.get(11)?,
+                    tool: r.get(12)?,
                 })
             })
             .optional()?;
@@ -156,7 +180,7 @@ impl HubStore {
         let mut sql = String::from(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories WHERE 1=1
             "#,
         );
@@ -196,27 +220,53 @@ impl HubStore {
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
                 source_event_id: r.get(11)?,
+                tool: r.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     pub fn search_memories(&self, query: &str) -> Result<Vec<MemoryRecord>, HubError> {
+        self.search_memories_impl(query, None)
+    }
+
+    /// Exact search with an optional tool scope. `None` preserves the legacy
+    /// all-tool result set; `Some` matches only that tool identifier.
+    pub fn search_memories_with_tool(
+        &self,
+        query: &str,
+        tool: Option<&str>,
+    ) -> Result<Vec<MemoryRecord>, HubError> {
+        self.search_memories_impl(query, tool)
+    }
+
+    pub(super) fn search_memories_impl(
+        &self,
+        query: &str,
+        tool: Option<&str>,
+    ) -> Result<Vec<MemoryRecord>, HubError> {
         let q = format!("%{}%", query.trim());
         if query.trim().is_empty() {
             return Err(HubError::Invalid("search query must not be empty".into()));
         }
-        let mut stmt = self.conn.prepare(
+        let mut sql = String::from(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories
             WHERE stale = 0 AND (body LIKE ?1 OR IFNULL(title, '') LIKE ?1 OR tags_json LIKE ?1)
-            ORDER BY created_at DESC
-            LIMIT 100
             "#,
-        )?;
-        let rows = stmt.query_map(params![q], |r| {
+        );
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(q)];
+        if let Some(tool) = tool {
+            sql.push_str(" AND tool = ?");
+            params_vec.push(Box::new(tool.to_string()));
+        }
+        sql.push_str(" ORDER BY created_at DESC LIMIT 100");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_vec.iter().map(|param| param.as_ref()).collect();
+        let rows = stmt.query_map(params_refs.as_slice(), |r| {
             Ok(MemoryRecord {
                 id: r.get(0)?,
                 scope: r.get(1)?,
@@ -230,6 +280,7 @@ impl HubStore {
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
                 source_event_id: r.get(11)?,
+                tool: r.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
