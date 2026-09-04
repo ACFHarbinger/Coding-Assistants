@@ -306,6 +306,41 @@ impl HubStore {
         Ok(fused)
     }
 
+    /// Retrieves only memories safe to share with an agent working in a
+    /// workspace: records scoped to that workspace plus global records.
+    /// Records belonging to another workspace are deliberately excluded.
+    pub fn search_memories_for_workspace_recall(
+        &self,
+        query: &str,
+        limit: usize,
+        workspace_path: &str,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        let fetch_limit = limit.max(1);
+        let mut hits = self.search_memories_hybrid(
+            query,
+            fetch_limit,
+            Some(MemoryScope::Workspace),
+            None,
+            Some(workspace_path),
+        )?;
+        hits.extend(self.search_memories_hybrid(
+            query,
+            fetch_limit,
+            Some(MemoryScope::Global),
+            None,
+            None,
+        )?);
+        hits.sort_by(|left, right| {
+            right
+                .1
+                .partial_cmp(&left.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.0.id.cmp(&right.0.id))
+        });
+        hits.truncate(fetch_limit);
+        Ok(hits)
+    }
+
     /// Backfills missing memory embeddings in `memory_vectors`.
     pub fn reindex_memory_vectors(&self) -> Result<usize, HubError> {
         let mut stmt = self.conn.prepare(

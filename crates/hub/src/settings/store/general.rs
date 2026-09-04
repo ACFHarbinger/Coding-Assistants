@@ -194,6 +194,21 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_memory_recall_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.memory_recall_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_memory_recall_limit(&mut self, limit: u8) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.orchestration.clone();
+        next.memory_recall_limit = limit;
+        next.validate()?;
+        self.snapshot.orchestration = next;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
     pub fn set_tui_prefix_chord(&mut self, chord: &str) -> Result<(), SettingsError> {
         let trimmed = chord.trim().to_lowercase();
         if trimmed.is_empty() {

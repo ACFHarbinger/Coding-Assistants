@@ -26,6 +26,8 @@ fn settings_field_name(field: SettingsField) -> &'static str {
         SettingsField::RetentionDays => "orchestration.retention_days",
         SettingsField::ExportEnabled => "orchestration.export_enabled",
         SettingsField::LinkSuggestionMode => "orchestration.link_suggestion_mode",
+        SettingsField::MemoryRecallEnabled => "orchestration.memory_recall_enabled",
+        SettingsField::MemoryRecallLimit => "orchestration.memory_recall_limit",
     }
 }
 
@@ -297,6 +299,8 @@ pub struct OrchestrationPatch {
     pub auto_enrollment_allowed: Option<bool>,
     pub sandbox_strictness: Option<SandboxStrictness>,
     pub export_enabled: Option<bool>,
+    pub memory_recall_enabled: Option<bool>,
+    pub memory_recall_limit: Option<u8>,
 }
 
 /// `workspace: None` updates the global default; `Some(path)` sets a
@@ -357,6 +361,28 @@ pub fn settings_update_orchestration(
                 .map_err(|e| e.to_string())?,
         }
         changed_fields.push("orchestration.export_enabled");
+    }
+    if let Some(v) = patch.memory_recall_enabled {
+        match workspace.as_deref() {
+            None => store
+                .set_memory_recall_enabled(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_memory_recall_enabled(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.memory_recall_enabled");
+    }
+    if let Some(v) = patch.memory_recall_limit {
+        match workspace.as_deref() {
+            None => store
+                .set_memory_recall_limit(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_memory_recall_limit(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.memory_recall_limit");
     }
 
     if !changed_fields.is_empty() {

@@ -10,6 +10,7 @@
 mod model;
 mod profiles;
 mod store;
+mod tui;
 pub(crate) mod validation;
 
 pub use model::{
@@ -20,6 +21,7 @@ pub use model::{
     DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{LoadStatus, SettingsLoad, SettingsStore};
+pub use tui::TuiSettings;
 
 #[cfg(test)]
 mod tests;

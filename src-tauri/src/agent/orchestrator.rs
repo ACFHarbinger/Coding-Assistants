@@ -1,3 +1,5 @@
+use super::memory_recall::MemoryRecallEvent;
+use super::prompt_builder::construct_prompt;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
 use hub::HubStore;
@@ -113,9 +115,34 @@ impl AgentSystem {
                 role_name
             );
 
-            let prompt = self
-                .construct_prompt(&role_config.config, &previous_outputs, &default_system)
-                .await?;
+            let role_names = self
+                .config
+                .roles
+                .iter()
+                .map(|role| role.name.clone())
+                .collect::<Vec<_>>();
+            let (prompt, recalled_memories) = construct_prompt(
+                &self.file_tools,
+                &role_config.config,
+                task,
+                &previous_outputs,
+                &default_system,
+                &role_names,
+                &self.config.work_dir,
+            )
+            .await?;
+
+            if let Some(recalled_memories) = recalled_memories {
+                let _ = app.emit(
+                    "agent-memory-recall",
+                    MemoryRecallEvent {
+                        role: role_name.clone(),
+                        workspace: self.config.work_dir.clone(),
+                        limit: recalled_memories.0,
+                        memories: recalled_memories.1,
+                    },
+                );
+            }
 
             let _ = app.emit(
                 "agent-event",
@@ -421,74 +448,6 @@ impl AgentSystem {
                 return Ok(response);
             }
         }
-    }
-
-    async fn get_file_content(&self, path: &Option<String>) -> Result<String, String> {
-        match path {
-            Some(p) => self
-                .file_tools
-                .read_file(p)
-                .await
-                .map_err(|e| format!("Failed to read file {}: {}", p, e)),
-            None => Ok(String::new()),
-        }
-    }
-
-    async fn construct_prompt(
-        &self,
-        config: &ModelConfig,
-        context: &str,
-        default_system: &str,
-    ) -> Result<String, String> {
-        let mut full_prompt = String::new();
-
-        // 1. Workflows
-        if let Some(workflow_path) = &config.workflow_file {
-            let workflow = self.get_file_content(&Some(workflow_path.clone())).await?;
-            full_prompt.push_str(&format!("Workflow:\n{}\n\n", workflow));
-        }
-
-        // 2. Rules
-        if let Some(rule_path) = &config.rule_file {
-            let rule = self.get_file_content(&Some(rule_path.clone())).await?;
-            full_prompt.push_str(&format!("Rules:\n{}\n\n", rule));
-        }
-
-        if let Some(skill_path) = &config.skill_file {
-            let skill = self.get_file_content(&Some(skill_path.clone())).await?;
-            full_prompt.push_str(&format!("Skill:\n{}\n\n", skill));
-        }
-
-        let memory_file = ".agent/project_memory.md";
-        if let Ok(memory) = self.get_file_content(&Some(memory_file.to_string())).await {
-            if !memory.is_empty() {
-                full_prompt.push_str(&format!(
-                    "Project Memory (Past Tasks and Context):\n{}\n\n",
-                    memory
-                ));
-            }
-        }
-
-        // 3. System Prompt (File or Default)
-        let system_prompt = if let Some(prompt_path) = &config.prompt_file {
-            self.get_file_content(&Some(prompt_path.clone())).await?
-        } else {
-            default_system.to_string()
-        };
-        full_prompt.push_str(&format!("{}\n\n", system_prompt));
-        full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n");
-
-        let roles_list: Vec<String> = self.config.roles.iter().map(|r| r.name.clone()).collect();
-        full_prompt.push_str(&format!(
-            "IMPORTANT: If you need to ask another agent ({}) a question, output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:{}]]. How do I implement X?`\n\n",
-            roles_list.join(", "),
-            roles_list.first().unwrap_or(&"Developer".to_string())
-        ));
-
-        // 4. Context
-        full_prompt.push_str(context);
-
-        Ok(full_prompt)
     }
 }
 

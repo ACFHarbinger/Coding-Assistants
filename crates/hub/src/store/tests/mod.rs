@@ -1,5 +1,6 @@
 mod core;
 mod integration;
+mod memory_recall;
 mod roster;
 mod roster_audit;
 mod roster_memory;

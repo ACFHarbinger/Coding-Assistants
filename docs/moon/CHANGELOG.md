@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Memory auto-recall (#255): orchestrated prompts now inject up to five
+  relevance-ranked shared memories from the current workspace and global
+  scope, after `.agent/project_memory.md`. The 6,000-character injection
+  budget, default-on toggle, and per-workspace recall-limit override keep
+  context bounded and explainable. `agent-memory-recall` emits the exact
+  injected records for the desktop visibility surface.
+
 ## [1.0.0] - 2026-09-01
 
 ### Fixed

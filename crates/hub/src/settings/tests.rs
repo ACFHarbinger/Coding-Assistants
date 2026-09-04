@@ -341,6 +341,8 @@ fn orchestration_policy_defaults_are_safe() {
     assert_eq!(effective.sandbox_strictness, SandboxStrictness::Standard);
     assert_eq!(effective.retention_days, None);
     assert!(effective.export_enabled);
+    assert!(effective.memory_recall_enabled);
+    assert_eq!(effective.memory_recall_limit, 5);
     assert_eq!(
         effective.confirm_new_enrollment_status,
         FieldStatus::Inherited
@@ -359,6 +361,8 @@ fn global_orchestration_fields_round_trip_and_validate() {
         .unwrap();
     store.set_retention_days(Some(30)).unwrap();
     store.set_export_enabled(false).unwrap();
+    store.set_memory_recall_enabled(false).unwrap();
+    store.set_memory_recall_limit(8).unwrap();
     store.save().unwrap();
 
     assert!(store.set_retention_days(Some(0)).is_err());
@@ -371,6 +375,9 @@ fn global_orchestration_fields_round_trip_and_validate() {
     assert_eq!(effective.sandbox_strictness, SandboxStrictness::Strict);
     assert_eq!(effective.retention_days, Some(30));
     assert!(!effective.export_enabled);
+    assert!(!effective.memory_recall_enabled);
+    assert_eq!(effective.memory_recall_limit, 8);
+    assert!(store.set_memory_recall_limit(0).is_err());
 
     let raw = fs::read_to_string(reloaded.path()).unwrap();
     assert!(raw.contains("sandbox_strictness = \"strict\""), "{raw}");
@@ -389,6 +396,12 @@ fn workspace_orchestration_override_wins_and_resets_to_inherited() {
     store
         .set_workspace_retention_days("/home/user/project", 14)
         .unwrap();
+    store
+        .set_workspace_memory_recall_enabled("/home/user/project", false)
+        .unwrap();
+    store
+        .set_workspace_memory_recall_limit("/home/user/project", 3)
+        .unwrap();
     store.save().unwrap();
 
     let effective = store.effective(Some("/home/user/project")).orchestration;
@@ -396,6 +409,8 @@ fn workspace_orchestration_override_wins_and_resets_to_inherited() {
     assert_eq!(effective.confirm_broadcast_status, FieldStatus::Override);
     assert_eq!(effective.sandbox_strictness, SandboxStrictness::Permissive);
     assert_eq!(effective.retention_days, Some(14));
+    assert!(!effective.memory_recall_enabled);
+    assert_eq!(effective.memory_recall_limit, 3);
     // Untouched fields still inherit the global default.
     assert!(effective.confirm_new_enrollment);
     assert_eq!(
@@ -405,6 +420,9 @@ fn workspace_orchestration_override_wins_and_resets_to_inherited() {
 
     store
         .reset_workspace_field("/home/user/project", SettingsField::ConfirmBroadcast)
+        .unwrap();
+    store
+        .reset_workspace_field("/home/user/project", SettingsField::MemoryRecallEnabled)
         .unwrap();
     store.save().unwrap();
     let after_reset = store.effective(Some("/home/user/project")).orchestration;

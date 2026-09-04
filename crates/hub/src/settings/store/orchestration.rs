@@ -34,6 +34,20 @@ pub(super) fn orchestration_policy_from_table(
         defaults.auto_enrollment_allowed,
     )?;
     let export_enabled = bool_key_or(table, "export_enabled", defaults.export_enabled)?;
+    let memory_recall_enabled = bool_key_or(
+        table,
+        "memory_recall_enabled",
+        defaults.memory_recall_enabled,
+    )?;
+    let memory_recall_limit = match table.get("memory_recall_limit") {
+        Some(item) => u8::try_from(item.as_integer().ok_or_else(|| {
+            SettingsError::Invalid("orchestration.memory_recall_limit must be an integer".into())
+        })?)
+        .map_err(|_| {
+            SettingsError::Invalid("orchestration.memory_recall_limit is out of range".into())
+        })?,
+        None => defaults.memory_recall_limit,
+    };
     let sandbox_strictness = match table.get("sandbox_strictness").and_then(Item::as_str) {
         Some(raw) => SandboxStrictness::parse(raw).ok_or_else(|| {
             SettingsError::Invalid(format!(
@@ -67,6 +81,8 @@ pub(super) fn orchestration_policy_from_table(
         retention_days,
         export_enabled,
         link_suggestion_mode,
+        memory_recall_enabled,
+        memory_recall_limit,
     })
 }
 
@@ -106,6 +122,14 @@ pub(super) fn effective_orchestration(
         global.link_suggestion_mode,
         over.and_then(|o| o.link_suggestion_mode),
     );
+    let (memory_recall_enabled, memory_recall_enabled_status) = merge(
+        global.memory_recall_enabled,
+        over.and_then(|o| o.memory_recall_enabled),
+    );
+    let (memory_recall_limit, memory_recall_limit_status) = merge(
+        global.memory_recall_limit,
+        over.and_then(|o| o.memory_recall_limit),
+    );
     EffectiveOrchestrationPolicy {
         confirm_new_enrollment,
         confirm_new_enrollment_status,
@@ -121,6 +145,10 @@ pub(super) fn effective_orchestration(
         export_enabled_status,
         link_suggestion_mode,
         link_suggestion_mode_status,
+        memory_recall_enabled,
+        memory_recall_enabled_status,
+        memory_recall_limit,
+        memory_recall_limit_status,
     }
 }
 
@@ -155,6 +183,15 @@ pub(super) fn write_orchestration_override(table: &mut Table, over: &Orchestrati
         inline.insert(
             "link_suggestion_mode",
             value(v.as_str()).into_value().unwrap(),
+        );
+    }
+    if let Some(v) = over.memory_recall_enabled {
+        inline.insert("memory_recall_enabled", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.memory_recall_limit {
+        inline.insert(
+            "memory_recall_limit",
+            value(i64::from(v)).into_value().unwrap(),
         );
     }
     table["orchestration"] = Item::Value(toml_edit::Value::InlineTable(inline));
@@ -204,6 +241,20 @@ pub(super) fn orchestration_override_from_table(
         })?),
         None => None,
     };
+    let memory_recall_enabled = inner.get("memory_recall_enabled").and_then(|v| v.as_bool());
+    let memory_recall_limit = match inner.get("memory_recall_limit") {
+        Some(v) => Some(
+            u8::try_from(v.as_integer().ok_or_else(|| {
+                SettingsError::Invalid(
+                    "orchestration.memory_recall_limit must be an integer".into(),
+                )
+            })?)
+            .map_err(|_| {
+                SettingsError::Invalid("orchestration.memory_recall_limit is out of range".into())
+            })?,
+        ),
+        None => None,
+    };
     Ok(OrchestrationOverride {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -212,6 +263,8 @@ pub(super) fn orchestration_override_from_table(
         retention_days,
         export_enabled,
         link_suggestion_mode,
+        memory_recall_enabled,
+        memory_recall_limit,
     })
 }
 
