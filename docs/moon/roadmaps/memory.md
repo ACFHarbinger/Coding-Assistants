@@ -37,6 +37,18 @@ relevance-ranked set of workspace and global shared memories and inject it
 after `.agent/project_memory.md`. Recall is enabled by default, configurable
 per workspace, and emitted as structured data for an owner-visible UI.
 
+**2026-09-04 (Track M, #257):** The desktop memory drawer and Shared Hub
+memory view gained a Smart (similarity) / Exact (text) search toggle with
+per-result score badges, scope/tier filters, and a Reindex Vectors action,
+over the M1 `hub_search_memories_hybrid` / `_semantic` commands.
+
+**2026-09-04 (Track M, #256):** `hub_consolidate_memories` clusters related
+live short-term memories by shared tag/token overlap within one scope,
+summarizes each cluster into a single episodic memory via the provider, links
+every source `consolidated_into` the summary, and marks the sources stale
+(never deleted). A missing or empty provider summary is a non-destructive
+skip. Periodic auto-trigger is not yet wired — the command is manual for now.
+
 **2026-08-11:** Desktop UI and Tauri commands share the store with `ca` CLI.
 See `docs/moon/CHANGELOG.md` Unreleased and `crates/README.md`.
 

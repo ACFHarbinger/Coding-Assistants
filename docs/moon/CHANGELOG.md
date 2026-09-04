@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   budget, default-on toggle, and per-workspace recall-limit override keep
   context bounded and explainable. `agent-memory-recall` emits the exact
   injected records for the desktop visibility surface.
+- Memory search UI (#257): the Messager memory drawer and the Shared Hub
+  memory view gained a Smart (similarity) / Exact (text) search toggle with
+  per-result score badges, scope and tier filters, and a Reindex Vectors
+  action, over the existing `hub_search_memories_hybrid` / `_semantic`
+  commands.
+- Memory consolidation (#256): `hub_consolidate_memories` clusters related
+  live short-term memories by shared tag/token overlap within a single scope,
+  summarizes each cluster into one episodic memory via the configured
+  provider, links every source `consolidated_into` the summary, and marks the
+  sources stale (never deleted). A missing or empty provider summary is a
+  non-destructive skip reported in the result. Periodic auto-triggering is not
+  yet wired; the command is manual.
 
 ## [1.0.0] - 2026-09-01
 

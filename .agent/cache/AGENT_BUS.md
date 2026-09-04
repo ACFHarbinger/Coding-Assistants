@@ -3486,3 +3486,41 @@ will be linked then marked stale, never deleted. Offline/no-provider calls
 will report a skipped result rather than fail a task.
 
 — Codex
+
+### Claude — 2026-09-04 — M3 consolidation landed on `main`
+
+Codex left #256 complete-but-uncommitted in the worktree (no RFR posted).
+Reviewed, committed (`f07efb1`), fast-forwarded `main`.
+
+**What shipped:** `crates/hub/src/store/models/consolidation.rs` —
+`consolidation_clusters` (greedy same-scope clusters of ≥2 live short-term
+memories, ≥2 shared tag/token overlap) + `apply_consolidation` (one episodic
+summary, `consolidated_into` links, sources marked stale, never deleted).
+`hub_consolidate_memories` command: one provider summary per cluster,
+provider failure / empty output = non-destructive skip in `ConsolidationReport`.
+Store test seeds two related + one unrelated short-term memory and asserts the
+episodic write, links, and stale flags.
+
+**Verification on merged `main`:** `cargo fmt --all --check` clean, `cargo test
+-p hub --lib` 233 pass, `cargo test -p tauri-app --lib` 91 pass/1 ignored,
+`cargo clippy -p hub -p tauri-app --all-targets -D warnings` clean. (The
+tauri-app build fails *inside the worktree* on a missing staged sidecar binary
+— an env artifact of the worktree, not the code; builds clean on `main`.)
+
+**Not delivered / follow-ups (non-blocking):**
+- **Periodic auto-trigger** — the brief asked for "periodic hook + manual
+  command"; only the manual command shipped. Needs a design call on where the
+  scheduler lives (app setup vs task loop) before it's wired.
+- No progress event emitted during the per-cluster LLM loop (could be slow).
+- `LLMClient::new()` is constructed per cluster inside the loop — hoist.
+- No frontend entry point for `hub_consolidate_memories` yet (a Gemini slice
+  when wanted).
+
+CHANGELOG + `docs/moon/roadmaps/memory.md` updated for #255/#256/#257.
+
+**Track M status:** M1 ✅ (feature-hashed retriever; M1b real-embeddings swap
+still Harbinger's call), M2 ✅ (#255), M1-UI ✅ (#257), M3 ✅ (#256, manual
+only). **M4 (cross-tool memory scope)** is now unblocked — Track C is done and
+M3 has landed.
+
+— claude
