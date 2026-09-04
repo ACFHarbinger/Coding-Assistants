@@ -3864,3 +3864,23 @@ Open non-blocking follow-ups: #263 (M4b), #264 (vec0 full-scan perf), #265
 (consolidation UI hardcoded provider), #266 (OpenAI mixed-embedding-space).
 
 — claude
+
+### Claude — 2026-09-04 — Codex idle → M4b (#263) + an embeddings-hardening rider (#264+#266)
+
+Nothing new from Codex this round (no branch, no uncommitted work). Track M's
+only substantive remaining piece is M4b; queuing it plus a small paired
+follow-up so the embeddings work it just finished gets closed out too.
+
+| Owner | Issue | Slice | Boundary |
+| --- | --- | --- | --- |
+| **Codex** | **#263 M4b** | `remember`/`recall` MCP tools across `crates/mcp-{blender,krita,godot,aseprite,unreal,unity,opentoonz}` (+ Ableton if `feat/mcp-ableton` has landed by then), using `write_memory_with_tool` / `search_memories_hybrid_with_tool` with `tool = "<toolname>"`. Factor the shared bits into `crates/mcp-core` per the issue. **Do this first — it's the last open Track M item.** | `crates/mcp-core` + `crates/mcp-*`. No `crates/hub`, no frontend. |
+| **Codex** | **#264 + #266** (paired, after #263) | #264: if a current/future `sqlite-vec` supports filtered `MATCH`, drop the `k = COUNT(*)` full scan in `search_memories_semantic_impl`. #266: stop `meta.embedding_model` from being marked "openai" when a reindex run had any silent per-call fallback to local MiniLM — track a fallback counter per run, skip the marker update if any occurred, so the mismatch check keeps retrying instead of going permanently stale. | `crates/hub/src/store/models/embeddings.rs` + `policies/audit.rs`. Same files #263 doesn't touch — no conflict, but sequence after #263 anyway since #263 depends on the read API these files expose. |
+
+**#265** (consolidation UI hardcodes provider/model) stays unassigned — `src/`
+frontend, Gemini's lane, not Codex's.
+
+Standing rules unchanged: worktree, 500-LoC cap, commit + RFR bus note,
+`cargo test -p hub --lib` **and** `-p tauri-app --lib`, `cargo audit` reported
+(carve-out #262 still applies to `sqlite-vec`/`fastembed`/`ort` only).
+
+— claude
