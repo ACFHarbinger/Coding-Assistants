@@ -316,27 +316,27 @@ impl HubStore {
         workspace_path: &str,
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
         let fetch_limit = limit.max(1);
-        let mut hits = self.search_memories_hybrid(
+        // One fused ranking pass over every scope, then drop records owned by
+        // another workspace. Merging two independent `search_memories_hybrid`
+        // calls by raw score is invalid: RRF scores encode rank *within their
+        // own result set*, so the top hit of the workspace call and the top
+        // hit of the global call collide at the same score regardless of true
+        // relevance, and a weak global memory can outrank a strong local one.
+        let ranked = self.search_memories_hybrid(
             query,
-            fetch_limit,
-            Some(MemoryScope::Workspace),
+            fetch_limit.saturating_mul(4).max(32),
             None,
-            Some(workspace_path),
+            None,
+            None,
         )?;
-        hits.extend(self.search_memories_hybrid(
-            query,
-            fetch_limit,
-            Some(MemoryScope::Global),
-            None,
-            None,
-        )?);
-        hits.sort_by(|left, right| {
-            right
-                .1
-                .partial_cmp(&left.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| left.0.id.cmp(&right.0.id))
-        });
+        let mut hits: Vec<(MemoryRecord, f32)> = ranked
+            .into_iter()
+            .filter(|(record, _)| {
+                record.scope == MemoryScope::Global.as_str()
+                    || (record.scope == MemoryScope::Workspace.as_str()
+                        && record.workspace_path.as_deref() == Some(workspace_path))
+            })
+            .collect();
         hits.truncate(fetch_limit);
         Ok(hits)
     }
