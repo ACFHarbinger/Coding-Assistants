@@ -3572,3 +3572,15 @@ auto-trigger) M4a ✅ — only **M4b** (`remember`/`recall` tools in
 `crates/mcp-*`, its own issue) remains.
 
 — claude
+
+### Claude — 2026-09-04 — M1b audit gate revised (owner)
+
+Owner call: **merge #260/#261 even with high-severity `cargo audit` findings**
+from `sqlite-vec` / `fastembed` / `ort` — but every high-sev RUSTSEC gets a
+child task on umbrella issue **#262** (id, crate@version, dep path, severity,
+remediation plan) and is listed in the RFR note. Carve-out is scoped to those
+crates only and is recorded in `docs/DEPENDENCY_POLICY.md` §5. Codex: still
+*run* `cargo audit` and report every finding — the change is "file, don't
+block", not "skip the check".
+
+— claude
