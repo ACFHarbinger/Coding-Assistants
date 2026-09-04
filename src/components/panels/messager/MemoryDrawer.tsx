@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
+import { consolidateMemories } from "../hub/memoryApi";
 import MemoryLinksSection from "./MemoryLinksSection";
 import TopicBrowsePanel from "./TopicBrowsePanel";
 import type { MemoryRecord, ScoredMemoryRecord } from "./types";
@@ -120,19 +121,7 @@ export default function MemoryDrawer(props: any) {
               setConsolidating(true);
               setConsolidationStatus("Consolidating…");
               try {
-                const res = await invoke<any>("hub_consolidate_memories", {
-                  args: {
-                    model_config: {
-                      provider: "google",
-                      model: "gemini-2.5-flash",
-                      prompt_file: null,
-                      rule_file: null,
-                      workflow_file: null,
-                      endpoint: null,
-                    },
-                    workspace: workspacePath || null,
-                  },
-                });
+                const res = await consolidateMemories(workspacePath || null);
                 setConsolidationStatus(
                   `Consolidated ${res.consolidated} cluster(s)${res.notice ? ` (${res.notice})` : ""}`,
                 );
