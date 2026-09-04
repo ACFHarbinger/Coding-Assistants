@@ -6,7 +6,7 @@
 //!
 //!   coding-assistants-mcp-opentoonz [--opentoonz <path>] [--allow-render]
 
-use mcp_core::McpServer;
+use mcp_core::{McpServer, MemoryProvider, MemoryTools};
 use mcp_opentoonz::{OpenToonzLink, OpenToonzProvider};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,6 +16,7 @@ fn main() {
 
     let mut bin = PathBuf::from("opentoonz");
     let mut allow_render = false;
+    let mut workspace = std::env::var("CA_MCP_WORKSPACE").ok();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -26,11 +27,20 @@ fn main() {
                 }
             }
             "--allow-render" => allow_render = true,
+            "--workspace" => {
+                i += 1;
+                workspace = args.get(i).cloned();
+            }
             other => eprintln!("ignoring unknown argument {other}"),
         }
         i += 1;
     }
 
     let link = OpenToonzLink { bin, allow_render };
-    McpServer::new(Arc::new(OpenToonzProvider::new(link))).run();
+    let provider = OpenToonzProvider::new(link);
+    McpServer::new(Arc::new(MemoryProvider::new(
+        provider,
+        MemoryTools::new("opentoonz", workspace),
+    )))
+    .run();
 }

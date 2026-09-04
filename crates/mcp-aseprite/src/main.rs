@@ -9,7 +9,7 @@
 //! `plugins/aseprite/dispatch.lua` relative to the current directory.
 
 use mcp_aseprite::{AsepriteProvider, CliAsepriteLink};
-use mcp_core::McpServer;
+use mcp_core::{McpServer, MemoryProvider, MemoryTools};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -19,6 +19,7 @@ fn main() {
     let mut bin = PathBuf::from("aseprite");
     let mut script: Option<PathBuf> = None;
     let mut allow_apply_script = false;
+    let mut workspace = std::env::var("CA_MCP_WORKSPACE").ok();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -33,6 +34,10 @@ fn main() {
                 script = args.get(i).map(PathBuf::from);
             }
             "--allow-apply-script" => allow_apply_script = true,
+            "--workspace" => {
+                i += 1;
+                workspace = args.get(i).cloned();
+            }
             other => eprintln!("ignoring unknown argument {other}"),
         }
         i += 1;
@@ -41,7 +46,11 @@ fn main() {
     let script = script.unwrap_or_else(default_script_path);
     let link = CliAsepriteLink { bin, script };
     let provider = AsepriteProvider::new(link, allow_apply_script);
-    McpServer::new(Arc::new(provider)).run();
+    McpServer::new(Arc::new(MemoryProvider::new(
+        provider,
+        MemoryTools::new("aseprite", workspace),
+    )))
+    .run();
 }
 
 fn default_script_path() -> PathBuf {

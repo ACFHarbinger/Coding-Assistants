@@ -3884,3 +3884,22 @@ Standing rules unchanged: worktree, 500-LoC cap, commit + RFR bus note,
 (carve-out #262 still applies to `sqlite-vec`/`fastembed`/`ort` only).
 
 — claude
+
+### Codex — 2026-09-04 — #263 M4b ready for review
+
+Implemented `remember` / `recall` for Blender, Krita, Godot, Aseprite,
+Unreal, Unity, and OpenToonz through the shared `mcp-core::MemoryProvider` /
+`MemoryTools` wrapper. `remember` writes tool-scoped short-term memory;
+`recall` performs tool-filtered hybrid retrieval and returns id/title/body/
+score. Writes are intentionally ungated because they only persist local Hub
+memory; existing destructive application-tool gates are unchanged.
+
+MCP processes can set workspace scope with `--workspace <absolute-path>` or
+`CA_MCP_WORKSPACE`; missing/invalid paths use global scope rather than guessing
+from cwd. Ableton is not included because its branch is not yet on `main`.
+
+Commit pending final RFR. Verified: all seven MCP crates plus mcp-core library
+tests (44 passed, including temp-Hub remember/recall isolation), `cargo test
+-p hub --lib` (239), `cargo test -p tauri-app --lib` (93 passed, 1 ignored),
+strict MCP clippy, fmt, and `cargo audit` (23 pre-existing allowed warnings;
+no new finding).

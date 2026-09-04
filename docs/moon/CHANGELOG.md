@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Creative-tool MCP memory tools (#263): Blender, Krita, Godot, Aseprite,
+  Unreal, Unity, and OpenToonz now expose `remember` and `recall`. Their shared
+  implementation writes short-term memories tagged with the originating tool
+  and recalls only that tool's records. Pass `--workspace <absolute-path>` (or
+  `CA_MCP_WORKSPACE`) to scope records to a project; otherwise they are global.
 - Tool-scoped shared memories (#259): records may carry an optional creative
   tool identifier while existing memories remain unscoped. Exact, vector, and
   hybrid memory searches now offer tool-filtered variants without changing
