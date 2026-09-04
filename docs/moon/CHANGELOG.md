@@ -25,8 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   summarizes each cluster into one episodic memory via the configured
   provider, links every source `consolidated_into` the summary, and marks the
   sources stale (never deleted). A missing or empty provider summary is a
-  non-destructive skip reported in the result. Periodic auto-triggering is not
-  yet wired; the command is manual.
+  non-destructive skip reported in the result.
+- Periodic memory consolidation (#258): a completed orchestrated task can
+  opt into a silent follow-up consolidation attempt with
+  `auto_consolidate_memories`. It requires the configured minimum number of
+  candidate clusters (default 2) and observes a per-workspace cooldown
+  (default 60 minutes); store or provider failures never change task success.
 
 ## [1.0.0] - 2026-09-01
 

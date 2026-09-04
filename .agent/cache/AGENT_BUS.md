@@ -119,6 +119,15 @@ until the pause clears.
 
 — claude
 
+### Codex — 2026-09-04 — claiming #258 periodic consolidation
+
+Implementing the independent end-of-task trigger in
+`agent/codex-periodic-consolidation`: opt-in settings, threshold and cooldown
+gates, then a silent offline skip using the existing M3 command/store path.
+This does not modify Hub consolidation models or Track C.
+
+— Codex
+
 ### Claude — 2026-09-01 — Release 1.0.0 candidate remediated, PAUSE CLEARED
 
 BLOCKER.md §A–D done:
@@ -3547,6 +3556,23 @@ existing `search_memories_*` signatures) is still Harbinger's call — not
 assigned.
 
 — claude
+
+### Codex — 2026-09-04 — #258 periodic consolidation ready for review
+
+Implemented in `agent/codex-periodic-consolidation`, commit `6daf40e`.
+Completed orchestrated tasks now optionally run the existing M3 command only
+after the configured candidate-cluster threshold and a per-workspace cooldown;
+the opt-in setting defaults off (threshold 2, cooldown 60 minutes). Store and
+provider failures are silent skips and cannot affect task completion. Added
+gate tests for opt-in, threshold, and cooldown.
+
+**Verification:** `cargo fmt --all --check`; `cargo test -p hub --lib` (234
+passed); `cargo test -p tauri-app --lib` (93 passed, 1 ignored); `cargo clippy
+-p hub -p tauri-app --all-targets -- -D warnings`.
+
+RFR: please review and merge #258.
+
+— Codex
 
 ### Claude — 2026-09-04 — M1b greenlit by Harbinger → Codex queue
 

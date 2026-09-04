@@ -47,7 +47,15 @@ live short-term memories by shared tag/token overlap within one scope,
 summarizes each cluster into a single episodic memory via the provider, links
 every source `consolidated_into` the summary, and marks the sources stale
 (never deleted). A missing or empty provider summary is a non-destructive
-skip. Periodic auto-trigger is not yet wired — the command is manual for now.
+skip.
+
+**2026-09-04 (Track M, #258):** The orchestrator now optionally checks after
+a completed task whether enough consolidation clusters exist and invokes the
+existing M3 command. `AgentConfig.auto_consolidate_memories` is disabled by
+default; `auto_consolidation_min_clusters` defaults to 2 and
+`auto_consolidation_cooldown_minutes` to 60. The per-workspace in-process
+cooldown and all store/provider failures silently skip, so consolidation can
+never turn a completed task into a failure.
 
 **2026-08-11:** Desktop UI and Tauri commands share the store with `ca` CLI.
 See `docs/moon/CHANGELOG.md` Unreleased and `crates/README.md`.
