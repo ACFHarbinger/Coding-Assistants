@@ -36,6 +36,12 @@ separate from shared memory and must not be silently merged.
 The Hub preserves legacy unscoped rows and offers tool-filtered exact, vector,
 and hybrid retrieval for creative-tool consumers.
 
+**2026-09-04 (M1b-1, #260):** `memory_vectors` now uses the statically
+registered sqlite-vec extension and a 384-dimensional cosine `vec0` table.
+Opening a legacy BLOB-backed Hub replaces and rebuilds its vectors from the
+memory source records. Semantic retrieval uses KNN while preserving its public
+search signature and score threshold; the n-gram embedder remains until #261.
+
 **2026-09-04 (Track M, #255):** Orchestrated tasks now retrieve a bounded,
 relevance-ranked set of workspace and global shared memories and inject it
 after `.agent/project_memory.md`. Recall is enabled by default, configurable
