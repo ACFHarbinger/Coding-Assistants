@@ -56,10 +56,11 @@ pub use settings::{
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
-    BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
-    GateVerdict, GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration,
-    HarnessSessionState, HubError, HubStore, LinkSuggestion, MemoryLinkRecord, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
-    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
+    BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, ConsolidationCluster,
+    ConsolidationReport, EffectiveAgentPermissions, GateVerdict, GitExportOutcome,
+    HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState, HubError, HubStore,
+    LinkSuggestion, MemoryLinkRecord, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
+    MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault,
+    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
+    WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
 };

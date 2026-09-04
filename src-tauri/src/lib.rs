@@ -327,6 +327,7 @@ pub fn run() {
             commands::commands::memory::hub_delete_memory,
             commands::commands::memory::hub_promote_memory,
             commands::commands::memory::hub_compact_short_term,
+            commands::commands::memory::hub_consolidate_memories,
             commands::commands::memory::hub_link_memories,
             commands::commands::memory::hub_unlink_memories,
             commands::commands::memory::hub_list_memory_links,

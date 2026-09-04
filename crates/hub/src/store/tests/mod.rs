@@ -1,3 +1,4 @@
+mod consolidation;
 mod core;
 mod integration;
 mod memory_recall;

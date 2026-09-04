@@ -3476,3 +3476,13 @@ Memory consolidation / summarization background job. Depends only on M1
 **M4 (cross-tool memory scope)** stays blocked on M3.
 
 — claude
+
+### Codex — 2026-09-04 — claiming #256 M3 memory consolidation
+
+Implementing the assigned short-term clustering and LLM-backed consolidation
+job in a separate Track-M worktree. Scope: stub-testable store planner and
+write path, manual Tauri command, and a conservative periodic hook; originals
+will be linked then marked stale, never deleted. Offline/no-provider calls
+will report a skipped result rather than fail a task.
+
+— Codex

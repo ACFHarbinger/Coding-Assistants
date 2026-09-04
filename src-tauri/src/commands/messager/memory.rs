@@ -1,9 +1,79 @@
 //! Durable memory commands.
 use super::store::open_store;
+use crate::client::llm::{LLMClient, ModelConfig};
 use hub::{
     CompactReport, LinkSuggestion, LinkSuggestionMode, MemoryLinkRecord, MemoryRecord, MemoryScope,
     MemoryTier,
 };
+
+#[derive(serde::Deserialize)]
+pub struct ConsolidateMemoriesArgs {
+    pub model_config: ModelConfig,
+    pub workspace: Option<String>,
+}
+
+/// Consolidates related short-term records only after a provider produces a
+/// summary. Provider failures are intentionally non-destructive skips.
+#[tauri::command]
+pub async fn hub_consolidate_memories(
+    app: tauri::AppHandle,
+    args: ConsolidateMemoriesArgs,
+) -> Result<hub::ConsolidationReport, String> {
+    let clusters = tauri::async_runtime::spawn_blocking(|| {
+        open_store()?
+            .consolidation_clusters()
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("consolidation planner panicked: {error}"))??;
+    let mut report = hub::ConsolidationReport {
+        clusters: clusters.len(),
+        consolidated: 0,
+        skipped: 0,
+        notice: None,
+    };
+    for cluster in clusters {
+        let source = cluster
+            .memories
+            .iter()
+            .map(|memory| format!("- {}", memory.body))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let prompt = format!("Summarize these related short-term memories into one concise durable episodic memory. Preserve decisions, constraints, and unresolved work. Do not invent facts.\n\n{source}");
+        let summary = match LLMClient::new()
+            .chat_completion(
+                &args.model_config,
+                &prompt,
+                args.workspace.as_deref(),
+                &app,
+                "Memory consolidation",
+                None,
+                None,
+            )
+            .await
+        {
+            Ok(summary) if !summary.trim().is_empty() => summary,
+            Ok(_) | Err(_) => {
+                report.skipped += 1;
+                report.notice = Some("Memory consolidation skipped: no provider summary was available; source memories were unchanged.".into());
+                continue;
+            }
+        };
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            open_store()?
+                .apply_consolidation(&cluster, &summary)
+                .map_err(|error| error.to_string())
+        })
+        .await
+        .map_err(|error| format!("consolidation writer panicked: {error}"))?;
+        if result.is_ok() {
+            report.consolidated += 1;
+        } else {
+            report.skipped += 1;
+        }
+    }
+    Ok(report)
+}
 #[derive(serde::Deserialize)]
 pub struct WriteMemoryArgs {
     pub tier: String,

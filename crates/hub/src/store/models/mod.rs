@@ -1,6 +1,9 @@
 use super::*;
 
+mod consolidation;
 pub mod embeddings;
+#[allow(unused_imports)]
+pub use consolidation::{ConsolidationCluster, ConsolidationReport};
 mod memories;
 mod memory_links;
 pub use memory_links::{LinkSuggestion, UNATTRIBUTED_AUTHOR};
