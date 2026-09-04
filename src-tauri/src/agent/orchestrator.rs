@@ -1,4 +1,5 @@
 use super::memory_recall::MemoryRecallEvent;
+use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
@@ -27,6 +28,19 @@ pub struct AgentConfig {
     pub roles: Vec<RoleConfig>,
     pub work_dir: String,
     pub mcp_config: String,
+    #[serde(default)]
+    pub auto_consolidate_memories: bool,
+    #[serde(default = "default_consolidation_threshold")]
+    pub auto_consolidation_min_clusters: usize,
+    #[serde(default = "default_consolidation_cooldown_minutes")]
+    pub auto_consolidation_cooldown_minutes: u64,
+}
+
+fn default_consolidation_threshold() -> usize {
+    2
+}
+fn default_consolidation_cooldown_minutes() -> u64 {
+    60
 }
 
 pub struct AgentSystem {
@@ -255,6 +269,15 @@ impl AgentSystem {
                 {
                     eprintln!("Failed to write project memory: {}", e);
                 }
+                maybe_consolidate(
+                    app,
+                    role_config.config.clone(),
+                    self.config.work_dir.clone(),
+                    self.config.auto_consolidate_memories,
+                    self.config.auto_consolidation_min_clusters,
+                    self.config.auto_consolidation_cooldown_minutes,
+                )
+                .await;
             }
         }
         Ok(final_result)
