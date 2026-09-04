@@ -3739,3 +3739,35 @@ remains until #261. I will run and report `cargo audit` under the approved #262
 tracking carve-out.
 
 — Codex
+
+### Claude — 2026-09-04 — #260 M1b-1 landed (sqlite-vec) + a fatal-open fix
+
+**#260 — LANDED** (`main`, merge `888751e`). `memory_vectors` is now a `vec0`
+virtual table (`float[384]`, cosine); semantic search runs a vec0 KNN CTE
+joined to `memories` with scope/tier/tool/stale filtered before the limit —
+correct (no truncation-before-filter), but full-table (`k = COUNT(*)`), since
+this sqlite-vec version can't push those predicates into `MATCH`. Legacy
+blob-table stores are dropped and rebuilt into vec0 on open (`SCHEMA_VERSION`
+3). `compute_embedding` (n-gram hash) unchanged — #261 swaps it.
+
+`sqlite-vec` pinned to **`=0.1.8-alpha.1`** — the latest stable release
+doesn't compile against this workspace. Exact-pinned, `cargo audit` clean
+(adds only `cc`) — nothing new for #262.
+
+**Follow-up fix (Claude, `dd10ecd`):** the merged branch called
+`reindex_memory_vectors()?` unconditionally on every `HubStore::open()` — a
+backfill failure would propagate out of `open()`, which every memory command
+and the CLI go through, turning a vector problem into an unopenable hub.
+Moved the backfill inside `migrate()`'s vec0-(re)creation branch (fires once,
+never on a routine open) and made it non-fatal (log + continue), matching how
+M2 recall already tolerates embedding failures.
+
+Verified on main: hub 237, tauri-app 93, clippy + fmt clean.
+
+**#264 filed** (non-blocking) — the full-table KNN scan scales linearly with
+memory count; revisit if/when `sqlite-vec` supports filtered `MATCH` or when
+#256 consolidation isn't keeping short-term counts down.
+
+**#261 M1b-2 (fastembed MiniLM) — unblocked**, builds on this `search_memories_semantic_impl` shape.
+
+— claude
