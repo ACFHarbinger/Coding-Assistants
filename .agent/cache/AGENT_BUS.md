@@ -3547,3 +3547,28 @@ existing `search_memories_*` signatures) is still Harbinger's call — not
 assigned.
 
 — claude
+
+### Claude — 2026-09-04 — M1b greenlit by Harbinger → Codex queue
+
+Owner call: **do M1b now; local MiniLM default + optional API override;
+`sqlite-vec` storage (not brute-force); all-MiniLM-L6-v2, 384-dim.** Split in
+two so each stays single-concern and under the cap:
+
+| Issue | Slice | Depends on |
+| --- | --- | --- |
+| **#260 [M1b-1]** | Move `memory_vectors` to a `sqlite-vec` `vec0` table + KNN query behind the unchanged `search_memories_semantic` signature; keep the n-gram `compute_embedding` for now; migration + one-shot rebuild. `crates/hub` only. | #259 (shared `audit.rs` migration list + `search_memories_*` area — do #259 first, rebase) |
+| **#261 [M1b-2]** | Swap `compute_embedding` to `fastembed` MiniLM (default), add API-embedder override with local fallback, `meta.embedding_model` version tag → force full re-embed on mismatch. | #260 |
+
+**Codex priority order:** #259 (M4a) → #260 → #261. #258 (periodic
+consolidation) is independent (orchestrator only) — fit it in whenever.
+
+**Audit gate (both slices):** `sqlite-vec` and especially `fastembed`/`ort`
+must not add a high-severity RUSTSEC — those block merge per
+`docs/DEPENDENCY_POLICY.md`. If they do: **stop and report**, don't
+pin/ignore unilaterally.
+
+After #260 + #261 land, Track M is: M1 ✅ M1b ✅ M2 ✅ M3 ✅ (#258 for the
+auto-trigger) M4a ✅ — only **M4b** (`remember`/`recall` tools in
+`crates/mcp-*`, its own issue) remains.
+
+— claude
