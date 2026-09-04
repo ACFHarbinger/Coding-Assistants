@@ -2,6 +2,7 @@ mod consolidation;
 mod core;
 mod integration;
 mod memory_recall;
+mod memory_tool_scope;
 mod roster;
 mod roster_audit;
 mod roster_memory;

@@ -152,7 +152,7 @@ impl HubStore {
             let mut stmt = self.conn.prepare(
                 r#"
                 SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                       tags_json, created_at, updated_at, stale, source_event_id
+                       tags_json, created_at, updated_at, stale, source_event_id, tool
                 FROM memories WHERE id LIKE ?1 ORDER BY id ASC LIMIT 2
                 "#,
             )?;
@@ -171,6 +171,7 @@ impl HubStore {
                         updated_at: r.get(9)?,
                         stale: r.get::<_, i64>(10)? != 0,
                         source_event_id: r.get(11)?,
+                        tool: r.get(12)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;

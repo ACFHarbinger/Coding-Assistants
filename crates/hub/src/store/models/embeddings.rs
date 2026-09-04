@@ -173,7 +173,7 @@ impl HubStore {
         let mut sql = String::from(
             r#"
             SELECT m.id, m.scope, m.workspace_path, m.tier, m.agent_id, m.title, m.body,
-                   m.tags_json, m.created_at, m.updated_at, m.stale, m.source_event_id,
+                   m.tags_json, m.created_at, m.updated_at, m.stale, m.source_event_id, m.tool,
                    v.vector_blob
             FROM memories m
             JOIN memory_vectors v ON m.id = v.memory_id
@@ -213,8 +213,9 @@ impl HubStore {
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
                 source_event_id: r.get(11)?,
+                tool: r.get(12)?,
             };
-            let blob: Vec<u8> = r.get(12)?;
+            let blob: Vec<u8> = r.get(13)?;
             Ok((rec, blob))
         })?;
 
@@ -304,6 +305,38 @@ impl HubStore {
         fused.truncate(limit.max(1));
 
         Ok(fused)
+    }
+
+    pub fn search_memories_semantic_with_tool(
+        &self,
+        query: &str,
+        limit: usize,
+        scope: Option<MemoryScope>,
+        tier: Option<MemoryTier>,
+        workspace_path: Option<&str>,
+        tool: Option<&str>,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        Ok(self
+            .search_memories_semantic(query, limit, scope, tier, workspace_path)?
+            .into_iter()
+            .filter(|(memory, _)| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
+            .collect())
+    }
+
+    pub fn search_memories_hybrid_with_tool(
+        &self,
+        query: &str,
+        limit: usize,
+        scope: Option<MemoryScope>,
+        tier: Option<MemoryTier>,
+        workspace_path: Option<&str>,
+        tool: Option<&str>,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        Ok(self
+            .search_memories_hybrid(query, limit, scope, tier, workspace_path)?
+            .into_iter()
+            .filter(|(memory, _)| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
+            .collect())
     }
 
     /// Retrieves only memories safe to share with an agent working in a

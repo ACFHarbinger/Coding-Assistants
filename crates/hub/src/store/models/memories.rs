@@ -24,6 +24,29 @@ impl HubStore {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub fn write_memory_with_tool(
+        &self,
+        tier: MemoryTier,
+        scope: MemoryScope,
+        agent_id: Option<&str>,
+        workspace_path: Option<&str>,
+        title: Option<&str>,
+        body: &str,
+        tags: &[String],
+        tool: Option<&str>,
+    ) -> Result<MemoryRecord, HubError> {
+        let record = self.write_memory(tier, scope, agent_id, workspace_path, title, body, tags)?;
+        if let Some(tool) = tool.filter(|tool| !tool.trim().is_empty()) {
+            self.conn.execute(
+                "UPDATE memories SET tool = ?1 WHERE id = ?2",
+                params![tool, record.id],
+            )?;
+        }
+        self.get_memory(&record.id)?
+            .ok_or_else(|| HubError::NotFound(record.id))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn write_memory_with_source(
         &self,
         tier: MemoryTier,
@@ -81,7 +104,7 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories WHERE id = ?1
             "#,
         )?;
@@ -100,6 +123,7 @@ impl HubStore {
                     updated_at: r.get(9)?,
                     stale: r.get::<_, i64>(10)? != 0,
                     source_event_id: r.get(11)?,
+                    tool: r.get(12)?,
                 })
             })
             .optional()?;
@@ -156,7 +180,7 @@ impl HubStore {
         let mut sql = String::from(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories WHERE 1=1
             "#,
         );
@@ -196,6 +220,7 @@ impl HubStore {
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
                 source_event_id: r.get(11)?,
+                tool: r.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -209,7 +234,7 @@ impl HubStore {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
-                   tags_json, created_at, updated_at, stale, source_event_id
+                   tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories
             WHERE stale = 0 AND (body LIKE ?1 OR IFNULL(title, '') LIKE ?1 OR tags_json LIKE ?1)
             ORDER BY created_at DESC
@@ -230,9 +255,24 @@ impl HubStore {
                 updated_at: r.get(9)?,
                 stale: r.get::<_, i64>(10)? != 0,
                 source_event_id: r.get(11)?,
+                tool: r.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Exact search with an optional tool scope. `None` preserves the legacy
+    /// all-tool result set; `Some` matches only that tool identifier.
+    pub fn search_memories_with_tool(
+        &self,
+        query: &str,
+        tool: Option<&str>,
+    ) -> Result<Vec<MemoryRecord>, HubError> {
+        let results = self.search_memories(query)?;
+        Ok(results
+            .into_iter()
+            .filter(|memory| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
+            .collect())
     }
 
     pub fn mark_memory_stale(&self, id: &str, stale: bool) -> Result<(), HubError> {
