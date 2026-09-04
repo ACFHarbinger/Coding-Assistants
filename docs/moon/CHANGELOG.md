@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `memory_vectors` with a cosine-distance `vec0` table and KNN retrieval.
   Existing BLOB vectors are rebuilt from their durable memories during the
   schema migration; the current local feature-hash embedder remains unchanged.
+- Local MiniLM memory embeddings (#261): Hub now creates 384-dimensional
+  all-MiniLM-L6-v2 embeddings through fastembed, caching model files under the
+  CA_HOME-aware Hub directory. `[memory].embedding_provider = "openai"` (or
+  `CA_MEMORY_EMBEDDING_PROVIDER=openai`) is an optional 384-dimensional API
+  override and falls back to MiniLM if unavailable; model-space changes trigger
+  a best-effort vector rebuild without blocking memory writes or Hub startup.
 
 ### Added
 

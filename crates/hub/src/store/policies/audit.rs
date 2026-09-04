@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::store::models::embeddings::embedding_model;
 #[path = "audit_events.rs"]
 mod audit_events;
 
@@ -382,15 +383,6 @@ impl HubStore {
                 );
                 "#,
             )?;
-            // Backfill runs only when the table above was just (re)created —
-            // fresh DB (nothing to embed) or a legacy blob store being
-            // rebuilt into vec0. Never on a routine open, and never fatal: a
-            // vector problem should degrade search, not make the hub
-            // unopenable (every memory command and the CLI go through
-            // `open()`).
-            if let Err(error) = self.reindex_memory_vectors() {
-                eprintln!("Memory vector backfill skipped after schema migration: {error}");
-            }
         }
 
         let version: Option<i64> = self
@@ -413,6 +405,33 @@ impl HubStore {
                 "UPDATE meta SET value = ?1 WHERE key = 'schema_version'",
                 params![SCHEMA_VERSION.to_string()],
             )?;
+        }
+
+        let stored_embedding_model: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'embedding_model'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let current_embedding_model = embedding_model(self.data_dir());
+        if stored_embedding_model.as_deref() != Some(current_embedding_model) {
+            // An embedding-space change invalidates every old nearest-neighbor
+            // distance. Rebuild best-effort: offline model loading must not
+            // make Hub open fail, and leaving the marker unchanged retries on
+            // the next open after the model becomes available.
+            self.conn.execute("DELETE FROM memory_vectors", [])?;
+            match self.reindex_memory_vectors() {
+                Ok(_) => {
+                    self.conn.execute(
+                        "INSERT INTO meta(key, value) VALUES ('embedding_model', ?1) \
+                         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        params![current_embedding_model],
+                    )?;
+                }
+                Err(error) => eprintln!("Memory vector rebuild skipped: {error}"),
+            };
         }
         // Seed well-known agents if empty.
         let count: i64 = self

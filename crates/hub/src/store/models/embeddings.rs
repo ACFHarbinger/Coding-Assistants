@@ -7,86 +7,130 @@
 
 use super::super::*;
 use std::collections::HashMap;
+use std::path::Path;
+#[cfg(not(test))]
+use std::sync::{Mutex, OnceLock};
 
 pub const VECTOR_DIMENSIONS: usize = 384;
+pub const LOCAL_EMBEDDING_MODEL: &str = "minilm-l6-v2";
+#[cfg(not(test))]
+const OPENAI_EMBEDDING_MODEL: &str = "openai-text-embedding-3-small-384";
 
-/// Computes a deterministic 384-dimensional dense semantic embedding vector
-/// using token unigram, token bigram, and subword character n-gram feature hashing.
-pub fn compute_embedding(text: &str) -> Vec<f32> {
-    let mut vec = vec![0.0f32; VECTOR_DIMENSIONS];
-    let cleaned = text.trim();
-    if cleaned.is_empty() {
-        return vec;
-    }
-
-    let mut feature_counts: HashMap<String, f32> = HashMap::new();
-
-    // 1. Tokenize into lowercase words and code identifiers
-    let words: Vec<String> = cleaned
-        .split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_ascii_lowercase())
-        .collect();
-
-    // 2. Token unigrams and bigrams
-    for (i, word) in words.iter().enumerate() {
-        *feature_counts.entry(format!("w:{}", word)).or_insert(0.0) += 1.0;
-
-        // Sub-word character 3-grams and 4-grams (captures stems, typos, compounding)
-        let chars: Vec<char> = word.chars().collect();
-        if chars.len() >= 3 {
-            for window in chars.windows(3) {
-                let gram: String = window.iter().collect();
-                *feature_counts.entry(format!("c3:{}", gram)).or_insert(0.0) += 0.5;
-            }
-        }
-        if chars.len() >= 4 {
-            for window in chars.windows(4) {
-                let gram: String = window.iter().collect();
-                *feature_counts.entry(format!("c4:{}", gram)).or_insert(0.0) += 0.75;
-            }
-        }
-
-        // Bigram
-        if i + 1 < words.len() {
-            let bigram = format!("b:{}_{}", word, words[i + 1]);
-            *feature_counts.entry(bigram).or_insert(0.0) += 1.25;
-        }
-    }
-
-    // 3. Hash features into dense vector with sublinear frequency scaling
-    for (feature, count) in feature_counts {
-        let weight = (1.0 + count.ln()).max(0.1);
-        let hash = fnv1a_hash(feature.as_bytes());
-        let dim = (hash as usize) % VECTOR_DIMENSIONS;
-        let sign = if ((hash >> 32) & 1) == 0 {
-            1.0f32
-        } else {
-            -1.0f32
-        };
-        vec[dim] += sign * weight;
-    }
-
-    // 4. L2 Normalization
-    let sum_sq: f32 = vec.iter().map(|&x| x * x).sum();
-    let norm = sum_sq.sqrt();
-    if norm > 1e-6 {
-        for val in vec.iter_mut() {
-            *val /= norm;
-        }
-    }
-
-    vec
+#[cfg(not(test))]
+fn embedding_provider(data_dir: &Path) -> crate::EmbeddingProvider {
+    std::env::var("CA_MEMORY_EMBEDDING_PROVIDER")
+        .ok()
+        .and_then(|provider| crate::EmbeddingProvider::parse(&provider.to_ascii_lowercase()))
+        .unwrap_or_else(|| {
+            crate::SettingsStore::open(data_dir)
+                .snapshot()
+                .embedding_provider
+        })
 }
 
-/// 64-bit FNV-1a hash function for fast, deterministic feature hashing.
-fn fnv1a_hash(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    for &byte in bytes {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(0x100000001b3u64);
+#[cfg(not(test))]
+pub(crate) fn embedding_model(data_dir: &Path) -> &'static str {
+    match embedding_provider(data_dir) {
+        crate::EmbeddingProvider::Local => LOCAL_EMBEDDING_MODEL,
+        crate::EmbeddingProvider::Openai => OPENAI_EMBEDDING_MODEL,
     }
-    hash
+}
+
+#[cfg(test)]
+pub(crate) fn embedding_model(_: &Path) -> &'static str {
+    LOCAL_EMBEDDING_MODEL
+}
+
+#[cfg(test)]
+#[path = "embeddings_test_support.rs"]
+mod test_support;
+#[cfg(test)]
+pub use test_support::compute_embedding;
+#[cfg(test)]
+use test_support::embed_text;
+
+#[cfg(not(test))]
+fn embed_text(data_dir: &Path, text: &str) -> Result<Vec<f32>, HubError> {
+    if embedding_provider(data_dir) == crate::EmbeddingProvider::Openai {
+        match embed_openai(text) {
+            Ok(embedding) => return Ok(embedding),
+            Err(error) => {
+                eprintln!("OpenAI embedding override skipped; using local MiniLM: {error}")
+            }
+        }
+    }
+    static MODEL: OnceLock<Result<Mutex<fastembed::TextEmbedding>, String>> = OnceLock::new();
+    let model = MODEL.get_or_init(|| {
+        let cache_dir = data_dir.join("models").join("fastembed");
+        fastembed::TextEmbedding::try_new(
+            fastembed::TextInitOptions::new(fastembed::EmbeddingModel::AllMiniLML6V2)
+                .with_cache_dir(cache_dir)
+                .with_show_download_progress(false),
+        )
+        .map(Mutex::new)
+        .map_err(|error| error.to_string())
+    });
+    let model = model.as_ref().map_err(|error| {
+        HubError::Invalid(format!("local MiniLM embedding unavailable: {error}"))
+    })?;
+    let embedding = model
+        .lock()
+        .map_err(|_| HubError::Invalid("local MiniLM embedding lock poisoned".into()))?
+        .embed([text], None)
+        .map_err(|error| HubError::Invalid(format!("local MiniLM embedding failed: {error}")))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| HubError::Invalid("local MiniLM returned no embedding".into()))?;
+    if embedding.len() != VECTOR_DIMENSIONS {
+        return Err(HubError::Invalid(format!(
+            "local MiniLM returned {} dimensions (expected {VECTOR_DIMENSIONS})",
+            embedding.len()
+        )));
+    }
+    Ok(embedding)
+}
+
+#[cfg(not(test))]
+fn embed_openai(text: &str) -> Result<Vec<f32>, HubError> {
+    let key = std::env::var("OPENAI_API_KEY")
+        .map_err(|_| HubError::Invalid("OPENAI_API_KEY is not set".into()))?;
+    let endpoint = std::env::var("CA_MEMORY_EMBEDDING_API_BASE")
+        .unwrap_or_else(|_| "https://api.openai.com/v1/embeddings".into());
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(5)))
+        .build()
+        .into();
+    let mut response = agent
+        .post(&endpoint)
+        .header("Authorization", &format!("Bearer {key}"))
+        .send_json(serde_json::json!({
+            "model": "text-embedding-3-small",
+            "dimensions": VECTOR_DIMENSIONS,
+            "input": text,
+        }))
+        .map_err(|error| HubError::Invalid(format!("OpenAI embedding request failed: {error}")))?;
+    let payload: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|error| HubError::Invalid(format!("OpenAI embedding response failed: {error}")))?;
+    let embedding = payload["data"][0]["embedding"]
+        .as_array()
+        .ok_or_else(|| {
+            HubError::Invalid("OpenAI embedding response is missing data[0].embedding".into())
+        })?
+        .iter()
+        .map(|value| value.as_f64().map(|value| value as f32))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            HubError::Invalid("OpenAI embedding response contains non-numeric values".into())
+        })?;
+    if embedding.len() != VECTOR_DIMENSIONS {
+        return Err(HubError::Invalid(format!(
+            "OpenAI embedding returned {} dimensions (expected {VECTOR_DIMENSIONS})",
+            embedding.len()
+        )));
+    }
+    Ok(embedding)
 }
 
 /// Serialize float slice to byte blob (little-endian).
@@ -135,7 +179,7 @@ impl HubStore {
             text.push_str(&tags.join(" "));
         }
 
-        let vector = compute_embedding(&text);
+        let vector = embed_text(&self.data_dir, &text)?;
         let blob = vector_to_blob(&vector);
         self.conn.execute(
             "DELETE FROM memory_vectors WHERE memory_id = ?1",
@@ -177,7 +221,7 @@ impl HubStore {
             ));
         }
 
-        let query_vector = compute_embedding(trimmed);
+        let query_vector = embed_text(&self.data_dir, trimmed)?;
 
         let candidate_count: i64 =
             self.conn

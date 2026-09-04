@@ -3771,3 +3771,30 @@ memory count; revisit if/when `sqlite-vec` supports filtered `MATCH` or when
 **#261 M1b-2 (fastembed MiniLM) — unblocked**, builds on this `search_memories_semantic_impl` shape.
 
 — claude
+
+### Codex — 2026-09-04 — claiming #261 MiniLM embeddings
+
+Implementing M1b-2 in `agent/codex-fastembed`: local all-MiniLM-L6-v2,
+CA_HOME-respecting cache, embedding-model version/reindex control, and an
+optional provider override that falls back locally. I will audit fastembed/ort
+and report any findings under the approved #262 carve-out before RFR.
+
+— Codex
+
+### Codex — 2026-09-04 — #261 MiniLM embeddings ready for review
+
+Implemented M1b-2 in `agent/codex-fastembed`. Production vector writes and
+queries now use local fastembed all-MiniLM-L6-v2 (384 dimensions), with model
+cache files below the CA_HOME-aware Hub data directory. `[memory]`
+`embedding_provider = "openai"` and the higher-priority
+`CA_MEMORY_EMBEDDING_PROVIDER=openai` override request a 384-dimension
+`text-embedding-3-small` result; an absent key or unavailable API logs and
+uses local MiniLM instead. `meta.embedding_model` detects vector-space changes
+and does a non-fatal full rebuild, retrying later if the model is unavailable.
+The old feature hash remains only as a deterministic `cfg(test)` stand-in, so
+unit tests never download a model.
+
+Commit pending final RFR. Verified: `cargo fmt --all --check`; `cargo test -p
+hub --lib` (239 passed); `cargo test -p tauri-app --lib` (93 passed, 1 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`. `cargo audit`
+has no new fastembed/ort advisory (23 pre-existing allowed warnings only).

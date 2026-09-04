@@ -48,11 +48,12 @@ pub use harness::{
 };
 pub use paths::default_hub_home;
 pub use settings::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride, OrchestrationPolicy,
-    ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind,
-    SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore, WorkspaceOverride,
-    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
+    FieldStatus, HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride,
+    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference,
+    SecretSourceKind, SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore,
+    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
+    MIN_BACKUP_RETENTION,
 };
 pub use store::{
     parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
