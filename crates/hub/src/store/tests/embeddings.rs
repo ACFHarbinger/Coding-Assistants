@@ -34,6 +34,15 @@ fn related_texts_have_higher_cosine_similarity() {
 fn vec0_search_and_reindex_memory_vectors() {
     let dir = tempfile::tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
+    let embedding_model: String = store
+        .conn
+        .query_row(
+            "SELECT value FROM meta WHERE key = 'embedding_model'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(embedding_model, "minilm-l6-v2");
     let mem1 = store
         .write_memory(
             MemoryTier::Semantic,

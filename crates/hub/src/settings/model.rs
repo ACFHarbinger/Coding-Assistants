@@ -25,6 +25,32 @@ pub const DEFAULT_MEMORY_RECALL_LIMIT: u8 = 5;
 /// A small ceiling keeps recalled context useful without crowding out the task.
 pub const MAX_MEMORY_RECALL_LIMIT: u8 = 20;
 
+/// Backend used to create memory-search embeddings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EmbeddingProvider {
+    #[default]
+    Local,
+    Openai,
+}
+
+impl EmbeddingProvider {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "local" => Some(Self::Local),
+            "openai" => Some(Self::Openai),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Openai => "openai",
+        }
+    }
+}
+
 /// Validated settings fields owned by S1. Later slices add more keys without
 /// changing this load/save contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +59,7 @@ pub struct SettingsSnapshot {
     pub backup_retention: u32,
     pub default_workspace: Option<String>,
     pub default_session: Option<String>,
+    pub embedding_provider: EmbeddingProvider,
     pub orchestration: OrchestrationPolicy,
     pub tui: TuiSettings,
 }
@@ -44,6 +71,7 @@ impl Default for SettingsSnapshot {
             backup_retention: DEFAULT_BACKUP_RETENTION,
             default_workspace: None,
             default_session: None,
+            embedding_provider: EmbeddingProvider::Local,
             orchestration: OrchestrationPolicy::default(),
             tui: TuiSettings::default(),
         }

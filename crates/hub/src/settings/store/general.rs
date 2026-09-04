@@ -152,6 +152,11 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_embedding_provider(&mut self, provider: EmbeddingProvider) {
+        self.snapshot.embedding_provider = provider;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+    }
+
     pub fn set_confirm_new_enrollment(&mut self, value: bool) -> Result<(), SettingsError> {
         self.snapshot.orchestration.confirm_new_enrollment = value;
         write_snapshot_fields(&mut self.document, &self.snapshot);

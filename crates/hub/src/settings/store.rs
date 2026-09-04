@@ -1,6 +1,6 @@
 use super::model::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
+    FieldStatus, HarnessSettings, LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy,
     ProfileSnapshot, ProviderProfile, SandboxStrictness, SettingsError, SettingsField,
     SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };

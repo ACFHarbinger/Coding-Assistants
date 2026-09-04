@@ -4,6 +4,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
 use tempfile::tempdir;
 
+#[path = "tests/embeddings.rs"]
+mod embeddings;
 #[path = "tests/profiles.rs"]
 mod profiles;
 

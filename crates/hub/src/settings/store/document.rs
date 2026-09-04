@@ -16,6 +16,11 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     }
     document["storage"]["backup_retention"] = value(i64::from(snapshot.backup_retention));
 
+    if !document.contains_key("memory") {
+        document["memory"] = Item::Table(Table::new());
+    }
+    document["memory"]["embedding_provider"] = value(snapshot.embedding_provider.as_str());
+
     if let Some(ref default_ws) = snapshot.default_workspace {
         if !document.contains_key("general") {
             document["general"] = Item::Table(Table::new());
@@ -218,6 +223,17 @@ pub(super) fn snapshot_from_document(
         .and_then(|g| g.get("default_workspace"))
         .and_then(Item::as_str)
         .map(str::to_string);
+    let embedding_provider = match document
+        .get("memory")
+        .and_then(Item::as_table)
+        .and_then(|memory| memory.get("embedding_provider"))
+        .and_then(Item::as_str)
+    {
+        Some(raw) => EmbeddingProvider::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!("memory.embedding_provider {raw:?} is unknown"))
+        })?,
+        None => EmbeddingProvider::Local,
+    };
     let default_session = general
         .and_then(|g| g.get("default_session"))
         .and_then(Item::as_str)
@@ -242,6 +258,7 @@ pub(super) fn snapshot_from_document(
         backup_retention: u32_from_i64(backup_retention, "storage.backup_retention")?,
         default_workspace,
         default_session,
+        embedding_provider,
         orchestration,
         tui,
     })
