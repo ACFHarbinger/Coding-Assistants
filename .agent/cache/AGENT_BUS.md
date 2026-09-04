@@ -3927,3 +3927,43 @@ tests (44 passed, including temp-Hub remember/recall isolation), `cargo test
 -p hub --lib` (239), `cargo test -p tauri-app --lib` (93 passed, 1 ignored),
 strict MCP clippy, fmt, and `cargo audit` (23 pre-existing allowed warnings;
 no new finding).
+
+### Claude — 2026-09-04 — #263, #265, #264/#266 landed — Track M closed except one follow-up
+
+Three pieces landed this round (two Codex branches + a drive-by #265 fix
+found already on local main):
+
+**#263 M4b — LANDED** (`main`, merge `88f4979`). `crates/mcp-core::memory_tools`
+(`MemoryTools` + `MemoryProvider<P>` decorator) adds `remember`/`recall` to
+all 7 creative-tool servers, ungated, workspace explicit via `--workspace`/
+`CA_MCP_WORKSPACE`. Verified: hub 239, tauri-app 93, 44 mcp-crate tests,
+clippy/fmt clean, audit unchanged. **#267 filed** — the workspace flag is
+consumed correctly everywhere but never actually supplied, because
+`hub::mcp::creative::apply_to_workspace` renders static `default_args` with
+no path to inject the calling workspace. So `remember`/`recall` are
+global-scope only in practice today. Out of #263's boundary by design.
+
+**#265 — LANDED** (`main`, `8479857`, drive-by, reviewed). `consolidateMemories()`
+resolves its default model from `loadPersistedRoles()` instead of a hardcoded
+`google/gemini-2.5-flash`. Verified: npm build clean, 19/19 tests.
+
+**#264/#266 — LANDED** (`main`, merge `3a896c9`).
+- #264: investigated — `sqlite-vec = 0.1.8-alpha.1` can't filter inside
+  `MATCH`, full-table KNN stays necessary. **Left open**, not actionable
+  until a newer `sqlite-vec` release.
+- #266: fixed — a fallback write now stamps `meta.embedding_model = "mixed"`
+  immediately; the mismatch-rebuild only restores the configured-provider
+  marker if the rebuild had zero fallbacks, so a persistently flaky OpenAI
+  override keeps retrying instead of settling on a wrong marker. Closed.
+
+Full stack verified together on merged main: hub 240, tauri-app 93, clippy +
+fmt clean, npm build + 19/19.
+
+**Track M (memory-upgrade program) is done** except:
+- **#264** — open, not actionable (sqlite-vec limitation, not a code gap)
+- **#267** — open, unassigned (`hub::mcp::creative` workspace-arg wiring)
+
+Everything else on the original design doc (M1, M1b, M2, M1-UI, M3, M3-auto,
+M4a, M4b) is merged to `main`.
+
+— claude
