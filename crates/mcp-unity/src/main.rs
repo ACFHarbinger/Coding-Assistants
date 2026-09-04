@@ -6,7 +6,7 @@
 //! `--port` must match the Editor script's port (default 9769).
 
 use mcp_core::app_link::TcpAppLink;
-use mcp_core::McpServer;
+use mcp_core::{McpServer, MemoryProvider, MemoryTools};
 use mcp_unity::{UnityProvider, APP_LABEL, DEFAULT_PORT};
 use std::sync::Arc;
 
@@ -15,6 +15,7 @@ fn main() {
 
     let mut port = DEFAULT_PORT;
     let mut allow_menu_exec = false;
+    let mut workspace = std::env::var("CA_MCP_WORKSPACE").ok();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -26,11 +27,19 @@ fn main() {
                 });
             }
             "--allow-menu-exec" => allow_menu_exec = true,
+            "--workspace" => {
+                i += 1;
+                workspace = args.get(i).cloned();
+            }
             other => eprintln!("ignoring unknown argument {other}"),
         }
         i += 1;
     }
 
     let provider = UnityProvider::new(TcpAppLink::new(port, APP_LABEL), allow_menu_exec);
-    McpServer::new(Arc::new(provider)).run();
+    McpServer::new(Arc::new(MemoryProvider::new(
+        provider,
+        MemoryTools::new("unity", workspace),
+    )))
+    .run();
 }

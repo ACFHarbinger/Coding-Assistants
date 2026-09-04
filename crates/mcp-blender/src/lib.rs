@@ -5,6 +5,8 @@
 //! send `{ "op": <tool>, "args": {...} }`, read `{ "ok", "result"|"error" }`.
 
 use mcp_core::app_link::{result_to_text, AppLink};
+#[cfg(test)]
+use mcp_core::{MemoryProvider, MemoryTools};
 use mcp_core::{ServerInfo, ToolProvider, ToolResult};
 use serde_json::{json, Value};
 
@@ -214,5 +216,30 @@ mod tests {
         let (text, is_err) = outcome(provider.call("run_python", &json!({ "code": "print(1)" })));
         assert!(!is_err);
         assert_eq!(text, "1\n");
+    }
+
+    #[test]
+    fn memory_tools_remember_and_recall_only_blender_memories() {
+        let dir = tempfile::tempdir().unwrap();
+        let provider = MemoryProvider::new(
+            BlenderProvider::new(MockLink::new(|_, _| Ok(Value::Null)), false),
+            MemoryTools::with_hub_home("blender", Some("/project".into()), dir.path().into()),
+        );
+
+        assert!(provider
+            .tools()
+            .iter()
+            .any(|tool| tool["name"] == "remember"));
+        assert!(matches!(
+            provider.call(
+                "remember",
+                &json!({"body": "Use collections for scene groups"})
+            ),
+            ToolResult::Ok(_)
+        ));
+        assert!(matches!(
+            provider.call("recall", &json!({"query": "scene groups"})),
+            ToolResult::Ok(text) if text.contains("collections")
+        ));
     }
 }

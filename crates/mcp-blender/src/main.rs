@@ -10,7 +10,7 @@
 
 use mcp_blender::{BlenderProvider, APP_LABEL, DEFAULT_PORT};
 use mcp_core::app_link::TcpAppLink;
-use mcp_core::McpServer;
+use mcp_core::{McpServer, MemoryProvider, MemoryTools};
 use std::sync::Arc;
 
 fn main() {
@@ -18,6 +18,7 @@ fn main() {
 
     let mut port = DEFAULT_PORT;
     let mut allow_run_python = false;
+    let mut workspace = std::env::var("CA_MCP_WORKSPACE").ok();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -29,11 +30,19 @@ fn main() {
                 });
             }
             "--allow-run-python" => allow_run_python = true,
+            "--workspace" => {
+                i += 1;
+                workspace = args.get(i).cloned();
+            }
             other => eprintln!("ignoring unknown argument {other}"),
         }
         i += 1;
     }
 
     let provider = BlenderProvider::new(TcpAppLink::new(port, APP_LABEL), allow_run_python);
-    McpServer::new(Arc::new(provider)).run();
+    McpServer::new(Arc::new(MemoryProvider::new(
+        provider,
+        MemoryTools::new("blender", workspace),
+    )))
+    .run();
 }

@@ -19,6 +19,9 @@
 //! [`ToolProvider::on_notification`]).
 
 pub mod app_link;
+mod memory_tools;
+
+pub use memory_tools::{MemoryProvider, MemoryTools};
 
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
