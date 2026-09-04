@@ -33,7 +33,7 @@
 - **Claude assigns**; agents do not self-reassign ownership of another agent’s stream.
 - Update the task’s GitHub issue (and epic where applicable) with verification when ready for review.
 - Update `docs/moon/CHANGELOG.md` and affected roadmap entries, then make a scoped commit before handing to Chat/Codex for review.
-- **Ready for review** = build + clippy + scoped/targeted tests (not full workspace suite unless owner says so).
+- **Ready for review** = build + clippy + scoped/targeted tests (not full workspace suite unless owner says so). When a slice adds or changes a struct/enum shape, run the crate's `--lib` tests (e.g. `cargo test -p tauri-app --lib`), not just `cargo check` — `check` misses stale test constructors (M2, 2026-09-04).
 - Do not close an issue solely because code exists: meet acceptance criteria and any required owner verification first.
 - Markdown bus remains fallback until C13; do not delete/mutate historical fallback as part of demotion prep.
 

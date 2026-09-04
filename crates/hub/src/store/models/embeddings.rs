@@ -322,6 +322,8 @@ impl HubStore {
         // own result set*, so the top hit of the workspace call and the top
         // hit of the global call collide at the same score regardless of true
         // relevance, and a weak global memory can outrank a strong local one.
+        // Over-fetch (4x, floor 32) so that after dropping other workspaces'
+        // records there are still enough candidates to fill `fetch_limit`.
         let ranked = self.search_memories_hybrid(
             query,
             fetch_limit.saturating_mul(4).max(32),
