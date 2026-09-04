@@ -3303,3 +3303,57 @@ Standing by for any Codex review comments on the #254 frontend slice.
 §10 acceptance resumes from 10.5 on this build.
 
 — claude
+
+### Claude — 2026-09-04 — Track M resumed: memory upgrade M2/M3 + M1-UI
+
+Owner picked **Track M** as this session's focus. Track C (creative-tool MCP)
+is feature-complete and bundled as sidecars in the `5c9249b` v1.0.0 re-cut, so
+Track M is the live program work.
+
+**M1 already landed** — `ad8c664` (merged `340b42a`), `f9b7150` clippy fix.
+`HubStore::search_memories_semantic` + hybrid RRF search + backfill reindex
+exist; the vector index stays in sync on `write_memory`/`update_memory` via
+`upsert_memory_vector`. So the live slices are **M2 / M3 / M1-UI**, not M1.
+
+#### Embedding fork — flagged to Harbinger, needs a call
+
+`crates/hub/src/store/models/embeddings.rs::compute_embedding` is **not a
+semantic embedding** — it is FNV-1a feature-hashing of unigram/bigram/char-3-4
+grams into 384 L2-normalized dims. Cosine over it scores *lexical* overlap
+(beats `LIKE` on stems/typos) but does **zero** paraphrase/synonym matching
+("car" vs "automobile" ~ 0). The design doc specified real local embeddings
+(`fastembed-rs` + `sqlite-vec`).
+
+This matters because **M2 injects retrieved memories into every agent's
+context** — RAG on a lexical retriever mostly re-injects words already in the
+prompt. Two paths:
+
+- **M1b first**: swap real local embeddings behind the existing
+  `search_memories_semantic` signature, then M2 on top. Cost: `fastembed-rs`/
+  `sqlite-vec` deps + model download (offline-first concern) + `cargo-audit`
+  surface.
+- **M2 now** on the lexical retriever, worded honestly ("smart/similarity
+  search", not "semantic recall"), M1b as a later drop-in.
+
+**Claude's pick: M2 now, M1b as a fast-follow** — keeps the program moving,
+lexical hybrid is already a real improvement over `LIKE`, and the
+`search_memories_semantic` signature is stable so M1b is a non-breaking swap.
+Harbinger: confirm or redirect.
+
+#### Assignments
+
+| Owner | Issue | Slice | Boundary |
+| --- | --- | --- | --- |
+| **Codex** | **#255 [M2]** auto-recall / RAG injection | In `src-tauri/src/agent/orchestrator.rs` `build_prompt` (~L440-489), after the flat `.agent/project_memory.md` read, hybrid-search the hub store on the task text and inject top-K (default 5, configurable) scored memories under a labelled header, scope-aware, char-budgeted. Settings toggle (default on) + K knob. **Emit the injected set as a structured payload and post its shape to this bus** for Gemini. | `orchestrator.rs` + a settings field + read-only `crates/hub` helpers. **No** `memories.rs` schema change. **No** Track C. |
+| **Codex** | **#256 [M3]** consolidation / summarization job | Cluster related `short_term` memories, LLM-summarize each cluster into one `episodic` record, link originals (`consolidated_into`) + mark stale (never delete). Periodic hook + manual `hub_consolidate_memories` cmd. Offline: skip with a logged notice. | `crates/hub/.../memories.rs` (or new `consolidation.rs`) + the new command + scheduler hook. Disjoint from #255. **No** Track C. |
+| **Gemini** | **#257 [M1-UI]** surface hybrid search in the UI | `api.ts`/`types.ts` binding for `hub_search_memories_semantic` (`ScoredMemoryRecord` = record + `score: f32`); a "smart" search mode in `MemoryTab.tsx` / `MemoryDrawer.tsx` ranked by score with a score indicator, scope/tier filters; keep `LIKE` search as an "exact" toggle. Wording: "smart/similarity", not "semantic". | `src/` + the one binding only. **No** backend. **Hold** the auto-recall visibility panel until Codex posts the #255 payload shape. |
+
+**M4 (cross-tool memory scope)** stays blocked on M3.
+
+Per-slice rules (board standing): one `git worktree` under
+`~/Repositories/Repo/.ca-worktrees/`, 500-LoC cap on hand-authored logic+tests
+(split before land), Track M and Track C never in the same slice, ready-for-
+review = build + clippy + scoped/targeted tests (FE: `npm run build` +
+`npm run test`). Update the issue with verification before handing to review.
+
+— claude
