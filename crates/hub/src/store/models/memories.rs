@@ -227,21 +227,46 @@ impl HubStore {
     }
 
     pub fn search_memories(&self, query: &str) -> Result<Vec<MemoryRecord>, HubError> {
+        self.search_memories_impl(query, None)
+    }
+
+    /// Exact search with an optional tool scope. `None` preserves the legacy
+    /// all-tool result set; `Some` matches only that tool identifier.
+    pub fn search_memories_with_tool(
+        &self,
+        query: &str,
+        tool: Option<&str>,
+    ) -> Result<Vec<MemoryRecord>, HubError> {
+        self.search_memories_impl(query, tool)
+    }
+
+    pub(super) fn search_memories_impl(
+        &self,
+        query: &str,
+        tool: Option<&str>,
+    ) -> Result<Vec<MemoryRecord>, HubError> {
         let q = format!("%{}%", query.trim());
         if query.trim().is_empty() {
             return Err(HubError::Invalid("search query must not be empty".into()));
         }
-        let mut stmt = self.conn.prepare(
+        let mut sql = String::from(
             r#"
             SELECT id, scope, workspace_path, tier, agent_id, title, body,
                    tags_json, created_at, updated_at, stale, source_event_id, tool
             FROM memories
             WHERE stale = 0 AND (body LIKE ?1 OR IFNULL(title, '') LIKE ?1 OR tags_json LIKE ?1)
-            ORDER BY created_at DESC
-            LIMIT 100
             "#,
-        )?;
-        let rows = stmt.query_map(params![q], |r| {
+        );
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(q)];
+        if let Some(tool) = tool {
+            sql.push_str(" AND tool = ?");
+            params_vec.push(Box::new(tool.to_string()));
+        }
+        sql.push_str(" ORDER BY created_at DESC LIMIT 100");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_vec.iter().map(|param| param.as_ref()).collect();
+        let rows = stmt.query_map(params_refs.as_slice(), |r| {
             Ok(MemoryRecord {
                 id: r.get(0)?,
                 scope: r.get(1)?,
@@ -259,20 +284,6 @@ impl HubStore {
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
-    }
-
-    /// Exact search with an optional tool scope. `None` preserves the legacy
-    /// all-tool result set; `Some` matches only that tool identifier.
-    pub fn search_memories_with_tool(
-        &self,
-        query: &str,
-        tool: Option<&str>,
-    ) -> Result<Vec<MemoryRecord>, HubError> {
-        let results = self.search_memories(query)?;
-        Ok(results
-            .into_iter()
-            .filter(|memory| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
-            .collect())
     }
 
     pub fn mark_memory_stale(&self, id: &str, stale: bool) -> Result<(), HubError> {

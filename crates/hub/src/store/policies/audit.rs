@@ -389,11 +389,6 @@ impl HubStore {
                 params![SCHEMA_VERSION.to_string()],
             )?;
         }
-        self.conn.execute(
-            "UPDATE meta SET value = ?1 WHERE key = 'schema_version'",
-            params!["2"],
-        )?;
-
         // Seed well-known agents if empty.
         let count: i64 = self
             .conn

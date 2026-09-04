@@ -161,6 +161,18 @@ impl HubStore {
         tier: Option<MemoryTier>,
         workspace_path: Option<&str>,
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        self.search_memories_semantic_impl(query, limit, scope, tier, workspace_path, None)
+    }
+
+    fn search_memories_semantic_impl(
+        &self,
+        query: &str,
+        limit: usize,
+        scope: Option<MemoryScope>,
+        tier: Option<MemoryTier>,
+        workspace_path: Option<&str>,
+        tool: Option<&str>,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Err(HubError::Invalid(
@@ -193,6 +205,10 @@ impl HubStore {
         if let Some(ws) = workspace_path {
             sql.push_str(" AND m.workspace_path = ?");
             params_vec.push(Box::new(ws.to_string()));
+        }
+        if let Some(tool) = tool {
+            sql.push_str(" AND m.tool = ?");
+            params_vec.push(Box::new(tool.to_string()));
         }
 
         let mut stmt = self.conn.prepare(&sql)?;
@@ -246,6 +262,18 @@ impl HubStore {
         tier: Option<MemoryTier>,
         workspace_path: Option<&str>,
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        self.search_memories_hybrid_impl(query, limit, scope, tier, workspace_path, None)
+    }
+
+    fn search_memories_hybrid_impl(
+        &self,
+        query: &str,
+        limit: usize,
+        scope: Option<MemoryScope>,
+        tier: Option<MemoryTier>,
+        workspace_path: Option<&str>,
+        tool: Option<&str>,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Err(HubError::Invalid(
@@ -254,11 +282,17 @@ impl HubStore {
         }
 
         // 1. Semantic search results
-        let semantic_results =
-            self.search_memories_semantic(trimmed, limit * 2, scope, tier, workspace_path)?;
+        let semantic_results = self.search_memories_semantic_impl(
+            trimmed,
+            limit * 2,
+            scope,
+            tier,
+            workspace_path,
+            tool,
+        )?;
 
         // 2. Lexical search results
-        let lexical_candidates = self.search_memories(trimmed)?;
+        let lexical_candidates = self.search_memories_impl(trimmed, tool)?;
         let filtered_lexical: Vec<MemoryRecord> = lexical_candidates
             .into_iter()
             .filter(|m| {
@@ -316,11 +350,7 @@ impl HubStore {
         workspace_path: Option<&str>,
         tool: Option<&str>,
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
-        Ok(self
-            .search_memories_semantic(query, limit, scope, tier, workspace_path)?
-            .into_iter()
-            .filter(|(memory, _)| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
-            .collect())
+        self.search_memories_semantic_impl(query, limit, scope, tier, workspace_path, tool)
     }
 
     pub fn search_memories_hybrid_with_tool(
@@ -332,11 +362,7 @@ impl HubStore {
         workspace_path: Option<&str>,
         tool: Option<&str>,
     ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
-        Ok(self
-            .search_memories_hybrid(query, limit, scope, tier, workspace_path)?
-            .into_iter()
-            .filter(|(memory, _)| tool.is_none_or(|tool| memory.tool.as_deref() == Some(tool)))
-            .collect())
+        self.search_memories_hybrid_impl(query, limit, scope, tier, workspace_path, tool)
     }
 
     /// Retrieves only memories safe to share with an agent working in a

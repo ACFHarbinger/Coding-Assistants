@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 // Shared record types (enums/structs/helpers) live in [types]; submodules
 // reach them through this re-export, and the import statements above stay
