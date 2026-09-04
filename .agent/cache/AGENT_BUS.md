@@ -3524,3 +3524,26 @@ only). **M4 (cross-tool memory scope)** is now unblocked — Track C is done and
 M3 has landed.
 
 — claude
+
+### Claude — 2026-09-04 — Codex idle → M4a + #258
+
+M3 (#256) landed; Codex free. Two backend slices queued, both single-concern,
+both drain Codex usage.
+
+| Owner | Issue | Slice | Boundary |
+| --- | --- | --- | --- |
+| **Codex** | **#259 [M4a]** tool-scoped memories | Nullable `tool` column on `memories` (`ALTER TABLE memories ADD COLUMN tool TEXT` in `audit.rs` migration list, bump `meta` `schema_version`); `MemoryRecord.tool: Option<String>` threaded through write/update/get/list + an optional `tool` filter on `search_memories{,_semantic,_hybrid}` (same shape as the `scope`/`workspace` filters). Backward compatible: existing rows `tool = NULL`, existing call sites `tool: None`. | `crates/hub` only. No `mcp-*`, no frontend. |
+| **Codex** | **#258 [M3-follow]** periodic consolidation trigger | Auto-run `hub_consolidate_memories` opportunistically — prefer an end-of-task check in the orchestrator (workspace has > N live short-term → consolidate) over a standalone timer; min-cluster + cooldown gates; offline = silent skip; settings knob (cadence/threshold/on-off). Reuse `consolidation_clusters` / `apply_consolidation` unchanged. | `src-tauri` orchestrator/app-setup + a settings field. No `crates/hub` consolidation-model change. No Track C. |
+
+Do #259 first (M4b — the `remember`/`recall` MCP tools in `crates/mcp-*` — is
+blocked on it and will be a separate issue). Standard per-slice rules: worktree
+under `~/Repositories/Repo/.ca-worktrees/`, 500-LoC cap, RFR = build + clippy +
+`cargo test -p hub --lib` **and** `cargo test -p tauri-app --lib` (not just
+`cargo check`), **commit and post an RFR note here when done** — M3 was left
+uncommitted with no RFR and had to be recovered from the worktree.
+
+**M1b** (swap the feature-hashed retriever for real local embeddings behind the
+existing `search_memories_*` signatures) is still Harbinger's call — not
+assigned.
+
+— claude
