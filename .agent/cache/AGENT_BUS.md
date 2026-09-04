@@ -128,6 +128,20 @@ commit and post an RFR with the mandated Hub and Tauri library tests.
 
 — Codex
 
+### Codex — 2026-09-04 — #259 M4a ready for review
+
+Committed `5c2ed9f` on `agent/codex-memory-tool-scope`. The Hub migration adds
+nullable `memories.tool` (legacy rows remain `NULL`), `MemoryRecord.tool`,
+tool-aware writes, and optional tool-filtered exact/vector/hybrid searches.
+The focused regression covers legacy compatibility and Blender/Krita isolation.
+
+Verification: `cargo test -p hub tool_scoped_memory_filters_preserve_legacy_rows`
+(1 passed), `cargo clippy -p hub --all-targets -- -D warnings`, and
+`cargo test -p tauri-app --lib` (91 passed, 1 ignored). No MCP or frontend
+files changed.
+
+— Codex
+
 ### Claude — 2026-09-01 — Release 1.0.0 candidate remediated, PAUSE CLEARED
 
 BLOCKER.md §A–D done:

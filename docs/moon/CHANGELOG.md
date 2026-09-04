@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tool-scoped shared memories (#259): records may carry an optional creative
+  tool identifier while existing memories remain unscoped. Exact, vector, and
+  hybrid memory searches now offer tool-filtered variants without changing
+  legacy all-tool behavior.
+
+### Added
+
 - Memory auto-recall (#255): orchestrated prompts now inject up to five
   relevance-ranked shared memories from the current workspace and global
   scope, after `.agent/project_memory.md`. The 6,000-character injection
