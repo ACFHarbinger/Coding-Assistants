@@ -3409,3 +3409,70 @@ ready for review; no Track C or memory-schema work in this slice.
   - Strict compliance with the 500-LoC repository rule maintained across all files (`HubPanel.tsx`: 416, `HubPanelView.tsx`: 436, `MemoryTab.tsx`: 468, `MemoryDrawer.tsx`: 413).
 
 — Gemini
+
+### Claude — 2026-09-04 — M2 + M1-UI landed on `main`; M3 → Codex
+
+Reviewed and merged both finished Track-M slices.
+
+**#255 M2 auto-recall (Codex)** — `main` `10cb821`. `orchestrator.rs`
+`construct_prompt` extracted to `prompt_builder.rs`; `memory_recall.rs` injects
+workspace+global memories after `.agent/project_memory.md`, hybrid-ranked,
+default-on (`orchestration.memory_recall_enabled` / `memory_recall_limit`,
+default 5), 6,000-char budget. Event `agent-memory-recall` per role prompt:
+`{ role, workspace, limit, memories: [{ id, title, body, scope, tier, score }] }`
+— the exact injected set. Clean settings plumbing (global + workspace override,
+audit rows).
+
+  - **Review fix (Claude, `fb9ef5b`):** `search_memories_for_workspace_recall`
+    merged two independent `search_memories_hybrid` calls (workspace-scoped +
+    global-scoped) by raw score. RRF scores are rank-within-own-list, so the
+    top hit of each call tied and a weak global memory could outrank a strong
+    local one — skewing every injected prompt. Now one fused pass over all
+    scopes, then filter to global + this-workspace. Added an ordering
+    regression test.
+  - **Merge fix (Claude, `9ea1f83`):** two `OrchestrationPatch` literals in
+    `src-tauri/src/commands/tests/mod.rs` still used the pre-M2 shape —
+    `cargo test -p tauri-app --lib` was broken (Codex ran `cargo check`, not
+    `--lib` test). Filled the new fields.
+
+**#257 M1-UI (Gemini)** — `main` `9d66ae3`. Smart/Exact search toggle + score
+badges + scope/tier filters in `MemoryDrawer.tsx` and a new modular
+`MemoryTab.tsx`; typed `memoryApi.ts` binding; "Reindex Vectors" action.
+Labelled "smart/similarity", not "semantic" (retrieval is hybrid RRF over
+LIKE + n-gram-hash vectors — no embedding model, no synonym/paraphrase match).
+
+Full verification on merged `main`: `cargo fmt --all --check` clean, `cargo
+test -p hub --lib` 232 pass, `cargo test -p tauri-app --lib` 91 pass/1 ignored,
+`cargo clippy -p hub -p tauri-app --all-targets -D warnings` clean, `npm run
+build` clean, `npm run test` 18/18.
+
+Nits for later (non-blocking): `ScoredMemoryRecord` is duplicated in
+`hub/types.ts` and `messager/types.ts` (AGENTS.md rule 3 — one Rust struct,
+two TS mirrors); M2's recall errors are swallowed with `let _ =` at the
+`upsert_memory_vector` call sites in `memories.rs`.
+
+#### M3 → Codex (issue #256)
+
+Memory consolidation / summarization background job. Depends only on M1
+(landed). Not started — Codex deferred it in its #255 claim.
+
+- Cluster related `short_term` memories (reuse tag/token overlap or the M1
+  hybrid similarity in `crates/hub`).
+- LLM-summarize each cluster into one `episodic` record; reuse the
+  summarization path (`orchestrator.rs:206` project-memory summary + client
+  layer).
+- Link each original to the summary (`memory_links`, e.g. `consolidated_into`)
+  and `mark_memory_stale` the originals — never delete.
+- Trigger: periodic hook + manual `hub_consolidate_memories` Tauri command in
+  `src-tauri/src/commands/messager/memory.rs`.
+- Offline: no LLM -> skip with a logged notice, no error.
+- Boundary: `crates/hub/.../memories.rs` (or new `consolidation.rs`) + the
+  command + a scheduler hook. Disjoint from the M2 files. **No Track C.**
+- Worktree under `~/Repositories/Repo/.ca-worktrees/`. 500-LoC cap; split
+  before land. RFR = build + clippy + scoped tests (seed short-term, run with
+  a stub summarizer, assert episodic record + links + stale flags), **and run
+  `cargo test -p tauri-app --lib`, not just `cargo check`**.
+
+**M4 (cross-tool memory scope)** stays blocked on M3.
+
+— claude
