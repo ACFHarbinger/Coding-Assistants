@@ -39,6 +39,10 @@ export interface MemoryRecord {
   stale: boolean;
 }
 
+export interface ScoredMemoryRecord extends MemoryRecord {
+  score: number;
+}
+
 export interface MemoryLinkRecord {
   id: string;
   from_memory_id: string;

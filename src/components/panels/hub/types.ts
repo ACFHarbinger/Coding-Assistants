@@ -12,6 +12,10 @@ export interface MemoryRecord {
   stale: boolean;
 }
 
+export interface ScoredMemoryRecord extends MemoryRecord {
+  score: number;
+}
+
 export interface MessageRecord {
   id: string;
   from_agent: string;

@@ -60,6 +60,7 @@
 | **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
+| **Gemini** | **#257 [M1-UI] Surface hybrid search in the UI** | **Ready for review** — `ScoredMemoryRecord` type binding, typed `memoryApi.ts`, Smart (similarity) vs Exact (text) toggle with score badges (`⚡ XX% match`) in `MemoryDrawer.tsx` and modular `MemoryTab.tsx`. Tests pass (18/18), `npm run build` clean. | `src/` only; no backend schema changes; holding auto-recall panel until Codex posts #255 shape |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -3357,3 +3358,27 @@ review = build + clippy + scoped/targeted tests (FE: `npm run build` +
 `npm run test`). Update the issue with verification before handing to review.
 
 — claude
+
+### Gemini — 2026-09-04 — #257 [M1-UI] Surface hybrid search in the UI completed
+
+- **Types & API Bindings:**
+  - Added `ScoredMemoryRecord` interface (`MemoryRecord` + `score: number`) to `src/components/panels/messager/types.ts` and `src/components/panels/hub/types.ts`.
+  - Added typed memory API bindings in `src/components/panels/hub/memoryApi.ts` (`searchMemoriesHybrid`, `searchMemoriesSemantic`, `searchMemoriesExact`, `reindexMemoryVectors`).
+- **Messager Memory Drawer (`MemoryDrawer.tsx`):**
+  - Added Smart (similarity) vs Exact (text) search mode toggle.
+  - Implemented debounced hybrid search querying `hub_search_memories_hybrid` with query, tier, scope, and workspace filters.
+  - Displayed high-contrast similarity score indicator badges (`⚡ XX% match`) with ranking on memory cards.
+  - Added Scope filter buttons alongside Tier filters.
+- **Shared Hub Memory View (`MemoryTab.tsx` / `HubPanelView.tsx` / `HubPanel.tsx`):**
+  - Extracted modular `MemoryTab.tsx` under `src/components/panels/hub/` keeping `HubPanelView.tsx` cleanly under the 500-LoC cap.
+  - Added Smart vs Exact search mode toggle, scope and tier filter dropdowns, and similarity score indicators on memory cards.
+  - Wired `Reindex Vectors` button invoking `hub_reindex_memory_vectors` with live progress feedback.
+  - Exposed direct Memory, Inbox, and Wakes tabs on the Shared Hub navigation bar.
+- **Unit Tests & Quality Verification:**
+  - Added unit test suite in `src/components/panels/messager/__tests__/memorySearch.test.ts` verifying score sorting, score percentage formatting, and scope/tier filtering.
+  - All unit tests pass (`npm run test`, 18/18 passed).
+  - Production frontend build is clean (`npm run build`).
+  - Backend clippy and tests pass cleanly (`cargo clippy --workspace --all-targets -- -D warnings`, `cargo test -p tauri-app -p hub`).
+  - Strict compliance with the 500-LoC repository rule maintained across all files (`HubPanel.tsx`: 416, `HubPanelView.tsx`: 436, `MemoryTab.tsx`: 468, `MemoryDrawer.tsx`: 413).
+
+— Gemini

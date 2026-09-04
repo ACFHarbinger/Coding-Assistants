@@ -1,8 +1,7 @@
 import { startTransition, useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/tauri";
-import { LIVE_QUOTA_AGENT_IDS } from "./hub/HubCharts";
 import HubPanelView from "./hub/HubPanelView";
-import type { AgentRecord, AuditEvent, BudgetStatus, ChannelWorkspace, HubTab, MemoryRecord, MessageRecord, ProviderQuota, WakeRecord } from "./hub/types";
+import type { AgentRecord, AuditEvent, BudgetStatus, ChannelWorkspace, HubTab, MemoryRecord, MessageRecord, ProviderQuota, ScoredMemoryRecord, WakeRecord } from "./hub/types";
 
 export default function HubPanel() {
   const [hubTab, setHubTab] = useState<HubTab>("dashboard");
@@ -10,7 +9,7 @@ export default function HubPanel() {
   const [error, setError] = useState<string>("");
   const [status, setStatus] = useState<string>("");
 
-  const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [memories, setMemories] = useState<(MemoryRecord | ScoredMemoryRecord)[]>([]);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [wakes, setWakes] = useState<WakeRecord[]>([]);
   const [agents, setAgents] = useState<AgentRecord[]>([]);
@@ -18,10 +17,13 @@ export default function HubPanel() {
   const [auditShowAll, setAuditShowAll] = useState(false);
 
   const [searchQ, setSearchQ] = useState("");
+  const [searchMode, setSearchMode] = useState<"smart" | "exact">("smart");
   const [tierFilter, setTierFilter] = useState<string>("");
+  const [scopeFilter, setScopeFilter] = useState<string>("");
   const [memTitle, setMemTitle] = useState("");
   const [memBody, setMemBody] = useState("");
   const [memTier, setMemTier] = useState("short_term");
+  const [memScope, setMemScope] = useState("workspace");
   const [memAgent, setMemAgent] = useState("grok");
 
   const [msgFrom, setMsgFrom] = useState("human");
@@ -71,14 +73,14 @@ export default function HubPanel() {
   const refreshMemories = useCallback(async () => {
     const list = await run("memories refreshed", () =>
       invoke<MemoryRecord[]>("hub_list_memories", {
-        scope: null,
+        scope: scopeFilter || null,
         tier: tierFilter || null,
         workspace: null,
         includeStale: false,
       })
     );
     if (list) setMemories(list);
-  }, [run, tierFilter]);
+  }, [run, tierFilter, scopeFilter]);
 
   const refreshMessages = useCallback(async () => {
     const list = await run("inbox refreshed", () => invoke<MessageRecord[]>("hub_list_messages"));
@@ -100,21 +102,22 @@ export default function HubPanel() {
   }, [agents]);
 
   const refreshQuotas = useCallback(async () => {
-    const statuses = await run("provider quotas refreshed", () =>
-      invoke<ProviderQuota[]>("hub_get_provider_quotas")
-    );
-    if (statuses) setQuotas(statuses);
+    const list = await run("quotas refreshed", () => invoke<ProviderQuota[]>("hub_get_provider_quotas", { forceRefresh: false }));
+    if (list) setQuotas(list);
+  }, [run]);
+
+  const refreshStaleQuotas = useCallback(async () => {
+    const list = await run("stale quotas refreshed", () => invoke<ProviderQuota[]>("hub_get_provider_quotas", { forceRefresh: true }), "Probing provider quotas…");
+    if (list) setQuotas(list);
   }, [run]);
 
   const refreshSingleQuota = useCallback(async (agentId: string) => {
     setRefreshingQuotaIds((prev) => new Set(prev).add(agentId));
     try {
-      const updated = await run(`${agentId} quota refreshed`, () =>
-        invoke<ProviderQuota>("hub_refresh_provider_quota", { agentId })
-      );
-      if (updated) {
-        setQuotas((prev) => prev.map((q) => (q.agent_id === agentId ? updated : q)));
-      }
+      const updated = await invoke<ProviderQuota>("hub_refresh_provider_quota", { agentId });
+      setQuotas((prev) => prev.map((q) => (q.agent_id === agentId ? updated : q)));
+    } catch (e) {
+      setError(String(e));
     } finally {
       setRefreshingQuotaIds((prev) => {
         const next = new Set(prev);
@@ -122,14 +125,7 @@ export default function HubPanel() {
         return next;
       });
     }
-  }, [run]);
-
-  const refreshStaleQuotas = useCallback(async () => {
-    const staleIds = quotas
-      .map((q) => q.agent_id)
-      .filter((id) => !LIVE_QUOTA_AGENT_IDS.has(id));
-    await Promise.all(staleIds.map((id) => refreshSingleQuota(id)));
-  }, [quotas, refreshSingleQuota]);
+  }, []);
 
   const refreshAuditEvents = useCallback(async () => {
     const list = await run("audit events refreshed", () =>
@@ -138,83 +134,77 @@ export default function HubPanel() {
     if (list) setAuditEvents(list);
   }, [run, auditShowAll]);
 
-  const refreshChannelStatus = useCallback(async (workspaces: ChannelWorkspace[]) => {
-    const entries = await Promise.all(
-      workspaces.map(async (w): Promise<[string, boolean]> => {
-        try {
-          const connected = await invoke<boolean>("claude_channel_is_connected", { workspace: w.workspace });
-          return [w.workspace, connected];
-        } catch {
-          return [w.workspace, false];
-        }
-      })
+  const approveAudit = async (eventId: string) => {
+    await run("event approved", () =>
+      invoke("hub_approve_audit_event", { eventId, approvedBy: "human" })
     );
-    setChannelConnected(Object.fromEntries(entries));
-  }, []);
+    await refreshAuditEvents();
+  };
+
+  const quarantineAudit = async (eventId: string) => {
+    await run("event quarantined", () =>
+      invoke("hub_quarantine_audit_event", { eventId, quarantinedBy: "human", reason: "Rejected via desktop journal" })
+    );
+    await refreshAuditEvents();
+  };
 
   const refreshChannelWorkspaces = useCallback(async () => {
-    const list = await run("Channel workspaces refreshed", () =>
-      invoke<ChannelWorkspace[]>("claude_channel_list_workspaces")
+    const list = await run("channels refreshed", () =>
+      invoke<ChannelWorkspace[]>("hub_list_channel_workspaces")
     );
     if (list) {
       setChannelWorkspaces(list);
-      setChannelRenameDrafts(Object.fromEntries(list.map((w) => [w.workspace, w.display_name])));
-      void refreshChannelStatus(list);
+      for (const cw of list) {
+        invoke<boolean>("hub_is_channel_workspace_connected", { workspace: cw.workspace })
+          .then((connected) => {
+            setChannelConnected((prev) => ({ ...prev, [cw.workspace]: connected }));
+          })
+          .catch(() => {});
+      }
     }
-  }, [run, refreshChannelStatus]);
+  }, [run]);
 
-  const connectChannelWorkspace = async (workspace: string) => {
+  const connectChannelWorkspace = useCallback(async (workspace: string) => {
     setChannelConnecting((prev) => ({ ...prev, [workspace]: true }));
     try {
-      await run("Launching a Claude Code terminal for this workspace", () =>
-        invoke("claude_channel_connect", { workspace })
+      const outcome = await run(
+        "channel connection requested",
+        () => invoke<{ ok: boolean; pid?: number; detail: string }>("hub_connect_channel_workspace", { workspace }),
+        "Starting Claude Code channel…",
       );
-      // The terminal needs a few seconds to start Claude Code and load the
-      // Channel MCP server before the bridge process it spawns shows up.
-      window.setTimeout(() => {
-        void invoke<boolean>("claude_channel_is_connected", { workspace })
-          .then((connected) => setChannelConnected((prev) => ({ ...prev, [workspace]: connected })))
-          .finally(() => setChannelConnecting((prev) => ({ ...prev, [workspace]: false })));
-      }, 4000);
-    } catch {
+      if (outcome?.ok) {
+        setChannelConnected((prev) => ({ ...prev, [workspace]: true }));
+        setStatus(`Claude Channel connected (pid ${outcome.pid ?? "unknown"})`);
+      } else if (outcome) {
+        setError(outcome.detail);
+      }
+    } finally {
       setChannelConnecting((prev) => ({ ...prev, [workspace]: false }));
     }
-  };
+  }, [run]);
 
   const renameChannelWorkspace = async (workspace: string) => {
-    const name = (channelRenameDrafts[workspace] ?? "").trim();
-    if (!name) return;
-    await run("Channel workspace renamed", () =>
-      invoke("claude_channel_rename_workspace", { workspace, name })
+    const draft = channelRenameDrafts[workspace]?.trim();
+    if (!draft) return;
+    await run("channel renamed", () =>
+      invoke("hub_rename_channel_workspace", { workspace, displayName: draft })
     );
     await refreshChannelWorkspaces();
   };
 
   const deleteChannelWorkspace = async (workspace: string) => {
-    await run("Channel workspace removed", () =>
-      invoke("claude_channel_delete_workspace", { workspace })
+    await run("channel removed", () =>
+      invoke("hub_delete_channel_workspace", { workspace })
     );
     await refreshChannelWorkspaces();
   };
 
-  const approveAudit = async (id: string) => {
-    await run("audit event approved", () => invoke("hub_approve_audit", { id }));
-    await refreshAuditEvents();
-  };
-
-  const quarantineAudit = async (id: string) => {
-    await run("audit event quarantined", () => invoke("hub_quarantine_audit", { id }));
-    await refreshAuditEvents();
-  };
-
   useEffect(() => {
-    invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
+    invoke<string>("get_hub_data_dir").then(setDataDir).catch((e) => setError(String(e)));
     invoke<AgentRecord[]>("hub_list_agents").then((list) => {
       setAgents(list);
-      if (list.length > 0) {
-        setMemAgent(list[0].id);
-        setMsgFrom(list[0].id);
-        const firstAgent = list.find((agent) => agent.id !== "human") || list[0];
+      const firstAgent = list.find((a) => a.id !== "human");
+      if (firstAgent) {
         setMsgTo(firstAgent.id);
         setPollTo(firstAgent.id);
         setInboxConversation(firstAgent.id);
@@ -250,11 +240,15 @@ export default function HubPanel() {
     if (!memBody.trim()) return;
     await run("memory written", () =>
       invoke("hub_write_memory", {
-        tier: memTier,
-        agentId: memAgent,
-        title: memTitle || null,
-        body: memBody,
-        tags: [],
+        args: {
+          tier: memTier,
+          scope: memScope,
+          agent: memAgent || null,
+          workspace: null,
+          title: memTitle || null,
+          body: memBody,
+          tags: [],
+        },
       })
     );
     setMemBody("");
@@ -266,10 +260,12 @@ export default function HubPanel() {
     if (!editBody.trim()) return;
     await run("memory updated", () =>
       invoke("hub_update_memory", {
-        id,
-        title: editTitle || null,
-        body: editBody,
-        tags: null, // Keep existing tags
+        args: {
+          id,
+          title: editTitle || null,
+          body: editBody,
+          tags: null,
+        },
       })
     );
     setEditingMemory(null);
@@ -281,10 +277,40 @@ export default function HubPanel() {
       await refreshMemories();
       return;
     }
-    const list = await run("search done", () =>
-      invoke<MemoryRecord[]>("hub_search_memories", { query: searchQ })
+    if (searchMode === "smart") {
+      const list = await run("smart search done", () =>
+        invoke<ScoredMemoryRecord[]>("hub_search_memories_hybrid", {
+          query: searchQ,
+          limit: 30,
+          scope: scopeFilter || null,
+          tier: tierFilter || null,
+          workspace: null,
+        }),
+        "Searching memories (similarity)…"
+      );
+      if (list) setMemories(list);
+    } else {
+      const list = await run("exact search done", () =>
+        invoke<MemoryRecord[]>("hub_search_memories", { query: searchQ })
+      );
+      if (list) {
+        let filtered = list;
+        if (tierFilter) filtered = filtered.filter((m) => m.tier === tierFilter);
+        if (scopeFilter) filtered = filtered.filter((m) => m.scope === scopeFilter);
+        setMemories(filtered);
+      }
+    }
+  };
+
+  const reindexVectors = async () => {
+    const count = await run(
+      "vectors reindexed",
+      () => invoke<number>("hub_reindex_memory_vectors"),
+      "Re-indexing memory vector embeddings…"
     );
-    if (list) setMemories(list);
+    if (count !== null) {
+      setStatus(`Re-indexed ${count} memory vector embedding(s)`);
+    }
   };
 
   const sendMessage = async () => {
@@ -294,7 +320,7 @@ export default function HubPanel() {
         args: {
           from: msgFrom,
           to: msgTo,
-        kind: msgKind,
+          kind: msgKind,
           subject: msgSubject.trim() || null,
           workspace: null,
           task: null,
@@ -372,6 +398,7 @@ export default function HubPanel() {
       || message.from_agent === agent
       || message.to_agent === agent)
   ).length;
+
   const markConversationRead = async () => {
     const target = inboxConversation === "all" ? pollTo : inboxConversation;
     const list = await run(`read ${target}`, () =>
@@ -385,5 +412,5 @@ export default function HubPanel() {
 
   const grokWorkspace = typeof localStorage !== "undefined" ? (localStorage.getItem("ca.workspaceRoot") || "") : "";
 
-  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, tierFilter, setTierFilter, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace }} />;
+  return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMode, setSearchMode, searchMemories, refreshMemories, tierFilter, setTierFilter, scopeFilter, setScopeFilter, memTier, setMemTier, memScope, setMemScope, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace, reindexVectors }} />;
 }

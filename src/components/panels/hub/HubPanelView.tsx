@@ -2,20 +2,123 @@
 import TaskTab from "../../TaskTab";
 import DashboardPanel from "../DashboardPanel";
 import ChannelsTab from "./ChannelsTab";
+import MemoryTab from "./MemoryTab";
 import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 
 export default function HubPanelView(props: any) {
-  const { hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMemories, refreshMemories, memTier, setMemTier, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace } = props;
-
+  const {
+    hubTab,
+    dataDir,
+    error,
+    status,
+    setStatus,
+    tabBtn,
+    auditEvents,
+    setAuditShowAll,
+    auditShowAll,
+    refreshAuditEvents,
+    approveAudit,
+    quarantineAudit,
+    memories,
+    searchQ,
+    setSearchQ,
+    searchMode,
+    setSearchMode,
+    searchMemories,
+    refreshMemories,
+    tierFilter,
+    setTierFilter,
+    scopeFilter,
+    setScopeFilter,
+    memTier,
+    setMemTier,
+    memScope,
+    setMemScope,
+    memAgent,
+    setMemAgent,
+    memTitle,
+    setMemTitle,
+    memBody,
+    setMemBody,
+    writeMemory,
+    editingMemory,
+    setEditingMemory,
+    editTitle,
+    setEditTitle,
+    editBody,
+    setEditBody,
+    saveEditedMemory,
+    run,
+    invoke,
+    agents,
+    inboxConversation,
+    setInboxConversation,
+    setMsgTo,
+    setPollTo,
+    unreadFor,
+    msgFrom,
+    setMsgFrom,
+    msgTo,
+    msgKind,
+    setMsgKind,
+    msgSubject,
+    setMsgSubject,
+    msgBody,
+    setMsgBody,
+    sendMessage,
+    pollTo,
+    markConversationRead,
+    refreshMessages,
+    inboxSearch,
+    setInboxSearch,
+    inboxMessages,
+    wakeTarget,
+    setWakeTarget,
+    wakeReason,
+    setWakeReason,
+    requestWake,
+    refreshWakes,
+    wakes,
+    budgetAgent,
+    setBudgetAgent,
+    budgetLimit,
+    setBudgetLimit,
+    setBudget,
+    refreshBudgets,
+    refreshQuotas,
+    refreshStaleQuotas,
+    budgets,
+    quotas,
+    refreshingQuotaIds,
+    refreshSingleQuota,
+    budgetSpend,
+    setBudgetSpend,
+    recordSpend,
+    resumeBudget,
+    channelWorkspaces,
+    channelRenameDrafts,
+    setChannelRenameDrafts,
+    renameChannelWorkspace,
+    deleteChannelWorkspace,
+    refreshChannelWorkspaces,
+    channelConnected,
+    channelConnecting,
+    connectChannelWorkspace,
+    grokWorkspace,
+    reindexVectors,
+  } = props;
 
   return (
-    <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
+    <div className="glass-card fade-in" style={{ animationDelay: "0.1s" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
         <h2 style={{ margin: 0, fontSize: "1.5rem", background: "linear-gradient(to right, #fff, var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           Shared Hub
         </h2>
-        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px" }}>
+        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
           {tabBtn("dashboard", "Dashboard")}
+          {tabBtn("memory", "Memory")}
+          {tabBtn("inbox", "Inbox")}
+          {tabBtn("wakes", "Wakes")}
           {tabBtn("tasks", "Tasks")}
           {tabBtn("usage", "Usage")}
           {tabBtn("channels", "Channels")}
@@ -38,178 +141,42 @@ export default function HubPanelView(props: any) {
       {hubTab === "dashboard" && <DashboardPanel agents={agents} />}
 
       {hubTab === "memory" && (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center", background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
-            <input
-              placeholder="Search memories…"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-              onFocus={e => e.target.style.borderColor = 'var(--primary)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
-            />
-            <button className="btn-secondary" onClick={searchMemories}>Search</button>
-            <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} style={inputStyle}>
-              <option value="">All tiers</option>
-              <option value="short_term">short_term</option>
-              <option value="episodic">episodic</option>
-              <option value="semantic">semantic</option>
-            </select>
-            <button className="btn-secondary" onClick={refreshMemories}>Refresh</button>
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                await run("compacted", () => invoke("hub_compact_short_term", { keepNewest: 20 }), "Compacting short-term memories…");
-                await refreshMemories();
-              }}
-            >
-              Compact ST
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                // #163: this shells out to git (add + commit) and can take a
-                // few seconds on a large store; show a pending state while it
-                // runs. The command is off the IPC thread now, so this paints.
-                const outcome = await run(
-                  "export_committed",
-                  () =>
-                    invoke<{ path: string; committed: boolean; detail: string }>(
-                      "hub_export_markdown_git",
-                      { message: null },
-                    ),
-                  "Exporting + committing…",
-                );
-                if (outcome) {
-                  setStatus(
-                    outcome.committed
-                      ? `exported + committed → ${outcome.path}`
-                      : `exported → ${outcome.path} (${outcome.detail})`,
-                  );
-                }
-              }}
-            >
-              Export MD + Commit
-            </button>
-          </div>
-
-          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Write Memory</h3>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <select value={memTier} onChange={(e) => setMemTier(e.target.value)} style={inputStyle}>
-                <option value="short_term">short_term</option>
-                <option value="episodic">episodic</option>
-                <option value="semantic">semantic</option>
-              </select>
-              <select value={memAgent} onChange={(e) => setMemAgent(e.target.value)} style={inputStyle}>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.display_name}</option>
-                ))}
-              </select>
-              <input
-                placeholder="Title (optional)"
-                value={memTitle}
-                onChange={(e) => setMemTitle(e.target.value)}
-                style={{ ...inputStyle, flex: 1, minWidth: 150 }}
-              />
-            </div>
-            <textarea
-              rows={3}
-              placeholder="Memory body…"
-              value={memBody}
-              onChange={(e) => setMemBody(e.target.value)}
-              style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-sans)" }}
-            />
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn-primary" onClick={writeMemory} disabled={!memBody.trim()}>
-                Save to hub
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 500, overflowY: "auto", paddingRight: "0.5rem" }}>
-            {memories.length === 0 && (
-              <div style={{ padding: "3rem", textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px dashed var(--border-color)" }}>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", margin: 0 }}>No memories found in the hub.</p>
-              </div>
-            )}
-            {memories.map((m) => (
-              <div key={m.id} style={{ ...cardStyle, position: "relative", overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
-                  <div style={{ flex: 1 }}>
-                    {editingMemory === m.id ? (
-                      <input
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        placeholder="Memory title (optional)"
-                        style={{ ...inputStyle, width: "100%", marginBottom: "0.5rem" }}
-                      />
-                    ) : (
-                      <strong style={{ fontSize: "1.1rem", color: m.stale ? "var(--text-muted)" : "var(--primary)", textDecoration: m.stale ? "line-through" : "none" }}>{m.title || "(untitled)"}</strong>
-                    )}
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.35rem" }}>
-                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "var(--text-main)" }}>{m.tier}</span>
-                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: m.scope === 'global' ? "rgba(16, 185, 129, 0.1)" : "rgba(56, 189, 248, 0.1)", borderRadius: "4px", color: m.scope === 'global' ? "#10b981" : "#38bdf8" }}>{m.scope}</span>
-                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(168, 85, 247, 0.1)", borderRadius: "4px", color: "#a855f7" }}>{m.agent_id || "global"}</span>
-                      {m.stale && <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "4px", color: "#ef4444" }}>STALE</span>}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
-                    {editingMemory === m.id ? (
-                      <>
-                        <button className="btn-primary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)}>Save</button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => {
-                          setEditingMemory(m.id);
-                          setEditTitle(m.title || "");
-                          setEditBody(m.body);
-                        }}>Edit</button>
-                        {m.tier === "short_term" && (
-                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                            await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" }));
-                            await refreshMemories();
-                          }}>→ episodic</button>
-                        )}
-                        {m.tier === "episodic" && (
-                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                            await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" }));
-                            await refreshMemories();
-                          }}>→ semantic</button>
-                        )}
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
-                          await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true }));
-                          await refreshMemories();
-                        }}>Stale</button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => {
-                          await run("deleted", () => invoke("hub_delete_memory", { id: m.id }));
-                          await refreshMemories();
-                        }}>Delete</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {editingMemory === m.id ? (
-                  <textarea
-                    rows={4}
-                    value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
-                    style={{ ...inputStyle, width: "100%", resize: "vertical", fontFamily: "var(--font-sans)" }}
-                  />
-                ) : (
-                  <pre style={{ margin: "0", whiteSpace: "pre-wrap", fontSize: "0.9rem", color: m.stale ? "var(--text-muted)" : "var(--text-main)", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
-                    {m.body}
-                  </pre>
-                )}
-                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "1rem", textAlign: "right" }}>
-                  {m.created_at} · <span style={{ fontFamily: "var(--font-mono)" }}>{m.id.slice(0, 8)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <MemoryTab
+          memories={memories}
+          searchQ={searchQ}
+          setSearchQ={setSearchQ}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+          searchMemories={searchMemories}
+          refreshMemories={refreshMemories}
+          tierFilter={tierFilter}
+          setTierFilter={setTierFilter}
+          scopeFilter={scopeFilter}
+          setScopeFilter={setScopeFilter}
+          memTier={memTier}
+          setMemTier={setMemTier}
+          memScope={memScope}
+          setMemScope={setMemScope}
+          memAgent={memAgent}
+          setMemAgent={setMemAgent}
+          memTitle={memTitle}
+          setMemTitle={setMemTitle}
+          memBody={memBody}
+          setMemBody={setMemBody}
+          writeMemory={writeMemory}
+          editingMemory={editingMemory}
+          setEditingMemory={setEditingMemory}
+          editTitle={editTitle}
+          setEditTitle={setEditTitle}
+          editBody={editBody}
+          setEditBody={setEditBody}
+          saveEditedMemory={saveEditedMemory}
+          run={run}
+          invoke={invoke}
+          agents={agents}
+          setStatus={setStatus}
+          reindexVectors={reindexVectors}
+        />
       )}
 
       {hubTab === "inbox" && (
