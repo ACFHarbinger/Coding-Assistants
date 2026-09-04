@@ -1,5 +1,6 @@
 mod consolidation;
 mod core;
+mod embeddings;
 mod integration;
 mod memory_recall;
 mod memory_tool_scope;

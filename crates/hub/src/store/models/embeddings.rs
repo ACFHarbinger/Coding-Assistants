@@ -135,18 +135,13 @@ impl HubStore {
 
         let vector = compute_embedding(&text);
         let blob = vector_to_blob(&vector);
-        let now = Utc::now().to_rfc3339();
-
         self.conn.execute(
-            r#"
-            INSERT INTO memory_vectors (memory_id, dimensions, vector_blob, created_at)
-            VALUES (?1, ?2, ?3, ?4)
-            ON CONFLICT(memory_id) DO UPDATE SET
-                dimensions = excluded.dimensions,
-                vector_blob = excluded.vector_blob,
-                created_at = excluded.created_at
-            "#,
-            params![memory_id, VECTOR_DIMENSIONS as i64, blob, now],
+            "DELETE FROM memory_vectors WHERE memory_id = ?1",
+            params![memory_id],
+        )?;
+        self.conn.execute(
+            "INSERT INTO memory_vectors (embedding, memory_id) VALUES (?1, ?2)",
+            params![blob, memory_id],
         )?;
 
         Ok(())
@@ -182,17 +177,32 @@ impl HubStore {
 
         let query_vector = compute_embedding(trimmed);
 
+        let candidate_count: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM memory_vectors", [], |row| row.get(0))?;
+        if candidate_count == 0 {
+            return Ok(Vec::new());
+        }
         let mut sql = String::from(
             r#"
+            WITH nearest AS MATERIALIZED (
+                SELECT memory_id, distance
+                FROM memory_vectors
+                WHERE embedding MATCH ? AND k = ?
+                ORDER BY distance
+            )
             SELECT m.id, m.scope, m.workspace_path, m.tier, m.agent_id, m.title, m.body,
                    m.tags_json, m.created_at, m.updated_at, m.stale, m.source_event_id, m.tool,
-                   v.vector_blob
-            FROM memories m
-            JOIN memory_vectors v ON m.id = v.memory_id
+                   nearest.distance
+            FROM nearest
+            JOIN memories m ON m.id = nearest.memory_id
             WHERE m.stale = 0
             "#,
         );
-        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![
+            Box::new(vector_to_blob(&query_vector)),
+            Box::new(candidate_count),
+        ];
 
         if let Some(s) = scope {
             sql.push_str(" AND m.scope = ?");
@@ -210,6 +220,8 @@ impl HubStore {
             sql.push_str(" AND m.tool = ?");
             params_vec.push(Box::new(tool.to_string()));
         }
+        sql.push_str(" ORDER BY nearest.distance LIMIT ?");
+        params_vec.push(Box::new(limit.max(1) as i64));
 
         let mut stmt = self.conn.prepare(&sql)?;
         let params_refs: Vec<&dyn rusqlite::types::ToSql> =
@@ -231,25 +243,18 @@ impl HubStore {
                 source_event_id: r.get(11)?,
                 tool: r.get(12)?,
             };
-            let blob: Vec<u8> = r.get(13)?;
-            Ok((rec, blob))
+            let distance: f32 = r.get(13)?;
+            Ok((rec, distance))
         })?;
-
-        let mut scored: Vec<(MemoryRecord, f32)> = Vec::new();
-        for item in rows {
-            let (rec, blob) = item?;
-            let vec = blob_to_vector(&blob);
-            let sim = cosine_similarity(&query_vector, &vec);
-            if sim > 0.05 {
-                scored.push((rec, sim));
-            }
-        }
-
-        // Sort descending by cosine similarity score
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        scored.truncate(limit.max(1));
-
-        Ok(scored)
+        Ok(rows
+            .filter_map(|row| match row {
+                Ok((record, distance)) => {
+                    let similarity = (1.0 - distance).clamp(-1.0, 1.0);
+                    (similarity > 0.05).then_some(Ok((record, similarity)))
+                }
+                Err(error) => Some(Err(error)),
+            })
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Performs hybrid search combining lexical (text match) and semantic (vector)
@@ -424,103 +429,5 @@ impl HubStore {
         }
 
         Ok(count)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn embedding_is_deterministic_and_normalized() {
-        let text = "Architectural decision on SQLite vectors and IPC";
-        let v1 = compute_embedding(text);
-        let v2 = compute_embedding(text);
-        assert_eq!(v1.len(), VECTOR_DIMENSIONS);
-        assert_eq!(v1, v2);
-
-        let norm: f32 = v1.iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!((norm - 1.0).abs() < 1e-4, "norm is {norm}");
-    }
-
-    #[test]
-    fn vector_blob_round_trips() {
-        let vec = vec![0.12345f32, -0.98765f32, 1.0f32];
-        let blob = vector_to_blob(&vec);
-        let restored = blob_to_vector(&blob);
-        assert_eq!(vec, restored);
-    }
-
-    #[test]
-    fn related_texts_have_higher_cosine_similarity() {
-        let query = compute_embedding("Rust vector search sqlite");
-        let similar =
-            compute_embedding("Vector database embedding indexing in SQLite database with Rust");
-        let unrelated = compute_embedding("Watercolor painting canvas brush acrylic colors");
-
-        let sim_related = cosine_similarity(&query, &similar);
-        let sim_unrelated = cosine_similarity(&query, &unrelated);
-
-        assert!(
-            sim_related > sim_unrelated,
-            "sim_related ({sim_related}) should exceed sim_unrelated ({sim_unrelated})"
-        );
-    }
-
-    #[test]
-    fn store_semantic_and_hybrid_search_and_reindex() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-
-        let mem1 = store
-            .write_memory(
-                MemoryTier::Semantic,
-                MemoryScope::Workspace,
-                Some("claude"),
-                Some("/repo/coding"),
-                Some("SQLite Vector Indexing"),
-                "Implemented vector similarity search using cosine distance and dense embeddings.",
-                &["vector".into(), "sqlite".into()],
-            )
-            .unwrap();
-
-        let mem2 = store
-            .write_memory(
-                MemoryTier::Episodic,
-                MemoryScope::Workspace,
-                Some("grok"),
-                Some("/repo/coding"),
-                Some("Frontend Glass Theme"),
-                "Redesigned the React glassmorphism navigation tabs with translucent backgrounds.",
-                &["ui".into(), "css".into()],
-            )
-            .unwrap();
-
-        // 1. Semantic search
-        let semantic_hits = store
-            .search_memories_semantic("embeddings and vector similarity", 5, None, None, None)
-            .unwrap();
-        assert!(!semantic_hits.is_empty());
-        assert_eq!(semantic_hits[0].0.id, mem1.id);
-        assert!(semantic_hits[0].1 > 0.1);
-
-        // 2. Hybrid search
-        let hybrid_hits = store
-            .search_memories_hybrid("vector similarity search", 5, None, None, None)
-            .unwrap();
-        assert!(!hybrid_hits.is_empty());
-        assert_eq!(hybrid_hits[0].0.id, mem1.id);
-
-        // 3. Reindex
-        // Delete a vector directly to test backfill
-        store
-            .conn
-            .execute(
-                "DELETE FROM memory_vectors WHERE memory_id = ?1",
-                rusqlite::params![mem2.id],
-            )
-            .unwrap();
-        let reindexed = store.reindex_memory_vectors().unwrap();
-        assert_eq!(reindexed, 1);
     }
 }
