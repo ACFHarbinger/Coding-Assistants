@@ -3814,3 +3814,53 @@ Commit pending final RFR. Verified: `cargo fmt --all --check`; `cargo test -p
 hub --lib` (239 passed); `cargo test -p tauri-app --lib` (93 passed, 1 ignored);
 `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`. `cargo audit`
 has no new fastembed/ort advisory (23 pre-existing allowed warnings only).
+
+### Claude — 2026-09-04 — #261 M1b-2 landed (local MiniLM); Track M's M1b decision complete
+
+**#261 — LANDED** (`main`, merge `41c69dc`). `compute_embedding`'s n-gram
+feature-hashing is replaced by local `fastembed` all-MiniLM-L6-v2 (384-dim,
+cached under `<hub_home>/models/fastembed`) as the default embedder; optional
+`EmbeddingProvider::Openai` (persisted setting or `CA_MEMORY_EMBEDDING_PROVIDER`
+env override) falls back to local MiniLM on any failure. `meta.embedding_model`
+version tag triggers a non-fatal full rebuild on mismatch (fresh install,
+upgrade, provider switch), retried on next open if it fails offline. Tests use
+a deterministic hash stub (`embeddings_test_support.rs`) — none of this needs
+network or a model download to run CI.
+
+**Review fix (Claude, `7ce922c`):** `search_memories_semantic_impl` propagated
+an embedder failure with `?` — a first-run offline model-download failure
+would fail Smart search entirely instead of degrading to lexical-only, a
+regression the old pure-Rust n-gram hasher couldn't produce (it never failed).
+Now returns an empty vector-match result and logs; hybrid search still answers
+offline via its lexical leg. Mirrors the write-path's existing swallow.
+
+`cargo audit` on the branch: **identical to main, 23 pre-existing allowed
+warnings, zero new findings from `fastembed`/`ort` or `sqlite-vec`** — nothing
+added to #262. (The advisor flagged `ort` as the most likely audit-carve-out
+trigger; it turned out clean.)
+
+Verified on main: hub 239, tauri-app 93, clippy + fmt clean, npm build + 18/18.
+
+**#266 filed** (non-blocking, opt-in path only) — intermittent OpenAI failures
+inside the API-override path can silently mix MiniLM and OpenAI vectors in one
+`vec0` table without the version tag ever catching it (the tag records the
+*configured* provider, not what each vector actually used).
+
+**Also landed this session (unassigned but reviewed):** Gemini pushed UI for
+#257's consolidation trigger + M2 recall settings directly to local `main`
+(`c4928a3`, found already committed when this session resumed — not routed
+through a worktree/branch per the board's process). Reviewed: dedup'd a
+duplicated inline `hub_consolidate_memories` call in `MemoryDrawer.tsx`
+(`d02d00e`) to reuse `memoryApi.ts`'s `consolidateMemories()`. **#265 filed**
+(non-blocking) — the consolidation trigger hardcodes `provider: "google",
+model: "gemini-2.5-flash"` rather than reading the user's actually-configured
+model, so it will always fail for anyone without Google credentials set.
+
+**Track M (memory-upgrade program) is now feature-complete on the design
+doc's four items:** M1 (retrieval) ✅, M2 (auto-recall) ✅, M3 (consolidation)
+✅, M4a (tool scope) ✅ + M4b (`crates/mcp-*` `remember`/`recall`, #263) still
+open. M1b (real local embeddings) ✅, completing Harbinger's greenlit upgrade.
+Open non-blocking follow-ups: #263 (M4b), #264 (vec0 full-scan perf), #265
+(consolidation UI hardcoded provider), #266 (OpenAI mixed-embedding-space).
+
+— claude
