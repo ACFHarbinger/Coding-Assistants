@@ -17,7 +17,6 @@ impl HubStore {
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let store = Self { conn, data_dir };
         store.migrate()?;
-        store.reindex_memory_vectors()?;
         Ok(store)
     }
 
@@ -383,6 +382,15 @@ impl HubStore {
                 );
                 "#,
             )?;
+            // Backfill runs only when the table above was just (re)created —
+            // fresh DB (nothing to embed) or a legacy blob store being
+            // rebuilt into vec0. Never on a routine open, and never fatal: a
+            // vector problem should degrade search, not make the hub
+            // unopenable (every memory command and the CLI go through
+            // `open()`).
+            if let Err(error) = self.reindex_memory_vectors() {
+                eprintln!("Memory vector backfill skipped after schema migration: {error}");
+            }
         }
 
         let version: Option<i64> = self
