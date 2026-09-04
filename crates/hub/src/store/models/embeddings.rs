@@ -221,7 +221,19 @@ impl HubStore {
             ));
         }
 
-        let query_vector = embed_text(&self.data_dir, trimmed)?;
+        // An embedder failure (model not yet downloaded, offline first run,
+        // API override unreachable) must degrade search, not fail it — the
+        // lexical leg of a hybrid search can still answer. Mirrors the
+        // write-path swallow (`let _ = self.upsert_memory_vector(...)`).
+        let query_vector = match embed_text(&self.data_dir, trimmed) {
+            Ok(vector) => vector,
+            Err(error) => {
+                eprintln!(
+                    "Semantic search embedding unavailable, returning no vector matches: {error}"
+                );
+                return Ok(Vec::new());
+            }
+        };
 
         let candidate_count: i64 =
             self.conn
