@@ -410,6 +410,8 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             auto_enrollment_allowed: None,
             sandbox_strictness: None,
             export_enabled: Some(false),
+            memory_recall_enabled: None,
+            memory_recall_limit: None,
         },
     )
     .expect("disable export via Settings");
@@ -433,6 +435,8 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             auto_enrollment_allowed: None,
             sandbox_strictness: None,
             export_enabled: Some(true),
+            memory_recall_enabled: None,
+            memory_recall_limit: None,
         },
     )
     .expect("re-enable export via Settings");
