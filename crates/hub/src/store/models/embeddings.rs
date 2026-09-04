@@ -99,12 +99,14 @@ pub fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
 }
 
 /// Deserialize byte blob to float vector.
+#[cfg(test)]
 pub fn blob_to_vector(blob: &[u8]) -> Vec<f32> {
     let (chunks, _rem) = blob.as_chunks::<4>();
     chunks.iter().map(|&arr| f32::from_le_bytes(arr)).collect()
 }
 
 /// Compute cosine similarity between two normalized vectors.
+#[cfg(test)]
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
