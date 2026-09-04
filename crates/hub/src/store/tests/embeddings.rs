@@ -87,6 +87,31 @@ fn vec0_search_and_reindex_memory_vectors() {
 }
 
 #[test]
+fn mixed_embedding_marker_forces_a_clean_rebuild_on_open() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .conn
+        .execute(
+            "UPDATE meta SET value = 'mixed' WHERE key = 'embedding_model'",
+            [],
+        )
+        .unwrap();
+    drop(store);
+
+    let reopened = HubStore::open(dir.path()).unwrap();
+    let marker: String = reopened
+        .conn
+        .query_row(
+            "SELECT value FROM meta WHERE key = 'embedding_model'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(marker, "minilm-l6-v2");
+}
+
+#[test]
 fn opening_a_legacy_blob_store_rebuilds_vec0() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("hub.db");

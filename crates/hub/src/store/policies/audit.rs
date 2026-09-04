@@ -422,13 +422,25 @@ impl HubStore {
             // make Hub open fail, and leaving the marker unchanged retries on
             // the next open after the model becomes available.
             self.conn.execute("DELETE FROM memory_vectors", [])?;
+            self.conn
+                .execute("DELETE FROM meta WHERE key = 'embedding_model'", [])?;
             match self.reindex_memory_vectors() {
                 Ok(_) => {
-                    self.conn.execute(
-                        "INSERT INTO meta(key, value) VALUES ('embedding_model', ?1) \
-                         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                        params![current_embedding_model],
-                    )?;
+                    let fallback_marker: Option<String> = self
+                        .conn
+                        .query_row(
+                            "SELECT value FROM meta WHERE key = 'embedding_model'",
+                            [],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if fallback_marker.as_deref() != Some("mixed") {
+                        self.conn.execute(
+                            "INSERT INTO meta(key, value) VALUES ('embedding_model', ?1) \
+                             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                            params![current_embedding_model],
+                        )?;
+                    }
                 }
                 Err(error) => eprintln!("Memory vector rebuild skipped: {error}"),
             };

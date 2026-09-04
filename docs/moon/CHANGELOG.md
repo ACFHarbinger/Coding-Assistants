@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   override and falls back to MiniLM if unavailable; model-space changes trigger
   a best-effort vector rebuild without blocking memory writes or Hub startup.
 
+### Fixed
+
+- OpenAI embedding fallback safety (#266): a per-vector fallback to local
+  MiniLM now marks the index as mixed, so the configured-model marker is not
+  trusted permanently. The next Hub open retries a clean reindex; it restores
+  the provider marker only when the rebuild completes without a fallback.
+
 ### Added
 
 - Memory auto-recall (#255): orchestrated prompts now inject up to five

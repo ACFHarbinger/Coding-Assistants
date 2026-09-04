@@ -50,12 +50,14 @@ pub use test_support::compute_embedding;
 use test_support::embed_text;
 
 #[cfg(not(test))]
-fn embed_text(data_dir: &Path, text: &str) -> Result<Vec<f32>, HubError> {
+fn embed_text(data_dir: &Path, text: &str) -> Result<(Vec<f32>, bool), HubError> {
+    let mut fell_back = false;
     if embedding_provider(data_dir) == crate::EmbeddingProvider::Openai {
         match embed_openai(text) {
-            Ok(embedding) => return Ok(embedding),
+            Ok(embedding) => return Ok((embedding, false)),
             Err(error) => {
-                eprintln!("OpenAI embedding override skipped; using local MiniLM: {error}")
+                eprintln!("OpenAI embedding override skipped; using local MiniLM: {error}");
+                fell_back = true;
             }
         }
     }
@@ -87,7 +89,7 @@ fn embed_text(data_dir: &Path, text: &str) -> Result<Vec<f32>, HubError> {
             embedding.len()
         )));
     }
-    Ok(embedding)
+    Ok((embedding, fell_back))
 }
 
 #[cfg(not(test))]
@@ -179,7 +181,7 @@ impl HubStore {
             text.push_str(&tags.join(" "));
         }
 
-        let vector = embed_text(&self.data_dir, &text)?;
+        let (vector, fell_back) = embed_text(&self.data_dir, &text)?;
         let blob = vector_to_blob(&vector);
         self.conn.execute(
             "DELETE FROM memory_vectors WHERE memory_id = ?1",
@@ -189,6 +191,13 @@ impl HubStore {
             "INSERT INTO memory_vectors (embedding, memory_id) VALUES (?1, ?2)",
             params![blob, memory_id],
         )?;
+        if fell_back {
+            self.conn.execute(
+                "INSERT INTO meta(key, value) VALUES ('embedding_model', 'mixed') \
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [],
+            )?;
+        }
 
         Ok(())
     }
@@ -226,7 +235,7 @@ impl HubStore {
         // lexical leg of a hybrid search can still answer. Mirrors the
         // write-path swallow (`let _ = self.upsert_memory_vector(...)`).
         let query_vector = match embed_text(&self.data_dir, trimmed) {
-            Ok(vector) => vector,
+            Ok((vector, _)) => vector,
             Err(error) => {
                 eprintln!(
                     "Semantic search embedding unavailable, returning no vector matches: {error}"
