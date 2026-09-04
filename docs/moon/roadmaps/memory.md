@@ -32,6 +32,11 @@ SQLite is the source of truth for structured memory. Markdown is the
 human-readable synchronization and high-priority layer. Private journals are
 separate from shared memory and must not be silently merged.
 
+**2026-09-04 (Track M, #255):** Orchestrated tasks now retrieve a bounded,
+relevance-ranked set of workspace and global shared memories and inject it
+after `.agent/project_memory.md`. Recall is enabled by default, configurable
+per workspace, and emitted as structured data for an owner-visible UI.
+
 **2026-08-11:** Desktop UI and Tauri commands share the store with `ca` CLI.
 See `docs/moon/CHANGELOG.md` Unreleased and `crates/README.md`.
 

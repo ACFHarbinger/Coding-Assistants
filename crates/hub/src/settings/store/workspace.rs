@@ -111,6 +111,33 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_workspace_memory_recall_enabled(
+        &mut self,
+        workspace: &str,
+        value: bool,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.memory_recall_enabled = Some(value);
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
+    pub fn set_workspace_memory_recall_limit(
+        &mut self,
+        workspace: &str,
+        limit: u8,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.orchestration.memory_recall_limit = Some(limit);
+        over.validate()?;
+        self.workspaces.insert(workspace, over);
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
     pub fn list_profiles(&self) -> Vec<ProfileSnapshot> {
         self.profiles
             .values()
@@ -387,6 +414,10 @@ impl SettingsStore {
                 SettingsField::RetentionDays => over.orchestration.retention_days = None,
                 SettingsField::ExportEnabled => over.orchestration.export_enabled = None,
                 SettingsField::LinkSuggestionMode => over.orchestration.link_suggestion_mode = None,
+                SettingsField::MemoryRecallEnabled => {
+                    over.orchestration.memory_recall_enabled = None
+                }
+                SettingsField::MemoryRecallLimit => over.orchestration.memory_recall_limit = None,
             }
             if over.is_empty() {
                 self.workspaces.remove(&workspace);

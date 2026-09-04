@@ -306,6 +306,41 @@ impl HubStore {
         Ok(fused)
     }
 
+    /// Retrieves only memories safe to share with an agent working in a
+    /// workspace: records scoped to that workspace plus global records.
+    /// Records belonging to another workspace are deliberately excluded.
+    pub fn search_memories_for_workspace_recall(
+        &self,
+        query: &str,
+        limit: usize,
+        workspace_path: &str,
+    ) -> Result<Vec<(MemoryRecord, f32)>, HubError> {
+        let fetch_limit = limit.max(1);
+        // One fused ranking pass over every scope, then drop records owned by
+        // another workspace. Merging two independent `search_memories_hybrid`
+        // calls by raw score is invalid: RRF scores encode rank *within their
+        // own result set*, so the top hit of the workspace call and the top
+        // hit of the global call collide at the same score regardless of true
+        // relevance, and a weak global memory can outrank a strong local one.
+        let ranked = self.search_memories_hybrid(
+            query,
+            fetch_limit.saturating_mul(4).max(32),
+            None,
+            None,
+            None,
+        )?;
+        let mut hits: Vec<(MemoryRecord, f32)> = ranked
+            .into_iter()
+            .filter(|(record, _)| {
+                record.scope == MemoryScope::Global.as_str()
+                    || (record.scope == MemoryScope::Workspace.as_str()
+                        && record.workspace_path.as_deref() == Some(workspace_path))
+            })
+            .collect();
+        hits.truncate(fetch_limit);
+        Ok(hits)
+    }
+
     /// Backfills missing memory embeddings in `memory_vectors`.
     pub fn reindex_memory_vectors(&self) -> Result<usize, HubError> {
         let mut stmt = self.conn.prepare(

@@ -1,3 +1,4 @@
+use super::TuiSettings;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -19,25 +20,10 @@ pub const DEFAULT_BACKUP_RETENTION: u32 = 3;
 pub const MIN_BACKUP_RETENTION: u32 = 1;
 /// Inclusive upper bound for `storage.backup_retention`.
 pub const MAX_BACKUP_RETENTION: u32 = 20;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TuiSettings {
-    pub prefix_chord: String,
-    pub unicode_fallback: bool,
-    pub bell_notification: bool,
-    pub high_contrast: bool,
-}
-
-impl Default for TuiSettings {
-    fn default() -> Self {
-        Self {
-            prefix_chord: "ctrl+b".to_string(),
-            unicode_fallback: false,
-            bell_notification: true,
-            high_contrast: true,
-        }
-    }
-}
+/// Default number of recalled memories injected into an agent prompt.
+pub const DEFAULT_MEMORY_RECALL_LIMIT: u8 = 5;
+/// A small ceiling keeps recalled context useful without crowding out the task.
+pub const MAX_MEMORY_RECALL_LIMIT: u8 = 20;
 
 /// Validated settings fields owned by S1. Later slices add more keys without
 /// changing this load/save contract.
@@ -106,6 +92,8 @@ pub enum SettingsField {
     RetentionDays,
     ExportEnabled,
     LinkSuggestionMode,
+    MemoryRecallEnabled,
+    MemoryRecallLimit,
 }
 
 /// Per-workspace overrides. Only fields present here differ from the global
@@ -240,6 +228,10 @@ pub struct OrchestrationPolicy {
     /// Whether writing a new memory proposes/creates candidate links to
     /// related existing memories (M-links). See [`LinkSuggestionMode`].
     pub link_suggestion_mode: LinkSuggestionMode,
+    /// Inject relevant workspace/global memories into orchestrated prompts.
+    pub memory_recall_enabled: bool,
+    /// Maximum number of memories injected for one prompt.
+    pub memory_recall_limit: u8,
 }
 
 impl Default for OrchestrationPolicy {
@@ -252,6 +244,8 @@ impl Default for OrchestrationPolicy {
             retention_days: None,
             export_enabled: true,
             link_suggestion_mode: LinkSuggestionMode::Off,
+            memory_recall_enabled: true,
+            memory_recall_limit: DEFAULT_MEMORY_RECALL_LIMIT,
         }
     }
 }
@@ -262,6 +256,11 @@ impl OrchestrationPolicy {
             return Err(SettingsError::Invalid(
                 "orchestration.retention_days must be greater than 0 when set".into(),
             ));
+        }
+        if !(1..=MAX_MEMORY_RECALL_LIMIT).contains(&self.memory_recall_limit) {
+            return Err(SettingsError::Invalid(format!(
+                "orchestration.memory_recall_limit must be within 1..={MAX_MEMORY_RECALL_LIMIT}"
+            )));
         }
         Ok(())
     }
@@ -278,6 +277,8 @@ pub struct OrchestrationOverride {
     pub retention_days: Option<u32>,
     pub export_enabled: Option<bool>,
     pub link_suggestion_mode: Option<LinkSuggestionMode>,
+    pub memory_recall_enabled: Option<bool>,
+    pub memory_recall_limit: Option<u8>,
 }
 
 impl OrchestrationOverride {
@@ -285,6 +286,8 @@ impl OrchestrationOverride {
         self.confirm_new_enrollment.is_none()
             && self.confirm_broadcast.is_none()
             && self.link_suggestion_mode.is_none()
+            && self.memory_recall_enabled.is_none()
+            && self.memory_recall_limit.is_none()
             && self.auto_enrollment_allowed.is_none()
             && self.sandbox_strictness.is_none()
             && self.retention_days.is_none()
@@ -296,6 +299,14 @@ impl OrchestrationOverride {
             return Err(SettingsError::Invalid(
                 "orchestration.retention_days must be greater than 0 when set".into(),
             ));
+        }
+        if self
+            .memory_recall_limit
+            .is_some_and(|limit| !(1..=MAX_MEMORY_RECALL_LIMIT).contains(&limit))
+        {
+            return Err(SettingsError::Invalid(format!(
+                "orchestration.memory_recall_limit must be within 1..={MAX_MEMORY_RECALL_LIMIT}"
+            )));
         }
         Ok(())
     }
@@ -318,6 +329,10 @@ pub struct EffectiveOrchestrationPolicy {
     pub export_enabled_status: FieldStatus,
     pub link_suggestion_mode: LinkSuggestionMode,
     pub link_suggestion_mode_status: FieldStatus,
+    pub memory_recall_enabled: bool,
+    pub memory_recall_enabled_status: FieldStatus,
+    pub memory_recall_limit: u8,
+    pub memory_recall_limit_status: FieldStatus,
 }
 
 /// Global defaults merged with an optional workspace override — the typed,

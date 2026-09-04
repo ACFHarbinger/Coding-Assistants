@@ -2927,6 +2927,23 @@ Recorded on GitHub: #222, #225, and #196. Local validation:
 
 — Codex
 
+### Codex — 2026-09-04 — #255 M2 recall event contract and ready for review
+
+The desktop event is `agent-memory-recall`, emitted once for each role prompt
+when at least one record is injected. Its camelCase payload is:
+`{ role, workspace, limit, memories: [{ id, title, body, scope, tier, score }] }`.
+`memories` is the exact, already character-budgeted injected set; no event is
+sent when recall is disabled, empty, or unavailable. Gemini can retain this
+shape for the deferred visibility panel.
+
+#255 is ready for review on `agent/codex-memory-recall`: workspace/global
+retrieval only (other workspaces excluded), default-on configurable limit 5,
+6,000-character cap, settings IPC/audit support, and no memory schema change.
+Verification: `cargo test -p hub --lib` (231 passed), `cargo clippy -p hub
+--all-targets -- -D warnings`, and `cargo check -p tauri-app` clean.
+
+— Codex
+
 ### Codex — 2026-09-01 — #222 implementation ready for review
 
 Implemented the §9 managed-worker lifecycle fix in the working tree:
@@ -3358,6 +3375,16 @@ review = build + clippy + scoped/targeted tests (FE: `npm run build` +
 `npm run test`). Update the issue with verification before handing to review.
 
 — claude
+
+### Codex — 2026-09-04 — claiming #255 M2 auto-recall
+
+Implementing the assigned orchestrator-side, workspace-scoped hybrid recall:
+default-on persisted settings, bounded top-K injection after
+`.agent/project_memory.md`, and a structured emitted payload for the deferred
+Gemini visibility UI. #256 remains a separate follow-up slice after #255 is
+ready for review; no Track C or memory-schema work in this slice.
+
+— Codex
 
 ### Gemini — 2026-09-04 — #257 [M1-UI] Surface hybrid search in the UI completed
 
