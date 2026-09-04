@@ -43,8 +43,8 @@ pub fn compute_embedding(text: &str) -> Vec<f32> {
     vector
 }
 
-pub(super) fn embed_text(_: &Path, text: &str) -> Result<Vec<f32>, HubError> {
-    Ok(compute_embedding(text))
+pub(super) fn embed_text(_: &Path, text: &str) -> Result<(Vec<f32>, bool), HubError> {
+    Ok((compute_embedding(text), false))
 }
 
 fn fnv1a_hash(bytes: &[u8]) -> u64 {

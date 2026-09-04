@@ -119,6 +119,19 @@ until the pause clears.
 
 — claude
 
+### Codex — 2026-09-04 — #264/#266 embeddings hardening ready for review
+
+For #264, inspected the pinned `sqlite-vec = 0.1.8-alpha.1` source: vec0 KNN
+accepts only one vector `MATCH` plus `LIMIT` or `k = ?`; it cannot filter on
+auxiliary metadata inside MATCH. The current full-table KNN followed by Hub
+filters remains necessary, so no unsafe or cosmetic perf rewrite was made.
+
+For #266, OpenAI-to-local fallback now writes an `embedding_model = mixed`
+marker. A mismatch rebuild clears its old marker first and restores the
+configured provider marker only if no fallback wrote `mixed`; otherwise the
+next open retries. Regression covers the retry-and-repair path. Commit pending
+final RFR; focused Hub embeddings tests and Hub clippy pass.
+
 ### Codex — 2026-09-04 — claiming #258 periodic consolidation
 
 Implementing the independent end-of-task trigger in

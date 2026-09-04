@@ -34,7 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory consolidation provider resolution (#265): the frontend memory consolidation
   action now dynamically resolves the LLM provider and model configuration from
   the user's configured orchestrator roles instead of hardcoding Google/Gemini.
-
+- OpenAI embedding fallback safety (#266): a per-vector fallback to local
+  MiniLM now marks the index as mixed, so the configured-model marker is not
+  trusted permanently. The next Hub open retries a clean reindex; it restores
+  the provider marker only when the rebuild completes without a fallback.
 
 ### Added
 
