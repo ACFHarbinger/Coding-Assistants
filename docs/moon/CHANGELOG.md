@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   override and falls back to MiniLM if unavailable; model-space changes trigger
   a best-effort vector rebuild without blocking memory writes or Hub startup.
 
+### Fixed
+
+- Memory consolidation provider resolution (#265): the frontend memory consolidation
+  action now dynamically resolves the LLM provider and model configuration from
+  the user's configured orchestrator roles instead of hardcoding Google/Gemini.
+
+
 ### Added
 
 - Memory auto-recall (#255): orchestrated prompts now inject up to five

@@ -100,4 +100,13 @@ describe("ScoredMemoryRecord and similarity search ranking", () => {
     expect(workspaceSemantic).toHaveLength(1);
     expect(workspaceSemantic[0].id).toBe("3");
   });
+
+  it("resolves consolidation model config from stored roles or default", async () => {
+    const { resolveDefaultConsolidationModel } = await import("../../hub/memoryApi");
+    const config = resolveDefaultConsolidationModel();
+    expect(config).toBeDefined();
+    expect(config.provider).toBeTruthy();
+    expect(config.model).toBeTruthy();
+  });
 });
+

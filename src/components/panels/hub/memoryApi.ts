@@ -1,4 +1,5 @@
 import { invoke } from "../../../lib/tauri";
+import { loadPersistedRoles } from "../../../app/rolesConfig";
 import type { MemoryRecord, ScoredMemoryRecord } from "./types";
 
 export interface SearchMemoriesOptions {
@@ -62,28 +63,50 @@ export interface ConsolidationReport {
   notice?: string | null;
 }
 
+export interface ConsolidationModelConfig {
+  provider: string;
+  model: string;
+  prompt_file?: string | null;
+  rule_file?: string | null;
+  workflow_file?: string | null;
+  endpoint?: string | null;
+}
+
 /**
- * Consolidates related short-term memories into episodic summaries via LLM.
+ * Resolves the default consolidation LLM config from user's configured orchestrator roles.
  */
-export async function consolidateMemories(
-  workspace?: string | null,
-  modelConfig?: {
-    provider: string;
-    model: string;
-    prompt_file?: string | null;
-    rule_file?: string | null;
-    workflow_file?: string | null;
-    endpoint?: string | null;
-  },
-): Promise<ConsolidationReport> {
-  const config = modelConfig ?? {
-    provider: "google",
-    model: "gemini-2.5-flash",
+export function resolveDefaultConsolidationModel(): ConsolidationModelConfig {
+  const roles = loadPersistedRoles();
+  const configured = roles.find((r) => r.config?.provider && r.config?.model)?.config;
+  if (configured) {
+    return {
+      provider: configured.provider,
+      model: configured.model,
+      prompt_file: configured.prompt_file ?? null,
+      rule_file: configured.rule_file ?? null,
+      workflow_file: configured.workflow_file ?? null,
+      endpoint: configured.endpoint ?? null,
+    };
+  }
+  return {
+    provider: "openai",
+    model: "gpt-4o",
     prompt_file: null,
     rule_file: null,
     workflow_file: null,
     endpoint: null,
   };
+}
+
+/**
+ * Consolidates related short-term memories into episodic summaries via LLM.
+ * Uses the user's active/configured orchestrator model by default (#265).
+ */
+export async function consolidateMemories(
+  workspace?: string | null,
+  modelConfig?: ConsolidationModelConfig,
+): Promise<ConsolidationReport> {
+  const config = modelConfig ?? resolveDefaultConsolidationModel();
   return invoke<ConsolidationReport>("hub_consolidate_memories", {
     args: {
       model_config: config,
@@ -91,3 +114,4 @@ export async function consolidateMemories(
     },
   });
 }
+

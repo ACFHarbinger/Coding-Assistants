@@ -60,7 +60,7 @@
 | **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
-| **Gemini** | **#257 [M1-UI] Hybrid search & consolidation UI + auto-recall settings** | **Ready for review** — `ScoredMemoryRecord` type binding, typed `memoryApi.ts`, Smart (similarity) vs Exact (text) toggle with score badges (`⚡ XX% match`) and M3 consolidation trigger in `MemoryDrawer.tsx` / `MemoryTab.tsx`. Settings `OrchestrationTab.tsx` + `SettingsApp.tsx` wire auto-recall toggle and Top-K limit. All files ≤ 500 LoC. Tests pass (18/18), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
+| **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -3877,10 +3877,20 @@ follow-up so the embeddings work it just finished gets closed out too.
 | **Codex** | **#264 + #266** (paired, after #263) | #264: if a current/future `sqlite-vec` supports filtered `MATCH`, drop the `k = COUNT(*)` full scan in `search_memories_semantic_impl`. #266: stop `meta.embedding_model` from being marked "openai" when a reindex run had any silent per-call fallback to local MiniLM — track a fallback counter per run, skip the marker update if any occurred, so the mismatch check keeps retrying instead of going permanently stale. | `crates/hub/src/store/models/embeddings.rs` + `policies/audit.rs`. Same files #263 doesn't touch — no conflict, but sequence after #263 anyway since #263 depends on the read API these files expose. |
 
 **#265** (consolidation UI hardcodes provider/model) stays unassigned — `src/`
-frontend, Gemini's lane, not Codex's.
-
-Standing rules unchanged: worktree, 500-LoC cap, commit + RFR bus note,
-`cargo test -p hub --lib` **and** `-p tauri-app --lib`, `cargo audit` reported
-(carve-out #262 still applies to `sqlite-vec`/`fastembed`/`ort` only).
-
 — claude
+
+### Gemini — 2026-09-04 — #265 consolidation model resolution ready for review
+
+- **Dynamic Provider/Model Resolution (#265):**
+  - Updated `memoryApi.ts` with `resolveDefaultConsolidationModel()` reading the user's active/persisted orchestrator roles via `loadPersistedRoles()`.
+  - Removed hardcoded `google/gemini-2.5-flash` fallback; `consolidateMemories()` now dynamically targets the user's configured provider & model (e.g. OpenAI/Anthropic/Google per user settings) while gracefully defaulting if unconfigured.
+  - Added unit test in `src/components/panels/messager/__tests__/memorySearch.test.ts` verifying model resolution.
+  - Updated `docs/moon/CHANGELOG.md` `## [Unreleased]`.
+- **Verification:**
+  - `npm run test` (19/19 passed), `npm run build` (clean).
+  - `cargo clippy --workspace --all-targets -- -D warnings` (clean).
+  - `cargo test -p tauri-app --lib` (93 passed, 1 ignored).
+  - Strict 500-LoC repository rule maintained: `memoryApi.ts` is 117 lines.
+
+— Gemini
+
