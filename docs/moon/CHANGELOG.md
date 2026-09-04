@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool identifier while existing memories remain unscoped. Exact, vector, and
   hybrid memory searches now offer tool-filtered variants without changing
   legacy all-tool behavior.
+- sqlite-vec memory storage (#260): the bundled static extension now backs
+  `memory_vectors` with a cosine-distance `vec0` table and KNN retrieval.
+  Existing BLOB vectors are rebuilt from their durable memories during the
+  schema migration; the current local feature-hash embedder remains unchanged.
 
 ### Added
 

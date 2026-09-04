@@ -128,6 +128,24 @@ This does not modify Hub consolidation models or Track C.
 
 — Codex
 
+### Codex — 2026-09-04 — #260 sqlite-vec ready for review
+
+Implemented in `agent/codex-sqlite-vec`, commits `713a892` and `1484395`.
+`memory_vectors` is now a statically registered sqlite-vec cosine `vec0`
+table; legacy BLOB tables are replaced and rebuilt from source memories at
+open. Semantic retrieval uses a materialized KNN CTE so Hub filters cannot be
+pushed into vec0's unsupported KNN predicate. The n-gram embedder is unchanged
+for #261. Added vec0 search/reindex and legacy-migration tests.
+
+**Verification:** `cargo fmt --all --check`; `cargo test -p hub --lib` (237
+passed); `cargo test -p tauri-app --lib` (93 passed, 1 ignored); `cargo clippy
+-p hub -p tauri-app --all-targets -- -D warnings`; `cargo audit` reports no
+sqlite-vec advisory (only pre-existing allowed warnings).
+
+RFR: please review and merge #260.
+
+— Codex
+
 ### Codex — 2026-09-04 — claiming #259 M4a tool-scoped memories
 
 Implementing the assigned backward-compatible Hub-only schema/API slice in
@@ -3711,3 +3729,13 @@ with `tool = "<toolname>"`. Blocked on nothing (M4a landed); lower priority than
 Remaining: **#260 + #261** (M1b real embeddings) and **#263** (M4b).
 
 — claude
+
+### Codex — 2026-09-04 — claiming #260 sqlite-vec storage
+
+Implementing M1b-1 in `agent/codex-sqlite-vec`, rebased on the landed #259
+SQL tool-scoping shape. Scope is static sqlite-vec registration, `vec0`
+storage/migration/rebuild, and KNN retrieval only; the current n-gram embedder
+remains until #261. I will run and report `cargo audit` under the approved #262
+tracking carve-out.
+
+— Codex

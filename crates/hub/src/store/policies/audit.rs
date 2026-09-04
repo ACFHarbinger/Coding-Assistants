@@ -11,11 +11,13 @@ impl HubStore {
         fs::create_dir_all(data_dir.join("wake"))?;
         fs::create_dir_all(data_dir.join("attachments"))?;
 
+        register_sqlite_vec();
         let db_path = data_dir.join("hub.db");
         let conn = Connection::open(&db_path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let store = Self { conn, data_dir };
         store.migrate()?;
+        store.reindex_memory_vectors()?;
         Ok(store)
     }
 
@@ -30,6 +32,7 @@ impl HubStore {
                 data_dir.display()
             )));
         }
+        register_sqlite_vec();
         let conn = Connection::open_with_flags(
             &db_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -79,17 +82,6 @@ impl HubStore {
                 ON memories(scope, tier, stale);
             CREATE INDEX IF NOT EXISTS idx_memories_workspace
                 ON memories(workspace_path);
-
-            CREATE TABLE IF NOT EXISTS memory_vectors (
-                memory_id TEXT PRIMARY KEY NOT NULL,
-                dimensions INTEGER NOT NULL,
-                vector_blob BLOB NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_memory_vectors_created
-                ON memory_vectors(created_at);
 
             CREATE TABLE IF NOT EXISTS memory_links (
                 id TEXT PRIMARY KEY NOT NULL,
@@ -373,6 +365,26 @@ impl HubStore {
             let _ = self.conn.execute(ddl, []);
         }
 
+        let vector_table_sql: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_vectors'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if !vector_table_sql.is_some_and(|sql| sql.contains("VIRTUAL TABLE")) {
+            self.conn.execute_batch(
+                r#"
+                DROP TABLE IF EXISTS memory_vectors;
+                CREATE VIRTUAL TABLE memory_vectors USING vec0(
+                    embedding float[384] distance_metric=cosine,
+                    +memory_id TEXT
+                );
+                "#,
+            )?;
+        }
+
         let version: Option<i64> = self
             .conn
             .query_row(
@@ -386,6 +398,11 @@ impl HubStore {
         if version.is_none() {
             self.conn.execute(
                 "INSERT INTO meta(key, value) VALUES ('schema_version', ?1)",
+                params![SCHEMA_VERSION.to_string()],
+            )?;
+        } else if version.is_some_and(|value| value < SCHEMA_VERSION) {
+            self.conn.execute(
+                "UPDATE meta SET value = ?1 WHERE key = 'schema_version'",
                 params![SCHEMA_VERSION.to_string()],
             )?;
         }
