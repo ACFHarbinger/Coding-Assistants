@@ -25,6 +25,8 @@ export default function MemoryDrawer(props: any) {
   const [smartResults, setSmartResults] = useState<ScoredMemoryRecord[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [consolidating, setConsolidating] = useState(false);
+  const [consolidationStatus, setConsolidationStatus] = useState<string | null>(null);
 
   if (!showMemoryDrawer) return null;
 
@@ -108,18 +110,70 @@ export default function MemoryDrawer(props: any) {
         overflowY: "auto",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
         <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--primary)" }}>
           🧠 Agentic Memory Hub
         </h3>
-        <button
-          onClick={() => setShowMemoryDrawer(false)}
-          className="btn-secondary"
-          style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-        >
-          ✕ Close
-        </button>
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+          <button
+            onClick={async () => {
+              setConsolidating(true);
+              setConsolidationStatus("Consolidating…");
+              try {
+                const res = await invoke<any>("hub_consolidate_memories", {
+                  args: {
+                    model_config: {
+                      provider: "google",
+                      model: "gemini-2.5-flash",
+                      prompt_file: null,
+                      rule_file: null,
+                      workflow_file: null,
+                      endpoint: null,
+                    },
+                    workspace: workspacePath || null,
+                  },
+                });
+                setConsolidationStatus(
+                  `Consolidated ${res.consolidated} cluster(s)${res.notice ? ` (${res.notice})` : ""}`,
+                );
+              } catch (e) {
+                setConsolidationStatus(`Failed: ${String(e)}`);
+              } finally {
+                setConsolidating(false);
+              }
+            }}
+            disabled={consolidating}
+            className="btn-secondary"
+            style={{ padding: "0.25rem 0.5rem", fontSize: "0.72rem" }}
+            title="Cluster related short-term memories and summarize into episodic records"
+          >
+            {consolidating ? "Consolidating…" : "Consolidate (M3)"}
+          </button>
+          <button
+            onClick={() => setShowMemoryDrawer(false)}
+            className="btn-secondary"
+            style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+          >
+            ✕ Close
+          </button>
+        </div>
       </div>
+
+      {consolidationStatus && (
+        <div
+          style={{
+            fontSize: "0.72rem",
+            color: consolidationStatus.startsWith("Failed") ? "#f87171" : "#4ade80",
+            background: consolidationStatus.startsWith("Failed")
+              ? "rgba(239, 68, 68, 0.1)"
+              : "rgba(34, 197, 94, 0.1)",
+            padding: "0.25rem 0.5rem",
+            borderRadius: "6px",
+          }}
+        >
+          {consolidationStatus}
+        </div>
+      )}
 
       {/* Browse mode toggle */}
       <div style={{ display: "flex", gap: "0.35rem" }}>

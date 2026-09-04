@@ -14,7 +14,9 @@ export type SettingsField =
   | "sandbox_strictness"
   | "retention_days"
   | "export_enabled"
-  | "link_suggestion_mode";
+  | "link_suggestion_mode"
+  | "memory_recall_enabled"
+  | "memory_recall_limit";
 
 // Mirrors `hub::SandboxStrictness`.
 export type SandboxStrictness = "strict" | "standard" | "permissive";
@@ -110,6 +112,10 @@ export interface EffectiveOrchestrationPolicy {
   retention_days_status: SettingsFieldStatus;
   export_enabled: boolean;
   export_enabled_status: SettingsFieldStatus;
+  memory_recall_enabled: boolean;
+  memory_recall_enabled_status: SettingsFieldStatus;
+  memory_recall_limit: number;
+  memory_recall_limit_status: SettingsFieldStatus;
 }
 
 // Partial update sent to `settings_update_orchestration`. `retention_days`
@@ -120,6 +126,8 @@ export interface OrchestrationPatch {
   auto_enrollment_allowed?: boolean;
   sandbox_strictness?: SandboxStrictness;
   export_enabled?: boolean;
+  memory_recall_enabled?: boolean;
+  memory_recall_limit?: number;
 }
 
 // Composes the orchestration policy above with the Hub's existing

@@ -54,3 +54,40 @@ export async function searchMemoriesExact(query: string): Promise<MemoryRecord[]
 export async function reindexMemoryVectors(): Promise<number> {
   return invoke<number>("hub_reindex_memory_vectors");
 }
+
+export interface ConsolidationReport {
+  clusters: number;
+  consolidated: number;
+  skipped: number;
+  notice?: string | null;
+}
+
+/**
+ * Consolidates related short-term memories into episodic summaries via LLM.
+ */
+export async function consolidateMemories(
+  workspace?: string | null,
+  modelConfig?: {
+    provider: string;
+    model: string;
+    prompt_file?: string | null;
+    rule_file?: string | null;
+    workflow_file?: string | null;
+    endpoint?: string | null;
+  },
+): Promise<ConsolidationReport> {
+  const config = modelConfig ?? {
+    provider: "google",
+    model: "gemini-2.5-flash",
+    prompt_file: null,
+    rule_file: null,
+    workflow_file: null,
+    endpoint: null,
+  };
+  return invoke<ConsolidationReport>("hub_consolidate_memories", {
+    args: {
+      model_config: config,
+      workspace: workspace ?? null,
+    },
+  });
+}

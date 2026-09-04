@@ -2,6 +2,9 @@ import type { SettingsFieldStatus } from "../types";
 
 export const MIN_BACKUP_RETENTION = 1;
 export const MAX_BACKUP_RETENTION = 20;
+export const MIN_MEMORY_RECALL_LIMIT = 1;
+export const DEFAULT_MEMORY_RECALL_LIMIT = 5;
+export const MAX_MEMORY_RECALL_LIMIT = 20;
 
 export const inputStyle: React.CSSProperties = {
   flex: "1 1 260px",

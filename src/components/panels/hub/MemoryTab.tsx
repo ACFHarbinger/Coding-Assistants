@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { cardStyle, inputStyle } from "./HubCharts";
+import { consolidateMemories } from "./memoryApi";
 
 export default function MemoryTab(props: any) {
   const {
@@ -147,6 +148,27 @@ export default function MemoryTab(props: any) {
           }}
         >
           Compact ST
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={async () => {
+            const report = await run(
+              "consolidation done",
+              () => consolidateMemories(null),
+              "Consolidating short-term memories with LLM…",
+            );
+            if (report) {
+              setStatus(
+                `Consolidated ${report.consolidated} cluster(s) (${report.skipped} skipped)${
+                  report.notice ? ` — ${report.notice}` : ""
+                }`,
+              );
+              await refreshMemories();
+            }
+          }}
+          title="Cluster related short-term memories and summarize into episodic records"
+        >
+          Consolidate (M3)
         </button>
         <button className="btn-secondary" onClick={reindexVectors} title="Re-index missing vector embeddings for similarity search">
           Reindex Vectors

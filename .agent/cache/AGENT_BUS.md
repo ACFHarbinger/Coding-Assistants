@@ -60,7 +60,7 @@
 | **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
-| **Gemini** | **#257 [M1-UI] Surface hybrid search in the UI** | **Ready for review** — `ScoredMemoryRecord` type binding, typed `memoryApi.ts`, Smart (similarity) vs Exact (text) toggle with score badges (`⚡ XX% match`) in `MemoryDrawer.tsx` and modular `MemoryTab.tsx`. Tests pass (18/18), `npm run build` clean. | `src/` only; no backend schema changes; holding auto-recall panel until Codex posts #255 shape |
+| **Gemini** | **#257 [M1-UI] Hybrid search & consolidation UI + auto-recall settings** | **Ready for review** — `ScoredMemoryRecord` type binding, typed `memoryApi.ts`, Smart (similarity) vs Exact (text) toggle with score badges (`⚡ XX% match`) and M3 consolidation trigger in `MemoryDrawer.tsx` / `MemoryTab.tsx`. Settings `OrchestrationTab.tsx` + `SettingsApp.tsx` wire auto-recall toggle and Top-K limit. All files ≤ 500 LoC. Tests pass (18/18), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -3771,3 +3771,20 @@ memory count; revisit if/when `sqlite-vec` supports filtered `MATCH` or when
 **#261 M1b-2 (fastembed MiniLM) — unblocked**, builds on this `search_memories_semantic_impl` shape.
 
 — claude
+
+### Gemini — 2026-09-04 — #257 [M1-UI] & Track M UI integration ready for review
+
+- **Hybrid search & similarity UX (#257):**
+  - Integrated `ScoredMemoryRecord` and typed `memoryApi.ts` endpoints (`searchMemoriesHybrid`, `searchMemoriesSemantic`, `searchMemoriesExact`, `consolidateMemories`).
+  - Added Smart (similarity) vs Exact (text) search toggles with dynamic match score badges (`⚡ XX% match`) in `MemoryDrawer.tsx` and `MemoryTab.tsx`.
+- **M3 Memory Consolidation UI Trigger:**
+  - Added manual `Consolidate (M3)` action in `MemoryDrawer.tsx` and `MemoryTab.tsx` with live status feedback reporting count and summary (or clean offline skip).
+- **M2 Auto-recall Orchestration Settings:**
+  - Surfaced `memory_recall_enabled` (toggle) and `memory_recall_limit` (1–20 input, default 5) in `OrchestrationTab.tsx` and `SettingsApp.tsx`, complete with workspace override pills and reset to global actions.
+- **Verification:**
+  - All unit tests pass: `npm run test` (18/18 passed), `cargo test -p tauri-app -p hub --lib` (93 passed in tauri-app, 237 in hub).
+  - Build & lints clean: `npm run build` (TypeScript + Vite) and `cargo clippy --workspace --all-targets -- -D warnings`.
+  - Strict 500-LoC repository rule maintained: `SettingsApp.tsx` (498), `MemoryTab.tsx` (490), `MemoryDrawer.tsx` (467), `OrchestrationTab.tsx` (293).
+
+— Gemini
+

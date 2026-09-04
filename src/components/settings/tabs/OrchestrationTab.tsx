@@ -3,7 +3,12 @@ import { FieldRow, StatusPill, ToggleRow, inputStyle, shortenPath } from "./shar
 
 const SANDBOX_LEVELS: SandboxStrictness[] = ["strict", "standard", "permissive"];
 
-type OrchestrationField = "confirm_new_enrollment" | "confirm_broadcast" | "auto_enrollment_allowed" | "export_enabled";
+type OrchestrationField =
+  | "confirm_new_enrollment"
+  | "confirm_broadcast"
+  | "auto_enrollment_allowed"
+  | "export_enabled"
+  | "memory_recall_enabled";
 
 export interface OrchestrationTabProps {
   effective: EffectiveSettings;
@@ -20,6 +25,9 @@ export interface OrchestrationTabProps {
   retentionDaysDraft: string;
   setRetentionDaysDraft: (value: string) => void;
   saveRetentionDays: () => void;
+  memoryRecallLimitDraft: number;
+  setMemoryRecallLimitDraft: (value: number) => void;
+  saveMemoryRecallLimit: () => void;
   resetField: (field: SettingsField) => void;
   budgets: BudgetStatus[];
   budgetAgentIdDraft: string;
@@ -44,6 +52,9 @@ export default function OrchestrationTab({
   retentionDaysDraft,
   setRetentionDaysDraft,
   saveRetentionDays,
+  memoryRecallLimitDraft,
+  setMemoryRecallLimitDraft,
+  saveMemoryRecallLimit,
   resetField,
   budgets,
   budgetAgentIdDraft,
@@ -85,6 +96,46 @@ export default function OrchestrationTab({
           This workspace{workspaceRoot ? ` (${shortenPath(workspaceRoot)})` : ""}
         </button>
       </div>
+
+      <ToggleRow
+        label="Memory auto-recall (RAG injection)"
+        hint="Hybrid-search the hub store on task prompt text and inject top-K scored memories into model system prompt."
+        checked={effective.orchestration.memory_recall_enabled}
+        onToggle={() => toggleOrchestrationField("memory_recall_enabled", effective.orchestration.memory_recall_enabled)}
+        disabled={busy}
+        pill={scope === "workspace" ? <StatusPill status={effective.orchestration.memory_recall_enabled_status} /> : undefined}
+        resetButton={
+          scope === "workspace" && effective.orchestration.memory_recall_enabled_status === "override" ? (
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.25rem 0.6rem", fontSize: "0.72rem" }} disabled={busy} onClick={() => resetField("memory_recall_enabled")}>
+              Reset to Global
+            </button>
+          ) : undefined
+        }
+      />
+
+      <FieldRow
+        label="Memory auto-recall limit (K memories)"
+        hint="How many top scored memories to inject per task (1–20, default 5)."
+        pill={scope === "workspace" ? <StatusPill status={effective.orchestration.memory_recall_limit_status} /> : undefined}
+      >
+        <input
+          type="number"
+          min={1}
+          max={20}
+          style={{ ...inputStyle, flex: "0 0 100px" }}
+          value={memoryRecallLimitDraft}
+          onChange={(event) => setMemoryRecallLimitDraft(Number(event.target.value))}
+          disabled={busy}
+        />
+        <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={saveMemoryRecallLimit}>
+          Save
+        </button>
+        {scope === "workspace" && effective.orchestration.memory_recall_limit_status === "override" && (
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => resetField("memory_recall_limit")}>
+            Reset to Global
+          </button>
+        )}
+      </FieldRow>
 
       <ToggleRow
         label="Confirm new enrollment"

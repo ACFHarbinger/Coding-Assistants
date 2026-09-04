@@ -56,6 +56,7 @@ export default function SettingsApp() {
   const [confirmWakes, setConfirmWakesLocal] = useState(true);
   const [allowAutoWake, setAllowAutoWakeLocal] = useState(true);
   const [retentionDaysDraft, setRetentionDaysDraft] = useState("");
+  const [memoryRecallLimitDraft, setMemoryRecallLimitDraft] = useState(5);
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [budgetAgentIdDraft, setBudgetAgentIdDraft] = useState("");
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
@@ -69,6 +70,7 @@ export default function SettingsApp() {
     setDefaultSessionDraft(snapshot.default_session ?? "");
     setBackupRetentionDraft(snapshot.backup_retention);
     setRetentionDaysDraft(snapshot.orchestration.retention_days?.toString() ?? "");
+    setMemoryRecallLimitDraft(snapshot.orchestration.memory_recall_limit ?? 5);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -204,8 +206,21 @@ export default function SettingsApp() {
     }
   };
 
-  const toggleOrchestrationField = (field: "confirm_new_enrollment" | "confirm_broadcast" | "auto_enrollment_allowed" | "export_enabled", current: boolean) => {
+  const toggleOrchestrationField = (
+    field:
+      | "confirm_new_enrollment"
+      | "confirm_broadcast"
+      | "auto_enrollment_allowed"
+      | "export_enabled"
+      | "memory_recall_enabled",
+    current: boolean,
+  ) => {
     void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { [field]: !current }));
+  };
+
+  const saveMemoryRecallLimit = () => {
+    const limit = Math.max(1, Math.min(20, Math.floor(memoryRecallLimitDraft)));
+    void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { memory_recall_limit: limit }));
   };
 
   const setSandboxStrictness = (level: SandboxStrictness) => {
@@ -412,12 +427,7 @@ export default function SettingsApp() {
             />
           )}
 
-          {activeTab.id === "creative" && (
-            <CreativeToolsTab
-              workspaceRoot={workspaceRoot}
-              busy={busy}
-            />
-          )}
+          {activeTab.id === "creative" && <CreativeToolsTab workspaceRoot={workspaceRoot} busy={busy} />}
 
           {activeTab.id === "memory" && effective && (
             <MemoryTab
@@ -449,6 +459,9 @@ export default function SettingsApp() {
               retentionDaysDraft={retentionDaysDraft}
               setRetentionDaysDraft={setRetentionDaysDraft}
               saveRetentionDays={saveRetentionDays}
+              memoryRecallLimitDraft={memoryRecallLimitDraft}
+              setMemoryRecallLimitDraft={setMemoryRecallLimitDraft}
+              saveMemoryRecallLimit={saveMemoryRecallLimit}
               resetField={resetField}
               budgets={budgets}
               budgetAgentIdDraft={budgetAgentIdDraft}
