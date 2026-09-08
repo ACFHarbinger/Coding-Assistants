@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { ProviderQuota } from "../hub/types";
+import { ProviderHealthDot } from "../harness/ProviderHealthChip";
+import { useProviderHealth } from "../harness/useProviderHealth";
 
 /**
  * Compact provider-quota read-out for the agents/status area (Messager
@@ -14,6 +16,7 @@ const MIRRORED_AGENT_IDS = ["deepseek", "opencode"] as const;
 
 export function QuotaStatusStrip() {
   const [quotas, setQuotas] = useState<ProviderQuota[]>([]);
+  const { healthMap } = useProviderHealth(30_000);
 
   useEffect(() => {
     let disposed = false;
@@ -81,8 +84,9 @@ export function QuotaStatusStrip() {
             }}
           />
           <span style={{ fontWeight: 600, color: "var(--text-main)" }}>{quota.harness_title || quota.agent_id}</span>
-          <span style={{ marginLeft: "auto", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {summary(quota)}
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "0.45rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <ProviderHealthDot health={healthMap[quota.agent_id]} titlePrefix={`${quota.harness_title || quota.agent_id} CLI`} />
+            <span>{summary(quota)}</span>
           </span>
         </div>
       ))}

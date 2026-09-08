@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import HarnessReadinessPanel from "../HarnessReadinessPanel";
 import {
   HARNESS_PREREQUISITES,
@@ -7,56 +8,131 @@ import {
   sessionAliases,
 } from "../types";
 
+const defaultInvokeHandler = (cmd: string) => {
+  if (cmd === "hub_list_harness_sessions") {
+    return Promise.resolve([
+      {
+        harness: "muse",
+        workspace: "/test/ws",
+        disk_session_id: "12345678-1234-1234-1234-123456789abc",
+        leader_socket: null,
+        registered_at: "2026-09-08T12:00:00Z",
+        mode: "managed",
+        state: "ready",
+        managed_pid: 1234,
+        writer_owner: "muse",
+        writer_acquired_at: "2026-09-08T12:00:00Z",
+        pid_alive: true,
+      },
+      {
+        harness: "cursor",
+        workspace: "/test/ws",
+        disk_session_id: "cursor-chat-xyz",
+        leader_socket: null,
+        registered_at: "2026-09-08T12:05:00Z",
+        mode: "observed",
+        state: "ready",
+        managed_pid: null,
+        writer_owner: null,
+        writer_acquired_at: null,
+        pid_alive: null,
+      },
+    ]);
+  }
+  if (cmd === "hub_get_provider_health") {
+    return Promise.resolve([
+      {
+        agentId: "grok",
+        provider: "xai",
+        harnessTitle: "Grok",
+        installed: true,
+        authenticated: true,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "grok on PATH",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+      {
+        agentId: "chat",
+        provider: "openai",
+        harnessTitle: "Codex",
+        installed: true,
+        authenticated: true,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "codex on PATH",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+      {
+        agentId: "claude",
+        provider: "anthropic",
+        harnessTitle: "Claude",
+        installed: true,
+        authenticated: true,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "claude on PATH",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+      {
+        agentId: "gemini",
+        provider: "google",
+        harnessTitle: "Gemini",
+        installed: true,
+        authenticated: true,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "agy on PATH",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+      {
+        agentId: "muse",
+        provider: "muse",
+        harnessTitle: "Muse",
+        installed: true,
+        authenticated: false,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "needs login",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+      {
+        agentId: "cursor",
+        provider: "cursor",
+        harnessTitle: "Cursor",
+        installed: false,
+        authenticated: null,
+        authExpiresAt: null,
+        endpointReachable: null,
+        detail: "agent not found",
+        checkedAt: "2026-09-08T12:00:00Z",
+      },
+    ]);
+  }
+  if (cmd === "hub_grok_leader_status") {
+    return Promise.resolve({
+      running: false,
+      pid: null,
+      socketPath: null,
+      activeLeaderPid: null,
+      leader_live: false,
+      detail: "No leader session",
+    });
+  }
+  if (cmd === "hub_grok_list_live_sessions") {
+    return Promise.resolve([]);
+  }
+  return Promise.resolve(null);
+};
+
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockImplementation((cmd: string) => {
-    if (cmd === "hub_list_harness_sessions") {
-      return Promise.resolve([
-        {
-          harness: "muse",
-          workspace: "/test/ws",
-          disk_session_id: "12345678-1234-1234-1234-123456789abc",
-          leader_socket: null,
-          registered_at: "2026-09-08T12:00:00Z",
-          mode: "managed",
-          state: "ready",
-          managed_pid: 1234,
-          writer_owner: "muse",
-          writer_acquired_at: "2026-09-08T12:00:00Z",
-        },
-        {
-          harness: "cursor",
-          workspace: "/test/ws",
-          disk_session_id: "cursor-chat-xyz",
-          leader_socket: null,
-          registered_at: "2026-09-08T12:05:00Z",
-          mode: "observed",
-          state: "ready",
-          managed_pid: null,
-          writer_owner: null,
-          writer_acquired_at: null,
-        },
-      ]);
-    }
-    if (cmd === "hub_grok_leader_status") {
-      return Promise.resolve({
-        running: false,
-        pid: null,
-        socketPath: null,
-        activeLeaderPid: null,
-        leader_live: false,
-        detail: "No leader session",
-      });
-    }
-    if (cmd === "hub_grok_list_live_sessions") {
-      return Promise.resolve([]);
-    }
-    return Promise.resolve(null);
-  }),
+  invoke: vi.fn(),
 }));
 
 describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
   beforeEach(() => {
     (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    vi.mocked(invoke).mockImplementation(defaultInvokeHandler);
   });
 
   it("includes muse and cursor in prerequisites and live terminal harness types", () => {
@@ -131,6 +207,9 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
           },
         });
       }
+      if (cmd === "hub_get_provider_health") {
+        return Promise.resolve([]);
+      }
       if (cmd === "hub_list_harness_sessions") {
         return Promise.resolve([]);
       }
@@ -155,5 +234,27 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
 
     // It should invoke hub_start_managed_harness and display the success detail
     expect(await screen.findByText("Cursor agent started")).toBeInTheDocument();
+  });
+
+  it("renders provider health chips for all 6 providers and session health details", async () => {
+    render(<HarnessReadinessPanel workspace="/test/ws" />);
+
+    // Check health section title
+    expect(await screen.findByText(/Provider CLI & Auth Health/i)).toBeInTheDocument();
+
+    // Check that all 6 providers are rendered in health chips
+    expect(screen.getByText("Grok")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("Claude")).toBeInTheDocument();
+    expect(screen.getByText("Gemini")).toBeInTheDocument();
+    expect(screen.getByText("Muse")).toBeInTheDocument();
+    expect(screen.getByText("Cursor")).toBeInTheDocument();
+
+    // Check status labels
+    expect(await screen.findByText("needs login")).toBeInTheDocument();
+    expect(await screen.findByText("not installed")).toBeInTheDocument();
+
+    // Check session health pid_alive badge
+    expect(await screen.findByText("alive")).toBeInTheDocument();
   });
 });

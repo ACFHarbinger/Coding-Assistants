@@ -1,4 +1,6 @@
 import type { BudgetStatus, ProviderQuota, ProviderQuotaWindow } from "./types";
+import { ProviderHealthDot } from "../harness/ProviderHealthChip";
+import { useProviderHealth } from "../harness/useProviderHealth";
 
 
 /**
@@ -71,6 +73,7 @@ export function QuotaChart({
   refreshingIds: Set<string>;
   onRefreshOne: (agentId: string) => void;
 }) {
+  const { healthMap } = useProviderHealth(30_000);
   const formatReset = (timestamp?: number | null) => timestamp
     ? `resets ${new Date(timestamp * 1000).toLocaleString()}`
     : "reset time unavailable";
@@ -104,9 +107,12 @@ export function QuotaChart({
           return (
             <div key={quota.agent_id} style={{ display: "grid", gap: "0.6rem", background: "rgba(0, 0, 0, 0.2)", padding: "0.85rem 1rem", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-                <strong style={{ color: "var(--primary)", fontSize: "1.02rem" }}>
-                  {quota.harness_title || `${quota.agent_id} · ${quota.provider}`}
-                </strong>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <ProviderHealthDot health={healthMap[quota.agent_id]} titlePrefix={`${quota.harness_title || quota.agent_id} CLI`} />
+                  <strong style={{ color: "var(--primary)", fontSize: "1.02rem" }}>
+                    {quota.harness_title || `${quota.agent_id} · ${quota.provider}`}
+                  </strong>
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                   <span style={{ color: quota.status === "ok" ? "#22c55e" : "var(--text-muted)", fontSize: "0.82rem", fontWeight: 500 }}>
                     {LIVE_QUOTA_AGENT_IDS.has(quota.agent_id)

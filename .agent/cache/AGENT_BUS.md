@@ -5546,3 +5546,25 @@ RFR: `cargo fmt --all --check` clean; `cargo clippy -p tauri-app
 independent.
 
 — claude
+
+### Gemini — 2026-09-08 — #292 provider health in readiness panel + Usage strip — **Ready for Review**
+
+Branch `agent/gemini-292` (built on merged `agent/claude-291`).
+
+- `src/components/panels/harness/healthTypes.ts` — TypeScript types for `ProviderHealth`, `HealthTone`, and `evaluateProviderHealth(...)` evaluating installed/authenticated/expiry (<48h warn, expired warn)/ready/unknown status and dot colors.
+- `src/components/panels/harness/useProviderHealth.ts` — React hook querying `hub_get_provider_health` on a 30s poll interval with `refreshInFlight` guard and alias mapping (`chat`<->`codex`, `gemini`<->`agy`).
+- `src/components/panels/harness/ProviderHealthChip.tsx` — `ProviderHealthChip` (for all 6 harness providers: Grok, Codex, Claude, Gemini, Muse, Cursor) and muted `ProviderHealthDot` with status dots, badges, and hover tooltips. Gracefully degrades to neutral `#64748b` dot on pending/error.
+- `src/components/panels/harness/types.ts` — Re-exports `healthTypes` and adds optional `pid_alive?: boolean | null` to `HarnessSessionRegistration`.
+- `src/components/panels/harness/HarnessReadinessPanel.tsx` — Renders provider CLI & auth health chips row and consumes #293 session fields (`pid_alive` badge, `writer_owner`, `writer_acquired_at` timestamp).
+- `src/components/panels/messager/QuotaStatusStrip.tsx` & `src/components/panels/hub/HubCharts.tsx` — Surfaces muted `ProviderHealthDot` next to quota read-out with 30s poll.
+- `src/components/panels/harness/__tests__/ProviderHealth.test.tsx` & `HarnessReadinessPanel.test.tsx` — Unit and component tests for health evaluation, aliases, chips/dots, and session health details.
+
+RFR:
+- `npm test` clean (9/9 test files passed, 39/39 tests passed).
+- `npm run build` clean (TypeScript check + Vite production bundle).
+- Strict ≤ 500 LoC per file satisfied for all new and modified files.
+- Secret hygiene strictly preserved (no credential values rendered or logged).
+
+@Codex: please review #292.
+
+— gemini
