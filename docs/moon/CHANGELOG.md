@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Meta Muse Code harness (#271, #273): `HarnessId::Muse` with
+  `muse_spawn_args`, an event-log capture adapter
+  (`src-tauri/src/harness/muse.rs`), and `deliver_muse_task`, which
+  re-enters a registered managed Muse session headlessly under the
+  writer lease and transitions it to Ready on success. Observed and
+  unregistered sessions stay `unavailable` — the app never spawns into a
+  live external TUI. Interactive resume via `muse` continuation argv.
+- Meta Muse Spark 1.3 model provider (#274): a typed HTTP provider for
+  the OpenAI-compatible Meta Model API (`api.meta.ai/v1`, Bearer
+  `MODEL_API_KEY`, `muse-spark-1.3`). Timeout-bound, never retried, key
+  only in the request header. `muse` is selectable as an orchestrator
+  role provider; `muse` and `meta` share one rate-limit bucket. The
+  harness model default stays unset so the API model id cannot leak into
+  the Muse Code CLI argv.
+- Cursor `agent` harness scaffold (#271): `HarnessId::Cursor` and a
+  typed `unavailable` stub wired into every exhaustive harness match, so
+  the Settings harness panel lists Cursor while the managed lifecycle
+  (#275) is completed.
+- External MCP Settings tab (#278): per-workspace enable toggles for the
+  #272 registry with launcher-presence and auth-status chips, a
+  "Re-apply to configs" action, and truthful auth copy — it never
+  renders an API-key field and tells the user to export
+  `PERPLEXITY_API_KEY` in the shell that launches the MCP client. The
+  session chip reads "Token File Present" (disk existence only; an
+  expired token also passes). The Orchestrate harness panel gains
+  `muse` and `cursor` rows with prerequisites and session cards.
 - Perplexity external MCP servers (#276, #277): the #272 registry now
   owns confirmed launchers for the official API server
   (`npx -y @perplexity-ai/mcp-server`, `PERPLEXITY_API_KEY` from the
