@@ -9,6 +9,9 @@ vi.mock("../../api", () => ({
   getCredentialStatus: vi.fn(),
   listCredentialFields: vi.fn(),
   setCredential: vi.fn(),
+  listLinkedAccounts: vi.fn(),
+  linkAccountCli: vi.fn(),
+  unlinkAccount: vi.fn(),
 }));
 
 const field: FieldSpec = {
@@ -35,6 +38,32 @@ describe("CredentialsTab (#284)", () => {
     vi.clearAllMocks();
     vi.mocked(api.listCredentialFields).mockResolvedValue([field]);
     vi.mocked(api.getCredentialStatus).mockResolvedValue(unsetStatus);
+    vi.mocked(api.listLinkedAccounts).mockResolvedValue([
+      {
+        provider: "openai",
+        externalLabel: null,
+        connectionKind: "oauth_device",
+        isLinked: false,
+        linkedAt: null,
+        source: "none",
+      },
+      {
+        provider: "anthropic",
+        externalLabel: "claude-user@example.com",
+        connectionKind: "vendor_cli_login",
+        isLinked: true,
+        linkedAt: 1_725_000_000,
+        source: "vendor_cli",
+      },
+      {
+        provider: "google",
+        externalLabel: null,
+        connectionKind: "vendor_cli_login",
+        isLinked: false,
+        linkedAt: null,
+        source: "none",
+      },
+    ]);
   });
 
   it("uses a write-only password input and clears its draft after saving", async () => {
@@ -56,5 +85,44 @@ describe("CredentialsTab (#284)", () => {
       expect(input).toHaveValue("");
     });
     expect(container.textContent).not.toContain("secret-for-test-only");
+  });
+
+  it("renders connected external accounts and supports connect/disconnect actions (#286)", async () => {
+    vi.mocked(api.unlinkAccount).mockResolvedValue(true);
+    vi.mocked(api.linkAccountCli).mockResolvedValue({
+      provider: "openai",
+      externalLabel: "openai-user@example.com",
+      connectionKind: "vendor_cli_login",
+      isLinked: true,
+      linkedAt: 1_725_000_100,
+      source: "vendor_cli",
+    });
+
+    render(<CredentialsTab />);
+
+    // Renders the required account connection rows
+    expect(await screen.findByText("ChatGPT / OpenAI")).toBeInTheDocument();
+    expect(screen.getByText("Claude (Anthropic)")).toBeInTheDocument();
+    expect(screen.getByText("Google / Gemini")).toBeInTheDocument();
+
+    // Anthropic is connected
+    expect(screen.getByText("claude-user@example.com")).toBeInTheDocument();
+    const disconnectBtn = screen.getByRole("button", { name: "Disconnect" });
+    fireEvent.click(disconnectBtn);
+    await waitFor(() => {
+      expect(api.unlinkAccount).toHaveBeenCalledWith("anthropic");
+    });
+
+    // OpenAI is not connected, click Connect to open input and save link
+    const connectBtns = screen.getAllByRole("button", { name: "Connect" });
+    fireEvent.click(connectBtns[0]);
+
+    const labelInput = screen.getByPlaceholderText("e.g. user@openai.com");
+    fireEvent.change(labelInput, { target: { value: "openai-user@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Link" }));
+
+    await waitFor(() => {
+      expect(api.linkAccountCli).toHaveBeenCalledWith("openai", "openai-user@example.com");
+    });
   });
 });

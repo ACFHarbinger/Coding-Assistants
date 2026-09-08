@@ -241,3 +241,13 @@ export interface FieldSpec {
   docsUrl: string | null;
   notes: string | null;
 }
+
+// Mirrors `hub::LinkedAccountStatus` (#286 / H7). The token value never crosses IPC.
+export interface LinkedAccountStatus {
+  provider: string;
+  externalLabel: string | null;
+  connectionKind: "oauth_device" | "vendor_cli_login" | string;
+  isLinked: boolean;
+  linkedAt: number | null; // epoch seconds
+  source: "vault" | "vendor_cli" | "none" | string;
+}

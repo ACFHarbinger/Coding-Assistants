@@ -9,16 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Settings → Credentials tab (#284, `settings.md` S8):** New
+- **Settings → Credentials tab & account-connection surface (#284, `settings.md` S8, #286 / H7):** New
   `CredentialsTab.tsx` surfaces the full `hub::secret::CATALOG` in the
   Settings window grouped by owner kind (Providers, Harnesses, Tools, MCP
-  Servers). Each row shows the credential's display name, current source
-  badge (Keychain / Env Var / Not Set), last-saved date, env-var fallback
-  hint, and a write-only password input. Saving immediately clears the
-  draft; the stored value never crosses IPC or appears in the DOM. The new
-  `settings_list_credential_fields` Tauri command returns the static catalog
-  (metadata only — no secret values). Wired into `SettingsApp.tsx` and
-  `tabsConfig.ts`. Depends on #282, #283, and #285.
+  Servers) alongside the external account-connection panel (`ConnectedAccountsSection.tsx`)
+  for ChatGPT, Claude, Google, and other providers. Supported actions:
+  write-only credential storage and connect/disconnect actions backed by #286
+  single-user storage (`linked_account` table in `hub.db` under provisional
+  `local` key). Each row displays connection status, connection kind
+  (Vendor CLI / OAuth Vault), and external account label without leaking secrets.
+  New Tauri commands: `hub_list_linked_accounts`, `hub_link_account_cli`,
+  `hub_unlink_account`, and `settings_list_credential_fields`.
+  Wired into `SettingsApp.tsx` and `tabsConfig.ts`. Depends on #282, #283, #285, and #286.
 - **Migrate `quota/*` + `client/` off env-var onto secret resolver (#287,
   `platform.md` P12):** `DEEPSEEK_API_KEY` (`commands/quota/deepseek.rs`),
   `MODEL_API_KEY` (`client/llm.rs` — both `list_models` auth check and

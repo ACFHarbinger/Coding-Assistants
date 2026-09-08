@@ -95,6 +95,145 @@ pub fn settings_get_credential_status(field_id: String) -> Result<SecretStatus, 
     Ok(secret_status(vault_key))
 }
 
+// ─── Linked external accounts (#286 / H7) ───────────────────────────────────
+
+/// Known linkable account providers surfaced in the Settings UI (#284 / #286).
+const KNOWN_LINKABLE_PROVIDERS: &[(&str, &str)] = &[
+    ("openai", "oauth_device"),
+    ("anthropic", "vendor_cli_login"),
+    ("google", "vendor_cli_login"),
+    ("deepseek", "oauth_device"),
+    ("meta", "oauth_device"),
+    ("xai", "oauth_device"),
+    ("mistral", "oauth_device"),
+    ("perplexity", "vendor_cli_login"),
+];
+
+fn known_linkable_provider(provider: &str) -> bool {
+    KNOWN_LINKABLE_PROVIDERS
+        .iter()
+        .any(|(known, _)| *known == provider)
+}
+
+/// List all linked external provider accounts (#286), merged with unlinked
+/// status for standard providers (ChatGPT, Claude, Google, etc.).
+/// Scoped to owner = "local" (provisional single-user key).
+#[tauri::command]
+pub fn hub_list_linked_accounts() -> Result<Vec<hub::LinkedAccountStatus>, String> {
+    let store = super::store::open_store()?;
+    let records = store
+        .list_linked_accounts("local")
+        .map_err(|e| e.to_string())?;
+
+    let mut statuses = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for (provider, default_kind) in KNOWN_LINKABLE_PROVIDERS {
+        seen.insert(*provider);
+        if let Some(rec) = records.iter().find(|r| r.provider == *provider) {
+            statuses.push(hub::LinkedAccountStatus {
+                provider: rec.provider.clone(),
+                external_label: rec.external_label.clone(),
+                connection_kind: rec.connection_kind.clone(),
+                is_linked: true,
+                linked_at: Some(rec.linked_at),
+                source: if rec.token_ref.is_some() {
+                    "vault".into()
+                } else {
+                    "vendor_cli".into()
+                },
+            });
+        } else {
+            statuses.push(hub::LinkedAccountStatus {
+                provider: (*provider).into(),
+                external_label: None,
+                connection_kind: (*default_kind).into(),
+                is_linked: false,
+                linked_at: None,
+                source: "none".into(),
+            });
+        }
+    }
+
+    for rec in records {
+        if !seen.contains(rec.provider.as_str()) {
+            statuses.push(hub::LinkedAccountStatus {
+                provider: rec.provider.clone(),
+                external_label: rec.external_label.clone(),
+                connection_kind: rec.connection_kind.clone(),
+                is_linked: true,
+                linked_at: Some(rec.linked_at),
+                source: if rec.token_ref.is_some() {
+                    "vault".into()
+                } else {
+                    "vendor_cli".into()
+                },
+            });
+        }
+    }
+
+    Ok(statuses)
+}
+
+/// Record an external provider account that uses the vendor's native CLI
+/// login (#286). Provisional single-user storage under owner = "local".
+#[tauri::command]
+pub fn hub_link_account_cli(
+    provider: String,
+    external_label: Option<String>,
+) -> Result<hub::LinkedAccountStatus, String> {
+    let provider = provider.trim().to_lowercase();
+    if !known_linkable_provider(&provider) {
+        return Err("unsupported account provider".into());
+    }
+    let label = external_label
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if label.is_some_and(|value| value.len() > 256 || value.chars().any(char::is_control)) {
+        return Err("invalid external account label".into());
+    }
+
+    let store = super::store::open_store()?;
+    store
+        .link_account("local", &provider, label, "vendor_cli_login", None)
+        .map_err(|e| e.to_string())?;
+
+    record_credential_audit(&format!("account.{provider}"), "link_cli");
+
+    Ok(hub::LinkedAccountStatus {
+        provider,
+        external_label: label.map(String::from),
+        connection_kind: "vendor_cli_login".into(),
+        is_linked: true,
+        linked_at: Some(chrono::Utc::now().timestamp()),
+        source: "vendor_cli".into(),
+    })
+}
+
+/// Disconnect / unlink an external provider account (#286).
+/// Deletes the vault entry if present and removes the row from hub.db.
+#[tauri::command]
+pub fn hub_unlink_account(provider: String) -> Result<bool, String> {
+    let provider = provider.trim().to_lowercase();
+    if !known_linkable_provider(&provider) {
+        return Err("unsupported account provider".into());
+    }
+    let store = super::store::open_store()?;
+
+    if let Ok(Some(rec)) = store.get_linked_account("local", &provider) {
+        if let Some(token_ref) = rec.token_ref {
+            let _ = hub::secret::clear_secret(&token_ref);
+        }
+    }
+
+    let unlinked = store
+        .unlink_account("local", &provider)
+        .map_err(|e| e.to_string())?;
+    record_credential_audit(&format!("account.{provider}"), "unlink");
+    Ok(unlinked)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +313,50 @@ mod tests {
     fn clear_credential_unknown_field_returns_err() {
         let result = settings_clear_credential("not.a.real.field".to_string());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn linked_accounts_lists_known_providers() {
+        let _guard = crate::commands::commands::tests::CA_HOME_ENV_LOCK
+            .lock()
+            .unwrap();
+        let list = hub_list_linked_accounts().unwrap();
+        assert!(list.iter().any(|a| a.provider == "openai"));
+        assert!(list.iter().any(|a| a.provider == "anthropic"));
+        assert!(list.iter().any(|a| a.provider == "google"));
+    }
+
+    #[test]
+    fn link_and_unlink_account_cli_round_trip() {
+        let _guard = crate::commands::commands::tests::CA_HOME_ENV_LOCK
+            .lock()
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "hub-tauri-linked-account-test-{}-{}",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ));
+        std::env::set_var("CA_HOME", &dir);
+
+        let linked =
+            hub_link_account_cli("anthropic".to_string(), Some("test-user".to_string())).unwrap();
+        assert_eq!(linked.provider, "anthropic");
+        assert_eq!(linked.external_label.as_deref(), Some("test-user"));
+        assert!(linked.is_linked);
+
+        let list = hub_list_linked_accounts().unwrap();
+        let found = list.iter().find(|a| a.provider == "anthropic").unwrap();
+        assert!(found.is_linked);
+        assert_eq!(found.external_label.as_deref(), Some("test-user"));
+
+        let unlinked = hub_unlink_account("anthropic".to_string()).unwrap();
+        assert!(unlinked);
+
+        let list = hub_list_linked_accounts().unwrap();
+        let found = list.iter().find(|a| a.provider == "anthropic").unwrap();
+        assert!(!found.is_linked);
+
+        std::env::remove_var("CA_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

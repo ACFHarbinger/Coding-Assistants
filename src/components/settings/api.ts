@@ -261,7 +261,7 @@ export function resetWorkspaceHarnessEffort(
 // accepts the value write-only (it is dropped in Rust after storage); every
 // response carries only SecretStatus (presence, source, last-updated).
 
-import type { FieldSpec, SecretStatus } from "./types";
+import type { FieldSpec, LinkedAccountStatus, SecretStatus } from "./types";
 
 /** Fetch the static catalog of all known credential/config fields. */
 export function listCredentialFields(): Promise<FieldSpec[]> {
@@ -288,4 +288,31 @@ export function clearCredential(fieldId: string): Promise<SecretStatus> {
 /** Return the non-secret status of a credential: presence, source, last-updated. */
 export function getCredentialStatus(fieldId: string): Promise<SecretStatus> {
   return invoke<SecretStatus>("settings_get_credential_status", { fieldId });
+}
+
+// ─── Linked external accounts (#284 / #286) ─────────────────────────────────
+
+/**
+ * List all linked external provider accounts (#286), scoped to owner = "local".
+ * Returns non-secret presence and connection metadata for standard providers
+ * (ChatGPT, Claude, Google, etc.).
+ */
+export function listLinkedAccounts(): Promise<LinkedAccountStatus[]> {
+  return invoke<LinkedAccountStatus[]>("hub_list_linked_accounts");
+}
+
+/**
+ * Record an external provider account that uses the vendor's native CLI login
+ * (#286), backed by single-user storage under provisional "local" key.
+ */
+export function linkAccountCli(provider: string, externalLabel?: string | null): Promise<LinkedAccountStatus> {
+  return invoke<LinkedAccountStatus>("hub_link_account_cli", { provider, externalLabel: externalLabel ?? null });
+}
+
+/**
+ * Disconnect / unlink an external provider account (#286).
+ * Deletes the vault entry if present and removes the row from hub.db.
+ */
+export function unlinkAccount(provider: string): Promise<boolean> {
+  return invoke<boolean>("hub_unlink_account", { provider });
 }

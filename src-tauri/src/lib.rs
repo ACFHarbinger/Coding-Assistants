@@ -441,6 +441,10 @@ pub fn run() {
             commands::commands::credentials::settings_set_credential,
             commands::commands::credentials::settings_clear_credential,
             commands::commands::credentials::settings_get_credential_status,
+            // Linked external accounts (#284/#286) — provisional local key
+            commands::commands::credentials::hub_list_linked_accounts,
+            commands::commands::credentials::hub_link_account_cli,
+            commands::commands::credentials::hub_unlink_account,
             commands::commands::harness_models::settings_get_harness_model_options,
             commands::commands::harness_models::settings_get_all_harness_options,
             commands::commands::harness_models::settings_set_harness_model,

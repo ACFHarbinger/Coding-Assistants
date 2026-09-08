@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FieldSpec, OwnerKind, SecretSource, SecretStatus } from "../types";
 import { clearCredential, getCredentialStatus, listCredentialFields, setCredential } from "../api";
+import ConnectedAccountsSection from "./ConnectedAccountsSection";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -321,6 +322,9 @@ export default function CredentialsTab() {
           {loadError}
         </div>
       )}
+
+      {/* External account connections panel (#284 / #286) */}
+      <ConnectedAccountsSection />
 
       {groups.map(({ kind, label, specs }) => (
         <section key={kind}>

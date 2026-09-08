@@ -67,8 +67,8 @@ pub use store::{
     BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, ConsolidationCluster,
     ConsolidationReport, EffectiveAgentPermissions, GateVerdict, GitExportOutcome,
     HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState, HubError, HubStore,
-    LinkSuggestion, MemoryLinkRecord, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
-    MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role, RoleProviderDefault,
-    SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
-    WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
+    LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord, MemoryRecord,
+    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
+    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
+    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
 };

@@ -341,6 +341,16 @@ impl HubStore {
                 writer_acquired_at TEXT,
                 PRIMARY KEY (harness, workspace)
             );
+
+            CREATE TABLE IF NOT EXISTS linked_account (
+                owner TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                external_label TEXT,
+                connection_kind TEXT NOT NULL CHECK (connection_kind IN ('oauth_device', 'vendor_cli_login')),
+                linked_at INTEGER NOT NULL,
+                token_ref TEXT,
+                PRIMARY KEY (owner, provider)
+            );
             "#,
         )?;
 
