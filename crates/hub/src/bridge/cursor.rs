@@ -111,6 +111,28 @@ fn assistant_text_from_stream_value(value: &Value) -> Option<String> {
     }
 }
 
+/// Real Cursor chat ids come from stream-json at managed start or task delivery.
+/// Hub `managed-*` placeholders and empty ids must never reach `--resume`.
+pub(crate) fn persisted_cursor_chat_id(
+    registration: Option<&crate::HarnessSessionRegistration>,
+    request_session_id: Option<&str>,
+) -> Option<String> {
+    if let Some(id) = request_session_id
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        return Some(id.to_string());
+    }
+    registration.and_then(|row| {
+        let id = row.disk_session_id.trim();
+        if id.is_empty() || id.starts_with("managed-") {
+            None
+        } else {
+            Some(id.to_string())
+        }
+    })
+}
+
 pub fn deliver_cursor_task(
     store: &HubStore,
     request: &HarnessInjectRequest,
@@ -154,11 +176,20 @@ pub fn deliver_cursor_task_with(
         ));
     }
 
-    let chat_id = request
-        .session_id
-        .clone()
-        .or_else(|| registration.as_ref().map(|row| row.disk_session_id.clone()))
-        .or_else(|| latest_cursor_session_id(&workspace));
+    let chat_id = persisted_cursor_chat_id(registration.as_ref(), request.session_id.as_deref())
+        .or_else(|| {
+            if is_managed {
+                None
+            } else {
+                latest_cursor_session_id(&workspace)
+            }
+        });
+
+    if is_managed && chat_id.is_none() {
+        return Ok(unavailable(
+            "Cursor managed session has no persisted chat id yet; use Start managed so stream-json can register one.",
+        ));
+    }
 
     let writer_owner = format!(
         "cursor-worker:{}",
@@ -362,6 +393,56 @@ mod tests {
             .unwrap();
         assert_eq!(sess.state, HarnessSessionState::Ready);
         assert!(sess.writer_owner.is_none());
+    }
+
+    #[test]
+    fn managed_cursor_delivery_without_persisted_chat_id_is_unavailable() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let workspace = dir.path();
+        let ws_str = workspace.to_string_lossy().into_owned();
+        store
+            .register_managed_harness_session("cursor", &ws_str, "managed-fresh", 1234)
+            .unwrap();
+
+        let result = deliver_cursor_task(
+            &store,
+            &HarnessInjectRequest {
+                harness: "cursor".into(),
+                workspace: workspace.to_path_buf(),
+                session_id: None,
+                message_id: Some("msg-1".into()),
+                body: "hello".into(),
+                is_task: true,
+                is_wake: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(result.status, "unavailable");
+        assert!(result.detail.contains("persisted chat id"));
+    }
+
+    #[test]
+    fn persisted_chat_id_rejects_managed_placeholder() {
+        let registration = crate::HarnessSessionRegistration {
+            harness: "cursor".into(),
+            workspace: "/tmp/ws".into(),
+            disk_session_id: "managed-abc".into(),
+            leader_socket: None,
+            registered_at: "0".into(),
+            mode: crate::HarnessSessionMode::Managed,
+            state: crate::HarnessSessionState::Queued,
+            managed_pid: None,
+            writer_owner: None,
+            writer_acquired_at: None,
+        };
+        assert!(persisted_cursor_chat_id(Some(&registration), None).is_none());
+        assert_eq!(
+            persisted_cursor_chat_id(Some(&registration), Some("real-chat-1")).as_deref(),
+            Some("real-chat-1")
+        );
     }
 
     #[test]
