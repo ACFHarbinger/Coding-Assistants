@@ -10,6 +10,7 @@ export const PROVIDERS: Record<string, string> = {
   gemini: "Gemini",
   google: "Google",
   grok: "Grok",
+  muse: "Muse",
   opencode: "OpenCode",
   deepseek: "DeepSeek",
   vibe: "Vibe",

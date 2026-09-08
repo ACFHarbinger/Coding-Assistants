@@ -138,114 +138,133 @@ pub fn deepseek_unavailable_opencode(error: impl std::fmt::Display) -> String {
     )
 }
 
-/// Meta Muse provider key used in `ModelConfig.provider`. The CLI's own
-/// provider id is `meta` (`muse auth set --provider meta`, `META_API_KEY`
-/// priority over `muse login`) — both keys route here; `ModelConfig` is a
-/// separate namespace from `HarnessId`, which deliberately rejects bare
-/// "meta" as ambiguous between the harness (#273) and this provider (#274).
+/// Meta Muse Spark model provider (#274), served by the Meta Model API —
+/// **not** by shelling out to the `muse` CLI (that CLI is the #273 managed
+/// harness; conflating the two is exactly what `HarnessId`'s rejected bare
+/// "meta" alias guards against).
+///
+/// Contract verified against the official `meta-models/meta-model-cookbook`:
+/// OpenAI-compatible chat completions at `{base}/chat/completions` with a
+/// `Bearer` `MODEL_API_KEY` (`LLM|…` format, env-only, never logged), model
+/// `muse-spark-1.3`. `ModelConfig.provider` accepts `muse` (app-facing key)
+/// or `meta` (the CLI's own provider id); the namespaces are separate.
+pub const MUSE_MODEL_API_BASE_URL: &str = "https://api.meta.ai/v1";
+
+/// Default Muse Spark model id (cookbook default, 1M-token context).
+pub const MUSE_DEFAULT_MODEL: &str = "muse-spark-1.3";
+
+/// `get_available_models` entries for an authenticated install, mirroring
+/// the `VIBE_FALLBACK_MODELS` pattern (the Model API publishes no
+/// listing endpoint, so presence gates a fixed entry).
+pub const MUSE_FALLBACK_MODELS: &[&str] = &["muse-spark-1.3"];
+
+/// Request timeout for a Model API chat completion. Agent turns over a
+/// 1M-context model can take a while; offline hosts fail fast at connect
+/// instead (mapped to `unavailable`, never retried — matching the rest of
+/// this module, and the cookbook's "don't retry what cannot succeed"
+/// guidance for transport errors).
+pub const MUSE_REQUEST_TIMEOUT_SECS: u64 = 120;
+
 pub fn is_muse_provider(provider: &str) -> bool {
     matches!(provider.trim(), "muse" | "meta")
 }
 
-/// Auth presence only: a non-empty `META_API_KEY`, or a `muse auth.json`
-/// file (created by `muse login`) existing under the config dir. Never reads
-/// file contents or the keyring — presence gates a clear "not
-/// authenticated" error before any spawn; the CLI itself owns the secret.
-pub fn muse_is_authenticated(meta_api_key: Option<&str>, muse_config_dir: &Path) -> bool {
-    if meta_api_key
+/// Canonical rate-limit bucket key: `muse` and `meta` are aliases for one
+/// upstream (the Meta Model API), so they must share a bucket rather than
+/// each getting a full quota. Every other provider keys on its own string,
+/// untouched.
+pub fn canonical_rate_limit_key(provider: &str) -> &str {
+    if is_muse_provider(provider) {
+        "muse"
+    } else {
+        provider
+    }
+}
+
+/// Auth presence only: a non-empty `MODEL_API_KEY`. Never reads key
+/// material beyond presence — the key travels only in the request's
+/// `Authorization` header, built at call time in `llm.rs`.
+pub fn muse_is_authenticated(model_api_key: Option<&str>) -> bool {
+    model_api_key
         .map(str::trim)
         .is_some_and(|value| !value.is_empty())
-    {
-        return true;
-    }
-    muse_config_dir.join("auth.json").is_file()
 }
 
-pub fn muse_config_dir_from_env(xdg_config_home: Option<&str>, user_home: Option<&str>) -> PathBuf {
-    if let Some(dir) = xdg_config_home
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return PathBuf::from(dir).join("muse");
-    }
-    PathBuf::from(user_home.unwrap_or("."))
-        .join(".config")
-        .join("muse")
+/// `POST {MUSE_MODEL_API_BASE_URL}/chat/completions`.
+pub fn muse_chat_completions_url() -> String {
+    format!("{MUSE_MODEL_API_BASE_URL}/chat/completions")
 }
 
-/// `muse/<id>` catalog entries for `get_available_models`.
-///
-/// #274 spike outcome: the `muse` CLI publishes no model catalog (no
-/// `models` subcommand; `--model` takes an undocumented id and the server
-/// otherwise picks its default), so an authenticated install contributes no
-/// entries. This probe keeps that decision re-verifiable: it confirms the
-/// CLI is present and authenticated, and if a future CLI gains a catalog,
-/// its entries land here. Configured models work regardless — the llm.rs
-/// completion passes `--model` through verbatim.
-pub async fn muse_catalog_entries() -> Vec<String> {
-    let version = tokio::process::Command::new("muse")
-        .arg("--version")
-        .output()
-        .await;
-    let Ok(version) = version else {
-        return Vec::new();
-    };
-    if !version.status.success() {
-        return Vec::new();
-    }
-    let config_dir = muse_config_dir_from_env(
-        std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
-        std::env::var("HOME").ok().as_deref(),
-    );
-    let api_key = std::env::var("META_API_KEY").ok();
-    if !muse_is_authenticated(api_key.as_deref(), &config_dir) {
-        return Vec::new();
-    }
-    Vec::new()
+/// OpenAI-compatible chat-completions body. The prompt travels in JSON —
+/// there is no argv, so shell metacharacters are data by construction.
+pub fn muse_request_body(model: &str, prompt: &str) -> serde_json::Value {
+    serde_json::json!({
+        "model": model,
+        "messages": [{ "role": "user", "content": prompt }],
+        "stream": false
+    })
 }
 
-/// `muse exec [--model <id>] [--reasoning-effort <effort>] [--workspace <abs>] <prompt>`
-/// (verified live against `muse exec --help`, muse 1.0.3, #274 spike).
-/// Model/effort are opaque passthroughs — the CLI publishes no model
-/// catalog, so no id is defaulted or validated here. No approval-bypass
-/// flags are passed by default.
-pub fn muse_run_args(
-    prompt: &str,
-    model: Option<&str>,
-    effort: Option<&str>,
-    work_dir: Option<&str>,
-) -> Result<Vec<OsString>, String> {
-    if prompt.trim().is_empty() {
-        return Err("Muse run requires a prompt".into());
-    }
-    let mut args = vec![OsString::from("exec")];
-    if let Some(model) = model.map(str::trim).filter(|value| !value.is_empty()) {
-        args.push(OsString::from("--model"));
-        args.push(OsString::from(model));
-    }
-    if let Some(effort) = effort.map(str::trim).filter(|value| !value.is_empty()) {
-        args.push(OsString::from("--reasoning-effort"));
-        args.push(OsString::from(effort));
-    }
-    if let Some(dir) = work_dir.map(str::trim).filter(|value| !value.is_empty()) {
-        if !Path::new(dir).is_absolute() {
-            return Err("Muse --workspace must be an absolute path".into());
-        }
-        args.push(OsString::from("--workspace"));
-        args.push(OsString::from(dir));
-    }
-    args.push(OsString::from(prompt));
-    Ok(args)
-}
-
-pub fn muse_unavailable_not_installed(error: impl std::fmt::Display) -> String {
-    format!(
-        "Muse (meta) unavailable: muse CLI is not installed or failed to start ({error}). Install Muse Code and retry."
-    )
+/// Extract the assistant text from a chat-completions response body:
+/// `choices[0].message.content` as a string.
+pub fn muse_response_text(body: &str) -> Result<String, String> {
+    let payload: serde_json::Value = serde_json::from_str(body)
+        .map_err(|error| format!("Muse response was not JSON: {error}"))?;
+    payload
+        .pointer("/choices/0/message/content")
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| "Muse response had no choices[0].message.content text".to_string())
 }
 
 pub fn muse_unavailable_unauthenticated() -> String {
-    "Muse (meta) unavailable: not authenticated. Run `muse login` or set META_API_KEY (Coding Assistants never stores the key).".into()
+    "Muse (meta) unavailable: not authenticated. Set MODEL_API_KEY in the environment (Coding Assistants never stores the key).".into()
+}
+
+/// POST one non-streaming chat turn to the Model API and return the
+/// assistant text. Transport-only: auth presence is the caller's check,
+/// and nothing here logs the key, the prompt, or the reply. A hung host
+/// is bounded by `timeout`; an offline host fails fast at connect — both
+/// surface as plain errors, never retried.
+pub async fn muse_chat_request(api_key: &str, model: &str, prompt: &str) -> Result<String, String> {
+    muse_chat_request_to(
+        &muse_chat_completions_url(),
+        api_key,
+        model,
+        prompt,
+        std::time::Duration::from_secs(MUSE_REQUEST_TIMEOUT_SECS),
+    )
+    .await
+}
+
+pub async fn muse_chat_request_to(
+    url: &str,
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+    timeout: std::time::Duration,
+) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(muse_unavailable_request)?;
+    let response = client
+        .post(url)
+        .bearer_auth(api_key)
+        .json(&muse_request_body(model, prompt))
+        .send()
+        .await
+        .map_err(muse_unavailable_request)?;
+    let status = response.status();
+    let body = response.text().await.map_err(muse_unavailable_request)?;
+    if !status.is_success() {
+        return Err(format!("Muse Model API returned {status}: {body}"));
+    }
+    muse_response_text(&body)
+}
+
+pub fn muse_unavailable_request(error: impl std::fmt::Display) -> String {
+    format!("Muse (meta) unavailable: Model API request failed ({error}). Check connectivity and retry.")
 }
 
 #[cfg(test)]
@@ -361,51 +380,111 @@ usage: vibe [-h] [-p [TEXT]] [--output {text,json,streaming}]
 
     #[test]
     fn muse_auth_is_presence_only_and_never_reads_secrets() {
-        let dir = tempdir().unwrap();
-        // No key, no login file: unauthenticated.
-        assert!(!muse_is_authenticated(None, dir.path()));
-        assert!(!muse_is_authenticated(Some("  "), dir.path()));
-        // Env key presence authenticates without touching the fs.
-        assert!(muse_is_authenticated(
-            Some("presence-flag-not-a-secret"),
-            dir.path()
-        ));
-        // A login file's EXISTENCE authenticates; contents are never read.
-        fs::write(dir.path().join("auth.json"), "{}").unwrap();
-        assert!(muse_is_authenticated(None, dir.path()));
+        // No key: unauthenticated. A blank key is the same as no key.
+        assert!(!muse_is_authenticated(None));
+        assert!(!muse_is_authenticated(Some("  ")));
+        // Key presence authenticates; the value is never inspected.
+        assert!(muse_is_authenticated(Some("presence-flag-not-a-secret")));
+        assert_eq!(MUSE_DEFAULT_MODEL, "muse-spark-1.3");
+        assert_eq!(MUSE_FALLBACK_MODELS, &["muse-spark-1.3"]);
+    }
+
+    #[test]
+    fn muse_aliases_share_one_rate_limit_bucket() {
+        // `muse` and `meta` hit the same upstream (the Model API): separate
+        // keys would hand each alias a full quota.
+        assert_eq!(canonical_rate_limit_key("muse"), "muse");
+        assert_eq!(canonical_rate_limit_key("meta"), "muse");
+        assert_eq!(canonical_rate_limit_key(" muse "), "muse");
+        // Every other provider keeps its own key, byte-identical.
+        assert_eq!(canonical_rate_limit_key("openai"), "openai");
+        assert_eq!(canonical_rate_limit_key(" openai "), " openai ");
+    }
+
+    #[test]
+    fn muse_chat_url_targets_the_model_api() {
         assert_eq!(
-            muse_config_dir_from_env(Some("/custom/config"), Some("/home/user")),
-            PathBuf::from("/custom/config/muse")
-        );
-        assert_eq!(
-            muse_config_dir_from_env(None, Some("/home/user")),
-            PathBuf::from("/home/user/.config/muse")
+            muse_chat_completions_url(),
+            "https://api.meta.ai/v1/chat/completions"
         );
     }
 
     #[test]
-    fn muse_argv_is_explicit_and_rejects_relative_workdir() {
-        let args = muse_run_args("summarize", None, None, Some("/tmp/workspace")).unwrap();
-        assert_eq!(args[0], "exec");
-        assert_eq!(args[args.len() - 3], "--workspace");
-        assert_eq!(args[args.len() - 2], "/tmp/workspace");
-        assert_eq!(args[args.len() - 1], "summarize");
+    fn muse_request_body_is_openai_chat_completions_shaped() {
+        // Shell metacharacters ride in the JSON body verbatim — there is no
+        // argv, so nothing can split or interpret them.
+        let dangerous = "; rm -rf / && echo pwned $(whoami) `id` | cat > /tmp/evil";
+        let body = muse_request_body("muse-spark-1.3", dangerous);
+        assert_eq!(body["model"], "muse-spark-1.3");
+        assert_eq!(body["stream"], false);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[0]["content"], dangerous);
+    }
 
-        let custom = muse_run_args("summarize", Some("test-model"), Some("low"), None).unwrap();
-        assert_eq!(custom[0], "exec");
-        assert_eq!(custom[1], "--model");
-        assert_eq!(custom[2], "test-model");
-        assert_eq!(custom[3], "--reasoning-effort");
-        assert_eq!(custom[4], "low");
-        assert_eq!(custom[5], "summarize");
+    #[tokio::test]
+    async fn muse_offline_host_fails_fast_without_retry() {
+        // Port 1 on loopback is closed: connect fails immediately, proving
+        // offline hosts surface a plain error instead of hanging.
+        let error = muse_chat_request_to(
+            "http://127.0.0.1:1/chat/completions",
+            "presence-flag-not-a-secret",
+            "muse-spark-1.3",
+            "hi",
+            std::time::Duration::from_secs(5),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            error.contains("Model API request failed"),
+            "unexpected error: {error}"
+        );
+    }
 
-        assert!(muse_run_args("x", None, None, Some("relative")).is_err());
-        assert!(muse_run_args("   ", None, None, None).is_err());
-        // No approval-bypass flags ride along by default.
-        for args in [&args, &custom] {
-            assert!(!args
-                .iter()
-                .any(|arg| arg == "--yolo" || arg == "--disable-approval"));
-        }
+    #[tokio::test]
+    async fn muse_hung_host_hits_the_request_timeout() {
+        // Accept, hold the connection open, and never reply: the request
+        // must die on the client's timeout, not on the server's schedule.
+        // (Binding the accepted stream is load-bearing — dropping it
+        // FINs the connection and the client fails fast on send instead.)
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                let _held = stream;
+                std::thread::sleep(std::time::Duration::from_secs(30));
+            }
+        });
+        // The 300 ms deadline (not a fast transport failure) must produce
+        // this error: anything quicker means the dummy server FINed and the
+        // test is vacuous.
+        let started = std::time::Instant::now();
+        let error = muse_chat_request_to(
+            &format!("http://{address}/chat/completions"),
+            "presence-flag-not-a-secret",
+            "muse-spark-1.3",
+            "hi",
+            std::time::Duration::from_millis(300),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(250),
+            "error came too fast to be the timeout: {error}"
+        );
+        assert!(
+            error.contains("Model API request failed"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn muse_response_text_reads_choices_zero_message_content() {
+        let ok = r#"{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"working on P4a"},"finish_reason":"stop"}]}"#;
+        assert_eq!(muse_response_text(ok).unwrap(), "working on P4a");
+        assert!(muse_response_text("not json").is_err());
+        assert!(muse_response_text(r#"{"choices":[]}"#).is_err());
+        assert!(muse_response_text(r#"{"choices":[{"message":{"role":"assistant"}}]}"#).is_err());
     }
 }

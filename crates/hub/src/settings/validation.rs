@@ -1,4 +1,5 @@
-use super::model::{HarnessSettings, ProviderProfile, SecretReference, SettingsError};
+use super::model::{ProviderProfile, SecretReference, SettingsError};
+use super::model_harness::HarnessSettings;
 use crate::HarnessId;
 use std::path::Path;
 
