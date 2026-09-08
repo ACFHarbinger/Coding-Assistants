@@ -122,6 +122,52 @@ until the pause clears.
 
 — claude
 
+### Cursor — 2026-09-08 — #281 complete, ready for review
+
+Owner explicitly requested completion while #275 remains in review, overriding
+the earlier sequencing hold. Branch `agent/cursor-281`.
+
+Spike against installed Cursor Agent CLI `2026.09.02-c22c1a3`:
+`status --format json` exposes authentication/user identity,
+`about --format json` exposes subscription tier, and `models` exposes the
+catalog. No command or JSON field exposes usage, request limits, balance, or
+remaining quota.
+
+Implemented the accepted zero-I/O landing state:
+
+- new `commands/quota/cursor.rs` returns
+  `unavailable_quota("cursor", "cursor", "Cursor Agent", ...)`;
+- no subprocess, HTTP request, or `~/.cursor` read occurs;
+- aggregate and single-provider refresh commands include Cursor;
+- tests pin typed identity/status and safe behavior when the CLI is missing or
+  unauthenticated;
+- changelog records the truthful Usage-panel behavior.
+
+Verification: Cursor scoped **2/2**; tauri-app **117** (+1 ignored); strict
+clippy `-D warnings`, fmt, diff check, and frontend production build pass.
+All eight required Tauri sidecars were staged before backend verification.
+
+@Codex: ready for review.
+
+— cursor
+
+### Cursor — 2026-09-08 — #281 `/usage` clarification
+
+Owner correctly noted that the Cursor app has an interactive `/usage` panel.
+Verified the distinct CLI behavior directly:
+
+`agent -p "/usage" --mode ask --trust --output-format stream-json`
+
+does **not** invoke the app command. It sends `/usage` as a normal model
+prompt; the stream's result-level `usage` object reports only that request's
+input/output/cache token counts, not plan limits. The adapter remains
+truthfully unavailable because the app panel is not a documented
+machine-readable CLI/API surface and #281 forbids undocumented scraping.
+Updated its actionable detail and changelog to direct users to `/usage` in the
+Cursor app (or Dashboard → Usage).
+
+— cursor
+
 ### Codex — 2026-09-04 — #264/#266 embeddings hardening ready for review
 
 For #264, inspected the pinned `sqlite-vec = 0.1.8-alpha.1` source: vec0 KNN
@@ -5254,3 +5300,26 @@ commands. clippy `-D warnings` + fmt clean, `npm test` 8 files / 29,
 Issues #275/#283/#284/#285/#286/#287 closed. #270 closed. #279 updated.
 
 — claude
+### Cursor — 2026-09-08 — #281 dashboard usage adapter
+
+Owner asked to query `cursor.com/dashboard/spending` the way the
+`ben-milanko.cursor-pro-usage` VS Code plugin does. Spike result:
+
+- Website `GET https://www.cursor.com/api/usage` needs a browser
+  `WorkosCursorSessionToken` cookie and returned **401** with the CLI
+  Bearer token — we do **not** scrape Cursor IDE cookies or HTML.
+- The Cursor app `/usage` panel loads
+  `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`
+  (Connect JSON). Verified live with `agent login`'s
+  `~/.config/cursor/auth.json` access token: 200, cents + percent windows.
+
+Adapter now parses that payload into Auto/Composer + API windows and a
+dollar balance line. Auth: `CURSOR_AUTH_TOKEN` / `CURSOR_API_KEY`, then
+the CLI auth file (same class as Grok's `~/.grok/auth.json`). Missing
+login → `unavailable`. No `~/.cursor` scraping.
+
+Verification: scoped quota_cursor **5/5**; tauri-app **120** (+1 ignored);
+strict clippy `-D warnings`, fmt, diff check. Token never appears in
+error strings. Ready for Codex review.
+
+— cursor

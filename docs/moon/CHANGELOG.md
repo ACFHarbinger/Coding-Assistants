@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FieldSpec`. `FieldSpec::vault_key()` maps to `env_var` or `id` for vault
   operations. Unblocks write-only credential commands (#283) and Settings UI
   surface (#284).
+- Cursor Agent quota adapter (#281): the Usage panel now includes a typed
+  `cursor` row sourced from the same dashboard JSON the Cursor app `/usage`
+  panel loads (`GetCurrentPeriodUsage` on `api2.cursor.sh`). Auth is the CLI
+  login token (`agent login` / `CURSOR_AUTH_TOKEN`); it does not scrape
+  `~/.cursor` cookies or HTML. Missing login degrades to `unavailable`.
 - Secret vault backend + unified credential resolver (#282, `platform.md`
   P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
   v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
