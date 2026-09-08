@@ -122,15 +122,31 @@ pub fn capture_muse_session_from(
             captured: Vec::new(),
         });
     };
-    if let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) {
+    let workspace_key = workspace.to_string_lossy();
+    if store
+        .get_harness_session("muse", &workspace_key)
+        .map_err(|error| error.to_string())?
+        .is_none()
+    {
+        let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) else {
+            return Ok(MuseCaptureOutcome {
+                transcript_found: false,
+                scanned: 0,
+                captured: Vec::new(),
+            });
+        };
         // Muse has no leader-socket concept (that is Grok's); observed
-        // sessions register without one, like Cursor's adapter.
-        let _ = store.register_harness_session(
-            "muse",
-            &workspace.to_string_lossy(),
-            &disk_session_id.to_string_lossy(),
-            None,
-        );
+        // sessions register without one. Preserve an existing managed
+        // registration: capture must never downgrade ownership or discard
+        // its writer-lease state.
+        store
+            .register_harness_session(
+                "muse",
+                &workspace_key,
+                &disk_session_id.to_string_lossy(),
+                None,
+            )
+            .map_err(|error| error.to_string())?;
     }
     let texts = recent_assistant_texts(&path, 200);
     let mut captured = Vec::new();
@@ -239,7 +255,7 @@ mod tests {
         write_log(&root.path().join(SESSION_UUID));
         let managed = format!("managed-{SESSION_UUID}");
         store
-            .register_harness_session("muse", "/tmp/c14-muse-capture", &managed, None)
+            .register_managed_harness_session("muse", "/tmp/c14-muse-capture", &managed, 1234)
             .unwrap();
 
         let outcome =
@@ -247,6 +263,12 @@ mod tests {
                 .unwrap();
         assert!(outcome.transcript_found);
         assert_eq!(outcome.scanned, 1);
+        let registration = store
+            .get_harness_session("muse", "/tmp/c14-muse-capture")
+            .unwrap()
+            .unwrap();
+        assert_eq!(registration.mode, hub::HarnessSessionMode::Managed);
+        assert_eq!(registration.disk_session_id, managed);
     }
 
     #[test]
