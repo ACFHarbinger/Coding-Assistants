@@ -67,3 +67,129 @@ fn health_snapshot_serializes_camel_case_and_hides_none_fields() {
     assert!(json.get("authExpiresAt").is_none());
     assert!(json.get("endpointReachable").is_none());
 }
+
+#[test]
+fn muse_health_covers_all_installation_and_key_states() {
+    let both = muse_health_with(true, true);
+    assert!(both.installed);
+    assert_eq!(both.authenticated, Some(true));
+    assert!(both.detail.contains("configured"));
+
+    let inst_no_key = muse_health_with(true, false);
+    assert!(inst_no_key.installed);
+    assert_eq!(inst_no_key.authenticated, Some(false));
+    assert!(inst_no_key.detail.contains("not set"));
+
+    let key_no_bin = muse_health_with(false, true);
+    assert!(!key_no_bin.installed);
+    assert_eq!(key_no_bin.authenticated, Some(true));
+    assert!(key_no_bin.detail.contains("not on PATH"));
+
+    let neither = muse_health_with(false, false);
+    assert!(!neither.installed);
+    assert_eq!(neither.authenticated, Some(false));
+    assert!(neither.detail.contains("not on PATH"));
+}
+
+#[test]
+fn cursor_health_covers_all_installation_and_token_expiry_states() {
+    use super::super::quota_cursor::CursorAuthDetails;
+
+    // 1. Installed, valid unexpired token
+    let unexpired = CursorAuthDetails {
+        token_present: true,
+        auth_expires_at: Some("2026-09-08T22:00:00Z".into()),
+        is_expired: false,
+        file_present: true,
+    };
+    let h1 = cursor_health_with(true, unexpired);
+    assert!(h1.installed);
+    assert_eq!(h1.authenticated, Some(true));
+    assert_eq!(h1.auth_expires_at.as_deref(), Some("2026-09-08T22:00:00Z"));
+    assert_eq!(h1.detail, "Cursor Agent is logged in");
+
+    // 2. Installed, expired token
+    let expired = CursorAuthDetails {
+        token_present: true,
+        auth_expires_at: Some("2026-09-08T18:00:00Z".into()),
+        is_expired: true,
+        file_present: true,
+    };
+    let h2 = cursor_health_with(true, expired);
+    assert!(h2.installed);
+    assert_eq!(h2.authenticated, Some(false));
+    assert_eq!(h2.auth_expires_at.as_deref(), Some("2026-09-08T18:00:00Z"));
+    assert!(h2.detail.contains("expired"));
+
+    // 3. Installed, file present but no token
+    let no_tok_file = CursorAuthDetails {
+        token_present: false,
+        auth_expires_at: None,
+        is_expired: false,
+        file_present: true,
+    };
+    let h3 = cursor_health_with(true, no_tok_file);
+    assert!(h3.installed);
+    assert_eq!(h3.authenticated, Some(false));
+    assert!(h3.detail.contains("CLI auth file has no access token"));
+
+    // 4. Installed, no file and no vault token
+    let not_logged_in = CursorAuthDetails {
+        token_present: false,
+        auth_expires_at: None,
+        is_expired: false,
+        file_present: false,
+    };
+    let h4 = cursor_health_with(true, not_logged_in.clone());
+    assert!(h4.installed);
+    assert_eq!(h4.authenticated, Some(false));
+    assert!(h4.detail.contains("not logged in"));
+
+    // 5. Not installed, unexpired token
+    let unexp_no_bin = CursorAuthDetails {
+        token_present: true,
+        auth_expires_at: Some("2026-09-08T22:00:00Z".into()),
+        is_expired: false,
+        file_present: false,
+    };
+    let h5 = cursor_health_with(false, unexp_no_bin);
+    assert!(!h5.installed);
+    assert_eq!(h5.authenticated, Some(true));
+    assert!(h5.detail.contains("credentials are present"));
+
+    // 6. Not installed, expired token
+    let exp_no_bin = CursorAuthDetails {
+        token_present: true,
+        auth_expires_at: Some("2026-09-08T18:00:00Z".into()),
+        is_expired: true,
+        file_present: false,
+    };
+    let h6 = cursor_health_with(false, exp_no_bin);
+    assert!(!h6.installed);
+    assert_eq!(h6.authenticated, Some(false));
+    assert!(h6.detail.contains("credentials are expired"));
+
+    // 7. Not installed, no credentials
+    let h7 = cursor_health_with(false, not_logged_in);
+    assert!(!h7.installed);
+    assert_eq!(h7.authenticated, Some(false));
+    assert_eq!(h7.detail, "The Cursor `agent` CLI was not found on PATH");
+}
+
+#[test]
+fn secret_hygiene_never_leaks_tokens_into_health_snapshots() {
+    use super::super::quota_cursor::CursorAuthDetails;
+
+    let canary = "super_secret_canary_token_value_123456789";
+    let auth = CursorAuthDetails {
+        token_present: true,
+        auth_expires_at: Some("2026-09-08T22:00:00Z".into()),
+        is_expired: false,
+        file_present: true,
+    };
+    let h = cursor_health_with(true, auth);
+    let serialized = serde_json::to_string(&h).unwrap();
+    assert!(!serialized.contains(canary));
+    assert!(!h.detail.contains(canary));
+    assert_eq!(h.auth_expires_at.as_deref(), Some("2026-09-08T22:00:00Z"));
+}
