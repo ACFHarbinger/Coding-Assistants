@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Perplexity external MCP servers (#276, #277): the #272 registry now
+  owns confirmed launchers for the official API server
+  (`npx -y @perplexity-ai/mcp-server`, `PERPLEXITY_API_KEY` from the
+  MCP-client shell — never written into a workspace file) and the
+  subscription web server (`pwm-mcp` from `uv tool install
+  perplexity-web-mcp-cli`; `pwm login`, ~30-day quota-limited session).
+  Enable/disable rewrites Claude/Gemini/opencode configs and leaves
+  hand-added servers alone. Settings copy (`notes`) plus a token-file
+  existence probe (contents never read) are on the existing
+  `external_mcp_*` commands for #278. Enabling a server writes the bare
+  launcher even when this process cannot resolve `npx` / `pwm-mcp`
+  (`launcherFound` is status-only; the MCP client has its own PATH).
+  Subscription `launcherFound` also probes the sibling `pwm` script;
+  `uvx` is not a probe (false positive). The written command remains
+  `pwm-mcp`.
 - Creative-tool MCP memory tools (#263): Blender, Krita, Godot, Aseprite,
   Unreal, Unity, and OpenToonz now expose `remember` and `recall`. Their shared
   implementation writes short-term memories tagged with the originating tool

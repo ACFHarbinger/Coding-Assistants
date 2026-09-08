@@ -385,7 +385,7 @@ identities (`muse`, `cursor`). Model inference for Muse Spark 1.3 is
 tracked separately as `platform.md` P4a (#274, Meta Model API). The two
 Perplexity MCP servers (official `@perplexity-ai/mcp-server` #276, and the
 subscription-session `perplexity-web-mcp-cli` #277) are external-server
-integrations under `platform.md` P9, blocked on a shared external-MCP
-registry generalisation of `hub::mcp::creative` (#272). Parent tracking
-issue: #270. Team now: Claude (lead), Chat/Codex (review), Grok (impl),
-Gemini (UI), Muse, Cursor.
+integrations under `platform.md` P9. The shared registry (#272) is on
+`main`; #276/#277 (Grok) are ready for review. Settings toggle is #278
+(Gemini). Parent tracking issue: #270. Team now: Claude (lead),
+Chat/Codex (review), Grok (impl), Gemini (UI), Muse, Cursor.
