@@ -5,9 +5,22 @@ import GrokLeaderCard from "./GrokLeaderCard";
 import EmbeddedTerminal from "./EmbeddedTerminal";
 import ResizableTerminalFrame from "./ResizableTerminalFrame";
 import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
+import ProviderHealthChip from "./ProviderHealthChip";
+import { useProviderHealth } from "./useProviderHealth";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor"] as const;
+
+function formatSince(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ` (since ${ts})`;
+    return ` (since ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`;
+  } catch {
+    return ` (since ${ts})`;
+  }
+}
 
 export default function HarnessReadinessPanel({ workspace }: { workspace: string }) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
@@ -19,7 +32,10 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
   const [relaunching, setRelaunching] = useState<string | null>(null);
   const [terminals, setTerminals] = useState<Record<string, string>>({});
 
+  const { healthMap, refresh: refreshHealth } = useProviderHealth(30_000);
+
   const refresh = useCallback(async () => {
+    void refreshHealth();
     try {
       const listed = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
       setSessions(listed.filter((row) => !workspace || row.workspace === workspace));
@@ -27,7 +43,7 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
     } catch (cause) {
       setError(String(cause));
     }
-  }, [workspace]);
+  }, [workspace, refreshHealth]);
 
   useEffect(() => {
     void refresh();
@@ -156,6 +172,17 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         ))}
       </div>
 
+      <div style={{ margin: "0.85rem 0", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Provider CLI &amp; Auth Health
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+          {PROVIDERS.map((id) => (
+            <ProviderHealthChip key={id} providerId={id} health={healthMap[id]} />
+          ))}
+        </div>
+      </div>
+
       {error && (
         <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.14)", border: "1px solid rgba(248, 113, 113, 0.55)", color: "#fecaca", fontSize: "0.85rem" }}>
           {error}
@@ -239,8 +266,24 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
                 <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
                 <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
                   thread {row.disk_session_id}
-                  {row.writer_owner ? ` · writer ${row.writer_owner}` : ""}
+                  {row.writer_owner ? ` · writer ${row.writer_owner}${formatSince(row.writer_acquired_at)}` : ""}
                   {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
+                  {row.pid_alive !== undefined && row.pid_alive !== null && (
+                    <span
+                      style={{
+                        marginLeft: "0.4rem",
+                        padding: "0.1rem 0.35rem",
+                        borderRadius: "4px",
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                        background: row.pid_alive ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                        color: row.pid_alive ? "#86efac" : "#fca5a5",
+                        border: `1px solid ${row.pid_alive ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
+                      }}
+                    >
+                      {row.pid_alive ? "alive" : "dead"}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
