@@ -389,3 +389,19 @@ integrations under `platform.md` P9. The shared registry (#272) is on
 `main`; #276/#277 (Grok) are ready for review. Settings toggle is #278
 (Gemini). Parent tracking issue: #270. Team now: Claude (lead),
 Chat/Codex (review), Grok (impl), Gemini (UI), Muse, Cursor.
+
+**2026-09-08 (Harbinger) — credentials, account connections & provider
+quotas batch (parent #279).** #273/#274/#276/#277/#278 landed on `main`
+(merge train `ec837cd`/`03ba888`/`ee3ef0b`); **#275 held** on three open
+Codex session-integrity findings. Follow-on: **C14.11** — a Muse Code
+plan-quota surface belongs on the harness readiness panel once
+`platform.md` #280 lands the Muse Spark adapter (the Meta Model API key is
+shared). **C14.12** — a Cursor `agent` plan-quota adapter is
+`platform.md` #281, **sequenced after #275 lands** and owned by Cursor;
+both quota adapters are spike-gated and `unavailable` is an acceptable
+landing state. Secret storage for these harnesses' keys/tokens (Meta
+`MODEL_API_KEY`, Cursor login) moves to the `platform.md` P12 vault
+(#282) and `settings.md` S8 (#283/#284/#285). Per-user account links in
+the shared Hub are `multi_human.md` **H7** (#286), blocked on H2.
+DeepSeek and OpenCode re-join the active implementer roster this batch;
+see the agent bus team table.
