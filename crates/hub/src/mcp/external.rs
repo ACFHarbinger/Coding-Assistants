@@ -103,9 +103,10 @@ pub struct ExternalServer {
     pub auth_token_relpath: Option<&'static str>,
     /// Extra PATH names that count as "installed" for Settings
     /// `launcherFound` only. Never written into client config — that
-    /// always uses [`command`](Self::command). `#277` probes `pwm` /
-    /// `uvx` because `uv tool install perplexity-web-mcp-cli` exposes
-    /// those names alongside `pwm-mcp`.
+    /// always uses [`command`](Self::command). `#277` also probes `pwm`
+    /// because `uv tool install perplexity-web-mcp-cli` exposes that
+    /// sibling console script next to `pwm-mcp`. `uvx` is **not** a
+    /// probe: it is a generic runner and would be a false positive.
     pub launcher_aliases: &'static [&'static str],
 }
 
@@ -174,7 +175,7 @@ pub const CATALOG: &[ExternalServer] = &[
         docs_url: "https://github.com/jacob-bd/perplexity-web-mcp",
         notes: "Quota-limited Perplexity subscription; the session token lasts ~30 days and then `pwm login` must be re-run. Coding Assistants never reads the token. Install: `uv tool install perplexity-web-mcp-cli`.",
         auth_token_relpath: Some(".config/perplexity-web-mcp/token"),
-        launcher_aliases: &["pwm", "uvx"],
+        launcher_aliases: &["pwm"],
     },
 ];
 

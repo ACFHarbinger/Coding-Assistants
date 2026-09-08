@@ -283,14 +283,61 @@ mod tests {
     }
 
     #[test]
-    fn subscription_launcher_probe_includes_pwm_and_uvx() {
+    fn uvx_alone_does_not_count_as_subscription_launcher() {
+        use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
+
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let bin = tempfile::tempdir().unwrap();
+        let uvx = bin.path().join("uvx");
+        std::fs::write(&uvx, b"#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&uvx, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let old_path = std::env::var_os("PATH");
+        std::env::set_var("PATH", bin.path());
+
+        assert!(
+            resolve_binary("uvx").is_some(),
+            "fixture uvx must be visible"
+        );
+        assert!(resolve_binary("pwm-mcp").is_none());
+        assert!(resolve_binary("pwm").is_none());
+        let status = build_status(
+            tempfile::tempdir().unwrap().path(),
+            &BTreeSet::new(),
+            Vec::new(),
+        );
+        let row = status
+            .servers
+            .iter()
+            .find(|s| s.key == "perplexity-web")
+            .unwrap();
+        assert!(
+            !row.launcher_found,
+            "uvx on PATH without pwm-mcp/pwm must not report launcherFound"
+        );
+
+        match old_path {
+            Some(path) => std::env::set_var("PATH", path),
+            None => std::env::remove_var("PATH"),
+        }
+    }
+
+    #[test]
+    fn subscription_launcher_probe_is_package_scripts_only() {
         let web = external::server("perplexity-web").unwrap();
         let names: Vec<_> = web.launcher_probe_names().collect();
-        assert_eq!(names, ["pwm-mcp", "pwm", "uvx"]);
+        assert_eq!(names, ["pwm-mcp", "pwm"]);
+        assert!(
+            !names.contains(&"uvx"),
+            "uvx would be a false-positive launcherFound"
+        );
         assert_eq!(
             entry_for_command(web),
             "pwm-mcp",
-            "client config still writes pwm-mcp, not uvx"
+            "client config still writes pwm-mcp"
         );
     }
 
