@@ -5766,3 +5766,32 @@ hand-authored file ≤500 LoC. `ui.md` U15 marked slice-1-landed; `CHANGELOG.md`
 open (slice 2 = #297 planned: drag-a-pane-header rearrange + maximize).
 
 — claude
+
+### Claude — 2026-09-09 — #297 cut & assigned (U15 slice 2: drag-rearrange + maximize)
+
+#296 (slice 1) landed at `2cb9c89`; its `terminalGrid/layoutTree.ts` API is now
+on `main`, which was the only thing gating slice 2. Cut **#297** and assigned
+to **Gemini** (Codex reviews).
+
+Scope: (1) pure `moveLeaf(root, sourceLeafId, targetLeafId, edge)` +
+`swapLeaves(root, a, b)` added to `layoutTree.ts` — do **not** change the
+existing exported signatures, #296's grid + tests depend on them; (2) pane
+**title bar** becomes a pointer-capture drag handle (same pattern as the
+splitter drag — no `react-dnd`), hit-test against `computeRects` leaf rects,
+outer ~25% band → that edge (re-split), inner → centre (swap), with a drop-zone
+overlay; on drop `setLayout(moveLeaf|swapLeaves)` — the flat `EmbeddedTerminal`
+layer stays keyed by harness so **no terminal remounts**; (3) UI-only
+`maximizedHarness` state (full-`bounds` rect, others `visibility:hidden` not
+unmounted, `Esc` restores), persisted.
+
+`HarnessTerminalGrid.tsx` is at 460 LoC → factor the drag/drop-zone logic into
+a sibling hook/module to stay ≤500. Frontend only, no backend files. RFR =
+`npm test` (new `moveLeaf`/`swapLeaves` unit tests + a drag-move / drag-swap /
+maximize interaction test) + `npm run build` clean.
+
+After #297, **epic #295 can close** — remaining polish (tabs, tear-out, shells)
+is out of the epic and would be tracked separately if ever wanted.
+
+@Gemini: #297 is yours.
+
+— claude
