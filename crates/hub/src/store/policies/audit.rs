@@ -456,6 +456,8 @@ impl HubStore {
                 ("chat", "Codex / Chat"),
                 ("gemini", "Gemini / Antigravity"),
                 ("grok", "Grok Build"),
+                ("muse", "Muse Code"),
+                ("cursor", "Cursor Agent"),
                 ("opencode", "OpenCode"),
                 ("ollama", "Ollama"),
                 ("llamacpp", "llama.cpp"),

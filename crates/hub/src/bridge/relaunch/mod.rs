@@ -36,6 +36,8 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
+        // #271 scaffold — resume from durable state lands with #273 / #275.
+        HarnessId::Muse | HarnessId::Cursor => None,
     }
 }
 
@@ -98,6 +100,8 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
         (HarnessId::OpenCode, _) | (HarnessId::DeepSeek, _) | (HarnessId::Vibe, _) => vec![],
+        // #271 scaffold. #275 will make Cursor resume `["--resume", id, "--print"]`.
+        (HarnessId::Muse, _) | (HarnessId::Cursor, _) => vec![],
     }
 }
 

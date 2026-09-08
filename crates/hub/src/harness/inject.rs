@@ -8,8 +8,9 @@ use crate::HubError;
 
 use super::spawn::spawn_explicit;
 use super::{
-    claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, opencode_spawn_args,
-    vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
+    claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_spawn_args, grok_spawn_args,
+    muse_spawn_args, opencode_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest,
+    HarnessInjectResult,
 };
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
@@ -98,6 +99,9 @@ fn inject_harness_inner(
             effort,
         )?,
         HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt, model, effort)?,
+        // #271 scaffold — typed `unavailable` until #273 / #275 land the argv.
+        HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
     };
 
     let started = spawn_explicit(harness.executable(), &request.workspace, &args)?;

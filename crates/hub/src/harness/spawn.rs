@@ -239,6 +239,34 @@ pub fn vibe_spawn_args(
     ])
 }
 
+/// Placeholder spawn argv for Meta Muse Code. The real non-interactive
+/// contract (executable name, batch/print flag, event-log format) is a spike
+/// under #273 — until then a start/inject for `muse` fails truthfully rather
+/// than shelling out a guessed command.
+pub fn muse_spawn_args(
+    _workspace: &Path,
+    _prompt: &str,
+    _model: Option<&str>,
+    _effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
+    Err(HubError::Invalid(
+        "Muse Code harness is not implemented yet (#273); the Muse team owns the spike".into(),
+    ))
+}
+
+/// Placeholder spawn argv for the Cursor `agent` CLI. Real argv, stream-json
+/// parsing, and chat-id persistence land in #275.
+pub fn cursor_spawn_args(
+    _workspace: &Path,
+    _prompt: &str,
+    _model: Option<&str>,
+    _effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
+    Err(HubError::Invalid(
+        "Cursor agent harness is not implemented yet (#275)".into(),
+    ))
+}
+
 pub(super) fn spawn_explicit_owned(
     program: &str,
     workspace: &Path,
@@ -410,6 +438,30 @@ mod tests {
         assert_eq!(HarnessId::parse("deepseek").unwrap(), HarnessId::DeepSeek);
         assert_eq!(HarnessId::parse("mistral").unwrap(), HarnessId::Vibe);
         assert!(HarnessId::parse("ollama").is_err());
+    }
+
+    #[test]
+    fn muse_and_cursor_ids_parse_but_spawn_is_a_typed_unavailable() {
+        // #271 scaffold: the identities exist; #273/#275 implement the argv.
+        assert_eq!(HarnessId::parse("muse").unwrap(), HarnessId::Muse);
+        assert_eq!(HarnessId::parse("muse-code").unwrap(), HarnessId::Muse);
+        assert_eq!(HarnessId::parse("cursor").unwrap(), HarnessId::Cursor);
+        assert_eq!(HarnessId::parse("cursor-agent").unwrap(), HarnessId::Cursor);
+        assert_eq!(HarnessId::Muse.as_str(), "muse");
+        assert_eq!(HarnessId::Cursor.as_str(), "cursor");
+        assert_eq!(HarnessId::Muse.executable(), "muse");
+        assert_eq!(HarnessId::Cursor.executable(), "agent");
+
+        let ws = PathBuf::from("/tmp/coding-assistants-c14");
+        let muse = muse_spawn_args(&ws, "do the thing", None, None);
+        assert!(
+            muse.is_err(),
+            "muse spawn must not shell out a guessed command"
+        );
+        assert!(muse.unwrap_err().to_string().contains("#273"));
+        let cursor = cursor_spawn_args(&ws, "do the thing", None, None);
+        assert!(cursor.is_err());
+        assert!(cursor.unwrap_err().to_string().contains("#275"));
     }
 
     #[test]

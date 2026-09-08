@@ -483,6 +483,8 @@ impl HarnessSettings {
             crate::HarnessId::Gemini => Some("gemini-3.7-flash-medium".to_string()),
             crate::HarnessId::Grok => Some("grok-4.6".to_string()),
             crate::HarnessId::Vibe => Some("mistral-medium-3.5".to_string()),
+            // #274 sets Muse's default; Cursor uses its own account model config.
+            crate::HarnessId::Muse | crate::HarnessId::Cursor => None,
         };
         let default_effort = match id {
             crate::HarnessId::Claude
@@ -491,7 +493,7 @@ impl HarnessSettings {
             | crate::HarnessId::Grok
             | crate::HarnessId::OpenCode
             | crate::HarnessId::DeepSeek => Some("medium".to_string()),
-            crate::HarnessId::Vibe => None,
+            crate::HarnessId::Vibe | crate::HarnessId::Muse | crate::HarnessId::Cursor => None,
         };
         Ok(Self {
             harness: id.as_str().to_string(),

@@ -6,9 +6,9 @@ use std::process::Child;
 
 use super::spawn::{spawn_explicit, spawn_explicit_owned};
 use super::{
-    claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, grok_spawn_args,
-    opencode_spawn_args, vibe_spawn_args, HarnessId, HarnessStartRequest, HarnessStartResult,
-    DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
+    claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_managed_spawn_args,
+    grok_spawn_args, muse_spawn_args, opencode_spawn_args, vibe_spawn_args, HarnessId,
+    HarnessStartRequest, HarnessStartResult, DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
 };
 
 fn harness_command(
@@ -42,6 +42,9 @@ fn harness_command(
             effort,
         )?,
         HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        // #271 scaffold — typed `unavailable` until #273 / #275 land the argv.
+        HarnessId::Muse => muse_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Cursor => cursor_spawn_args(&request.workspace, &request.prompt, model, effort)?,
     };
     Ok((harness.executable(), args))
 }
