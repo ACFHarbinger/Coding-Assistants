@@ -1,33 +1,61 @@
-//! Cursor Agent plan quota adapter (#281).
+//! Cursor Agent plan quota adapter (#281, hardened in #290).
 //!
-//! The Agent CLI has no usage subcommand. Interactive `/usage` in the Cursor
-//! app loads `aiserver.v1.DashboardService/GetCurrentPeriodUsage` on
-//! `api2.cursor.sh` — the same JSON the dashboard spending view uses. This
-//! adapter calls that endpoint with the app's stored `CURSOR_TOKEN`, falling
-//! back to the CLI login token (`agent login` writes
-//! `~/.config/cursor/auth.json` on Linux). It does not scrape `~/.cursor`
-//! cookies or HTML.
+//! # Data Source Contract & Stability Window
 //!
-//! Captured live, 2026-09-08, CLI `2026.09.02-c22c1a3` (numeric fields only):
-//!
-//! ```text
-//! { "billingCycleEnd": "1791200599000",
-//!   "planUsage": { "totalSpend": 7122, "includedSpend": 2000, "limit": 2000,
-//!                  "autoPercentUsed": 12.5, "apiPercentUsed": 33.2,
-//!                  "totalPercentUsed": 14.4 } }
-//! ```
-//!
-//! Spend values are integer cents. Website `cursor.com/api/usage` still needs
-//! a browser session cookie and is not used.
+//! * **Subcommand status**: The Cursor `agent` CLI currently exposes no machine-readable
+//!   `agent usage` or `agent quota` command.
+//! * **Endpoint contract**: Interactive `/usage` in the Cursor app loads
+//!   `aiserver.v1.DashboardService/GetCurrentPeriodUsage` on `api2.cursor.sh` (Connect JSON
+//!   protocol version 1). This is the same backend service driving the interactive dashboard
+//!   spending panel.
+//! * **Authentication**: Reads `CURSOR_TOKEN` from vault/environment (via `hub::secret::resolve`),
+//!   falling back to the CLI login token written by `agent login` (`~/.config/cursor/auth.json` on
+//!   Linux, `%APPDATA%\Cursor\auth.json` on Windows, `~/.cursor/auth.json` on macOS).
+//! * **Expected Response Schema**:
+//!   - `billingCycleEnd` / `billing_cycle_end`: Unix millisecond timestamp string or number.
+//!   - `planUsage` / `plan_usage` object containing:
+//!     - `totalSpend` / `total_spend`: Integer cents.
+//!     - `includedSpend` / `included_spend`: Integer cents.
+//!     - `limit`: Integer cents.
+//!     - `autoPercentUsed` / `auto_percent_used`: Float or integer percentage (0..100).
+//!     - `apiPercentUsed` / `api_percent_used`: Float or integer percentage (0..100).
+//!     - `totalPercentUsed` / `total_percent_used`: Float or integer percentage (0..100).
+//! * **Hardening & Safe Degradation (#290)**:
+//!   - The response shape is strictly validated against `check_usage_schema`.
+//!   - If the endpoint response structure drifts or fields change types, a diagnostic warning
+//!     is logged once (with structural details only, never leaking auth tokens or payload secrets)
+//!     and the adapter degrades cleanly to `status: "unavailable"`.
 
 use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const AGENT_ID: &str = "cursor";
 const PROVIDER: &str = "cursor";
 const HARNESS_TITLE: &str = "Cursor Agent";
 const USAGE_URL: &str = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage";
+static SCHEMA_DRIFT_REPORTED: OnceLock<()> = OnceLock::new();
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SchemaDriftReason {
+    NotAnObject,
+    MissingPlanUsage,
+    PlanUsageNotAnObject,
+    MissingExpectedFields,
+    InvalidMetricType,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CursorContractSummary {
+    pub has_billing_cycle: bool,
+    pub auto_percent: Option<i32>,
+    pub api_percent: Option<i32>,
+    pub total_percent: Option<i32>,
+    pub total_spend_cents: Option<i64>,
+    pub limit_cents: Option<i64>,
+}
 
 fn unavailable(detail: impl Into<String>) -> ProviderQuota {
     unavailable_quota(AGENT_ID, PROVIDER, HARNESS_TITLE, detail)
@@ -79,6 +107,62 @@ fn push_percent_window(
         resets_at,
         window_minutes: None,
     });
+}
+
+/// Validate that the returned JSON conforms to the expected Cursor usage schema.
+pub(crate) fn check_usage_schema(value: &Value) -> Result<(), SchemaDriftReason> {
+    let obj = value.as_object().ok_or(SchemaDriftReason::NotAnObject)?;
+    let plan = obj
+        .get("planUsage")
+        .or_else(|| obj.get("plan_usage"))
+        .ok_or(SchemaDriftReason::MissingPlanUsage)?;
+    let plan_obj = plan
+        .as_object()
+        .ok_or(SchemaDriftReason::PlanUsageNotAnObject)?;
+
+    let metric_pairs = [
+        ("autoPercentUsed", "auto_percent_used"),
+        ("apiPercentUsed", "api_percent_used"),
+        ("totalPercentUsed", "total_percent_used"),
+        ("includedSpend", "included_spend"),
+        ("totalSpend", "total_spend"),
+    ];
+    let mut has_metric = false;
+    for (camel, snake) in metric_pairs {
+        if let Some(metric) = plan_obj.get(camel).or_else(|| plan_obj.get(snake)) {
+            has_metric = true;
+            if json_f64(metric).is_none() {
+                return Err(SchemaDriftReason::InvalidMetricType);
+            }
+        }
+    }
+    if !has_metric {
+        return Err(SchemaDriftReason::MissingExpectedFields);
+    }
+    Ok(())
+}
+
+/// Verify the usage contract and extract a typed summary of present fields.
+#[cfg(test)]
+pub(crate) fn verify_usage_contract(
+    value: &Value,
+) -> Result<CursorContractSummary, SchemaDriftReason> {
+    check_usage_schema(value)?;
+    let plan = object_field(value, "planUsage", "plan_usage").unwrap();
+    let has_billing_cycle = object_field(value, "billingCycleEnd", "billing_cycle_end")
+        .or_else(|| object_field(plan, "billingCycleEnd", "billing_cycle_end"))
+        .is_some();
+    Ok(CursorContractSummary {
+        has_billing_cycle,
+        auto_percent: object_field(plan, "autoPercentUsed", "auto_percent_used")
+            .and_then(json_percent),
+        api_percent: object_field(plan, "apiPercentUsed", "api_percent_used")
+            .and_then(json_percent),
+        total_percent: object_field(plan, "totalPercentUsed", "total_percent_used")
+            .and_then(json_percent),
+        total_spend_cents: object_field(plan, "totalSpend", "total_spend").and_then(json_cents),
+        limit_cents: object_field(plan, "limit", "limit").and_then(json_cents),
+    })
 }
 
 /// Pure parser so tests never touch the network or the login file.
@@ -203,6 +287,16 @@ fn fetch_period_usage(token: &str) -> Result<Value, String> {
 }
 
 fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
+    if let Err(drift) = check_usage_schema(period) {
+        if SCHEMA_DRIFT_REPORTED.set(()).is_ok() {
+            eprintln!(
+                "[ca:quota:cursor] detected Cursor usage response schema drift: {drift:?}; degrading safely to unavailable"
+            );
+        }
+        return unavailable(format!(
+            "Cursor usage response schema drift detected ({drift:?}); degrading safely to unavailable"
+        ));
+    }
     let windows = windows_from_period_usage(period);
     let balance = balance_from_period_usage(period);
     ProviderQuota {
@@ -247,92 +341,5 @@ pub(crate) fn cursor_quota() -> ProviderQuota {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const LIVE_SAMPLE: &str = r#"{
-        "billingCycleStart": "1788608599000",
-        "billingCycleEnd": "1791200599000",
-        "planUsage": {
-            "totalSpend": 7122,
-            "includedSpend": 2000,
-            "bonusSpend": 5122,
-            "limit": 2000,
-            "autoPercentUsed": 12.506666666666666,
-            "apiPercentUsed": 33.2,
-            "totalPercentUsed": 14.387878787878789
-        },
-        "spendLimitUsage": { "limitType": "user" },
-        "enabled": true
-    }"#;
-
-    #[test]
-    fn parses_live_dashboard_period_usage() {
-        let value: Value = serde_json::from_str(LIVE_SAMPLE).unwrap();
-        let windows = windows_from_period_usage(&value);
-        assert_eq!(windows.len(), 2);
-        assert_eq!(windows[0].label, "Auto / Composer");
-        assert_eq!(windows[0].used_percent, 13);
-        assert_eq!(windows[0].remaining_percent, 87);
-        assert_eq!(windows[1].label, "API");
-        assert_eq!(windows[1].used_percent, 33);
-        assert_eq!(windows[0].resets_at, Some(1_791_200_599));
-        assert_eq!(
-            balance_from_period_usage(&value).as_deref(),
-            Some("$71.22 used of $20.00 included this cycle")
-        );
-        let quota = cursor_quota_from_period(&value);
-        assert_eq!(quota.agent_id, "cursor");
-        assert_eq!(quota.status, "ok");
-        assert!(quota.detail.is_none());
-    }
-
-    #[test]
-    fn snake_case_payload_and_included_fallback_parse() {
-        let value: Value = serde_json::from_str(
-            r#"{ "billing_cycle_end": 1791200599,
-                 "plan_usage": { "included_spend": 500, "limit": 2000 } }"#,
-        )
-        .unwrap();
-        let windows = windows_from_period_usage(&value);
-        assert_eq!(windows.len(), 1);
-        assert_eq!(windows[0].label, "Included allowance");
-        assert_eq!(windows[0].used_percent, 25);
-        assert_eq!(windows[0].resets_at, Some(1_791_200_599));
-    }
-
-    #[test]
-    fn missing_auth_file_is_unavailable_without_panic() {
-        let quota = unavailable(
-            "Not logged in to Cursor Agent (no CLI auth file). Run `agent login`, or add CURSOR_TOKEN in Settings → Credentials.",
-        );
-        assert_eq!(quota.status, "unavailable");
-        assert!(quota.windows.is_empty());
-        assert!(quota.balance.is_none());
-        assert!(quota
-            .detail
-            .as_deref()
-            .unwrap_or_default()
-            .contains("agent login"));
-    }
-
-    #[test]
-    fn auth_file_without_token_is_rejected() {
-        assert!(token_from_auth_file("{}").is_none());
-        assert!(token_from_auth_file(r#"{"accessToken":"  "}"#).is_none());
-        assert_eq!(
-            token_from_auth_file(r#"{"accessToken":"tok_live"}"#).as_deref(),
-            Some("tok_live")
-        );
-        assert!(token_from_auth_file("not-json").is_none());
-    }
-
-    #[test]
-    fn unauthenticated_cli_never_leaks_a_token_into_details() {
-        let quota = unavailable("Cursor usage endpoint returned 401 Unauthorized");
-        assert_eq!(quota.status, "unavailable");
-        let detail = quota.detail.unwrap();
-        assert!(!detail.contains("tok_"));
-        assert!(!detail.contains("Bearer"));
-    }
-}
+#[path = "cursor_tests.rs"]
+mod tests;
