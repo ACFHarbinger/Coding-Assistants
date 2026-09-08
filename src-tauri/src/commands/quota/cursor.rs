@@ -27,6 +27,11 @@
 //!     and the adapter degrades cleanly to `status: "unavailable"`.
 
 use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
+use base64::{
+    engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD},
+    Engine,
+};
+use chrono::{TimeZone, Utc};
 use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -218,7 +223,7 @@ fn balance_from_period_usage(value: &Value) -> Option<String> {
     ))
 }
 
-fn cursor_auth_file() -> PathBuf {
+pub(crate) fn cursor_auth_file() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
@@ -239,7 +244,7 @@ fn cursor_auth_file() -> PathBuf {
     }
 }
 
-fn token_from_auth_file(raw: &str) -> Option<String> {
+pub(crate) fn token_from_auth_file(raw: &str) -> Option<String> {
     let value: Value = serde_json::from_str(raw).ok()?;
     value
         .get("accessToken")
@@ -248,6 +253,150 @@ fn token_from_auth_file(raw: &str) -> Option<String> {
         .map(str::trim)
         .filter(|token| !token.is_empty())
         .map(str::to_string)
+}
+
+/// Parse an expiration timestamp (seconds since Unix epoch) from a JSON object.
+/// Checks `exp`, `expiresAt`, `expires_at`, and `expiry`. Numbers greater than
+/// 100,000,000,000 are assumed to be in milliseconds and converted to seconds.
+pub(crate) fn parse_expiry_value(value: &Value) -> Option<i64> {
+    fn to_secs(num: i64) -> i64 {
+        if num > 100_000_000_000 {
+            num / 1000
+        } else {
+            num
+        }
+    }
+    for key in ["exp", "expiresAt", "expires_at", "expiry"] {
+        if let Some(field) = value.get(key) {
+            if let Some(num) = field.as_i64().or_else(|| field.as_f64().map(|f| f as i64)) {
+                return Some(to_secs(num));
+            }
+            if let Some(s) = field.as_str() {
+                if let Ok(num) = s.parse::<i64>() {
+                    return Some(to_secs(num));
+                }
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
+                    return Some(dt.timestamp());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract expiration from a JWT token's claims payload.
+/// Secret hygiene: the token is split and payload decoded strictly to read the `exp`
+/// timestamp claim; no token or payload string is retained or logged.
+pub(crate) fn parse_jwt_expiry(token: &str) -> Option<i64> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let payload_str = parts[1].trim();
+    let payload_bytes = URL_SAFE_NO_PAD
+        .decode(payload_str.trim_end_matches('='))
+        .or_else(|_| URL_SAFE.decode(payload_str))
+        .ok()?;
+    let value: Value = serde_json::from_slice(&payload_bytes).ok()?;
+    parse_expiry_value(&value)
+}
+
+fn epoch_secs_to_iso(secs: i64) -> Option<String> {
+    match Utc.timestamp_opt(secs, 0) {
+        chrono::LocalResult::Single(dt) => Some(dt.to_rfc3339()),
+        _ => None,
+    }
+}
+
+/// Health snapshot details for Cursor authentication (#294).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CursorAuthDetails {
+    pub token_present: bool,
+    pub auth_expires_at: Option<String>,
+    pub is_expired: bool,
+    pub file_present: bool,
+}
+
+impl CursorAuthDetails {
+    pub(crate) fn detail(&self, installed: bool) -> &'static str {
+        match (installed, self.token_present, self.is_expired) {
+            (true, true, false) => "Cursor Agent is logged in",
+            (true, true, true) => {
+                "Cursor Agent access token expired; run `agent login` to refresh login"
+            }
+            (true, false, _) if self.file_present => {
+                "Cursor Agent is installed but CLI auth file has no access token; run `agent login`"
+            }
+            (true, false, _) => "Cursor Agent is installed but not logged in; run `agent login`",
+            (false, true, false) => {
+                "The Cursor `agent` CLI was not found on PATH (credentials are present)"
+            }
+            (false, true, true) => {
+                "The Cursor `agent` CLI was not found on PATH (credentials are expired)"
+            }
+            (false, false, _) => "The Cursor `agent` CLI was not found on PATH",
+        }
+    }
+}
+
+pub(crate) fn cursor_auth_details_from(
+    vault_token: Option<&str>,
+    file_content: Option<&str>,
+    now_epoch: i64,
+) -> CursorAuthDetails {
+    if let Some(token) = vault_token.map(str::trim).filter(|t| !t.is_empty()) {
+        let expiry = parse_jwt_expiry(token);
+        let is_expired = expiry.map(|exp| exp <= now_epoch).unwrap_or(false);
+        let auth_expires_at = expiry.and_then(epoch_secs_to_iso);
+        return CursorAuthDetails {
+            token_present: true,
+            auth_expires_at,
+            is_expired,
+            file_present: false,
+        };
+    }
+
+    let Some(raw) = file_content else {
+        return CursorAuthDetails {
+            token_present: false,
+            auth_expires_at: None,
+            is_expired: false,
+            file_present: false,
+        };
+    };
+
+    let token = token_from_auth_file(raw);
+    let parsed_json: Option<Value> = serde_json::from_str(raw).ok();
+
+    if let Some(token_str) = token {
+        let expiry = parse_jwt_expiry(&token_str)
+            .or_else(|| parsed_json.as_ref().and_then(parse_expiry_value));
+        let is_expired = expiry.map(|exp| exp <= now_epoch).unwrap_or(false);
+        let auth_expires_at = expiry.and_then(epoch_secs_to_iso);
+        CursorAuthDetails {
+            token_present: true,
+            auth_expires_at,
+            is_expired,
+            file_present: true,
+        }
+    } else {
+        CursorAuthDetails {
+            token_present: false,
+            auth_expires_at: None,
+            is_expired: false,
+            file_present: true,
+        }
+    }
+}
+
+pub(crate) fn cursor_auth_details() -> CursorAuthDetails {
+    let vault_token = hub::secret::resolve("CURSOR_TOKEN");
+    let file_content = std::fs::read_to_string(cursor_auth_file()).ok();
+    cursor_auth_details_from(
+        vault_token.as_ref().map(|s| s.expose()),
+        file_content.as_deref(),
+        Utc::now().timestamp(),
+    )
 }
 
 fn cursor_auth_token_from_file() -> Result<String, String> {

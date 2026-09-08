@@ -79,33 +79,25 @@ struct Ids {
 /// Binary present but auth undeterminable without a network / interactive step.
 fn binary_only(ids: &Ids, bin: &str) -> ProviderHealth {
     match resolve_binary(bin) {
-        Some(_) => ProviderHealth {
-            agent_id: ids.agent_id.into(),
-            provider: ids.provider.into(),
-            harness_title: ids.title.into(),
-            installed: true,
-            authenticated: None,
-            auth_expires_at: None,
-            endpoint_reachable: None,
-            detail: format!("`{bin}` is installed; run it once to confirm login"),
-            checked_at: now_iso(),
-        },
+        Some(_) => health(
+            ids,
+            true,
+            None,
+            None,
+            format!("`{bin}` is installed; run it once to confirm login"),
+        ),
         None => not_installed(ids, bin),
     }
 }
 
 fn not_installed(ids: &Ids, bin: &str) -> ProviderHealth {
-    ProviderHealth {
-        agent_id: ids.agent_id.into(),
-        provider: ids.provider.into(),
-        harness_title: ids.title.into(),
-        installed: false,
-        authenticated: Some(false),
-        auth_expires_at: None,
-        endpoint_reachable: None,
-        detail: format!("`{bin}` was not found on PATH"),
-        checked_at: now_iso(),
-    }
+    health(
+        ids,
+        false,
+        Some(false),
+        None,
+        format!("`{bin}` was not found on PATH"),
+    )
 }
 
 fn health(
@@ -357,11 +349,7 @@ const MUSE: Ids = Ids {
     title: "Meta Muse",
 };
 
-/// Provisional Muse branch (enriched by self-integration, #294): `muse`
-/// binary presence plus `MODEL_API_KEY` presence for the shared Meta bucket.
-fn muse_health() -> ProviderHealth {
-    let installed = resolve_binary("muse").is_some();
-    let has_key = hub::secret::resolve("MODEL_API_KEY").is_some();
+fn muse_health_with(installed: bool, has_key: bool) -> ProviderHealth {
     health(
         &MUSE,
         installed,
@@ -376,30 +364,46 @@ fn muse_health() -> ProviderHealth {
     )
 }
 
+/// Muse Code health branch (#294): `muse` binary presence plus `MODEL_API_KEY`
+/// presence for the shared Meta bucket.
+fn muse_health() -> ProviderHealth {
+    let installed = resolve_binary("muse").is_some();
+    let has_key = hub::secret::resolve("MODEL_API_KEY").is_some();
+    muse_health_with(installed, has_key)
+}
+
 const CURSOR: Ids = Ids {
     agent_id: "cursor",
     provider: "cursor",
     title: "Cursor Agent",
 };
 
-/// Provisional Cursor branch (enriched by self-integration, #294): resolve
-/// the `agent`/`cursor-agent` binary and check for a login token file or the
-/// `CURSOR_TOKEN` vault entry. Auth-expiry parsing is left to #294.
-fn cursor_health() -> ProviderHealth {
-    let installed = resolve_binary("agent").is_some() || resolve_binary("cursor-agent").is_some();
-    let token_file = home_dir().join(".config/cursor/auth.json").is_file();
-    let has_token = token_file || hub::secret::resolve("CURSOR_TOKEN").is_some();
+fn cursor_health_with(
+    installed: bool,
+    auth: super::quota_cursor::CursorAuthDetails,
+) -> ProviderHealth {
+    let authenticated = if auth.token_present {
+        Some(!auth.is_expired)
+    } else {
+        Some(false)
+    };
+    let detail = auth.detail(installed);
     health(
         &CURSOR,
         installed,
-        Some(has_token),
-        None,
-        match (installed, has_token) {
-            (true, true) => "Cursor Agent is installed and a login token is present",
-            (true, false) => "Cursor Agent is installed but not logged in; run `agent login`",
-            (false, _) => "The Cursor `agent` CLI was not found on PATH",
-        },
+        authenticated,
+        auth.auth_expires_at,
+        detail,
     )
+}
+
+/// Cursor Agent health branch (#294): resolve the `agent`/`cursor-agent` binary
+/// and check credentials via the #290-hardened reader (`CURSOR_TOKEN` or `auth.json`),
+/// including JWT / on-disk auth expiry.
+fn cursor_health() -> ProviderHealth {
+    let installed = resolve_binary("agent").is_some() || resolve_binary("cursor-agent").is_some();
+    let auth = super::quota_cursor::cursor_auth_details();
+    cursor_health_with(installed, auth)
 }
 
 fn local_runtime_health(ids: &Ids, bin: &str) -> ProviderHealth {
