@@ -239,19 +239,92 @@ pub fn vibe_spawn_args(
     ])
 }
 
-/// Placeholder spawn argv for Meta Muse Code. The real non-interactive
-/// contract (executable name, batch/print flag, event-log format) is a spike
-/// under #273 — until then a start/inject for `muse` fails truthfully rather
-/// than shelling out a guessed command.
+/// The on-disk Muse session id for a Hub `(harness, workspace)` session id.
+///
+/// `muse exec --session-id` requires a UUID (`managed-…` is rejected with
+/// "invalid --session-id", verified live against muse 1.0.3), while the Hub
+/// registers managed workers as `managed-<uuid>` (see
+/// `bridge::relaunch::managed`). This maps a Hub session id to the UUID the
+/// CLI accepts: a bare UUID passes through, and `managed-<uuid>` strips to
+/// its trailing UUID. Anything else returns `None` so the caller fails
+/// truthfully instead of spawning a fresh session the Hub believes is a
+/// resume.
+pub fn muse_disk_session_id(session_id: &str) -> Option<String> {
+    use std::str::FromStr;
+    let trimmed = session_id.trim();
+    if uuid::Uuid::from_str(trimmed).is_ok() {
+        return Some(trimmed.to_string());
+    }
+    if let Some(trailing) = trimmed.strip_prefix("managed-") {
+        if uuid::Uuid::from_str(trailing).is_ok() {
+            return Some(trailing.to_string());
+        }
+    }
+    None
+}
+
+/// Explicit argv for a Meta Muse Code wake/task spawn, verified live
+/// against the installed `muse` CLI (#273 spike):
+/// `muse exec [--model <id>] [--reasoning-effort <effort>]
+/// [--session-id <uuid>] [--workspace <abs>] <prompt>`.
+///
+/// Managed runs pass their session id through [`muse_managed_spawn_args`]
+/// so the event-log capture adapter can find the transcript afterwards;
+/// one-shot wakes omit it and get a fresh CLI session. No approval-bypass
+/// flags (`--yolo`, `--disable-approval`, …) are passed by default.
 pub fn muse_spawn_args(
-    _workspace: &Path,
-    _prompt: &str,
-    _model: Option<&str>,
-    _effort: Option<&str>,
+    workspace: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
 ) -> Result<Vec<OsString>, HubError> {
-    Err(HubError::Invalid(
-        "Muse Code harness is not implemented yet (#273); the Muse team owns the spike".into(),
-    ))
+    muse_managed_spawn_args(workspace, prompt, None, model, effort)
+}
+
+/// Explicit argv for an app-managed Muse Code worker run. Adds
+/// `--session-id <uuid>` (normalized via [`muse_disk_session_id`]) when
+/// continuing a Hub-owned session; a present-but-unusable id is an error,
+/// never a silent fresh session.
+pub fn muse_managed_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    session_id: Option<&str>,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
+    if prompt.trim().is_empty() {
+        return Err(HubError::Invalid("Muse spawn requires a prompt".into()));
+    }
+    if !workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Muse spawn workspace must be an absolute path".into(),
+        ));
+    }
+    let mut args = vec![OsString::from("exec")];
+    if let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        args.push(OsString::from("--reasoning-effort"));
+        args.push(OsString::from(effort));
+    }
+    if let Some(session_id) = session_id {
+        let session_id = session_id.trim();
+        if !session_id.is_empty() {
+            let Some(disk_id) = muse_disk_session_id(session_id) else {
+                return Err(HubError::Invalid(format!(
+                    "Muse session id {session_id:?} is not a UUID and cannot be passed to `muse exec --session-id`"
+                )));
+            };
+            args.push(OsString::from("--session-id"));
+            args.push(OsString::from(disk_id));
+        }
+    }
+    args.push(OsString::from("--workspace"));
+    args.push(workspace.as_os_str().to_os_string());
+    args.push(OsString::from(prompt));
+    Ok(args)
 }
 
 /// Placeholder spawn argv for the Cursor `agent` CLI. Real argv, stream-json
@@ -441,8 +514,10 @@ mod tests {
     }
 
     #[test]
-    fn muse_and_cursor_ids_parse_but_spawn_is_a_typed_unavailable() {
-        // #271 scaffold: the identities exist; #273/#275 implement the argv.
+    fn muse_and_cursor_ids_parse_but_cursor_spawn_is_a_typed_unavailable() {
+        // #271 scaffold: the identities exist; #275 implements the argv.
+        // (#273 implements the Muse argv below; Cursor's slice reconciles
+        // this test on merge.)
         assert_eq!(HarnessId::parse("muse").unwrap(), HarnessId::Muse);
         assert_eq!(HarnessId::parse("muse-code").unwrap(), HarnessId::Muse);
         assert_eq!(HarnessId::parse("cursor").unwrap(), HarnessId::Cursor);
@@ -453,15 +528,70 @@ mod tests {
         assert_eq!(HarnessId::Cursor.executable(), "agent");
 
         let ws = PathBuf::from("/tmp/coding-assistants-c14");
-        let muse = muse_spawn_args(&ws, "do the thing", None, None);
-        assert!(
-            muse.is_err(),
-            "muse spawn must not shell out a guessed command"
-        );
-        assert!(muse.unwrap_err().to_string().contains("#273"));
         let cursor = cursor_spawn_args(&ws, "do the thing", None, None);
         assert!(cursor.is_err());
         assert!(cursor.unwrap_err().to_string().contains("#275"));
+    }
+
+    #[test]
+    fn muse_argv_is_explicit_and_rejects_relative_workspace() {
+        // #273, verified live against `muse exec --help` (muse 1.0.3).
+        let ws = PathBuf::from("/tmp/coding-assistants-c14");
+        let args = muse_spawn_args(&ws, "do the thing", None, None).unwrap();
+        assert_eq!(args[0], "exec");
+        assert_eq!(args[1], "--workspace");
+        assert_eq!(args[2], ws.as_os_str());
+        assert_eq!(args[3], "do the thing");
+
+        // Model/effort are opaque passthroughs (`test-model` is not a real
+        // id — the CLI publishes no model catalog; see #274).
+        let custom = muse_spawn_args(&ws, "do the thing", Some("test-model"), Some("low")).unwrap();
+        assert_eq!(custom[0], "exec");
+        assert_eq!(custom[1], "--model");
+        assert_eq!(custom[2], "test-model");
+        assert_eq!(custom[3], "--reasoning-effort");
+        assert_eq!(custom[4], "low");
+        assert_eq!(custom[5], "--workspace");
+        assert_eq!(custom[6], ws.as_os_str());
+        assert_eq!(custom[7], "do the thing");
+
+        assert!(muse_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(muse_spawn_args(&ws, "   ", None, None).is_err());
+    }
+
+    #[test]
+    fn muse_managed_argv_pins_a_uuid_session_id() {
+        let ws = PathBuf::from("/tmp/coding-assistants-c14");
+        let uuid = "123e4567-e89b-42d3-a456-426614174000";
+        let args = muse_managed_spawn_args(&ws, "continue", Some(uuid), None, None).unwrap();
+        let at = args.iter().position(|arg| arg == "--session-id").unwrap();
+        assert_eq!(args[at + 1], uuid);
+
+        // Hub managed ids (`managed-<uuid>`) strip to the trailing UUID —
+        // `muse exec` rejects the prefixed form ("invalid --session-id").
+        let managed = format!("managed-{uuid}");
+        let args = muse_managed_spawn_args(&ws, "continue", Some(&managed), None, None).unwrap();
+        let at = args.iter().position(|arg| arg == "--session-id").unwrap();
+        assert_eq!(args[at + 1], uuid);
+
+        // A present-but-unusable id is an error, never a silent fresh run.
+        assert!(muse_managed_spawn_args(&ws, "continue", Some("chat-1"), None, None).is_err());
+        // Blank ids mean a fresh one-shot, like `muse_spawn_args`.
+        let fresh = muse_managed_spawn_args(&ws, "continue", Some("  "), None, None).unwrap();
+        assert!(!fresh.iter().any(|arg| arg == "--session-id"));
+    }
+
+    #[test]
+    fn muse_disk_session_id_maps_hub_ids_to_cli_uuids() {
+        let uuid = "123e4567-e89b-42d3-a456-426614174000";
+        assert_eq!(muse_disk_session_id(uuid).as_deref(), Some(uuid));
+        assert_eq!(
+            muse_disk_session_id(&format!("managed-{uuid}")).as_deref(),
+            Some(uuid)
+        );
+        assert_eq!(muse_disk_session_id("chat-1"), None);
+        assert_eq!(muse_disk_session_id("managed-not-a-uuid"), None);
+        assert_eq!(muse_disk_session_id("  "), None);
     }
 
     #[test]

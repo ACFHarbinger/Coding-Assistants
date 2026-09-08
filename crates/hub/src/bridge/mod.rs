@@ -4,6 +4,7 @@ pub mod channels;
 pub mod claude;
 pub mod gemini;
 pub mod grok;
+pub mod muse;
 pub mod presence;
 pub mod relaunch;
 pub mod relaunch_claude;

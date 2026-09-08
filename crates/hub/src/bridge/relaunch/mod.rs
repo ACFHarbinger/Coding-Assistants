@@ -36,8 +36,9 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
-        // #271 scaffold — resume from durable state lands with #273 / #275.
-        HarnessId::Muse | HarnessId::Cursor => None,
+        HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
+        // #271 scaffold — resume from durable state lands with #275.
+        HarnessId::Cursor => None,
     }
 }
 
@@ -100,8 +101,13 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
         (HarnessId::OpenCode, _) | (HarnessId::DeepSeek, _) | (HarnessId::Vibe, _) => vec![],
+        // `muse resume <session-uuid>` resumes directly; bare `muse resume`
+        // opens an interactive picker (verified #273 spike), so a fresh
+        // launch passes no resume flag rather than hanging on a picker.
+        (HarnessId::Muse, Some(id)) => vec!["resume".into(), id.into()],
+        (HarnessId::Muse, None) => vec![],
         // #271 scaffold. #275 will make Cursor resume `["--resume", id, "--print"]`.
-        (HarnessId::Muse, _) | (HarnessId::Cursor, _) => vec![],
+        (HarnessId::Cursor, _) => vec![],
     }
 }
 
@@ -301,6 +307,11 @@ mod tests {
             interactive_resume_args(HarnessId::Gemini, Some("abc")),
             vec!["--conversation", "abc"]
         );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Muse, Some("abc")),
+            vec!["resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Muse, None).is_empty());
     }
 
     #[test]

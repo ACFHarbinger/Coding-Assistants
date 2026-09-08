@@ -99,8 +99,12 @@ fn inject_harness_inner(
             effort,
         )?,
         HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt, model, effort)?,
-        // #271 scaffold — typed `unavailable` until #273 / #275 land the argv.
+        // Muse wakes are one-shot `muse exec` runs (no `--session-id`); a
+        // task-only inject stays queued — `muse session-message` ingress is
+        // closed in current builds (verified #273 spike), so there is no
+        // live-delivery bridge to route through.
         HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
+        // #271 scaffold — typed `unavailable` until #275 lands the argv.
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
     };
 
