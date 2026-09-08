@@ -211,7 +211,11 @@ impl LLMClient {
         // The Model API publishes no listing endpoint: an authenticated
         // install contributes the fixed cookbook default, mirroring the
         // Mistral fallback pattern above.
-        if muse_is_authenticated(std::env::var("MODEL_API_KEY").ok().as_deref()) {
+        if muse_is_authenticated(
+            hub::secret::resolve("MODEL_API_KEY")
+                .as_ref()
+                .map(|s| s.expose()),
+        ) {
             for model in MUSE_FALLBACK_MODELS {
                 models.push(format!("muse/{model}"));
             }
@@ -283,15 +287,19 @@ async fn muse_completion(
     source: &str,
     _token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
-    let api_key = std::env::var("MODEL_API_KEY").ok();
-    if !muse_is_authenticated(api_key.as_deref()) {
+    // Resolved from the vault (keychain / file) or env as fallback via
+    // hub::secret::resolve — never stored, logged, or placed in argv. The
+    // key travels only in the outbound `Authorization` header.
+    let api_key_secret = hub::secret::resolve("MODEL_API_KEY");
+    if !muse_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
         return Err(muse_unavailable_unauthenticated());
     }
-    // Presence-checked above; binding here keeps the secret out of every
-    // error string below (only presence-derived messages are built).
-    let api_key = api_key
-        .map(|key| key.trim().to_string())
-        .filter(|key| !key.is_empty())
+    // Keep the key in SecretString until reqwest constructs its Authorization
+    // header; do not create an ordinary String that survives the request.
+    let api_key = api_key_secret
+        .as_ref()
+        .map(|secret| secret.expose())
+        .filter(|key| !key.trim().is_empty())
         .ok_or_else(muse_unavailable_unauthenticated)?;
     let model = config.model.trim();
     let model = if model.is_empty() {
@@ -299,7 +307,7 @@ async fn muse_completion(
     } else {
         model
     };
-    let output = muse_chat_request(&api_key, model, prompt).await?;
+    let output = muse_chat_request(api_key, model, prompt).await?;
     let _ = app.emit(
         "agent-event",
         AgentEvent {
@@ -342,8 +350,11 @@ async fn vibe_completion(
         std::env::var("VIBE_HOME").ok().as_deref(),
         std::env::var("HOME").ok().as_deref(),
     );
-    let env_key = std::env::var("MISTRAL_API_KEY").ok();
-    if !vibe_is_authenticated(&config.model, &home, env_key.as_deref()) {
+    // Resolved from the vault or env fallback via hub::secret::resolve —
+    // used for presence only; the actual key is managed by the vibe CLI.
+    let env_key_secret = hub::secret::resolve("MISTRAL_API_KEY");
+    let env_key = env_key_secret.as_ref().map(|secret| secret.expose());
+    if !vibe_is_authenticated(&config.model, &home, env_key) {
         return Err(vibe_unavailable_unauthenticated());
     }
 
@@ -353,6 +364,12 @@ async fn vibe_completion(
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // A key supplied through the vault has to reach Vibe's child process;
+    // otherwise vault-only authentication would pass the presence check but
+    // the CLI itself would run unauthenticated.
+    if let Some(key) = env_key {
+        command.env("MISTRAL_API_KEY", key);
+    }
     if !config.model.trim().is_empty() {
         command.env("VIBE_ACTIVE_MODEL", &config.model);
     }

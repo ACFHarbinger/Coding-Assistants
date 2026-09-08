@@ -1,4 +1,4 @@
-export type TabId = "general" | "workspace" | "agents" | "creative" | "external_mcp" | "orchestration" | "memory" | "diagnostics" | "danger";
+export type TabId = "general" | "workspace" | "agents" | "creative" | "external_mcp" | "credentials" | "orchestration" | "memory" | "diagnostics" | "danger";
 
 export interface TabDef {
   id: TabId;
@@ -14,6 +14,7 @@ export const TABS: TabDef[] = [
   { id: "agents", label: "Agents & harnesses", summary: "Named provider profiles and per-harness settings.", implemented: true },
   { id: "creative", label: "Creative Tools", summary: "Expose local creative app MCP bridges (Blender, Krita, Godot, etc.) to coding agents.", implemented: true },
   { id: "external_mcp", label: "External MCP", summary: "External MCP server registry (Perplexity API, Perplexity Web) with launcher status and auth hints.", implemented: true },
+  { id: "credentials", label: "Credentials", summary: "Store API keys and tokens in the system keychain. Values are write-only and never displayed.", implemented: true },
   { id: "orchestration", label: "Orchestration", summary: "Task/wake confirmation, auto-enrollment, budgets, tool/sandbox policy.", implemented: true },
   { id: "memory", label: "Memory & storage", summary: "Retention, export, and settings-backup policy.", implemented: true },
   { id: "diagnostics", label: "Diagnostics", summary: "Log level, configuration health, redacted diagnostics export.", implemented: true },

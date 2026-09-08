@@ -211,3 +211,43 @@ export interface ExternalMcpStatus {
   servers: ExternalServerStatus[];
   writtenConfigs: string[];
 }
+
+// Mirrors `hub::secret::SecretSource`. Never a credential value.
+export type SecretSource = "keychain" | "file" | "env_var" | "none";
+
+// Mirrors `hub::secret::SecretStatus`. The credential value never crosses IPC.
+export interface SecretStatus {
+  key: string;
+  source: SecretSource;
+  isSet: boolean;
+  updatedAt: number | null; // Unix seconds; null for env-var-backed or unset slots
+}
+
+// Mirrors `hub::secret::catalog::OwnerKind`.
+export type OwnerKind = "harness" | "provider" | "tool" | "mcp";
+
+// Mirrors `hub::secret::catalog::Scope`.
+export type CatalogScope = "global" | "workspace";
+
+// Mirrors `hub::secret::catalog::FieldSpec` (camelCase from serde).
+export interface FieldSpec {
+  id: string;
+  displayName: string;
+  ownerKind: OwnerKind;
+  ownerKey: string;
+  envVar: string | null;
+  secret: boolean;
+  scope: CatalogScope;
+  docsUrl: string | null;
+  notes: string | null;
+}
+
+// Mirrors `hub::LinkedAccountStatus` (#286 / H7). The token value never crosses IPC.
+export interface LinkedAccountStatus {
+  provider: string;
+  externalLabel: string | null;
+  connectionKind: "oauth_device" | "vendor_cli_login" | string;
+  isLinked: boolean;
+  linkedAt: number | null; // epoch seconds
+  source: "vault" | "vendor_cli" | "none" | string;
+}

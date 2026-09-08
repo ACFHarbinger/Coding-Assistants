@@ -36,6 +36,8 @@ pub use types::*;
 mod agents;
 mod attachments;
 mod exports;
+mod linked_accounts;
+pub use linked_accounts::*;
 mod messages;
 mod models;
 pub use models::*;

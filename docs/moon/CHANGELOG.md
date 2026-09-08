@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings → Credentials tab & account-connection surface (#284, `settings.md` S8, #286 / H7):** New
+  `CredentialsTab.tsx` surfaces the full `hub::secret::CATALOG` in the
+  Settings window grouped by owner kind (Providers, Harnesses, Tools, MCP
+  Servers) alongside the external account-connection panel (`ConnectedAccountsSection.tsx`)
+  for ChatGPT, Claude, Google, and other providers. Supported actions:
+  write-only credential storage and connect/disconnect actions backed by #286
+  single-user storage (`linked_account` table in `hub.db` under provisional
+  `local` key). Each row displays connection status, connection kind
+  (Vendor CLI / OAuth Vault), and external account label without leaking secrets.
+  New Tauri commands: `hub_list_linked_accounts`, `hub_link_account_cli`,
+  `hub_unlink_account`, and `settings_list_credential_fields`.
+  Wired into `SettingsApp.tsx` and `tabsConfig.ts`. Depends on #282, #283, #285, and #286.
+- **Migrate `quota/*` + `client/` off env-var onto secret resolver (#287,
+  `platform.md` P12):** `DEEPSEEK_API_KEY` (`commands/quota/deepseek.rs`),
+  `MODEL_API_KEY` (`client/llm.rs` — both `list_models` auth check and
+  `muse_completion`), and `MISTRAL_API_KEY` (`client/llm.rs`
+  `vibe_completion`) now resolve through `hub::secret::resolve()` instead
+  of `std::env::var` directly. Existing env-var-only setups continue to
+  work unchanged (the resolver's env fallback). A keychain entry wins over
+  the env var, allowing the Settings Credentials UI to
+  override without touching the shell environment.
+- Write-only credential Tauri commands (#283, `settings.md` S8):
+  `settings_set_credential(field_id, value)`,
+  `settings_clear_credential(field_id)`, and
+  `settings_get_credential_status(field_id)`. Every command validates
+  `field_id` against the #285 static catalog and the `hub::secret`
+  key-validation rules before touching the backend. No command returns a
+  stored secret — the only IPC surface is `SecretStatus { key, source,
+  isSet, updatedAt }`. Every set / clear writes a redacted entry to the
+  settings audit stream (`field_id` + action only; value never logged).
+  Unblocks the Settings credential UI (#284).
+- Typed credential and configuration field catalog (#285, `settings.md`
+  S8): static registry `hub::secret::CATALOG` (`hub::secret::catalog`) of
+  which credential and configuration fields each harness, tool, MCP server,
+  and provider requires. Pure data and accessors (`field(id)`,
+  `fields_for(owner_kind, owner_key)`, `fields_by_owner_kind`,
+  `secret_fields`, `field_by_env_var`) with typed `OwnerKind`, `Scope`, and
+  `FieldSpec`. `FieldSpec::vault_key()` maps to `env_var` or `id` for vault
+  operations. Unblocks write-only credential commands (#283) and Settings UI
+  surface (#284).
 - Secret vault backend + unified credential resolver (#282, `platform.md`
   P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
   v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
