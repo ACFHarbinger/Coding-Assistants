@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Encrypted-file secret vault fallback backend (#289, `platform.md` P12):**
+  `hub::secret::FileBackend` implements `SecretBackend` for environments with
+  no functioning OS secret service (headless Linux, CI, minimal desktop sessions).
+  Stores credentials in `<CA_HOME or ~/.coding-assistants>/secrets.vault` with mode
+  `0600`, encrypted using ChaCha20-Poly1305 AEAD (`ring::aead`) and PBKDF2-HMAC-SHA256
+  (`ring::pbkdf2`, 100,000 iterations) with an OS-user-scoped seed (`.vault_seed`,
+  mode `0600`) and a per-write 16-byte random salt and 96-bit random nonce.
+  The 37-byte file header is authenticated as Additional Data (AAD). File updates
+  are atomic via temporary file and rename. Automatically selected when the OS
+  keychain is unavailable or forced via `CA_SECRET_BACKEND=file`. Uses the
+  already-vendored `ring` crate (no new external dependencies).
 - **Settings → Credentials tab & account-connection surface (#284, `settings.md` S8, #286 / H7):** New
   `CredentialsTab.tsx` surfaces the full `hub::secret::CATALOG` in the
   Settings window grouped by owner kind (Providers, Harnesses, Tools, MCP

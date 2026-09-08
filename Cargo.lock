@@ -2348,6 +2348,7 @@ dependencies = [
  "chrono",
  "fastembed",
  "keyring",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",

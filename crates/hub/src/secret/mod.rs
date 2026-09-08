@@ -15,12 +15,19 @@
 //! entire non-secret surface — presence, source, and last-updated.
 
 pub mod catalog;
+mod file_backend;
+mod file_crypto;
 mod keyring_backend;
 mod string;
 
 pub use catalog::{field, fields_for, FieldSpec, OwnerKind, Scope, CATALOG};
+pub use file_backend::FileBackend;
 pub use keyring_backend::KeyringBackend;
 pub use string::SecretString;
+
+#[cfg(test)]
+#[path = "file_backend_tests.rs"]
+mod file_backend_tests;
 
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -89,35 +96,6 @@ pub trait SecretBackend: Send + Sync {
     fn status(&self, key: &str) -> Result<(bool, Option<i64>), SecretError>;
 }
 
-/// Placeholder for the #289 encrypted-file backend. Until that lands it is
-/// never selected automatically (its [`available`](SecretBackend::available)
-/// is `false`); an explicit `CA_SECRET_BACKEND=file` gets an honest error
-/// rather than a silent no-op.
-struct UnavailableFileBackend;
-
-impl SecretBackend for UnavailableFileBackend {
-    fn kind(&self) -> SecretSource {
-        SecretSource::File
-    }
-    fn available(&self) -> bool {
-        false
-    }
-    fn set(&self, _key: &str, _secret: &str) -> Result<(), SecretError> {
-        Err(SecretError::Unavailable(
-            "encrypted-file secret backend not yet available (#289)".into(),
-        ))
-    }
-    fn get(&self, _key: &str) -> Result<Option<SecretString>, SecretError> {
-        Ok(None)
-    }
-    fn delete(&self, _key: &str) -> Result<(), SecretError> {
-        Ok(())
-    }
-    fn status(&self, _key: &str) -> Result<(bool, Option<i64>), SecretError> {
-        Ok((false, None))
-    }
-}
-
 /// A credential key: an env-var name (`DEEPSEEK_API_KEY`) or a catalog id
 /// (`provider.deepseek.api_key`). Bounded and free of separators that would
 /// let it escape the keychain namespace.
@@ -143,14 +121,14 @@ pub fn validate_key(key: &str) -> Result<(), SecretError> {
 /// every call and never cached.
 fn active_backend() -> Box<dyn SecretBackend> {
     match std::env::var(BACKEND_OVERRIDE_ENV).ok().as_deref() {
-        Some("file") => Box::new(UnavailableFileBackend),
+        Some("file") => Box::new(FileBackend::new()),
         Some("keychain") => Box::new(KeyringBackend::new()),
         _ => {
             static KEYCHAIN_USABLE: OnceLock<bool> = OnceLock::new();
             if *KEYCHAIN_USABLE.get_or_init(|| KeyringBackend::new().available()) {
                 Box::new(KeyringBackend::new())
             } else {
-                Box::new(UnavailableFileBackend)
+                Box::new(FileBackend::new())
             }
         }
     }
@@ -371,10 +349,15 @@ mod tests {
     }
 
     #[test]
-    fn file_backend_stub_is_never_auto_selected_and_fails_loudly_when_forced() {
-        let stub = UnavailableFileBackend;
-        assert!(!stub.available());
-        assert!(stub.set("K", "v").is_err());
-        assert!(matches!(stub.get("K"), Ok(None)));
+    fn file_backend_is_available_and_forced_by_env() {
+        let backend = FileBackend::new();
+        assert!(backend.available());
+        assert_eq!(backend.kind(), SecretSource::File);
+
+        // Env override selects file backend
+        std::env::set_var(BACKEND_OVERRIDE_ENV, "file");
+        let active = active_backend();
+        assert_eq!(active.kind(), SecretSource::File);
+        std::env::remove_var(BACKEND_OVERRIDE_ENV);
     }
 }
