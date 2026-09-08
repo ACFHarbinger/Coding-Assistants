@@ -35,7 +35,7 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
-vi.mock("../harness/EmbeddedTerminal", () => ({
+vi.mock("../../harness/EmbeddedTerminal", () => ({
   default: ({ sessionId }: { sessionId: string }) => (
     <div data-testid={`embedded-terminal-${sessionId}`}>Terminal {sessionId}</div>
   ),
@@ -135,6 +135,7 @@ describe("HarnessTerminalGrid", () => {
   });
 
   it("resets grid layout when clicking reset grid button", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
     render(<HarnessTerminalGrid workspace="/test/workspace" />);
 
     // Launch Grok
@@ -145,6 +146,39 @@ describe("HarnessTerminalGrid", () => {
     const resetBtn = screen.getByText("Reset grid");
     fireEvent.click(resetBtn);
 
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: "sid-grok" });
     expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+  });
+
+  it("restores only persisted panes whose deterministic PTY session still exists", async () => {
+    storageStore["ca.terminalGrid.layout./test/workspace"] = JSON.stringify({
+      type: "split",
+      id: "split-1",
+      direction: "row",
+      ratio: 0.5,
+      first: { type: "leaf", id: "live", harness: "claude" },
+      second: { type: "leaf", id: "stale", harness: "grok" },
+    });
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "pty_session_status") {
+        return Promise.resolve({
+          found: args?.sessionId === "harness-terminal:claude:/test/workspace",
+          running: true,
+          exited: false,
+          exitDetail: null,
+          outputTailB64: "",
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    expect(await screen.findByTestId("embedded-terminal-harness-terminal:claude:/test/workspace")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close grok pane" })).not.toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_session_status", {
+      sessionId: "harness-terminal:claude:/test/workspace",
+    });
   });
 });

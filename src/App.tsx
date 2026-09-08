@@ -29,6 +29,7 @@ function App() {
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"orchestrate" | "hub" | "messager">("messager");
   const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals">("setup");
+  const [requestedTerminalHarness, setRequestedTerminalHarness] = useState<string | null>(null);
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -397,7 +398,12 @@ function App() {
           </div>
 
           <div style={{ display: orchestrateSubView === "terminals" ? "block" : "none" }}>
-            <HarnessTerminalGrid workspace={config.work_dir} onOpenSetup={() => setOrchestrateSubView("setup")} />
+            <HarnessTerminalGrid
+              workspace={config.work_dir}
+              onOpenSetup={() => setOrchestrateSubView("setup")}
+              requestedHarness={requestedTerminalHarness}
+              onHarnessRequestHandled={() => setRequestedTerminalHarness(null)}
+            />
           </div>
 
           <div style={{ display: orchestrateSubView === "setup" ? "contents" : "none" }}>
@@ -420,7 +426,10 @@ function App() {
               onSelectWorkSession={selectWorkSession}
               onSwitchToChatView={() => setMainView("messager")}
               activeWorkSessionName={activeWorkSession?.name ?? null}
-              onOpenTerminalGrid={() => setOrchestrateSubView("terminals")}
+              onOpenTerminalGrid={(harness) => {
+                if (harness) setRequestedTerminalHarness(harness);
+                setOrchestrateSubView("terminals");
+              }}
             />
 
             <RemotePanel

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import EmbeddedTerminal from "../harness/EmbeddedTerminal";
 import TerminalPaneErrorBoundary from "../harness/TerminalPaneErrorBoundary";
-import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration } from "../harness/types";
+import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionStatus } from "../harness/types";
 import {
   computeRects,
   insertLeaf,
@@ -31,14 +31,22 @@ function storageKey(workspace: string): string {
   return `ca.terminalGrid.layout.${workspace || "default"}`;
 }
 
+function terminalSessionId(harness: string, workspace: string): string {
+  return `harness-terminal:${harness}:${workspace}`;
+}
+
 export interface HarnessTerminalGridProps {
   workspace: string;
   onOpenSetup?: () => void;
+  requestedHarness?: string | null;
+  onHarnessRequestHandled?: () => void;
 }
 
 export default function HarnessTerminalGrid({
   workspace,
   onOpenSetup,
+  requestedHarness,
+  onHarnessRequestHandled,
 }: HarnessTerminalGridProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [bounds, setBounds] = useState<Rect>({ x: 0, y: 0, width: 900, height: 600 });
@@ -56,12 +64,72 @@ export default function HarnessTerminalGrid({
   const [statusMsg, setStatusMsg] = useState<string>("");
 
   useEffect(() => {
-    try {
-      setLayout(deserializeLayout(localStorage.getItem(storageKey(workspace))));
-    } catch {
-      setLayout(null);
-    }
+    let disposed = false;
+
+    const restoreLayout = async () => {
+      let restored: LayoutNode | null = null;
+      try {
+        restored = deserializeLayout(localStorage.getItem(storageKey(workspace)));
+      } catch {
+        // Storage may be disabled; an empty grid is the safe fallback.
+      }
+
+      if (!restored) {
+        if (!disposed) {
+          setLayout(null);
+          setTerminals({});
+        }
+        return;
+      }
+
+      // PTY ids are deterministic. Verify each persisted pane before mounting
+      // it, so a stale browser layout never renders a dead terminal placeholder.
+      const leaves = collectLeaves(restored);
+      const statuses = await Promise.all(
+        leaves.map(async (leaf) => {
+          const sessionId = terminalSessionId(leaf.harness, workspace);
+          try {
+            const status = await invoke<PtySessionStatus>("pty_session_status", { sessionId });
+            return status.found ? { harness: leaf.harness, sessionId } : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (disposed) return;
+
+      const live = statuses.flatMap((entry) => entry ? [entry] : []);
+      const liveHarnesses = new Set(live.map((entry) => entry.harness));
+      const pruned = leaves.reduce<LayoutNode | null>(
+        (tree, leaf) => liveHarnesses.has(leaf.harness) ? tree : removeLeaf(tree, leaf.id),
+        restored,
+      );
+      setLayout(pruned);
+      setTerminals(Object.fromEntries(live.map(({ harness, sessionId }) => [harness, sessionId])));
+    };
+
+    void restoreLayout();
+    return () => { disposed = true; };
   }, [workspace]);
+
+  useEffect(() => {
+    if (!requestedHarness) return;
+    let disposed = false;
+    const attachRequestedHarness = async () => {
+      const sessionId = terminalSessionId(requestedHarness, workspace);
+      try {
+        const status = await invoke<PtySessionStatus>("pty_session_status", { sessionId });
+        if (!disposed && status.found) {
+          setTerminals((previous) => ({ ...previous, [requestedHarness]: sessionId }));
+          setLayout((previous) => insertLeaf(previous, requestedHarness));
+        }
+      } finally {
+        if (!disposed) onHarnessRequestHandled?.();
+      }
+    };
+    void attachRequestedHarness();
+    return () => { disposed = true; };
+  }, [workspace, requestedHarness, onHarnessRequestHandled]);
 
   useEffect(() => {
     try {
@@ -142,6 +210,17 @@ export default function HarnessTerminalGrid({
     setLayout((prev) => removeLeaf(prev, harness));
   }, [terminals]);
 
+  const resetGrid = useCallback(async () => {
+    // Reset promises to close every pane, not merely hide a live PTY behind
+    // an empty layout. Kill failures mean the process already exited.
+    await Promise.allSettled(
+      Object.values(terminals).map((sessionId) => invoke("pty_kill", { sessionId })),
+    );
+    setTerminals({});
+    setLayout(null);
+    setStatusMsg("All harness terminal panes closed.");
+  }, [terminals]);
+
   const startSplitterDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, splitter: SplitterInfo) => {
       if (event.button !== 0) return;
@@ -211,7 +290,7 @@ export default function HarnessTerminalGrid({
               type="button"
               className="btn-secondary"
               style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
-              onClick={() => setLayout(null)}
+              onClick={() => void resetGrid()}
               title="Close all panes and reset layout"
             >
               Reset grid

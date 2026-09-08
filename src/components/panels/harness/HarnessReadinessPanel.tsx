@@ -2,9 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
-import EmbeddedTerminal from "./EmbeddedTerminal";
-import ResizableTerminalFrame from "./ResizableTerminalFrame";
-import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import ProviderHealthChip from "./ProviderHealthChip";
 import { useProviderHealth } from "./useProviderHealth";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
@@ -27,7 +24,7 @@ export default function HarnessReadinessPanel({
   onOpenTerminalGrid,
 }: {
   workspace: string;
-  onOpenTerminalGrid?: () => void;
+  onOpenTerminalGrid?: (harness?: string) => void;
 }) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
   const [error, setError] = useState("");
@@ -36,7 +33,6 @@ export default function HarnessReadinessPanel({
   const [harness, setHarness] = useState<string>("grok");
   const [busy, setBusy] = useState(false);
   const [relaunching, setRelaunching] = useState<string | null>(null);
-  const [terminals, setTerminals] = useState<Record<string, string>>({});
 
   const { healthMap, refresh: refreshHealth } = useProviderHealth(30_000);
 
@@ -97,7 +93,7 @@ export default function HarnessReadinessPanel({
       if (!sid) {
         throw new Error("Resume did not return an in-app terminal session id.");
       }
-      setTerminals((prev) => ({ ...prev, [outcome.harness]: sid }));
+      onOpenTerminalGrid?.(outcome.harness);
       await refresh();
     } catch (cause) {
       setError(String(cause).replace(/^Error:\s*/, ""));
@@ -105,21 +101,6 @@ export default function HarnessReadinessPanel({
       setBusy(false);
       setRelaunching(null);
     }
-  };
-
-  const closeTerminal = async (target: string) => {
-    const sessionId = terminals[target];
-    if (!sessionId) return;
-    try {
-      await invoke("pty_kill", { sessionId });
-    } catch {
-      // Already exited — nothing to clean up.
-    }
-    setTerminals((prev) => {
-      const next = { ...prev };
-      delete next[target];
-      return next;
-    });
   };
 
   const startManaged = async () => {
@@ -173,7 +154,7 @@ export default function HarnessReadinessPanel({
               type="button"
               className="btn-primary"
               style={{ marginTop: 0 }}
-              onClick={onOpenTerminalGrid}
+              onClick={() => onOpenTerminalGrid()}
             >
               Open terminal grid →
             </button>
@@ -240,21 +221,7 @@ export default function HarnessReadinessPanel({
         >
           {relaunching === harness ? "Opening terminal…" : "Resume in terminal"}
         </button>
-        {terminals[harness] && (
-          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal(harness)}>
-            Close terminal
-          </button>
-        )}
       </div>
-      {terminals[harness] && (
-        <div style={{ marginBottom: "0.85rem" }}>
-          <ResizableTerminalFrame persistId={harness}>
-            <TerminalPaneErrorBoundary>
-              <EmbeddedTerminal sessionId={terminals[harness]} onExit={(detail) => setDetail(`${harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
-            </TerminalPaneErrorBoundary>
-          </ResizableTerminalFrame>
-        </div>
-      )}
       <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
         {HARNESS_PREREQUISITES[harness]} {harness === "grok"
           ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
@@ -316,20 +283,8 @@ export default function HarnessReadinessPanel({
                 >
                   {relaunching === row.harness ? "Opening…" : "Resume in terminal"}
                 </button>
-                {terminals[row.harness] && (
-                  <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void closeTerminal(row.harness)}>
-                    Close terminal
-                  </button>
-                )}
               </div>
             </div>
-            {terminals[row.harness] && (
-              <ResizableTerminalFrame persistId={row.harness}>
-                <TerminalPaneErrorBoundary>
-                  <EmbeddedTerminal sessionId={terminals[row.harness]} onExit={(detail) => setDetail(`${row.harness} terminal: ${detail}`)} onError={(detail) => setError(detail)} />
-                </TerminalPaneErrorBoundary>
-              </ResizableTerminalFrame>
-            )}
           </div>
         ))}
       </div>

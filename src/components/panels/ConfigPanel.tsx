@@ -26,7 +26,7 @@ interface ConfigPanelProps {
   onSelectWorkSession?: (sessionId: string | null) => void;
   onSwitchToChatView?: () => void;
   activeWorkSessionName: string | null;
-  onOpenTerminalGrid?: () => void;
+  onOpenTerminalGrid?: (harness?: string) => void;
 }
 
 export default function ConfigPanel({
