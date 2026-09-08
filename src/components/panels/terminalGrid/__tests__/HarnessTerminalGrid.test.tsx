@@ -1,34 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import HarnessTerminalGrid from "../HarnessTerminalGrid";
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockImplementation((cmd: string, args?: any) => {
-    if (cmd === "hub_list_harness_sessions") {
-      return Promise.resolve([]);
-    }
-    if (cmd === "hub_relaunch_harness_embedded") {
-      return Promise.resolve({
-        harness: args?.harness || "claude",
-        sessionId: `sid-${args?.harness || "claude"}`,
-        detail: "Connected",
-        killedPid: null,
-      });
-    }
-    if (cmd === "pty_session_status") {
-      return Promise.resolve({
-        found: true,
-        running: true,
-        exited: false,
-        exitDetail: null,
-        outputTailB64: "",
-      });
-    }
-    if (cmd === "pty_kill") {
-      return Promise.resolve(null);
-    }
+const defaultInvokeHandler = (cmd: string, args?: any) => {
+  if (cmd === "hub_list_harness_sessions") {
+    return Promise.resolve([]);
+  }
+  if (cmd === "hub_relaunch_harness_embedded") {
+    return Promise.resolve({
+      harness: args?.harness || "claude",
+      sessionId: `sid-${args?.harness || "claude"}`,
+      detail: "Connected",
+      killedPid: null,
+    });
+  }
+  if (cmd === "pty_session_status") {
+    return Promise.resolve({
+      found: true,
+      running: true,
+      exited: false,
+      exitDetail: null,
+      outputTailB64: "",
+    });
+  }
+  if (cmd === "pty_kill") {
     return Promise.resolve(null);
-  }),
+  }
+  return Promise.resolve(null);
+};
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn().mockImplementation((cmd: string, args?: any) => defaultInvokeHandler(cmd, args)),
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -59,6 +62,18 @@ const storageStore: Record<string, string> = {};
 beforeEach(() => {
   (window as any).ResizeObserver = MockResizeObserver;
   (window as any).__TAURI_INTERNALS__ = {};
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+  Element.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 1000,
+    height: 600,
+    right: 1000,
+    bottom: 600,
+    x: 0,
+    y: 0,
+  });
   for (const k of Object.keys(storageStore)) {
     delete storageStore[k];
   }
@@ -83,6 +98,7 @@ beforeEach(() => {
     configurable: true,
   });
   vi.clearAllMocks();
+  vi.mocked(invoke).mockImplementation((cmd: string, args?: any) => defaultInvokeHandler(cmd, args));
 });
 
 describe("HarnessTerminalGrid", () => {
@@ -180,5 +196,102 @@ describe("HarnessTerminalGrid", () => {
     expect(tauriCore.invoke).toHaveBeenCalledWith("pty_session_status", {
       sessionId: "harness-terminal:claude:/test/workspace",
     });
+  });
+
+  it("maximizes a pane and restores via button or Escape key", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    // Splitter should be visible
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+
+    // Click maximize on Claude
+    const maxClaudeBtn = screen.getByRole("button", { name: "Maximize claude pane" });
+    fireEvent.click(maxClaudeBtn);
+
+    // Banner should now be visible
+    expect(screen.getByText(/Maximized: Claude/)).toBeInTheDocument();
+    // Splitter should be hidden while maximized
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+
+    // Press Escape to restore
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByText(/Maximized: Claude/)).not.toBeInTheDocument();
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+
+    // Maximize Grok and restore via the restore button
+    const maxGrokBtn = screen.getByRole("button", { name: "Maximize grok pane" });
+    fireEvent.click(maxGrokBtn);
+    expect(screen.getByText(/Maximized: Grok/)).toBeInTheDocument();
+
+    const restoreGrokBtn = screen.getByRole("button", { name: "Restore grok pane" });
+    fireEvent.click(restoreGrokBtn);
+    expect(screen.queryByText(/Maximized: Grok/)).not.toBeInTheDocument();
+  });
+
+  it("handles titlebar drag to center to swap panes", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    const claudeTitle = screen.getByText("Claude");
+    const claudeTitleBar = claudeTitle.closest("div")?.parentElement as HTMLElement;
+    expect(claudeTitleBar).toBeTruthy();
+
+    // Pointer down on Claude's titlebar
+    fireEvent.pointerDown(claudeTitleBar, { clientX: 250, clientY: 20, button: 0, pointerId: 1 });
+
+    // Drag into Grok's center (x: 750, y: 300)
+    fireEvent.pointerMove(claudeTitleBar, { clientX: 750, clientY: 300, pointerId: 1 });
+
+    // Drop zone overlay should appear with swap label
+    expect(await screen.findByTestId("drop-zone-overlay")).toBeInTheDocument();
+    expect(screen.getByText("Swap with Grok")).toBeInTheDocument();
+
+    // Pointer up to complete the swap
+    fireEvent.pointerUp(claudeTitleBar, { clientX: 750, clientY: 300, pointerId: 1 });
+
+    // Drop zone overlay should disappear
+    expect(screen.queryByTestId("drop-zone-overlay")).not.toBeInTheDocument();
+  });
+
+  it("handles titlebar drag to bottom edge to re-split panes", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    const claudeTitle = screen.getByText("Claude");
+    const claudeTitleBar = claudeTitle.closest("div")?.parentElement as HTMLElement;
+    expect(claudeTitleBar).toBeTruthy();
+
+    // Pointer down on Claude
+    fireEvent.pointerDown(claudeTitleBar, { clientX: 250, clientY: 20, button: 0, pointerId: 1 });
+
+    // Drag into Grok's bottom edge (x: 750, y: 580)
+    fireEvent.pointerMove(claudeTitleBar, { clientX: 750, clientY: 580, pointerId: 1 });
+
+    // Drop zone overlay should show Dock below Grok
+    expect(await screen.findByTestId("drop-zone-overlay")).toBeInTheDocument();
+    expect(screen.getByText("Dock below Grok")).toBeInTheDocument();
+
+    // Pointer up to complete re-split
+    fireEvent.pointerUp(claudeTitleBar, { clientX: 750, clientY: 580, pointerId: 1 });
+
+    expect(screen.queryByTestId("drop-zone-overlay")).not.toBeInTheDocument();
+    const separator = screen.getByRole("separator");
+    expect(separator).toHaveAttribute("aria-orientation", "horizontal");
   });
 });

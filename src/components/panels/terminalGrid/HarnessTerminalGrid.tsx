@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
-import EmbeddedTerminal from "../harness/EmbeddedTerminal";
-import TerminalPaneErrorBoundary from "../harness/TerminalPaneErrorBoundary";
 import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionStatus } from "../harness/types";
 import {
   computeRects,
   insertLeaf,
   removeLeaf,
   resizeSplit,
+  swapLeaves,
+  moveLeaf,
   collectLeaves,
   serializeLayout,
   deserializeLayout,
@@ -15,25 +15,16 @@ import {
   type Rect,
   type SplitterInfo,
 } from "./layoutTree";
-
-const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor"] as const;
-
-const DISPLAY_NAMES: Record<string, string> = {
-  grok: "Grok",
-  chat: "Codex",
-  claude: "Claude",
-  gemini: "Gemini",
-  muse: "Muse",
-  cursor: "Cursor",
-};
-
-function storageKey(workspace: string): string {
-  return `ca.terminalGrid.layout.${workspace || "default"}`;
-}
-
-function terminalSessionId(harness: string, workspace: string): string {
-  return `harness-terminal:${harness}:${workspace}`;
-}
+import { useTerminalGridDrag, type DragTargetZone } from "./useTerminalGridDrag";
+import DropZoneOverlay from "./DropZoneOverlay";
+import TerminalPane from "./TerminalPane";
+import {
+  ALL_HARNESSES,
+  DISPLAY_NAMES,
+  storageKey,
+  maxKey,
+  terminalSessionId,
+} from "./gridConstants";
 
 export interface HarnessTerminalGridProps {
   workspace: string;
@@ -58,32 +49,38 @@ export default function HarnessTerminalGrid({
     }
   });
 
+  const [maximizedHarness, setMaximizedHarness] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(maxKey(workspace));
+    } catch {
+      return null;
+    }
+  });
+
   const [terminals, setTerminals] = useState<Record<string, string>>({});
   const [busyHarness, setBusyHarness] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [statusMsg, setStatusMsg] = useState<string>("");
 
+  const { dragState, startPaneDrag } = useTerminalGridDrag();
+
   useEffect(() => {
     let disposed = false;
-
     const restoreLayout = async () => {
       let restored: LayoutNode | null = null;
       try {
         restored = deserializeLayout(localStorage.getItem(storageKey(workspace)));
       } catch {
-        // Storage may be disabled; an empty grid is the safe fallback.
+        /* storage disabled */
       }
-
       if (!restored) {
         if (!disposed) {
           setLayout(null);
           setTerminals({});
+          setMaximizedHarness(null);
         }
         return;
       }
-
-      // PTY ids are deterministic. Verify each persisted pane before mounting
-      // it, so a stale browser layout never renders a dead terminal placeholder.
       const leaves = collectLeaves(restored);
       const statuses = await Promise.all(
         leaves.map(async (leaf) => {
@@ -97,17 +94,16 @@ export default function HarnessTerminalGrid({
         }),
       );
       if (disposed) return;
-
-      const live = statuses.flatMap((entry) => entry ? [entry] : []);
+      const live = statuses.flatMap((entry) => (entry ? [entry] : []));
       const liveHarnesses = new Set(live.map((entry) => entry.harness));
       const pruned = leaves.reduce<LayoutNode | null>(
-        (tree, leaf) => liveHarnesses.has(leaf.harness) ? tree : removeLeaf(tree, leaf.id),
+        (tree, leaf) => (liveHarnesses.has(leaf.harness) ? tree : removeLeaf(tree, leaf.id)),
         restored,
       );
       setLayout(pruned);
       setTerminals(Object.fromEntries(live.map(({ harness, sessionId }) => [harness, sessionId])));
+      setMaximizedHarness((prev) => (prev && liveHarnesses.has(prev) ? prev : null));
     };
-
     void restoreLayout();
     return () => { disposed = true; };
   }, [workspace]);
@@ -120,8 +116,8 @@ export default function HarnessTerminalGrid({
       try {
         const status = await invoke<PtySessionStatus>("pty_session_status", { sessionId });
         if (!disposed && status.found) {
-          setTerminals((previous) => ({ ...previous, [requestedHarness]: sessionId }));
-          setLayout((previous) => insertLeaf(previous, requestedHarness));
+          setTerminals((prev) => ({ ...prev, [requestedHarness]: sessionId }));
+          setLayout((prev) => insertLeaf(prev, requestedHarness));
         }
       } finally {
         if (!disposed) onHarnessRequestHandled?.();
@@ -139,6 +135,23 @@ export default function HarnessTerminalGrid({
       /* ignore quota */
     }
   }, [workspace, layout]);
+
+  useEffect(() => {
+    try {
+      if (maximizedHarness) localStorage.setItem(maxKey(workspace), maximizedHarness);
+      else localStorage.removeItem(maxKey(workspace));
+    } catch {
+      /* ignore quota */
+    }
+  }, [workspace, maximizedHarness]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaximizedHarness(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -171,7 +184,7 @@ export default function HarnessTerminalGrid({
           const row = sessions.find((s) => s.harness === harness && s.workspace === workspace);
           if (row?.managed_pid) existingPid = row.managed_pid;
         } catch {
-          // Ignore listing failure
+          // ignore
         }
         const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
           harness,
@@ -180,7 +193,6 @@ export default function HarnessTerminalGrid({
         });
         const sid = outcome.sessionId ?? (outcome as { session_id?: string }).session_id;
         if (!sid) throw new Error("Relaunch did not return an in-app terminal session id.");
-
         setTerminals((prev) => ({ ...prev, [harness]: sid }));
         setLayout((prev) => insertLeaf(prev, harness));
         setStatusMsg(outcome.detail || `${DISPLAY_NAMES[harness] || harness} connected.`);
@@ -196,11 +208,7 @@ export default function HarnessTerminalGrid({
   const closePane = useCallback(async (harness: string) => {
     const sid = terminals[harness];
     if (sid) {
-      try {
-        await invoke("pty_kill", { sessionId: sid });
-      } catch {
-        // already exited
-      }
+      try { await invoke("pty_kill", { sessionId: sid }); } catch { /* ignore */ }
       setTerminals((prev) => {
         const next = { ...prev };
         delete next[harness];
@@ -208,18 +216,26 @@ export default function HarnessTerminalGrid({
       });
     }
     setLayout((prev) => removeLeaf(prev, harness));
+    setMaximizedHarness((prev) => (prev === harness ? null : prev));
   }, [terminals]);
 
   const resetGrid = useCallback(async () => {
-    // Reset promises to close every pane, not merely hide a live PTY behind
-    // an empty layout. Kill failures mean the process already exited.
     await Promise.allSettled(
       Object.values(terminals).map((sessionId) => invoke("pty_kill", { sessionId })),
     );
     setTerminals({});
     setLayout(null);
+    setMaximizedHarness(null);
     setStatusMsg("All harness terminal panes closed.");
   }, [terminals]);
+
+  const handleDrop = useCallback((source: string, target: string, zone: DragTargetZone) => {
+    if (zone === "center") {
+      setLayout((prev) => (prev ? swapLeaves(prev, source, target) : null));
+    } else {
+      setLayout((prev) => (prev ? moveLeaf(prev, source, target, zone) : null));
+    }
+  }, []);
 
   const startSplitterDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, splitter: SplitterInfo) => {
@@ -239,14 +255,12 @@ export default function HarnessTerminalGrid({
           setLayout((prev) => (prev ? resizeSplit(prev, splitter.id, newRatio) : null));
         }
       };
-
       const onUp = () => {
         try { handle.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
         handle.removeEventListener("pointercancel", onUp);
       };
-
       handle.addEventListener("pointermove", onMove);
       handle.addEventListener("pointerup", onUp);
       handle.addEventListener("pointercancel", onUp);
@@ -282,9 +296,25 @@ export default function HarnessTerminalGrid({
           {availableHarnesses.length === 0 && (
             <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic" }}>All 6 harnesses open</span>
           )}
+          {maximizedHarness && (
+            <span style={{ fontSize: "0.78rem", color: "#93c5fd", fontWeight: 600, background: "rgba(59, 130, 246, 0.18)", padding: "0.2rem 0.5rem", borderRadius: "6px", border: "1px solid rgba(59, 130, 246, 0.35)" }}>
+              Maximized: {DISPLAY_NAMES[maximizedHarness] || maximizedHarness} (Esc to restore)
+            </span>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {maximizedHarness && (
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
+              onClick={() => setMaximizedHarness(null)}
+              title="Restore grid layout"
+            >
+              Restore grid
+            </button>
+          )}
           {openLeaves.length > 0 && (
             <button
               type="button"
@@ -332,7 +362,7 @@ export default function HarnessTerminalGrid({
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Launch any of the 6 supported harness CLIs in an in-app interactive terminal pane. Splitters can be dragged to push/pull pane sizes.
+              Launch any of the 6 supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters to resize.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginTop: "0.5rem" }}>
               {ALL_HARNESSES.map((h) => (
@@ -355,83 +385,37 @@ export default function HarnessTerminalGrid({
             {leaves.map(({ node, rect }) => {
               const sid = terminals[node.harness];
               const isBusy = busyHarness === node.harness;
+              const isMaximized = maximizedHarness === node.harness;
+              const isHidden = maximizedHarness !== null && !isMaximized;
 
               return (
-                <div
+                <TerminalPane
                   key={node.harness}
-                  style={{
-                    position: "absolute",
-                    left: `${rect.x}px`,
-                    top: `${rect.y}px`,
-                    width: `${rect.width}px`,
-                    height: `${rect.height}px`,
-                    display: "flex",
-                    flexDirection: "column",
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                    border: "1px solid rgba(148, 163, 184, 0.25)",
-                    background: "#080d1a",
-                    zIndex: 1,
+                  node={node}
+                  rect={rect}
+                  bounds={bounds}
+                  sessionId={sid}
+                  isBusy={isBusy}
+                  isMaximized={isMaximized}
+                  isHidden={isHidden}
+                  hasMaximized={maximizedHarness !== null}
+                  isDragging={dragState.isDragging && dragState.sourceHarness === node.harness}
+                  onTitlePointerDown={(e) => {
+                    if (!maximizedHarness) {
+                      startPaneDrag(e, node.harness, node.id, () => leaves, containerRef.current, handleDrop);
+                    }
                   }}
-                >
-                  {/* Pane Title Bar */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.3rem 0.6rem", background: "rgba(0, 0, 0, 0.5)", borderBottom: "1px solid rgba(148, 163, 184, 0.2)", userSelect: "none" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: sid ? "#22c55e" : "#64748b" }} />
-                      <strong style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>{DISPLAY_NAMES[node.harness] || node.harness}</strong>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                      {!sid && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          style={{ padding: "0.15rem 0.45rem", fontSize: "0.72rem", marginTop: 0 }}
-                          disabled={isBusy}
-                          onClick={() => void launchHarness(node.harness)}
-                        >
-                          {isBusy ? "…" : "Connect"}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        aria-label={`Close ${node.harness} pane`}
-                        title="Close pane"
-                        style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0.1rem 0.35rem", borderRadius: "4px", fontSize: "0.85rem", lineHeight: 1 }}
-                        onClick={() => void closePane(node.harness)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Pane Content */}
-                  <div style={{ flex: 1, position: "relative", minHeight: 0, background: "#050811" }}>
-                    <TerminalPaneErrorBoundary>
-                      {sid ? (
-                        <EmbeddedTerminal
-                          sessionId={sid}
-                          onExit={(detail) => setStatusMsg(`${DISPLAY_NAMES[node.harness] || node.harness} exit: ${detail}`)}
-                          onError={(detail) => setError(`${DISPLAY_NAMES[node.harness] || node.harness} error: ${detail}`)}
-                        />
-                      ) : (
-                        <div style={{ display: "flex", height: "100%", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-                          <span>{isBusy ? `Starting ${DISPLAY_NAMES[node.harness] || node.harness}…` : "Session idle"}</span>
-                          {!isBusy && (
-                            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.78rem" }} onClick={() => void launchHarness(node.harness)}>
-                              Connect CLI
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </TerminalPaneErrorBoundary>
-                  </div>
-                </div>
+                  onConnect={() => void launchHarness(node.harness)}
+                  onToggleMaximize={() => setMaximizedHarness(isMaximized ? null : node.harness)}
+                  onClose={() => void closePane(node.harness)}
+                  onExit={(detail) => setStatusMsg(`${DISPLAY_NAMES[node.harness] || node.harness} exit: ${detail}`)}
+                  onError={(detail) => setError(`${DISPLAY_NAMES[node.harness] || node.harness} error: ${detail}`)}
+                />
               );
             })}
 
-            {/* Splitter Dividers */}
-            {splitters.map((splitter) => (
+            {/* Splitter Dividers - only when not maximized */}
+            {!maximizedHarness && splitters.map((splitter) => (
               <div
                 key={splitter.id}
                 role="separator"
@@ -452,6 +436,14 @@ export default function HarnessTerminalGrid({
                 }}
               />
             ))}
+
+            {/* Drop zone overlay during pane drag */}
+            {dragState.isDragging && dragState.dropTarget && (
+              <DropZoneOverlay
+                target={dragState.dropTarget}
+                displayName={DISPLAY_NAMES[dragState.dropTarget.harness] || dragState.dropTarget.harness}
+              />
+            )}
           </>
         )}
       </div>
