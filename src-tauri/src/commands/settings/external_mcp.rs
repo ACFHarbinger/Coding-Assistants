@@ -10,7 +10,8 @@
 //! API-key server it means the variable is set in *this* process's
 //! environment; the MCP client spawns the server as its own child and
 //! may export something different. For a session-login server it is
-//! `null` — the token lives wherever the vendor CLI put it.
+//! `true` only when the vendor token *file* exists (existence probe,
+//! contents never read). `notes` carries the Settings copy (#278).
 //!
 //! Codex is intentionally not written here (its config is user-global),
 //! matching `creative_tools`.
@@ -33,10 +34,12 @@ pub struct ExternalServerStatus {
     pub docs_url: String,
     /// `{ "kind": "none" | "api_key" | "session_login", .. }`.
     pub auth: serde_json::Value,
-    /// `true` / `false` for an API-key server (presence in this
-    /// process's env), `null` for a session-login server. Never a
-    /// guarantee the spawned server will authenticate.
+    /// Presence hint. API-key: env var set in this process. Session-login:
+    /// vendor token file exists. Never a guarantee the spawned server
+    /// will authenticate, and never the secret itself.
     pub auth_configured: Option<bool>,
+    /// Quota / setup copy for the Settings tab. Never a secret.
+    pub notes: String,
     /// `true` when the launcher (`npx`, `pwm-mcp`, …) was found on
     /// `$PATH` or next to the app.
     pub launcher_found: bool,
@@ -70,7 +73,8 @@ fn status_row(srv: &ExternalServer, enabled: &BTreeSet<String>) -> ExternalServe
         display_name: srv.display_name.to_string(),
         docs_url: srv.docs_url.to_string(),
         auth: serde_json::to_value(srv.auth).unwrap_or(serde_json::Value::Null),
-        auth_configured: srv.auth.configured(),
+        auth_configured: srv.auth_configured(),
+        notes: srv.notes.to_string(),
         launcher_found: resolved.is_some(),
         launcher_path: resolved.map(|p| p.to_string_lossy().into_owned()),
         enabled: enabled.contains(srv.key),
@@ -218,10 +222,12 @@ mod tests {
             .unwrap();
         assert!(!web.enabled);
         assert_eq!(web.auth["kind"], "session_login");
-        assert_eq!(
-            web.auth_configured, None,
-            "session-login auth is unknowable"
+        assert!(
+            web.auth_configured.is_some(),
+            "session-login reports token-file presence, not null"
         );
+        assert!(web.notes.contains("Quota-limited"));
+        assert!(api.notes.contains("PERPLEXITY_API_KEY"));
     }
 
     #[test]
@@ -230,5 +236,61 @@ mod tests {
             Err(err) => assert!(err.contains("unknown external MCP server"), "{err}"),
             Ok(_) => panic!("an unknown key must be rejected"),
         }
+    }
+
+    #[test]
+    fn set_enabled_adds_then_removes_each_key_and_spares_hand_added() {
+        use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
+        use serde_json::{json, Value};
+
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        std::env::set_var("CA_HOME", home.path());
+
+        let ws = tempfile::tempdir().unwrap();
+        let mcp = ws.path().join(".mcp.json");
+        std::fs::write(
+            &mcp,
+            serde_json::to_string_pretty(&json!({
+                "mcpServers": { "user-fs": { "command": "npx", "args": ["-y", "@mcp/fs"] } }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let ws_s = ws.path().to_string_lossy().into_owned();
+
+        for key in ["perplexity", "perplexity-web"] {
+            let on =
+                external_mcp_set_enabled_blocking(ws_s.clone(), key.into(), true).expect("enable");
+            let row = on.servers.iter().find(|s| s.key == key).unwrap();
+            assert!(
+                row.enabled,
+                "{key} must stay enabled even if its launcher is missing"
+            );
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+            if row.launcher_found {
+                assert!(
+                    v["mcpServers"][key].is_object(),
+                    "found launcher must write {key}"
+                );
+                assert!(v["mcpServers"][key].get("env").is_none());
+            }
+
+            let off = external_mcp_set_enabled_blocking(ws_s.clone(), key.into(), false)
+                .expect("disable");
+            assert!(off.servers.iter().any(|s| s.key == key && !s.enabled));
+
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+            assert!(
+                v["mcpServers"][key].is_null(),
+                "disabled {key} must not remain in .mcp.json"
+            );
+            assert_eq!(
+                v["mcpServers"]["user-fs"]["command"], "npx",
+                "hand-added server must survive {key} toggle"
+            );
+        }
+
+        std::env::remove_var("CA_HOME");
     }
 }

@@ -25,6 +25,12 @@
 //! unlike `creative`, which renders absolute paths to app-local
 //! sidecars. The Tauri layer resolves `command` against `$PATH` only to
 //! report `launcherFound` in the Settings status.
+//!
+//! #276 / #277 confirm the two Perplexity launchers against live
+//! packages (`npx -y @perplexity-ai/mcp-server` 1.2.1; `pwm-mcp` from
+//! `uv tool install perplexity-web-mcp-cli` 0.14.13) and own the
+//! enable/disable apply tests plus Settings copy (`notes`, token-file
+//! presence). Config write is this registry, not `pwm setup add`.
 
 use crate::mcp::{render_replacing, ClientKind, McpServerEntry};
 use crate::{servers_dir, workspace_server_name, HubError, HubStore};
@@ -56,8 +62,9 @@ impl AuthKind {
     ///   as *its* child and may export a different environment, so this
     ///   is a presence hint, not a guarantee the server will
     ///   authenticate.
-    /// - `SessionLogin` → `None`: the token lives wherever the vendor
-    ///   CLI puts it and the hub does not probe for it.
+    /// - `SessionLogin` → `None` at this layer. [`ExternalServer::auth_configured`]
+    ///   may additionally report token-*file presence* without opening the
+    ///   file.
     pub fn configured(&self) -> Option<bool> {
         match self {
             AuthKind::None => Some(true),
@@ -88,12 +95,48 @@ pub struct ExternalServer {
     pub auth: AuthKind,
     /// Upstream docs, surfaced by the UI so the user can follow setup.
     pub docs_url: &'static str,
+    /// Settings copy: how to authenticate, and any quota / expiry caveat.
+    /// Never a secret. Empty string means the auth descriptor is enough.
+    pub notes: &'static str,
+    /// Home-relative path of a vendor session-token file, if any. Used
+    /// only as an existence probe — the file is never opened or logged.
+    pub auth_token_relpath: Option<&'static str>,
+}
+
+impl ExternalServer {
+    /// Presence hint for Settings. Never reads an API key or token file.
+    ///
+    /// Session-login servers report `Some(true)` only when
+    /// [`auth_token_relpath`](Self::auth_token_relpath) names a file
+    /// that exists under `$HOME`. Missing path or missing `$HOME` is
+    /// `Some(false)`, not `None` — Gemini can show "run `pwm login`".
+    pub fn auth_configured(&self) -> Option<bool> {
+        match self.auth {
+            AuthKind::SessionLogin { .. } => Some(match self.auth_token_relpath {
+                Some(relpath) => match std::env::var_os("HOME") {
+                    Some(home) => token_file_exists_in(Path::new(&home), relpath),
+                    None => false,
+                },
+                None => false,
+            }),
+            other => other.configured(),
+        }
+    }
+}
+
+/// `true` when `home/relpath` is a regular file. The path is never
+/// opened — existence only, so a session token cannot leak into logs.
+pub fn token_file_exists_in(home: &Path, relpath: &str) -> bool {
+    home.join(relpath).is_file()
 }
 
 /// Every known external MCP server, in display order.
 ///
-/// #272 ships the mechanism plus these two rows; #276 / #277 own
-/// launcher resolution, the apply flow, and the Settings integration.
+/// Launchers were confirmed 2026-09-08 against the live packages, not
+/// guessed: official npm `@perplexity-ai/mcp-server` 1.2.1
+/// (`npx -y @perplexity-ai/mcp-server`); subscription
+/// `perplexity-web-mcp-cli` 0.14.13 (`pwm-mcp` console script from
+/// `uv tool install`, docs `{ "command": "pwm-mcp" }`).
 pub const CATALOG: &[ExternalServer] = &[
     ExternalServer {
         key: "perplexity",
@@ -104,6 +147,8 @@ pub const CATALOG: &[ExternalServer] = &[
             env_var: "PERPLEXITY_API_KEY",
         },
         docs_url: "https://github.com/perplexityai/modelcontextprotocol",
+        notes: "Export PERPLEXITY_API_KEY in the shell that starts Claude Code / Gemini CLI. Coding Assistants never stores the key.",
+        auth_token_relpath: None,
     },
     ExternalServer {
         key: "perplexity-web",
@@ -114,6 +159,8 @@ pub const CATALOG: &[ExternalServer] = &[
             setup_cmd: "pwm login",
         },
         docs_url: "https://github.com/jacob-bd/perplexity-web-mcp",
+        notes: "Quota-limited Perplexity subscription; the session token lasts ~30 days and then `pwm login` must be re-run. Coding Assistants never reads the token. Install: `uv tool install perplexity-web-mcp-cli`.",
+        auth_token_relpath: Some(".config/perplexity-web-mcp/token"),
     },
 ];
 
@@ -236,158 +283,5 @@ pub fn apply_to_workspace(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mcp::creative;
-    use serde_json::{json, Value};
-    use tempfile::tempdir;
-
-    fn perplexity_entry() -> McpServerEntry {
-        entry_for(server("perplexity").unwrap())
-    }
-
-    #[test]
-    fn catalog_keys_are_unique_and_disjoint_from_creative() {
-        let mut seen = BTreeSet::new();
-        for s in CATALOG {
-            assert!(seen.insert(s.key), "duplicate external key {}", s.key);
-        }
-        for c in creative::CATALOG {
-            assert!(
-                !seen.contains(c.key),
-                "external key {} collides with a creative-tool key; the two \
-                 registries must own disjoint namespaces",
-                c.key
-            );
-        }
-    }
-
-    #[test]
-    fn auth_configured_reports_presence_and_unknown() {
-        assert_eq!(AuthKind::None.configured(), Some(true));
-        assert_eq!(AuthKind::SessionLogin { setup_cmd: "x" }.configured(), None);
-        // A definitionally-unset var — no `set_var` here: mutating the
-        // environment races every other test thread's `getenv`.
-        assert_eq!(
-            AuthKind::ApiKey {
-                env_var: "CA_EXTERNAL_MCP_DEFINITELY_UNSET",
-            }
-            .configured(),
-            Some(false)
-        );
-        // The present-and-non-empty branch: `PATH` is always set.
-        assert_eq!(
-            AuthKind::ApiKey { env_var: "PATH" }.configured(),
-            Some(true)
-        );
-    }
-
-    #[test]
-    fn enabled_set_round_trips_and_drops_unknown_keys() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let ws = dir.path().join("proj");
-        assert!(enabled_keys(&store, &ws).is_empty());
-
-        let mut keys: BTreeSet<String> = BTreeSet::new();
-        keys.insert("perplexity".to_string());
-        keys.insert("not-a-real-server".to_string());
-        set_enabled_keys(&store, &ws, &keys).unwrap();
-        assert_eq!(
-            enabled_keys(&store, &ws),
-            ["perplexity".to_string()].into_iter().collect()
-        );
-    }
-
-    #[test]
-    fn external_state_file_uses_its_own_suffix() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let ws = dir.path().join("proj");
-        let keys: BTreeSet<String> = ["perplexity".to_string()].into_iter().collect();
-        set_enabled_keys(&store, &ws, &keys).unwrap();
-        assert!(state_path(&store, &ws)
-            .to_string_lossy()
-            .ends_with(".external.json"));
-    }
-
-    #[test]
-    fn apply_adds_then_removes_only_its_own_keys() {
-        let ws = tempdir().unwrap();
-        let ws = ws.path();
-        apply_to_workspace(ws, &[perplexity_entry()]).unwrap();
-        let mcp_json = ws.join(".mcp.json");
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp_json).unwrap()).unwrap();
-        assert_eq!(
-            v["mcpServers"]["perplexity"]["command"], "npx",
-            "PATH launchers render as a bare command, not an absolute path"
-        );
-        assert_eq!(
-            v["mcpServers"]["perplexity"]["args"],
-            json!(["-y", "@perplexity-ai/mcp-server"])
-        );
-
-        apply_to_workspace(ws, &[]).unwrap();
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp_json).unwrap()).unwrap();
-        assert!(v["mcpServers"]["perplexity"].is_null());
-    }
-
-    /// The load-bearing contract for #276/#277: an `external` apply must
-    /// not disturb a `creative` registration and vice-versa, in either
-    /// order.
-    #[test]
-    fn external_and_creative_registries_compose_without_clobbering() {
-        let ws = tempdir().unwrap();
-        let ws = ws.path();
-        let blender = creative::entry_for(
-            creative::tool("coding-assistants-mcp-blender").unwrap(),
-            Path::new("/opt/blender-bridge"),
-        );
-
-        // creative first, then external.
-        creative::apply_to_workspace(ws, std::slice::from_ref(&blender)).unwrap();
-        apply_to_workspace(ws, &[perplexity_entry()]).unwrap();
-        let read = |p: &Path| -> Value {
-            serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap()
-        };
-        let mcp_json = ws.join(".mcp.json");
-        let v = read(&mcp_json);
-        assert!(v["mcpServers"]["coding-assistants-mcp-blender"].is_object());
-        assert!(v["mcpServers"]["perplexity"].is_object());
-
-        // Disable external — blender must survive.
-        apply_to_workspace(ws, &[]).unwrap();
-        let v = read(&mcp_json);
-        assert!(
-            v["mcpServers"]["coding-assistants-mcp-blender"].is_object(),
-            "creative entry must survive an external teardown"
-        );
-        assert!(v["mcpServers"]["perplexity"].is_null());
-
-        // Re-enable external, then disable creative — external survives.
-        apply_to_workspace(ws, &[perplexity_entry()]).unwrap();
-        creative::apply_to_workspace(ws, &[]).unwrap();
-        let v = read(&mcp_json);
-        assert!(
-            v["mcpServers"]["perplexity"].is_object(),
-            "external entry must survive a creative teardown"
-        );
-        assert!(v["mcpServers"]["coding-assistants-mcp-blender"].is_null());
-    }
-
-    #[test]
-    fn apply_rejects_a_relative_workspace() {
-        assert!(apply_to_workspace(Path::new("rel/path"), &[]).is_err());
-    }
-
-    #[test]
-    fn apply_is_idempotent() {
-        let ws = tempdir().unwrap();
-        apply_to_workspace(ws.path(), &[perplexity_entry()]).unwrap();
-        let first = std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap();
-        let written = apply_to_workspace(ws.path(), &[perplexity_entry()]).unwrap();
-        assert!(written.is_empty(), "second identical apply writes nothing");
-        let second = std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap();
-        assert_eq!(first, second);
-    }
-}
+#[path = "external_tests.rs"]
+mod tests;
