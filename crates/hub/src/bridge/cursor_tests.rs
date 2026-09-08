@@ -217,6 +217,37 @@ fn managed_start_missing_stream_session_id_releases_writer_lease() {
 }
 
 #[test]
+fn managed_start_replaces_an_observed_workspace_registration() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let workspace = dir.path().canonicalize().unwrap();
+    let ws_str = workspace.to_string_lossy().into_owned();
+    store
+        .register_harness_session("cursor", &ws_str, "observed-chat", None)
+        .unwrap();
+
+    let (_, registration) = start_cursor_managed_harness_with(
+        &store,
+        &workspace,
+        "Start a Hub-owned chat",
+        |_ws, _prompt, _chat_id, _model| {
+            Ok((
+                None,
+                CursorStreamOutput {
+                    session_id: Some("managed-chat".into()),
+                    assistant_texts: vec![],
+                },
+            ))
+        },
+    )
+    .unwrap();
+
+    assert_eq!(registration.mode, HarnessSessionMode::Managed);
+    assert_eq!(registration.disk_session_id, "managed-chat");
+    assert!(registration.writer_owner.is_none());
+}
+
+#[test]
 fn latest_cursor_session_id_finds_the_newest_transcript_dir() {
     let dir = tempdir().unwrap();
     let transcripts = dir.path();

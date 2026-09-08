@@ -44,17 +44,16 @@ pub fn start_cursor_managed_harness_with(
         return Err("workspace must be an absolute path".into());
     }
     let workspace_key = workspace.to_string_lossy().to_string();
-    if let Ok(Some(existing)) = store.get_harness_session("cursor", &workspace_key) {
+    let existing = store
+        .get_harness_session("cursor", &workspace_key)
+        .map_err(|error| error.to_string())?;
+    if let Some(existing) = existing.as_ref() {
         if let Some(pid) = existing.managed_pid {
             crate::bridge::relaunch::kill_pid(pid);
         }
     }
 
-    if store
-        .get_harness_session("cursor", &workspace_key)
-        .map_err(|error| error.to_string())?
-        .is_none()
-    {
+    if !existing.is_some_and(|row| row.mode == HarnessSessionMode::Managed) {
         store
             .register_managed_harness_session_with_state(
                 "cursor",
@@ -78,10 +77,6 @@ pub fn start_cursor_managed_harness_with(
         store
             .update_managed_harness_disk_session_id("cursor", &workspace_key, &chat_id)
             .map_err(|error| error.to_string())?;
-        let registration = store
-            .get_harness_session("cursor", &workspace_key)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "Cursor managed registration disappeared".to_string())?;
         let started = crate::HarnessStartResult {
                 harness: "cursor".into(),
                 pid: None,
@@ -90,7 +85,7 @@ pub fn start_cursor_managed_harness_with(
                     "Cursor managed session registered (chat id: {chat_id}); awaiting its first task before capture starts."
                 ),
             };
-        Ok((started, registration))
+        Ok(started)
     })();
 
     let release = store
@@ -105,7 +100,13 @@ pub fn start_cursor_managed_harness_with(
     match (outcome, release) {
         (Err(error), _) => Err(error),
         (Ok(_), Err(error)) => Err(error),
-        (Ok(result), Ok(())) => Ok(result),
+        (Ok(started), Ok(())) => {
+            let registration = store
+                .get_harness_session("cursor", &workspace_key)
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "Cursor managed registration disappeared".to_string())?;
+            Ok((started, registration))
+        }
     }
 }
 

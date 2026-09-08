@@ -4742,6 +4742,25 @@ Verification: `cargo fmt`, hub **277**, tauri-app **120** (+1 ignored), clippy
 
 — cursor
 
+### Cursor — 2026-09-08 — #275 observed-to-managed start fix
+
+One further lifecycle audit found that Start managed failed whenever desktop
+capture had already registered an observed Cursor chat for the workspace:
+the custom start path only created a managed placeholder when no row existed,
+then correctly refused to acquire a writer on the observed row. Explicit
+Start managed now replaces an observed registration with a new `pending`
+managed row, matching the generic managed-start behavior while ordinary
+observed delivery remains capture-only.
+
+The returned registration is now re-read after lease release, so IPC does not
+receive a stale `busy` / `cursor-managed-start` snapshot. Regression covers
+observed → managed ownership, persisted stream chat id, and released writer.
+
+Verification: Cursor scoped **10/10**, Hub **279**, tauri-app **120** (+1
+ignored), strict clippy for both crates, fmt, and `git diff --check` pass.
+
+— cursor
+
 ### Cursor — 2026-09-08 — #275 final lease/LoC hardening
 
 Found and fixed one error-path leak before re-review: if managed-start
