@@ -157,4 +157,3 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
     expect(await screen.findByText("Cursor agent started")).toBeInTheDocument();
   });
 });
-
