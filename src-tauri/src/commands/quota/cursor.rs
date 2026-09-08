@@ -3,9 +3,10 @@
 //! The Agent CLI has no usage subcommand. Interactive `/usage` in the Cursor
 //! app loads `aiserver.v1.DashboardService/GetCurrentPeriodUsage` on
 //! `api2.cursor.sh` — the same JSON the dashboard spending view uses. This
-//! adapter calls that endpoint with the CLI login token (`agent login` writes
-//! `~/.config/cursor/auth.json` on Linux; `CURSOR_AUTH_TOKEN` /
-//! `CURSOR_API_KEY` override). It does not scrape `~/.cursor` cookies or HTML.
+//! adapter calls that endpoint with the app's stored `CURSOR_TOKEN`, falling
+//! back to the CLI login token (`agent login` writes
+//! `~/.config/cursor/auth.json` on Linux). It does not scrape `~/.cursor`
+//! cookies or HTML.
 //!
 //! Captured live, 2026-09-08, CLI `2026.09.02-c22c1a3` (numeric fields only):
 //!
@@ -165,18 +166,10 @@ fn token_from_auth_file(raw: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn cursor_auth_token() -> Result<String, String> {
-    for var in ["CURSOR_AUTH_TOKEN", "CURSOR_API_KEY"] {
-        if let Ok(token) = std::env::var(var) {
-            let token = token.trim().to_string();
-            if !token.is_empty() {
-                return Ok(token);
-            }
-        }
-    }
+fn cursor_auth_token_from_file() -> Result<String, String> {
     let path = cursor_auth_file();
     let raw = std::fs::read_to_string(&path).map_err(|_| {
-        "Not logged in to Cursor Agent (no CLI auth file). Run `agent login`, or set CURSOR_AUTH_TOKEN."
+        "Not logged in to Cursor Agent (no CLI auth file). Run `agent login`, or add CURSOR_TOKEN in Settings → Credentials."
             .to_string()
     })?;
     token_from_auth_file(&raw).ok_or_else(|| {
@@ -234,7 +227,16 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
 }
 
 pub(crate) fn cursor_quota() -> ProviderQuota {
-    let token = match cursor_auth_token() {
+    // Keep a vault-resolved token in SecretString through authorization-header
+    // construction. The CLI-file fallback is already an ordinary String from
+    // the external CLI and has no additional app-side copy.
+    if let Some(token) = hub::secret::resolve("CURSOR_TOKEN") {
+        return match fetch_period_usage(token.expose()) {
+            Ok(period) => cursor_quota_from_period(&period),
+            Err(detail) => unavailable(detail),
+        };
+    }
+    let token = match cursor_auth_token_from_file() {
         Ok(token) => token,
         Err(detail) => return unavailable(detail),
     };
@@ -302,7 +304,7 @@ mod tests {
     #[test]
     fn missing_auth_file_is_unavailable_without_panic() {
         let quota = unavailable(
-            "Not logged in to Cursor Agent (no CLI auth file). Run `agent login`, or set CURSOR_AUTH_TOKEN.",
+            "Not logged in to Cursor Agent (no CLI auth file). Run `agent login`, or add CURSOR_TOKEN in Settings → Credentials.",
         );
         assert_eq!(quota.status, "unavailable");
         assert!(quota.windows.is_empty());
