@@ -28,6 +28,10 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
+pub use bridge::cursor::{
+    cursor_agent_transcripts_dir, cursor_projects_dir, deliver_cursor_task,
+    encode_workspace_dir_name, latest_cursor_session_id,
+};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
     acp_initialize, acp_session_load, acp_session_prompt, active_grok_session_for,
@@ -47,10 +51,11 @@ pub use bridge::relaunch::{
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
 pub use harness::{
-    claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, inject_harness, inject_harness_with_store, muse_disk_session_id,
-    muse_managed_spawn_args, muse_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args,
-    HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
+    cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
+    inject_harness, inject_harness_with_store, muse_disk_session_id, muse_managed_spawn_args,
+    muse_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args, HarnessId,
+    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use settings::{

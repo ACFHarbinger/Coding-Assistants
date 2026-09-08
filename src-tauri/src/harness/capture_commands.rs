@@ -88,6 +88,24 @@ pub async fn hub_capture_muse_session(
 }
 
 #[tauri::command]
+pub async fn hub_capture_cursor_session(
+    workspace: String,
+    cursor_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::cursor::CursorCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::cursor::capture_cursor_session(
+            &store,
+            &PathBuf::from(workspace),
+            cursor_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn hub_capture_gemini_session(
     workspace: String,
     gemini_session_id: Option<String>,

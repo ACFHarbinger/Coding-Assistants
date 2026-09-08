@@ -83,6 +83,9 @@ pub fn start_managed_harness(
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
     }
+    if harness == HarnessId::Cursor {
+        return crate::bridge::cursor::start_cursor_managed_harness(store, workspace, prompt);
+    }
     // A caller-provided id may name a global, pre-existing provider session.
     // Never register it for a new managed worker: doing so arms the capture
     // poller against someone else's transcript. Gemini accepts this UUID as
@@ -162,6 +165,21 @@ mod tests {
     use crate::bridge::relaunch::is_pid_running;
     use std::process::Command;
     use std::time::Instant;
+
+    #[test]
+    fn start_managed_harness_routes_cursor_through_stream_json_worker() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let err = start_managed_harness(
+            &store,
+            "cursor",
+            Path::new("relative/path"),
+            "ignored",
+            "Coding-Assistants managed session",
+        )
+        .unwrap_err();
+        assert!(err.contains("absolute"), "{err}");
+    }
 
     #[test]
     fn start_managed_harness_rejects_a_relative_workspace() {

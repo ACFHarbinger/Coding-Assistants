@@ -6,14 +6,12 @@ use std::process::Child;
 
 use super::spawn::{spawn_explicit, spawn_explicit_owned};
 use super::{
-    claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_managed_spawn_args,
+    claude_spawn_args, codex_spawn_args, cursor_managed_spawn_args, gemini_managed_spawn_args,
     grok_spawn_args, muse_managed_spawn_args, opencode_spawn_args, vibe_spawn_args, HarnessId,
     HarnessStartRequest, HarnessStartResult, DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
 };
 
-fn harness_command(
-    request: &HarnessStartRequest,
-) -> Result<(&'static str, Vec<OsString>), HubError> {
+fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubError> {
     let harness = HarnessId::parse(&request.harness)?;
     let model = request.model.as_deref().or(match harness {
         HarnessId::OpenCode => Some(DEFAULT_OPENCODE_MODEL),
@@ -49,16 +47,30 @@ fn harness_command(
             model,
             effort,
         )?,
-        // #271 scaffold — typed `unavailable` until #275 lands the argv.
-        HarnessId::Cursor => cursor_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Cursor => cursor_managed_spawn_args(
+            &request.workspace,
+            &request.prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
     };
-    Ok((harness.executable(), args))
+    Ok(args)
+}
+
+fn spawn_program(harness: HarnessId) -> &'static str {
+    if harness == HarnessId::Cursor {
+        super::cursor_executable()
+    } else {
+        harness.executable()
+    }
 }
 
 pub(crate) fn start_harness_owned(
     request: &HarnessStartRequest,
 ) -> Result<(HarnessStartResult, Child), HubError> {
-    let (program, args) = harness_command(request)?;
+    let args = harness_command(request)?;
+    let program = spawn_program(HarnessId::parse(&request.harness)?);
     let child = spawn_explicit_owned(program, &request.workspace, &args)
         .map_err(|error| HubError::Invalid(format!("{program} unavailable: {error}")))?;
     let result = HarnessStartResult {
@@ -71,6 +83,7 @@ pub(crate) fn start_harness_owned(
 }
 
 pub fn start_harness(request: &HarnessStartRequest) -> Result<HarnessStartResult, HubError> {
-    let (program, args) = harness_command(request)?;
-    spawn_explicit(program, &request.workspace, &args)
+    let harness = HarnessId::parse(&request.harness)?;
+    let args = harness_command(request)?;
+    spawn_explicit(spawn_program(harness), &request.workspace, &args)
 }

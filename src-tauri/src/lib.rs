@@ -370,6 +370,7 @@ pub fn run() {
             harness::commands::hub_record_harness_capture,
             harness::capture_commands::hub_capture_claude_session,
             harness::capture_commands::hub_capture_codex_session,
+            harness::capture_commands::hub_capture_cursor_session,
             harness::capture_commands::hub_capture_gemini_session,
             harness::capture_commands::hub_capture_grok_session,
             harness::capture_commands::hub_capture_muse_session,

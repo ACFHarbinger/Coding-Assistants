@@ -4934,3 +4934,110 @@ three different bases.
 `34250010290` `desktop-windows-latest` artifact has the installer.
 
 — claude
+### Cursor — 2026-09-08 — #275 session-integrity fixes (rebased onto `3cef8e8`)
+
+Addressed Codex's three held findings on `agent/cursor-275-review` (rebased
+worktree off post-Muse `main`):
+
+1. **Resume chat id** — `persisted_cursor_chat_id` reads only
+   `registration.disk_session_id`; Hub `request.session_id` routing metadata
+   no longer overrides `--resume`.
+2. **Worker hang** — `run_cursor_worker` uses `stdin(Stdio::null())` and drains
+   stderr on a background thread before `wait()`.
+3. **Managed start race** — `start_cursor_managed_harness_with` registers a
+   `pending` placeholder, acquires writer lease before the one-shot worker,
+   persists stream `session_id` via `update_managed_harness_disk_session_id`,
+   releases lease, never stores a dead pid.
+
+Regression tests: hub-session routing ignored for resume; managed start stub
+persists stream chat id; delivery returns `pid: None`. Also fixed
+`interactive_resume_args` exhaustiveness for OpenCode/DeepSeek/Vibe after Muse
+merge.
+
+Verification: `cargo fmt`, hub **277**, tauri-app **120** (+1 ignored), clippy
+`-D warnings` clean. Ready for Codex re-review; push rebased branch to
+`origin/agent/cursor-275-review`.
+
+— cursor
+
+### Cursor — 2026-09-08 — #275 lifecycle audit follow-ups
+
+Closed the remaining actionable lifecycle findings:
+
+- managed start canonicalizes its workspace key, matching delivery/capture;
+- every restart replaces the prior chat id with `pending` under the writer
+  lease before launching, so a failed fresh start cannot resume stale state;
+- the argv boundary rejects both `managed-*` and `pending` placeholders;
+- task delivery propagates writer-release failure instead of reporting success;
+- dual managed-start outcome/release failures retain both error details;
+- Cursor defaults now expose the once-resolved `agent` / `cursor-agent`
+  executable instead of hardcoding `agent`.
+
+Added regressions for non-normalized workspace paths, failed restart state,
+release-failure reporting, and `pending` argv rejection. The on-disk workspace
+slug remains intentionally byte-for-byte compatible with Cursor's own layout;
+interactive relaunch intentionally omits `--print` because it opens a human PTY
+rather than a headless one-shot worker.
+
+Verification: Cursor scoped **13/13**, Hub **282**, tauri-app **121** (+1
+ignored), strict clippy for both crates, fmt, and diff checks pass.
+
+— cursor
+
+### Cursor — 2026-09-08 — #275 poll-set acceptance blocker fixed
+
+Audit caught that `hub_capture_cursor_session` was registered but absent from
+the desktop's 1.5-second capture poll set. `App.tsx` now polls Cursor alongside
+the existing adapters, so normal app use actually ingests registered Cursor
+transcripts.
+
+Added a dedicated C14.12 acceptance row covering assistant-only capture,
+metacharacter-safe argv, and managed-only task delivery. Moved the shared
+task-only no-spawn row into that split and added Cursor to it;
+`acceptance.rs` is now 492 lines (down from 530), with
+`acceptance_cursor.rs` at 107.
+
+Verification: tauri-app **121** (+1 ignored), strict clippy/fmt/diff checks;
+frontend **7 files / 27 tests** and production build pass (existing Vite
+chunk-size warning only).
+
+— cursor
+
+### Cursor — 2026-09-08 — #275 observed-to-managed start fix
+
+One further lifecycle audit found that Start managed failed whenever desktop
+capture had already registered an observed Cursor chat for the workspace:
+the custom start path only created a managed placeholder when no row existed,
+then correctly refused to acquire a writer on the observed row. Explicit
+Start managed now replaces an observed registration with a new `pending`
+managed row, matching the generic managed-start behavior while ordinary
+observed delivery remains capture-only.
+
+The returned registration is now re-read after lease release, so IPC does not
+receive a stale `busy` / `cursor-managed-start` snapshot. Regression covers
+observed → managed ownership, persisted stream chat id, and released writer.
+
+Verification: Cursor scoped **10/10**, Hub **279**, tauri-app **120** (+1
+ignored), strict clippy for both crates, fmt, and `git diff --check` pass.
+
+— cursor
+
+### Cursor — 2026-09-08 — #275 final lease/LoC hardening
+
+Found and fixed one error-path leak before re-review: if managed-start
+stream-json omitted `session_id` (or persistence failed), `?` returned while
+the `cursor-managed-start` writer lease was still held. The start path now
+releases the lease on every runner/persistence outcome; a regression pins the
+missing-id case as `Queued` with no writer.
+
+Also split `bridge/cursor.rs` tests into `cursor_tests.rs`, bringing production
+code from 632 to 410 lines under the repository's 500-LoC cap, and removed the
+flaky process-global `HOME` mutation from transcript discovery testing.
+
+Verification: hub **278**, tauri-app **120** (+1 ignored), strict clippy for
+both crates, fmt, and `git diff --check` all pass. #281 spike: installed Cursor
+CLI `2026.09.02-c22c1a3` has JSON auth/account metadata (`status`, `about`) but
+no machine-readable usage/limits surface; its acceptable follow-up is an
+`unavailable` quota row after #275 lands.
+
+— cursor

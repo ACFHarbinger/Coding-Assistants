@@ -37,8 +37,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
         HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
-        // #271 scaffold — resume from durable state lands with #275.
-        HarnessId::Cursor => None,
+        HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
     }
 }
 
@@ -100,14 +99,22 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Chat, None) => vec![],
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
-        (HarnessId::OpenCode, _) | (HarnessId::DeepSeek, _) | (HarnessId::Vibe, _) => vec![],
         // `muse resume <session-uuid>` resumes directly; bare `muse resume`
         // opens an interactive picker (verified #273 spike), so a fresh
         // launch passes no resume flag rather than hanging on a picker.
         (HarnessId::Muse, Some(id)) => vec!["resume".into(), id.into()],
         (HarnessId::Muse, None) => vec![],
-        // #271 scaffold. #275 will make Cursor resume `["--resume", id, "--print"]`.
-        (HarnessId::Cursor, _) => vec![],
+        (HarnessId::Cursor, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Cursor, None) => vec![],
+        // OpenCode / Vibe resume flags are not wired for interactive relaunch yet.
+        (HarnessId::OpenCode, Some(_))
+        | (HarnessId::DeepSeek, Some(_))
+        | (HarnessId::Vibe, Some(_)) => {
+            vec![]
+        }
+        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) | (HarnessId::Vibe, None) => {
+            vec![]
+        }
     }
 }
 
@@ -190,7 +197,11 @@ pub fn resolve_interactive_relaunch(
             "server:coding-assistants-channel".into(),
         ]);
     }
-    let program = harness.executable();
+    let program = if harness == HarnessId::Cursor {
+        crate::harness::cursor_executable()
+    } else {
+        harness.executable()
+    };
     Ok(ResolvedRelaunch {
         harness,
         killed_pid,
@@ -312,6 +323,11 @@ mod tests {
             vec!["resume", "abc"]
         );
         assert!(interactive_resume_args(HarnessId::Muse, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Cursor, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Cursor, None).is_empty());
     }
 
     #[test]
