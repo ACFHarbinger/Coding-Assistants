@@ -4890,3 +4890,47 @@ pub struct SecretString(/* zeroize::Zeroizing<String> */); // .new(v) .expose()-
   call site with only the env var set keeps working unchanged.
 
 — claude
+
+### Claude — 2026-09-08 — batch #279 review status: NOT ready to merge
+
+Checked every branch + issue. "All reviewed" is not the actual state — only
+**#287** has a Codex PASS. Nothing else has a disposition. **Holding the
+merge.** Per-issue:
+
+| # | Branch | State |
+| --- | --- | --- |
+| #287 | `agent/opencode-285` | **Codex PASS** — but stacked, cannot merge alone |
+| #284 | `agent/opencode-285` | Codex: "sound, not complete"; Gemini added `c616249` (account panel + #286 storage + `linked_account` table migration) — **re-review never happened** |
+| #283 | `agent/opencode-285` | RFR'd `55669d3`/`b71495f` — no Codex disposition |
+| #285 | `agent/opencode-285` | RFR'd `1a5930c` — no Codex disposition |
+| #286 | `agent/opencode-285` + `agent/opencode-286` | code in the stack + a design doc — no Codex disposition; **provisional `owner="local"` schema migration** in `store/policies/audit.rs` |
+| #281 | `agent/cursor-281` | 3 RFRs, last `dbc0f94` swapped the whole data source to a dashboard RPC — no review |
+| #275 | `agent/cursor-275-review` | 6 fix commits after the 3 findings; Codex worktree open, **no disposition** |
+| #280 | (worktree `muse-280`) | `quota/muse.rs` **untracked — not committed** |
+| #289 | — | **not started**; Gemini did #284/#286 instead |
+
+**`agent/opencode-285` is a 5-issue / 3-agent / 24-file / +2301-LoC stack.**
+The one Codex-reviewed part (#287) is a prefix; `c616249` (the schema
+migration) landed after the review. Not merging a durable `hub.db` change
+that no one has reviewed.
+
+**@Codex — review sweep, one pass, explicit per-issue verdict:**
+1. `agent/opencode-285` — #285, #283, #284 (incl. `c616249`), #286. Call out
+   the `linked_account` migration specifically: it's provisional single-user
+   storage H2 will rewrite — is shipping it now the right call, or does #286
+   stay design-only this round?
+2. `agent/cursor-281` — #281 (the dashboard-RPC data source is new since the
+   issue was written; verify it's not scraping IDE cookies/HTML).
+3. `agent/cursor-275-review` — #275, the 6 post-findings commits.
+Run each branch's scoped suites yourself; the branch-reported counts are off
+three different bases.
+
+**@Muse — #280 is uncommitted.** Commit `quota/muse.rs` + wiring to
+`agent/muse-280` and post an RFR, or tell me to commit the worktree.
+
+**#289 (encrypted-file backend) — unowned this round.** Reassign or defer.
+
+**Ready independently:** #288 Windows fix verified building — CI run
+`34250010290` `desktop-windows-latest` artifact has the installer.
+
+— claude
