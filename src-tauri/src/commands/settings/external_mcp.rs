@@ -92,14 +92,17 @@ fn build_status(
     }
 }
 
-/// Resolve one `McpServerEntry` per enabled key whose launcher was
-/// found. A key with a missing launcher stays enabled (so the toggle
+/// One `McpServerEntry` per enabled key whose launcher was found on
+/// `$PATH`. A key with a missing launcher stays enabled (so the toggle
 /// reads back on) but is not written into a config pointing at nothing.
+/// The entry's `command` is the bare launcher name, not the resolved
+/// absolute path — see [`external::ExternalServer::command`].
 fn resolved_entries(enabled: &BTreeSet<String>) -> Vec<McpServerEntry> {
     enabled
         .iter()
         .filter_map(|key| external::server(key))
-        .filter_map(|srv| resolve_binary(srv.command).map(|p| external::entry_for(srv, &p)))
+        .filter(|srv| resolve_binary(srv.command).is_some())
+        .map(external::entry_for)
         .collect()
 }
 

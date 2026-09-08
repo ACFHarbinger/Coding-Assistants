@@ -74,10 +74,14 @@ pub struct ExternalServer {
     pub key: &'static str,
     /// Human label ("Perplexity (API)").
     pub display_name: &'static str,
-    /// Launcher executable basename resolved against `$PATH` by the
-    /// caller (`npx`, `pwm-mcp`, …).
+    /// Launcher command written into the client config **verbatim**
+    /// (`npx`, `pwm-mcp`, …) — a bare name the MCP client resolves on
+    /// *its own* `$PATH` at spawn. Deliberately not rendered as an
+    /// absolute path: pinning e.g. one `nvm` Node's `npx` would break on
+    /// the user's next `nvm use`. The Settings layer resolves it against
+    /// `$PATH` separately, only to report `launcherFound`.
     pub command: &'static str,
-    /// Args appended after the resolved launcher path.
+    /// Args appended after the launcher.
     pub default_args: &'static [&'static str],
     pub auth: AuthKind,
     /// Upstream docs, surfaced by the UI so the user can follow setup.
@@ -173,12 +177,13 @@ pub fn set_enabled_keys(
     Ok(())
 }
 
-/// Build the neutral MCP server entry for `server`, given the resolved
-/// absolute path to its launcher (`npx`, `pwm-mcp`, …).
-pub fn entry_for(server: &ExternalServer, launcher_path: &Path) -> McpServerEntry {
+/// Build the neutral MCP server entry for `server`. `command` is written
+/// verbatim (a bare `npx` / `pwm-mcp` the client resolves on its own
+/// `$PATH`) — see [`ExternalServer::command`].
+pub fn entry_for(server: &ExternalServer) -> McpServerEntry {
     McpServerEntry {
         key: server.key.to_string(),
-        command: launcher_path.to_string_lossy().into_owned(),
+        command: server.command.to_string(),
         args: server
             .default_args
             .iter()
@@ -236,7 +241,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn perplexity_entry() -> McpServerEntry {
-        entry_for(server("perplexity").unwrap(), Path::new("/usr/bin/npx"))
+        entry_for(server("perplexity").unwrap())
     }
 
     #[test]
@@ -259,14 +264,20 @@ mod tests {
     fn auth_configured_reports_presence_and_unknown() {
         assert_eq!(AuthKind::None.configured(), Some(true));
         assert_eq!(AuthKind::SessionLogin { setup_cmd: "x" }.configured(), None);
-        let key = AuthKind::ApiKey {
-            env_var: "CA_EXTERNAL_MCP_TEST_KEY",
-        };
-        std::env::remove_var("CA_EXTERNAL_MCP_TEST_KEY");
-        assert_eq!(key.configured(), Some(false));
-        std::env::set_var("CA_EXTERNAL_MCP_TEST_KEY", "sk-123");
-        assert_eq!(key.configured(), Some(true));
-        std::env::remove_var("CA_EXTERNAL_MCP_TEST_KEY");
+        // A definitionally-unset var — no `set_var` here: mutating the
+        // environment races every other test thread's `getenv`.
+        assert_eq!(
+            AuthKind::ApiKey {
+                env_var: "CA_EXTERNAL_MCP_DEFINITELY_UNSET",
+            }
+            .configured(),
+            Some(false)
+        );
+        // The present-and-non-empty branch: `PATH` is always set.
+        assert_eq!(
+            AuthKind::ApiKey { env_var: "PATH" }.configured(),
+            Some(true)
+        );
     }
 
     #[test]
@@ -305,7 +316,10 @@ mod tests {
         apply_to_workspace(ws, &[perplexity_entry()]).unwrap();
         let mcp_json = ws.join(".mcp.json");
         let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp_json).unwrap()).unwrap();
-        assert_eq!(v["mcpServers"]["perplexity"]["command"], "/usr/bin/npx");
+        assert_eq!(
+            v["mcpServers"]["perplexity"]["command"], "npx",
+            "PATH launchers render as a bare command, not an absolute path"
+        );
         assert_eq!(
             v["mcpServers"]["perplexity"]["args"],
             json!(["-y", "@perplexity-ai/mcp-server"])
