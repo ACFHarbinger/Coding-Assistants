@@ -4,6 +4,7 @@ import type {
   CreativeToolsStatus,
   EffectiveHarnessSettings,
   EffectiveSettings,
+  ExternalMcpStatus,
   HarnessSettings,
   OrchestrationPatch,
   ProfileSnapshot,
@@ -160,6 +161,22 @@ export function reapplyCreativeTools(workspace: string): Promise<CreativeToolsSt
 
 export function getCreativeToolsCodexSnippet(workspace: string): Promise<string> {
   return invoke<string>("creative_tools_codex_snippet", { workspace });
+}
+
+export function getExternalMcpStatus(workspace: string): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_status", { workspace });
+}
+
+export function setExternalMcpEnabled(
+  workspace: string,
+  key: string,
+  enabled: boolean,
+): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_set_enabled", { workspace, key, enabled });
+}
+
+export function reapplyExternalMcp(workspace: string): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_reapply", { workspace });
 }
 
 export function getHarnessModelOptions(
