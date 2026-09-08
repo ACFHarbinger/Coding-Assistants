@@ -70,20 +70,19 @@ pub fn start_cursor_managed_harness_with(
         .acquire_harness_writer("cursor", &workspace_key, CURSOR_MANAGED_START_WRITER)
         .map_err(|error| format!("Cursor managed start is busy: {error}"))?;
 
-    let run_result = runner(workspace, prompt, None, None);
-    let (started, registration) = match run_result {
-        Ok((_pid, output)) => {
-            let chat_id = output.session_id.ok_or_else(|| {
+    let outcome = (|| {
+        let (_pid, output) = runner(workspace, prompt, None, None)?;
+        let chat_id = output.session_id.ok_or_else(|| {
                 "Cursor managed start completed but stream-json did not include a session_id; cannot register this workspace".to_string()
             })?;
-            store
-                .update_managed_harness_disk_session_id("cursor", &workspace_key, &chat_id)
-                .map_err(|error| error.to_string())?;
-            let registration = store
-                .get_harness_session("cursor", &workspace_key)
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| "Cursor managed registration disappeared".to_string())?;
-            let started = crate::HarnessStartResult {
+        store
+            .update_managed_harness_disk_session_id("cursor", &workspace_key, &chat_id)
+            .map_err(|error| error.to_string())?;
+        let registration = store
+            .get_harness_session("cursor", &workspace_key)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Cursor managed registration disappeared".to_string())?;
+        let started = crate::HarnessStartResult {
                 harness: "cursor".into(),
                 pid: None,
                 status: "started".into(),
@@ -91,29 +90,23 @@ pub fn start_cursor_managed_harness_with(
                     "Cursor managed session registered (chat id: {chat_id}); awaiting its first task before capture starts."
                 ),
             };
-            (started, registration)
-        }
-        Err(error) => {
-            let _ = store.release_harness_writer(
-                "cursor",
-                &workspace_key,
-                CURSOR_MANAGED_START_WRITER,
-                crate::HarnessSessionState::Queued,
-            );
-            return Err(error);
-        }
-    };
+        Ok((started, registration))
+    })();
 
-    store
+    let release = store
         .release_harness_writer(
             "cursor",
             &workspace_key,
             CURSOR_MANAGED_START_WRITER,
             crate::HarnessSessionState::Queued,
         )
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string());
 
-    Ok((started, registration))
+    match (outcome, release) {
+        (Err(error), _) => Err(error),
+        (Ok(_), Err(error)) => Err(error),
+        (Ok(result), Ok(())) => Ok(result),
+    }
 }
 
 pub fn cursor_projects_dir() -> PathBuf {
@@ -137,8 +130,11 @@ pub fn cursor_agent_transcripts_dir(workspace: &Path) -> PathBuf {
 
 /// Most recent Cursor chat id under `~/.cursor/projects/.../agent-transcripts/`.
 pub fn latest_cursor_session_id(workspace: &Path) -> Option<String> {
-    let root = cursor_agent_transcripts_dir(workspace);
-    let entries = fs::read_dir(&root).ok()?;
+    latest_cursor_session_id_from(&cursor_agent_transcripts_dir(workspace))
+}
+
+fn latest_cursor_session_id_from(root: &Path) -> Option<String> {
+    let entries = fs::read_dir(root).ok()?;
     entries
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
@@ -410,223 +406,5 @@ pub(crate) fn queued(detail: &str) -> HarnessInjectResult {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::HubStore;
-    use tempfile::tempdir;
-
-    #[test]
-    fn parse_cursor_stream_json_line() {
-        let line = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Done"}]},"session_id":"chat-123"}"#;
-        let parsed = parse_cursor_stream_line(line).unwrap();
-        assert_eq!(parsed.session_id.as_deref(), Some("chat-123"));
-        assert_eq!(parsed.assistant_texts, vec!["Done".to_string()]);
-    }
-
-    #[test]
-    fn unmanaged_cursor_delivery_returns_unavailable() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let result = deliver_cursor_task(
-            &store,
-            &HarnessInjectRequest {
-                harness: "cursor".into(),
-                workspace: dir.path().to_path_buf(),
-                session_id: None,
-                message_id: Some("msg-1".into()),
-                body: "hello cursor".into(),
-                is_task: true,
-                is_wake: false,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(result.status, "unavailable");
-        assert!(result.detail.contains("managed session"));
-    }
-
-    #[test]
-    fn managed_cursor_delivery_acquires_and_releases_writer_lease() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let workspace = dir.path();
-        let ws_str = workspace.to_string_lossy().into_owned();
-
-        store
-            .register_managed_harness_session("cursor", &ws_str, "chat-owned-1", 1234)
-            .unwrap();
-
-        let req = HarnessInjectRequest {
-            harness: "cursor".into(),
-            workspace: workspace.to_path_buf(),
-            session_id: None,
-            message_id: Some("msg-test-1".into()),
-            body: "build worker component".into(),
-            is_task: true,
-            is_wake: false,
-            ..Default::default()
-        };
-
-        let result = deliver_cursor_task_with(&store, &req, |_ws, _prompt, chat_id, _model| {
-            assert_eq!(chat_id, Some("chat-owned-1"));
-            Ok((
-                Some(1234),
-                CursorStreamOutput {
-                    session_id: Some("chat-owned-1".into()),
-                    assistant_texts: vec!["Done".into()],
-                },
-            ))
-        })
-        .unwrap();
-
-        assert_eq!(result.status, "ok");
-        assert_eq!(result.pid, None);
-
-        let sess = store
-            .get_harness_session("cursor", &ws_str)
-            .unwrap()
-            .unwrap();
-        assert_eq!(sess.state, HarnessSessionState::Ready);
-        assert!(sess.writer_owner.is_none());
-    }
-
-    #[test]
-    fn managed_cursor_delivery_without_persisted_chat_id_is_unavailable() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let workspace = dir.path();
-        let ws_str = workspace.to_string_lossy().into_owned();
-        store
-            .register_managed_harness_session("cursor", &ws_str, "managed-fresh", 1234)
-            .unwrap();
-
-        let result = deliver_cursor_task(
-            &store,
-            &HarnessInjectRequest {
-                harness: "cursor".into(),
-                workspace: workspace.to_path_buf(),
-                session_id: None,
-                message_id: Some("msg-1".into()),
-                body: "hello".into(),
-                is_task: true,
-                is_wake: false,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        assert_eq!(result.status, "unavailable");
-        assert!(result.detail.contains("persisted chat id"));
-    }
-
-    #[test]
-    fn persisted_chat_id_rejects_managed_placeholder() {
-        let registration = crate::HarnessSessionRegistration {
-            harness: "cursor".into(),
-            workspace: "/tmp/ws".into(),
-            disk_session_id: "managed-abc".into(),
-            leader_socket: None,
-            registered_at: "0".into(),
-            mode: crate::HarnessSessionMode::Managed,
-            state: crate::HarnessSessionState::Queued,
-            managed_pid: None,
-            writer_owner: None,
-            writer_acquired_at: None,
-        };
-        assert!(persisted_cursor_chat_id(Some(&registration)).is_none());
-    }
-
-    #[test]
-    fn delivery_ignores_hub_session_routing_metadata_for_resume() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let workspace = dir.path();
-        let ws_str = workspace.to_string_lossy().into_owned();
-        store
-            .register_managed_harness_session("cursor", &ws_str, "cursor-chat-real", 1234)
-            .unwrap();
-
-        let req = HarnessInjectRequest {
-            harness: "cursor".into(),
-            workspace: workspace.to_path_buf(),
-            session_id: Some("hub-work-session-routing-id".into()),
-            message_id: Some("msg-test-2".into()),
-            body: "continue task".into(),
-            is_task: true,
-            is_wake: false,
-            ..Default::default()
-        };
-
-        let result = deliver_cursor_task_with(&store, &req, |_ws, _prompt, chat_id, _model| {
-            assert_eq!(chat_id, Some("cursor-chat-real"));
-            Ok((
-                None,
-                CursorStreamOutput {
-                    session_id: Some("cursor-chat-real".into()),
-                    assistant_texts: vec![],
-                },
-            ))
-        })
-        .unwrap();
-        assert_eq!(result.status, "ok");
-    }
-
-    #[test]
-    fn managed_start_persists_stream_session_id_as_disk_session_id() {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        let workspace = dir.path().canonicalize().unwrap();
-        let ws_str = workspace.to_string_lossy().into_owned();
-
-        let (started, registration) = start_cursor_managed_harness_with(
-            &store,
-            &workspace,
-            "Coding-Assistants managed session",
-            |_ws, _prompt, _chat_id, _model| {
-                Ok((
-                    None,
-                    CursorStreamOutput {
-                        session_id: Some("stream-chat-42".into()),
-                        assistant_texts: vec![],
-                    },
-                ))
-            },
-        )
-        .unwrap();
-
-        assert_eq!(started.status, "started");
-        assert_eq!(registration.disk_session_id, "stream-chat-42");
-        let row = store
-            .get_harness_session("cursor", &ws_str)
-            .unwrap()
-            .unwrap();
-        assert_eq!(row.disk_session_id, "stream-chat-42");
-        assert!(row.writer_owner.is_none());
-        assert_eq!(row.managed_pid, None);
-    }
-
-    #[test]
-    fn latest_cursor_session_id_finds_the_newest_transcript_dir() {
-        static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _lock = HOME_LOCK.lock().unwrap();
-        let saved_home = std::env::var("HOME").ok();
-        let dir = tempdir().unwrap();
-        std::env::set_var("HOME", dir.path());
-        let workspace = PathBuf::from("/tmp/c14-cursor-latest");
-        let transcripts = cursor_agent_transcripts_dir(&workspace);
-        for (session, marker) in [("older-chat", "a"), ("newer-chat", "b")] {
-            let session_dir = transcripts.join(session);
-            fs::create_dir_all(&session_dir).unwrap();
-            fs::write(session_dir.join(format!("{session}.jsonl")), marker).unwrap();
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        assert_eq!(
-            latest_cursor_session_id(&workspace).as_deref(),
-            Some("newer-chat")
-        );
-        match saved_home {
-            Some(home) => std::env::set_var("HOME", home),
-            None => std::env::remove_var("HOME"),
-        }
-    }
-}
+#[path = "cursor_tests.rs"]
+mod tests;

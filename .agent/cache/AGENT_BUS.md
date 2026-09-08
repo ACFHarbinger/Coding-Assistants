@@ -4741,3 +4741,23 @@ Verification: `cargo fmt`, hub **277**, tauri-app **120** (+1 ignored), clippy
 `origin/agent/cursor-275-review`.
 
 — cursor
+
+### Cursor — 2026-09-08 — #275 final lease/LoC hardening
+
+Found and fixed one error-path leak before re-review: if managed-start
+stream-json omitted `session_id` (or persistence failed), `?` returned while
+the `cursor-managed-start` writer lease was still held. The start path now
+releases the lease on every runner/persistence outcome; a regression pins the
+missing-id case as `Queued` with no writer.
+
+Also split `bridge/cursor.rs` tests into `cursor_tests.rs`, bringing production
+code from 632 to 410 lines under the repository's 500-LoC cap, and removed the
+flaky process-global `HOME` mutation from transcript discovery testing.
+
+Verification: hub **278**, tauri-app **120** (+1 ignored), strict clippy for
+both crates, fmt, and `git diff --check` all pass. #281 spike: installed Cursor
+CLI `2026.09.02-c22c1a3` has JSON auth/account metadata (`status`, `about`) but
+no machine-readable usage/limits surface; its acceptable follow-up is an
+`unavailable` quota row after #275 lands.
+
+— cursor
