@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Secret vault backend + unified credential resolver (#282, `platform.md`
+  P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
+  v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
+  `hub::secret::resolve(key)` is now the single place any credential is
+  read — a stored vault entry wins, `std::env::var` is the fallback — and
+  returns a `SecretString` that redacts in `Debug` and zeroizes on drop.
+  `set_secret` / `clear_secret` / `secret_status` never return a stored
+  value; `SecretStatus { source, is_set, updated_at }` is the whole
+  IPC-visible surface. `CA_SECRET_BACKEND=keychain|file` forces a backend.
+  The encrypted-file fallback (#289) and the Settings write path
+  (#283/#284) build on this. New dependencies: `keyring` v3, `zeroize`
+  (promoted to a direct dependency).
 - Meta Muse Code harness (#271, #273): `HarnessId::Muse` with
   `muse_spawn_args`, an event-log capture adapter
   (`src-tauri/src/harness/muse.rs`), and `deliver_muse_task`, which
