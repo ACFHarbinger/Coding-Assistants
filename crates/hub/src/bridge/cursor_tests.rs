@@ -119,6 +119,7 @@ fn persisted_chat_id_rejects_managed_placeholder() {
         managed_pid: None,
         writer_owner: None,
         writer_acquired_at: None,
+        pid_alive: None,
     };
     assert!(persisted_cursor_chat_id(Some(&registration)).is_none());
 }

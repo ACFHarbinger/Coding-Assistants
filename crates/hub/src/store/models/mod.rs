@@ -263,4 +263,6 @@ pub struct HarnessSessionRegistration {
     pub managed_pid: Option<u32>,
     pub writer_owner: Option<String>,
     pub writer_acquired_at: Option<String>,
+    #[serde(default)]
+    pub pid_alive: Option<bool>,
 }
