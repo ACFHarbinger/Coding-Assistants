@@ -20,9 +20,11 @@
 //! apply never prunes an `external` key and vice-versa. `CATALOG` keys
 //! are asserted disjoint from `creative::CATALOG` in a test.
 //!
-//! Launcher-path resolution is **not** done here — the Tauri command
-//! layer resolves `command` against `$PATH` and passes a ready
-//! [`McpServerEntry`] list in, exactly as it does for `creative`.
+//! The rendered `command` is the launcher's bare name (`npx`,
+//! `pwm-mcp`), resolved by the MCP client on its own `$PATH` at spawn —
+//! unlike `creative`, which renders absolute paths to app-local
+//! sidecars. The Tauri layer resolves `command` against `$PATH` only to
+//! report `launcherFound` in the Settings status.
 
 use crate::mcp::{render_replacing, ClientKind, McpServerEntry};
 use crate::{servers_dir, workspace_server_name, HubError, HubStore};
