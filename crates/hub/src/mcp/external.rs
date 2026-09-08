@@ -101,6 +101,12 @@ pub struct ExternalServer {
     /// Home-relative path of a vendor session-token file, if any. Used
     /// only as an existence probe — the file is never opened or logged.
     pub auth_token_relpath: Option<&'static str>,
+    /// Extra PATH names that count as "installed" for Settings
+    /// `launcherFound` only. Never written into client config — that
+    /// always uses [`command`](Self::command). `#277` probes `pwm` /
+    /// `uvx` because `uv tool install perplexity-web-mcp-cli` exposes
+    /// those names alongside `pwm-mcp`.
+    pub launcher_aliases: &'static [&'static str],
 }
 
 impl ExternalServer {
@@ -121,6 +127,12 @@ impl ExternalServer {
             }),
             other => other.configured(),
         }
+    }
+
+    /// Names the Settings layer probes on this process's `$PATH`.
+    /// Config write still uses only [`command`](Self::command).
+    pub fn launcher_probe_names(&self) -> impl Iterator<Item = &'static str> + '_ {
+        std::iter::once(self.command).chain(self.launcher_aliases.iter().copied())
     }
 }
 
@@ -149,6 +161,7 @@ pub const CATALOG: &[ExternalServer] = &[
         docs_url: "https://github.com/perplexityai/modelcontextprotocol",
         notes: "Export PERPLEXITY_API_KEY in the shell that starts Claude Code / Gemini CLI. Coding Assistants never stores the key.",
         auth_token_relpath: None,
+        launcher_aliases: &[],
     },
     ExternalServer {
         key: "perplexity-web",
@@ -161,6 +174,7 @@ pub const CATALOG: &[ExternalServer] = &[
         docs_url: "https://github.com/jacob-bd/perplexity-web-mcp",
         notes: "Quota-limited Perplexity subscription; the session token lasts ~30 days and then `pwm login` must be re-run. Coding Assistants never reads the token. Install: `uv tool install perplexity-web-mcp-cli`.",
         auth_token_relpath: Some(".config/perplexity-web-mcp/token"),
+        launcher_aliases: &["pwm", "uvx"],
     },
 ];
 

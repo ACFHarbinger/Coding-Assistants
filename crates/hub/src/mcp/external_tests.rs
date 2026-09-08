@@ -56,6 +56,10 @@ fn catalog_launchers_match_the_spiked_packages() {
         web.auth_token_relpath,
         Some(".config/perplexity-web-mcp/token")
     );
+    assert_eq!(web.launcher_aliases, &["pwm", "uvx"]);
+    let probes: Vec<_> = web.launcher_probe_names().collect();
+    assert_eq!(probes, ["pwm-mcp", "pwm", "uvx"]);
+    assert!(api.launcher_aliases.is_empty());
 }
 
 #[test]

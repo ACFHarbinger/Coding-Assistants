@@ -70,8 +70,12 @@ fn require_absolute(workspace: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn probe_launcher(srv: &ExternalServer) -> Option<PathBuf> {
+    srv.launcher_probe_names().find_map(resolve_binary)
+}
+
 fn status_row(srv: &ExternalServer, enabled: &BTreeSet<String>) -> ExternalServerStatus {
-    let resolved = resolve_binary(srv.command);
+    let resolved = probe_launcher(srv);
     ExternalServerStatus {
         key: srv.key.to_string(),
         display_name: srv.display_name.to_string(),
@@ -232,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn enabling_writes_bare_npx_even_when_this_process_path_hides_it() {
+    fn enabling_writes_bare_command_even_when_this_process_path_hides_it() {
         use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
         use serde_json::{json, Value};
 
@@ -242,45 +246,56 @@ mod tests {
         let old_path = std::env::var_os("PATH");
         std::env::set_var("PATH", "");
 
-        let ws = tempfile::tempdir().unwrap();
-        let mcp = ws.path().join(".mcp.json");
-        std::fs::write(
-            &mcp,
-            serde_json::to_string_pretty(&json!({
-                "mcpServers": { "user-fs": { "command": "echo", "args": ["ok"] } }
-            }))
-            .unwrap(),
-        )
-        .unwrap();
-        let ws_s = ws.path().to_string_lossy().into_owned();
+        for (key, command) in [("perplexity", "npx"), ("perplexity-web", "pwm-mcp")] {
+            let ws = tempfile::tempdir().unwrap();
+            let mcp = ws.path().join(".mcp.json");
+            std::fs::write(
+                &mcp,
+                serde_json::to_string_pretty(&json!({
+                    "mcpServers": { "user-fs": { "command": "echo", "args": ["ok"] } }
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            let ws_s = ws.path().to_string_lossy().into_owned();
 
-        let on = external_mcp_set_enabled_blocking(ws_s.clone(), "perplexity".into(), true)
-            .expect("enable");
-        assert!(on
-            .servers
-            .iter()
-            .any(|s| s.key == "perplexity" && s.enabled));
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
-        assert_eq!(
-            v["mcpServers"]["perplexity"]["command"], "npx",
-            "enabled official server must be written even if this process cannot resolve npx"
-        );
-        assert_eq!(
-            v["mcpServers"]["perplexity"]["args"],
-            json!(["-y", "@perplexity-ai/mcp-server"])
-        );
-        assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
+            let on =
+                external_mcp_set_enabled_blocking(ws_s.clone(), key.into(), true).expect("enable");
+            assert!(on.servers.iter().any(|s| s.key == key && s.enabled));
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+            assert_eq!(
+                v["mcpServers"][key]["command"], command,
+                "enabled {key} must be written even if this process cannot resolve {command}"
+            );
+            assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
 
-        external_mcp_set_enabled_blocking(ws_s, "perplexity".into(), false).expect("disable");
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
-        assert!(v["mcpServers"]["perplexity"].is_null());
-        assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
+            external_mcp_set_enabled_blocking(ws_s, key.into(), false).expect("disable");
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+            assert!(v["mcpServers"][key].is_null());
+            assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
+        }
 
         match old_path {
             Some(path) => std::env::set_var("PATH", path),
             None => std::env::remove_var("PATH"),
         }
         std::env::remove_var("CA_HOME");
+    }
+
+    #[test]
+    fn subscription_launcher_probe_includes_pwm_and_uvx() {
+        let web = external::server("perplexity-web").unwrap();
+        let names: Vec<_> = web.launcher_probe_names().collect();
+        assert_eq!(names, ["pwm-mcp", "pwm", "uvx"]);
+        assert_eq!(
+            entry_for_command(web),
+            "pwm-mcp",
+            "client config still writes pwm-mcp, not uvx"
+        );
+    }
+
+    fn entry_for_command(srv: &external::ExternalServer) -> String {
+        external::entry_for(srv).command
     }
 
     #[test]

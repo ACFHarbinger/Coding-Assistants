@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `external_mcp_*` commands for #278. Enabling a server writes the bare
   launcher even when this process cannot resolve `npx` / `pwm-mcp`
   (`launcherFound` is status-only; the MCP client has its own PATH).
+  Subscription `launcherFound` also probes `pwm` and `uvx` (install
+  aliases); the written command remains `pwm-mcp`.
 - Creative-tool MCP memory tools (#263): Blender, Krita, Godot, Aseprite,
   Unreal, Unity, and OpenToonz now expose `remember` and `recall`. Their shared
   implementation writes short-term memories tagged with the originating tool
