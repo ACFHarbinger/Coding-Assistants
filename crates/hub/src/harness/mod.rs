@@ -18,9 +18,9 @@ mod spawn;
 mod start;
 pub use inject::{inject_harness, inject_harness_with_store};
 pub use spawn::{
-    claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, opencode_spawn_args, vibe_spawn_args, DEFAULT_DEEPSEEK_MODEL,
-    DEFAULT_OPENCODE_MODEL,
+    claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_managed_spawn_args,
+    gemini_spawn_args, grok_spawn_args, muse_spawn_args, opencode_spawn_args, vibe_spawn_args,
+    DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
 };
 pub use start::start_harness;
 pub(crate) use start::start_harness_owned;
@@ -35,6 +35,11 @@ pub enum HarnessId {
     OpenCode,
     DeepSeek,
     Vibe,
+    /// Meta Muse Code terminal coding-agent. Real spawn/capture/resume is #273.
+    Muse,
+    /// Cursor local CLI agent (`agent`, some installs `cursor-agent`). Real
+    /// spawn/capture/resume is #275.
+    Cursor,
 }
 
 impl HarnessId {
@@ -47,8 +52,10 @@ impl HarnessId {
             "opencode" => Ok(Self::OpenCode),
             "deepseek" => Ok(Self::DeepSeek),
             "vibe" | "mistral" => Ok(Self::Vibe),
+            "muse" | "muse-code" | "meta" => Ok(Self::Muse),
+            "cursor" | "cursor-agent" => Ok(Self::Cursor),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, or vibe)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, or cursor)"
             ))),
         }
     }
@@ -62,6 +69,8 @@ impl HarnessId {
             Self::OpenCode => "opencode",
             Self::DeepSeek => "deepseek",
             Self::Vibe => "vibe",
+            Self::Muse => "muse",
+            Self::Cursor => "cursor",
         }
     }
 
@@ -74,6 +83,10 @@ impl HarnessId {
             Self::Gemini => "agy",
             Self::OpenCode | Self::DeepSeek => "opencode",
             Self::Vibe => "vibe",
+            // TODO(#273): confirm `muse` vs `muse-code` against the installed CLI.
+            Self::Muse => "muse",
+            // TODO(#275): resolve `agent` vs `cursor-agent` once at setup.
+            Self::Cursor => "agent",
         }
     }
 }
