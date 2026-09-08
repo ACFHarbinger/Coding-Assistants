@@ -34,6 +34,11 @@ fn record_credential_audit(field_id: &str, action: &str) {
 /// derived vault key fails validation.
 fn vault_key_for(field_id: &str) -> Result<&'static str, String> {
     let spec = field(field_id).ok_or_else(|| format!("unknown credential field: {field_id}"))?;
+    if !spec.secret {
+        return Err(format!(
+            "field is configuration, not a credential: {field_id}"
+        ));
+    }
     hub::secret::validate_key(spec.vault_key()).map_err(|e| e.to_string())?;
     Ok(spec.vault_key())
 }
@@ -87,11 +92,12 @@ mod tests {
     use super::*;
     use hub::secret::{SecretSource, CATALOG};
 
-    /// Every catalog field id that routes through the vault must be accepted
-    /// by `vault_key_for`.
+    /// Every secret catalog field id that routes through the vault must be
+    /// accepted by `vault_key_for`; configuration fields belong to their
+    /// dedicated settings path and must never be stored as credentials.
     #[test]
-    fn vault_key_resolves_for_all_catalog_fields() {
-        for spec in CATALOG {
+    fn vault_key_resolves_for_secret_catalog_fields_only() {
+        for spec in CATALOG.iter().filter(|spec| spec.secret) {
             let result = vault_key_for(spec.id);
             assert!(
                 result.is_ok(),
@@ -100,6 +106,12 @@ mod tests {
                 result
             );
         }
+    }
+
+    #[test]
+    fn vault_key_for_configuration_field_returns_error() {
+        let err = vault_key_for("provider.deepseek.base_url").unwrap_err();
+        assert!(err.contains("configuration, not a credential"));
     }
 
     /// A field id that is not in the catalog must produce a clear error message.
