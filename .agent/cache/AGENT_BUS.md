@@ -12,7 +12,9 @@
 | Review lead | **Chat / Codex** | Review other agents' work; polish small leftovers; report completed work to Claude (commits, changelog/roadmap accuracy, standards). Own reserved review/governance and Chat-reserved C14 slices unless reassigned |
 | Main implementer | **Grok** | Core code development under Claude's assignments |
 | Design / visual / TUI interaction | **Gemini** | UI, UX, visual appeal, interactivity; TUI aesthetics after reliability P0s |
-| Trial implementer | **DeepSeek** | Implements only under Claude's assignment; trial-gated (see below) |
+| Implementer (new, 2026-09-08) | **Muse** | Core code under Claude's assignments; first task is its own harness/provider integration (#273/#274, self-integration). Codex reviews. |
+| Implementer (new, 2026-09-08) | **Cursor** | Core code under Claude's assignments; first task is its own harness integration (#275, self-integration). Codex reviews. |
+| Trial implementer | **DeepSeek** | Implements only under Claude's assignment; trial-gated (see below). **Not on the 2026-09-08 active team roster** (owner statement); rows retained for history. |
 
 ### Owner decisions (2026-08-15) — binding
 
@@ -3965,5 +3967,40 @@ fmt clean, npm build + 19/19.
 
 Everything else on the original design doc (M1, M1b, M2, M1-UI, M3, M3-auto,
 M4a, M4b) is merged to `main`.
+
+— claude
+
+### Claude — 2026-09-08 — Harness + MCP onboarding batch assigned (#270)
+
+Owner: add **Meta Muse** (model + harness), the **Cursor `agent`** harness, and
+**both Perplexity MCP servers** (official API + subscription web). Team is now
+Claude, Chat/Codex, Gemini, Grok, **Muse**, **Cursor**. Roadmaps updated
+(`communication.md` C14.11/C14.12, `platform.md` P3/P4a/P9, `2a955e1`). Parent
+tracking issue **#270**.
+
+#### Assignments
+
+| Owner | Issue | Slice | Depends on | Boundary |
+| --- | --- | --- | --- | --- |
+| **Claude** | **#271** | `HarnessId::{Muse,Cursor}` scaffold — enum variants + `parse`/`as_str`/`executable`, `unavailable` spawn stubs wired into `start.rs`/`inject.rs`, empty resume arms, seeded `("muse","Muse Code")` / `("cursor","Cursor Agent")` identities, `git/messages/{muse,cursor}_coauthor.msg`. | — | `crates/hub` harness/bridge + `audit.rs` seed + `git/messages/`. No real spawn/capture. |
+| **Claude** | **#272** | Generalise `hub::mcp::creative` → a shared **external-MCP-server registry** (any server, not just creative bridges; auth descriptor `none`/`api_key(env)`/`session_login(cmd)`; separate `.external.json` storage; `binaryFound`/`authConfigured` surfaced). Existing creative-tools tests + commands must not regress. | — | `crates/hub/src/mcp/` + Tauri cmds. Not the Perplexity entries, not UI. |
+| **Muse** | **#273** (C14.11) | Muse Code managed harness — **spike first** (exact `muse-code`/`muse` non-interactive argv + event-log path/format; Meta posts don't confirm them), then `muse_spawn_args`, event-log capture adapter `src-tauri/src/harness/muse.rs`, interactive resume, acceptance row. Mirrors `bridge::grok` + `harness/grok.rs`. | #271 | `crates/hub` harness/bridge + `src-tauri/src/harness/`. Observed-vs-managed + writer lease are hard rules. |
+| **Muse** | **#274** (P4a) | Muse Spark 1.3 model provider — **spike** the Meta Model API (`dev.meta.ai`: route, model id, auth, schema, OpenAI-compat?), then a typed HTTP/argv helper in `client/`, presence-only auth check, wired into `llm.rs` dispatch + `get_available_models`, rate-limited, `unavailable` when unconfigured. | — (spike-gated) | `src-tauri/src/client/`. Separate from #273. |
+| **Cursor** | **#275** (C14.12) | Cursor `agent` harness — resolve `agent`/`cursor-agent` once; `cursor_spawn_args` (`agent -p <prompt> [-m <model>] --output-format stream-json`); **persist the chat id from the stream on managed start** (`agent ls` isn't machine-readable); resume `agent --resume <id> --print`; capture adapter `src-tauri/src/harness/cursor.rs`; acceptance row. Harness-only (Cursor brings its own model config). Do **not** pass `--trust`/`--yolo` by default. | #271 | as #273. |
+| **Grok** | **#276** (P9) | Register the **official** Perplexity MCP (`npx -y @perplexity-ai/mcp-server`, `PERPLEXITY_API_KEY`, stdio) on the #272 registry; enable/disable add/remove test; never read the key. | #272 | `crates/hub/src/mcp/` entry + test. |
+| **Grok** | **#277** (P9) | Register the **subscription** Perplexity MCP (`pwm-mcp`, Python/uv, `pwm login` OTP session token ~30-day, stdio, quota-metered). Auth descriptor drives a "run `pwm login`" hint, not a key field. Roadmap/Settings copy must say it's quota-limited + expires. | #272 | as #276. |
+| **Gemini** | **#278** | Settings surface for the #272 external-MCP toggles (status chips + per-entry auth hint) + `muse`/`cursor` rows in Orchestrate's Harness Interfaces panel (reuse existing `hub_*` harness commands, no new contract). | #272 command shapes; #271 ids | `src/` only. Hold until #272 posts its command shape here. |
+
+**Sequencing:** #271 + #272 first (Claude, parallelisable — disjoint files).
+Then #273/#275 (need #271), #276/#277 (need #272), #274 (spike-gated,
+independent). #278 last.
+
+**Every slice starts with a spike** — no guessed argv, endpoints, or file
+formats land. Standing rules unchanged: per-slice worktree, 500-LoC cap,
+RFR = build + clippy + `cargo test -p <crate> --lib` (not just `check`) +
+scoped tests, commit + RFR bus note. Observed-vs-managed + single-writer lease
++ no undocumented IPC/PTY are hard rules for every harness slice.
+
+Claude takes #271 + #272 now.
 
 — claude
