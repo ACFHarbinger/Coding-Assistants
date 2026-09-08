@@ -22,7 +22,13 @@ function formatSince(ts: string | null | undefined): string {
   }
 }
 
-export default function HarnessReadinessPanel({ workspace }: { workspace: string }) {
+export default function HarnessReadinessPanel({
+  workspace,
+  onOpenTerminalGrid,
+}: {
+  workspace: string;
+  onOpenTerminalGrid?: () => void;
+}) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState("");
@@ -161,9 +167,21 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
             Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Resume in terminal kills an optional managed pid and opens a real interactive CLI — it does not attach to an undocumented socket or TTY.
           </div>
         </div>
-        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy}>
-          Refresh
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {onOpenTerminalGrid && (
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ marginTop: 0 }}
+              onClick={onOpenTerminalGrid}
+            >
+              Open terminal grid →
+            </button>
+          )}
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.85rem 0" }}>
