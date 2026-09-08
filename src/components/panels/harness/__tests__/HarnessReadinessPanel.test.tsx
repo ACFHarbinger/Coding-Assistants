@@ -94,4 +94,67 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
     const cursorElements = screen.getAllByText("cursor");
     expect(cursorElements.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("does not require a chat ID for Cursor managed start, but requires UUID for Muse", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(<HarnessReadinessPanel workspace="/test/ws" />);
+
+    // Wait for initial refresh to finish
+    expect(await screen.findByText(/12345678-1234-1234-1234-123456789abc/)).toBeInTheDocument();
+
+    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    const startManagedBtn = screen.getByText("Start managed");
+
+    // Select muse without an ID -> should show error requiring UUID
+    fireEvent.change(select, { target: { value: "muse" } });
+    fireEvent.click(startManagedBtn);
+    expect(
+      await screen.findByText("Start managed needs a real Muse session UUID. Do not invent a placeholder."),
+    ).toBeInTheDocument();
+    // Select cursor without an ID -> should not fail with chat ID requirement
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string) => {
+      if (cmd === "hub_start_managed_harness") {
+        return Promise.resolve({
+          start: { harness: "cursor", pid: 9999, status: "started", detail: "Cursor agent started" },
+          registration: {
+            harness: "cursor",
+            workspace: "/test/ws",
+            disk_session_id: "fresh-chat-id",
+            leader_socket: null,
+            registered_at: "2026-09-08T12:00:00Z",
+            mode: "managed",
+            state: "ready",
+            managed_pid: 9999,
+            writer_owner: "cursor",
+            writer_acquired_at: "2026-09-08T12:00:00Z",
+          },
+        });
+      }
+      if (cmd === "hub_list_harness_sessions") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "hub_grok_leader_status") {
+        return Promise.resolve({
+          running: false,
+          pid: null,
+          socketPath: null,
+          activeLeaderPid: null,
+          leader_live: false,
+          detail: "No leader session",
+        });
+      }
+      if (cmd === "hub_grok_list_live_sessions") {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve(null);
+    });
+
+    fireEvent.change(select, { target: { value: "cursor" } });
+    fireEvent.click(startManagedBtn);
+
+    // It should invoke hub_start_managed_harness and display the success detail
+    expect(await screen.findByText("Cursor agent started")).toBeInTheDocument();
+  });
 });
+

@@ -121,7 +121,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
       );
     }
     if (authKind === "session_login") {
-      const active = server.authConfigured === true;
+      const tokenPresent = server.authConfigured === true;
       return (
         <span
           style={{
@@ -129,13 +129,17 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
             fontWeight: 600,
             padding: "0.12rem 0.5rem",
             borderRadius: "999px",
-            background: active ? "rgba(16, 185, 129, 0.12)" : "rgba(99, 102, 241, 0.12)",
-            border: `1px solid ${active ? "rgba(16, 185, 129, 0.35)" : "rgba(99, 102, 241, 0.35)"}`,
-            color: active ? "#6ee7b7" : "#a5b4fc",
+            background: tokenPresent ? "rgba(16, 185, 129, 0.12)" : "rgba(99, 102, 241, 0.12)",
+            border: `1px solid ${tokenPresent ? "rgba(16, 185, 129, 0.35)" : "rgba(99, 102, 241, 0.35)"}`,
+            color: tokenPresent ? "#6ee7b7" : "#a5b4fc",
           }}
-          title="CLI session login authentication"
+          title={
+            tokenPresent
+              ? "Session token file detected on disk (file existence only; token may expire after ~30 days)"
+              : "No session token file detected; run login command to authenticate"
+          }
         >
-          {active ? "Session Active" : "Session Login Required"}
+          {tokenPresent ? "Token File Present" : "Login Required"}
         </span>
       );
     }

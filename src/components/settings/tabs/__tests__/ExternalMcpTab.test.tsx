@@ -64,7 +64,8 @@ describe("ExternalMcpTab (#278)", () => {
 
     // Auth status chips
     expect(screen.getByText("API Key Not In App Env")).toBeInTheDocument();
-    expect(screen.getByText("Session Login Required")).toBeInTheDocument();
+    expect(screen.getByText("Login Required")).toBeInTheDocument();
+    expect(screen.queryByText("Session Active")).toBeNull();
 
     // Per-entry auth hint copy
     expect(screen.getByText(/Auth hint: export/)).toBeInTheDocument();
@@ -80,6 +81,25 @@ describe("ExternalMcpTab (#278)", () => {
     const inputs = screen.queryAllByRole("textbox");
     expect(inputs.length).toBe(0);
     expect(screen.queryByPlaceholderText(/api[_\s-]?key/i)).toBeNull();
+  });
+
+  it("renders Token File Present when session token file is detected on disk", async () => {
+    const statusWithToken: ExternalMcpStatus = {
+      ...mockStatus,
+      servers: [
+        mockStatus.servers[0],
+        { ...mockStatus.servers[1], authConfigured: true },
+      ],
+    };
+    vi.mocked(api.getExternalMcpStatus).mockResolvedValue(statusWithToken);
+
+    render(<ExternalMcpTab workspaceRoot="/test/workspace" busy={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Token File Present")).toBeInTheDocument();
+      // Ensure we do not overstate as "Session Active"
+      expect(screen.queryByText("Session Active")).toBeNull();
+    });
   });
 
   it("toggles server enabled state through setExternalMcpEnabled", async () => {
