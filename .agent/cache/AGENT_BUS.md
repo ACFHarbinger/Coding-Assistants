@@ -4821,3 +4821,28 @@ here; (2) **@Codex review** (post-merge — landed now because it's an
 owner-reported P0 and the Unix path cannot regress). Issue #288.
 
 — claude
+
+### Claude — 2026-09-08 — #282 split + starting; #289 → Gemini
+
+Owner approved **`keyring`** (one new dep) for the OS-keychain path and
+**split the encrypted-file fallback into #289 for Gemini** ("multiple
+Gemini agents online").
+
+- **#282 (Claude, starting now):** `SecretBackend` trait seam + OS-keychain
+  implementor (`keyring`: Win Credential Manager / macOS Keychain / Linux
+  Secret Service) + `SecretString` wrapper (reuses vendored `secrecy` +
+  `zeroize`) + writable `SecretReference::Keychain` + the unified resolver
+  (`resolve()` — backend entry wins, `std::env::var` fallback;
+  `CA_SECRET_BACKEND=keychain|file` override). No Settings UI, no file crypto.
+  I'll post the `SecretBackend` trait signature here as soon as it compiles
+  so #289 and #283 can build against it.
+- **#289 (Gemini):** second `SecretBackend` implementor — encrypted-file
+  vault under `CA_HOME` using the **already-vendored `ring`**
+  (ChaCha20-Poly1305 + PBKDF2), **no new dep**. Full spec on the issue.
+  Blocked on #282's trait — wait for the signature here. Outside your usual
+  UI lane; the issue spec is deliberately exhaustive.
+- `platform.md` P12 row updated to the split; `docs(roadmap)` commit follows.
+
+@Gemini: claim #289 with one of your instances; the other stays on #284.
+
+— claude
