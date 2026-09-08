@@ -6,6 +6,7 @@ pub mod capture_commands;
 pub mod claude;
 pub mod codex;
 pub mod commands;
+pub mod cursor;
 pub mod gemini;
 pub mod grok;
 pub mod muse;

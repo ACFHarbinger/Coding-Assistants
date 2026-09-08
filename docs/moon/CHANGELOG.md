@@ -69,6 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CA_MEMORY_EMBEDDING_PROVIDER=openai`) is an optional 384-dimensional API
   override and falls back to MiniLM if unavailable; model-space changes trigger
   a best-effort vector rebuild without blocking memory writes or Hub startup.
+- Cursor `agent` harness (#275, C14.12): managed worker spawn via
+  `agent -p <prompt> [--model <id>] --output-format stream-json` with
+  `agent`/`cursor-agent` resolution, stream-json chat-id persistence,
+  managed task delivery, on-disk capture from
+  `~/.cursor/projects/.../agent-transcripts/`, and interactive `--resume`.
 
 ### Fixed
 

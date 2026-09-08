@@ -63,6 +63,11 @@ fn inject_harness_inner(
                 return crate::bridge::channels::chat::deliver_codex_task(store, request);
             }
         }
+        if harness == HarnessId::Cursor {
+            if let Some(store) = store {
+                return crate::bridge::cursor::deliver_cursor_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
@@ -108,11 +113,18 @@ fn inject_harness_inner(
         // task-only delivery routes through `deliver_muse_task` above, which
         // re-enters the managed session headlessly and arms capture.
         HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
-        // #271 scaffold — typed `unavailable` until #275 lands the argv.
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
     };
 
-    let started = spawn_explicit(harness.executable(), &request.workspace, &args)?;
+    let started = spawn_explicit(
+        if harness == HarnessId::Cursor {
+            crate::harness::cursor_executable()
+        } else {
+            harness.executable()
+        },
+        &request.workspace,
+        &args,
+    )?;
     Ok(HarnessInjectResult {
         harness: started.harness,
         pid: started.pid,

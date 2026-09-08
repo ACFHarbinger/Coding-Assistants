@@ -14,9 +14,9 @@
 #[cfg(test)]
 mod tests {
     use hub::{
-        claude_spawn_args, codex_spawn_args, gemini_spawn_args, grok_spawn_args, inject_harness,
-        inject_harness_with_store, opencode_spawn_args, vibe_spawn_args, HarnessInjectRequest,
-        HubStore,
+        claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_spawn_args, grok_spawn_args,
+        inject_harness, inject_harness_with_store, opencode_spawn_args, vibe_spawn_args,
+        HarnessInjectRequest, HubStore,
     };
     use std::fs;
     use std::io::Write;
@@ -115,6 +115,20 @@ mod tests {
         .unwrap();
     }
 
+    fn write_cursor_fixture(root: &Path, workspace: &Path, disk_session_id: &str) {
+        let dir = root
+            .join(crate::harness::cursor::encode_workspace_dir_name(workspace))
+            .join("agent-transcripts")
+            .join(disk_session_id);
+        fs::create_dir_all(&dir).unwrap();
+        let mut file = fs::File::create(dir.join(format!("{disk_session_id}.jsonl"))).unwrap();
+        writeln!(
+            file,
+            r#"{{"role":"assistant","message":{{"content":[{{"type":"text","text":"[cursor] C14.12 acceptance fixture"}}]}}}}"#
+        )
+        .unwrap();
+    }
+
     /// C14.11 acceptance row (#273): the Muse capture adapter reads a
     /// date-sharded event-log fixture, attributes the committed assistant
     /// text to `muse`, lands it on the hub session channel, keeps a
@@ -180,13 +194,26 @@ mod tests {
     }
 
     #[test]
-    fn c12_all_four_harness_captures_land_on_the_same_hub_session() {
+    fn c12_all_harness_captures_land_on_the_same_hub_session() {
         let store_dir = tempdir().unwrap();
         let store = HubStore::open(store_dir.path()).unwrap();
 
         let grok_root = tempdir().unwrap();
         let grok_workspace = PathBuf::from("/tmp/c12-acceptance-grok");
         write_grok_fixture(grok_root.path(), &grok_workspace, "grok-disk-session");
+
+        let cursor_root = tempdir().unwrap();
+        let cursor_workspace = PathBuf::from("/tmp/c12-acceptance-cursor");
+        write_cursor_fixture(cursor_root.path(), &cursor_workspace, "cursor-disk-session");
+        store
+            .register_harness_session(
+                "cursor",
+                &cursor_workspace.to_string_lossy(),
+                "cursor-disk-session",
+                None,
+            )
+            .unwrap();
+
         let grok_outcome = crate::harness::grok::capture_grok_session_from(
             grok_root.path(),
             &store,
@@ -232,6 +259,15 @@ mod tests {
         )
         .unwrap();
 
+        let cursor_outcome = crate::harness::cursor::capture_cursor_session_from(
+            cursor_root.path(),
+            &store,
+            &cursor_workspace,
+            Some("cursor-disk-session"),
+            Some(HUB_SESSION_ID),
+        )
+        .unwrap();
+
         assert!(grok_outcome.transcript_found);
         assert_eq!(grok_outcome.captured.len(), 1);
         assert!(codex_outcome.transcript_found);
@@ -240,21 +276,24 @@ mod tests {
         assert_eq!(claude_outcome.captured.len(), 1);
         assert!(gemini_outcome.transcript_found);
         assert_eq!(gemini_outcome.captured.len(), 1);
+        assert!(cursor_outcome.transcript_found);
+        assert_eq!(cursor_outcome.captured.len(), 1);
 
-        // All four adapters wrote into the same hub session channel.
+        // All harness adapters wrote into the same hub session channel.
         let recorded = store
             .list_channel_messages(&format!("session:{HUB_SESSION_ID}"), 50)
             .unwrap();
         assert_eq!(
             recorded.len(),
-            4,
-            "all four captures must share one session"
+            5,
+            "all harness captures must share one session"
         );
         let bodies: Vec<&str> = recorded.iter().map(|m| m.body.as_str()).collect();
         assert!(bodies.iter().any(|b| b.contains("[grok]")));
         assert!(bodies.iter().any(|b| b.contains("[codex]")));
         assert!(bodies.iter().any(|b| b.contains("[claude]")));
         assert!(bodies.iter().any(|b| b.contains("[gemini]")));
+        assert!(bodies.iter().any(|b| b.contains("[cursor]")));
 
         // Each capture is attributed to the correct authoring agent, not a
         // shared/generic identity.
@@ -263,6 +302,7 @@ mod tests {
         assert!(from_agents.contains(&"chat")); // Codex captures post as "chat".
         assert!(from_agents.contains(&"claude"));
         assert!(from_agents.contains(&"gemini"));
+        assert!(from_agents.contains(&"cursor"));
     }
 
     /// `inject_harness` runs its validation (empty body, relative workspace)
@@ -342,6 +382,9 @@ mod tests {
         let vibe_args = vibe_spawn_args(&workspace, dangerous, None, None).unwrap();
         assert!(vibe_args.iter().any(|arg| arg == dangerous));
 
+        let cursor_args = cursor_spawn_args(&workspace, dangerous, None, None).unwrap();
+        assert!(cursor_args.iter().any(|arg| arg == dangerous));
+
         // None of the builders may have split the dangerous string into
         // multiple argv entries at its embedded whitespace/operators — the
         // prompt must appear as exactly one element, verbatim.
@@ -352,6 +395,7 @@ mod tests {
             &gemini_args,
             &opencode_args,
             &vibe_args,
+            &cursor_args,
         ] {
             let matches = args.iter().filter(|arg| *arg == dangerous).count();
             assert_eq!(matches, 1);

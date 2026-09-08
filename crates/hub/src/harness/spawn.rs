@@ -327,19 +327,6 @@ pub fn muse_managed_spawn_args(
     Ok(args)
 }
 
-/// Placeholder spawn argv for the Cursor `agent` CLI. Real argv, stream-json
-/// parsing, and chat-id persistence land in #275.
-pub fn cursor_spawn_args(
-    _workspace: &Path,
-    _prompt: &str,
-    _model: Option<&str>,
-    _effort: Option<&str>,
-) -> Result<Vec<OsString>, HubError> {
-    Err(HubError::Invalid(
-        "Cursor agent harness is not implemented yet (#275)".into(),
-    ))
-}
-
 pub(super) fn spawn_explicit_owned(
     program: &str,
     workspace: &Path,
@@ -514,10 +501,8 @@ mod tests {
     }
 
     #[test]
-    fn muse_and_cursor_ids_parse_but_cursor_spawn_is_a_typed_unavailable() {
-        // #271 scaffold: the identities exist; #275 implements the argv.
-        // (#273 implements the Muse argv below; Cursor's slice reconciles
-        // this test on merge.)
+    fn muse_and_cursor_spawn_argv_are_real() {
+        // #271 scaffold: the identities exist; #273/#275 implement the argv.
         assert_eq!(HarnessId::parse("muse").unwrap(), HarnessId::Muse);
         assert_eq!(HarnessId::parse("muse-code").unwrap(), HarnessId::Muse);
         assert_eq!(HarnessId::parse("cursor").unwrap(), HarnessId::Cursor);
@@ -528,9 +513,9 @@ mod tests {
         assert_eq!(HarnessId::Cursor.executable(), "agent");
 
         let ws = PathBuf::from("/tmp/coding-assistants-c14");
-        let cursor = cursor_spawn_args(&ws, "do the thing", None, None);
-        assert!(cursor.is_err());
-        assert!(cursor.unwrap_err().to_string().contains("#275"));
+        let cursor = super::super::cursor_spawn_args(&ws, "do the thing", None, None).unwrap();
+        assert_eq!(cursor[0], "-p");
+        assert_eq!(cursor[1], "do the thing");
     }
 
     #[test]
