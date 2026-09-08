@@ -1,7 +1,7 @@
 use crate::agent::AgentEvent;
 use crate::client::providers::{
-    deepseek_unavailable_opencode, is_muse_provider, muse_config_dir_from_env,
-    muse_is_authenticated, muse_run_args, muse_unavailable_not_installed,
+    deepseek_unavailable_opencode, is_muse_provider, muse_catalog_entries,
+    muse_config_dir_from_env, muse_is_authenticated, muse_run_args, muse_unavailable_not_installed,
     muse_unavailable_unauthenticated, opencode_run_args, parse_opencode_models, vibe_home_from_env,
     vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
     vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
@@ -259,34 +259,6 @@ async fn existing_endpoint_completion(
         },
     );
     Ok(output)
-}
-
-/// `muse/<id>` catalog entries for `get_available_models`.
-///
-/// #274 spike outcome: the `muse` CLI publishes no model catalog (no
-/// `models` subcommand; `--model` takes an undocumented id and the server
-/// otherwise picks its default), so an authenticated install contributes no
-/// entries. This probe keeps that decision re-verifiable: it confirms the
-/// CLI is present and authenticated, and if a future CLI gains a catalog,
-/// its entries land here. Configured models work regardless —
-/// [`muse_completion`] passes `--model` through verbatim.
-async fn muse_catalog_entries() -> Vec<String> {
-    let version = Command::new("muse").arg("--version").output().await;
-    let Ok(version) = version else {
-        return Vec::new();
-    };
-    if !version.status.success() {
-        return Vec::new();
-    }
-    let config_dir = muse_config_dir_from_env(
-        std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
-        std::env::var("HOME").ok().as_deref(),
-    );
-    let api_key = std::env::var("META_API_KEY").ok();
-    if !muse_is_authenticated(api_key.as_deref(), &config_dir) {
-        return Vec::new();
-    }
-    Vec::new()
 }
 
 async fn muse_completion(

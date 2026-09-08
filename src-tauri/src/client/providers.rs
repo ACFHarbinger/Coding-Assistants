@@ -173,6 +173,37 @@ pub fn muse_config_dir_from_env(xdg_config_home: Option<&str>, user_home: Option
         .join("muse")
 }
 
+/// `muse/<id>` catalog entries for `get_available_models`.
+///
+/// #274 spike outcome: the `muse` CLI publishes no model catalog (no
+/// `models` subcommand; `--model` takes an undocumented id and the server
+/// otherwise picks its default), so an authenticated install contributes no
+/// entries. This probe keeps that decision re-verifiable: it confirms the
+/// CLI is present and authenticated, and if a future CLI gains a catalog,
+/// its entries land here. Configured models work regardless — the llm.rs
+/// completion passes `--model` through verbatim.
+pub async fn muse_catalog_entries() -> Vec<String> {
+    let version = tokio::process::Command::new("muse")
+        .arg("--version")
+        .output()
+        .await;
+    let Ok(version) = version else {
+        return Vec::new();
+    };
+    if !version.status.success() {
+        return Vec::new();
+    }
+    let config_dir = muse_config_dir_from_env(
+        std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
+        std::env::var("HOME").ok().as_deref(),
+    );
+    let api_key = std::env::var("META_API_KEY").ok();
+    if !muse_is_authenticated(api_key.as_deref(), &config_dir) {
+        return Vec::new();
+    }
+    Vec::new()
+}
+
 /// `muse exec [--model <id>] [--reasoning-effort <effort>] [--workspace <abs>] <prompt>`
 /// (verified live against `muse exec --help`, muse 1.0.3, #274 spike).
 /// Model/effort are opaque passthroughs — the CLI publishes no model
