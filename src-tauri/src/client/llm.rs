@@ -1,9 +1,10 @@
 use crate::agent::AgentEvent;
 use crate::client::providers::{
-    deepseek_unavailable_opencode, opencode_run_args, parse_opencode_models, vibe_home_from_env,
-    vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
-    vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
-    VIBE_FALLBACK_MODELS,
+    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
+    muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
+    parse_opencode_models, vibe_home_from_env, vibe_is_authenticated, vibe_programmatic_supported,
+    vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
+    vibe_unavailable_unsupported, MUSE_DEFAULT_MODEL, MUSE_FALLBACK_MODELS, VIBE_FALLBACK_MODELS,
 };
 use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
@@ -114,7 +115,9 @@ impl LLMClient {
         mcp_config_path: Option<&str>,
         token: Option<Arc<AtomicBool>>,
     ) -> Result<String, String> {
-        wait_for_rate_limit(&config.provider).await;
+        // Aliases of one upstream share a rate-limit bucket (`muse`/`meta`
+        // both hit the Model API); every other provider keys on itself.
+        wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
 
         if let Some(endpoint) = config
             .endpoint
@@ -151,6 +154,10 @@ impl LLMClient {
 
         if is_vibe_provider(&config.provider) {
             return vibe_completion(config, prompt, work_dir, app, source, token).await;
+        }
+
+        if is_muse_provider(&config.provider) {
+            return muse_completion(config, prompt, work_dir, app, source, token).await;
         }
 
         opencode_completion(
@@ -201,6 +208,15 @@ impl LLMClient {
             }
         }
 
+        // The Model API publishes no listing endpoint: an authenticated
+        // install contributes the fixed cookbook default, mirroring the
+        // Mistral fallback pattern above.
+        if muse_is_authenticated(std::env::var("MODEL_API_KEY").ok().as_deref()) {
+            for model in MUSE_FALLBACK_MODELS {
+                models.push(format!("muse/{model}"));
+            }
+        }
+
         Ok(models)
     }
 }
@@ -242,6 +258,48 @@ async fn existing_endpoint_completion(
         .as_str()
         .ok_or("Existing model process response had no choices[0].message.content")?
         .to_string();
+    let _ = app.emit(
+        "agent-event",
+        AgentEvent {
+            source: source.to_string(),
+            event_type: "response".to_string(),
+            content: output.clone(),
+        },
+    );
+    Ok(output)
+}
+
+/// Muse Spark chat completion against the Meta Model API (OpenAI-compatible,
+/// per the official cookbook). The key comes from `MODEL_API_KEY` at call
+/// time and travels only in the `Authorization` header — it is never
+/// stored, logged, or placed in argv. An empty configured model falls back
+/// to the cookbook default. `work_dir`/`token` are dispatch-parity
+/// parameters the workspace-free API ignores.
+async fn muse_completion(
+    config: &ModelConfig,
+    prompt: &str,
+    _work_dir: Option<&str>,
+    app: &AppHandle,
+    source: &str,
+    _token: Option<Arc<AtomicBool>>,
+) -> Result<String, String> {
+    let api_key = std::env::var("MODEL_API_KEY").ok();
+    if !muse_is_authenticated(api_key.as_deref()) {
+        return Err(muse_unavailable_unauthenticated());
+    }
+    // Presence-checked above; binding here keeps the secret out of every
+    // error string below (only presence-derived messages are built).
+    let api_key = api_key
+        .map(|key| key.trim().to_string())
+        .filter(|key| !key.is_empty())
+        .ok_or_else(muse_unavailable_unauthenticated)?;
+    let model = config.model.trim();
+    let model = if model.is_empty() {
+        MUSE_DEFAULT_MODEL
+    } else {
+        model
+    };
+    let output = muse_chat_request(&api_key, model, prompt).await?;
     let _ = app.emit(
         "agent-event",
         AgentEvent {

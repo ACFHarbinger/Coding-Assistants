@@ -88,6 +88,97 @@ mod tests {
         .unwrap();
     }
 
+    /// Muse event-log fixture in the real on-disk shape (`YYYY/MM/DD/<uuid>/session.jsonl`,
+    /// verified live against muse 1.0.3, #273 spike).
+    fn write_muse_fixture(root: &Path, disk_session_id: &str) {
+        let dir = root
+            .join("2026")
+            .join("09")
+            .join("08")
+            .join(disk_session_id);
+        fs::create_dir_all(&dir).unwrap();
+        let mut file = fs::File::create(dir.join("session.jsonl")).unwrap();
+        writeln!(
+            file,
+            r#"{{"payload_type":"runtime.session.metadata","payload":{{"kind":"metadata","record":{{"workspace_root":"/tmp/c14-acceptance-muse"}}}}}}"#
+        )
+        .unwrap();
+        writeln!(
+            file,
+            r#"{{"payload_type":"runtime.user_intent.accepted","payload":{{"refill_blocks":[{{"kind":"text","text":"status?"}}]}}}}"#
+        )
+        .unwrap();
+        writeln!(
+            file,
+            r#"{{"payload_type":"runtime.session","payload":{{"kind":"run","event":{{"kind":"assistant_message_committed","text":"[muse] C14.11 acceptance fixture"}}}}}}"#
+        )
+        .unwrap();
+    }
+
+    /// C14.11 acceptance row (#273): the Muse capture adapter reads a
+    /// date-sharded event-log fixture, attributes the committed assistant
+    /// text to `muse`, lands it on the hub session channel, keeps a
+    /// metacharacter prompt as one argv element, and never spawns on a
+    /// task-only inject without a managed registration (delivery is
+    /// managed-only; task delivery itself is covered by the hub
+    /// `deliver_muse_task_with` unit tests with stub runners, since this
+    /// module never spawns a live process).
+    #[test]
+    fn c14_muse_capture_acceptance_row() {
+        use hub::muse_spawn_args;
+
+        const MUSE_HUB_SESSION_ID: &str = "c14-acceptance-hub-session";
+        const MUSE_DISK_SESSION_ID: &str = "123e4567-e89b-42d3-a456-426614174000";
+
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+
+        let muse_root = tempdir().unwrap();
+        let muse_workspace = PathBuf::from("/tmp/c14-acceptance-muse");
+        write_muse_fixture(muse_root.path(), MUSE_DISK_SESSION_ID);
+        let outcome = crate::harness::muse::capture_muse_session_from(
+            muse_root.path(),
+            &store,
+            &muse_workspace,
+            Some(MUSE_DISK_SESSION_ID),
+            Some(MUSE_HUB_SESSION_ID),
+        )
+        .unwrap();
+        assert!(outcome.transcript_found);
+        assert_eq!(outcome.captured.len(), 1);
+
+        let recorded = store
+            .list_channel_messages(&format!("session:{MUSE_HUB_SESSION_ID}"), 50)
+            .unwrap();
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0].from_agent, "muse");
+        assert!(recorded[0].body.contains("[muse]"));
+
+        let dangerous = "; rm -rf / && echo pwned $(whoami) `id` | cat > /tmp/evil";
+        let args = muse_spawn_args(&muse_workspace, dangerous, None, None).unwrap();
+        assert_eq!(args.iter().filter(|arg| *arg == dangerous).count(), 1);
+
+        // No managed registration: task-only delivery is unavailable and
+        // must not spawn a replacement process.
+        let unregistered = inject_harness_with_store(
+            &store,
+            &HarnessInjectRequest {
+                harness: "muse".into(),
+                workspace: muse_workspace,
+                session_id: Some("session".into()),
+                message_id: Some("msg".into()),
+                body: "do not spawn a replacement".into(),
+                is_task: true,
+                is_wake: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(unregistered.pid, None);
+        assert_eq!(unregistered.status, "unavailable");
+        assert!(!unregistered.detail.to_ascii_lowercase().contains("spawned"));
+    }
+
     #[test]
     fn c12_all_four_harness_captures_land_on_the_same_hub_session() {
         let store_dir = tempdir().unwrap();

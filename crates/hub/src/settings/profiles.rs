@@ -1,9 +1,7 @@
 //! Global named provider profiles and per-harness process settings (S4).
 
-use super::model::{
-    EffectiveHarnessSettings, FieldStatus, HarnessSettings, ProviderProfile, SecretReference,
-    SettingsError,
-};
+use super::model::{FieldStatus, ProviderProfile, SecretReference, SettingsError};
+use super::model_harness::{EffectiveHarnessSettings, HarnessSettings};
 use std::collections::BTreeMap;
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 

@@ -33,6 +33,10 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
+pub use bridge::muse::{
+    deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
+    muse_sessions_root,
+};
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{
     apply_grok_embedded_scroll_flags, relaunch_harness_in_terminal, resolve_interactive_relaunch,
@@ -42,9 +46,9 @@ pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,
-    vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
-    HarnessStartResult,
+    grok_spawn_args, inject_harness, inject_harness_with_store, muse_disk_session_id,
+    muse_managed_spawn_args, muse_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args,
+    HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use settings::{

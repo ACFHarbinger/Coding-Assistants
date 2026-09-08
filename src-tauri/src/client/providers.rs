@@ -138,6 +138,135 @@ pub fn deepseek_unavailable_opencode(error: impl std::fmt::Display) -> String {
     )
 }
 
+/// Meta Muse Spark model provider (#274), served by the Meta Model API —
+/// **not** by shelling out to the `muse` CLI (that CLI is the #273 managed
+/// harness; conflating the two is exactly what `HarnessId`'s rejected bare
+/// "meta" alias guards against).
+///
+/// Contract verified against the official `meta-models/meta-model-cookbook`:
+/// OpenAI-compatible chat completions at `{base}/chat/completions` with a
+/// `Bearer` `MODEL_API_KEY` (`LLM|…` format, env-only, never logged), model
+/// `muse-spark-1.3`. `ModelConfig.provider` accepts `muse` (app-facing key)
+/// or `meta` (the CLI's own provider id); the namespaces are separate.
+pub const MUSE_MODEL_API_BASE_URL: &str = "https://api.meta.ai/v1";
+
+/// Default Muse Spark model id (cookbook default, 1M-token context).
+pub const MUSE_DEFAULT_MODEL: &str = "muse-spark-1.3";
+
+/// `get_available_models` entries for an authenticated install, mirroring
+/// the `VIBE_FALLBACK_MODELS` pattern (the Model API publishes no
+/// listing endpoint, so presence gates a fixed entry).
+pub const MUSE_FALLBACK_MODELS: &[&str] = &["muse-spark-1.3"];
+
+/// Request timeout for a Model API chat completion. Agent turns over a
+/// 1M-context model can take a while; offline hosts fail fast at connect
+/// instead (mapped to `unavailable`, never retried — matching the rest of
+/// this module, and the cookbook's "don't retry what cannot succeed"
+/// guidance for transport errors).
+pub const MUSE_REQUEST_TIMEOUT_SECS: u64 = 120;
+
+pub fn is_muse_provider(provider: &str) -> bool {
+    matches!(provider.trim(), "muse" | "meta")
+}
+
+/// Canonical rate-limit bucket key: `muse` and `meta` are aliases for one
+/// upstream (the Meta Model API), so they must share a bucket rather than
+/// each getting a full quota. Every other provider keys on its own string,
+/// untouched.
+pub fn canonical_rate_limit_key(provider: &str) -> &str {
+    if is_muse_provider(provider) {
+        "muse"
+    } else {
+        provider
+    }
+}
+
+/// Auth presence only: a non-empty `MODEL_API_KEY`. Never reads key
+/// material beyond presence — the key travels only in the request's
+/// `Authorization` header, built at call time in `llm.rs`.
+pub fn muse_is_authenticated(model_api_key: Option<&str>) -> bool {
+    model_api_key
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+}
+
+/// `POST {MUSE_MODEL_API_BASE_URL}/chat/completions`.
+pub fn muse_chat_completions_url() -> String {
+    format!("{MUSE_MODEL_API_BASE_URL}/chat/completions")
+}
+
+/// OpenAI-compatible chat-completions body. The prompt travels in JSON —
+/// there is no argv, so shell metacharacters are data by construction.
+pub fn muse_request_body(model: &str, prompt: &str) -> serde_json::Value {
+    serde_json::json!({
+        "model": model,
+        "messages": [{ "role": "user", "content": prompt }],
+        "stream": false
+    })
+}
+
+/// Extract the assistant text from a chat-completions response body:
+/// `choices[0].message.content` as a string.
+pub fn muse_response_text(body: &str) -> Result<String, String> {
+    let payload: serde_json::Value = serde_json::from_str(body)
+        .map_err(|error| format!("Muse response was not JSON: {error}"))?;
+    payload
+        .pointer("/choices/0/message/content")
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| "Muse response had no choices[0].message.content text".to_string())
+}
+
+pub fn muse_unavailable_unauthenticated() -> String {
+    "Muse (meta) unavailable: not authenticated. Set MODEL_API_KEY in the environment (Coding Assistants never stores the key).".into()
+}
+
+/// POST one non-streaming chat turn to the Model API and return the
+/// assistant text. Transport-only: auth presence is the caller's check,
+/// and nothing here logs the key, the prompt, or the reply. A hung host
+/// is bounded by `timeout`; an offline host fails fast at connect — both
+/// surface as plain errors, never retried.
+pub async fn muse_chat_request(api_key: &str, model: &str, prompt: &str) -> Result<String, String> {
+    muse_chat_request_to(
+        &muse_chat_completions_url(),
+        api_key,
+        model,
+        prompt,
+        std::time::Duration::from_secs(MUSE_REQUEST_TIMEOUT_SECS),
+    )
+    .await
+}
+
+pub async fn muse_chat_request_to(
+    url: &str,
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+    timeout: std::time::Duration,
+) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(muse_unavailable_request)?;
+    let response = client
+        .post(url)
+        .bearer_auth(api_key)
+        .json(&muse_request_body(model, prompt))
+        .send()
+        .await
+        .map_err(muse_unavailable_request)?;
+    let status = response.status();
+    let body = response.text().await.map_err(muse_unavailable_request)?;
+    if !status.is_success() {
+        return Err(format!("Muse Model API returned {status}: {body}"));
+    }
+    muse_response_text(&body)
+}
+
+pub fn muse_unavailable_request(error: impl std::fmt::Display) -> String {
+    format!("Muse (meta) unavailable: Model API request failed ({error}). Check connectivity and retry.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +367,124 @@ usage: vibe [-h] [-p [TEXT]] [--output {text,json,streaming}]
         let dangerous = "; rm -rf / && echo pwned $(whoami)";
         let args = vibe_run_args(dangerous, Some("/tmp/ws")).unwrap();
         assert_eq!(args.iter().filter(|arg| *arg == dangerous).count(), 1);
+    }
+
+    #[test]
+    fn muse_provider_keys_cover_app_and_cli_ids() {
+        assert!(is_muse_provider("muse"));
+        assert!(is_muse_provider("meta"));
+        assert!(is_muse_provider(" muse "));
+        assert!(!is_muse_provider("opencode"));
+        assert!(!is_muse_provider(""));
+    }
+
+    #[test]
+    fn muse_auth_is_presence_only_and_never_reads_secrets() {
+        // No key: unauthenticated. A blank key is the same as no key.
+        assert!(!muse_is_authenticated(None));
+        assert!(!muse_is_authenticated(Some("  ")));
+        // Key presence authenticates; the value is never inspected.
+        assert!(muse_is_authenticated(Some("presence-flag-not-a-secret")));
+        assert_eq!(MUSE_DEFAULT_MODEL, "muse-spark-1.3");
+        assert_eq!(MUSE_FALLBACK_MODELS, &["muse-spark-1.3"]);
+    }
+
+    #[test]
+    fn muse_aliases_share_one_rate_limit_bucket() {
+        // `muse` and `meta` hit the same upstream (the Model API): separate
+        // keys would hand each alias a full quota.
+        assert_eq!(canonical_rate_limit_key("muse"), "muse");
+        assert_eq!(canonical_rate_limit_key("meta"), "muse");
+        assert_eq!(canonical_rate_limit_key(" muse "), "muse");
+        // Every other provider keeps its own key, byte-identical.
+        assert_eq!(canonical_rate_limit_key("openai"), "openai");
+        assert_eq!(canonical_rate_limit_key(" openai "), " openai ");
+    }
+
+    #[test]
+    fn muse_chat_url_targets_the_model_api() {
+        assert_eq!(
+            muse_chat_completions_url(),
+            "https://api.meta.ai/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn muse_request_body_is_openai_chat_completions_shaped() {
+        // Shell metacharacters ride in the JSON body verbatim — there is no
+        // argv, so nothing can split or interpret them.
+        let dangerous = "; rm -rf / && echo pwned $(whoami) `id` | cat > /tmp/evil";
+        let body = muse_request_body("muse-spark-1.3", dangerous);
+        assert_eq!(body["model"], "muse-spark-1.3");
+        assert_eq!(body["stream"], false);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[0]["content"], dangerous);
+    }
+
+    #[tokio::test]
+    async fn muse_offline_host_fails_fast_without_retry() {
+        // Port 1 on loopback is closed: connect fails immediately, proving
+        // offline hosts surface a plain error instead of hanging.
+        let error = muse_chat_request_to(
+            "http://127.0.0.1:1/chat/completions",
+            "presence-flag-not-a-secret",
+            "muse-spark-1.3",
+            "hi",
+            std::time::Duration::from_secs(5),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            error.contains("Model API request failed"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn muse_hung_host_hits_the_request_timeout() {
+        // Accept, hold the connection open, and never reply: the request
+        // must die on the client's timeout, not on the server's schedule.
+        // (Binding the accepted stream is load-bearing — dropping it
+        // FINs the connection and the client fails fast on send instead.)
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                let _held = stream;
+                std::thread::sleep(std::time::Duration::from_secs(30));
+            }
+        });
+        // The 300 ms deadline (not a fast transport failure) must produce
+        // this error: anything quicker means the dummy server FINed and the
+        // test is vacuous.
+        let started = std::time::Instant::now();
+        let error = muse_chat_request_to(
+            &format!("http://{address}/chat/completions"),
+            "presence-flag-not-a-secret",
+            "muse-spark-1.3",
+            "hi",
+            std::time::Duration::from_millis(300),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(250),
+            "error came too fast to be the timeout: {error}"
+        );
+        assert!(
+            error.contains("Model API request failed"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn muse_response_text_reads_choices_zero_message_content() {
+        let ok = r#"{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"working on P4a"},"finish_reason":"stop"}]}"#;
+        assert_eq!(muse_response_text(ok).unwrap(), "working on P4a");
+        assert!(muse_response_text("not json").is_err());
+        assert!(muse_response_text(r#"{"choices":[]}"#).is_err());
+        assert!(muse_response_text(r#"{"choices":[{"message":{"role":"assistant"}}]}"#).is_err());
     }
 }

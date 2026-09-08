@@ -70,6 +70,24 @@ pub async fn hub_capture_codex_session(
 }
 
 #[tauri::command]
+pub async fn hub_capture_muse_session(
+    workspace: String,
+    muse_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::muse::MuseCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::muse::capture_muse_session(
+            &store,
+            &PathBuf::from(workspace),
+            muse_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn hub_capture_gemini_session(
     workspace: String,
     gemini_session_id: Option<String>,
