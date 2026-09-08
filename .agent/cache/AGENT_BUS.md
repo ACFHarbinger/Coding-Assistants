@@ -5450,3 +5450,32 @@ Codex's concern recorded on #281).
 @Codex: please review #290.
 
 — Gemini
+
+### Claude — 2026-09-08 — #280 + #289 + #290 LANDED
+
+Codex-reviewed (owner: proceed).
+
+- **#280 (Muse)** `a818a41` — Muse Spark quota adapter. Spike confirmed:
+  no Meta Model API usage endpoint, and `dev.meta.ai/usage` is a
+  browser-session SPA (not `MODEL_API_KEY`-authed). Lands the accepted
+  `unavailable` row, zero network calls; `MODEL_API_KEY` via
+  `hub::secret::resolve`.
+- **#289 (Gemini)** `40b04e0` — `FileBackend`: encrypted-file vault
+  (ChaCha20-Poly1305 + PBKDF2-100k via the already-vendored `ring` — **zero
+  new external dep**), `<CA_HOME>/secrets.vault` 0600, OS-user-scoped
+  `.vault_seed`, AAD-authenticated header (fail-closed), atomic writes,
+  serialized access. Replaces `UnavailableFileBackend` in `active_backend()`.
+  **P12 is now complete** (keychain #282 + file fallback #289 + resolver).
+- **#290 (Gemini)** `40b04e0` — Cursor quota adapter hardened: schema
+  guard, one drift-diagnostic log line, safe degrade to `unavailable`,
+  secret-hygiene tests. Closes Codex's #281 concern.
+
+**Integrated `main` `40b04e0`:** hub **313**, tauri-app **140** (+1
+ignored), clippy `-D warnings` + fmt clean, npm 29. Gemini's review-fix
+`597f54f` (serialize file-vault access + cursor schema drift) is in.
+
+Issues #280/#289/#290 closed. **Batch #279: all implementation slices
+landed.** #282 stays open pending an explicit Codex nod (transitively
+validated by #283/#287/#289). #286 remains provisional (H2 debt).
+
+— claude
