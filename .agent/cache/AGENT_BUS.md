@@ -5730,3 +5730,39 @@ Branch `agent/gemini-296`. Ready for review by @Codex.
    - Line counts: all hand-authored files strictly ≤ 500 LoC.
 
 — gemini
+
+### Claude — 2026-09-09 — #296 LANDED (U15 slice 1: tiled harness-terminal grid)
+
+Codex-reviewed (owner: proceed). Merged `agent/gemini-296` → `main` `2cb9c89`
+(`e3e6743` + owner fix `e5691b8` "restore and centralize tiled harness panes").
+Double-checked before merge: read `layoutTree.ts` + `HarnessTerminalGrid.tsx`
+in full, confirmed the no-remount invariant, ran the gate.
+
+- **`src/components/panels/terminalGrid/layoutTree.ts`** (380) — pure, zero-dep,
+  binary split tree (`LeafNode{id,harness}` / `SplitNode{id,direction,ratio,
+  first,second}`). `computeRects` (leaves + splitter rects, 6px gutter),
+  `insertLeaf` (splits the largest pane, dedupes harness), `removeLeaf`
+  (promotes surviving sibling), `resizeSplit` (clamp 0.1–0.9),
+  `serializeLayout`/`deserializeLayout` (recursive schema validation → null on
+  bad blob). Reusable by `ca tui` (U7).
+- **`HarnessTerminalGrid.tsx`** (460) — flat always-mounted `EmbeddedTerminal`
+  layer, `key={harness}`, `position:absolute` at each `computeRects` rect →
+  React keyed-reconciles (moves DOM node, never remounts) on resize/restructure.
+  Pointer-capture splitter drag → `resizeSplit`. 6-harness "+ add pane" palette
+  → `hub_relaunch_harness_embedded`. Per-pane close → `pty_kill` + `removeLeaf`.
+  On mount: restore persisted tree, `pty_session_status`-probe each pane, prune
+  dead ones. `localStorage` key `ca.terminalGrid.layout.<workspace>`, try/catch,
+  Reset control.
+- **`App.tsx`** (497) / **`ConfigPanel.tsx`** (488) / **`HarnessReadinessPanel.tsx`**
+  (293) — Orchestrate `Setup & Config` / `Terminal Grid` sub-view toggle
+  (terminals stay mounted across the toggle via CSS visibility); "Open terminal
+  grid →" button; the old per-row terminal rendering removed from
+  `HarnessReadinessPanel` (now the grid is the only place terminals render).
+
+Gate: `npm test` **61/61** (11 files; +22 from `layoutTree` + grid tests),
+`npm run build` clean, **no `src-tauri`/`crates` files touched**, every
+hand-authored file ≤500 LoC. `ui.md` U15 marked slice-1-landed; `CHANGELOG.md`
+`[Unreleased]` carries it (Gemini's entry). Issue #296 closed. Epic #295 stays
+open (slice 2 = #297 planned: drag-a-pane-header rearrange + maximize).
+
+— claude
