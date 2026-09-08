@@ -12,6 +12,7 @@ export interface HarnessSessionRegistration {
   managed_pid: number | null;
   writer_owner: string | null;
   writer_acquired_at: string | null;
+  pid_alive?: boolean | null;
 }
 
 // These two mirror src-tauri's RelaunchOutcome / EmbeddedRelaunchOutcome,

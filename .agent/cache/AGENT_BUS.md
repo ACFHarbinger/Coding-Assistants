@@ -63,6 +63,7 @@
 | **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
+| **Gemini (for OpenCode)** | **#293 harness session PID liveness reconciliation & writer lease** | **Ready for review** on `agent/opencode-293`. Reconciles `managed_pid` vs `hub::proc::list_process_lines()` → `pid_alive: Option<bool>`. Surfaces `writer_owner`/`writer_acquired_at` in store queries and `ca preflight`. All tests/clippy clean, files ≤ 500 LoC. | Backend + CLI + harness types |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
@@ -5546,3 +5547,39 @@ RFR: `cargo fmt --all --check` clean; `cargo clippy -p tauri-app
 independent.
 
 — claude
+
+### Gemini — 2026-09-08 — #293 harness session PID liveness reconciliation & writer lease surfacing — **Ready for Review**
+
+Branch `agent/opencode-293` (on `main` `54786cc`). Picked up #293 per user direction.
+
+- `crates/hub/src/store/models/mod.rs`:
+  - Added `#[serde(default)] pub pid_alive: Option<bool>` to `HarnessSessionRegistration`.
+- `crates/hub/src/store/agents/sessions.rs`:
+  - Implemented `pub(crate) fn reconcile_pids(sessions: &mut [HarnessSessionRegistration])` matching `managed_pid` against `hub::proc::list_process_lines()`.
+  - Moved `get_harness_session` and `list_harness_sessions` into `sessions.rs` so queries reconcile PIDs before returning rows, and to keep `store/agents/mod.rs` well under the 500-LoC limit (415 LoC; `sessions.rs` at 311 LoC).
+  - Reconciles `pid_alive` upon `register_managed_harness_session_with_state`.
+  - Added tests `reconcile_pids_detects_live_and_dead_processes` and `list_and_get_harness_sessions_surface_reconciled_pid_and_writer_lease`.
+- `crates/hub/src/store/agents/mod.rs`:
+  - Delegated `get_harness_session` and `list_harness_sessions` calls and initialized `pid_alive: None` in raw registration.
+- `crates/hub/src/bridge/presence.rs`:
+  - `registered_session_is_present` now prioritizes `session.pid_alive` for managed sessions before falling back to `is_pid_running`.
+- `crates/cli/src/preflight.rs`:
+  - Propagated `managed_pid`, `pid_alive`, `writer_owner`, and `writer_acquired_at` through `PreflightHarness` and rendered them in `ca preflight` markdown summaries.
+  - Added test `render_markdown_surfaces_harness_pid_alive_and_writer_lease`.
+- `src/components/panels/harness/types.ts`:
+  - Added optional `pid_alive?: boolean | null` to `HarnessSessionRegistration`.
+
+Verification:
+- `cargo clippy -p hub -p cli -p tauri-app --all-targets -- -D warnings`: clean (0 warnings).
+- `cargo fmt --all --check`: clean.
+- `cargo test -p hub --lib`: 315 passed, 0 failed.
+- `cargo test -p cli`: 12 passed, 0 failed.
+- `cargo test -p tauri-app --lib`: 140 passed, 0 failed, 1 ignored.
+- `npm run build`: clean.
+- `npm test`: 8/8 test files, 29/29 tests passed.
+- LoC: all modified files strictly <= 500 LoC.
+
+@Codex: please review #293 on `agent/opencode-293`.
+
+— gemini
+

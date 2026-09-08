@@ -241,6 +241,7 @@ impl HubStore {
             managed_pid: None,
             writer_owner: None,
             writer_acquired_at: None,
+            pid_alive: None,
         })
     }
 
@@ -264,6 +265,7 @@ impl HubStore {
         )?;
         registration.mode = HarnessSessionMode::Managed;
         registration.managed_pid = Some(managed_pid);
+        sessions::reconcile_pids(std::slice::from_mut(&mut registration));
         Ok(registration)
     }
 
@@ -331,67 +333,6 @@ impl HubStore {
                 "harness writer lease is not held by this owner".into(),
             ))
         }
-    }
-
-    pub fn get_harness_session(
-        &self,
-        harness: &str,
-        workspace: &str,
-    ) -> Result<Option<HarnessSessionRegistration>, HubError> {
-        self.conn
-            .query_row(
-                "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
-                        mode, state, managed_pid, writer_owner, writer_acquired_at
-                 FROM harness_session_registrations
-                 WHERE harness = ?1 AND workspace = ?2",
-                params![harness, workspace],
-                |row| {
-                    Ok(HarnessSessionRegistration {
-                        harness: row.get(0)?,
-                        workspace: row.get(1)?,
-                        disk_session_id: row.get(2)?,
-                        leader_socket: row.get(3)?,
-                        registered_at: row.get(4)?,
-                        mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?).map_err(
-                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
-                        )?,
-                        state: HarnessSessionState::parse(&row.get::<_, String>(6)?).map_err(
-                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
-                        )?,
-                        managed_pid: row.get(7)?,
-                        writer_owner: row.get(8)?,
-                        writer_acquired_at: row.get(9)?,
-                    })
-                },
-            )
-            .optional()
-            .map_err(HubError::from)
-    }
-
-    pub fn list_harness_sessions(&self) -> Result<Vec<HarnessSessionRegistration>, HubError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
-                    mode, state, managed_pid, writer_owner, writer_acquired_at
-             FROM harness_session_registrations
-             ORDER BY registered_at DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(HarnessSessionRegistration {
-                harness: row.get(0)?,
-                workspace: row.get(1)?,
-                disk_session_id: row.get(2)?,
-                leader_socket: row.get(3)?,
-                registered_at: row.get(4)?,
-                mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?)
-                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
-                state: HarnessSessionState::parse(&row.get::<_, String>(6)?)
-                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
-                managed_pid: row.get(7)?,
-                writer_owner: row.get(8)?,
-                writer_acquired_at: row.get(9)?,
-            })
-        })?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     pub fn delete_channel(&self, id: &str) -> Result<(), HubError> {

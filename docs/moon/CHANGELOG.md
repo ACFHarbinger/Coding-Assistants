@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the writer lease is surfaced for the Muse/Cursor live rows (#293). Muse and
   Cursor self-integrate their own health branches (#294). Same secret hygiene
   as the quota adapters — only presence / expiry / reachability cross IPC.
+- **Harness session PID liveness reconciliation & writer lease surfacing (#293, `platform.md` P3):**
+  Reconciles registered `managed_pid` against live processes via `hub::proc::list_process_lines()`
+  into `pid_alive: Option<bool>` during session retrieval (`get_harness_session`, `list_harness_sessions`).
+  Surfaces `managed_pid`, `pid_alive`, `writer_owner`, and `writer_acquired_at` across `HarnessSessionRegistration`
+  (Hub store & frontend TypeScript types) and `ca preflight` markdown summaries. Dead managed sessions
+  remain visible in queries without requiring a relaunch attempt, while presence checks in
+  `registered_session_is_present` prioritize reconciled PID liveness.
 - **Encrypted-file secret vault fallback backend (#289, `platform.md` P12):**
   `hub::secret::FileBackend` implements `SecretBackend` for environments with
   no functioning OS secret service (headless Linux, CI, minimal desktop sessions).

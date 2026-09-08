@@ -50,7 +50,13 @@ pub fn registered_session_is_present(session: &HarnessSessionRegistration) -> bo
         // one-shot exit leaves a managed provider session queued for its next
         // task, so absence of a pid must not turn that live session grey.
         // Explicit stop/unavailable states above remain authoritative.
-        HarnessSessionMode::Managed => session.managed_pid.is_none_or(is_pid_running),
+        HarnessSessionMode::Managed => {
+            if let Some(alive) = session.pid_alive {
+                alive
+            } else {
+                session.managed_pid.is_none_or(is_pid_running)
+            }
+        }
         // An observed session is being tracked/captured by the capture-identity
         // gate (that's why its turns appear in the app), so align presence with
         // that and show it present rather than "inactive but messaging".
@@ -108,6 +114,7 @@ mod tests {
             managed_pid: pid,
             writer_owner: None,
             writer_acquired_at: None,
+            pid_alive: None,
         }
     }
 
