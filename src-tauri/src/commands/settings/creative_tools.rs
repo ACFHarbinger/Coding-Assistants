@@ -59,7 +59,7 @@ fn transport_label(tool: &CreativeTool) -> &'static str {
 
 /// Look for `basename` (and, on Windows, `basename.exe`) next to the
 /// running executable, then on each `$PATH` entry.
-fn resolve_binary(basename: &str) -> Option<PathBuf> {
+pub(crate) fn resolve_binary(basename: &str) -> Option<PathBuf> {
     let names: Vec<String> = if cfg!(windows) {
         vec![format!("{basename}.exe"), basename.to_string()]
     } else {
