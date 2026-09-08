@@ -19,6 +19,8 @@ pub mod credentials;
 pub mod external_mcp;
 #[path = "settings/harness_models.rs"]
 pub mod harness_models;
+#[path = "health/health.rs"]
+pub mod health;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]
