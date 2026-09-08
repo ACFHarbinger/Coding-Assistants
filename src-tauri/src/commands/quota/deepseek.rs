@@ -86,13 +86,14 @@ fn validate_balance(info: &BalanceInfo) -> Result<(), &'static str> {
 }
 
 pub(crate) fn deepseek_quota() -> ProviderQuota {
-    // Secret hygiene: only ever read from the environment, never logged, never
-    // echoed back into an error message or sent anywhere but api.deepseek.com.
-    let api_key = match std::env::var("DEEPSEEK_API_KEY") {
-        Ok(key) if !key.trim().is_empty() => key,
-        _ => {
+    // Secret hygiene: resolved from the vault (keychain / file) or the
+    // environment as fallback via hub::secret::resolve — never logged, never
+    // echoed back into an error message, never sent anywhere but api.deepseek.com.
+    let api_key = match hub::secret::resolve("DEEPSEEK_API_KEY") {
+        Some(secret) => secret,
+        None => {
             return unavailable(
-                "DEEPSEEK_API_KEY is not set in the environment; set it to fetch the DeepSeek account balance",
+                "DEEPSEEK_API_KEY is not set; add it in Settings → Credentials or export it in the environment",
             )
         }
     };
@@ -110,7 +111,7 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
     let response = client
         .get(BALANCE_URL)
         .header("Accept", "application/json")
-        .bearer_auth(&api_key)
+        .bearer_auth(api_key.expose())
         .send();
     let response = match response {
         Ok(response) => response,
@@ -183,7 +184,7 @@ mod tests {
 
     #[test]
     fn empty_key_yields_unavailable_without_panicking() {
-        let quota = unavailable("DEEPSEEK_API_KEY is not set in the environment; set it to fetch the DeepSeek account balance");
+        let quota = unavailable("DEEPSEEK_API_KEY is not set; add it in Settings → Credentials or export it in the environment");
         assert_eq!(quota.agent_id, "deepseek");
         assert_eq!(quota.status, "unavailable");
         assert!(quota.detail.is_some());

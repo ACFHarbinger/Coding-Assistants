@@ -145,7 +145,8 @@ pub fn deepseek_unavailable_opencode(error: impl std::fmt::Display) -> String {
 ///
 /// Contract verified against the official `meta-models/meta-model-cookbook`:
 /// OpenAI-compatible chat completions at `{base}/chat/completions` with a
-/// `Bearer` `MODEL_API_KEY` (`LLM|…` format, env-only, never logged), model
+/// `Bearer` `MODEL_API_KEY` (`LLM|…` format, resolved from the vault or env,
+/// never logged), model
 /// `muse-spark-1.3`. `ModelConfig.provider` accepts `muse` (app-facing key)
 /// or `meta` (the CLI's own provider id); the namespaces are separate.
 pub const MUSE_MODEL_API_BASE_URL: &str = "https://api.meta.ai/v1";
@@ -218,7 +219,7 @@ pub fn muse_response_text(body: &str) -> Result<String, String> {
 }
 
 pub fn muse_unavailable_unauthenticated() -> String {
-    "Muse (meta) unavailable: not authenticated. Set MODEL_API_KEY in the environment (Coding Assistants never stores the key).".into()
+    "Muse (meta) unavailable: not authenticated. Add MODEL_API_KEY in Settings → Credentials or export it in the environment.".into()
 }
 
 /// POST one non-streaming chat turn to the Model API and return the

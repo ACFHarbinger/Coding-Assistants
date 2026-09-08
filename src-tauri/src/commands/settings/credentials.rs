@@ -15,7 +15,15 @@
 //!   `field_id` exists in the #285 static catalog and that the caller-supplied
 //!   key is accepted by `hub::secret::validate_key`.
 
+use hub::secret::catalog::{FieldSpec, CATALOG};
 use hub::secret::{clear_secret, field, secret_status, set_secret, SecretStatus};
+
+/// Return the full static credential/config field catalog. Contains only
+/// metadata (display name, env-var name, etc.) — no secret values ever.
+#[tauri::command]
+pub fn settings_list_credential_fields() -> Vec<FieldSpec> {
+    CATALOG.to_vec()
+}
 
 /// Record a credential-management event on the settings audit stream.
 /// Only the field identifier and action are written — the credential value

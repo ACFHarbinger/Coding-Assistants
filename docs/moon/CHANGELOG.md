@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings → Credentials tab (#284, `settings.md` S8):** New
+  `CredentialsTab.tsx` surfaces the full `hub::secret::CATALOG` in the
+  Settings window grouped by owner kind (Providers, Harnesses, Tools, MCP
+  Servers). Each row shows the credential's display name, current source
+  badge (Keychain / Env Var / Not Set), last-saved date, env-var fallback
+  hint, and a write-only password input. Saving immediately clears the
+  draft; the stored value never crosses IPC or appears in the DOM. The new
+  `settings_list_credential_fields` Tauri command returns the static catalog
+  (metadata only — no secret values). Wired into `SettingsApp.tsx` and
+  `tabsConfig.ts`. Depends on #282, #283, and #285.
+- **Migrate `quota/*` + `client/` off env-var onto secret resolver (#287,
+  `platform.md` P12):** `DEEPSEEK_API_KEY` (`commands/quota/deepseek.rs`),
+  `MODEL_API_KEY` (`client/llm.rs` — both `list_models` auth check and
+  `muse_completion`), and `MISTRAL_API_KEY` (`client/llm.rs`
+  `vibe_completion`) now resolve through `hub::secret::resolve()` instead
+  of `std::env::var` directly. Existing env-var-only setups continue to
+  work unchanged (the resolver's env fallback). A keychain entry wins over
+  the env var, allowing the Settings Credentials UI to
+  override without touching the shell environment.
 - Write-only credential Tauri commands (#283, `settings.md` S8):
   `settings_set_credential(field_id, value)`,
   `settings_clear_credential(field_id)`, and
