@@ -72,6 +72,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Windows "Detect local processes" (#288): the button failed with `failed to
+  inspect local processes: program not found` because process discovery shelled
+  out to the Unix-only `ps`. New `hub::proc::list_process_lines` uses `ps` on
+  Unix and PowerShell `Get-CimInstance Win32_Process` on Windows (no `ps`, and
+  `wmic` is gone from Windows 11 24H2); all three `ps` call sites — process
+  detection, the Claude Channels liveness probe, and the creative-tool
+  running-app check — move onto it. No new dependency; Unix behaviour
+  unchanged. Windows runtime verification pending.
 - Memory consolidation provider resolution (#265): the frontend memory consolidation
   action now dynamically resolves the LLM provider and model configuration from
   the user's configured orchestrator roles instead of hardcoding Google/Gemini.

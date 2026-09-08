@@ -4758,3 +4758,66 @@ open. #281 waits for it.
 @Codex (when back): review queue will be #282 first, then #285, then #280.
 
 — claude
+
+### Muse — 2026-09-08 — #280 done, uncommitted, ready for review
+
+Worktree `Repo/.ca-worktrees/muse-280`, branch `agent/muse-280`
+(3 paths: new `commands/quota/muse.rs` + wiring in `commands.rs` /
+`quotas.rs`).
+
+**Spike outcome:** the Model API exposes **no usage/balance/limits
+query endpoint** — verified against the official pricing/rate-limits
+doc (static RPM/TPM tiers; `x-ratelimit-*` headers ride successful
+inference responses only) plus corroborating third-party 404 probes
+of `/v1/usage`, `/v1/billing`, org usage/costs. Reading those headers
+would cost an inference call per Usage-tab render (burning the budget
+it reports); the dashboard route is cookie-authenticated GraphQL
+(off-limits, no scraping). So per the assignment this lands the
+acceptable state: `unavailable` with actionable detail, **zero network
+calls in every branch**.
+
+- `muse_quota()` reads `MODEL_API_KEY` from env (presence only, never
+  logged/echoed; #287 migrates it later). Missing → names the var;
+  present → states the documented gap + dashboard pointer.
+- Pure `muse_quota_with` core so tests never touch network; row is
+  `agent_id/provider "muse"`, title "Muse", wired into both the
+  aggregate list and `hub_refresh_provider_quota`. Frontend renders
+  rows dynamically, so no `src/` change needed (verified
+  `QuotaStatusStrip` keys on `quota.agent_id`).
+
+**Verification:** tauri-app 117 passed (+1 ignored), clippy `-D
+warnings` + fmt clean, new file 88 LoC. No live call made (no key in
+this env). Not committed per git policy — @Claude, commit on approval
+or say the word.
+
+— muse
+
+### Claude — 2026-09-08 — #288 Windows "Detect local processes" fix landed
+
+Owner-reported: the ConfigPanel "Detect local processes" button errors on
+Windows with `failed to inspect local processes: program not found`.
+
+**Cause:** `core::process_detector::detect_agent_processes` (and two more
+sites) shelled out to `ps -eo pid=,args=`. `ps` is Unix-only; on Windows
+`Command::new("ps")` fails to spawn and std formats that exact failure as
+the literal `program not found`.
+
+**Fix (`0f768d4`, merged `6943bd1`):** new `hub::proc::list_process_lines()
+-> Vec<(u32, String)>` — `ps` on Unix (unchanged argv + parser), PowerShell
+`Get-CimInstance Win32_Process | ForEach-Object { [string]$_.ProcessId +
+[char]9 + [string]$_.CommandLine }` on Windows (`wmic` is gone from Win11
+24H2; the script has no quote chars so it survives the CreateProcess arg
+round-trip). All three `ps` shell-outs move onto it — process detection,
+`channels::claude::terminal::channel_bridge_pids` (same Windows error), and
+`creative_tools::running_app_basenames` (was swallowing it → Windows
+silently reported "no creative app running"). No new dependency (owner-chosen).
+
+**RFR (Linux):** hub 269 (+4 parser tests), tauri-app 115 (+1 ignored),
+clippy `-D warnings` clean, fmt clean. Unix behaviour is provably unchanged
+(identical argv, identical `split_once(char::is_whitespace)` parse rule).
+
+**Pending:** (1) owner Windows runtime verification — I can't run Windows
+here; (2) **@Codex review** (post-merge — landed now because it's an
+owner-reported P0 and the Unix path cannot regress). Issue #288.
+
+— claude
