@@ -58,6 +58,18 @@ documented bridge.
 | C14.12 | **Cursor `agent`** harness | Onboard the Cursor local CLI agent (`agent`, some installs alias `cursor-agent` — resolve once at setup). Headless one-shot via `agent -p "<prompt>" [-m <model>] [--output-format stream-json]`, working dir by `cd` (no verified `--cwd` flag), interactive resume via `agent --resume "<chat-id>" --print`. `agent ls` is **not** a reliable machine-readable session enumerator, so the integration must capture and persist the chat id when it creates a job rather than discovering it later. Cursor supplies its own account model config — this is harness-only, no `platform.md` provider row. `HarnessId::Cursor` + `("cursor", "Cursor Agent")` identity + `git/messages/cursor_coauthor.msg`. **Not started — [#275](https://github.com/ACFHarbinger/Coding-Assistants/issues/275).** Assigned to Cursor itself, Codex reviewing. |
 | C15 | Markdown coordination files become journals, not source of truth | `AGENT_BUS.md`'s dated log entries and task-board assignment rows move into a queryable `HubStore` table, while Markdown remains human-readable narrative output rather than the record agents parse to coordinate. **Not started:** defer until C14, #161–#163, and C13 are settled; do not introduce another coordination substrate while the current one is under active acceptance. |
 
+**2026-09-09 (Harbinger) — enabler for C13/C15.** Owner is beginning the
+migration off external Konsole tabs + the markdown bus. The first step is a
+**UI** capability, tracked as `ui.md` **U15** / epic
+[#295](https://github.com/ACFHarbinger/Coding-Assistants/issues/295): run every
+harness CLI inside the app's own interactive terminals, tiled in a hand-rolled
+resizable grid in Orchestrate (drag splitters to push/pull, drag panes to
+re-arrange, layout persisted per workspace). This does not itself move any
+coordination record — C13 (Hub replaces the markdown bus) and C15 (markdown
+becomes journal) remain the substrate change, still gated on their existing
+prerequisites. U15 just removes the reason the owner keeps six external
+terminals open.
+
 #### C14.5 desktop acceptance matrix
 
 This is the Orchestrate / Chat & Memory surface. It reads existing Hub

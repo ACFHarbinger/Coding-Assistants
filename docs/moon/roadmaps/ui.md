@@ -20,6 +20,20 @@ stabilization and focuses on monitoring, approvals, and messages.
 | U13 | Create and delete Chat & Memory channels | Owner can add a named durable channel and remove a custom one from the sidebar. Built-in `#general`, `#team-coordination`, `#agent-memory`, and `#wakes-alerts` cannot be deleted. | ✅ **Done** · `chat_channels` in `HubStore`; `hub_list_channels` / `hub_create_channel` / `hub_delete_channel`; Chat & Memory sidebar + / × controls. Board: #114. |
 | U7 | TUI/Ratatui client | First-class `ca tui` experience for keyboard-driven orchestration, harness workspaces, and Hub administration | 🚧 **Planned** · T1–T8 below |
 | U14 | Desktop crash recovery boundary | A frontend render failure produces a recoverable local error screen instead of a blank window, without exposing stack traces to the user. | 🚧 **In Review** · top-level boundary and reload path implemented in #143; add a forced-throw boundary test when the root frontend test harness exists. |
+| U15 | Tiled harness-terminal grid in Orchestrate | Multiple harness CLIs run inside the app's own interactive terminals, tiled in a resizable grid (KDE-Konsole-style split view): drag splitters to push/pull pane sizes, drag a pane to re-arrange, layout persisted per workspace. The enabler for operating the whole team from inside the app rather than N external Konsole tabs + the markdown bus. | 🚧 **In progress** · Epic [#295](https://github.com/ACFHarbinger/Coding-Assistants/issues/295). **Hand-rolled**, no tiling-library dependency (`react-mosaic`/`dockview` rejected — `DEPENDENCY_POLICY.md` §1 + the xterm mount-lifecycle constraint). Slice 1 ([#296](https://github.com/ACFHarbinger/Coding-Assistants/issues/296), Gemini): a pure `layoutTree` module (recursive row/col split nodes, `computeRects`, insert/remove/resize, serialize) + a `HarnessTerminalGrid` that keeps every open `EmbeddedTerminal` mounted in a flat layer and positions each by a CSS rect (rearrange/resize never remounts a terminal), splitter push/pull resize, a 6-harness "+ add pane" palette reusing `hub_relaunch_harness_embedded`, per-workspace `localStorage` persistence, and an Orchestrate `setup`/`terminals` sub-view toggle. Slice 2 (#297, planned): drag-a-pane-header rearrange (edge = re-split, centre = swap) + maximize. Frontend only — N concurrent PTYs, deterministic `harness-terminal:<harness>:<workspace>` ids, and `pty_resize` already exist. The layout model is intended to be reusable by the `ca tui` client (U7). Extends C14.5's Orchestrate harness UX; distinct from the coordination-substrate migration itself (`communication.md` C13/C15). |
+
+**2026-09-09 (Harbinger) — U15, in-app harness operation.** Epic
+[#295](https://github.com/ACFHarbinger/Coding-Assistants/issues/295). Owner is
+starting the migration off disjoint external Konsole tabs + the
+`.agent/cache/AGENT_BUS.md` cascade and onto the app. **Step 0** (before the
+messaging / memory / task-assignment work): tile the harness CLIs in a
+hand-rolled resizable grid inside Orchestrate. Library route
+(`react-mosaic` = Apache-2.0 but pulls the `react-dnd` + `lodash-es` tree and
+`prop-types`; `dockview` = MIT, clean 2-package install, ~87 KB gzip, adds
+tabbed groups) was weighed and **declined** — hand-rolled keeps the frontend
+dependency count at 7 and gives full control of the xterm mount lifecycle.
+Slice 1 is [#296](https://github.com/ACFHarbinger/Coding-Assistants/issues/296)
+(Gemini). The coordination-substrate change stays `communication.md` C13/C15.
 
 **2026-08-12:** Delivered U10 (Team Chat & Agentic Memory Hub) in `MessagerPanel.tsx`. Includes channel sidebar, agent presence indicators, message stream, target recipient routing, wake policy controls, and inline memory drawer.
 

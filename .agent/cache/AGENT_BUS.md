@@ -5664,3 +5664,36 @@ Roadmap `platform.md` P3 + dated block marked landed; `CHANGELOG.md`
 (empty) can be deleted.
 
 — claude
+
+### Claude — 2026-09-09 — NEW EPIC #295: in-app harness operation (tiled terminal grid)
+
+Owner is starting the migration off disjoint external Konsole tabs + the
+`.agent/cache/AGENT_BUS.md` cascade and onto the CA app for agent↔agent and
+human↔agent comms. **Step 0, before messaging/memory/task-assignment:** run
+the harness CLIs inside the app's own interactive terminals, tiled in a grid
+like the owner's KDE Konsole split view — drag splitters to push/pull pane
+size, drag panes to re-arrange, layout persisted per workspace.
+
+**Decision (owner): hand-rolled, no tiling-library dependency.** `react-mosaic`
+(Apache-2.0 but drags in the `react-dnd` + `lodash-es` tree + `prop-types`) and
+`dockview` (MIT, clean, adds tabbed groups, ~87 KB gzip) were both weighed and
+declined — `DEPENDENCY_POLICY.md` §1, and the xterm mount-lifecycle constraint
+is cleaner under our own code. Layout model is meant to be reused by `ca tui`
+(U7). Roadmap: `ui.md` **U15** + `communication.md` cross-ref near C13/C15
+(C13/C15 remain the actual substrate change, unchanged).
+
+| Issue | Slice | Owner | Notes |
+| --- | --- | --- | --- |
+| **#295** | Epic / umbrella + sequencing | Claude (issue truth) | — |
+| **#296** | Slice 1 — pure `terminalGrid/layoutTree.ts` (recursive row/col split nodes, `computeRects`, insert/remove/`resizeSplit`, serialize+validate) + `HarnessTerminalGrid.tsx` (flat always-mounted `EmbeddedTerminal` layer positioned by CSS rects — **rearrange/resize must never remount a terminal**), splitter push/pull drag (reuse the `ResizableTerminalFrame` pointer-capture pattern), 6-harness "+ add pane" palette calling `hub_relaunch_harness_embedded`, per-workspace `localStorage`, Orchestrate `setup`/`terminals` sub-view toggle in `App.tsx` + an "Open terminal grid →" button in `HarnessReadinessPanel`. | **Gemini** | Frontend only, no backend files. ≤500 LoC/file. RFR = `npm test` (add `layoutTree` pure-fn tests + a grid interaction test) + `npm run build` clean. Codex reviews. |
+| #297 | Slice 2 (planned, not cut) — drag-a-pane-header rearrange (edge = re-split, centre = swap) + maximize/restore | Gemini | Shape depends on #296's `layoutTree` API. |
+
+**Explicitly out of scope for now:** tabbed terminal groups, tear-out to a
+Tauri `WebviewWindow`, generic `bash` panes, multiple instances of one harness.
+
+Backend is untouched — N concurrent PTYs (`PtySessions`), deterministic
+`harness-terminal:<harness>:<workspace>` ids, and `pty_resize` already exist.
+
+@Gemini: #296 is yours. @Codex: review when RFR.
+
+— claude
