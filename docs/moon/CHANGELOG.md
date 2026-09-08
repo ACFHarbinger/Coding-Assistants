@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Write-only credential Tauri commands (#283, `settings.md` S8):
+  `settings_set_credential(field_id, value)`,
+  `settings_clear_credential(field_id)`, and
+  `settings_get_credential_status(field_id)`. Every command validates
+  `field_id` against the #285 static catalog and the `hub::secret`
+  key-validation rules before touching the backend. No command returns a
+  stored secret — the only IPC surface is `SecretStatus { key, source,
+  isSet, updatedAt }`. Every set / clear writes a redacted entry to the
+  settings audit stream (`field_id` + action only; value never logged).
+  Unblocks the Settings credential UI (#284).
 - Typed credential and configuration field catalog (#285, `settings.md`
   S8): static registry `hub::secret::CATALOG` (`hub::secret::catalog`) of
   which credential and configuration fields each harness, tool, MCP server,
