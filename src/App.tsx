@@ -9,7 +9,7 @@ import RemotePanel from "./components/panels/RemotePanel";
 import MessagerPanel from "./components/panels/MessagerPanel";
 import { openSettingsWindow } from "./lib/settingsWindow";
 import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
-
+import HarnessTerminalGrid from "./components/panels/terminalGrid/HarnessTerminalGrid";
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>(() => {
@@ -28,6 +28,8 @@ function App() {
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"orchestrate" | "hub" | "messager">("messager");
+  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals">("setup");
+  const [requestedTerminalHarness, setRequestedTerminalHarness] = useState<string | null>(null);
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -386,7 +388,25 @@ function App() {
         {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel /></div>}
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
-          <>
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0 }} onClick={() => setOrchestrateSubView("setup")}>
+              ⚙️ Setup &amp; Config
+            </button>
+            <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0 }} onClick={() => setOrchestrateSubView("terminals")}>
+              🖥️ Terminal Grid
+            </button>
+          </div>
+
+          <div style={{ display: orchestrateSubView === "terminals" ? "block" : "none" }}>
+            <HarnessTerminalGrid
+              workspace={config.work_dir}
+              onOpenSetup={() => setOrchestrateSubView("setup")}
+              requestedHarness={requestedTerminalHarness}
+              onHarnessRequestHandled={() => setRequestedTerminalHarness(null)}
+            />
+          </div>
+
+          <div style={{ display: orchestrateSubView === "setup" ? "contents" : "none" }}>
             <ConfigPanel
               config={config}
               setConfig={setConfig}
@@ -406,6 +426,10 @@ function App() {
               onSelectWorkSession={selectWorkSession}
               onSwitchToChatView={() => setMainView("messager")}
               activeWorkSessionName={activeWorkSession?.name ?? null}
+              onOpenTerminalGrid={(harness) => {
+                if (harness) setRequestedTerminalHarness(harness);
+                setOrchestrateSubView("terminals");
+              }}
             />
 
             <RemotePanel
@@ -415,7 +439,7 @@ function App() {
               stopRemoteServer={stopRemoteServer}
               remoteLogs={remoteLogs}
             />
-          </>
+          </div>
         </div>
 
         {preview && (

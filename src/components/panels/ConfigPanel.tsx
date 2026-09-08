@@ -26,6 +26,7 @@ interface ConfigPanelProps {
   onSelectWorkSession?: (sessionId: string | null) => void;
   onSwitchToChatView?: () => void;
   activeWorkSessionName: string | null;
+  onOpenTerminalGrid?: (harness?: string) => void;
 }
 
 export default function ConfigPanel({
@@ -43,7 +44,8 @@ export default function ConfigPanel({
   activeWorkSessionId = null,
   onSelectWorkSession,
   onSwitchToChatView,
-  activeWorkSessionName
+  activeWorkSessionName,
+  onOpenTerminalGrid,
 }: ConfigPanelProps) {
   const [detectedProcesses, setDetectedProcesses] = useState<DetectedProcess[]>([]);
   const [detecting, setDetecting] = useState(false);
@@ -336,7 +338,7 @@ export default function ConfigPanel({
         )}
       </section>
 
-      <HarnessReadinessPanel workspace={config.work_dir} />
+      <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
 
       <WorkSessionSection
         workSessions={workSessions}

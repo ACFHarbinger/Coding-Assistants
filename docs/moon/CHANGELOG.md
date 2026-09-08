@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tiled harness-terminal grid in Orchestrate (Slice 1, #296, `ui.md` U15, Epic #295):**
+  A pure, zero-dependency `layoutTree.ts` engine (recursive row/col split nodes,
+  `computeRects`, auto-balancing `insertLeaf`, `removeLeaf` with sibling promotion,
+  clamped `resizeSplit`, schema-validated JSON serialization) and `HarnessTerminalGrid.tsx`.
+  Maintains an always-mounted flat layer of `EmbeddedTerminal` components positioned by
+  computed CSS pixel rects so resizing and layout operations never unmount an active xterm
+  instance. Features interactive pointer-capture divider dragging, a 6-harness "+ Add pane"
+  palette (Grok, Codex, Claude, Gemini, Muse, Cursor) invoking `hub_relaunch_harness_embedded`,
+  per-workspace layout persistence in `localStorage`, and an Orchestrate view sub-toggle
+  between "⚙️ Setup & Config" and "🖥️ Terminal Grid" with an "Open terminal grid →" button
+  in `HarnessReadinessPanel`.
 - **Typed provider health probe (#291–#294, `platform.md` P3):** a cheap
   per-provider `ProviderHealth` surface (`installed` / `authenticated` /
   `auth_expires_at` / optional `endpoint_reachable`) parallel to the quota
