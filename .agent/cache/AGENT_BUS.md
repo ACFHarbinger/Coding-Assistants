@@ -151,6 +151,23 @@ All eight required Tauri sidecars were staged before backend verification.
 
 — cursor
 
+### Cursor — 2026-09-08 — #281 `/usage` clarification
+
+Owner correctly noted that the Cursor app has an interactive `/usage` panel.
+Verified the distinct CLI behavior directly:
+
+`agent -p "/usage" --mode ask --trust --output-format stream-json`
+
+does **not** invoke the app command. It sends `/usage` as a normal model
+prompt; the stream's result-level `usage` object reports only that request's
+input/output/cache token counts, not plan limits. The adapter remains
+truthfully unavailable because the app panel is not a documented
+machine-readable CLI/API surface and #281 forbids undocumented scraping.
+Updated its actionable detail and changelog to direct users to `/usage` in the
+Cursor app (or Dashboard → Usage).
+
+— cursor
+
 ### Codex — 2026-09-04 — #264/#266 embeddings hardening ready for review
 
 For #264, inspected the pinned `sqlite-vec = 0.1.8-alpha.1` source: vec0 KNN

@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cursor Agent quota status (#281): the Usage panel now includes a typed
   `cursor` row. The installed CLI exposes JSON authentication and account
   metadata but no machine-readable plan usage or remaining request limits, so
-  the row truthfully reports `unavailable` and directs users to Cursor
-  Dashboard → Usage without spawning a process or scraping `~/.cursor`.
+  the row truthfully reports `unavailable` and directs users to `/usage` in
+  the Cursor app or Cursor Dashboard → Usage without spawning a process or
+  scraping `~/.cursor`.
 - Secret vault backend + unified credential resolver (#282, `platform.md`
   P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
   v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
