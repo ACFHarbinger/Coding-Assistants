@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Per-user linked external accounts design (#286, `multi_human.md` H7):
+  `docs/moon/designs/h7-linked-accounts.md` records the `linked_account`
+  record shape (`owner, provider, external_label, connection_kind, linked_at,
+  token_ref`), the provisional single-user `local` owner key used by #284
+  until H2 lands, the H2 migration sketch (one SQL UPDATE + vault key rename,
+  idempotent), the per-user resolver chain, and five open questions for the H2
+  implementer. No Rust code changes — design-only. Blocked on H2 (identity
+  namespacing); no implementer assigned this round.
 - Secret vault backend + unified credential resolver (#282, `platform.md`
   P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
   v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
