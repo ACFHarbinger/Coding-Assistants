@@ -31,9 +31,7 @@ fn latest_transcript_path(
     let root = agent_transcripts_dir(projects_dir, workspace);
     if let Some(chat_id) = chat_id {
         let candidate = root.join(chat_id).join(format!("{chat_id}.jsonl"));
-        if candidate.is_file() {
-            return Some(candidate);
-        }
+        return candidate.is_file().then_some(candidate);
     }
     let entries = fs::read_dir(&root).ok()?;
     entries
@@ -165,13 +163,27 @@ pub fn capture_cursor_session_from(
             captured: Vec::new(),
         });
     };
-    if let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) {
-        let _ = store.register_harness_session(
-            "cursor",
-            &workspace.to_string_lossy(),
-            &disk_session_id.to_string_lossy(),
-            None,
-        );
+    let workspace_key = workspace.to_string_lossy();
+    if store
+        .get_harness_session("cursor", &workspace_key)
+        .map_err(|error| error.to_string())?
+        .is_none()
+    {
+        let Some(disk_session_id) = path.parent().and_then(|dir| dir.file_name()) else {
+            return Ok(CursorCaptureOutcome {
+                transcript_found: false,
+                scanned: 0,
+                captured: Vec::new(),
+            });
+        };
+        store
+            .register_harness_session(
+                "cursor",
+                &workspace_key,
+                &disk_session_id.to_string_lossy(),
+                None,
+            )
+            .map_err(|error| error.to_string())?;
     }
     let texts = recent_assistant_texts(&path, 200);
     let mut captured = Vec::new();
@@ -288,5 +300,72 @@ mod tests {
         .unwrap();
         assert!(!outcome.transcript_found);
         assert!(outcome.captured.is_empty());
+    }
+
+    #[test]
+    fn missing_explicit_transcript_never_falls_back_to_the_newest_chat() {
+        let root = tempdir().unwrap();
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let workspace = PathBuf::from("/tmp/c14-cursor-identity-gate");
+        let unrelated = root
+            .path()
+            .join(encode_workspace_dir_name(&workspace))
+            .join("agent-transcripts")
+            .join("unrelated-chat");
+        std::fs::create_dir_all(&unrelated).unwrap();
+        std::fs::write(
+            unrelated.join("unrelated-chat.jsonl"),
+            r#"{"role":"assistant","message":{"content":[{"type":"text","text":"private unrelated reply"}]}}"#,
+        )
+        .unwrap();
+
+        let outcome = capture_cursor_session_from(
+            root.path(),
+            &store,
+            &workspace,
+            Some("managed-id-with-no-transcript"),
+            Some("hub-1"),
+        )
+        .unwrap();
+
+        assert!(!outcome.transcript_found);
+        assert!(outcome.captured.is_empty());
+        assert!(store
+            .list_channel_messages("session:hub-1", 10)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn capture_preserves_an_existing_managed_registration() {
+        let root = tempdir().unwrap();
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        let workspace = PathBuf::from("/tmp/c14-cursor-managed-capture");
+        let chat_id = "chat-owned-1";
+        let session_dir = root
+            .path()
+            .join(encode_workspace_dir_name(&workspace))
+            .join("agent-transcripts")
+            .join(chat_id);
+        std::fs::create_dir_all(&session_dir).unwrap();
+        std::fs::write(
+            session_dir.join(format!("{chat_id}.jsonl")),
+            r#"{"role":"assistant","message":{"content":[{"type":"text","text":"done"}]}}"#,
+        )
+        .unwrap();
+        store
+            .register_managed_harness_session("cursor", &workspace.to_string_lossy(), chat_id, 1234)
+            .unwrap();
+
+        capture_cursor_session_from(root.path(), &store, &workspace, Some(chat_id), None).unwrap();
+
+        let registration = store
+            .get_harness_session("cursor", &workspace.to_string_lossy())
+            .unwrap()
+            .unwrap();
+        assert_eq!(registration.mode, hub::HarnessSessionMode::Managed);
+        assert_eq!(registration.disk_session_id, chat_id);
     }
 }
