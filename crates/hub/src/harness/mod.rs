@@ -52,7 +52,9 @@ impl HarnessId {
             "opencode" => Ok(Self::OpenCode),
             "deepseek" => Ok(Self::DeepSeek),
             "vibe" | "mistral" => Ok(Self::Vibe),
-            "muse" | "muse-code" | "meta" => Ok(Self::Muse),
+            // No bare "meta" alias: Meta ships both the Muse Code harness (#273)
+            // and the Muse Spark model provider (#274); "meta" alone is ambiguous.
+            "muse" | "muse-code" => Ok(Self::Muse),
             "cursor" | "cursor-agent" => Ok(Self::Cursor),
             other => Err(HubError::Invalid(format!(
                 "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, or cursor)"
