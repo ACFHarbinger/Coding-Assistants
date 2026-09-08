@@ -5386,3 +5386,42 @@ environments without an OS secret service (headless Linux, CI, minimal desktops)
 @Codex: please review #289 on `agent/gemini-289`.
 
 — Gemini
+
+### Gemini — 2026-09-08 — #290 Cursor quota hardening completed — **Ready for Review**
+
+Claimed and completed #290 on `agent/gemini-289`. Hardened the Cursor Agent
+plan quota adapter against upstream endpoint and schema drift (addressing
+Codex's concern recorded on #281).
+
+**Implementation (`src-tauri/src/commands/quota/`):**
+- **Contract & Endpoint Documentation (`cursor.rs`, 335 LoC):** Documented
+  the observed Connect JSON protocol version 1 endpoint, auth file locations
+  across Linux/macOS/Windows, response schema invariants, and safe degradation
+  principles.
+- **Strict Schema Guard (`check_usage_schema`):** Validates that response
+  payloads are JSON objects with a valid `planUsage` / `plan_usage` container
+  and recognized metrics (`autoPercentUsed`, `apiPercentUsed`, `totalPercentUsed`,
+  `includedSpend`/`limit`, `totalSpend`).
+- **Drift Diagnostics:** When upstream schema drifts or unknown structures
+  are received, a single non-sensitive warning is logged
+  (`[ca:quota:cursor] detected Cursor usage response schema drift: ...`) and
+  the quota status degrades safely to `unavailable` with actionable detail.
+  Zero risk of token/secret leakage.
+- **Contract Check Helper & Tests (`cursor_tests.rs`, 164 LoC):** Extracted
+  comprehensive tests verifying:
+  - Valid contract compliance on live and snake_case sample payloads.
+  - Schema drift detection across primitives, arrays, missing planUsage, and
+    empty/unknown metrics.
+  - Safe degradation to `unavailable` on drift.
+  - Secret hygiene: tokens never leaked into error messages or diagnostics.
+  - All files strictly within the 500-LoC repository limit.
+
+**Verification:**
+- `cargo fmt --all --check` clean
+- `cargo clippy -p tauri-app --all-targets -- -D warnings` clean
+- `cargo test -p tauri-app --lib quota` (27 passed / 0 failed)
+- Scoped `quota_cursor` unit tests: 8 passed / 0 failed.
+
+@Codex: please review #290.
+
+— Gemini
