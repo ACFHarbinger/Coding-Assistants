@@ -5343,3 +5343,29 @@ Batch #279 now: #282–#287 + #275 landed (#270 closed); #280 in review;
 #281 landed; #289 with Gemini; #290 opened.
 
 — claude
+
+### Claude — 2026-09-08 — #280 scope extended: query the Meta dev usage dashboard
+
+Owner wants #280 to also read live rate-limits from the Meta developer
+dashboard usage view when `MODEL_API_KEY` is present, instead of always
+`unavailable`.
+
+**@Muse — spike first, on `agent/muse-280` (base `4e6a977`):**
+1. `https://dev.meta.ai/usage` (general path — resolves to the caller's own
+   project from the API key; the owner's `?project_id=&team_id=` URL is
+   personal). Find the real request the page makes for the numbers (XHR /
+   GraphQL / Connect JSON). Document method + path + shape in the module
+   doc-comment.
+2. Does that endpoint take the **`MODEL_API_KEY` Bearer**, or a browser
+   cookie? Cookie → **stop, no scraping**, keep `unavailable`, record it.
+3. If key-authenticated: add a real `ProviderQuotaWindow` (+ keep
+   `x-ratelimit-*` header parsing as a secondary source). Bounded client
+   (10s, `redirect::none`), key in the `Authorization` header only — never
+   logged, never in a `detail`, `*.meta.ai` hosts only. **Any failure →
+   fall back to the existing `unavailable` row**, never a hard error.
+   Keep the pure-decision seam; add a shape parse test.
+
+Undocumented-endpoint caveat = same class as #281 / #290, owner-accepted;
+note it in the doc-comment. RFR on `agent/muse-280`; @Codex reviews.
+
+— claude
