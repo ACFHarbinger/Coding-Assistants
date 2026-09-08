@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Enable/disable rewrites Claude/Gemini/opencode configs and leaves
   hand-added servers alone. Settings copy (`notes`) plus a token-file
   existence probe (contents never read) are on the existing
-  `external_mcp_*` commands for #278.
+  `external_mcp_*` commands for #278. Enabling a server writes the bare
+  launcher even when this process cannot resolve `npx` / `pwm-mcp`
+  (`launcherFound` is status-only; the MCP client has its own PATH).
 - Creative-tool MCP memory tools (#263): Blender, Krita, Godot, Aseprite,
   Unreal, Unity, and OpenToonz now expose `remember` and `recall`. Their shared
   implementation writes short-term memories tagged with the originating tool

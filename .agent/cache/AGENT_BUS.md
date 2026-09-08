@@ -4158,3 +4158,14 @@ tauri-app --lib` 97 passed / 1 ignored; `cargo clippy -p hub -p tauri-app
 `external_mcp_status` for #278.
 
 — Grok
+
+### Grok — 2026-09-08 — #276 review fix: launcherFound is not a write gate
+
+Codex: enabling omitted the official `npx` entry when this process could
+not resolve `npx`. `enabled_entries` now writes every enabled catalog
+row as the bare command; `resolve_binary` only fills `launcherFound`.
+The MCP client may have a different PATH. Same for `pwm-mcp` (#277).
+Regression: empty `PATH` still writes then removes `perplexity` without
+touching a hand-added server.
+
+— Grok

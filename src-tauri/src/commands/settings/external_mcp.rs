@@ -1,10 +1,14 @@
 //! Track P9 — the Settings "External MCP servers" IPC surface.
 //!
 //! The generic twin of [`creative_tools`](super::creative_tools): it
-//! resolves each catalog server's launcher (`npx`, `pwm-mcp`, …) against
-//! `$PATH`, reports per-workspace enable / install / auth status, and
-//! drives `hub::mcp::external` to write the enabled servers into a
-//! workspace's Claude / Gemini / opencode MCP configs.
+//! reports per-workspace enable / install / auth status and drives
+//! `hub::mcp::external` to write the enabled servers into a workspace's
+//! Claude / Gemini / opencode MCP configs.
+//!
+//! `launcherFound` is **informational**. The MCP client (Claude Code,
+//! Gemini CLI, …) resolves the bare command on *its* `$PATH`, which may
+//! differ from this desktop process — so a missing `npx` / `pwm-mcp`
+//! here must not omit an enabled server from the written config.
 //!
 //! `authConfigured` is a **presence hint**, not verification: for an
 //! API-key server it means the variable is set in *this* process's
@@ -40,8 +44,8 @@ pub struct ExternalServerStatus {
     pub auth_configured: Option<bool>,
     /// Quota / setup copy for the Settings tab. Never a secret.
     pub notes: String,
-    /// `true` when the launcher (`npx`, `pwm-mcp`, …) was found on
-    /// `$PATH` or next to the app.
+    /// Informational: the launcher was found on *this* process's `$PATH`.
+    /// Not a write gate — the MCP client may resolve a different PATH.
     pub launcher_found: bool,
     pub launcher_path: Option<String>,
     /// `true` when this server is in the workspace's enabled set.
@@ -96,16 +100,13 @@ fn build_status(
     }
 }
 
-/// One `McpServerEntry` per enabled key whose launcher was found on
-/// `$PATH`. A key with a missing launcher stays enabled (so the toggle
-/// reads back on) but is not written into a config pointing at nothing.
-/// The entry's `command` is the bare launcher name, not the resolved
-/// absolute path — see [`external::ExternalServer::command`].
-fn resolved_entries(enabled: &BTreeSet<String>) -> Vec<McpServerEntry> {
+/// One `McpServerEntry` per enabled catalog key. Always the bare
+/// launcher name (`npx`, `pwm-mcp`) — never gated on
+/// [`resolve_binary`], which only feeds `launcherFound` for Settings.
+fn enabled_entries(enabled: &BTreeSet<String>) -> Vec<McpServerEntry> {
     enabled
         .iter()
         .filter_map(|key| external::server(key))
-        .filter(|srv| resolve_binary(srv.command).is_some())
         .map(external::entry_for)
         .collect()
 }
@@ -159,7 +160,7 @@ pub(crate) fn external_mcp_set_enabled_blocking(
     }
     external::set_enabled_keys(&store, &path, &keys).map_err(|e| e.to_string())?;
 
-    let written = external::apply_to_workspace(&path, &resolved_entries(&keys))
+    let written = external::apply_to_workspace(&path, &enabled_entries(&keys))
         .map_err(|e| e.to_string())?
         .into_iter()
         .map(|p| p.to_string_lossy().into_owned())
@@ -182,7 +183,7 @@ pub(crate) fn external_mcp_reapply_blocking(
     let path = require_absolute(&workspace)?;
     let store = open_store()?;
     let keys = external::enabled_keys(&store, &path);
-    let written = external::apply_to_workspace(&path, &resolved_entries(&keys))
+    let written = external::apply_to_workspace(&path, &enabled_entries(&keys))
         .map_err(|e| e.to_string())?
         .into_iter()
         .map(|p| p.to_string_lossy().into_owned())
@@ -231,6 +232,80 @@ mod tests {
     }
 
     #[test]
+    fn enabling_writes_bare_npx_even_when_this_process_path_hides_it() {
+        use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
+        use serde_json::{json, Value};
+
+        let _guard = CA_HOME_ENV_LOCK.lock().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        std::env::set_var("CA_HOME", home.path());
+        let old_path = std::env::var_os("PATH");
+        std::env::set_var("PATH", "");
+
+        let ws = tempfile::tempdir().unwrap();
+        let mcp = ws.path().join(".mcp.json");
+        std::fs::write(
+            &mcp,
+            serde_json::to_string_pretty(&json!({
+                "mcpServers": { "user-fs": { "command": "echo", "args": ["ok"] } }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let ws_s = ws.path().to_string_lossy().into_owned();
+
+        let on = external_mcp_set_enabled_blocking(ws_s.clone(), "perplexity".into(), true)
+            .expect("enable");
+        assert!(on
+            .servers
+            .iter()
+            .any(|s| s.key == "perplexity" && s.enabled));
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+        assert_eq!(
+            v["mcpServers"]["perplexity"]["command"], "npx",
+            "enabled official server must be written even if this process cannot resolve npx"
+        );
+        assert_eq!(
+            v["mcpServers"]["perplexity"]["args"],
+            json!(["-y", "@perplexity-ai/mcp-server"])
+        );
+        assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
+
+        external_mcp_set_enabled_blocking(ws_s, "perplexity".into(), false).expect("disable");
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
+        assert!(v["mcpServers"]["perplexity"].is_null());
+        assert_eq!(v["mcpServers"]["user-fs"]["command"], "echo");
+
+        match old_path {
+            Some(path) => std::env::set_var("PATH", path),
+            None => std::env::remove_var("PATH"),
+        }
+        std::env::remove_var("CA_HOME");
+    }
+
+    #[test]
+    fn enabled_entries_are_not_gated_on_this_process_path() {
+        let keys: BTreeSet<String> = external::CATALOG
+            .iter()
+            .map(|s| s.key.to_string())
+            .collect();
+        let entries = enabled_entries(&keys);
+        assert_eq!(entries.len(), keys.len());
+        assert!(entries
+            .iter()
+            .any(|e| e.key == "perplexity" && e.command == "npx"));
+        assert!(entries
+            .iter()
+            .any(|e| e.key == "perplexity-web" && e.command == "pwm-mcp"));
+        assert!(
+            entries
+                .iter()
+                .all(|e| !e.command.contains('/') && !e.command.contains('\\')),
+            "written command must stay a bare name the MCP client resolves"
+        );
+    }
+
+    #[test]
     fn set_enabled_rejects_an_unknown_key() {
         match external_mcp_set_enabled_blocking("/tmp/ws".into(), "nope".into(), true) {
             Err(err) => assert!(err.contains("unknown external MCP server"), "{err}"),
@@ -268,13 +343,11 @@ mod tests {
                 "{key} must stay enabled even if its launcher is missing"
             );
             let v: Value = serde_json::from_str(&std::fs::read_to_string(&mcp).unwrap()).unwrap();
-            if row.launcher_found {
-                assert!(
-                    v["mcpServers"][key].is_object(),
-                    "found launcher must write {key}"
-                );
-                assert!(v["mcpServers"][key].get("env").is_none());
-            }
+            assert!(
+                v["mcpServers"][key].is_object(),
+                "{key} must be written even when this process cannot see the launcher"
+            );
+            assert!(v["mcpServers"][key].get("env").is_none());
 
             let off = external_mcp_set_enabled_blocking(ws_s.clone(), key.into(), false)
                 .expect("disable");
