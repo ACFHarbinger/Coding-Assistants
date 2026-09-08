@@ -87,8 +87,10 @@ pub(crate) fn resolve_binary(basename: &str) -> Option<PathBuf> {
     None
 }
 
-/// Basenames of creative apps currently running, from one `ps` sweep.
-/// Best-effort: an unavailable `ps` just yields "nothing running".
+/// Basenames of creative apps currently running, from one process sweep
+/// ([`hub::proc::list_process_lines`] — `ps` on Unix, PowerShell on
+/// Windows). Best-effort: if the listing fails this just yields "nothing
+/// running".
 fn running_app_basenames() -> BTreeSet<String> {
     let mut wanted: BTreeSet<String> = BTreeSet::new();
     for tool in creative::CATALOG {
@@ -98,17 +100,11 @@ fn running_app_basenames() -> BTreeSet<String> {
     }
 
     let mut found = BTreeSet::new();
-    let Ok(output) = std::process::Command::new("ps")
-        .args(["-eo", "args="])
-        .output()
-    else {
+    let Ok(processes) = hub::proc::list_process_lines() else {
         return found;
     };
-    if !output.status.success() {
-        return found;
-    }
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        let Some(first) = line.split_whitespace().next() else {
+    for (_pid, command) in processes {
+        let Some(first) = command.split_whitespace().next() else {
             continue;
         };
         let base = Path::new(first)

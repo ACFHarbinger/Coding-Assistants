@@ -104,20 +104,10 @@ fn command_is_channel_bridge_for(command: &str, workspace: &Path) -> bool {
 /// processes. Same match as [`is_channel_session_live`] — the Channel
 /// bridge is the liveness signal, not a terminal-emulator pid.
 pub fn channel_bridge_pids(workspace: &Path) -> Result<Vec<u32>, String> {
-    let output = std::process::Command::new("ps")
-        .args(["-eo", "pid=,args="])
-        .output()
-        .map_err(|error| format!("failed to inspect local processes: {error}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim_start();
-            let (pid_str, rest) = trimmed.split_once(char::is_whitespace)?;
-            let pid = pid_str.parse::<u32>().ok()?;
-            command_is_channel_bridge_for(rest.trim(), workspace).then_some(pid)
+    Ok(crate::proc::list_process_lines()?
+        .into_iter()
+        .filter_map(|(pid, command)| {
+            command_is_channel_bridge_for(&command, workspace).then_some(pid)
         })
         .collect())
 }

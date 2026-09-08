@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DetectedProcess {
@@ -36,25 +35,15 @@ fn classify_command(command: &str) -> Option<(&'static str, &'static str)> {
 /// changing process ownership. This is intentionally discovery-only: a CLI
 /// process cannot be safely attached after launch unless it exposes a typed
 /// service endpoint.
+///
+/// The platform process listing comes from [`hub::proc::list_process_lines`]
+/// (`ps` on Unix, PowerShell on Windows — `ps` does not exist there, which
+/// used to surface as "failed to inspect local processes: program not
+/// found").
 pub fn detect_agent_processes() -> Result<Vec<DetectedProcess>, String> {
-    let output = Command::new("ps")
-        .args(["-eo", "pid=,args="])
-        .output()
-        .map_err(|e| format!("failed to inspect local processes: {e}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-
     let mut processes = Vec::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        let Some((pid, command)) = line.trim().split_once(char::is_whitespace) else {
-            continue;
-        };
-        let Ok(pid) = pid.trim().parse::<u32>() else {
-            continue;
-        };
-        let command = command.trim();
-        let Some((agent, provider)) = classify_command(command) else {
+    for (pid, command) in hub::proc::list_process_lines()? {
+        let Some((agent, provider)) = classify_command(&command) else {
             continue;
         };
         processes.push(DetectedProcess {
@@ -62,7 +51,7 @@ pub fn detect_agent_processes() -> Result<Vec<DetectedProcess>, String> {
             agent: agent.to_string(),
             provider: provider.to_string(),
             model: "external-process".to_string(),
-            command: command.to_string(),
+            command,
         });
     }
     processes.sort_by_key(|process| process.pid);
