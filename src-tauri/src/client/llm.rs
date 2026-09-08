@@ -1,6 +1,8 @@
 use crate::agent::AgentEvent;
 use crate::client::providers::{
-    deepseek_unavailable_opencode, opencode_run_args, parse_opencode_models, vibe_home_from_env,
+    deepseek_unavailable_opencode, is_muse_provider, muse_config_dir_from_env,
+    muse_is_authenticated, muse_run_args, muse_unavailable_not_installed,
+    muse_unavailable_unauthenticated, opencode_run_args, parse_opencode_models, vibe_home_from_env,
     vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
     vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
     VIBE_FALLBACK_MODELS,
@@ -153,6 +155,10 @@ impl LLMClient {
             return vibe_completion(config, prompt, work_dir, app, source, token).await;
         }
 
+        if is_muse_provider(&config.provider) {
+            return muse_completion(config, prompt, work_dir, app, source, token).await;
+        }
+
         opencode_completion(
             config,
             prompt,
@@ -200,6 +206,8 @@ impl LLMClient {
                 }
             }
         }
+
+        models.extend(muse_catalog_entries().await);
 
         Ok(models)
     }
@@ -251,6 +259,73 @@ async fn existing_endpoint_completion(
         },
     );
     Ok(output)
+}
+
+/// `muse/<id>` catalog entries for `get_available_models`.
+///
+/// #274 spike outcome: the `muse` CLI publishes no model catalog (no
+/// `models` subcommand; `--model` takes an undocumented id and the server
+/// otherwise picks its default), so an authenticated install contributes no
+/// entries. This probe keeps that decision re-verifiable: it confirms the
+/// CLI is present and authenticated, and if a future CLI gains a catalog,
+/// its entries land here. Configured models work regardless —
+/// [`muse_completion`] passes `--model` through verbatim.
+async fn muse_catalog_entries() -> Vec<String> {
+    let version = Command::new("muse").arg("--version").output().await;
+    let Ok(version) = version else {
+        return Vec::new();
+    };
+    if !version.status.success() {
+        return Vec::new();
+    }
+    let config_dir = muse_config_dir_from_env(
+        std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
+        std::env::var("HOME").ok().as_deref(),
+    );
+    let api_key = std::env::var("META_API_KEY").ok();
+    if !muse_is_authenticated(api_key.as_deref(), &config_dir) {
+        return Vec::new();
+    }
+    Vec::new()
+}
+
+async fn muse_completion(
+    config: &ModelConfig,
+    prompt: &str,
+    work_dir: Option<&str>,
+    app: &AppHandle,
+    source: &str,
+    token: Option<Arc<AtomicBool>>,
+) -> Result<String, String> {
+    let config_dir = muse_config_dir_from_env(
+        std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
+        std::env::var("HOME").ok().as_deref(),
+    );
+    let api_key = std::env::var("META_API_KEY").ok();
+    if !muse_is_authenticated(api_key.as_deref(), &config_dir) {
+        return Err(muse_unavailable_unauthenticated());
+    }
+
+    // A caller-configured model id overrides the server default; an empty
+    // model means "let the CLI decide" (there is no confirmed public
+    // default id to fill in — #274 spike).
+    let model = config.model.trim();
+    let args = muse_run_args(
+        prompt,
+        if model.is_empty() { None } else { Some(model) },
+        None,
+        work_dir,
+    )?;
+    let mut command = Command::new("muse");
+    command
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = work_dir {
+        command.current_dir(dir);
+    }
+    let child = command.spawn().map_err(muse_unavailable_not_installed)?;
+    stream_cli_child(child, app, source, token, "Muse").await
 }
 
 async fn vibe_completion(

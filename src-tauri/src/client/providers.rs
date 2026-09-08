@@ -138,6 +138,85 @@ pub fn deepseek_unavailable_opencode(error: impl std::fmt::Display) -> String {
     )
 }
 
+/// Meta Muse provider key used in `ModelConfig.provider`. The CLI's own
+/// provider id is `meta` (`muse auth set --provider meta`, `META_API_KEY`
+/// priority over `muse login`) — both keys route here; `ModelConfig` is a
+/// separate namespace from `HarnessId`, which deliberately rejects bare
+/// "meta" as ambiguous between the harness (#273) and this provider (#274).
+pub fn is_muse_provider(provider: &str) -> bool {
+    matches!(provider.trim(), "muse" | "meta")
+}
+
+/// Auth presence only: a non-empty `META_API_KEY`, or a `muse auth.json`
+/// file (created by `muse login`) existing under the config dir. Never reads
+/// file contents or the keyring — presence gates a clear "not
+/// authenticated" error before any spawn; the CLI itself owns the secret.
+pub fn muse_is_authenticated(meta_api_key: Option<&str>, muse_config_dir: &Path) -> bool {
+    if meta_api_key
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+    {
+        return true;
+    }
+    muse_config_dir.join("auth.json").is_file()
+}
+
+pub fn muse_config_dir_from_env(xdg_config_home: Option<&str>, user_home: Option<&str>) -> PathBuf {
+    if let Some(dir) = xdg_config_home
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(dir).join("muse");
+    }
+    PathBuf::from(user_home.unwrap_or("."))
+        .join(".config")
+        .join("muse")
+}
+
+/// `muse exec [--model <id>] [--reasoning-effort <effort>] [--workspace <abs>] <prompt>`
+/// (verified live against `muse exec --help`, muse 1.0.3, #274 spike).
+/// Model/effort are opaque passthroughs — the CLI publishes no model
+/// catalog, so no id is defaulted or validated here. No approval-bypass
+/// flags are passed by default.
+pub fn muse_run_args(
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+    work_dir: Option<&str>,
+) -> Result<Vec<OsString>, String> {
+    if prompt.trim().is_empty() {
+        return Err("Muse run requires a prompt".into());
+    }
+    let mut args = vec![OsString::from("exec")];
+    if let Some(model) = model.map(str::trim).filter(|value| !value.is_empty()) {
+        args.push(OsString::from("--model"));
+        args.push(OsString::from(model));
+    }
+    if let Some(effort) = effort.map(str::trim).filter(|value| !value.is_empty()) {
+        args.push(OsString::from("--reasoning-effort"));
+        args.push(OsString::from(effort));
+    }
+    if let Some(dir) = work_dir.map(str::trim).filter(|value| !value.is_empty()) {
+        if !Path::new(dir).is_absolute() {
+            return Err("Muse --workspace must be an absolute path".into());
+        }
+        args.push(OsString::from("--workspace"));
+        args.push(OsString::from(dir));
+    }
+    args.push(OsString::from(prompt));
+    Ok(args)
+}
+
+pub fn muse_unavailable_not_installed(error: impl std::fmt::Display) -> String {
+    format!(
+        "Muse (meta) unavailable: muse CLI is not installed or failed to start ({error}). Install Muse Code and retry."
+    )
+}
+
+pub fn muse_unavailable_unauthenticated() -> String {
+    "Muse (meta) unavailable: not authenticated. Run `muse login` or set META_API_KEY (Coding Assistants never stores the key).".into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +317,64 @@ usage: vibe [-h] [-p [TEXT]] [--output {text,json,streaming}]
         let dangerous = "; rm -rf / && echo pwned $(whoami)";
         let args = vibe_run_args(dangerous, Some("/tmp/ws")).unwrap();
         assert_eq!(args.iter().filter(|arg| *arg == dangerous).count(), 1);
+    }
+
+    #[test]
+    fn muse_provider_keys_cover_app_and_cli_ids() {
+        assert!(is_muse_provider("muse"));
+        assert!(is_muse_provider("meta"));
+        assert!(is_muse_provider(" muse "));
+        assert!(!is_muse_provider("opencode"));
+        assert!(!is_muse_provider(""));
+    }
+
+    #[test]
+    fn muse_auth_is_presence_only_and_never_reads_secrets() {
+        let dir = tempdir().unwrap();
+        // No key, no login file: unauthenticated.
+        assert!(!muse_is_authenticated(None, dir.path()));
+        assert!(!muse_is_authenticated(Some("  "), dir.path()));
+        // Env key presence authenticates without touching the fs.
+        assert!(muse_is_authenticated(
+            Some("presence-flag-not-a-secret"),
+            dir.path()
+        ));
+        // A login file's EXISTENCE authenticates; contents are never read.
+        fs::write(dir.path().join("auth.json"), "{}").unwrap();
+        assert!(muse_is_authenticated(None, dir.path()));
+        assert_eq!(
+            muse_config_dir_from_env(Some("/custom/config"), Some("/home/user")),
+            PathBuf::from("/custom/config/muse")
+        );
+        assert_eq!(
+            muse_config_dir_from_env(None, Some("/home/user")),
+            PathBuf::from("/home/user/.config/muse")
+        );
+    }
+
+    #[test]
+    fn muse_argv_is_explicit_and_rejects_relative_workdir() {
+        let args = muse_run_args("summarize", None, None, Some("/tmp/workspace")).unwrap();
+        assert_eq!(args[0], "exec");
+        assert_eq!(args[args.len() - 3], "--workspace");
+        assert_eq!(args[args.len() - 2], "/tmp/workspace");
+        assert_eq!(args[args.len() - 1], "summarize");
+
+        let custom = muse_run_args("summarize", Some("test-model"), Some("low"), None).unwrap();
+        assert_eq!(custom[0], "exec");
+        assert_eq!(custom[1], "--model");
+        assert_eq!(custom[2], "test-model");
+        assert_eq!(custom[3], "--reasoning-effort");
+        assert_eq!(custom[4], "low");
+        assert_eq!(custom[5], "summarize");
+
+        assert!(muse_run_args("x", None, None, Some("relative")).is_err());
+        assert!(muse_run_args("   ", None, None, None).is_err());
+        // No approval-bypass flags ride along by default.
+        for args in [&args, &custom] {
+            assert!(!args
+                .iter()
+                .any(|arg| arg == "--yolo" || arg == "--disable-approval"));
+        }
     }
 }

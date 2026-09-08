@@ -483,7 +483,10 @@ impl HarnessSettings {
             crate::HarnessId::Gemini => Some("gemini-3.7-flash-medium".to_string()),
             crate::HarnessId::Grok => Some("grok-4.6".to_string()),
             crate::HarnessId::Vibe => Some("mistral-medium-3.5".to_string()),
-            // #274 sets Muse's default; Cursor uses its own account model config.
+            // #274 spike: the `muse` CLI publishes no model catalog, so no
+            // default id is set — an empty model lets the CLI use its server
+            // default, and a configured id passes through verbatim.
+            // Cursor uses its own account model config.
             crate::HarnessId::Muse | crate::HarnessId::Cursor => None,
         };
         let default_effort = match id {
