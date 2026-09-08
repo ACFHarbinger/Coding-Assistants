@@ -43,6 +43,9 @@ pub fn start_cursor_managed_harness_with(
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
     }
+    let workspace = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
     let workspace_key = workspace.to_string_lossy().to_string();
     let existing = store
         .get_harness_session("cursor", &workspace_key)
@@ -70,7 +73,14 @@ pub fn start_cursor_managed_harness_with(
         .map_err(|error| format!("Cursor managed start is busy: {error}"))?;
 
     let outcome = (|| {
-        let (_pid, output) = runner(workspace, prompt, None, None)?;
+        store
+            .update_managed_harness_disk_session_id(
+                "cursor",
+                &workspace_key,
+                CURSOR_PENDING_DISK_SESSION_ID,
+            )
+            .map_err(|error| error.to_string())?;
+        let (_pid, output) = runner(&workspace, prompt, None, None)?;
         let chat_id = output.session_id.ok_or_else(|| {
                 "Cursor managed start completed but stream-json did not include a session_id; cannot register this workspace".to_string()
             })?;
@@ -98,8 +108,13 @@ pub fn start_cursor_managed_harness_with(
         .map_err(|error| error.to_string());
 
     match (outcome, release) {
-        (Err(error), _) => Err(error),
-        (Ok(_), Err(error)) => Err(error),
+        (Err(error), Err(release_error)) => Err(format!(
+            "{error}; additionally failed to release Cursor managed-start writer: {release_error}"
+        )),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(error)) => Err(format!(
+            "Cursor managed start completed but failed to release its writer: {error}"
+        )),
         (Ok(started), Ok(())) => {
             let registration = store
                 .get_harness_session("cursor", &workspace_key)
@@ -326,7 +341,7 @@ pub fn deliver_cursor_task_with(
         ),
     };
 
-    let _ = store.release_harness_writer("cursor", &workspace_str, &writer_owner, next_state);
+    store.release_harness_writer("cursor", &workspace_str, &writer_owner, next_state)?;
     Ok(result)
 }
 

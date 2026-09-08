@@ -43,7 +43,7 @@ fn validate_workspace_prompt(workspace: &Path, prompt: &str) -> Result<(), HubEr
 fn cursor_resume_session_id(session_id: Option<&str>) -> Option<&str> {
     session_id.filter(|id| {
         let id = id.trim();
-        !id.is_empty() && !id.starts_with("managed-")
+        !id.is_empty() && !id.starts_with("managed-") && id != "pending"
     })
 }
 
@@ -115,6 +115,9 @@ mod tests {
             cursor_managed_spawn_args(&ws, "continue", Some("managed-abc"), None, None).unwrap();
         assert_eq!(fresh[0], "-p");
         assert!(!fresh.iter().any(|arg| arg == "--resume"));
+        let pending =
+            cursor_managed_spawn_args(&ws, "continue", Some("pending"), None, None).unwrap();
+        assert!(!pending.iter().any(|arg| arg == "--resume"));
 
         let resumed = cursor_managed_spawn_args(
             &ws,

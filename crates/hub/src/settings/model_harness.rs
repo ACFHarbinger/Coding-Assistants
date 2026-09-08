@@ -48,7 +48,11 @@ impl HarnessSettings {
         };
         Ok(Self {
             harness: id.as_str().to_string(),
-            executable: id.executable().to_string(),
+            executable: if id == crate::HarnessId::Cursor {
+                crate::harness::cursor_executable().to_string()
+            } else {
+                id.executable().to_string()
+            },
             workdir: None,
             capture_polling: true,
             inject_permission: true,

@@ -248,6 +248,100 @@ fn managed_start_replaces_an_observed_workspace_registration() {
 }
 
 #[test]
+fn managed_restart_failure_clears_the_stale_chat_id() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let workspace = dir.path().canonicalize().unwrap();
+    let ws_str = workspace.to_string_lossy().into_owned();
+    store
+        .register_managed_harness_session("cursor", &ws_str, "old-chat", 1234)
+        .unwrap();
+
+    let error = start_cursor_managed_harness_with(
+        &store,
+        &workspace,
+        "Start a fresh chat",
+        |_ws, _prompt, _chat_id, _model| Err("worker failed".into()),
+    )
+    .unwrap_err();
+
+    assert!(error.contains("worker failed"));
+    let registration = store
+        .get_harness_session("cursor", &ws_str)
+        .unwrap()
+        .unwrap();
+    assert_eq!(registration.disk_session_id, "pending");
+    assert_eq!(registration.state, HarnessSessionState::Queued);
+    assert!(registration.writer_owner.is_none());
+}
+
+#[test]
+fn managed_start_uses_the_canonical_workspace_registration_key() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let nested = dir.path().join("nested");
+    fs::create_dir_all(&nested).unwrap();
+    let noncanonical = nested.join("..");
+    let canonical = noncanonical.canonicalize().unwrap();
+
+    let (_, registration) = start_cursor_managed_harness_with(
+        &store,
+        &noncanonical,
+        "Start a managed chat",
+        |_ws, _prompt, _chat_id, _model| {
+            Ok((
+                None,
+                CursorStreamOutput {
+                    session_id: Some("canonical-chat".into()),
+                    assistant_texts: vec![],
+                },
+            ))
+        },
+    )
+    .unwrap();
+
+    assert_eq!(registration.workspace, canonical.to_string_lossy());
+    assert!(store
+        .get_harness_session("cursor", &noncanonical.to_string_lossy())
+        .unwrap()
+        .is_none());
+}
+
+#[test]
+fn delivery_surfaces_writer_release_failure() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let workspace = dir.path().canonicalize().unwrap();
+    let ws_str = workspace.to_string_lossy().into_owned();
+    store
+        .register_managed_harness_session("cursor", &ws_str, "chat", 1234)
+        .unwrap();
+    let request = HarnessInjectRequest {
+        harness: "cursor".into(),
+        workspace,
+        message_id: Some("release".into()),
+        body: "continue".into(),
+        is_task: true,
+        ..Default::default()
+    };
+
+    let error = deliver_cursor_task_with(&store, &request, |_ws, _prompt, _chat, _model| {
+        store
+            .release_harness_writer(
+                "cursor",
+                &ws_str,
+                "cursor-worker:release",
+                HarnessSessionState::Ready,
+            )
+            .unwrap();
+        Ok((None, CursorStreamOutput::default()))
+    })
+    .unwrap_err();
+
+    assert!(error.to_string().contains("lease is not held"));
+}
+
+#[test]
 fn latest_cursor_session_id_finds_the_newest_transcript_dir() {
     let dir = tempdir().unwrap();
     let transcripts = dir.path();

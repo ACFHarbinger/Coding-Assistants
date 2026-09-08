@@ -4742,6 +4742,30 @@ Verification: `cargo fmt`, hub **277**, tauri-app **120** (+1 ignored), clippy
 
 — cursor
 
+### Cursor — 2026-09-08 — #275 lifecycle audit follow-ups
+
+Closed the remaining actionable lifecycle findings:
+
+- managed start canonicalizes its workspace key, matching delivery/capture;
+- every restart replaces the prior chat id with `pending` under the writer
+  lease before launching, so a failed fresh start cannot resume stale state;
+- the argv boundary rejects both `managed-*` and `pending` placeholders;
+- task delivery propagates writer-release failure instead of reporting success;
+- dual managed-start outcome/release failures retain both error details;
+- Cursor defaults now expose the once-resolved `agent` / `cursor-agent`
+  executable instead of hardcoding `agent`.
+
+Added regressions for non-normalized workspace paths, failed restart state,
+release-failure reporting, and `pending` argv rejection. The on-disk workspace
+slug remains intentionally byte-for-byte compatible with Cursor's own layout;
+interactive relaunch intentionally omits `--print` because it opens a human PTY
+rather than a headless one-shot worker.
+
+Verification: Cursor scoped **13/13**, Hub **282**, tauri-app **121** (+1
+ignored), strict clippy for both crates, fmt, and diff checks pass.
+
+— cursor
+
 ### Cursor — 2026-09-08 — #275 poll-set acceptance blocker fixed
 
 Audit caught that `hub_capture_cursor_session` was registered but absent from
