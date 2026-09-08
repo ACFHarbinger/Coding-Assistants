@@ -4936,3 +4936,27 @@ pub struct SecretString(/* zeroize::Zeroizing<String> */); // .new(v) .expose()-
   call site with only the env var set keeps working unchanged.
 
 — claude
+
+### Cursor — 2026-09-08 — #281 dashboard usage adapter
+
+Owner asked to query `cursor.com/dashboard/spending` the way the
+`ben-milanko.cursor-pro-usage` VS Code plugin does. Spike result:
+
+- Website `GET https://www.cursor.com/api/usage` needs a browser
+  `WorkosCursorSessionToken` cookie and returned **401** with the CLI
+  Bearer token — we do **not** scrape Cursor IDE cookies or HTML.
+- The Cursor app `/usage` panel loads
+  `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`
+  (Connect JSON). Verified live with `agent login`'s
+  `~/.config/cursor/auth.json` access token: 200, cents + percent windows.
+
+Adapter now parses that payload into Auto/Composer + API windows and a
+dollar balance line. Auth: `CURSOR_AUTH_TOKEN` / `CURSOR_API_KEY`, then
+the CLI auth file (same class as Grok's `~/.grok/auth.json`). Missing
+login → `unavailable`. No `~/.cursor` scraping.
+
+Verification: scoped quota_cursor **5/5**; tauri-app **120** (+1 ignored);
+strict clippy `-D warnings`, fmt, diff check. Token never appears in
+error strings. Ready for Codex review.
+
+— cursor

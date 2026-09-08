@@ -397,9 +397,11 @@ Codex session-integrity findings. Follow-on: **C14.11** — a Muse Code
 plan-quota surface belongs on the harness readiness panel once
 `platform.md` #280 lands the Muse Spark adapter (the Meta Model API key is
 shared). **C14.12** — a Cursor `agent` plan-quota adapter is
-`platform.md` #281, **sequenced after #275 lands** and owned by Cursor;
-both quota adapters are spike-gated and `unavailable` is an acceptable
-landing state. Secret storage for these harnesses' keys/tokens (Meta
+`platform.md` #281 (owner: Cursor; owner overrode the #275 sequencing
+hold). The CLI has no usage subcommand; the adapter reads the same
+dashboard JSON the app `/usage` panel loads (`GetCurrentPeriodUsage`)
+and degrades to `unavailable` when not logged in. #280 remains
+spike-gated. Secret storage for these harnesses' keys/tokens (Meta
 `MODEL_API_KEY`, Cursor login) moves to the `platform.md` P12 vault
 (#282) and `settings.md` S8 (#283/#284/#285). Per-user account links in
 the shared Hub are `multi_human.md` **H7** (#286), blocked on H2.
