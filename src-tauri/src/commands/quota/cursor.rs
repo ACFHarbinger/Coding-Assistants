@@ -29,11 +29,13 @@
 use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const AGENT_ID: &str = "cursor";
 const PROVIDER: &str = "cursor";
 const HARNESS_TITLE: &str = "Cursor Agent";
 const USAGE_URL: &str = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage";
+static SCHEMA_DRIFT_REPORTED: OnceLock<()> = OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SchemaDriftReason {
@@ -41,6 +43,7 @@ pub(crate) enum SchemaDriftReason {
     MissingPlanUsage,
     PlanUsageNotAnObject,
     MissingExpectedFields,
+    InvalidMetricType,
 }
 
 #[cfg(test)]
@@ -117,17 +120,22 @@ pub(crate) fn check_usage_schema(value: &Value) -> Result<(), SchemaDriftReason>
         .as_object()
         .ok_or(SchemaDriftReason::PlanUsageNotAnObject)?;
 
-    let has_metric = plan_obj.contains_key("autoPercentUsed")
-        || plan_obj.contains_key("auto_percent_used")
-        || plan_obj.contains_key("apiPercentUsed")
-        || plan_obj.contains_key("api_percent_used")
-        || plan_obj.contains_key("totalPercentUsed")
-        || plan_obj.contains_key("total_percent_used")
-        || plan_obj.contains_key("includedSpend")
-        || plan_obj.contains_key("included_spend")
-        || plan_obj.contains_key("totalSpend")
-        || plan_obj.contains_key("total_spend");
-
+    let metric_pairs = [
+        ("autoPercentUsed", "auto_percent_used"),
+        ("apiPercentUsed", "api_percent_used"),
+        ("totalPercentUsed", "total_percent_used"),
+        ("includedSpend", "included_spend"),
+        ("totalSpend", "total_spend"),
+    ];
+    let mut has_metric = false;
+    for (camel, snake) in metric_pairs {
+        if let Some(metric) = plan_obj.get(camel).or_else(|| plan_obj.get(snake)) {
+            has_metric = true;
+            if json_f64(metric).is_none() {
+                return Err(SchemaDriftReason::InvalidMetricType);
+            }
+        }
+    }
     if !has_metric {
         return Err(SchemaDriftReason::MissingExpectedFields);
     }
@@ -280,9 +288,11 @@ fn fetch_period_usage(token: &str) -> Result<Value, String> {
 
 fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
     if let Err(drift) = check_usage_schema(period) {
-        eprintln!(
-            "[ca:quota:cursor] detected Cursor usage response schema drift: {drift:?}; degrading safely to unavailable"
-        );
+        if SCHEMA_DRIFT_REPORTED.set(()).is_ok() {
+            eprintln!(
+                "[ca:quota:cursor] detected Cursor usage response schema drift: {drift:?}; degrading safely to unavailable"
+            );
+        }
         return unavailable(format!(
             "Cursor usage response schema drift detected ({drift:?}); degrading safely to unavailable"
         ));

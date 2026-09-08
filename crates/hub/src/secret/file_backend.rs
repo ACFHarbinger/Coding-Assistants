@@ -16,6 +16,17 @@ use serde::{Deserialize, Serialize};
 use super::file_crypto::{decrypt_payload, encrypt_payload};
 use super::{now_unix, validate_key, SecretBackend, SecretError, SecretSource, SecretString};
 
+/// All FileBackend instances in this process address the same default vault.
+/// A per-instance mutex cannot protect the read-modify-write cycle when the
+/// resolver constructs a fresh backend for each call.
+static VAULT_IO_LOCK: Mutex<()> = Mutex::new(());
+
+/// The random, owner-only seed file supplies the user-specific entropy. Keep
+/// the PBKDF2 context stable rather than deriving it from mutable `USER` /
+/// `USERNAME` environment variables, which would otherwise make an existing
+/// vault unreadable after a launcher or service changes those variables.
+const FILE_VAULT_DOMAIN: &str = "coding-assistants:file-vault:v1";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FileVaultEntry {
     pub(crate) secret: String,
@@ -47,10 +58,8 @@ impl FileBackend {
         &self.vault_path
     }
 
-    fn os_user_identity() -> String {
-        std::env::var("USER")
-            .or_else(|_| std::env::var("USERNAME"))
-            .unwrap_or_else(|_| "ca_default_user".into())
+    fn os_user_identity() -> &'static str {
+        FILE_VAULT_DOMAIN
     }
 
     fn load_or_create_seed(&self) -> Result<Vec<u8>, SecretError> {
@@ -117,7 +126,7 @@ impl FileBackend {
 
         let seed = self.load_or_create_seed()?;
         let user = Self::os_user_identity();
-        let plaintext = decrypt_payload(&seed, &user, &bytes)?;
+        let plaintext = decrypt_payload(&seed, user, &bytes)?;
 
         serde_json::from_slice(&plaintext)
             .map_err(|e| SecretError::Backend(format!("failed to deserialize vault entries: {e}")))
@@ -129,7 +138,7 @@ impl FileBackend {
         let plaintext = serde_json::to_vec(entries)
             .map_err(|e| SecretError::Backend(format!("failed to serialize vault entries: {e}")))?;
 
-        let encrypted = encrypt_payload(&seed, &user, &plaintext)?;
+        let encrypted = encrypt_payload(&seed, user, &plaintext)?;
 
         if let Some(parent) = self.vault_path.parent() {
             std::fs::create_dir_all(parent)
@@ -204,6 +213,7 @@ impl SecretBackend for FileBackend {
 
     fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
         validate_key(key)?;
+        let _process_guard = VAULT_IO_LOCK.lock().unwrap();
         let _guard = self.lock.lock().unwrap();
         let mut entries = self.read_entries()?;
         entries.insert(
@@ -218,6 +228,7 @@ impl SecretBackend for FileBackend {
 
     fn get(&self, key: &str) -> Result<Option<SecretString>, SecretError> {
         validate_key(key)?;
+        let _process_guard = VAULT_IO_LOCK.lock().unwrap();
         let _guard = self.lock.lock().unwrap();
         let entries = self.read_entries()?;
         Ok(entries
@@ -227,6 +238,7 @@ impl SecretBackend for FileBackend {
 
     fn delete(&self, key: &str) -> Result<(), SecretError> {
         validate_key(key)?;
+        let _process_guard = VAULT_IO_LOCK.lock().unwrap();
         let _guard = self.lock.lock().unwrap();
         if !self.vault_path.exists() {
             return Ok(());
@@ -240,6 +252,7 @@ impl SecretBackend for FileBackend {
 
     fn status(&self, key: &str) -> Result<(bool, Option<i64>), SecretError> {
         validate_key(key)?;
+        let _process_guard = VAULT_IO_LOCK.lock().unwrap();
         let _guard = self.lock.lock().unwrap();
         if !self.vault_path.exists() {
             return Ok((false, None));

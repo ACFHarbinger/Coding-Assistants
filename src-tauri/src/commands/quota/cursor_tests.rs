@@ -112,6 +112,16 @@ fn contract_check_detects_schema_drift() {
         check_usage_schema(&empty_plan),
         Err(SchemaDriftReason::MissingExpectedFields)
     );
+
+    // 5. A recognized metric changing to a non-numeric type is schema drift,
+    // not a misleading zero-percent quota.
+    let invalid_metric: Value = serde_json::json!({
+        "planUsage": { "autoPercentUsed": { "unexpected": true } }
+    });
+    assert_eq!(
+        check_usage_schema(&invalid_metric),
+        Err(SchemaDriftReason::InvalidMetricType)
+    );
 }
 
 #[test]
