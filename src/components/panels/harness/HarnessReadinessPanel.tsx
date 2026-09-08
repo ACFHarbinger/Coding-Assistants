@@ -7,7 +7,7 @@ import ResizableTerminalFrame from "./ResizableTerminalFrame";
 import TerminalPaneErrorBoundary from "./TerminalPaneErrorBoundary";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
-const PROVIDERS = ["grok", "chat", "claude", "gemini"] as const;
+const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor"] as const;
 
 export default function HarnessReadinessPanel({ workspace }: { workspace: string }) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
@@ -108,7 +108,13 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
         throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
       }
       if (harness !== "claude" && !diskId.trim()) {
-        throw new Error(`Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`);
+        throw new Error(
+          harness === "muse"
+            ? "Start managed needs a real Muse session UUID. Do not invent a placeholder."
+            : harness === "cursor"
+              ? "Start managed needs a real Cursor chat/session id. Do not invent a placeholder."
+              : `Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`
+        );
       }
       // Claude: Channel-connected terminal (no disk-session id). Others:
       // kill any prior managed pid, spawn, register — one atomic call.
@@ -210,7 +216,11 @@ export default function HarnessReadinessPanel({ workspace }: { workspace: string
           ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
           : harness === "claude"
             ? "Start managed kills any prior registered Claude process, then opens a Channel-connected `claude` terminal (same as Channels → Connect). No thread id is required. The row is ready only once that Channel session is live."
-            : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
+            : harness === "muse"
+              ? "Start managed registers a managed Muse Code session. Supply a session UUID to track or continue."
+              : harness === "cursor"
+                ? "Start managed registers a managed Cursor agent session. Supply a chat/session id to track or continue."
+                : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
       </p>
 
       {harness === "grok" && (

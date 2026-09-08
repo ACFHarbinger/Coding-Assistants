@@ -185,3 +185,29 @@ export interface CreativeToolsStatus {
   tools: CreativeToolStatus[];
   writtenConfigs: string[];
 }
+
+// Mirrors Rust `hub::mcp::external::AuthKind`.
+export type ExternalServerAuth =
+  | { kind: "none" }
+  | { kind: "api_key"; env_var: string }
+  | { kind: "session_login"; setup_cmd: string };
+
+// Mirrors Rust `ExternalServerStatus` from `src-tauri/src/commands/settings/external_mcp.rs`.
+export interface ExternalServerStatus {
+  key: string;
+  displayName: string;
+  docsUrl: string;
+  auth: ExternalServerAuth | { kind: string; [key: string]: unknown };
+  authConfigured: boolean | null;
+  notes?: string | null;
+  launcherFound: boolean;
+  launcherPath: string | null;
+  enabled: boolean;
+}
+
+// Mirrors Rust `ExternalMcpStatus`.
+export interface ExternalMcpStatus {
+  workspace: string;
+  servers: ExternalServerStatus[];
+  writtenConfigs: string[];
+}

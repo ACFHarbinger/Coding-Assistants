@@ -1,29 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isTauriRuntime } from "../../lib/tauri";
 import {
-  getEffectiveSettings,
-  getSettingsLoadStatus,
-  getStandingPolicy,
-  listAgentBudgets,
-  listSettingsAuditEvents,
-  resetWorkspaceDefaultProfile,
-  resetSettingsField,
-  setAgentBudget,
-  setAllowAutoWake,
-  setConfirmWakes,
-  setDefaultSession,
-  setDefaultWorkspace,
-  setRetentionDays,
-  updateOrchestrationPolicy,
-  updateSettings,
+  getEffectiveSettings, getSettingsLoadStatus, getStandingPolicy,
+  listAgentBudgets, listSettingsAuditEvents, resetWorkspaceDefaultProfile,
+  resetSettingsField, setAgentBudget, setAllowAutoWake, setConfirmWakes,
+  setDefaultSession, setDefaultWorkspace, setRetentionDays,
+  updateOrchestrationPolicy, updateSettings,
 } from "./api";
 import type {
-  BudgetStatus,
-  EffectiveSettings,
-  SandboxStrictness,
-  SettingsAuditEvent,
-  SettingsField,
-  SettingsLoadStatus,
+  BudgetStatus, EffectiveSettings, SandboxStrictness,
+  SettingsAuditEvent, SettingsField, SettingsLoadStatus,
 } from "./types";
 import GeneralTab from "./tabs/GeneralTab";
 import WorkspaceTab from "./tabs/WorkspaceTab";
@@ -31,6 +17,7 @@ import MemoryTab from "./tabs/MemoryTab";
 import OrchestrationTab from "./tabs/OrchestrationTab";
 import AgentsTab from "./tabs/AgentsTab";
 import CreativeToolsTab from "./tabs/CreativeToolsTab";
+import ExternalMcpTab from "./tabs/ExternalMcpTab";
 import DiagnosticsTab from "./tabs/DiagnosticsTab";
 import DangerTab from "./tabs/DangerTab";
 import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
@@ -428,6 +415,7 @@ export default function SettingsApp() {
           )}
 
           {activeTab.id === "creative" && <CreativeToolsTab workspaceRoot={workspaceRoot} busy={busy} />}
+          {activeTab.id === "external_mcp" && <ExternalMcpTab workspaceRoot={workspaceRoot} busy={busy} />}
 
           {activeTab.id === "memory" && effective && (
             <MemoryTab
