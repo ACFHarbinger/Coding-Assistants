@@ -1,19 +1,34 @@
 //! Muse Spark (Meta Model API) quota adapter.
 //!
-//! Spike outcome (#280): the Model API exposes **no usage, balance, or
-//! limits query endpoint**. Usage and cost are static documented tiers
-//! (per-token pricing, RPM/TPM tables — see the official pricing and rate
-//! limits doc), and the `x-ratelimit-*` headers ride **successful
-//! inference responses only**. A quota panel that burns a completion per
-//! render to read those headers would consume the very budget it reports,
-//! and the dashboard usage route is cookie-authenticated GraphQL —
-//! off-limits (no scraping). So this adapter lands the explicitly
-//! acceptable state: `unavailable` with an actionable detail, and it
-//! performs **zero network calls** in every branch.
+//! Live-dashboard spike outcome (#280, re-verified 2026-09-08): when
+//! `MODEL_API_KEY` is present the adapter still reports `unavailable` —
+//! there is no key-authenticated usage surface to read, so there is
+//! nothing to build a `ProviderQuotaWindow` from:
+//! * `https://dev.meta.ai/usage` is a browser-session SPA route. From a
+//!   key-only host it 302-redirects to `/error/geo/` and serves a generic
+//!   geo-error shell with no usage-specific XHR / GraphQL / Connect shape
+//!   to document. Its underlying calls ride the Meta browser session
+//!   (cookies), not the `MODEL_API_KEY` Bearer credential —
+//!   cookie-authenticated, so per the task contract: stop, no scraping,
+//!   keep `unavailable`.
+//! * `https://api.meta.ai` 401s every path pre-routing (`/v1/models` with
+//!   a bogus Bearer fails identically to `/v1/usage`), so no usage or
+//!   balance route is discoverable or confirmable without a real key —
+//!   and none is documented. The official cookbook's only rate-limit
+//!   guidance is to watch the `x-ratelimit-remaining-*` response headers
+//!   to throttle before hitting a `429`: those headers ride **successful
+//!   inference responses only**, and a quota panel that burns a completion
+//!   per render to read them would consume the very budget it reports.
 //!
-//! Reads `MODEL_API_KEY` from the environment for now (#287 migrates
-//! provider credentials onto the vault resolver). The key is
-//! presence-checked only — never logged, never echoed into details.
+//! So this adapter lands the explicitly acceptable state: `unavailable`
+//! with an actionable detail, and it performs **zero network calls** in
+//! every branch. Any dashboard-shaped failure degrades to the existing
+//! `unavailable` row — never a hard error. (Same undocumented-endpoint
+//! caveat as the Cursor case #281/#290 — owner-accepted, `unavailable` is
+//! the safety net.)
+//!
+//! Resolves `MODEL_API_KEY` from the vault with the environment as fallback.
+//! The key is presence-checked only — never logged, never echoed into details.
 
 use super::quota_codex::{unavailable_quota, ProviderQuota};
 
@@ -33,7 +48,7 @@ fn muse_quota_with(model_api_key: Option<&str>) -> ProviderQuota {
         .is_some_and(|key| !key.is_empty());
     if !authenticated {
         return unavailable(
-            "MODEL_API_KEY is not set in the environment; set it to enable the Muse Spark provider (usage still has no API surface to report)",
+            "MODEL_API_KEY is not set; add it in Settings → Credentials or export it in the environment (usage still has no API surface to report)",
         );
     }
     unavailable(
@@ -44,7 +59,8 @@ fn muse_quota_with(model_api_key: Option<&str>) -> ProviderQuota {
 pub(crate) fn muse_quota() -> ProviderQuota {
     // Secret hygiene: presence-checked only, never logged, never echoed
     // back into a detail string or sent anywhere.
-    muse_quota_with(std::env::var("MODEL_API_KEY").ok().as_deref())
+    let key = hub::secret::resolve("MODEL_API_KEY");
+    muse_quota_with(key.as_ref().map(|secret| secret.expose()))
 }
 
 #[cfg(test)]
