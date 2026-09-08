@@ -35,6 +35,8 @@ mod quota_deepseek;
 mod quota_gemini;
 #[path = "quota/grok.rs"]
 mod quota_grok;
+#[path = "quota/muse.rs"]
+mod quota_muse;
 #[path = "quota/opencode.rs"]
 mod quota_opencode;
 #[path = "quota/quotas.rs"]
