@@ -53,6 +53,7 @@ pub use harness::{
     HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
+pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
 pub use settings::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
     FieldStatus, HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride,

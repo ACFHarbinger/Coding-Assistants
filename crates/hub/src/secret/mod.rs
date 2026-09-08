@@ -14,9 +14,11 @@
 //! Nothing here lets a secret cross an IPC boundary: [`SecretStatus`] is the
 //! entire non-secret surface — presence, source, and last-updated.
 
+pub mod catalog;
 mod keyring_backend;
 mod string;
 
+pub use catalog::{field, fields_for, FieldSpec, OwnerKind, Scope, CATALOG};
 pub use keyring_backend::KeyringBackend;
 pub use string::SecretString;
 
@@ -119,7 +121,7 @@ impl SecretBackend for UnavailableFileBackend {
 /// A credential key: an env-var name (`DEEPSEEK_API_KEY`) or a catalog id
 /// (`provider.deepseek.api_key`). Bounded and free of separators that would
 /// let it escape the keychain namespace.
-fn validate_key(key: &str) -> Result<(), SecretError> {
+pub fn validate_key(key: &str) -> Result<(), SecretError> {
     let ok = !key.is_empty()
         && key.len() <= 128
         && key

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed credential and configuration field catalog (#285, `settings.md`
+  S8): static registry `hub::secret::CATALOG` (`hub::secret::catalog`) of
+  which credential and configuration fields each harness, tool, MCP server,
+  and provider requires. Pure data and accessors (`field(id)`,
+  `fields_for(owner_kind, owner_key)`, `fields_by_owner_kind`,
+  `secret_fields`, `field_by_env_var`) with typed `OwnerKind`, `Scope`, and
+  `FieldSpec`. `FieldSpec::vault_key()` maps to `env_var` or `id` for vault
+  operations. Unblocks write-only credential commands (#283) and Settings UI
+  surface (#284).
 - Secret vault backend + unified credential resolver (#282, `platform.md`
   P12): a `SecretBackend` trait with an OS-keychain implementor (`keyring`
   v3 — Windows Credential Manager / macOS Keychain / Linux Secret Service).
