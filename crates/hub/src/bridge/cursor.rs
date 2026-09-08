@@ -304,17 +304,21 @@ pub fn deliver_cursor_task_with(
         &request.body,
         chat_id.as_deref(),
         request.model.as_deref(),
-    );
+    )
+    .and_then(|(pid, output)| {
+        // A successful worker may advance Cursor to a new chat id.  Do not
+        // acknowledge the task until that id is durable: otherwise the next
+        // delivery would resume the old chat and silently split the session.
+        if let Some(new_chat) = output.session_id.as_deref() {
+            store
+                .update_managed_harness_disk_session_id("cursor", &workspace_str, new_chat)
+                .map_err(|error| format!("failed to persist Cursor chat id: {error}"))?;
+        }
+        Ok((pid, output))
+    });
 
     let (next_state, result) = match run_res {
         Ok((_pid, output)) => {
-            if let Some(ref new_chat) = output.session_id {
-                let _ = store.update_managed_harness_disk_session_id(
-                    "cursor",
-                    &workspace_str,
-                    new_chat,
-                );
-            }
             let detail = if let Some(ref chat) = output.session_id {
                 format!("Cursor worker completed successfully (session: {chat})")
             } else {
