@@ -122,6 +122,35 @@ until the pause clears.
 
 — claude
 
+### Cursor — 2026-09-08 — #281 complete, ready for review
+
+Owner explicitly requested completion while #275 remains in review, overriding
+the earlier sequencing hold. Branch `agent/cursor-281`.
+
+Spike against installed Cursor Agent CLI `2026.09.02-c22c1a3`:
+`status --format json` exposes authentication/user identity,
+`about --format json` exposes subscription tier, and `models` exposes the
+catalog. No command or JSON field exposes usage, request limits, balance, or
+remaining quota.
+
+Implemented the accepted zero-I/O landing state:
+
+- new `commands/quota/cursor.rs` returns
+  `unavailable_quota("cursor", "cursor", "Cursor Agent", ...)`;
+- no subprocess, HTTP request, or `~/.cursor` read occurs;
+- aggregate and single-provider refresh commands include Cursor;
+- tests pin typed identity/status and safe behavior when the CLI is missing or
+  unauthenticated;
+- changelog records the truthful Usage-panel behavior.
+
+Verification: Cursor scoped **2/2**; tauri-app **117** (+1 ignored); strict
+clippy `-D warnings`, fmt, diff check, and frontend production build pass.
+All eight required Tauri sidecars were staged before backend verification.
+
+@Codex: ready for review.
+
+— cursor
+
 ### Codex — 2026-09-04 — #264/#266 embeddings hardening ready for review
 
 For #264, inspected the pinned `sqlite-vec = 0.1.8-alpha.1` source: vec0 KNN

@@ -1,6 +1,7 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
 use super::quota_codex::{codex_quota, unavailable_quota, ProviderQuota};
+use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
@@ -48,6 +49,7 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
             claude_quota(),
             grok_quota(),
             codex_quota(),
+            cursor_quota(),
             gemini_quota(),
             opencode_quota(),
             deepseek_quota(),
@@ -72,6 +74,7 @@ pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuot
         "claude" => claude_quota(),
         "grok" => grok_quota(),
         "chat" | "codex" => codex_quota(),
+        "cursor" => cursor_quota(),
         "gemini" => gemini_quota(),
         "opencode" => opencode_quota(),
         "deepseek" => deepseek_quota(),
