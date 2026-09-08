@@ -119,8 +119,10 @@ mod tests {
     /// date-sharded event-log fixture, attributes the committed assistant
     /// text to `muse`, lands it on the hub session channel, keeps a
     /// metacharacter prompt as one argv element, and never spawns on a
-    /// task-only inject (session-message ingress is closed in current
-    /// builds, so the task stays queued).
+    /// task-only inject without a managed registration (delivery is
+    /// managed-only; task delivery itself is covered by the hub
+    /// `deliver_muse_task_with` unit tests with stub runners, since this
+    /// module never spawns a live process).
     #[test]
     fn c14_muse_capture_acceptance_row() {
         use hub::muse_spawn_args;
@@ -156,7 +158,9 @@ mod tests {
         let args = muse_spawn_args(&muse_workspace, dangerous, None, None).unwrap();
         assert_eq!(args.iter().filter(|arg| *arg == dangerous).count(), 1);
 
-        let queued = inject_harness_with_store(
+        // No managed registration: task-only delivery is unavailable and
+        // must not spawn a replacement process.
+        let unregistered = inject_harness_with_store(
             &store,
             &HarnessInjectRequest {
                 harness: "muse".into(),
@@ -170,9 +174,9 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(queued.pid, None);
-        assert_eq!(queued.status, "queued");
-        assert!(!queued.detail.to_ascii_lowercase().contains("spawned"));
+        assert_eq!(unregistered.pid, None);
+        assert_eq!(unregistered.status, "unavailable");
+        assert!(!unregistered.detail.to_ascii_lowercase().contains("spawned"));
     }
 
     #[test]

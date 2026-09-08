@@ -34,7 +34,8 @@ pub use bridge::grok::{
     GrokConnectResult,
 };
 pub use bridge::muse::{
-    latest_muse_session_id, muse_session_log_path, muse_session_workspace, muse_sessions_root,
+    deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
+    muse_sessions_root,
 };
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{

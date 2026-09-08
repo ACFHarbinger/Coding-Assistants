@@ -9,15 +9,24 @@
 //! in `payload_type == "runtime.session"` records whose
 //! `payload.event.kind == "assistant_message_committed"`).
 //!
-//! Observed external sessions stay capture-only: without a registration or
-//! an explicit id the adapter returns `unavailable`/empty rather than
-//! grabbing the newest outside transcript. `muse session-message` ingress
-//! is closed in current builds (`external_agent_ingress_closed`, verified
-//! #273 spike), so task-only injects stay queued — there is no
-//! live-delivery bridge to route through.
+//! Task delivery re-enters the managed session headlessly: `muse exec
+//! --session-id <uuid> <task>` appends a run to the same transcript the
+//! capture poller reads (verified #273 spike), so delivery both performs
+//! the task and arms capture via the writer-lease release. Observed
+//! external sessions stay capture-only: delivery into a live TUI the app
+//! does not own would inject a headless run into someone else's session,
+//! so those return `unavailable` without spawning. (`muse session-message`
+//! ingress is closed in current builds — `external_agent_ingress_closed`,
+//! verified #273 spike — so a live message-bus delivery is not an option.)
 
+use crate::{
+    HarnessInjectRequest, HarnessInjectResult, HarnessSessionMode, HarnessSessionState, HubError,
+    HubStore,
+};
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 /// Sessions root honoring `${XDG_DATA_HOME:-$HOME/.local/share}/muse/sessions`.
 pub fn muse_sessions_root() -> PathBuf {
@@ -213,10 +222,323 @@ fn latest_muse_session_id_from(
         .next()
 }
 
+/// Deliver a task into a managed Muse session and arm its capture.
+///
+/// Runs `muse exec --session-id <uuid> <task>` headlessly against the
+/// registered managed session id, holding the single-writer lease for the
+/// duration. On success the lease releases to `Ready`, which arms the
+/// capture poller for the transcript the run just appended; on failure it
+/// releases back to `Queued` and the task stays queued for retry.
+///
+/// Managed-only: without an app-owned managed registration there is no
+/// session the app may append to — an observed external TUI stays
+/// capture-only and the task stays queued. Never writes a TTY/PTY and
+/// never starts an interactive TUI.
+pub fn deliver_muse_task(
+    store: &HubStore,
+    request: &HarnessInjectRequest,
+) -> Result<HarnessInjectResult, HubError> {
+    deliver_muse_task_with(store, request, run_muse_worker)
+}
+
+#[allow(dead_code)]
+pub fn deliver_muse_task_with(
+    store: &HubStore,
+    request: &HarnessInjectRequest,
+    runner: impl FnOnce(&Path, &str, &str, Option<&str>, Option<&str>) -> Result<Option<u32>, String>,
+) -> Result<HarnessInjectResult, HubError> {
+    if request.body.trim().is_empty() {
+        return Err(HubError::Invalid("inject body must not be empty".into()));
+    }
+    if !request.workspace.is_absolute() {
+        return Err(HubError::Invalid(
+            "Muse active-session delivery requires an absolute workspace".into(),
+        ));
+    }
+    let workspace = request
+        .workspace
+        .canonicalize()
+        .unwrap_or_else(|_| request.workspace.clone());
+    let workspace_str = workspace.to_string_lossy().into_owned();
+
+    let registration = store.get_harness_session("muse", &workspace_str)?;
+    let is_managed = registration
+        .as_ref()
+        .is_some_and(|row| row.mode == HarnessSessionMode::Managed);
+    if !is_managed {
+        return Ok(unavailable(
+            "Muse active-session delivery requires an app-owned managed session. Register one with hub_register_managed_harness_session. Task stays queued.",
+        ));
+    }
+    // `request.session_id` is the Hub work-session id, not Muse's disk
+    // session id. Never pass it to `muse exec --session-id`.
+    let registered_id = registration
+        .as_ref()
+        .map(|row| row.disk_session_id.clone())
+        .unwrap_or_default();
+    let Some(disk_uuid) = crate::harness::muse_disk_session_id(&registered_id) else {
+        return Ok(unavailable(&format!(
+            "registered Muse session id {registered_id:?} is not a UUID and cannot be resumed with `muse exec --session-id`. Task stays queued."
+        )));
+    };
+
+    let writer_owner = format!(
+        "muse-worker:{}",
+        request.message_id.as_deref().unwrap_or("untracked")
+    );
+    if let Err(error) = store.acquire_harness_writer("muse", &workspace_str, &writer_owner) {
+        return Ok(queued(&format!(
+            "Muse managed worker in workspace {workspace_str} is busy; task stays queued for retry: {error}"
+        )));
+    }
+
+    let run_res = runner(
+        &workspace,
+        &request.body,
+        &disk_uuid,
+        request.model.as_deref(),
+        request.effort.as_deref(),
+    );
+    let (next_state, result) = match run_res {
+        Ok(pid) => {
+            if let Some(message_id) = request.message_id.as_deref() {
+                let _ = store.set_message_status(message_id, crate::MessageStatus::Acked);
+            }
+            (
+                HarnessSessionState::Ready,
+                HarnessInjectResult {
+                    harness: "muse".into(),
+                    pid,
+                    status: "delivered".into(),
+                    detail: format!(
+                        "forwarded to managed Muse session {disk_uuid}; the run's transcript is captured on the next poll"
+                    ),
+                },
+            )
+        }
+        Err(error) => (
+            HarnessSessionState::Queued,
+            HarnessInjectResult {
+                harness: "muse".into(),
+                pid: None,
+                status: "errored".into(),
+                detail: format!("Muse worker failed: {error}"),
+            },
+        ),
+    };
+    let _ = store.release_harness_writer("muse", &workspace_str, &writer_owner, next_state);
+    Ok(result)
+}
+
+/// Run one headless `muse exec --session-id <uuid>` task turn and wait for
+/// it, returning the worker pid. Stdout is drained and discarded — the
+/// event log (not the rendered terminal text) is the capture source of
+/// truth, so recording stdout here would risk double-captures under
+/// different content hashes. Stderr is dropped for the same pipe-stall
+/// reason; a non-zero exit still reports its code.
+///
+/// No approval-bypass flags are passed: a run that needs an approval the
+/// headless worker cannot obtain fails truthfully instead of hanging on a
+/// prompt no one will answer (stdin is null).
+fn run_muse_worker(
+    workspace: &Path,
+    prompt: &str,
+    disk_uuid: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Option<u32>, String> {
+    let args =
+        crate::harness::muse_managed_spawn_args(workspace, prompt, Some(disk_uuid), model, effort)
+            .map_err(|error| format!("invalid Muse spawn args: {error}"))?;
+    let mut child = Command::new("muse")
+        .args(&args)
+        .current_dir(workspace)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("failed to spawn muse: {error}"))?;
+    let pid = Some(child.id());
+    if let Some(stdout) = child.stdout.take() {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            let _ = line;
+        }
+    }
+    let status = child
+        .wait()
+        .map_err(|error| format!("error waiting for muse: {error}"))?;
+    if status.success() {
+        Ok(pid)
+    } else {
+        Err(format!("muse exited with code {:?}", status.code()))
+    }
+}
+
+fn unavailable(detail: &str) -> HarnessInjectResult {
+    HarnessInjectResult {
+        harness: "muse".into(),
+        pid: None,
+        status: "unavailable".into(),
+        detail: detail.into(),
+    }
+}
+
+fn queued(detail: &str) -> HarnessInjectResult {
+    HarnessInjectResult {
+        harness: "muse".into(),
+        pid: None,
+        status: "queued".into(),
+        detail: detail.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{HarnessInjectRequest, HubStore};
     use std::io::Write;
+
+    const MANAGED_WS: &str = "/tmp/c14-muse-deliver";
+    const MANAGED_UUID: &str = "123e4567-e89b-42d3-a456-426614174000";
+
+    fn managed_uuid() -> String {
+        format!("managed-{MANAGED_UUID}")
+    }
+
+    fn register_queued_managed(store: &HubStore) {
+        store
+            .register_managed_harness_session_with_state(
+                "muse",
+                MANAGED_WS,
+                &managed_uuid(),
+                None,
+                crate::HarnessSessionState::Queued,
+            )
+            .unwrap();
+    }
+
+    fn task_request() -> HarnessInjectRequest {
+        HarnessInjectRequest {
+            harness: "muse".into(),
+            workspace: PathBuf::from(MANAGED_WS),
+            session_id: Some("hub-session-1".into()),
+            message_id: None,
+            body: "do the thing".into(),
+            is_task: true,
+            is_wake: false,
+            ..Default::default()
+        }
+    }
+
+    fn no_spawn_runner(
+        _: &Path,
+        _: &str,
+        _: &str,
+        _: Option<&str>,
+        _: Option<&str>,
+    ) -> Result<Option<u32>, String> {
+        panic!("deliver must not spawn without an armed managed session")
+    }
+
+    #[test]
+    fn deliver_requires_a_managed_registration() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let outcome = deliver_muse_task_with(&store, &task_request(), no_spawn_runner).unwrap();
+        assert_eq!(outcome.status, "unavailable");
+        assert_eq!(outcome.pid, None);
+        assert!(!outcome.detail.contains("spawned"));
+    }
+
+    #[test]
+    fn deliver_refuses_observed_sessions_without_spawning() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .register_harness_session("muse", MANAGED_WS, MANAGED_UUID, None)
+            .unwrap();
+        let outcome = deliver_muse_task_with(&store, &task_request(), no_spawn_runner).unwrap();
+        assert_eq!(outcome.status, "unavailable");
+        assert_eq!(outcome.pid, None);
+    }
+
+    #[test]
+    fn deliver_runs_the_worker_and_arms_capture() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        register_queued_managed(&store);
+        let outcome = deliver_muse_task_with(&store, &task_request(), |_, body, uuid, _, _| {
+            // The Hub work-session id must never reach the CLI; the runner
+            // gets the stripped disk UUID.
+            assert_eq!(body, "do the thing");
+            assert_eq!(uuid, MANAGED_UUID);
+            Ok(Some(4321))
+        })
+        .unwrap();
+        assert_eq!(outcome.status, "delivered");
+        assert_eq!(outcome.pid, Some(4321));
+        let row = store
+            .get_harness_session("muse", MANAGED_WS)
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.state, crate::HarnessSessionState::Ready);
+        assert_eq!(row.disk_session_id, managed_uuid());
+        // The lease was released: a new owner can acquire it.
+        assert!(store
+            .acquire_harness_writer("muse", MANAGED_WS, "next-turn")
+            .is_ok());
+    }
+
+    #[test]
+    fn deliver_failure_returns_the_session_to_queued() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        register_queued_managed(&store);
+        let outcome =
+            deliver_muse_task_with(&store, &task_request(), |_, _, _, _, _| Err("boom".into()))
+                .unwrap();
+        assert_eq!(outcome.status, "errored");
+        assert_eq!(outcome.pid, None);
+        let row = store
+            .get_harness_session("muse", MANAGED_WS)
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.state, crate::HarnessSessionState::Queued);
+        assert!(store
+            .acquire_harness_writer("muse", MANAGED_WS, "retry-turn")
+            .is_ok());
+    }
+
+    #[test]
+    fn deliver_while_busy_stays_queued_without_spawning() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        register_queued_managed(&store);
+        store
+            .acquire_harness_writer("muse", MANAGED_WS, "other-turn")
+            .unwrap();
+        let outcome = deliver_muse_task_with(&store, &task_request(), no_spawn_runner).unwrap();
+        assert_eq!(outcome.status, "queued");
+        assert_eq!(outcome.pid, None);
+    }
+
+    #[test]
+    fn deliver_rejects_an_unusable_registered_id_without_spawning() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        store
+            .register_managed_harness_session_with_state(
+                "muse",
+                MANAGED_WS,
+                "chat-1",
+                None,
+                crate::HarnessSessionState::Queued,
+            )
+            .unwrap();
+        let outcome = deliver_muse_task_with(&store, &task_request(), no_spawn_runner).unwrap();
+        assert_eq!(outcome.status, "unavailable");
+        assert!(outcome.detail.contains("UUID"));
+    }
 
     fn write_log(dir: &Path, workspace_root: &str) {
         std::fs::create_dir_all(dir).unwrap();

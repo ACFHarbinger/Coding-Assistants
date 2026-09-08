@@ -124,6 +124,22 @@ mod tests {
     }
 
     #[test]
+    fn ready_managed_session_arms_capture() {
+        // The lifecycle `deliver_muse_task` produces: a Managed row the
+        // writer-lease release moved to Ready. The gate must then resolve
+        // the registered id so the desktop poller captures the transcript
+        // the delivery run appended.
+        let dir = tempdir().unwrap();
+        let store = hub::HubStore::open(dir.path()).unwrap();
+        store
+            .register_managed_harness_session("muse", "/abs/ws", "managed-disk-1", 4321)
+            .unwrap();
+        let resolved =
+            resolve_capture_session_id(&store, "muse", Path::new("/abs/ws"), None).unwrap();
+        assert_eq!(resolved.as_deref(), Some("managed-disk-1"));
+    }
+
+    #[test]
     fn queued_managed_session_does_not_arm_capture_of_a_prior_transcript() {
         let dir = tempdir().unwrap();
         let store = hub::HubStore::open(dir.path()).unwrap();

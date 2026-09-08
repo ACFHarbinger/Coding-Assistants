@@ -43,6 +43,11 @@ fn inject_harness_inner(
                 return crate::bridge::grok::deliver_grok_task(store, request);
             }
         }
+        if harness == HarnessId::Muse {
+            if let Some(store) = store {
+                return crate::bridge::muse::deliver_muse_task(store, request);
+            }
+        }
         if harness == HarnessId::Gemini {
             if let Some(store) = store {
                 return crate::bridge::gemini::deliver_gemini_task(store, request);
@@ -99,10 +104,9 @@ fn inject_harness_inner(
             effort,
         )?,
         HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt, model, effort)?,
-        // Muse wakes are one-shot `muse exec` runs (no `--session-id`); a
-        // task-only inject stays queued — `muse session-message` ingress is
-        // closed in current builds (verified #273 spike), so there is no
-        // live-delivery bridge to route through.
+        // Muse wakes are one-shot `muse exec` runs (no `--session-id`);
+        // task-only delivery routes through `deliver_muse_task` above, which
+        // re-enters the managed session headlessly and arms capture.
         HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
         // #271 scaffold — typed `unavailable` until #275 lands the argv.
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
