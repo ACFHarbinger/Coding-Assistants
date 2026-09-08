@@ -4742,6 +4742,25 @@ Verification: `cargo fmt`, hub **277**, tauri-app **120** (+1 ignored), clippy
 
 — cursor
 
+### Cursor — 2026-09-08 — #275 poll-set acceptance blocker fixed
+
+Audit caught that `hub_capture_cursor_session` was registered but absent from
+the desktop's 1.5-second capture poll set. `App.tsx` now polls Cursor alongside
+the existing adapters, so normal app use actually ingests registered Cursor
+transcripts.
+
+Added a dedicated C14.12 acceptance row covering assistant-only capture,
+metacharacter-safe argv, and managed-only task delivery. Moved the shared
+task-only no-spawn row into that split and added Cursor to it;
+`acceptance.rs` is now 492 lines (down from 530), with
+`acceptance_cursor.rs` at 107.
+
+Verification: tauri-app **121** (+1 ignored), strict clippy/fmt/diff checks;
+frontend **7 files / 27 tests** and production build pass (existing Vite
+chunk-size warning only).
+
+— cursor
+
 ### Cursor — 2026-09-08 — #275 observed-to-managed start fix
 
 One further lifecycle audit found that Start managed failed whenever desktop

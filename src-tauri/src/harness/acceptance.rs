@@ -1,15 +1,6 @@
-//! C12 four-harness acceptance test.
-//!
-//! Exercises all four capture adapters (Grok, Codex, Claude, Gemini) against
-//! fixture transcripts in the same shapes their real on-disk logs use, and
-//! confirms every capture lands in one shared hub session channel. Also
-//! confirms the `inject_harness` contract returns a structured `Result`
-//! (never panics) and that every harness's argv builder keeps a prompt
-//! containing shell metacharacters as a single, unsplit argument — proof the
-//! delivery path never concatenates one into a shell string. No live
-//! process is spawned anywhere in this module; every check runs against
-//! pure/deterministic paths (fixture files, or `inject_harness`'s
-//! synchronous validation, which runs before any spawn attempt).
+//! Shared C12 capture and injection acceptance tests.
+//! All checks use deterministic fixtures or pre-spawn validation; no live
+//! harness process is launched.
 
 #[cfg(test)]
 mod tests {
@@ -497,34 +488,5 @@ mod tests {
         assert_eq!(stored.from_agent, "human");
         assert_eq!(stored.to_agent, "grok");
         assert_eq!(stored.subject.as_deref(), Some(subject.as_str()));
-    }
-
-    #[test]
-    fn task_only_inject_never_spawns_and_reports_truthful_outcomes() {
-        let store_dir = tempdir().unwrap();
-        let store = HubStore::open(store_dir.path()).unwrap();
-        let workspace = PathBuf::from("/tmp/c12-no-spawn");
-        for harness in ["grok", "chat", "claude", "gemini"] {
-            let result = inject_harness_with_store(
-                &store,
-                &HarnessInjectRequest {
-                    harness: harness.into(),
-                    workspace: workspace.clone(),
-                    session_id: Some("session".into()),
-                    message_id: Some("msg".into()),
-                    body: "do not spawn a replacement".into(),
-                    is_task: true,
-                    is_wake: false,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-            assert_eq!(result.pid, None, "{harness}: {result:?}");
-            assert!(
-                result.status == "unavailable" || result.status == "queued",
-                "{harness}: {result:?}"
-            );
-            assert!(!result.detail.to_ascii_lowercase().contains("spawned"));
-        }
     }
 }

@@ -206,6 +206,11 @@ function App() {
             geminiSessionId: null,
             hubSessionId: sessionIdRef.current,
           }),
+          invoke<{ captured?: unknown[] }>("hub_capture_cursor_session", {
+            workspace,
+            cursorSessionId: null,
+            hubSessionId: sessionIdRef.current,
+          }),
         ]);
         const capturedNew = captures.some(result =>
           result.status === "fulfilled" && (result.value.captured?.length ?? 0) > 0
