@@ -75,4 +75,32 @@ impl HubStore {
         )?;
         Ok(changed == 1)
     }
+
+    /// Update the provider chat/thread id on a managed row without resetting
+    /// mode, writer lease, or managed_pid. Used after a one-shot worker exits.
+    pub fn update_managed_harness_disk_session_id(
+        &self,
+        harness: &str,
+        workspace: &str,
+        disk_session_id: &str,
+    ) -> Result<(), HubError> {
+        let disk_session_id = disk_session_id.trim();
+        if disk_session_id.is_empty() {
+            return Err(HubError::Invalid(
+                "managed harness disk session id must not be empty".into(),
+            ));
+        }
+        let changed = self.conn.execute(
+            "UPDATE harness_session_registrations
+             SET disk_session_id = ?3, managed_pid = NULL
+             WHERE harness = ?1 AND workspace = ?2 AND mode = 'managed'",
+            params![harness.trim(), workspace.trim(), disk_session_id],
+        )?;
+        if changed == 0 {
+            return Err(HubError::NotFound(format!(
+                "managed {harness} harness session at {workspace}"
+            )));
+        }
+        Ok(())
+    }
 }

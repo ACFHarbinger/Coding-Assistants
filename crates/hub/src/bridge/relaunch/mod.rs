@@ -106,6 +106,15 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Muse, None) => vec![],
         (HarnessId::Cursor, Some(id)) => vec!["--resume".into(), id.into()],
         (HarnessId::Cursor, None) => vec![],
+        // OpenCode / Vibe resume flags are not wired for interactive relaunch yet.
+        (HarnessId::OpenCode, Some(_))
+        | (HarnessId::DeepSeek, Some(_))
+        | (HarnessId::Vibe, Some(_)) => {
+            vec![]
+        }
+        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) | (HarnessId::Vibe, None) => {
+            vec![]
+        }
     }
 }
 

@@ -18,6 +18,104 @@ use std::process::{Command, Stdio};
 
 use crate::harness::cursor_executable;
 
+const CURSOR_MANAGED_START_WRITER: &str = "cursor-managed-start";
+const CURSOR_PENDING_DISK_SESSION_ID: &str = "pending";
+
+pub fn start_cursor_managed_harness(
+    store: &HubStore,
+    workspace: &Path,
+    prompt: &str,
+) -> Result<(crate::HarnessStartResult, crate::HarnessSessionRegistration), String> {
+    start_cursor_managed_harness_with(store, workspace, prompt, run_cursor_worker)
+}
+
+pub fn start_cursor_managed_harness_with(
+    store: &HubStore,
+    workspace: &Path,
+    prompt: &str,
+    runner: impl FnOnce(
+        &Path,
+        &str,
+        Option<&str>,
+        Option<&str>,
+    ) -> Result<(Option<u32>, CursorStreamOutput), String>,
+) -> Result<(crate::HarnessStartResult, crate::HarnessSessionRegistration), String> {
+    if !workspace.is_absolute() {
+        return Err("workspace must be an absolute path".into());
+    }
+    let workspace_key = workspace.to_string_lossy().to_string();
+    if let Ok(Some(existing)) = store.get_harness_session("cursor", &workspace_key) {
+        if let Some(pid) = existing.managed_pid {
+            crate::bridge::relaunch::kill_pid(pid);
+        }
+    }
+
+    if store
+        .get_harness_session("cursor", &workspace_key)
+        .map_err(|error| error.to_string())?
+        .is_none()
+    {
+        store
+            .register_managed_harness_session_with_state(
+                "cursor",
+                &workspace_key,
+                CURSOR_PENDING_DISK_SESSION_ID,
+                None,
+                crate::HarnessSessionState::Queued,
+            )
+            .map_err(|error| error.to_string())?;
+    }
+
+    store
+        .acquire_harness_writer("cursor", &workspace_key, CURSOR_MANAGED_START_WRITER)
+        .map_err(|error| format!("Cursor managed start is busy: {error}"))?;
+
+    let run_result = runner(workspace, prompt, None, None);
+    let (started, registration) = match run_result {
+        Ok((_pid, output)) => {
+            let chat_id = output.session_id.ok_or_else(|| {
+                "Cursor managed start completed but stream-json did not include a session_id; cannot register this workspace".to_string()
+            })?;
+            store
+                .update_managed_harness_disk_session_id("cursor", &workspace_key, &chat_id)
+                .map_err(|error| error.to_string())?;
+            let registration = store
+                .get_harness_session("cursor", &workspace_key)
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "Cursor managed registration disappeared".to_string())?;
+            let started = crate::HarnessStartResult {
+                harness: "cursor".into(),
+                pid: None,
+                status: "started".into(),
+                detail: format!(
+                    "Cursor managed session registered (chat id: {chat_id}); awaiting its first task before capture starts."
+                ),
+            };
+            (started, registration)
+        }
+        Err(error) => {
+            let _ = store.release_harness_writer(
+                "cursor",
+                &workspace_key,
+                CURSOR_MANAGED_START_WRITER,
+                crate::HarnessSessionState::Queued,
+            );
+            return Err(error);
+        }
+    };
+
+    store
+        .release_harness_writer(
+            "cursor",
+            &workspace_key,
+            CURSOR_MANAGED_START_WRITER,
+            crate::HarnessSessionState::Queued,
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok((started, registration))
+}
+
 pub fn cursor_projects_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".cursor").join("projects")
@@ -112,20 +210,14 @@ fn assistant_text_from_stream_value(value: &Value) -> Option<String> {
 }
 
 /// Real Cursor chat ids come from stream-json at managed start or task delivery.
-/// Hub `managed-*` placeholders and empty ids must never reach `--resume`.
+/// Hub `managed-*` / `pending` placeholders must never reach `--resume`.
+/// `request.session_id` is Hub work-session routing metadata, not a Cursor chat id.
 pub(crate) fn persisted_cursor_chat_id(
     registration: Option<&crate::HarnessSessionRegistration>,
-    request_session_id: Option<&str>,
 ) -> Option<String> {
-    if let Some(id) = request_session_id
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-    {
-        return Some(id.to_string());
-    }
     registration.and_then(|row| {
         let id = row.disk_session_id.trim();
-        if id.is_empty() || id.starts_with("managed-") {
+        if id.is_empty() || id.starts_with("managed-") || id == "pending" {
             None
         } else {
             Some(id.to_string())
@@ -176,14 +268,7 @@ pub fn deliver_cursor_task_with(
         ));
     }
 
-    let chat_id = persisted_cursor_chat_id(registration.as_ref(), request.session_id.as_deref())
-        .or_else(|| {
-            if is_managed {
-                None
-            } else {
-                latest_cursor_session_id(&workspace)
-            }
-        });
+    let chat_id = persisted_cursor_chat_id(registration.as_ref());
 
     if is_managed && chat_id.is_none() {
         return Ok(unavailable(
@@ -210,13 +295,12 @@ pub fn deliver_cursor_task_with(
     );
 
     let (next_state, result) = match run_res {
-        Ok((pid, output)) => {
+        Ok((_pid, output)) => {
             if let Some(ref new_chat) = output.session_id {
-                let _ = store.register_managed_harness_session(
+                let _ = store.update_managed_harness_disk_session_id(
                     "cursor",
                     &workspace_str,
                     new_chat,
-                    pid.unwrap_or_else(std::process::id),
                 );
             }
             let detail = if let Some(ref chat) = output.session_id {
@@ -228,7 +312,7 @@ pub fn deliver_cursor_task_with(
                 HarnessSessionState::Ready,
                 HarnessInjectResult {
                     harness: "cursor".into(),
-                    pid,
+                    pid: None,
                     status: "ok".into(),
                     detail,
                 },
@@ -261,6 +345,7 @@ pub(crate) fn run_cursor_worker(
     let mut child = Command::new(cursor_executable())
         .args(&args)
         .current_dir(workspace)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -268,6 +353,12 @@ pub(crate) fn run_cursor_worker(
 
     let pid = Some(child.id());
     let mut stream_out = CursorStreamOutput::default();
+
+    let stderr_drain = child.stderr.take().map(|stderr| {
+        std::thread::spawn(move || {
+            let _ = std::io::read_to_string(stderr);
+        })
+    });
 
     if let Some(stdout) = child.stdout.take() {
         let reader = BufReader::new(stdout);
@@ -279,6 +370,10 @@ pub(crate) fn run_cursor_worker(
                 stream_out.assistant_texts.extend(evt.assistant_texts);
             }
         }
+    }
+
+    if let Some(handle) = stderr_drain {
+        let _ = handle.join();
     }
 
     let status = child
@@ -385,7 +480,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(result.status, "ok");
-        assert_eq!(result.pid, Some(1234));
+        assert_eq!(result.pid, None);
 
         let sess = store
             .get_harness_session("cursor", &ws_str)
@@ -438,11 +533,76 @@ mod tests {
             writer_owner: None,
             writer_acquired_at: None,
         };
-        assert!(persisted_cursor_chat_id(Some(&registration), None).is_none());
-        assert_eq!(
-            persisted_cursor_chat_id(Some(&registration), Some("real-chat-1")).as_deref(),
-            Some("real-chat-1")
-        );
+        assert!(persisted_cursor_chat_id(Some(&registration)).is_none());
+    }
+
+    #[test]
+    fn delivery_ignores_hub_session_routing_metadata_for_resume() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let workspace = dir.path();
+        let ws_str = workspace.to_string_lossy().into_owned();
+        store
+            .register_managed_harness_session("cursor", &ws_str, "cursor-chat-real", 1234)
+            .unwrap();
+
+        let req = HarnessInjectRequest {
+            harness: "cursor".into(),
+            workspace: workspace.to_path_buf(),
+            session_id: Some("hub-work-session-routing-id".into()),
+            message_id: Some("msg-test-2".into()),
+            body: "continue task".into(),
+            is_task: true,
+            is_wake: false,
+            ..Default::default()
+        };
+
+        let result = deliver_cursor_task_with(&store, &req, |_ws, _prompt, chat_id, _model| {
+            assert_eq!(chat_id, Some("cursor-chat-real"));
+            Ok((
+                None,
+                CursorStreamOutput {
+                    session_id: Some("cursor-chat-real".into()),
+                    assistant_texts: vec![],
+                },
+            ))
+        })
+        .unwrap();
+        assert_eq!(result.status, "ok");
+    }
+
+    #[test]
+    fn managed_start_persists_stream_session_id_as_disk_session_id() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let workspace = dir.path().canonicalize().unwrap();
+        let ws_str = workspace.to_string_lossy().into_owned();
+
+        let (started, registration) = start_cursor_managed_harness_with(
+            &store,
+            &workspace,
+            "Coding-Assistants managed session",
+            |_ws, _prompt, _chat_id, _model| {
+                Ok((
+                    None,
+                    CursorStreamOutput {
+                        session_id: Some("stream-chat-42".into()),
+                        assistant_texts: vec![],
+                    },
+                ))
+            },
+        )
+        .unwrap();
+
+        assert_eq!(started.status, "started");
+        assert_eq!(registration.disk_session_id, "stream-chat-42");
+        let row = store
+            .get_harness_session("cursor", &ws_str)
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.disk_session_id, "stream-chat-42");
+        assert!(row.writer_owner.is_none());
+        assert_eq!(row.managed_pid, None);
     }
 
     #[test]

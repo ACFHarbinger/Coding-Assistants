@@ -18,47 +18,6 @@ use super::kill_pid;
 
 const IMMEDIATE_EXIT_GRACE: Duration = Duration::from_millis(750);
 
-/// Cursor `agent -p` is a one-shot print run: stdout must be piped so the
-/// real chat id can be parsed from stream-json and persisted. The generic
-/// `start_harness_owned` path discards stdout (#275 review).
-fn start_cursor_managed_worker(
-    store: &HubStore,
-    workspace: &Path,
-    prompt: &str,
-) -> Result<(HarnessStartResult, HarnessSessionRegistration), String> {
-    let workspace_key = workspace.to_string_lossy().to_string();
-    if let Ok(Some(existing)) = store.get_harness_session("cursor", &workspace_key) {
-        if let Some(pid) = existing.managed_pid {
-            kill_pid(pid);
-        }
-    }
-
-    let (_pid, output) = crate::bridge::cursor::run_cursor_worker(workspace, prompt, None, None)?;
-    let chat_id = output.session_id.ok_or_else(|| {
-        "Cursor managed start completed but stream-json did not include a session_id; cannot register this workspace".to_string()
-    })?;
-
-    let registration = store
-        .register_managed_harness_session_with_state(
-            "cursor",
-            &workspace_key,
-            &chat_id,
-            None,
-            crate::HarnessSessionState::Queued,
-        )
-        .map_err(|error| error.to_string())?;
-
-    let started = HarnessStartResult {
-        harness: "cursor".into(),
-        pid: None,
-        status: "started".into(),
-        detail: format!(
-            "Cursor managed session registered (chat id: {chat_id}); awaiting its first task before capture starts."
-        ),
-    };
-    Ok((started, registration))
-}
-
 fn fresh_managed_session_id() -> String {
     format!("managed-{}", Uuid::new_v4())
 }
@@ -125,7 +84,7 @@ pub fn start_managed_harness(
         return Err("workspace must be an absolute path".into());
     }
     if harness == HarnessId::Cursor {
-        return start_cursor_managed_worker(store, workspace, prompt);
+        return crate::bridge::cursor::start_cursor_managed_harness(store, workspace, prompt);
     }
     // A caller-provided id may name a global, pre-existing provider session.
     // Never register it for a new managed worker: doing so arms the capture
