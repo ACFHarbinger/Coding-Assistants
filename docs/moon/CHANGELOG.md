@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typed provider health probe (#291–#294, `platform.md` P3):** a cheap
+  per-provider `ProviderHealth` surface (`installed` / `authenticated` /
+  `auth_expires_at` / optional `endpoint_reachable`) parallel to the quota
+  adapters, with no usage call and no long-timeout network by default —
+  aggregate `hub_get_provider_health` / `hub_refresh_provider_health(agent_id)`
+  (#291). Surfaced in `HarnessReadinessPanel` and `QuotaStatusStrip` so the
+  Claude Code and Gemini `agy` rows stop showing process discovery only
+  (#292). Managed-session `managed_pid` is reconciled against `hub::proc` and
+  the writer lease is surfaced for the Muse/Cursor live rows (#293). Muse and
+  Cursor self-integrate their own health branches (#294). Same secret hygiene
+  as the quota adapters — only presence / expiry / reachability cross IPC.
 - **Encrypted-file secret vault fallback backend (#289, `platform.md` P12):**
   `hub::secret::FileBackend` implements `SecretBackend` for environments with
   no functioning OS secret service (headless Linux, CI, minimal desktop sessions).

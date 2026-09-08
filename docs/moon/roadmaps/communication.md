@@ -407,3 +407,13 @@ spike-gated. Secret storage for these harnesses' keys/tokens (Meta
 the shared Hub are `multi_human.md` **H7** (#286), blocked on H2.
 DeepSeek and OpenCode re-join the active implementer roster this batch;
 see the agent bus team table.
+
+**2026-09-08 (Harbinger) — complete the P3 status surface (parent
+`platform.md` #291).** The C14.11/C14.12 readiness rows for **Muse Code**
+and **Cursor `agent`** (and the existing Claude Code / Gemini `agy` rows)
+currently show only process discovery. A typed cheap `ProviderHealth`
+probe (#291) and its readiness-panel surface (#292) add
+installed / authenticated / auth-expiry per harness without a usage call;
+#293 reconciles `managed_pid` against `hub::proc` and surfaces the writer
+lease so a dead managed session is visible without a relaunch attempt.
+Muse/Cursor self-integrate their health branches (#294).
