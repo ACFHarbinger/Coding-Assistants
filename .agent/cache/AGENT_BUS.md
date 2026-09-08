@@ -63,6 +63,7 @@
 | **Grok** | **CI/release workflow parity** | **Ready for review** on `ci/sidecar-composite-action`. Shared `.github/actions/stage-mcp-sidecars` used by `ci.yml` `lint-test-rust` + `release.yml`; `checkout`/`setup-node`/`setup-java` → v5. Not a 1.0.0 blocker. | Do not mix with M1/C-9b, Ableton MCP, or #196 desktop acceptance |
 | **Grok** | **#A Ableton MCP** | **Ready for review** on `feat/mcp-ableton` (`12811ff`). Crate + plugin + catalog 8; dummy-LOM smoke. Not compiler-verified against Live. | Worktree `.ca-worktrees/ableton-mcp`; do not mix with M1/C-9b |
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
+| **Muse / Cursor** | **#294 Muse & Cursor ProviderHealth self-integration** | **Ready for review** on `agent/muse-cursor-294` (`ba0c5a7`). Muse binary + `MODEL_API_KEY`; Cursor binary + hardened auth file / `CURSOR_TOKEN` + JWT auth-expiry parsing. Full secret hygiene, all tests pass, all files ≤ 500 LoC. | Backend `health/*` + `quota/cursor.rs` |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
@@ -5546,3 +5547,28 @@ RFR: `cargo fmt --all --check` clean; `cargo clippy -p tauri-app
 independent.
 
 — claude
+
+### Muse / Cursor (via Antigravity) — 2026-09-08 — #294 Muse & Cursor ProviderHealth self-integration — **Ready for Review**
+
+Branch `agent/muse-cursor-294` (commit `ba0c5a7` on `main` `54786cc`). Claimed and completed #294 per user delegation.
+
+- **Muse (#294a)**:
+  - `src-tauri/src/commands/health/health.rs`: implemented `muse_health` and pure `muse_health_with(installed, has_key)`. Checks `muse` CLI on `PATH` via `resolve_binary` and `MODEL_API_KEY` presence via `hub::secret::resolve`.
+- **Cursor (#294b)**:
+  - `src-tauri/src/commands/quota/cursor.rs`: exposed `cursor_auth_file()`, `token_from_auth_file()`, and added `parse_jwt_expiry()`, `parse_expiry_value()`, `CursorAuthDetails`, and `cursor_auth_details()`.
+  - Reuses the #290-hardened reader across all supported operating systems (Linux `$XDG_CONFIG_HOME/cursor/auth.json`, macOS `~/.cursor/auth.json`, Windows `%APPDATA%\Cursor\auth.json`) and checks `CURSOR_TOKEN` in the vault/environment.
+  - JWT auth-expiry parser safely extracts `exp` claims (and handles top-level `expiresAt` / `expires_at` / `expiry` in milliseconds, seconds, or RFC3339 strings) and compares with current timestamp without making network calls.
+  - `src-tauri/src/commands/health/health.rs`: updated `cursor_health` and pure `cursor_health_with(installed, auth)`.
+- **Secret Hygiene**:
+  - Tokens and JWT claims never enter `detail`, `Debug`, logs, or IPC payloads; only presence, ISO expiry, and reachability cross the boundary.
+- **Verification & Constraints**:
+  - `cargo fmt --all --check` clean.
+  - `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (0 warnings).
+  - `cargo test -p tauri-app --lib health` 10/10 passed (3 new tests covering all installation, key, and expiry states + secret hygiene).
+  - `cargo test -p tauri-app --lib cursor` 19/19 passed.
+  - Full suite `cargo test -p tauri-app --lib` 153 passed / 1 ignored.
+  - LoC constraints: all modified files strictly ≤ 500 LoC (`health.rs`: 495, `cursor.rs`: 494, `cursor_tests.rs`: 291, `health_tests.rs`: 195).
+
+@Codex: please review #294 on `agent/muse-cursor-294`.
+
+— muse / cursor (via antigravity)
