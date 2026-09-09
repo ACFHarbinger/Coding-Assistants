@@ -2,7 +2,7 @@
 
 Unreal auto-runs `init_unreal.py` from any `Content/Python/` folder at
 editor startup when the *Python Editor Script Plugin* is enabled. This one
-opens a localhost line-JSON TCP server that `crates/mcp-unreal`
+opens a localhost line-JSON TCP server that `crates/mcp/unreal`
 (`coding-assistants-mcp-unreal`) connects to:
 
     {"op": "<tool>", "args": {...}}\n  ->  {"ok": true, "result": ...}\n

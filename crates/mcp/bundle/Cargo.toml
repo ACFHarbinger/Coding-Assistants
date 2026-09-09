@@ -1,0 +1,19 @@
+[package]
+name = "mcp-bundle"
+version = "0.1.0"
+edition = "2021"
+description = "Consolidated binary dispatching all Coding-Assistants MCP tool bridges"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "coding-assistants-mcp"
+path = "src/main.rs"
+
+[dependencies]
+mcp-aseprite = { path = "../aseprite" }
+mcp-blender = { path = "../blender" }
+mcp-godot = { path = "../godot" }
+mcp-krita = { path = "../krita" }
+mcp-opentoonz = { path = "../opentoonz" }
+mcp-unity = { path = "../unity" }
+mcp-unreal = { path = "../unreal" }

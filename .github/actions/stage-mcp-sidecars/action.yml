@@ -1,6 +1,6 @@
 name: Stage bundled bridge sidecars
 description: >
-  Build the Claude Channel bridge and seven Creative Tools MCP bridge crates, then stage the
+  Build the Claude Channel bridge and consolidated Creative Tools MCP bridge crate, then stage the
   target-qualified filenames Tauri `bundle.externalBin` expects.
   Requires rustc, cargo, and node on PATH (callers install the toolchain).
 
@@ -27,11 +27,5 @@ runs:
         fi
         cargo build --release --target "${target}" \
           -p claude \
-          -p mcp-blender \
-          -p mcp-krita \
-          -p mcp-godot \
-          -p mcp-aseprite \
-          -p mcp-unreal \
-          -p mcp-unity \
-          -p mcp-opentoonz
+          -p mcp-bundle
         node tools/release/stage-mcp-sidecars.mjs "${target}"

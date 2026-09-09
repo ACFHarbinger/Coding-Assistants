@@ -40,13 +40,7 @@
     ],
     "externalBin": [
       "binaries/coding-assistants-claude-channel",
-      "binaries/coding-assistants-mcp-blender",
-      "binaries/coding-assistants-mcp-krita",
-      "binaries/coding-assistants-mcp-godot",
-      "binaries/coding-assistants-mcp-aseprite",
-      "binaries/coding-assistants-mcp-unreal",
-      "binaries/coding-assistants-mcp-unity",
-      "binaries/coding-assistants-mcp-opentoonz"
+      "binaries/coding-assistants-mcp"
     ],
     "linux": {
       "deb": {

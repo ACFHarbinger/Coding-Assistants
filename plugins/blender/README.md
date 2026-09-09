@@ -4,11 +4,11 @@ Two halves:
 
 - **`coding_assistants_bridge.py`** — a Blender add-on. Opens a localhost
   line-JSON TCP server (default port **9765**).
-- **`crates/mcp-blender`** (`coding-assistants-mcp-blender`) — the MCP
+- **`crates/mcp/blender`** (`coding-assistants-mcp blender`) — the MCP
   server an agent's config points at. Connects to the add-on per tool call.
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-blender ──TCP line-JSON──► Blender add-on ──► bpy
+agent ──stdio MCP──► coding-assistants-mcp blender ──TCP line-JSON──► Blender add-on ──► bpy
 ```
 
 ## Install the add-on
@@ -23,15 +23,15 @@ launch. Console shows `Blender bridge listening on 127.0.0.1:9765`.
 
 ## Register the MCP server
 
-`coding-assistants-mcp-blender [--port N] [--allow-run-python]`
+`coding-assistants-mcp blender [--port N] [--allow-run-python]`
 
 `hub::mcp` renders this into each client's config (see
-`crates/mcp-core/CONTRACT.md`). A Claude `.mcp.json` entry:
+`crates/mcp/core/CONTRACT.md`). A Claude `.mcp.json` entry:
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-blender": {
-    "command": "/path/to/coding-assistants-mcp-blender",
-    "args": ["--port", "9765"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["blender", "--port", "9765"]
 } } }
 ```
 

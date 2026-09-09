@@ -4,7 +4,7 @@
 editor script. Target: **Unity 2021.3+**.
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-unity ──TCP line-JSON──► CodingAssistantsBridge.cs ──► UnityEditor.*
+agent ──stdio MCP──► coding-assistants-mcp unity ──TCP line-JSON──► CodingAssistantsBridge.cs ──► UnityEditor.*
 ```
 
 `[InitializeOnLoad]` starts a localhost line-JSON TCP server (port
@@ -26,14 +26,14 @@ reloads (script recompiles, entering play mode).
 
 ## Register the MCP server
 
-`coding-assistants-mcp-unity [--port N] [--allow-menu-exec]`
+`coding-assistants-mcp unity [--port N] [--allow-menu-exec]`
 
 Claude `.mcp.json`:
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-unity": {
-    "command": "/path/to/coding-assistants-mcp-unity",
-    "args": ["--port", "9769"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["unity", "--port", "9769"]
 } } }
 ```
 
