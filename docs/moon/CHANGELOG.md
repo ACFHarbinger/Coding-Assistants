@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mistral Vibe auth health probe (#304, `platform.md` P3):** the Mistral
+  readiness chip now reads `$VIBE_HOME/whoami_cache.json` (default `~/.vibe`)
+  instead of binary-presence-only. A parseable payload reports
+  `authenticated: true` and names `plan_name` (else `plan_type`) in `detail`;
+  a missing or unparseable cache is `authenticated: false`. The opaque hash
+  key and `customer_id` never cross IPC. Pure parser lives next to the local
+  Vibe usage reader; per-provider probes moved to `health/probes.rs` so
+  `health.rs` is back under 500 LoC.
 - **Multi-instance harness terminal panes in grid (#301, `ui.md` U15, Epic #295):**
   Moved terminal pane identity from harness name to unique leaf `id`, allowing multiple concurrent
   terminal panes for the same harness (e.g. running multiple `agy` or `grok` instances concurrently).

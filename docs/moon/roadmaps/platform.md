@@ -75,3 +75,10 @@ tauri-app 153 (+1 ignored), `npm test` 39/39, `npm run build` clean.
   (`agent`/`cursor-agent` binary + `CURSOR_TOKEN` / hardened `auth.json`
   reader + JWT/on-disk auth-expiry parsing) self-integrated their
   `ProviderHealth` branches ([#294](https://github.com/ACFHarbinger/Coding-Assistants/issues/294), Muse / Cursor).
+
+**2026-09-09 — Mistral Vibe health (#304, S2, in review).** The Mistral
+`ProviderHealth` branch no longer uses binary-presence-only: it parses
+`$VIBE_HOME/whoami_cache.json` (default `~/.vibe`; live contract from
+`vibe 2.25.1`) and reports `authenticated` plus the plan name. Cheap
+filesystem read only — no Admin API, no usage call. Full C14.15 harness
+lifecycle is a separate slice batch.

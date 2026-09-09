@@ -123,8 +123,13 @@ fn reads_real_session_directories_and_skips_malformed_ones() {
     std::fs::create_dir_all(&good).unwrap();
     std::fs::write(
         good.join("meta.json"),
-        serde_json::to_string(&live_meta(4967, 40, 2048, "2026-09-09T17:04:46.154077+00:00"))
-            .unwrap(),
+        serde_json::to_string(&live_meta(
+            4967,
+            40,
+            2048,
+            "2026-09-09T17:04:46.154077+00:00",
+        ))
+        .unwrap(),
     )
     .unwrap();
 
@@ -157,4 +162,78 @@ fn vibe_home_env_overrides_the_default_root() {
         root,
         std::path::Path::new("/tmp/ca-vibe-home-probe/logs/session")
     );
+}
+
+/// Shape captured from `vibe 2.25.1` (2026-09-09). `customer_id` is a
+/// synthetic canary so secret-hygiene tests can prove it never escapes.
+fn live_whoami() -> Value {
+    json!({
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+            "stored_at_timestamp": 1788973117,
+            "payload": {
+                "plan_type": "chat",
+                "plan_name": "EDU",
+                "prompt_switching_to_pro_plan": false,
+                "organization_kind": "S",
+                "customer_id": "canary-customer-id-do-not-leak",
+                "api_base": "https://api.mistral.ai",
+                "vibe_base": "https://chat.mistral.ai"
+            }
+        }
+    })
+}
+
+#[test]
+fn whoami_cache_reports_the_plan_and_drops_the_customer_id() {
+    let facts = parse_whoami_cache(&live_whoami());
+    assert!(facts.authenticated);
+    assert!(facts.cache_present);
+    assert_eq!(facts.plan_name.as_deref(), Some("EDU"));
+    assert_eq!(facts.plan_type.as_deref(), Some("chat"));
+    let detail = facts.detail(true);
+    assert!(detail.contains("EDU plan"), "{detail}");
+    assert!(
+        !detail.contains("canary-customer-id-do-not-leak"),
+        "{detail}"
+    );
+    assert!(
+        !detail.contains("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        "{detail}"
+    );
+}
+
+#[test]
+fn whoami_cache_falls_back_to_plan_type_when_name_is_blank() {
+    let json = json!({
+        "deadbeef": { "payload": { "plan_type": "pro", "plan_name": "  " } }
+    });
+    let facts = parse_whoami_cache(&json);
+    assert!(facts.authenticated);
+    assert_eq!(facts.plan_name, None);
+    assert!(facts.detail(true).contains("pro plan"));
+}
+
+#[test]
+fn whoami_cache_absent_or_unparseable_is_not_authenticated() {
+    assert!(!vibe_whoami_facts_from_bytes(None).authenticated);
+    assert!(!vibe_whoami_facts_from_bytes(None).cache_present);
+    assert!(!vibe_whoami_facts_from_bytes(Some(b"{not json")).authenticated);
+    assert!(vibe_whoami_facts_from_bytes(Some(b"{not json")).cache_present);
+    assert!(!parse_whoami_cache(&json!({})).authenticated);
+    assert!(!parse_whoami_cache(&json!([1, 2, 3])).authenticated);
+    assert!(!parse_whoami_cache(&json!({ "k": { "stored_at_timestamp": 1 } })).authenticated);
+}
+
+#[test]
+fn whoami_cache_takes_the_first_object_value_not_a_fixed_key() {
+    let json = json!({
+        "11111111111111111111111111111111": {
+            "payload": { "plan_name": "Team", "plan_type": "chat" }
+        },
+        "22222222222222222222222222222222": {
+            "payload": { "plan_name": "Other", "plan_type": "chat" }
+        }
+    });
+    let facts = parse_whoami_cache(&json);
+    assert_eq!(facts.plan_name.as_deref(), Some("Team"));
 }

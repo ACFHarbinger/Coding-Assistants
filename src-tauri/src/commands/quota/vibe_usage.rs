@@ -40,18 +40,128 @@ use std::path::{Path, PathBuf};
 /// matter how many have piled up. Newest-first, so the cap drops the oldest.
 const MAX_SESSIONS_SCANNED: usize = 500;
 
-/// `$VIBE_HOME/logs/session`, falling back to `~/.vibe/logs/session`.
-/// `VIBE_HOME` is the CLI's own documented override, which also makes this
-/// testable against a scratch directory.
-pub(crate) fn vibe_sessions_root() -> PathBuf {
-    let home = match std::env::var("VIBE_HOME") {
+/// `$VIBE_HOME`, falling back to `~/.vibe`. `VIBE_HOME` is the CLI's own
+/// documented override, which also makes readers testable against a scratch
+/// directory with no global state.
+pub(crate) fn vibe_home() -> PathBuf {
+    match std::env::var("VIBE_HOME") {
         Ok(dir) if !dir.trim().is_empty() => PathBuf::from(dir.trim()),
         _ => {
             let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
             PathBuf::from(home).join(".vibe")
         }
+    }
+}
+
+/// `$VIBE_HOME/logs/session`, falling back to `~/.vibe/logs/session`.
+pub(crate) fn vibe_sessions_root() -> PathBuf {
+    vibe_home().join("logs").join("session")
+}
+
+/// Cheap login facts from Vibe's `whoami_cache.json` (#304). Presence and
+/// plan name only — `customer_id` and the opaque top-level hash never enter
+/// this struct, a log, or IPC.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VibeWhoamiFacts {
+    pub authenticated: bool,
+    pub cache_present: bool,
+    pub plan_name: Option<String>,
+    pub plan_type: Option<String>,
+}
+
+impl VibeWhoamiFacts {
+    fn missing() -> Self {
+        Self {
+            authenticated: false,
+            cache_present: false,
+            plan_name: None,
+            plan_type: None,
+        }
+    }
+
+    fn unparseable() -> Self {
+        Self {
+            authenticated: false,
+            cache_present: true,
+            plan_name: None,
+            plan_type: None,
+        }
+    }
+
+    /// Secret-free one-liner for the health chip. Plan labels come from
+    /// `payload.plan_name` (preferred) or `payload.plan_type`.
+    pub(crate) fn detail(&self, installed: bool) -> String {
+        let plan = self
+            .plan_name
+            .as_deref()
+            .or(self.plan_type.as_deref())
+            .map(|name| format!(" ({name} plan)"));
+        match (installed, self.authenticated, self.cache_present) {
+            (true, true, _) => format!(
+                "Mistral Vibe is logged in{}",
+                plan.as_deref().unwrap_or("")
+            ),
+            (true, false, true) => {
+                "vibe is installed but ~/.vibe/whoami_cache.json is unparseable; run `vibe --setup`"
+                    .into()
+            }
+            (true, false, false) => {
+                "vibe is installed but not logged in (no ~/.vibe/whoami_cache.json); run `vibe --setup`"
+                    .into()
+            }
+            (false, true, _) => format!(
+                "a Mistral Vibe login exists{} but the `vibe` CLI is not on PATH",
+                plan.as_deref().unwrap_or("")
+            ),
+            (false, false, _) => "`vibe` was not found on PATH".into(),
+        }
+    }
+}
+
+fn trimmed_string(value: &Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+/// Pure parser: first/only top-level object value's `payload`. The hash key
+/// is ignored on purpose — Vibe names it with an opaque digest.
+pub(crate) fn parse_whoami_cache(json: &Value) -> VibeWhoamiFacts {
+    let Some(map) = json.as_object() else {
+        return VibeWhoamiFacts::unparseable();
     };
-    home.join("logs").join("session")
+    let Some(entry) = map.values().find(|value| value.is_object()) else {
+        return VibeWhoamiFacts::unparseable();
+    };
+    let Some(payload) = entry.get("payload").filter(|value| value.is_object()) else {
+        return VibeWhoamiFacts::unparseable();
+    };
+    VibeWhoamiFacts {
+        authenticated: true,
+        cache_present: true,
+        plan_name: trimmed_string(payload, "plan_name"),
+        plan_type: trimmed_string(payload, "plan_type"),
+    }
+}
+
+/// Decide login facts from optional file bytes without touching the path.
+pub(crate) fn vibe_whoami_facts_from_bytes(bytes: Option<&[u8]>) -> VibeWhoamiFacts {
+    let Some(bytes) = bytes else {
+        return VibeWhoamiFacts::missing();
+    };
+    match serde_json::from_slice::<Value>(bytes) {
+        Ok(json) => parse_whoami_cache(&json),
+        Err(_) => VibeWhoamiFacts::unparseable(),
+    }
+}
+
+/// Read `$VIBE_HOME/whoami_cache.json` (default `~/.vibe/whoami_cache.json`).
+pub(crate) fn vibe_whoami_facts() -> VibeWhoamiFacts {
+    let bytes = std::fs::read(vibe_home().join("whoami_cache.json")).ok();
+    vibe_whoami_facts_from_bytes(bytes.as_deref())
 }
 
 fn counter(stats: &Value, key: &str) -> u64 {
