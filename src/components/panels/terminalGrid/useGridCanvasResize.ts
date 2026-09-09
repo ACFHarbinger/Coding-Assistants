@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RefObject } from "react";
-import { canvasSizeKey, parseCanvasSize, type CanvasSize } from "./gridConstants";
+import {
+  canvasSizeKey,
+  MAX_CANVAS_HEIGHT,
+  MIN_CANVAS_HEIGHT,
+  MIN_CANVAS_WIDTH,
+  parseCanvasSize,
+  type CanvasSize,
+} from "./gridConstants";
 
 export type ResizeDirection = "right" | "bottom" | "corner";
 
@@ -28,8 +35,15 @@ export function useGridCanvasResize({
   useEffect(() => {
     try {
       const restored = parseCanvasSize(localStorage.getItem(canvasSizeKey(workspace)));
-      setCanvasSize(restored);
-      onSizeChange?.(restored);
+      // A previously valid width can exceed a narrower current window. Clamp
+      // before it becomes a layout bound, not merely with CSS max-width.
+      const parent = containerRef.current?.parentElement;
+      const availableWidth = parent?.clientWidth || window.innerWidth || null;
+      const fitted = restored && availableWidth
+        ? { ...restored, width: Math.max(MIN_CANVAS_WIDTH, Math.min(restored.width, availableWidth)) }
+        : restored;
+      setCanvasSize(fitted);
+      onSizeChange?.(fitted);
     } catch {
       setCanvasSize(null);
       onSizeChange?.(null);
@@ -92,10 +106,10 @@ export function useGridCanvasResize({
         let nextHeight = initialHeight;
 
         if (direction === "right" || direction === "corner") {
-          nextWidth = Math.max(360, Math.min(parentWidth, Math.round(initialWidth + dx)));
+          nextWidth = Math.max(MIN_CANVAS_WIDTH, Math.min(parentWidth, Math.round(initialWidth + dx)));
         }
         if (direction === "bottom" || direction === "corner") {
-          nextHeight = Math.max(280, Math.round(initialHeight + dy));
+          nextHeight = Math.min(MAX_CANVAS_HEIGHT, Math.max(MIN_CANVAS_HEIGHT, Math.round(initialHeight + dy)));
         }
 
         const nextSize: CanvasSize = { width: nextWidth, height: nextHeight };

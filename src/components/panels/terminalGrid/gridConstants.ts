@@ -31,6 +31,10 @@ export interface CanvasSize {
   height: number;
 }
 
+export const MIN_CANVAS_WIDTH = 360;
+export const MIN_CANVAS_HEIGHT = 280;
+export const MAX_CANVAS_HEIGHT = 20_000;
+
 export function parseCanvasSize(raw: string | null | undefined): CanvasSize | null {
   if (!raw) return null;
   try {
@@ -40,12 +44,14 @@ export function parseCanvasSize(raw: string | null | undefined): CanvasSize | nu
       parsed !== null &&
       typeof parsed.width === "number" &&
       typeof parsed.height === "number" &&
-      parsed.width >= 360 &&
-      parsed.height >= 280
+      Number.isFinite(parsed.width) &&
+      Number.isFinite(parsed.height) &&
+      parsed.width > 0 &&
+      parsed.height > 0
     ) {
       return {
-        width: Math.round(parsed.width),
-        height: Math.round(parsed.height),
+        width: Math.max(MIN_CANVAS_WIDTH, Math.round(parsed.width)),
+        height: Math.min(MAX_CANVAS_HEIGHT, Math.max(MIN_CANVAS_HEIGHT, Math.round(parsed.height))),
       };
     }
     return null;

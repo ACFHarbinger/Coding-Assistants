@@ -380,7 +380,7 @@ export default function HarnessTerminalGrid({
           width: canvasSize ? `${canvasSize.width}px` : "100%",
           height: canvasSize ? `${canvasSize.height}px` : undefined,
           maxWidth: "100%",
-          minHeight: "480px",
+          minHeight: canvasSize ? "280px" : "480px",
           borderRadius: "10px",
           background: "#030712",
           border: "1px solid var(--border-color)",

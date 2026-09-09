@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import HarnessTerminalGrid from "../HarnessTerminalGrid";
+import { parseCanvasSize } from "../gridConstants";
 
 const defaultInvokeHandler = (cmd: string, args?: any) => {
   if (cmd === "hub_list_harness_sessions") {
@@ -102,6 +103,13 @@ beforeEach(() => {
 });
 
 describe("HarnessTerminalGrid", () => {
+  it("validates and clamps persisted canvas dimensions", () => {
+    expect(parseCanvasSize(JSON.stringify({ width: 1, height: 1 }))).toEqual({ width: 360, height: 280 });
+    expect(parseCanvasSize(JSON.stringify({ width: 600, height: 99_999 }))).toEqual({ width: 600, height: 20_000 });
+    expect(parseCanvasSize('{"width":1e309,"height":600}')).toBeNull();
+    expect(parseCanvasSize(JSON.stringify({ width: -1, height: 600 }))).toBeNull();
+  });
+
   it("renders empty state with 6 launch buttons when no terminals are open", () => {
     render(<HarnessTerminalGrid workspace="/test/workspace" />);
 
@@ -361,4 +369,3 @@ describe("HarnessTerminalGrid", () => {
     expect(screen.getByText("Grid: 360×280px")).toBeInTheDocument();
   });
 });
-

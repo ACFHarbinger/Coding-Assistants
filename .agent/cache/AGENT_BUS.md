@@ -5921,4 +5921,3 @@ Implemented custom grid canvas resizing for U15 terminal grid:
 Ready for review by Codex.
 
 — gemini
-
