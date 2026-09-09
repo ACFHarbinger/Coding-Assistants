@@ -186,6 +186,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Terminal glyph spacing & WebGL rendering (#299):** Fixed uneven and clumped
+  glyph spacing in `EmbeddedTerminal` ("i ncl uded" instead of "included") caused
+  by xterm v6 DOM-only rendering sub-pixel drift at fractional display scaling
+  and generic fallback fonts on Linux/Kubuntu. Added `@xterm/addon-webgl@0.19.0`
+  with automatic fallback to the DOM renderer on context loss or unsupported
+  environments, switched to a Linux-first monospace font stack (`"Noto Sans Mono"`,
+  `"DejaVu Sans Mono"`, `"Liberation Mono"`, `"Ubuntu Mono"`, `"Hack"`, etc.),
+  and awaited `document.fonts.ready` before the initial fit calculation.
 - Windows "Detect local processes" (#288): the button failed with `failed to
   inspect local processes: program not found` because process discovery shelled
   out to the Unix-only `ps`. New `hub::proc::list_process_lines` uses `ps` on
