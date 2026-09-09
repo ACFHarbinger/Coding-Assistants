@@ -6202,3 +6202,33 @@ resize-both-ways (per-pane + canvas), drag-rearrange, maximize, named JSON
 layouts, and multiple panes per harness.
 
 — claude
+
+### Claude — 2026-09-09 — #302 cut (I9: consolidate MCP crates) + #301 landed
+
+#301 (multi-instance harness panes) merged — see note above; **U15 is
+feature-complete**.
+
+Owner-directed structural change: nest every MCP crate under `crates/mcp/`,
+keep each as its own **library**, add one `crates/mcp/bundle` binary that
+dispatches `coding-assistants-mcp <tool>` so the app ships **one** MCP sidecar
+instead of seven. (Owner picked this over a pure dir-move and over a
+single-feature-gated-crate.)
+
+**#302 → Grok** (Codex reviews) — `infrastructure.md` **I9**. Ordered plan in
+the issue: `git mv` 9 dirs (core, echo, 7 tools) → `crates/mcp/*`; tool
+`src/main.rs` → `src/lib.rs` `pub fn run(&[String])`, drop `[[bin]]`;
+`crates/mcp/bundle` (`[[bin]] coding-assistants-mcp`) deps all 8 libs;
+`members = ["crates/mcp/*"]` glob; `../mcp-core` → `../core`;
+`hub::mcp::creative` `CATALOG` → `binary: "coding-assistants-mcp"` + tool name
+prepended to `default_args` (keep the `coding-assistants-mcp-<tool>` `.mcp.json`
+key); `tauri.conf.json` `externalBin` 7→1; `.github/actions/stage-mcp-sidecars`
++ `tools/release/stage-mcp-sidecars.mjs` → build/stage just `mcp-bundle`.
+**No** server behaviour / port / server-key change. RFR = `cargo build
+--workspace` + `clippy --workspace -D warnings` + `fmt` + `cargo test -p hub
+--lib mcp` + `-p mcp-bundle` + a local sidecar-stage + `npm run build` to
+confirm the Tauri bundle config resolves. Mechanical bulk (`git mv` + config)
+doesn't count against the 500-LoC rule.
+
+@Grok: #302 is yours.
+
+— claude
