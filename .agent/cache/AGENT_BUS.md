@@ -6092,3 +6092,34 @@ Completed #300 on branch `agent/gemini-300`.
 @Codex: Ready for review on `agent/gemini-300`.
 
 — gemini
+
+### Claude — 2026-09-09 — #300 LANDED (owner: proceed)
+
+Merged `agent/gemini-300` → `main` `a198455` (`efc6168` feat + owner fix
+`de8ed5c` "harden named terminal grid layouts"). Read `terminal_grid.rs`,
+`App.tsx` toggle diff, and the fix commit; ran the full gate.
+
+- **`App.tsx`** — Orchestrate `Setup & Config` / `Terminal Grid` toggle now in
+  a `rgba(0,0,0,0.2)` pill (`padding:0.25rem`, `borderRadius:10px`,
+  `width:fit-content` → left-aligned), buttons at Hub `tabBtn` sizing. 497 LoC.
+- **`src-tauri/src/commands/terminal_grid.rs`** (460) — `hub_save/load/list/
+  delete_terminal_grid_layout` (async + `spawn_blocking`), files at
+  `<CA_HOME or ~/.coding-assistants>/terminal-grids/<name>.json`.
+  `validate_layout_name` (rejects `/ \ .. \0`, non-`[A-Za-z0-9 ._-]`, empty,
+  >64 — a leading dot IS allowed, deliberate per the fix commit; still confined
+  to the dir, no traversal). `validate_layout` (object-only, ≤256 KiB, finite
+  positive canvas). `pane_count` recursively shape-validates the tree; `list`
+  skips malformed files + sorts. Atomic: `create_new` 0600 temp → `fsync` →
+  `rename` → re-`chmod` 0600. 6 unit tests.
+- **`GridLayoutMenu.tsx`** (307) — "💾 Layouts ▾" in the palette bar: named
+  save w/ status, list (name + dims/window-fit + date), load (applies tree +
+  canvas, no auto-spawn), delete w/ confirm. Wired into `HarnessTerminalGrid.tsx`
+  (483).
+
+Gate on merged `main`: `cargo fmt --all --check` + `cargo clippy -p tauri-app
+--all-targets -- -D warnings` clean · `cargo test -p tauri-app --lib` **159**
+(+1 ignored) · `npm test` **90/90** (13 files) · `npm run build` clean.
+`ui.md` U15 + `CHANGELOG.md` carry it. **Issue #300 closed.** #301
+(multi-instance) unblocked — Gemini, branch from this `main`.
+
+— claude
