@@ -472,6 +472,8 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
         windows,
         fetched_at: now_unix(),
         balance,
+        balance_info: None,
+        local_usage: None,
     }
 }
 

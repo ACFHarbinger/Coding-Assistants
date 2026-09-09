@@ -13,6 +13,46 @@ pub struct ProviderQuotaWindow {
     pub window_minutes: Option<i64>,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderQuotaBalance {
+    pub currency: String,
+    pub total: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub granted: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topped_up: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gift: Option<f64>,
+}
+
+/// Locally-observed usage for a harness that writes its own session
+/// accounting to disk, read without any network call or metered request.
+///
+/// Distinct from both `windows` (a percentage of a budget) and
+/// `balance`/`balance_info` (a currency figure): these are raw counts with no
+/// cap to divide by, so they cannot be expressed as either. Mistral Vibe is
+/// the first source — every `~/.vibe/logs/session/*/meta.json` carries a
+/// `stats` block — and the shape is deliberately provider-neutral so any
+/// harness that keeps comparable local accounting can fill it in.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderQuotaLocalUsage {
+    /// Number of on-disk sessions the counts below were summed from.
+    pub sessions: u64,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub cached_tokens: u64,
+    pub tool_calls_succeeded: u64,
+    pub tool_calls_failed: u64,
+    pub tool_calls_rejected: u64,
+    /// Start of the oldest session included, as a UNIX timestamp — the
+    /// "since" the totals are measured from. `None` when no session carried a
+    /// parseable start time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<i64>,
+}
+
 #[derive(Clone, serde::Serialize)]
 pub struct ProviderQuota {
     pub agent_id: String,
@@ -27,6 +67,14 @@ pub struct ProviderQuota {
     /// `windows` — frontends render it distinctly when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<String>,
+    /// Structured balance details for non-subscription / pay-as-you-go providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance_info: Option<ProviderQuotaBalance>,
+    /// Raw counts read from the harness's own on-disk session accounting.
+    /// Independent of `windows`/`balance`: a provider may report both a
+    /// billed budget and what this machine actually spent locally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_usage: Option<ProviderQuotaLocalUsage>,
 }
 
 pub(crate) fn now_unix() -> i64 {
@@ -59,6 +107,8 @@ pub(crate) fn unavailable_quota(
         windows: Vec::new(),
         fetched_at: now_unix(),
         balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }
 
@@ -227,5 +277,7 @@ pub(crate) fn codex_quota() -> ProviderQuota {
         windows,
         fetched_at: now_unix(),
         balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }

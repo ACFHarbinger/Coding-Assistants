@@ -1,6 +1,8 @@
 import type { BudgetStatus, ProviderQuota, ProviderQuotaWindow } from "./types";
 import { ProviderHealthDot } from "../harness/ProviderHealthChip";
 import { useProviderHealth } from "../harness/useProviderHealth";
+import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
+import { PaygQuotaMeter } from "./PaygQuotaMeter";
 
 
 /**
@@ -11,6 +13,18 @@ import { useProviderHealth } from "../harness/useProviderHealth";
  * timestamp and a manual refresh control instead.
  */
 export const LIVE_QUOTA_AGENT_IDS = new Set(["chat", "grok"]);
+
+/**
+ * `PaygQuotaMeter` formats whatever it is given as dollars, falling back to
+ * `parseFloat` over the free-form `balance` string when `balance_info` is
+ * absent. So only route a provider there when the figure really is currency:
+ * structured `balance_info`, or a legacy `balance` string that reads as an
+ * amount. Without this, a provider reporting a non-currency number (raw token
+ * counts, say) renders as "Available Balance $1234567.00".
+ */
+export function isCurrencyBalance(balance?: string | null): boolean {
+  return !!balance && /[$€£¥]|\b(?:USD|EUR|GBP|CNY)\b/i.test(balance);
+}
 
 export const cardStyle: React.CSSProperties = {
   border: "1px solid var(--border-color)",
@@ -74,6 +88,7 @@ export function QuotaChart({
   onRefreshOne: (agentId: string) => void;
 }) {
   const { healthMap } = useProviderHealth(30_000);
+  const { policy, setAllowMeteredProbes } = useOrchestrationPolicy();
   const formatReset = (timestamp?: number | null) => timestamp
     ? `resets ${new Date(timestamp * 1000).toLocaleString()}`
     : "reset time unavailable";
@@ -88,14 +103,40 @@ export function QuotaChart({
   };
   return (
     <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <div>
           <h3 style={{ margin: 0, color: "var(--text-main)" }}>Provider quota remaining</h3>
           <p style={{ margin: "0.35rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem" }}>Account limits reported by each harness provider, separate from local Shared Hub budgets.</p>
         </div>
-        <div style={{ display: "flex", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--primary)", marginRight: 5 }} />Remaining</span>
-          <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#334155", marginRight: 5 }} />Used</span>
+        <div style={{ display: "flex", gap: "1.25rem", alignItems: "center", flexWrap: "wrap" }}>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.45rem",
+              fontSize: "0.78rem",
+              color: policy.allow_metered_quota_probes ? "#38bdf8" : "var(--text-muted)",
+              cursor: "pointer",
+              background: policy.allow_metered_quota_probes ? "rgba(56, 189, 248, 0.1)" : "rgba(255, 255, 255, 0.04)",
+              border: `1px solid ${policy.allow_metered_quota_probes ? "rgba(56, 189, 248, 0.3)" : "var(--border-color)"}`,
+              padding: "0.3rem 0.6rem",
+              borderRadius: "8px",
+              userSelect: "none",
+            }}
+            title="Allow metered usage probes. When off, checking Antigravity CLI, OpenCode, and Muse is skipped to save tokens."
+          >
+            <input
+              type="checkbox"
+              checked={policy.allow_metered_quota_probes}
+              onChange={(e) => void setAllowMeteredProbes(e.target.checked)}
+              style={{ accentColor: "var(--primary)", cursor: "pointer" }}
+            />
+            <span>Allow metered probes</span>
+          </label>
+          <div style={{ display: "flex", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+            <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--primary)", marginRight: 5 }} />Remaining</span>
+            <span><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#334155", marginRight: 5 }} />Used</span>
+          </div>
         </div>
       </div>
       <div style={{ display: "grid", gap: "1.25rem" }}>
@@ -131,7 +172,7 @@ export function QuotaChart({
                   )}
                 </div>
               </div>
-              {quota.balance && (
+              {quota.balance && quota.windows.length > 0 && (
                 <div style={{ display: "grid", gap: "0.25rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
                     <span>Account balance</span>
@@ -139,10 +180,10 @@ export function QuotaChart({
                   </div>
                 </div>
               )}
-              {quota.windows.length === 0 ? (
-                quota.balance ? null : (
-                  <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
-                )
+              {quota.balance_info || (isCurrencyBalance(quota.balance) && quota.windows.length === 0) ? (
+                <PaygQuotaMeter quota={quota} />
+              ) : quota.windows.length === 0 ? (
+                <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
               ) : families.length > 0 ? (
                 families.map((family) => {
                   const familyWindows = quota.windows.filter((w) => w.family === family);

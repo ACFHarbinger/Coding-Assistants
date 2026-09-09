@@ -72,6 +72,31 @@ export interface ProviderQuotaWindow {
   window_minutes?: number | null;
 }
 
+export interface ProviderQuotaBalance {
+  currency: string;
+  total: number;
+  granted?: number | null;
+  topped_up?: number | null;
+  paid?: number | null;
+  gift?: number | null;
+}
+
+// Raw counts a harness recorded locally (Mistral Vibe's per-session
+// `meta.json` stats today). Neither a percentage nor a currency — there is no
+// cap to divide by — so it is its own field rather than being forced into
+// `windows` or `balance_info`.
+export interface ProviderQuotaLocalUsage {
+  sessions: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_tokens: number;
+  tool_calls_succeeded: number;
+  tool_calls_failed: number;
+  tool_calls_rejected: number;
+  /** UNIX seconds of the oldest session counted. */
+  since?: number | null;
+}
+
 export interface ProviderQuota {
   agent_id: string;
   provider: string;
@@ -81,6 +106,8 @@ export interface ProviderQuota {
   windows: ProviderQuotaWindow[];
   fetched_at: number;
   balance?: string | null;
+  balance_info?: ProviderQuotaBalance | null;
+  local_usage?: ProviderQuotaLocalUsage | null;
 }
 
 export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels";

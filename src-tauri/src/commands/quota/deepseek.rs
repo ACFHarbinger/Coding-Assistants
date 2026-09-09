@@ -17,7 +17,7 @@
 //! window, so it is surfaced via the dedicated `ProviderQuota.balance` field
 //! (rendered distinctly by the frontend) rather than `windows`.
 
-use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota};
+use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaBalance};
 
 const HARNESS_TITLE: &str = "DeepSeek";
 const AGENT_ID: &str = "deepseek";
@@ -141,6 +141,23 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
     }
 
     let balance_text = format_balance(info);
+    let total = info.total_balance.trim().parse::<f64>().unwrap_or(0.0);
+    let granted = info
+        .granted_balance
+        .as_deref()
+        .and_then(|v| v.trim().parse::<f64>().ok());
+    let topped_up = info
+        .topped_up_balance
+        .as_deref()
+        .and_then(|v| v.trim().parse::<f64>().ok());
+    let balance_info = ProviderQuotaBalance {
+        currency: info.currency.clone(),
+        total,
+        granted,
+        topped_up,
+        paid: topped_up,
+        gift: granted,
+    };
     ProviderQuota {
         agent_id: AGENT_ID.into(),
         provider: PROVIDER.into(),
@@ -150,12 +167,45 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
         windows: Vec::new(),
         fetched_at: now_unix(),
         balance: Some(balance_text),
+        balance_info: Some(balance_info),
+        local_usage: None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracts_structured_balance_info() {
+        let info = BalanceInfo {
+            currency: "USD".into(),
+            total_balance: "12.34".into(),
+            granted_balance: Some("5.00".into()),
+            topped_up_balance: Some("7.34".into()),
+        };
+        let total = info.total_balance.trim().parse::<f64>().unwrap();
+        let granted = info
+            .granted_balance
+            .as_deref()
+            .and_then(|v| v.trim().parse::<f64>().ok());
+        let topped_up = info
+            .topped_up_balance
+            .as_deref()
+            .and_then(|v| v.trim().parse::<f64>().ok());
+        let balance_info = ProviderQuotaBalance {
+            currency: info.currency.clone(),
+            total,
+            granted,
+            topped_up,
+            paid: topped_up,
+            gift: granted,
+        };
+        assert_eq!(balance_info.total, 12.34);
+        assert_eq!(balance_info.paid, Some(7.34));
+        assert_eq!(balance_info.gift, Some(5.00));
+        assert_eq!(balance_info.currency, "USD");
+    }
 
     #[test]
     fn formats_a_real_balance_snapshot() {

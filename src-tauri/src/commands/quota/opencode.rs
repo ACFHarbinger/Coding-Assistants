@@ -257,6 +257,8 @@ fn run_opencode_quota(mut command: Command, timeout: std::time::Duration) -> Pro
         windows,
         fetched_at: now_unix(),
         balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }
 

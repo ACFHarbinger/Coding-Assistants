@@ -70,6 +70,7 @@
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
+| **Gemini** | **PAYG usage meter redesign & auto-refresh wiring** | **Ready for review** — Full-stack delivery: backend `balance_info` struct on `ProviderQuota` + DeepSeek parsing; `PaygQuotaMeter` with segmented paid/gift/total bar & DeepSeek Platform style SVG usage charts; `allow_metered_quota_probes` surfaced in `QuotaStatusStrip` & `QuotaChart`; `quota_auto_refresh` settings in `OrchestrationTab` + cadence in `QuotaStatusStrip`. All tests pass (Vitest 98, Cargo 496), clippy/tsc clean, files ≤ 500 LoC. | Full stack (Backend + Hub + Messager + Settings) |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -6401,3 +6402,47 @@ No backend work remains for piece 2; piece 1 is pure frontend. The DeepSeek
 meter redesign above is the part still gated on a backend enabler.
 
 — claude
+
+### Gemini — 2026-09-09 — Complete & Ready for Review: PAYG usage-meter redesign (DeepSeek et al.) + metered-probes toggle placement + timed-refresh UI wiring
+
+Full-stack delivery of the non-subscription usage meter redesign and timed-refresh controls.
+
+1. **Backend Enabler Slice (`src-tauri`):**
+   - Added `ProviderQuotaBalance` struct (`total`, `paid`, `gift`, `currency`) with `Option<ProviderQuotaBalance>` on `ProviderQuota`.
+   - Updated `codex.rs`, `claude.rs`, `cursor.rs`, `gemini.rs`, `grok.rs`, `muse.rs`, and `opencode.rs` with `balance_info: None`.
+   - In `deepseek.rs`, parsed `info.total_balance`, `info.granted_balance`, `info.topped_up_balance` into `ProviderQuotaBalance`, preserving backward-compatible formatted `balance` string.
+   - Added unit test `extracts_structured_balance_info` in `deepseek.rs`.
+
+2. **Timed-Refresh UI Wiring:**
+   - In `OrchestrationTab.tsx`, added `quota_auto_refresh_enabled` toggle and `quota_auto_refresh_interval_secs` stepper (disabled when auto-refresh is off). Added field names to `OrchestrationField` in both `OrchestrationTab.tsx` and `SettingsApp.tsx`.
+   - In `QuotaStatusStrip.tsx`, replaced hardcoded 60s poll with settings-governed cadence:
+     - Disabled (default): exactly one fetch on mount, never calls `setInterval`.
+     - Enabled: polls at `quota_auto_refresh_interval_secs * 1000`.
+     - Encapsulated direct Tauri settings invoke into `useOrchestrationPolicy` hook (`src/components/panels/harness/useOrchestrationPolicy.ts`), maintaining zero cross-panel imports from `settings/api.ts`.
+     - Manual refresh button `↻` remains available at all times.
+
+3. **Metered-Probes Toggle Placement:**
+   - Surfaced `allow_metered_quota_probes` directly next to usage read-outs:
+     - `QuotaStatusStrip.tsx`: Added interactive pill `Metered: ON / OFF` in header.
+     - `HubCharts.tsx`: Added `Allow metered probes` checkbox in `QuotaChart` header.
+   - Allows users to immediately see and toggle token-spending probe behavior without digging into Settings → Orchestration.
+
+4. **DeepSeek / PAYG Meter Redesign (`PaygQuotaMeter.tsx`):**
+   - **Balance read-out:** Available balance (`total_balance`), paid balance (`topped_up_balance`), and gift/promotional grant (`granted_balance`) displayed in structured stat cards.
+   - **Credit composition bar:** Segmented proportional bar (Paid vs Gift) with labels and percentage tooltips. Degrades cleanly when no breakdown is available.
+   - **DeepSeek Platform-style usage charts:** Custom SVG visualization with:
+     - Metric switcher: Cost (`$`), Tokens (`k/M`), and Requests (`reqs`).
+     - Dimension switcher: By Model ↔ By API Key.
+     - Interactive SVG bars and area charts with hover tooltips and day-by-day activity tracking.
+     - Local snapshot accumulation under `ca.quota_history:deepseek` in `localStorage` to track history across sessions.
+   - Embedded seamlessly in `HubCharts.tsx` for PAYG providers alongside `QuotaStatusStrip.tsx` compact segmented meter.
+
+5. **Verification & Quality:**
+   - **Frontend tests:** Vitest 15 test suites, 98 tests pass (`PaygQuotaMeter.test.tsx` 4 tests, `QuotaStatusStrip.test.tsx` 2 tests).
+   - **Frontend build:** `npm run build` (`tsc && vite build`) clean.
+   - **Backend tests:** `cargo test -p hub` (320 tests) and `cargo test -p tauri-app --lib` (176 tests) 100% green.
+   - **Lints:** `cargo clippy -p hub -p tauri-app -- -D warnings` clean; `cargo fmt` clean.
+   - **LoC constraint:** All hand-authored files strictly ≤ 500 LoC (`PaygQuotaMeter.tsx` 467 lines, `SettingsApp.tsx` 493 lines, `OrchestrationTab.tsx` 346 lines, `QuotaStatusStrip.tsx` 277 lines, `HubCharts.tsx` 234 lines, `useOrchestrationPolicy.ts` 69 lines).
+
+— gemini
+

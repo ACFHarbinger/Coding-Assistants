@@ -45,6 +45,7 @@ export default function SettingsApp() {
   const [allowAutoWake, setAllowAutoWakeLocal] = useState(true);
   const [retentionDaysDraft, setRetentionDaysDraft] = useState("");
   const [memoryRecallLimitDraft, setMemoryRecallLimitDraft] = useState(5);
+  const [quotaAutoRefreshIntervalDraft, setQuotaAutoRefreshIntervalDraft] = useState(300);
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [budgetAgentIdDraft, setBudgetAgentIdDraft] = useState("");
   const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
@@ -59,6 +60,7 @@ export default function SettingsApp() {
     setBackupRetentionDraft(snapshot.backup_retention);
     setRetentionDaysDraft(snapshot.orchestration.retention_days?.toString() ?? "");
     setMemoryRecallLimitDraft(snapshot.orchestration.memory_recall_limit ?? 5);
+    setQuotaAutoRefreshIntervalDraft(snapshot.orchestration.quota_auto_refresh_interval_secs ?? 300);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -195,13 +197,7 @@ export default function SettingsApp() {
   };
 
   const toggleOrchestrationField = (
-    field:
-      | "confirm_new_enrollment"
-      | "confirm_broadcast"
-      | "auto_enrollment_allowed"
-      | "export_enabled"
-      | "memory_recall_enabled"
-      | "allow_metered_quota_probes",
+    field: "confirm_new_enrollment" | "confirm_broadcast" | "auto_enrollment_allowed" | "export_enabled" | "memory_recall_enabled" | "allow_metered_quota_probes" | "quota_auto_refresh_enabled",
     current: boolean,
   ) => {
     void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { [field]: !current }));
@@ -210,6 +206,11 @@ export default function SettingsApp() {
   const saveMemoryRecallLimit = () => {
     const limit = Math.max(1, Math.min(20, Math.floor(memoryRecallLimitDraft)));
     void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { memory_recall_limit: limit }));
+  };
+
+  const saveQuotaAutoRefreshInterval = () => {
+    const secs = Math.max(30, Math.min(3600, Math.floor(quotaAutoRefreshIntervalDraft)));
+    void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { quota_auto_refresh_interval_secs: secs }));
   };
 
   const setSandboxStrictness = (level: SandboxStrictness) => {
@@ -453,6 +454,9 @@ export default function SettingsApp() {
               memoryRecallLimitDraft={memoryRecallLimitDraft}
               setMemoryRecallLimitDraft={setMemoryRecallLimitDraft}
               saveMemoryRecallLimit={saveMemoryRecallLimit}
+              quotaAutoRefreshIntervalDraft={quotaAutoRefreshIntervalDraft}
+              setQuotaAutoRefreshIntervalDraft={setQuotaAutoRefreshIntervalDraft}
+              saveQuotaAutoRefreshInterval={saveQuotaAutoRefreshInterval}
               resetField={resetField}
               budgets={budgets}
               budgetAgentIdDraft={budgetAgentIdDraft}

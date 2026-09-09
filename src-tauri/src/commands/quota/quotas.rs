@@ -1,6 +1,6 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
-use super::quota_codex::{codex_quota, unavailable_quota, ProviderQuota};
+use super::quota_codex::{codex_quota, now_unix, unavailable_quota, ProviderQuota};
 use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
@@ -26,13 +26,41 @@ fn ollama_quota() -> ProviderQuota {
     )
 }
 
+/// Mistral Vibe has no free *budget* endpoint on a personal plan — the
+/// Mistral Admin API needs a Backoffice admin key an individual subscriber
+/// does not have — so there is still no percent window or balance here. What
+/// the CLI does provide is its own on-disk session accounting, which reads
+/// truthfully on every plan tier for the cost of a few file reads. Reporting
+/// that is strictly better than the previous flat `unavailable` stub.
+///
+/// The Admin-API budget half lands separately (owner has an admin key); when
+/// it does, it fills `windows`/`balance_info` alongside this `local_usage`.
 fn mistral_quota() -> ProviderQuota {
-    unavailable_quota(
-        "mistral",
-        "mistral",
-        "Mistral Vibe",
-        "vibe CLI does not expose a usage-budget command; run vibe --setup if unauthenticated",
-    )
+    let Some(local_usage) = super::quota_vibe_usage::local_usage() else {
+        return unavailable_quota(
+            "mistral",
+            "mistral",
+            "Mistral Vibe",
+            "No Mistral Vibe sessions recorded yet; run `vibe` once (or `vibe --setup` if unauthenticated)",
+        );
+    };
+    ProviderQuota {
+        agent_id: "mistral".into(),
+        provider: "mistral".into(),
+        harness_title: "Mistral Vibe".into(),
+        status: "ok".into(),
+        // No cap is knowable without an admin key, so say so rather than
+        // implying the local totals are a budget.
+        detail: Some(
+            "Locally recorded Vibe session usage. Plan budget needs a Mistral Admin API key."
+                .into(),
+        ),
+        windows: Vec::new(),
+        fetched_at: now_unix(),
+        balance: None,
+        balance_info: None,
+        local_usage: Some(local_usage),
+    }
 }
 
 /// `orchestration.allow_metered_quota_probes`, read once per refresh. The

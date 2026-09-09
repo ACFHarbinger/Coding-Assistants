@@ -46,8 +46,7 @@
 //! error string.
 
 use super::quota_codex::{
-    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow,
-    METERED_PROBE_DISABLED_DETAIL,
+    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow, METERED_PROBE_DISABLED_DETAIL,
 };
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -193,6 +192,8 @@ fn muse_quota_from_subscription(subscription: &Value) -> ProviderQuota {
         windows,
         fetched_at: now_unix(),
         balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }
 

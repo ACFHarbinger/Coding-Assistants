@@ -25,8 +25,7 @@
 //! session and parses its real answer instead.
 
 use super::quota_codex::{
-    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow,
-    METERED_PROBE_DISABLED_DETAIL,
+    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow, METERED_PROBE_DISABLED_DETAIL,
 };
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
@@ -130,6 +129,8 @@ pub(crate) fn gemini_quota(allow_metered: bool) -> ProviderQuota {
         windows,
         fetched_at: now_unix(),
         balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }
 

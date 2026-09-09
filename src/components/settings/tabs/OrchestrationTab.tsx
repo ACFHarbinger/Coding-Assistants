@@ -9,7 +9,8 @@ type OrchestrationField =
   | "auto_enrollment_allowed"
   | "export_enabled"
   | "memory_recall_enabled"
-  | "allow_metered_quota_probes";
+  | "allow_metered_quota_probes"
+  | "quota_auto_refresh_enabled";
 
 export interface OrchestrationTabProps {
   effective: EffectiveSettings;
@@ -29,6 +30,9 @@ export interface OrchestrationTabProps {
   memoryRecallLimitDraft: number;
   setMemoryRecallLimitDraft: (value: number) => void;
   saveMemoryRecallLimit: () => void;
+  quotaAutoRefreshIntervalDraft: number;
+  setQuotaAutoRefreshIntervalDraft: (value: number) => void;
+  saveQuotaAutoRefreshInterval: () => void;
   resetField: (field: SettingsField) => void;
   budgets: BudgetStatus[];
   budgetAgentIdDraft: string;
@@ -56,6 +60,9 @@ export default function OrchestrationTab({
   memoryRecallLimitDraft,
   setMemoryRecallLimitDraft,
   saveMemoryRecallLimit,
+  quotaAutoRefreshIntervalDraft,
+  setQuotaAutoRefreshIntervalDraft,
+  saveQuotaAutoRefreshInterval,
   resetField,
   budgets,
   budgetAgentIdDraft,
@@ -209,6 +216,43 @@ export default function OrchestrationTab({
         onToggle={() => toggleOrchestrationField("allow_metered_quota_probes", effective.orchestration.allow_metered_quota_probes)}
         disabled={busy}
       />
+
+      <ToggleRow
+        label="Background usage auto-refresh"
+        hint="Periodically refresh provider usage meters in the background. Off by default to avoid spending tokens on metered providers unattended. Global only."
+        checked={effective.orchestration.quota_auto_refresh_enabled}
+        onToggle={() => toggleOrchestrationField("quota_auto_refresh_enabled", effective.orchestration.quota_auto_refresh_enabled)}
+        disabled={busy}
+      />
+
+      <FieldRow
+        label="Usage auto-refresh interval (seconds)"
+        hint="Cadence in seconds when background refresh is enabled (30–3600, default 300). Global only."
+      >
+        <input
+          type="number"
+          min={30}
+          max={3600}
+          step={10}
+          style={{
+            ...inputStyle,
+            flex: "0 0 100px",
+            opacity: effective.orchestration.quota_auto_refresh_enabled ? 1 : 0.5,
+          }}
+          value={quotaAutoRefreshIntervalDraft}
+          onChange={(event) => setQuotaAutoRefreshIntervalDraft(Number(event.target.value))}
+          disabled={busy || !effective.orchestration.quota_auto_refresh_enabled}
+        />
+        <button
+          type="button"
+          className="btn-primary"
+          style={{ marginTop: 0 }}
+          disabled={busy || !effective.orchestration.quota_auto_refresh_enabled}
+          onClick={saveQuotaAutoRefreshInterval}
+        >
+          Save
+        </button>
+      </FieldRow>
 
       <FieldRow
         label="Sandbox strictness"

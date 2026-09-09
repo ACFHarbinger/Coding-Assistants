@@ -43,6 +43,8 @@ mod quota_muse;
 mod quota_opencode;
 #[path = "quota/quotas.rs"]
 pub mod quotas;
+#[path = "quota/vibe_usage.rs"]
+mod quota_vibe_usage;
 #[path = "settings/roles.rs"]
 pub mod roles;
 #[path = "settings/settings.rs"]
