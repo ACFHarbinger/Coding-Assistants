@@ -55,6 +55,26 @@ fn inject_harness_inner(
         }
         if harness == HarnessId::Claude {
             if let Some(store) = store {
+                // A connected Claude Code Channel session (C14.3) drains
+                // task/wake-tagged messages from its Hub inbox on its own
+                // poll loop, so the durable send *is* the delivery — no
+                // socket write needed. Only fall through to the C12
+                // discovery bridge (which always reports `unavailable`
+                // for a live interactive session because `cc-socks` is
+                // undocumented) when no Channel session is connected.
+                if crate::bridge::channels::claude::is_channel_session_live(&request.workspace)
+                    .unwrap_or(false)
+                {
+                    return Ok(HarnessInjectResult {
+                        harness: harness.as_str().into(),
+                        pid: None,
+                        status: "queued".into(),
+                        detail: "A connected Claude Code Channel session for this workspace will \
+                                 pick this up from its Hub inbox on its next poll; no manual \
+                                 delivery needed"
+                            .into(),
+                    });
+                }
                 return crate::bridge::claude::deliver_claude_task(store, request);
             }
         }

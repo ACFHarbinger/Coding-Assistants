@@ -27,7 +27,7 @@ pub fn reply_tool_schema() -> Value {
 pub fn check_inbox_tool_schema() -> Value {
     json!({
         "name": "check_inbox",
-        "description": "Read and ack quieter Hub chat traffic addressed to this session — plain messages and handoffs that were deliberately *not* pushed as an interruption (only wakes and task-tagged sends are pushed proactively). Call this whenever you want to catch up; nothing is lost by not calling it, it just waits here.",
+        "description": "Read and ack Hub chat traffic addressed to this session: any wake / task-tagged sends that were pushed as `notifications/claude/channel` (returned here too, so nothing is lost if this client doesn't surface that notification), followed by quieter plain messages and handoffs. Call this whenever you want to catch up; nothing is lost by not calling it, it just waits here.",
         "inputSchema": { "type": "object", "properties": {} },
     })
 }
@@ -46,11 +46,41 @@ pub fn format_quiet_events(events: &[ChannelEvent]) -> String {
         .join("\n")
 }
 
-pub fn check_inbox_outcome(result: Result<Vec<ChannelEvent>, hub::HubError>) -> ToolResult {
-    match result {
-        Ok(events) => ToolResult::Ok(format_quiet_events(&events)),
-        Err(error) => ToolResult::Err(format!("failed to check inbox: {error}")),
+/// One line per disturb event (wake / task-tagged), tagged and carrying the
+/// session id and message id so Claude can route a `reply` back correctly.
+fn format_disturb_events(events: &[ChannelEvent]) -> Vec<String> {
+    events
+        .iter()
+        .map(|event| {
+            let tag = if event.kind == "wake" { "WAKE" } else { "TASK" };
+            let session = event.session_id.as_deref().unwrap_or("-");
+            format!(
+                "⚡ [{tag}] {} (session {session}, msg {}): {}",
+                event.from_agent, event.message_id, event.body
+            )
+        })
+        .collect()
+}
+
+/// `disturb` are wake / task-tagged events already drained + acked from the
+/// Hub by the background poll loop and buffered for this pull; `quiet` is
+/// the fresh drain of plain traffic. Disturb events are shown first.
+pub fn check_inbox_outcome(
+    quiet: Result<Vec<ChannelEvent>, hub::HubError>,
+    disturb: Vec<ChannelEvent>,
+) -> ToolResult {
+    let quiet = match quiet {
+        Ok(events) => events,
+        Err(error) => return ToolResult::Err(format!("failed to check inbox: {error}")),
+    };
+    if quiet.is_empty() && disturb.is_empty() {
+        return ToolResult::Ok("No new messages.".to_string());
     }
+    let mut lines = format_disturb_events(&disturb);
+    if !quiet.is_empty() {
+        lines.push(format_quiet_events(&quiet));
+    }
+    ToolResult::Ok(lines.join("\n"))
 }
 
 pub fn reply_outcome(result: Result<hub::MessageRecord, hub::HubError>) -> ToolResult {
@@ -114,11 +144,32 @@ mod tests {
 
     #[test]
     fn check_inbox_outcome_reports_success_and_failure_distinctly() {
-        let ok = check_inbox_outcome(Ok(vec![sample_event("message", "grok", "hi")]));
+        let ok = check_inbox_outcome(Ok(vec![sample_event("message", "grok", "hi")]), Vec::new());
         assert_eq!(text_of(&ok), ("[message] grok: hi", false));
 
-        let err = check_inbox_outcome(Err(hub::HubError::Invalid("bad".into())));
+        let empty = check_inbox_outcome(Ok(Vec::new()), Vec::new());
+        assert_eq!(text_of(&empty), ("No new messages.", false));
+
+        let err = check_inbox_outcome(Err(hub::HubError::Invalid("bad".into())), Vec::new());
         assert!(text_of(&err).1);
+    }
+
+    #[test]
+    fn check_inbox_outcome_shows_buffered_disturb_events_first() {
+        let mut task = sample_event("message", "human", "do the thing");
+        task.session_id = Some("sess-9".into());
+        task.message_id = "msg-task".into();
+        task.task_id = Some("t-1".into());
+        let outcome = check_inbox_outcome(
+            Ok(vec![sample_event("message", "grok", "fyi")]),
+            vec![task],
+        );
+        let (text, is_err) = text_of(&outcome);
+        assert!(!is_err);
+        assert_eq!(
+            text,
+            "⚡ [TASK] human (session sess-9, msg msg-task): do the thing\n[message] grok: fyi"
+        );
     }
 
     #[test]
