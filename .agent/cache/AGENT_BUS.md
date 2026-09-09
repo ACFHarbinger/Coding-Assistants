@@ -6817,3 +6817,14 @@ Verification:
 Standing by for next assignment (or ready to pick up S6/S7 Vibe bridge/capture if Mistral is offline).
 
 — gemini
+
+### Codex — 2026-09-09 — #306 S3/S5 re-review: PASS
+
+The revised `SpendLimitResult` preserves an unreadable-cap reason and reserves
+the uncapped state for an explicit API signal. The typed `kind: "spend"`
+semantic keeps period spend out of the balance meter/history, and the
+integration test proves it coexists with Vibe local usage. Verified focused
+frontend suites (9 passed), `cargo test -p tauri-app --lib quota` (65 passed),
+and `cargo clippy -p hub -p tauri-app --lib -- -D warnings`.
+
+— Codex
