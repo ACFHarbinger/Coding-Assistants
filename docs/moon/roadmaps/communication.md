@@ -56,8 +56,8 @@ documented bridge.
 | C14.10 | DeepSeek native channel/bridge | Give DeepSeek a real provider-native managed session (analogous to C14.3's Claude Channel or C14.4's `agy` worker) instead of the current generic OpenCode-adapter path (`opencode run -m deepseek/<model>`, see `platform.md` P3). **Not started — deliberately sequenced after the #161–#163 + C13 ship-priority milestone.** Owner rationale (2026-08-15): DeepSeek is presently a trial implementer (see the standing DeepSeek-trial ruling above) with no seeded `HubStore` roster identity and no documented CLI/session contract; a native channel is real-integration work, appropriate only once the trial earns it. Deliberately double-purposed: beyond giving DeepSeek a native session, standing up a brand-new provider bridge from scratch — this time with C14.1–C14.9's accumulated lessons already written down (silent no-op launches, blocking synchronous calls freezing the UI thread, resize/DOM lifecycle bugs, single-writer races) — is itself the test of whether this team's workflow has actually improved at avoiding those recurring bug classes, or whether the same mistakes resurface on a fresh integration. |
 | C14.11 | Meta **Muse Code** provider-native harness | Onboard Meta's `Muse Code` terminal coding-agent (Muse Spark 1.3-backed) as a managed harness: `HarnessId::Muse`, headless one-shot spawn argv, capture from Muse Code's local append-only event log, interactive resume off that log, and a `("muse", "Muse Code")` roster identity + `git/messages/muse_coauthor.msg` trailer. Model inference lands separately as `platform.md` P4a (Meta Model API). **Not started — [#273](https://github.com/ACFHarbinger/Coding-Assistants/issues/273).** Owner rationale (2026-09-08): Muse is now a full team member; assigned to Muse itself (self-integration, domain expert on its own CLI), Codex reviewing. First step is a spike on the exact non-interactive `muse-code`/`muse` invocation and event-log format — Meta's public posts do not confirm a batch/print flag, so no guessed `muse -p …` argv. |
 | C14.12 | **Cursor `agent`** harness | Onboard the Cursor local CLI agent (`agent`, some installs alias `cursor-agent` — resolve once at setup). Headless one-shot via `agent -p "<prompt>" [-m <model>] [--output-format stream-json]`, working dir by `cd` (no verified `--cwd` flag), interactive resume via `agent --resume "<chat-id>" --print`. `agent ls` is **not** a reliable machine-readable session enumerator, so the integration must capture and persist the chat id when it creates a job rather than discovering it later. Cursor supplies its own account model config — this is harness-only, no `platform.md` provider row. `HarnessId::Cursor` + `("cursor", "Cursor Agent")` identity + `git/messages/cursor_coauthor.msg`. **Not started — [#275](https://github.com/ACFHarbinger/Coding-Assistants/issues/275).** Assigned to Cursor itself, Codex reviewing. |
-| C14.13 | Alibaba **Qwen Code** harness | Onboard the Qwen Code CLI (`qwen`), a Gemini-CLI fork, as a managed harness. Spike the exact non-interactive invocation first — Gemini-CLI lineage suggests a `--output-format stream-json` / positional-prompt shape and Markdown-defined sub-agents, but no guessed argv (same discipline as C14.11/C14.12). Of specific interest: Qwen Code's native `/coordinate` sub-agent team-runner plus git-worktree isolation, which the capture layer must handle without collapsing concurrent sub-agent output. Harness-only — Qwen Code carries its own OpenAI-compatible model config (DashScope / ModelScope / local), no `platform.md` provider row; a direct Qwen *inference* provider for orchestration roles is optional later work like Muse Glimmer. `HarnessId::Qwen` + `("qwen", "Qwen Code")` identity + `git/messages/qwen_coauthor.msg`. **Not started.** Owner rationale (2026-09-09 provider-menagerie review): picked as a `/coordinate`-capable in-harness multi-agent runner to benchmark against CA's own orchestration; near-term access is DashScope/ModelScope API (owner's local Qwen 30B workstation is in repairs), flipped to the local model once it is back. |
-| C14.14 | Moonshot **Kimi** swarm harness | Onboard Moonshot's agent-swarm coding app (Kimi K3-backed) as a managed harness. Spike the exact app/CLI name and invocation first — no guessed argv. The reason to onboard is the distinctive capability, not the model: agentic-swarm-native execution (large bounded sub-agent fan-out, long-horizon MCP tool-use) is a different in-harness multi-agent design than Qwen's `/coordinate` or CA's stage-graph orchestration, and worth a direct research comparison alongside Qwen and DeepSeek. Model config is via Moonshot's Anthropic-compatible endpoint (base-URL + key), harness-only, no `platform.md` provider row. `HarnessId::Kimi` + `("kimi", "Kimi")` identity + `git/messages/kimi_coauthor.msg`. **Not started.** Owner rationale (2026-09-09): owner passed on Kimi as a plain model on cost grounds but wants the swarm-native harness specifically as a benchmark data point. |
+| C14.13 | Alibaba **Qwen Code** harness | Onboard the Qwen Code CLI (`qwen`, `0.23.2`), a Gemini-CLI fork, as a managed harness. **CLI contract captured live 2026-09-09 — see the dated note below.** Its transcript is the **Claude-Code JSONL format** (`~/.qwen/projects/<sanitised-cwd>/chats/<sessionId>.jsonl`, `uuid`/`parentUuid`/`sessionId`/`timestamp`/`type`/`provenance`/`message.parts`), so the adapter mirrors `src-tauri/src/harness/claude.rs` / `gemini.rs`, **not** the Muse/Vibe event-log pattern. `--session-id` lets the caller pre-assign the id (Muse-style managed capture, no discover-then-register). `/coordinate` sub-agent team-runner + git-worktree isolation still need capture that does not collapse concurrent sub-agent output. Harness-only — Qwen Code carries its own OpenAI-compatible model config, no `platform.md` provider row. `HarnessId::Qwen` + `("qwen", "Qwen Code")` identity + `git/messages/qwen_coauthor.msg`. **Not started.** Owner rationale (2026-09-09 provider-menagerie review): a `/coordinate`-capable in-harness multi-agent runner to benchmark against CA's own orchestration. |
+| C14.14 | Moonshot **Kimi** swarm harness | Onboard the Kimi Code CLI (`kimi`, `0.42.0`) as a managed harness. **CLI contract captured live 2026-09-09 — see the dated note below.** Unlike Qwen it has its **own event-log transcript** (`~/.kimi-code/sessions/wd_<slug>/session_<uuid>/agents/main/wire.jsonl` + `state.json`), closer to the Muse pattern but with distinct event types, and a real machine-readable session enumerator (`kimi session list --json`). `kimi acp` (stdio ACP server) is a clean managed-delivery transport, like Grok's leader ACP. The reason to onboard is the capability, not the model: swarm-native execution (`KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY`, `--max-subagent-depth`) is a different in-harness multi-agent design than Qwen's `/coordinate` or CA's stage graph. Harness-only, no `platform.md` provider row. `HarnessId::Kimi` + `("kimi", "Kimi")` identity + `git/messages/kimi_coauthor.msg`. **Not started.** Owner rationale (2026-09-09): passed on Kimi as a plain model on cost grounds but wants the swarm-native harness as a benchmark data point. |
 | C15 | Markdown coordination files become journals, not source of truth | `AGENT_BUS.md`'s dated log entries and task-board assignment rows move into a queryable `HubStore` table, while Markdown remains human-readable narrative output rather than the record agents parse to coordinate. **Not started:** defer until C14, #161–#163, and C13 are settled; do not introduce another coordination substrate while the current one is under active acceptance. |
 | C16 | Agent-invoked specialised sub-orchestrator models | A role running inside a harness can call a small, specialised model **directly** (in-process HTTP, not by spawning a CLI) to act as a swarm sub-orchestrator: plan and dispatch a bounded fan-out of sub-agents, or classify/route work, without spending a full frontier-model turn. Distinct from C5/C8 (declarative workflow wiring) and C14 (managed CLI sessions) — this is a role type backed by a direct model provider. Exit criteria: a role can be configured with a direct-call model, invoke it within a bounded fan-out, have those calls budgeted (C6) and audited like any other provider call, and degrade to `unavailable` when unconfigured. Builds on `platform.md` **P4** (direct HTTP providers); `platform.md` **P13** (optional routing gateway) is its natural companion, making the sub-orchestrator model cheap to swap. **Not started — owner-described 2026-09-09.** Scope after C13/C14/C15 land and P4 exists. |
 
@@ -85,6 +85,80 @@ direct-model-call path). A model-routing gateway (OpenRouter / Requesty) is
 provider/credential/health surface is mature. Held for now: GLM-5.x and
 MiniMax M3 hosted providers, and OpenHands/Aider as research baselines
 (revisit if/when formal baseline benchmarking starts).
+
+**2026-09-09 (Harbinger) — Qwen Code + Kimi Code CLI contracts captured live.**
+Both installed and probed on the dev box (Claude, non-interactive one-shot
+runs). Verified facts for C14.13 / C14.14 — replaces the "spike first, no
+guessed argv" placeholder in those rows:
+
+*Qwen Code — `qwen` 0.23.2, `~/.local/bin/qwen` (on PATH).*
+- Non-interactive: positional prompt (or deprecated `-p`); `-o/--output-format
+  {text,json,stream-json}`; `-y/--yolo` or `--approval-mode {plan,default,
+  auto-edit,auto,yolo}`; `--include-directories`; `--session-id <id>` **pre-
+  assigns the id** (so managed capture is Muse-style: register the id you
+  passed, no discover-then-register); `-r/--resume <id>`, `-c/--continue`,
+  `--fork-session`. `--chat-recording` must be set or `-c`/`-r` do nothing.
+- Transcript: `~/.qwen/projects/<sanitised-cwd>/chats/<sessionId>.jsonl`,
+  **Claude-Code JSONL** — one object per line with `uuid`, `parentUuid`,
+  `sessionId`, `timestamp` (ISO-8601), `type` (`user`/`system`/`assistant`),
+  `provenance` (`real_user` vs `system` — the injected-vs-real signal),
+  `cwd`, `version`, `message: {role, parts:[{text}]}`. Adapter mirrors
+  `src-tauri/src/harness/claude.rs` / `gemini.rs`; filter `type=="assistant"`
+  text parts, skip `type=="system"`.
+- stream-json `result` event carries `stats.{models,tools,files,skills}` +
+  `usage.{input_tokens,output_tokens,cache_read_input_tokens}` — a
+  `local_usage` source in the shape S4 already added for Vibe.
+- `qwen sessions list|ps|controllers`; `qwen serve` (HTTP daemon, Stage-1
+  experimental `--http-bridge`); `--acp` (ACP stdio mode); `--json-file` /
+  `--json-fd` emit structured events alongside the TUI; `--max-subagent-depth`
+  (default 5); `/coordinate` is a live slash command.
+- `--auth-type {openai,anthropic,qwen-oauth,gemini,vertex-ai}`; provider
+  config in `~/.qwen/settings.json` `modelProviders.openai[]` (`baseUrl`,
+  `envKey`). **Caveat: `QWEN_CODE_HOME` relocates config/sessions but detaches
+  auth** — a run under an overridden home 401s. Not the hermetic-test lever
+  `VIBE_HOME` was; tests must stub the transcript dir directly.
+- **Auth state 2026-09-09: the OAuth token is expired (`401 invalid access
+  token`).** `qwen` re-login needed before any live delivery test.
+
+*Kimi Code CLI — `kimi` 0.42.0, `~/.kimi-code/bin/kimi` (**NOT on PATH**).*
+- `resolve_binary("kimi")` fails as-is — the health/spawn path needs the
+  `~/.kimi-code/bin/kimi` fallback, same shape as Cursor's `agent` /
+  `cursor-agent` dual-name handling.
+- Non-interactive: `-p/--prompt`; `--output-format {text,stream-json}`;
+  `-y/--yolo` / `--auto` / `--plan` (**`-p` cannot combine with `--auto`** —
+  `-p` already runs headless). `-S/--session [id]`, `-c/--continue`;
+  `kimi fork`, `kimi export` (ZIP).
+- stream-json stdout is minimal: `{role:"meta",type:"system.version"}`,
+  `{role:"assistant",content:"…"}`, `{role:"meta",type:"session.resume_hint",
+  session_id, command}` — the resume-hint line hands you the id + exact
+  `kimi -r <id>` command.
+- Session store: `~/.kimi-code/sessions/wd_<slug>_<hash>/session_<uuid>/` with
+  `state.json` (`{id, version:2, cwd, createdAt, updatedAt (ms epoch),
+  archived, agents:{main:{homedir,type}}, lastTurnReason}`) and the real
+  transcript at `agents/main/wire.jsonl` — an **event log**, per-line `type`:
+  `metadata`, `profile.bind`, `turn.prompt`, `context.append_message`
+  (`message.role` + `message.origin.kind`), `llm.request`, `usage.record`
+  (`usage.{inputOther,output,inputCacheRead,inputCacheCreation}`,
+  `usageScope:"turn"` — the `local_usage` source), `context.append_loop_event`
+  (`event.type=="content.part"` → `part.text` is assistant output;
+  `event.type=="step.end"`), `turn.ended`, `prompt.completed`. Closer to the
+  Muse event-log filter pattern than to Claude's format.
+- `kimi session list --json [--all] [--cwd <path>]` → `[{id, workDir,
+  sessionDir, createdAt, updatedAt, archived, lastTurnReason}]` — a genuine
+  machine-readable enumerator (unlike Cursor's `agent ls`).
+- `kimi acp` (stdio ACP server) — the clean managed-delivery transport, in
+  the same family as Grok's leader ACP; prefer it over parsing the minimal
+  stream-json for task delivery.
+- Config: `~/.kimi-code/config.toml` (TOML). Provider `managed:kimi-code`,
+  `base_url = "https://api.kimi.ai/coding/v1"` (**`.ai`, not the `.com` some
+  third-party guides show**), OAuth under `~/.kimi-code/{oauth,credentials}/`.
+  Models `kimi-code/{kimi-for-coding, kimi-for-coding-highspeed, k3,
+  k3-256k}`; `k3` is 1M context with `support_efforts=[low,high,max]`.
+- **`KIMI_CODE_HOME` is honored** (creates a full scratch home) — the
+  hermetic-test lever, like `VIBE_HOME`. Also `KIMI_CODE_DATA_DIR_NAME`,
+  `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY`, `KIMI_CODE_SWARM_TIMEOUT_MS`,
+  `KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK`.
+- Auth state 2026-09-09: working (round-trip returned a completion).
 
 #### C14.5 desktop acceptance matrix
 
