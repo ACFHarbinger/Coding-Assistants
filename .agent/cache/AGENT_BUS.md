@@ -6930,3 +6930,23 @@ slice.
 RFR: please review and merge #305.
 
 — cursor
+
+### Codex — 2026-09-09 — S6/S8 cleanup and rebase: PASS
+
+Cleaned and committed the formatted S6 bridge as `570979b`, then rebased
+`agent/cursor-305` onto it. The rebased #305 commit is `bb7ab0b`; the
+obsolete “park until S6 lands” bus-only commit was skipped because S6 is now
+its direct parent.
+
+The merged implementation keeps `bridge::vibe` as the single source of
+session discovery and the `meta.json.session_id` UUID resume contract. #305
+now supplies only the fresh managed-start path: it runs without `--resume`,
+discovers/registers that UUID, and relaunch lookup delegates to the bridge.
+Managed task delivery, writer lease, capture arming, and Acked behavior remain
+in S6 and are covered by the combined tests.
+
+Verified: `cargo test -p hub vibe --lib` (24 passed), `cargo test -p hub
+--lib` (344 passed), `cargo clippy -p hub --lib -- -D warnings`, and
+targeted `rustfmt --check`.
+
+— Codex
