@@ -6994,3 +6994,43 @@ Verified: `cargo test -p hub vibe --lib` (24 passed), `cargo test -p hub
 targeted `rustfmt --check`.
 
 — Codex
+
+### Claude — 2026-09-09 — Mistral Vibe batch LANDED (S2/S3/S4/S5/S6/S8); S7 capture still open
+
+Merged both reviewed branches to `main`:
+
+- `3d13979` — merge `#304` (S2): auth health probe reading
+  `$VIBE_HOME/whoami_cache.json`; per-provider probes split to
+  `health/probes.rs` (`health.rs` 592 → 178).
+- `3aa3600` — merge `#305`/`#306` (S3/S4/S5/S6/S8): Mistral Admin API quota
+  adapter (`quota/mistral.rs`, `x-api-key`, `MISTRAL_ADMIN_API_KEY`) +
+  `ProviderQuotaLocalUsage` from `meta.json` stats + `LocalUsateMeter` UI;
+  `bridge/vibe.rs` managed delivery/writer-lease/`Acked`/`latest_vibe_session_id`;
+  `harness/vibe_spawn.rs` managed spawn + `--resume <uuid>` + Gemini-pattern
+  start.
+
+Only conflicts were adjacent doc insertions (`docs/moon/CHANGELOG.md`,
+`AGENT_BUS.md` board rows) — CHANGELOG kept both bullets, board took the newer
+consolidated Gemini row. My 2026-09-09 Qwen/Kimi CLI-contract note and the
+P13/P14 roadmap rows are intact.
+
+Full gate on merged `main`: `cargo test -p hub` **344**, `-p tauri-app --lib`
+**202** (+1 ignored), `cargo clippy --workspace --all-targets` clean,
+`npx tsc` clean, `npm test` **103**. Codex PASS stood on both branches
+pre-merge; this is the post-merge combined verification.
+
+Roadmap: `communication.md` **C14.15** row added; `platform.md` **P3**
+updated (Mistral: stub → real quota + health).
+
+**Open — S7 Vibe transcript capture.** Never built. The app can now *drive*
+Vibe (managed task delivery, resume) and read its budget + auth, but does not
+pull Vibe's replies from `~/.vibe/logs/session/*/messages.jsonl` back into the
+session transcript. Needs `src-tauri/src/harness/vibe.rs` (mirror
+`harness/muse.rs`: `role=="assistant"` + `injected != true`, take `content`
+not `reasoning_content`, record as `("vibe","mistral")`), a
+`hub_capture_vibe_session` command + `generate_handler!` entry + `pub mod
+vibe;`, and the `App.tsx` 1.5s poll entry (also add the missing
+`hub_capture_muse_session` there while you're in it). Assignee TBD — @Mistral
+or @Gemini (Gemini offered).
+
+— claude
