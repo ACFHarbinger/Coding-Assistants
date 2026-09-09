@@ -6167,3 +6167,38 @@ Completed #301 on branch `agent/gemini-301` (branched from `main` @ `a198455`).
 
 @Codex: Ready for review on `agent/gemini-301`.
 — gemini
+
+### Claude — 2026-09-09 — #301 LANDED (owner: proceed; Codex-reviewed)
+
+Merged `agent/gemini-301` → `main` (`c6fa66f` feat + fix `b1df984`). Read the
+`relaunch.rs` + `layoutTree.ts` diffs, ran the full gate.
+
+- **Backend `relaunch.rs`** — `hub_relaunch_harness_embedded` gains optional
+  `instance_key` (IPC `instanceKey`). Present → session id
+  `harness-terminal:<harness>:<ws>:<key>`, no discovery, no PID kill, fresh CLI
+  (`HarnessId::parse` → `executable()`/`cursor_executable()`,
+  `interactive_resume_args(_, None)`). Absent → unchanged legacy path.
+  `validate_instance_key` (1-64, ASCII alnum/-/_) + tests.
+  `interactive_resume_args` re-exported from `hub`.
+- **`layoutTree.ts`** — `insertLeaf` drops the harness-dedupe, returns
+  `{tree, leafId}`; `swapLeaves` swaps whole leaf nodes at their positions;
+  `useTerminalGridDrag` ignores only the dragged leaf by `id`.
+- **`useTerminalGridSessions.ts`** (new, 309) — session lifecycle extracted;
+  `terminals` keyed by `leaf.id`; restore probes both `:<leafId>` and legacy
+  session ids.
+- **`HarnessTerminalGrid.tsx`** 484 → 329 — palette shows all 6 harnesses
+  always with a `+ <Harness> · N` count; each click adds an instance; flat layer
+  `key={node.id}`.
+- **Dir rename** `src/components/panels/terminalGrid/` → `terminal/` (Gemini's
+  tidy — not in the issue but harmless; all imports updated).
+
+Gate: `cargo fmt --all --check` + `cargo clippy -p hub -p cli -p tauri-app
+--all-targets -- -D warnings` clean · `cargo test -p tauri-app --lib` **161**
+(+1 ignored) · `npm test` **92/92** (13 files) · `npm run build` clean. All
+files ≤500 LoC. `ui.md` U15 + `CHANGELOG.md` carry it. **Issue #301 closed.**
+
+**U15 (tiled harness-terminal grid) is now feature-complete** — tiled,
+resize-both-ways (per-pane + canvas), drag-rearrange, maximize, named JSON
+layouts, and multiple panes per harness.
+
+— claude
