@@ -1,9 +1,29 @@
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { PaygQuotaMeter } from "../PaygQuotaMeter";
+import { beforeEach, describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { PaygQuotaMeter, STORAGE_KEY_PREFIX } from "../PaygQuotaMeter";
 import type { ProviderQuota } from "../types";
 
 describe("PaygQuotaMeter", () => {
+  let store: Record<string, string> = {};
+
+  beforeEach(() => {
+    store = {};
+    globalThis.localStorage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      length: 0,
+      key: () => null,
+    };
+  });
+
   const deepseekQuotaWithBreakdown: ProviderQuota = {
     agent_id: "deepseek",
     provider: "deepseek",
@@ -41,22 +61,32 @@ describe("PaygQuotaMeter", () => {
     expect(screen.getByText(/Promotional Grant \(40\.5%\)/)).toBeInTheDocument();
   });
 
-  it("allows switching metrics and dimensions in the DeepSeek Platform dashboard", () => {
+  it("guards the truthful empty/insufficient-history state when fewer than two snapshots exist", () => {
+    // With no prior snapshots in localStorage, only 1 snapshot is recorded on mount.
     render(<PaygQuotaMeter quota={deepseekQuotaWithBreakdown} />);
 
-    expect(screen.getByText("Platform Usage Activity")).toBeInTheDocument();
-    expect(screen.getByText("deepseek-chat")).toBeInTheDocument();
-    expect(screen.getByText("deepseek-reasoner (R1)")).toBeInTheDocument();
+    const emptyBox = screen.getByTestId("insufficient-history");
+    expect(emptyBox).toBeInTheDocument();
+    expect(screen.getByText("Insufficient Snapshot History")).toBeInTheDocument();
+    expect(screen.getByText(/1 balance snapshot recorded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Recorded balance over time" })).not.toBeInTheDocument();
+  });
 
-    // Switch metric to Tokens
-    fireEvent.click(screen.getByRole("button", { name: "Tokens" }));
-    expect(screen.getByRole("button", { name: "Tokens" })).toHaveStyle({
-      background: "var(--primary)",
-    });
+  it("renders SVG balance history chart when at least two snapshots exist", () => {
+    // Seed localStorage with multiple historical snapshots
+    const key = `${STORAGE_KEY_PREFIX}deepseek`;
+    const pastSnapshots = [
+      { timestamp: 1_724_900_000, total: 15.0, paid: 10.0, gift: 5.0 },
+      { timestamp: 1_724_950_000, total: 13.5, paid: 8.5, gift: 5.0 },
+    ];
+    localStorage.setItem(key, JSON.stringify(pastSnapshots));
 
-    // Switch dimension to By API Key
-    fireEvent.click(screen.getByRole("button", { name: "By API Key" }));
-    expect(screen.getByText("Default Key (sk-...)")).toBeInTheDocument();
+    render(<PaygQuotaMeter quota={deepseekQuotaWithBreakdown} />);
+
+    expect(screen.queryByTestId("insufficient-history")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Recorded balance over time" })).toBeInTheDocument();
+    expect(screen.getByText("Balance History")).toBeInTheDocument();
+    expect(screen.getByText(/3 snapshots/i)).toBeInTheDocument();
   });
 
   it("degrades cleanly when no breakdown is provided", () => {
@@ -79,5 +109,34 @@ describe("PaygQuotaMeter", () => {
     expect(screen.getByText("$88.00")).toBeInTheDocument();
     expect(screen.queryByText("Paid / Topped-up")).not.toBeInTheDocument();
     expect(screen.queryByText("Free / Gift Grant")).not.toBeInTheDocument();
+  });
+
+  it("labels spend appropriately and does not record spend as balance history", () => {
+    const spendQuota: ProviderQuota = {
+      agent_id: "mistral",
+      provider: "mistral",
+      harness_title: "Mistral Vibe",
+      status: "ok",
+      windows: [],
+      fetched_at: 1_725_000_000,
+      balance: "Spent $24.50 USD this period",
+      balance_info: {
+        currency: "USD",
+        total: 24.5,
+        kind: "spend",
+      },
+    };
+
+    render(<PaygQuotaMeter quota={spendQuota} />);
+
+    expect(screen.getByText("Period Spend")).toBeInTheDocument();
+    expect(screen.getByText("$24.50")).toBeInTheDocument();
+    expect(screen.getByText("Total period spend")).toBeInTheDocument();
+    expect(screen.queryByText("Available Balance")).not.toBeInTheDocument();
+    expect(screen.queryByText("Credit Composition")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("payg-balance-history")).not.toBeInTheDocument();
+
+    // Verify localStorage was not populated with a balance snapshot
+    expect(store[`${STORAGE_KEY_PREFIX}mistral`]).toBeUndefined();
   });
 });
