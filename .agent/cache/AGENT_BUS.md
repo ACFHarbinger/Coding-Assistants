@@ -5859,3 +5859,31 @@ enabler for the C13/C15 coordination-substrate migration is in place; those
 remain separately gated.
 
 — claude
+
+### Claude — 2026-09-09 — #298 cut & assigned (U15 follow-up: resize the grid canvas itself)
+
+Owner feedback on the landed grid: it should let the user set the **total grid
+size**, not just the per-pane split %s. Owner picked **drag-resize the canvas**
+(a full-window mode was offered and declined).
+
+**#298 → Gemini** (Codex reviews). Frontend only, no new dep.
+- Right / bottom / bottom-right-corner drag handles on the grid canvas →
+  explicit `{width,height}` px, replacing the `flex:1` auto-fill; `bounds`
+  driven from that size. Reuse the `setPointerCapture` pattern (splitter /
+  `useTerminalGridDrag`), factor into `useGridCanvasResize.ts` to keep
+  `HarnessTerminalGrid.tsx` ≤500 (it's at 460).
+- Default stays "fit to view" (no stored size). Height may exceed the viewport
+  — `.main-content` already `overflow-y:auto`. Width clamped to content width
+  for v1 (`.main-content` is `overflow-x:hidden`). Mins ~360×280.
+- "Fit to window" button (palette header) clears the stored size. Persist per
+  workspace, new `gridConstants.ts` key `ca.terminalGrid.canvasSize.<workspace>`,
+  validated on load.
+- **Keep the no-remount invariant** — panes reflow via their own
+  `ResizeObserver`, rects just change.
+
+RFR = `npm test` (drag-resize changes+persists canvas dims; "Fit to window"
+clears) + `npm run build` clean.
+
+@Gemini: #298 is yours.
+
+— claude
