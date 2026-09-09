@@ -118,8 +118,12 @@ export function useTerminalGridSessions({
       setTerminals(Object.fromEntries(live.map(({ leafId, sessionId }) => [leafId, sessionId])));
 
       if (restoredMaximized) {
-        const matchesLeaf = live.some((entry) => entry.leafId === restoredMaximized || entry.harness === restoredMaximized);
-        setMaximizedId(matchesLeaf ? restoredMaximized : null);
+        // Layouts saved before #301 stored the harness name. Convert that
+        // legacy value to the live leaf ID rather than hiding every pane.
+        const maximizedLeaf = live.find(
+          (entry) => entry.leafId === restoredMaximized || entry.harness === restoredMaximized,
+        );
+        setMaximizedId(maximizedLeaf?.leafId ?? null);
       } else {
         setMaximizedId(null);
       }
@@ -182,12 +186,13 @@ export function useTerminalGridSessions({
   }, []);
 
   const launchHarness = useCallback(
-    async (harness: string) => {
+    async (harness: string, existingLeafId?: string) => {
       if (!workspace.startsWith("/")) {
         setError("Set an absolute Workspace Root before launching a harness terminal.");
         return;
       }
-      setBusyId(harness);
+      const leafId = existingLeafId ?? generateNodeId(`leaf-${harness}`);
+      setBusyId(leafId);
       setError("");
       setStatusMsg(`Starting ${DISPLAY_NAMES[harness] || harness} terminal…`);
       try {
@@ -199,17 +204,18 @@ export function useTerminalGridSessions({
         } catch {
           // ignore
         }
-        const newLeafId = generateNodeId(`leaf-${harness}`);
         const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
           harness,
           workspace,
           existingPid,
-          instanceKey: newLeafId,
+          instanceKey: leafId,
         });
         const sid = outcome?.sessionId ?? (outcome as { session_id?: string })?.session_id;
         if (!sid) throw new Error("Relaunch did not return an in-app terminal session id.");
-        setTerminals((prev) => ({ ...prev, [newLeafId]: sid }));
-        setLayout((prev) => insertLeaf(prev, harness, undefined, undefined, newLeafId).tree);
+        setTerminals((prev) => ({ ...prev, [leafId]: sid }));
+        if (!existingLeafId) {
+          setLayout((prev) => insertLeaf(prev, harness, undefined, undefined, leafId).tree);
+        }
         setStatusMsg(outcome.detail || `${DISPLAY_NAMES[harness] || harness} connected.`);
       } catch (cause) {
         setError(String(cause).replace(/^Error:\s*/, ""));

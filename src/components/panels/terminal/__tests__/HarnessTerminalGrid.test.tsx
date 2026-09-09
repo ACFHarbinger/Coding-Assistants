@@ -101,7 +101,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(invoke).mockImplementation((cmd: string, args?: any) => defaultInvokeHandler(cmd, args));
 });
-
 describe("HarnessTerminalGrid", () => {
   it("validates and clamps persisted canvas dimensions", () => {
     expect(parseCanvasSize(JSON.stringify({ width: 1, height: 1 }))).toEqual({ width: 360, height: 280 });
@@ -141,6 +140,41 @@ describe("HarnessTerminalGrid", () => {
 
     // Palette button should now reflect active count: "+ Claude · 1"
     expect(screen.getByText("+ Claude · 1")).toBeInTheDocument();
+  });
+
+  it("connects a saved idle pane without adding a duplicate leaf", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([{ name: "saved", savedAt: "2026-09-09T00:00:00Z", paneCount: 1 }]);
+      }
+      if (cmd === "hub_load_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "saved",
+          savedAt: "2026-09-09T00:00:00Z",
+          canvas: null,
+          layout: { type: "leaf", id: "saved-claude", harness: "claude" },
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    expect(await screen.findByText("saved")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    expect(await screen.findByText("Connect CLI")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Connect CLI"));
+    expect(await screen.findByTestId("embedded-terminal-sid-claude")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("hub_relaunch_harness_embedded", {
+      harness: "claude",
+      workspace: "/test/workspace",
+      existingPid: null,
+      instanceKey: "saved-claude",
+    });
+    expect(screen.getAllByRole("button", { name: "Close claude pane" })).toHaveLength(1);
   });
 
   it("closes a pane and removes it from layout when clicking close button", async () => {
@@ -402,4 +436,3 @@ describe("HarnessTerminalGrid", () => {
     expect(screen.getByText("+ Grok")).toBeInTheDocument();
   });
 });
-

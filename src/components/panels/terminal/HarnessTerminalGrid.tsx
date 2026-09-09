@@ -279,7 +279,7 @@ export default function HarnessTerminalGrid({
                       startPaneDrag(e, node.harness, node.id, () => leaves, containerRef.current, handleDrop);
                     }
                   }}
-                  onConnect={() => void launchHarness(node.harness)}
+                  onConnect={() => void launchHarness(node.harness, node.id)}
                   onToggleMaximize={() => setMaximizedId(isMaximized ? null : node.id)}
                   onClose={() => void closePane(node.id)}
                   onExit={(detail) => setStatusMsg(`${DISPLAY_NAMES[node.harness] || node.harness} exit: ${detail}`)}
