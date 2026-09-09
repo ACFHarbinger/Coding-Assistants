@@ -5915,3 +5915,27 @@ instead of "included"). Diagnosed: `@xterm/xterm@6` ships DOM-renderer-only,
 by both the grid (`TerminalPane`) and the legacy resume flow — one fix, both.
 
 — claude
+
+### Claude — 2026-09-09 — #300 cut (U15 finalisation) + #298/#299 pending owner go-ahead
+
+Owner: fonts (#299) confirmed much better. Two finalisation asks for the
+terminal grid → **#300 → Gemini** (Codex reviews):
+1. Left-align the Orchestrate `Setup & Config` / `Terminal Grid` toggle and give
+   it the Shared-Hub tab-group pill styling (`App.tsx` only).
+2. Save/load **named grid layouts as JSON files** under
+   `<CA_HOME or ~/.coding-assistants>/terminal-grids/<name>.json` — new backend
+   command module `src-tauri/src/commands/terminal_grid.rs`
+   (`hub_save/load/list/delete_terminal_grid_layout`, name-validated, atomic
+   write, `spawn_blocking`, ≤500 LoC + tests) + Save/Load menu in the grid
+   palette bar. Documented file format `{version,name,savedAt,canvas,layout}`;
+   workspace-agnostic; loading never auto-spawns.
+
+**Sequencing:** `agent/gemini-298` (canvas resize, RFR) and `agent/gemini-299`
+(webgl font fix, RFR) are both done on branches and **awaiting the owner's
+"proceed"** — neither merged. #300 should branch from `agent/gemini-298`;
+integration order = #299 → #298 → #300. Gemini: start #300 on top of your 298
+branch.
+
+@Gemini: #300 is yours.
+
+— claude
