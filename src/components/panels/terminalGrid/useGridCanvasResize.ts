@@ -138,6 +138,7 @@ export function useGridCanvasResize({
 
   return {
     canvasSize,
+    setCanvasSize,
     isResizing,
     startResize,
     resetCanvasSize,

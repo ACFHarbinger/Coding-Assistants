@@ -2,30 +2,18 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionStatus } from "../harness/types";
 import {
-  computeRects,
-  insertLeaf,
-  removeLeaf,
-  resizeSplit,
-  swapLeaves,
-  moveLeaf,
-  collectLeaves,
-  serializeLayout,
-  deserializeLayout,
-  type LayoutNode,
-  type Rect,
-  type SplitterInfo,
+  computeRects, insertLeaf, removeLeaf, resizeSplit, swapLeaves, moveLeaf,
+  collectLeaves, serializeLayout, deserializeLayout,
+  type LayoutNode, type Rect, type SplitterInfo,
 } from "./layoutTree";
 import { useTerminalGridDrag, type DragTargetZone } from "./useTerminalGridDrag";
 import { useGridCanvasResize } from "./useGridCanvasResize";
 import CanvasResizeHandles from "./CanvasResizeHandles";
 import DropZoneOverlay from "./DropZoneOverlay";
 import TerminalPane from "./TerminalPane";
+import GridLayoutMenu from "./GridLayoutMenu";
 import {
-  ALL_HARNESSES,
-  DISPLAY_NAMES,
-  storageKey,
-  maxKey,
-  terminalSessionId,
+  ALL_HARNESSES, DISPLAY_NAMES, storageKey, maxKey, canvasSizeKey, terminalSessionId,
   type CanvasSize,
 } from "./gridConstants";
 
@@ -64,7 +52,7 @@ export default function HarnessTerminalGrid({
     }
   }, []);
 
-  const { canvasSize, startResize, resetCanvasSize } = useGridCanvasResize({
+  const { canvasSize, setCanvasSize, startResize, resetCanvasSize } = useGridCanvasResize({
     workspace,
     containerRef,
     onSizeChange: handleCanvasSizeChange,
@@ -243,6 +231,22 @@ export default function HarnessTerminalGrid({
     setStatusMsg("All harness terminal panes closed.");
   }, [terminals]);
 
+  const handleLoadLayout = useCallback((loadedLayout: LayoutNode, loadedCanvas: CanvasSize | null) => {
+    setLayout(loadedLayout);
+    if (loadedCanvas) {
+      setCanvasSize(loadedCanvas);
+      try {
+        localStorage.setItem(canvasSizeKey(workspace), JSON.stringify(loadedCanvas));
+      } catch {
+        /* ignore */
+      }
+    } else {
+      resetCanvasSize();
+    }
+    setMaximizedHarness(null);
+    setStatusMsg("Layout loaded.");
+  }, [workspace, resetCanvasSize, setCanvasSize]);
+
   const handleDrop = useCallback((source: string, target: string, zone: DragTargetZone) => {
     setLayout((prev) => (prev ? (zone === "center" ? swapLeaves(prev, source, target) : moveLeaf(prev, source, target, zone)) : null));
   }, []);
@@ -331,24 +335,19 @@ export default function HarnessTerminalGrid({
             </button>
           )}
           {canvasSize && (
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
-              onClick={resetCanvasSize}
-              title="Reset grid size to fit window"
-            >
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={resetCanvasSize} title="Reset grid size to fit window">
               Fit to window
             </button>
           )}
+          <GridLayoutMenu
+            currentLayout={layout}
+            currentCanvas={canvasSize}
+            onLoadLayout={handleLoadLayout}
+            onError={(err) => setError(err)}
+            onStatus={(msg) => setStatusMsg(msg)}
+          />
           {openLeaves.length > 0 && (
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
-              onClick={() => void resetGrid()}
-              title="Close all panes and reset layout"
-            >
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={() => void resetGrid()} title="Close all panes and reset layout">
               Reset grid
             </button>
           )}

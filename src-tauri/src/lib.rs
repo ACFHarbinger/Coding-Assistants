@@ -482,6 +482,10 @@ pub fn run() {
             commands::commands::avatar::hub_set_agent_avatar,
             commands::commands::avatar::hub_clear_agent_avatar,
             commands::commands::avatar::hub_read_avatar_preview,
+            commands::commands::terminal_grid::hub_save_terminal_grid_layout,
+            commands::commands::terminal_grid::hub_load_terminal_grid_layout,
+            commands::commands::terminal_grid::hub_list_terminal_grid_layouts,
+            commands::commands::terminal_grid::hub_delete_terminal_grid_layout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

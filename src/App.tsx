@@ -388,11 +388,11 @@ function App() {
         {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel /></div>}
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0 }} onClick={() => setOrchestrateSubView("setup")}>
+          <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", width: "fit-content", marginBottom: "1rem" }}>
+            <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("setup")}>
               ⚙️ Setup &amp; Config
             </button>
-            <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0 }} onClick={() => setOrchestrateSubView("terminals")}>
+            <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("terminals")}>
               🖥️ Terminal Grid
             </button>
           </div>
