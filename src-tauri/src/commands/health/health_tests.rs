@@ -229,10 +229,8 @@ fn cursor_health_covers_all_installation_and_token_expiry_states() {
 fn local_runtime_health_accepts_any_of_several_binary_names() {
     // All-bogus list: not installed, and the detail names what was tried so
     // a still-red dot is self-diagnosing.
-    let miss = local_runtime_health_multi(
-        &LLAMACPP,
-        &["not-a-real-binary-xyz", "also-not-real-abc"],
-    );
+    let miss =
+        local_runtime_health_multi(&LLAMACPP, &["not-a-real-binary-xyz", "also-not-real-abc"]);
     assert!(!miss.installed);
     assert_eq!(miss.authenticated, None);
     assert!(miss.detail.contains("not-a-real-binary-xyz"));
@@ -272,4 +270,63 @@ fn secret_hygiene_never_leaks_tokens_into_health_snapshots() {
     assert!(!serialized.contains(canary));
     assert!(!h.detail.contains(canary));
     assert_eq!(h.auth_expires_at.as_deref(), Some("2026-09-08T22:00:00Z"));
+}
+
+#[test]
+fn mistral_health_names_the_plan_and_never_leaks_customer_id() {
+    use super::super::quota_vibe_usage::VibeWhoamiFacts;
+
+    let logged_in = VibeWhoamiFacts {
+        authenticated: true,
+        cache_present: true,
+        plan_name: Some("EDU".into()),
+        plan_type: Some("chat".into()),
+    };
+    let h = mistral_health_with(true, logged_in);
+    assert!(h.installed);
+    assert_eq!(h.authenticated, Some(true));
+    assert!(h.detail.contains("EDU plan"), "{}", h.detail);
+    assert_eq!(h.endpoint_reachable, None);
+    assert_eq!(h.agent_id, "mistral");
+
+    let canary = "canary-customer-id-do-not-leak";
+    let with_canary_plan = VibeWhoamiFacts {
+        authenticated: true,
+        cache_present: true,
+        plan_name: Some("EDU".into()),
+        plan_type: Some("chat".into()),
+    };
+    let serialized = serde_json::to_string(&mistral_health_with(true, with_canary_plan)).unwrap();
+    assert!(!serialized.contains(canary));
+
+    let missing = VibeWhoamiFacts {
+        authenticated: false,
+        cache_present: false,
+        plan_name: None,
+        plan_type: None,
+    };
+    let h2 = mistral_health_with(true, missing);
+    assert_eq!(h2.authenticated, Some(false));
+    assert!(h2.detail.contains("not logged in"), "{}", h2.detail);
+
+    let unparseable = VibeWhoamiFacts {
+        authenticated: false,
+        cache_present: true,
+        plan_name: None,
+        plan_type: None,
+    };
+    let h3 = mistral_health_with(true, unparseable);
+    assert_eq!(h3.authenticated, Some(false));
+    assert!(h3.detail.contains("unparseable"), "{}", h3.detail);
+
+    let login_no_bin = VibeWhoamiFacts {
+        authenticated: true,
+        cache_present: true,
+        plan_name: Some("EDU".into()),
+        plan_type: None,
+    };
+    let h4 = mistral_health_with(false, login_no_bin);
+    assert!(!h4.installed);
+    assert_eq!(h4.authenticated, Some(true));
+    assert!(h4.detail.contains("not on PATH"), "{}", h4.detail);
 }
