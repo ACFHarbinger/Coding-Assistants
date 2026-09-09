@@ -177,6 +177,12 @@ pub(crate) fn windows_from_period_usage(value: &Value) -> Vec<ProviderQuotaWindo
 
     let mut windows = Vec::new();
     if let Some(plan) = plan {
+        // The three bars `/usage` shows: overall, then Auto/Composer and API.
+        if let Some(used) =
+            object_field(plan, "totalPercentUsed", "total_percent_used").and_then(json_percent)
+        {
+            push_percent_window(&mut windows, "Included allowance", used, resets_at);
+        }
         if let Some(used) =
             object_field(plan, "autoPercentUsed", "auto_percent_used").and_then(json_percent)
         {
@@ -188,11 +194,8 @@ pub(crate) fn windows_from_period_usage(value: &Value) -> Vec<ProviderQuotaWindo
             push_percent_window(&mut windows, "API", used, resets_at);
         }
         if windows.is_empty() {
-            if let Some(used) =
-                object_field(plan, "totalPercentUsed", "total_percent_used").and_then(json_percent)
-            {
-                push_percent_window(&mut windows, "Plan", used, resets_at);
-            } else if let (Some(used), Some(limit)) = (
+            // No percentage fields at all: derive one from the cent integers.
+            if let (Some(used), Some(limit)) = (
                 object_field(plan, "includedSpend", "included_spend").and_then(json_cents),
                 object_field(plan, "limit", "limit").and_then(json_cents),
             ) {
@@ -208,20 +211,15 @@ pub(crate) fn windows_from_period_usage(value: &Value) -> Vec<ProviderQuotaWindo
     windows
 }
 
-/// Balance line for the Usage card: allowance consumed (`includedSpend` of
-/// `limit`), plus explicit `onDemandSpend` overage when positive. `totalSpend`
-/// is the notional rate-card value of usage (= `includedSpend` + `bonusSpend`,
-/// mostly absorbed by the plan, not money owed); pairing it against `limit`
-/// produced impossible lines like "$74.22 used of $20.00".
+/// Balance line for the Usage card. The payload has no trustworthy "dollars
+/// used" value (`totalSpend` is notional = `includedSpend` + `bonusSpend`;
+/// `includedSpend` saturates at `limit`), so "$X used of $Y" phrasing was
+/// always wrong. Consumption is the percentage windows; this line states only
+/// the allowance and any positive `onDemandSpend` overage.
 fn balance_from_period_usage(value: &Value) -> Option<String> {
     let plan = object_field(value, "planUsage", "plan_usage")?;
     let limit = object_field(plan, "limit", "limit").and_then(json_cents)?;
-    let included = object_field(plan, "includedSpend", "included_spend").and_then(json_cents)?;
-    let base = format!(
-        "{} used of {} included this cycle",
-        format_cents(included.min(limit)),
-        format_cents(limit)
-    );
+    let base = format!("{} included this cycle", format_cents(limit));
     match object_field(plan, "onDemandSpend", "on_demand_spend")
         .and_then(json_cents)
         .filter(|cents| *cents > 0)

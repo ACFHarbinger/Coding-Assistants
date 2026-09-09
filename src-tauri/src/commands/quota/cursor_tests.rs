@@ -20,20 +20,25 @@ const LIVE_SAMPLE: &str = r#"{
 fn parses_live_dashboard_period_usage() {
     let value: Value = serde_json::from_str(LIVE_SAMPLE).unwrap();
     let windows = windows_from_period_usage(&value);
-    assert_eq!(windows.len(), 2);
-    assert_eq!(windows[0].label, "Auto / Composer");
-    assert_eq!(windows[0].used_percent, 13);
-    assert_eq!(windows[0].remaining_percent, 87);
-    assert_eq!(windows[1].label, "API");
-    assert_eq!(windows[1].used_percent, 33);
+    assert_eq!(windows.len(), 3);
+    // The three bars the interactive `/usage` panel shows.
+    assert_eq!(windows[0].label, "Included allowance");
+    assert_eq!(windows[0].used_percent, 14); // totalPercentUsed 14.39 -> 14
+    assert_eq!(windows[0].remaining_percent, 86);
     assert_eq!(windows[0].resets_at, Some(1_791_200_599));
-    // `totalSpend` 7122 = `includedSpend` 2000 + `bonusSpend` 5122 (notional /
-    // promotional value, not money owed). The balance line reports the
-    // allowance consumed, not `totalSpend` — otherwise it reads "$71.22 used
-    // of $20.00" (≈356%), which is impossible for a $20 plan.
+    assert_eq!(windows[1].label, "Auto / Composer");
+    assert_eq!(windows[1].used_percent, 13);
+    assert_eq!(windows[1].remaining_percent, 87);
+    assert_eq!(windows[2].label, "API");
+    assert_eq!(windows[2].used_percent, 33);
+    // The payload has no trustworthy "dollars used" figure: `totalSpend` 7122 =
+    // `includedSpend` 2000 + `bonusSpend` 5122 (notional value, not money owed)
+    // and `includedSpend` saturates at `limit`. Any "$X used of $Y" built from
+    // them is wrong (it read "$71.22 used of $20.00", ≈356%). Consumption is the
+    // windows above; the balance line states only the allowance in dollars.
     assert_eq!(
         balance_from_period_usage(&value).as_deref(),
-        Some("$20.00 used of $20.00 included this cycle")
+        Some("$20.00 included this cycle")
     );
     let quota = cursor_quota_from_period(&value);
     assert_eq!(quota.agent_id, "cursor");

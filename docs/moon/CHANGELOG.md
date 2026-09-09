@@ -224,9 +224,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this cycle" (≈371%) — `balance_from_period_usage` paired `totalSpend` (the
   *notional* rate-card value of all usage, mostly absorbed by the plan and not
   money owed; = `includedSpend` + `bonusSpend` in the captured payload) against
-  `limit` (the $20 allowance). It now reports the allowance consumed
-  (`includedSpend` of `limit`) and appends real billed overage only when an
-  `onDemandSpend` field is present and positive. The OpenCode Go card said "the
+  `limit` (the $20 allowance). The captured payload carries no trustworthy
+  "dollars used" figure at all (`includedSpend` itself saturates at `limit`),
+  so any "$X used of $Y" phrasing is wrong. Consumption is now reported only as
+  the three percentage bars the interactive `/usage` panel shows — Included
+  allowance (`totalPercentUsed`), Auto / Composer, API — and the balance line
+  states just the allowance plus real billed `onDemandSpend` overage when
+  present and positive. The OpenCode Go card said "the
   plugin is not installed or not configured" whenever `opencode run "/ogc-usage"`
   succeeded but the model driving the turn reformatted the `ogc_usage` result as
   prose ("Monthly quota exceeded (100.2%). Rolling and weekly usage are at 0%.")
