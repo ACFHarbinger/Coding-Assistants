@@ -345,10 +345,53 @@ fn orchestration_policy_defaults_are_safe() {
     assert!(effective.export_enabled);
     assert!(effective.memory_recall_enabled);
     assert_eq!(effective.memory_recall_limit, 5);
+    // Metered usage probes are on by default — a bare install still checks
+    // every provider's usage; a distributor turns this off before handing
+    // the app to testers.
+    assert!(effective.allow_metered_quota_probes);
+    // The background usage refresh is OFF by default: no timer spends tokens
+    // without the user opting in. The cadence still has a sane default.
+    assert!(!effective.quota_auto_refresh_enabled);
+    assert_eq!(effective.quota_auto_refresh_interval_secs, 300);
     assert_eq!(
         effective.confirm_new_enrollment_status,
         FieldStatus::Inherited
     );
+}
+
+#[test]
+fn allow_metered_quota_probes_round_trips_off() {
+    let dir = tempdir().unwrap();
+    let mut store = SettingsStore::open(dir.path());
+    store.set_allow_metered_quota_probes(false).unwrap();
+    store.save().unwrap();
+
+    let raw = fs::read_to_string(store.path()).unwrap();
+    assert!(
+        raw.contains("allow_metered_quota_probes = false"),
+        "{raw}"
+    );
+
+    let reloaded = SettingsStore::open(dir.path());
+    assert!(!reloaded.effective(None).orchestration.allow_metered_quota_probes);
+}
+
+#[test]
+fn quota_auto_refresh_round_trips_and_range_checks_the_cadence() {
+    let dir = tempdir().unwrap();
+    let mut store = SettingsStore::open(dir.path());
+    store.set_quota_auto_refresh_enabled(true).unwrap();
+    store.set_quota_auto_refresh_interval_secs(120).unwrap();
+    store.save().unwrap();
+
+    // Out of range on both ends is rejected, leaving the stored value intact.
+    assert!(store.set_quota_auto_refresh_interval_secs(5).is_err());
+    assert!(store.set_quota_auto_refresh_interval_secs(7200).is_err());
+
+    let reloaded = SettingsStore::open(dir.path());
+    let effective = reloaded.effective(None).orchestration;
+    assert!(effective.quota_auto_refresh_enabled);
+    assert_eq!(effective.quota_auto_refresh_interval_secs, 120);
 }
 
 #[test]

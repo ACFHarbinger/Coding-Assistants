@@ -412,6 +412,9 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             export_enabled: Some(false),
             memory_recall_enabled: None,
             memory_recall_limit: None,
+            allow_metered_quota_probes: None,
+            quota_auto_refresh_enabled: None,
+            quota_auto_refresh_interval_secs: None,
         },
     )
     .expect("disable export via Settings");
@@ -437,6 +440,9 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             export_enabled: Some(true),
             memory_recall_enabled: None,
             memory_recall_limit: None,
+            allow_metered_quota_probes: None,
+            quota_auto_refresh_enabled: None,
+            quota_auto_refresh_interval_secs: None,
         },
     )
     .expect("re-enable export via Settings");

@@ -301,6 +301,14 @@ pub struct OrchestrationPatch {
     pub export_enabled: Option<bool>,
     pub memory_recall_enabled: Option<bool>,
     pub memory_recall_limit: Option<u8>,
+    /// Global-only; a workspace scope is ignored for this field (quota is an
+    /// account-level concept). See `hub::OrchestrationPolicy`.
+    pub allow_metered_quota_probes: Option<bool>,
+    /// Global-only. Off by default; when on, `quota_auto_refresh_interval_secs`
+    /// sets the background usage-refresh cadence.
+    pub quota_auto_refresh_enabled: Option<bool>,
+    /// Global-only. Rejected by the store if outside its allowed range.
+    pub quota_auto_refresh_interval_secs: Option<u32>,
 }
 
 /// `workspace: None` updates the global default; `Some(path)` sets a
@@ -383,6 +391,26 @@ pub fn settings_update_orchestration(
                 .map_err(|e| e.to_string())?,
         }
         changed_fields.push("orchestration.memory_recall_limit");
+    }
+    if let Some(v) = patch.allow_metered_quota_probes {
+        // Global-only: there is no workspace override, so a workspace-scoped
+        // call still writes the single global value.
+        store
+            .set_allow_metered_quota_probes(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.allow_metered_quota_probes");
+    }
+    if let Some(v) = patch.quota_auto_refresh_enabled {
+        store
+            .set_quota_auto_refresh_enabled(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.quota_auto_refresh_enabled");
+    }
+    if let Some(v) = patch.quota_auto_refresh_interval_secs {
+        store
+            .set_quota_auto_refresh_interval_secs(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.quota_auto_refresh_interval_secs");
     }
 
     if !changed_fields.is_empty() {

@@ -39,6 +39,27 @@ pub(super) fn orchestration_policy_from_table(
         "memory_recall_enabled",
         defaults.memory_recall_enabled,
     )?;
+    let allow_metered_quota_probes = bool_key_or(
+        table,
+        "allow_metered_quota_probes",
+        defaults.allow_metered_quota_probes,
+    )?;
+    let quota_auto_refresh_enabled = bool_key_or(
+        table,
+        "quota_auto_refresh_enabled",
+        defaults.quota_auto_refresh_enabled,
+    )?;
+    let quota_auto_refresh_interval_secs = match table.get("quota_auto_refresh_interval_secs") {
+        Some(item) => u32_from_i64(
+            item.as_integer().ok_or_else(|| {
+                SettingsError::Invalid(
+                    "orchestration.quota_auto_refresh_interval_secs must be an integer".into(),
+                )
+            })?,
+            "orchestration.quota_auto_refresh_interval_secs",
+        )?,
+        None => defaults.quota_auto_refresh_interval_secs,
+    };
     let memory_recall_limit = match table.get("memory_recall_limit") {
         Some(item) => u8::try_from(item.as_integer().ok_or_else(|| {
             SettingsError::Invalid("orchestration.memory_recall_limit must be an integer".into())
@@ -83,6 +104,9 @@ pub(super) fn orchestration_policy_from_table(
         link_suggestion_mode,
         memory_recall_enabled,
         memory_recall_limit,
+        allow_metered_quota_probes,
+        quota_auto_refresh_enabled,
+        quota_auto_refresh_interval_secs,
     })
 }
 
@@ -149,6 +173,10 @@ pub(super) fn effective_orchestration(
         memory_recall_enabled_status,
         memory_recall_limit,
         memory_recall_limit_status,
+        // Global-only: no override merge, no status pill.
+        allow_metered_quota_probes: global.allow_metered_quota_probes,
+        quota_auto_refresh_enabled: global.quota_auto_refresh_enabled,
+        quota_auto_refresh_interval_secs: global.quota_auto_refresh_interval_secs,
     }
 }
 

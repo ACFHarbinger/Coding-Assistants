@@ -35,6 +35,20 @@ fn mistral_quota() -> ProviderQuota {
     )
 }
 
+/// `orchestration.allow_metered_quota_probes`, read once per refresh. The
+/// `gemini` / `opencode` / `muse` adapters are the only ones whose usage
+/// read costs the user tokens (a model turn or a minimal completion); when
+/// this is off they short-circuit to "unavailable" instead of spending
+/// anything. Every other adapter reads a free endpoint and ignores this.
+/// A missing or unreadable settings file degrades to the safe-for-cost
+/// default of `true` — same as a fresh install.
+fn metered_quota_probes_allowed() -> bool {
+    hub::SettingsStore::open(hub::default_hub_home())
+        .effective(None)
+        .orchestration
+        .allow_metered_quota_probes
+}
+
 /// Async + `spawn_blocking`, not a plain sync command: `codex_quota` and
 /// `gemini_quota` spawn a real subprocess and block reading its stdout
 /// (gemini_quota's `agy` call alone allows up to 25s). A sync
@@ -46,15 +60,16 @@ fn mistral_quota() -> ProviderQuota {
 #[tauri::command]
 pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
     tauri::async_runtime::spawn_blocking(|| {
+        let allow_metered = metered_quota_probes_allowed();
         vec![
             claude_quota(),
             grok_quota(),
             codex_quota(),
             cursor_quota(),
-            gemini_quota(),
-            opencode_quota(),
+            gemini_quota(allow_metered),
+            opencode_quota(allow_metered),
             deepseek_quota(),
-            muse_quota(),
+            muse_quota(allow_metered),
             mistral_quota(),
             llamacpp_quota(),
             ollama_quota(),
@@ -77,10 +92,10 @@ pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuot
         "grok" => grok_quota(),
         "chat" | "codex" => codex_quota(),
         "cursor" => cursor_quota(),
-        "gemini" => gemini_quota(),
-        "opencode" => opencode_quota(),
+        "gemini" => gemini_quota(metered_quota_probes_allowed()),
+        "opencode" => opencode_quota(metered_quota_probes_allowed()),
         "deepseek" => deepseek_quota(),
-        "muse" => muse_quota(),
+        "muse" => muse_quota(metered_quota_probes_allowed()),
         "mistral" | "vibe" => mistral_quota(),
         "llamacpp" => llamacpp_quota(),
         "ollama" => ollama_quota(),

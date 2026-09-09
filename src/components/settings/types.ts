@@ -116,6 +116,12 @@ export interface EffectiveOrchestrationPolicy {
   memory_recall_enabled_status: SettingsFieldStatus;
   memory_recall_limit: number;
   memory_recall_limit_status: SettingsFieldStatus;
+  // Global-only, so no paired `_status`: there is no workspace override.
+  allow_metered_quota_probes: boolean;
+  // Global-only. Background usage-refresh timer; off by default.
+  quota_auto_refresh_enabled: boolean;
+  // Global-only. Cadence in seconds when the timer is on.
+  quota_auto_refresh_interval_secs: number;
 }
 
 // Partial update sent to `settings_update_orchestration`. `retention_days`
@@ -128,6 +134,9 @@ export interface OrchestrationPatch {
   export_enabled?: boolean;
   memory_recall_enabled?: boolean;
   memory_recall_limit?: number;
+  allow_metered_quota_probes?: boolean;
+  quota_auto_refresh_enabled?: boolean;
+  quota_auto_refresh_interval_secs?: number;
 }
 
 // Composes the orchestration policy above with the Hub's existing

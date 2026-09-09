@@ -25,6 +25,14 @@ pub const MAX_BACKUP_RETENTION: u32 = 20;
 pub const DEFAULT_MEMORY_RECALL_LIMIT: u8 = 5;
 /// A small ceiling keeps recalled context useful without crowding out the task.
 pub const MAX_MEMORY_RECALL_LIMIT: u8 = 20;
+/// Default seconds between background provider-usage refreshes, when the
+/// background refresh is enabled at all (it is off by default).
+pub const DEFAULT_QUOTA_AUTO_REFRESH_SECS: u32 = 300;
+/// Inclusive lower bound for `orchestration.quota_auto_refresh_interval_secs`
+/// — anything tighter risks hammering a slow adapter every poll.
+pub const MIN_QUOTA_AUTO_REFRESH_SECS: u32 = 30;
+/// Inclusive upper bound — an hour between refreshes is already "barely on".
+pub const MAX_QUOTA_AUTO_REFRESH_SECS: u32 = 3600;
 
 /// Backend used to create memory-search embeddings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -261,6 +269,24 @@ pub struct OrchestrationPolicy {
     pub memory_recall_enabled: bool,
     /// Maximum number of memories injected for one prompt.
     pub memory_recall_limit: u8,
+    /// Whether a provider-usage snapshot may run a probe that costs the user
+    /// tokens. A few harnesses expose no free usage surface — the only read
+    /// is a model turn (`gemini` via `agy --print "/usage"`, `opencode` via
+    /// `opencode run "/ogc-usage"`) or a minimal completion (`muse`). When
+    /// this is off those three report "unavailable" instead of spending
+    /// anything; every other provider reads a free endpoint regardless.
+    /// Global-only: quota is an account-level concept, not per-workspace.
+    pub allow_metered_quota_probes: bool,
+    /// Whether the app refreshes provider-usage snapshots on a background
+    /// timer (the Usage strip's poll). **Off by default** — a background
+    /// timer spends tokens on the metered adapters with no user in the
+    /// loop. When on, `quota_auto_refresh_interval_secs` sets the cadence.
+    /// Global-only.
+    pub quota_auto_refresh_enabled: bool,
+    /// Seconds between background usage refreshes when
+    /// `quota_auto_refresh_enabled` is on. Clamped to
+    /// [`MIN_QUOTA_AUTO_REFRESH_SECS`, `MAX_QUOTA_AUTO_REFRESH_SECS`].
+    pub quota_auto_refresh_interval_secs: u32,
 }
 
 impl Default for OrchestrationPolicy {
@@ -275,6 +301,9 @@ impl Default for OrchestrationPolicy {
             link_suggestion_mode: LinkSuggestionMode::Off,
             memory_recall_enabled: true,
             memory_recall_limit: DEFAULT_MEMORY_RECALL_LIMIT,
+            allow_metered_quota_probes: true,
+            quota_auto_refresh_enabled: false,
+            quota_auto_refresh_interval_secs: DEFAULT_QUOTA_AUTO_REFRESH_SECS,
         }
     }
 }
@@ -289,6 +318,14 @@ impl OrchestrationPolicy {
         if !(1..=MAX_MEMORY_RECALL_LIMIT).contains(&self.memory_recall_limit) {
             return Err(SettingsError::Invalid(format!(
                 "orchestration.memory_recall_limit must be within 1..={MAX_MEMORY_RECALL_LIMIT}"
+            )));
+        }
+        if !(MIN_QUOTA_AUTO_REFRESH_SECS..=MAX_QUOTA_AUTO_REFRESH_SECS)
+            .contains(&self.quota_auto_refresh_interval_secs)
+        {
+            return Err(SettingsError::Invalid(format!(
+                "orchestration.quota_auto_refresh_interval_secs must be within \
+                 {MIN_QUOTA_AUTO_REFRESH_SECS}..={MAX_QUOTA_AUTO_REFRESH_SECS}"
             )));
         }
         Ok(())
@@ -362,6 +399,15 @@ pub struct EffectiveOrchestrationPolicy {
     pub memory_recall_enabled_status: FieldStatus,
     pub memory_recall_limit: u8,
     pub memory_recall_limit_status: FieldStatus,
+    /// Global-only, so — unlike every other field here — it carries no
+    /// paired `_status`: there is no workspace override to be "inherited"
+    /// from or to "override".
+    pub allow_metered_quota_probes: bool,
+    /// Global-only (no `_status`), same rationale as
+    /// `allow_metered_quota_probes`.
+    pub quota_auto_refresh_enabled: bool,
+    /// Global-only (no `_status`).
+    pub quota_auto_refresh_interval_secs: u32,
 }
 
 /// Global defaults merged with an optional workspace override — the typed,

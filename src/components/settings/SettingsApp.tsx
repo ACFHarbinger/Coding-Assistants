@@ -200,7 +200,8 @@ export default function SettingsApp() {
       | "confirm_broadcast"
       | "auto_enrollment_allowed"
       | "export_enabled"
-      | "memory_recall_enabled",
+      | "memory_recall_enabled"
+      | "allow_metered_quota_probes",
     current: boolean,
   ) => {
     void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { [field]: !current }));

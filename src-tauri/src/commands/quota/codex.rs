@@ -36,6 +36,14 @@ pub(crate) fn now_unix() -> i64 {
         .unwrap_or_default()
 }
 
+/// Shared `detail` for the `gemini` / `opencode` / `muse` adapters when
+/// `orchestration.allow_metered_quota_probes` is off. Names the setting and
+/// where to find it, since the reader may never have seen this app before.
+pub(crate) const METERED_PROBE_DISABLED_DETAIL: &str =
+    "Usage read skipped — this provider has no free usage endpoint, so \
+     checking it costs a model turn. Turn on \"Allow metered usage probes\" \
+     in Settings → Orchestration to enable it.";
+
 pub(crate) fn unavailable_quota(
     agent_id: &str,
     provider: &str,

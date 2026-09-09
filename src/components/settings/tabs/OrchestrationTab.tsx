@@ -8,7 +8,8 @@ type OrchestrationField =
   | "confirm_broadcast"
   | "auto_enrollment_allowed"
   | "export_enabled"
-  | "memory_recall_enabled";
+  | "memory_recall_enabled"
+  | "allow_metered_quota_probes";
 
 export interface OrchestrationTabProps {
   effective: EffectiveSettings;
@@ -199,6 +200,14 @@ export default function OrchestrationTab({
             </button>
           ) : undefined
         }
+      />
+
+      <ToggleRow
+        label="Allow metered usage probes"
+        hint="A few harnesses (Antigravity CLI, OpenCode Go, Muse) expose no free usage endpoint — checking their quota costs a model turn. Off means those show as unavailable instead of spending tokens; every other provider reads a free endpoint either way. Global-only."
+        checked={effective.orchestration.allow_metered_quota_probes}
+        onToggle={() => toggleOrchestrationField("allow_metered_quota_probes", effective.orchestration.allow_metered_quota_probes)}
+        disabled={busy}
       />
 
       <FieldRow

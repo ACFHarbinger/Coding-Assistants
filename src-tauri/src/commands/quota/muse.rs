@@ -45,7 +45,10 @@
 //! `Authorization` header value; it never enters a detail, a log, or an
 //! error string.
 
-use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
+use super::quota_codex::{
+    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow,
+    METERED_PROBE_DISABLED_DETAIL,
+};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -236,7 +239,12 @@ fn fetch_subscription(base_url: &str, api_key: &str) -> Result<Value, String> {
         .ok_or_else(|| "Muse response carried no subscription_usage frame".to_string())
 }
 
-pub(crate) fn muse_quota() -> ProviderQuota {
+pub(crate) fn muse_quota(allow_metered: bool) -> ProviderQuota {
+    // No read-only usage route exists; a snapshot costs one minimal
+    // completion (~24 tokens). See the module header.
+    if !allow_metered {
+        return unavailable(METERED_PROBE_DISABLED_DETAIL);
+    }
     let raw =
         match std::fs::read_to_string(muse_auth_path()) {
             Ok(raw) => raw,

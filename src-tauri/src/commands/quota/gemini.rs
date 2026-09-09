@@ -24,7 +24,10 @@
 //! shown vs. the real session's 0.00%/disabled). This spawns a real `agy`
 //! session and parses its real answer instead.
 
-use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
+use super::quota_codex::{
+    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow,
+    METERED_PROBE_DISABLED_DETAIL,
+};
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
@@ -75,7 +78,11 @@ fn parse_usage_line(line: &str) -> Option<ProviderQuotaWindow> {
     })
 }
 
-pub(crate) fn gemini_quota() -> ProviderQuota {
+pub(crate) fn gemini_quota(allow_metered: bool) -> ProviderQuota {
+    // `agy --print "/usage"` runs the slash command through a model turn.
+    if !allow_metered {
+        return unavailable(METERED_PROBE_DISABLED_DETAIL);
+    }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let child = Command::new("agy")
         .args([
@@ -129,6 +136,19 @@ pub(crate) fn gemini_quota() -> ProviderQuota {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metered_probe_off_short_circuits_without_spawning_agy() {
+        // Default is on, so nothing but this test exercises the off path:
+        // it must return unavailable and point at the setting, never run
+        // `agy` (which would cost a model turn).
+        let quota = gemini_quota(false);
+        assert_eq!(quota.status, "unavailable");
+        assert_eq!(quota.agent_id, "gemini");
+        let detail = quota.detail.unwrap();
+        assert!(detail.contains("Allow metered usage probes"), "{detail}");
+        assert!(quota.windows.is_empty());
+    }
 
     #[test]
     fn parses_a_percent_row_with_a_reset_timestamp() {

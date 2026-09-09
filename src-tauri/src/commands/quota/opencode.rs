@@ -260,7 +260,11 @@ fn run_opencode_quota(mut command: Command, timeout: std::time::Duration) -> Pro
     }
 }
 
-pub(crate) fn opencode_quota() -> ProviderQuota {
+pub(crate) fn opencode_quota(allow_metered: bool) -> ProviderQuota {
+    // `opencode run "/ogc-usage"` always routes through a model turn.
+    if !allow_metered {
+        return unavailable(super::quota_codex::METERED_PROBE_DISABLED_DETAIL);
+    }
     let mut command = Command::new("opencode");
     command.args(["run", "/ogc-usage"]);
     run_opencode_quota(command, std::time::Duration::from_secs(30))
@@ -269,6 +273,16 @@ pub(crate) fn opencode_quota() -> ProviderQuota {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metered_probe_off_short_circuits_without_running_opencode() {
+        let quota = opencode_quota(false);
+        assert_eq!(quota.status, "unavailable");
+        assert_eq!(quota.agent_id, AGENT_ID);
+        let detail = quota.detail.unwrap();
+        assert!(detail.contains("Allow metered usage probes"), "{detail}");
+        assert!(quota.windows.is_empty());
+    }
 
     #[test]
     fn parses_real_sample_output() {

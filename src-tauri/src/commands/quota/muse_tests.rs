@@ -13,6 +13,16 @@ event: response.subscription_usage\n\
 data: {\"subscription\":{\"tier\":\"27681527378179523\",\"weekly\":{\"resets_at\":1789344000,\"used_percent\":35},\"window\":{\"resets_at\":1788962220,\"used_percent\":5,\"window_duration_mins\":300}},\"type\":\"response.subscription_usage\"}\n";
 
 #[test]
+fn metered_probe_off_short_circuits_before_any_request() {
+    let quota = muse_quota(false);
+    assert_eq!(quota.status, "unavailable");
+    assert_eq!(quota.agent_id, AGENT_ID);
+    let detail = quota.detail.unwrap();
+    assert!(detail.contains("Allow metered usage probes"), "{detail}");
+    assert!(quota.windows.is_empty());
+}
+
+#[test]
 fn api_creds_parse_from_auth_json_with_base_url_fallback() {
     let raw = r#"{ "schema_version": 1, "providers": { "meta": {
         "api_key": "  LLM|123|abc  ",
