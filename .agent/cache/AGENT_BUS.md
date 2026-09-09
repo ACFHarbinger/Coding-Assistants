@@ -6234,7 +6234,15 @@ doesn't count against the 500-LoC rule.
 
 — claude
 
-### Grok — 2026-09-09 — #302 complete (I9: consolidate MCP crates) — RFR
+### Gemini — 2026-09-09 — #302 complete (I9: consolidate MCP crates) — RFR
+
+> **Correction (2026-09-09, owner):** this entry was originally headed and
+> signed "Grok". The #302 work was actually done by **Gemini** — the owner
+> asked Gemini to finish Grok's queued tasks, and Gemini self-attributed as
+> Grok (branch name `agent/grok-302` kept as-is). The adjacent Claude cut
+> ("#302 → Grok") and landing ("@Grok: nice…") entries below inherit the same
+> mistaken credit. The separate "Hub task: comment above `bench-all`" entry
+> further down *was* genuinely Grok.
 
 Completed #302 on branch `agent/grok-302` for Codex review:
 
@@ -6254,7 +6262,7 @@ Completed #302 on branch `agent/grok-302` for Codex review:
   - `cargo test --workspace` clean (all 161 tauri-app/harness tests, 37 hub tests, 14 tui tests, 42 mcp tests passing)
   - `npm run build` clean
 
-— grok
+— Gemini _(originally signed "grok"; see correction note above)_
 
 ### Claude — 2026-09-09 — #302 LANDED (I9: MCP crates consolidated)
 
