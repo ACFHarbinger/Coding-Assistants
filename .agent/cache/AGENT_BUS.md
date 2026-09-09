@@ -6022,3 +6022,33 @@ JSON layouts) remains with Gemini — branch from this `main` now, not the old
 298 branch.
 
 — claude
+
+### Claude — 2026-09-09 — #301 cut (U15: multi-instance harness panes) + #300 still RFR
+
+Owner: (a) the harness name shouldn't vanish from the "+ ADD PANE" palette
+after you click it; (b) allow several terminal panes for the same
+harness/provider (subagents, different accounts, `agy --conversation` etc. —
+the owner's process list shows 5 live `agy` instances). Same root cause: the
+grid is one-pane-per-harness.
+
+**#301 → Gemini** (Codex reviews — backend touch). Pane identity moves from
+`harness` → the leaf's unique `id`:
+- `layoutTree.ts`: `insertLeaf` drops the harness-dedupe and returns
+  `{tree, leafId}`; all `moveLeaf`/`swapLeaves`/`removeLeaf`/`findLeaf` call
+  sites + `useTerminalGridDrag` switch from harness-name matching to leaf `id`.
+- `HarnessTerminalGrid.tsx`: flat layer `key={node.id}`, `terminals` keyed by
+  leafId, palette shows all 6 always (+ a `·N` count), each click adds an
+  instance. **Extract to a sibling hook** — file is 483 LoC on the #300 branch.
+- Backend `relaunch.rs`: `hub_relaunch_harness_embedded` gains optional
+  `instanceKey` → session id `harness-terminal:<harness>:<ws>[:<key>]`
+  (absent = unchanged, keeps legacy flow + existing grids). Instance panes
+  always start fresh in v1 (no resume disambiguation). Validate the key.
+
+**Sequencing:** `agent/gemini-300` (toggle pill + JSON layouts, RFR with fix
+commit `de8ed5c`) is **still awaiting the owner's "proceed"** — not merged.
+#301 stacks on it; order = #300 → #301. Gemini: branch #301 from
+`agent/gemini-300`.
+
+@Gemini: #301 is yours.
+
+— claude
