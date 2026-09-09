@@ -243,6 +243,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the "no rows" error distinguish an unparseable reply (now quotes a snippet)
   from genuinely empty output.
 
+- **Usage tab: Muse Code subscription quota is now readable (`platform.md` P3,
+  supersedes #280 for the harness credential):** #280 concluded Muse had "no
+  key-authenticated usage surface" — correct for the `MODEL_API_KEY` dev-portal
+  inference key it probed, but the **harness login** (`muse login` →
+  `~/.config/muse/auth.json` `providers.meta.api_key`, an `LLM|…` Meta app token)
+  is a different credential, and it *is* a plain Bearer for `POST
+  {api_base_url}/responses`. When that request streams, the SSE tail carries a
+  `response.subscription_usage` frame with a `weekly` and a rolling `window`
+  percentage (`used_percent` + `resets_at` + `window_duration_mins`), which map
+  straight onto `ProviderQuotaWindow` — the same category of first-party Bearer
+  call as the Cursor and DeepSeek adapters, not the cookie-authenticated
+  `dev.meta.ai` SPA #280 declined to scrape. There is no read-only usage route,
+  so a snapshot costs one minimal completion (`max_output_tokens: 16` — the API
+  floor — `reasoning.effort: "minimal"`, `store: false`, ~24 tokens); it stays
+  refresh-scoped (Muse is not in the background `QuotaStatusStrip` poll) and any
+  transport/auth/shape failure degrades to `unavailable`. The key crosses IPC
+  only as the `Authorization` header. Pure `muse_api_creds_from` /
+  `subscription_from_stream` / `windows_from_subscription` cores; `muse.rs` at
+  260 LoC.
+
 - **Harness readiness: Claude Code and Meta Muse auth state (#291/#294 follow-up,
   `platform.md` P3):** two `ProviderHealth` probes reported the wrong login state.
   `claude_health` surfaced `claudeAiOauth.expiresAt` — the short-lived **access
