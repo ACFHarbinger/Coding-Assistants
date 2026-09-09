@@ -27,9 +27,13 @@ fn parses_live_dashboard_period_usage() {
     assert_eq!(windows[1].label, "API");
     assert_eq!(windows[1].used_percent, 33);
     assert_eq!(windows[0].resets_at, Some(1_791_200_599));
+    // `totalSpend` 7122 = `includedSpend` 2000 + `bonusSpend` 5122 (notional /
+    // promotional value, not money owed). The balance line reports the
+    // allowance consumed, not `totalSpend` — otherwise it reads "$71.22 used
+    // of $20.00" (≈356%), which is impossible for a $20 plan.
     assert_eq!(
         balance_from_period_usage(&value).as_deref(),
-        Some("$71.22 used of $20.00 included this cycle")
+        Some("$20.00 used of $20.00 included this cycle")
     );
     let quota = cursor_quota_from_period(&value);
     assert_eq!(quota.agent_id, "cursor");

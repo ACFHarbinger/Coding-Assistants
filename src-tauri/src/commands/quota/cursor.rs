@@ -11,15 +11,11 @@
 //! * **Authentication**: Reads `CURSOR_TOKEN` from vault/environment (via `hub::secret::resolve`),
 //!   falling back to the CLI login token written by `agent login` (`~/.config/cursor/auth.json` on
 //!   Linux, `%APPDATA%\Cursor\auth.json` on Windows, `~/.cursor/auth.json` on macOS).
-//! * **Expected Response Schema**:
-//!   - `billingCycleEnd` / `billing_cycle_end`: Unix millisecond timestamp string or number.
-//!   - `planUsage` / `plan_usage` object containing:
-//!     - `totalSpend` / `total_spend`: Integer cents.
-//!     - `includedSpend` / `included_spend`: Integer cents.
-//!     - `limit`: Integer cents.
-//!     - `autoPercentUsed` / `auto_percent_used`: Float or integer percentage (0..100).
-//!     - `apiPercentUsed` / `api_percent_used`: Float or integer percentage (0..100).
-//!     - `totalPercentUsed` / `total_percent_used`: Float or integer percentage (0..100).
+//! * **Expected Response Schema** (camelCase or snake_case): `billingCycleEnd`
+//!   (Unix ms, string or number); `planUsage` with cent integers `limit`,
+//!   `includedSpend`, `totalSpend` (notional = included + `bonusSpend`),
+//!   optional `onDemandSpend` (billed overage); and float percentages
+//!   `autoPercentUsed` / `apiPercentUsed` / `totalPercentUsed` (0..100).
 //! * **Hardening & Safe Degradation (#290)**:
 //!   - The response shape is strictly validated against `check_usage_schema`.
 //!   - If the endpoint response structure drifts or fields change types, a diagnostic warning
@@ -212,15 +208,27 @@ pub(crate) fn windows_from_period_usage(value: &Value) -> Vec<ProviderQuotaWindo
     windows
 }
 
+/// Balance line for the Usage card: allowance consumed (`includedSpend` of
+/// `limit`), plus explicit `onDemandSpend` overage when positive. `totalSpend`
+/// is the notional rate-card value of usage (= `includedSpend` + `bonusSpend`,
+/// mostly absorbed by the plan, not money owed); pairing it against `limit`
+/// produced impossible lines like "$74.22 used of $20.00".
 fn balance_from_period_usage(value: &Value) -> Option<String> {
     let plan = object_field(value, "planUsage", "plan_usage")?;
-    let total = object_field(plan, "totalSpend", "total_spend").and_then(json_cents)?;
     let limit = object_field(plan, "limit", "limit").and_then(json_cents)?;
-    Some(format!(
+    let included = object_field(plan, "includedSpend", "included_spend").and_then(json_cents)?;
+    let base = format!(
         "{} used of {} included this cycle",
-        format_cents(total),
+        format_cents(included.min(limit)),
         format_cents(limit)
-    ))
+    );
+    match object_field(plan, "onDemandSpend", "on_demand_spend")
+        .and_then(json_cents)
+        .filter(|cents| *cents > 0)
+    {
+        Some(on_demand) => Some(format!("{base} · {} on-demand", format_cents(on_demand))),
+        None => Some(base),
+    }
 }
 
 pub(crate) fn cursor_auth_file() -> PathBuf {

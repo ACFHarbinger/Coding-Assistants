@@ -62,6 +62,87 @@ fn reset_seconds(text: &str) -> Option<i64> {
     }
 }
 
+fn make_window(label: &str, used: i32, resets_secs: Option<i64>) -> ProviderQuotaWindow {
+    let used = used.clamp(0, 100);
+    ProviderQuotaWindow {
+        label: format!("{label} (OpenCode Go)"),
+        family: Some("OpenCode Go".into()),
+        used_percent: used,
+        remaining_percent: 100 - used,
+        resets_at: resets_secs.map(|secs| now_unix() + secs),
+        window_minutes: None,
+    }
+}
+
+/// Byte offset + rounded value of every `N%` / `N.N%` token in `text`.
+fn percent_positions(text: &str) -> Vec<(usize, i32)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            // walk back over an optional number (digits and one '.')
+            let mut start = i;
+            while start > 0 && (bytes[start - 1].is_ascii_digit() || bytes[start - 1] == b'.') {
+                start -= 1;
+            }
+            if start < i {
+                if let Ok(value) = text[start..i].trim_matches('.').parse::<f64>() {
+                    out.push((start, value.round() as i32));
+                }
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Extract the OpenCode Go quota rows from the **whole** `/ogc-usage` output.
+///
+/// `opencode run "/ogc-usage"` always routes through a model turn, which
+/// reformats the `ogc_usage` tool result unpredictably — sometimes the clean
+/// list this adapter was written for, sometimes prose such as
+/// `Monthly quota exceeded (100.2%). Rolling and weekly usage are at 0%.` or
+/// `OpenCode Go usage: Rolling 0%, Weekly 0%, Monthly 100.2% (resets in 9d 11h)`.
+/// The strict per-line parser is tried first (keeps the clean path exact);
+/// on fewer than two rows, fall back to pairing each label with the nearest
+/// percentage that follows it (then the nearest overall).
+fn windows_from_report(text: &str) -> Vec<ProviderQuotaWindow> {
+    let strict: Vec<ProviderQuotaWindow> = text.lines().filter_map(parse_usage_line).collect();
+    if strict.len() >= 2 {
+        return strict;
+    }
+
+    let lower = text.to_lowercase();
+    let pcts = percent_positions(&lower);
+    if pcts.is_empty() {
+        return strict;
+    }
+
+    let mut out = Vec::new();
+    for (label, key) in [
+        ("Rolling", "rolling"),
+        ("Weekly", "weekly"),
+        ("Monthly", "monthly"),
+    ] {
+        let Some(label_pos) = lower.find(key) else {
+            continue;
+        };
+        let after = pcts.iter().find(|(pos, _)| *pos >= label_pos);
+        let nearest = pcts.iter().min_by_key(|(pos, _)| pos.abs_diff(label_pos));
+        let Some(&(_, used)) = after.or(nearest) else {
+            continue;
+        };
+        let resets = lower[label_pos..]
+            .split_once("resets in")
+            .map(|(_, rest)| rest.trim_start())
+            .and_then(|rest| rest.split([')', ',', '\n']).next())
+            .and_then(reset_seconds);
+        out.push(make_window(label, used, resets));
+    }
+    out
+}
+
 /// One line of `opencode run "/ogc-usage"` output. The printed number is a
 /// used percentage (`Rolling: 52.8%` = 52.8% of the budget consumed), so it
 /// maps directly onto `used_percent` with `remaining_percent` as its
@@ -123,32 +204,48 @@ fn run_opencode_quota(mut command: Command, timeout: std::time::Duration) -> Pro
     // quota fetch from hanging the refresh call indefinitely.
     let (tx, rx) = std::sync::mpsc::channel();
     let reader = std::thread::spawn(move || {
-        let windows: Vec<ProviderQuotaWindow> = BufReader::new(stdout)
+        let text: String = BufReader::new(stdout)
             .lines()
             .take(500)
             .map_while(Result::ok)
-            .filter_map(|line| parse_usage_line(&line))
-            .collect();
-        let _ = tx.send(windows);
+            .collect::<Vec<_>>()
+            .join("\n");
+        let _ = tx.send(text);
     });
-    let windows = match rx.recv_timeout(timeout) {
-        Ok(windows) => windows,
+    let text = match rx.recv_timeout(timeout) {
+        Ok(text) => text,
         Err(_) => {
             terminate_child(&mut child);
             // Do not join the reader on timeout: a descendant may still hold
             // the inherited stdout pipe even after the direct child is dead.
             return unavailable(
-                "opencode run \"/ogc-usage\" did not answer within 30s (is the opencode-usage plugin installed and authenticated?)",
+                "opencode run \"/ogc-usage\" did not answer within 30s (is the opencode-go-usage plugin installed and authenticated?)",
             );
         }
     };
     terminate_child(&mut child);
     let _ = reader.join();
 
+    let windows = windows_from_report(&text);
     if windows.is_empty() {
-        return unavailable(
-            "opencode run \"/ogc-usage\" returned no recognizable quota rows (opencode-usage plugin not installed or not configured)",
-        );
+        // Distinguish "ran but the model reformatted the answer past
+        // recognition" from "produced nothing at all" — the earlier message
+        // wrongly blamed a missing plugin in the first case.
+        let snippet: String = text
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty() && !line.starts_with('⚠') && !line.starts_with('>'))
+            .unwrap_or("")
+            .chars()
+            .take(120)
+            .collect();
+        return unavailable(if snippet.is_empty() {
+            "opencode run \"/ogc-usage\" produced no output (is the opencode-go-usage plugin installed and authenticated?)".to_string()
+        } else {
+            format!(
+                "opencode ran /ogc-usage but no quota rows could be read from its reply (got: \"{snippet}\")"
+            )
+        });
     }
 
     ProviderQuota {
@@ -208,6 +305,50 @@ mod tests {
         assert!(parse_usage_line("OpenCode Go Usage:").is_none());
         assert!(parse_usage_line("- Rolling: nope% (resets in 4h)").is_none());
         assert!(parse_usage_line("not a quota line").is_none());
+    }
+
+    #[test]
+    fn whole_text_fallback_reads_prose_reformatted_by_the_model() {
+        // Real shapes seen from `deepseek-*` driving `/ogc-usage`.
+        let prose = "Monthly quota exceeded (100.2%). Rolling and weekly usage are at 0%.";
+        let w = windows_from_report(prose);
+        let pct = |label: &str| {
+            w.iter()
+                .find(|win| win.label.starts_with(label))
+                .map(|win| win.used_percent)
+        };
+        assert_eq!(pct("Rolling"), Some(0));
+        assert_eq!(pct("Weekly"), Some(0));
+        assert_eq!(pct("Monthly"), Some(100));
+
+        let one_liner =
+            "OpenCode Go usage: Rolling 0%, Weekly 0%, Monthly 100.2% (resets in 9d 11h)";
+        let w2 = windows_from_report(one_liner);
+        assert_eq!(w2.len(), 3);
+        assert_eq!(w2[2].used_percent, 100);
+        assert!(w2[2].resets_at.is_some());
+    }
+
+    #[test]
+    fn whole_text_fallback_defers_to_the_strict_list_when_it_is_clean() {
+        let clean = "OpenCode Go Usage:\n\
+             - Rolling: 1% (resets in 5h)\n\
+             - Weekly: 2% (resets in 4d 15h)\n\
+             - Monthly: 3% (resets in 9d)";
+        let w = windows_from_report(clean);
+        assert_eq!(w.len(), 3);
+        assert_eq!(w[0].used_percent, 1);
+        assert_eq!(w[1].used_percent, 2);
+        assert_eq!(w[2].used_percent, 3);
+    }
+
+    #[test]
+    fn percent_positions_finds_each_figure() {
+        let got = percent_positions("a 0% then 100.2% end");
+        assert_eq!(
+            got.iter().map(|(_, v)| *v).collect::<Vec<_>>(),
+            vec![0, 100]
+        );
     }
 
     #[test]

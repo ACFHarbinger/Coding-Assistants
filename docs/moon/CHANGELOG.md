@@ -219,6 +219,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Usage tab: Cursor Agent balance and OpenCode Go quota (`platform.md` P3):**
+  the Cursor card showed impossible lines like "$74.22 used of $20.00 included
+  this cycle" (≈371%) — `balance_from_period_usage` paired `totalSpend` (the
+  *notional* rate-card value of all usage, mostly absorbed by the plan and not
+  money owed; = `includedSpend` + `bonusSpend` in the captured payload) against
+  `limit` (the $20 allowance). It now reports the allowance consumed
+  (`includedSpend` of `limit`) and appends real billed overage only when an
+  `onDemandSpend` field is present and positive. The OpenCode Go card said "the
+  plugin is not installed or not configured" whenever `opencode run "/ogc-usage"`
+  succeeded but the model driving the turn reformatted the `ogc_usage` result as
+  prose ("Monthly quota exceeded (100.2%). Rolling and weekly usage are at 0%.")
+  instead of the clean list. Added a whole-text fallback that pairs each of
+  Rolling/Weekly/Monthly with the first percentage following it (then the
+  nearest), keeping the strict per-line parser as the preferred path, and made
+  the "no rows" error distinguish an unparseable reply (now quotes a snippet)
+  from genuinely empty output.
+
 - **Harness readiness: Claude Code and Meta Muse auth state (#291/#294 follow-up,
   `platform.md` P3):** two `ProviderHealth` probes reported the wrong login state.
   `claude_health` surfaced `claudeAiOauth.expiresAt` — the short-lived **access
