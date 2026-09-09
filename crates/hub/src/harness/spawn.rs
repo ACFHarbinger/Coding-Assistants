@@ -577,6 +577,23 @@ mod tests {
         let vibe = crate::harness::vibe_spawn_args(&ws, "review", None, None).unwrap();
         assert_eq!(vibe[0], "-p");
         assert_eq!(vibe[1], "review");
+        assert_eq!(vibe[2], "--workdir");
+        assert_eq!(vibe[3], ws.as_os_str());
+        assert_eq!(vibe[4], "--trust");
+        assert_eq!(vibe[5], "--output");
+        assert_eq!(vibe[6], "streaming");
+        assert_eq!(vibe[7], "--auto-approve");
+        let resumed = super::super::vibe_managed_spawn_args(
+            &ws,
+            "review",
+            Some("6d2776e5-fd91-a416-68df-ea585bacb872"),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(resumed[0], "--resume");
+        assert_eq!(resumed[1], "6d2776e5-fd91-a416-68df-ea585bacb872");
+        assert_eq!(resumed[2], "-p");
         assert_eq!(HarnessId::OpenCode.executable(), "opencode");
         assert_eq!(HarnessId::DeepSeek.executable(), "opencode");
         assert_eq!(HarnessId::Vibe.executable(), "vibe");

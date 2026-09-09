@@ -222,10 +222,7 @@ impl SettingsStore {
 
     /// Global-only. Rejects a cadence outside the `MIN_QUOTA_AUTO_REFRESH_SECS`
     /// ..= `MAX_QUOTA_AUTO_REFRESH_SECS` range via `OrchestrationPolicy::validate`.
-    pub fn set_quota_auto_refresh_interval_secs(
-        &mut self,
-        secs: u32,
-    ) -> Result<(), SettingsError> {
+    pub fn set_quota_auto_refresh_interval_secs(&mut self, secs: u32) -> Result<(), SettingsError> {
         let mut next = self.snapshot.orchestration.clone();
         next.quota_auto_refresh_interval_secs = secs;
         next.validate()?;

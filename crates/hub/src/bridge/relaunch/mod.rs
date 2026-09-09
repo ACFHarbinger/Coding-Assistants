@@ -35,9 +35,10 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
-        HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
         HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
         HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
+        HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
+        HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
 
@@ -106,15 +107,11 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Muse, None) => vec![],
         (HarnessId::Cursor, Some(id)) => vec!["--resume".into(), id.into()],
         (HarnessId::Cursor, None) => vec![],
-        // OpenCode / Vibe resume flags are not wired for interactive relaunch yet.
-        (HarnessId::OpenCode, Some(_))
-        | (HarnessId::DeepSeek, Some(_))
-        | (HarnessId::Vibe, Some(_)) => {
-            vec![]
-        }
-        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) | (HarnessId::Vibe, None) => {
-            vec![]
-        }
+        (HarnessId::Vibe, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Vibe, None) => vec![],
+        // OpenCode resume flags are not wired for interactive relaunch yet.
+        (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
+        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
     }
 }
 
@@ -328,6 +325,11 @@ mod tests {
             vec!["--resume", "abc"]
         );
         assert!(interactive_resume_args(HarnessId::Cursor, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Vibe, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Vibe, None).is_empty());
     }
 
     #[test]

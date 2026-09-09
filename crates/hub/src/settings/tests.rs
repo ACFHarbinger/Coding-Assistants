@@ -367,13 +367,15 @@ fn allow_metered_quota_probes_round_trips_off() {
     store.save().unwrap();
 
     let raw = fs::read_to_string(store.path()).unwrap();
-    assert!(
-        raw.contains("allow_metered_quota_probes = false"),
-        "{raw}"
-    );
+    assert!(raw.contains("allow_metered_quota_probes = false"), "{raw}");
 
     let reloaded = SettingsStore::open(dir.path());
-    assert!(!reloaded.effective(None).orchestration.allow_metered_quota_probes);
+    assert!(
+        !reloaded
+            .effective(None)
+            .orchestration
+            .allow_metered_quota_probes
+    );
 }
 
 #[test]

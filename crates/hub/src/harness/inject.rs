@@ -9,7 +9,7 @@ use crate::HubError;
 use super::spawn::spawn_explicit;
 use super::{
     claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_spawn_args, grok_spawn_args,
-    muse_spawn_args, opencode_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest,
+    muse_spawn_args, opencode_spawn_args, vibe_managed_spawn_args, HarnessId, HarnessInjectRequest,
     HarnessInjectResult,
 };
 
@@ -133,7 +133,13 @@ fn inject_harness_inner(
             Some(model.unwrap_or(crate::harness::DEFAULT_DEEPSEEK_MODEL)),
             effort,
         )?,
-        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Vibe => vibe_managed_spawn_args(
+            &request.workspace,
+            &prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
         // Muse wakes are one-shot `muse exec` runs (no `--session-id`);
         // task-only delivery routes through `deliver_muse_task` above, which
         // re-enters the managed session headlessly and arms capture.

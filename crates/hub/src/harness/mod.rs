@@ -25,11 +25,11 @@ pub use spawn::{
     grok_spawn_args, muse_disk_session_id, muse_managed_spawn_args, muse_spawn_args,
     opencode_spawn_args, DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
 };
-pub use vibe_spawn::{
-    vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args,
-};
 pub use start::start_harness;
 pub(crate) use start::start_harness_owned;
+pub use vibe_spawn::{
+    start_vibe_managed_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -7,7 +7,8 @@
 //! format (not `text`) is used for managed runs so structured events
 //! are available to downstream consumers.
 
-use crate::HubError;
+use crate::harness::{start_harness_owned, HarnessStartRequest, HarnessStartResult};
+use crate::{HarnessSessionRegistration, HarnessSessionState, HubError, HubStore};
 use std::ffi::OsString;
 use std::path::Path;
 use std::str::FromStr;
@@ -94,9 +95,95 @@ pub fn vibe_managed_spawn_args(
     Ok(args)
 }
 
+fn run_vibe_worker(workspace: &Path, prompt: &str) -> Result<Option<u32>, String> {
+    let (started, child) = start_harness_owned(&HarnessStartRequest {
+        harness: "vibe".into(),
+        workspace: workspace.to_path_buf(),
+        session_id: None,
+        prompt: prompt.into(),
+        ..Default::default()
+    })
+    .map_err(|error| error.to_string())?;
+    // The durable Vibe transcript is the capture source; do not double-capture stdout.
+    let _ = child.wait_with_output();
+    Ok(started.pid)
+}
+
+/// Start a fresh managed Vibe worker and register the UUID Vibe wrote to
+/// `meta.json`. A caller cannot choose that UUID, so this intentionally
+/// invokes Vibe without `--resume`.
+pub fn start_vibe_managed_harness(
+    store: &HubStore,
+    workspace: &Path,
+    prompt: &str,
+) -> Result<(HarnessStartResult, HarnessSessionRegistration), String> {
+    start_vibe_managed_harness_from(
+        store,
+        workspace,
+        prompt,
+        run_vibe_worker,
+        &crate::bridge::vibe::vibe_logs_root(),
+    )
+}
+
+pub(crate) fn start_vibe_managed_harness_from(
+    store: &HubStore,
+    workspace: &Path,
+    prompt: &str,
+    runner: impl FnOnce(&Path, &str) -> Result<Option<u32>, String>,
+    sessions_root: &Path,
+) -> Result<(HarnessStartResult, HarnessSessionRegistration), String> {
+    if !workspace.is_absolute() {
+        return Err("workspace must be an absolute path".into());
+    }
+    let workspace = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
+    let workspace_key = workspace.to_string_lossy().into_owned();
+
+    if let Ok(Some(existing)) = store.get_harness_session("vibe", &workspace_key) {
+        if let Some(pid) = existing.managed_pid {
+            crate::bridge::relaunch::kill_pid(pid);
+        }
+    }
+
+    let pid = runner(&workspace, prompt)?;
+    let disk_id = crate::bridge::vibe::latest_vibe_session_id_from(
+        sessions_root,
+        &workspace,
+        200,
+    )
+    .ok_or_else(|| {
+        "vibe started but no matching session transcript was found; managed session not registered"
+            .to_string()
+    })?;
+
+    let registration = store
+        .register_managed_harness_session_with_state(
+            "vibe",
+            &workspace_key,
+            &disk_id,
+            pid,
+            HarnessSessionState::Ready,
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok((
+        HarnessStartResult {
+            harness: "vibe".into(),
+            pid,
+            status: "started".into(),
+            detail: format!("Vibe managed session started (session {disk_id})"),
+        },
+        registration,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
 
     const WS: &str = "/tmp/coding-assistants-c14-vibe";
 
@@ -155,5 +242,39 @@ mod tests {
         assert_eq!(vibe_disk_session_id("not-a-uuid"), None);
         assert_eq!(vibe_disk_session_id(""), None);
         assert_eq!(vibe_disk_session_id("managed-not-a-uuid"), None);
+    }
+
+    #[test]
+    fn managed_start_registers_discovered_vibe_uuid() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("sessions");
+        let store = HubStore::open(tmp.path()).unwrap();
+        let workspace = PathBuf::from(WS);
+        let uuid = "123e4567-e89b-42d3-a456-426614174000";
+        let (started, registration) = start_vibe_managed_harness_from(
+            &store,
+            &workspace,
+            "hello",
+            |_workspace, _prompt| {
+                let session = root.join("session_test");
+                fs::create_dir_all(&session).unwrap();
+                fs::write(
+                    session.join("meta.json"),
+                    serde_json::json!({
+                        "session_id": uuid,
+                        "environment": { "working_directory": WS }
+                    })
+                    .to_string(),
+                )
+                .unwrap();
+                fs::write(session.join("messages.jsonl"), "event\n").unwrap();
+                Ok(Some(4242))
+            },
+            &root,
+        )
+        .unwrap();
+        assert_eq!(started.pid, Some(4242));
+        assert_eq!(registration.disk_session_id, uuid);
+        assert_eq!(registration.mode, crate::HarnessSessionMode::Managed);
     }
 }
