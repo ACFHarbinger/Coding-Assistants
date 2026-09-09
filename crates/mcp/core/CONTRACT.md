@@ -1,6 +1,6 @@
 # `mcp-core` — the contract every Coding-Assistants MCP bridge follows
 
-`mcp-core` is the shared stdio MCP server. A bridge crate (`crates/mcp-<tool>`,
+`mcp-core` is the shared stdio MCP server. A bridge crate (`crates/mcp/<tool>`,
 and `crates/claude`) implements one trait and hands it to `McpServer`.
 
 ## Transport
@@ -67,7 +67,7 @@ line). One contract, one implementation per app language:
 - `plugins/unity/` — C# editor package
 
 Each `plugins/<tool>/` carries its own README with install steps and a smoke
-script. The Rust side (`crates/mcp-<tool>`) owns the tool schemas and the
+script. The Rust side (`crates/mcp/<tool>`) owns the tool schemas and the
 socket-client half.
 
 ## Config delivery
@@ -77,4 +77,4 @@ program design doc `.agent/reports/chat/memory_and_creative_mcp_program_20260829
 track C-1b) and rendered into each client's config
 (`<workspace>/.mcp.json`, Codex `config.toml` `[mcp_servers]`, Gemini
 `settings.json`, `opencode.json`). A server entry is
-`{ "command": "<abs path to coding-assistants-mcp-<tool>>", "args": [...] }`.
+`{ "command": "<abs path to coding-assistants-mcp>", "args": ["<tool>", ...] }`.

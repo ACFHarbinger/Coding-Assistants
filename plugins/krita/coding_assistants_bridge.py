@@ -1,6 +1,6 @@
 """Coding-Assistants Krita bridge plugin.
 
-Opens a localhost line-JSON TCP server that `crates/mcp-krita`
+Opens a localhost line-JSON TCP server that `crates/mcp/krita`
 (`coding-assistants-mcp-krita`) connects to. One request per line:
 
     {"op": "<tool>", "args": {...}}\n  ->  {"ok": true, "result": ...}\n

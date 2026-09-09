@@ -8,7 +8,7 @@
 - The startup script installed in your project (below).
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-unreal ──TCP line-JSON──► init_unreal.py ──► unreal.*
+agent ──stdio MCP──► coding-assistants-mcp unreal ──TCP line-JSON──► init_unreal.py ──► unreal.*
 ```
 
 Rather than speak Unreal's UDP-multicast *remote execution* protocol, the
@@ -34,14 +34,14 @@ call and ops to it instead of overwriting.
 
 ## Register the MCP server
 
-`coding-assistants-mcp-unreal [--port N] [--allow-run-python]`
+`coding-assistants-mcp unreal [--port N] [--allow-run-python]`
 
 Claude `.mcp.json`:
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-unreal": {
-    "command": "/path/to/coding-assistants-mcp-unreal",
-    "args": ["--port", "9768"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["unreal", "--port", "9768"]
 } } }
 ```
 

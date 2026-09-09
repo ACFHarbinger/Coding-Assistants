@@ -16,7 +16,7 @@ code, only this note.
 Every other bridge in this program works by a native plugin opening a
 localhost socket. OpenToonz gives us nothing to attach that plugin to.
 
-## What we ship instead — `crates/mcp-opentoonz`
+## What we ship instead — `crates/mcp/opentoonz`
 
 A deliberately tiny MCP server that does **not** talk to a running
 instance:
@@ -27,11 +27,11 @@ instance:
 | `render` | *(gated, `--allow-render`)* Runs `<opentoonz-bin> <argv>` and returns exit status + output. **Best-effort** — if your build has no headless render, a nonzero exit is the answer. |
 
 ```
-coding-assistants-mcp-opentoonz [--opentoonz <path>] [--allow-render]
+coding-assistants-mcp opentoonz [--opentoonz <path>] [--allow-render]
 ```
 
 ## Revisit if…
 
 A future OpenToonz or Tahoma2D adds a scripting console or a remote-control
-API. Then replace `crates/mcp-opentoonz` with a socket bridge shaped like
-`crates/mcp-blender` and add a real `plugins/opentoonz/`.
+API. Then replace `crates/mcp/opentoonz` with a socket bridge shaped like
+`crates/mcp/blender` and add a real `plugins/opentoonz/`.

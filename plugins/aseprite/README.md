@@ -6,7 +6,7 @@ automation surface is batch-mode Lua. So this bridge shells out to
 operates on a **sprite file path**.
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-aseprite ──spawns──► aseprite -b --script dispatch.lua
+agent ──stdio MCP──► coding-assistants-mcp aseprite ──spawns──► aseprite -b --script dispatch.lua
                                                      ◄──stdout JSON line──┘
 ```
 
@@ -14,7 +14,7 @@ agent ──stdio MCP──► coding-assistants-mcp-aseprite ──spawns──
   `--script-param` scalars from `app.params`, does one op, prints one
   `{"ok":..., "result"|"error":...}` line (hand-rolled JSON — Aseprite
   bundles no JSON lib).
-- **`crates/mcp-aseprite`** (`coding-assistants-mcp-aseprite`) — the MCP
+- **`crates/mcp/aseprite`** (`coding-assistants-mcp aseprite`) — the MCP
   server.
 
 ## Setup
@@ -22,7 +22,7 @@ agent ──stdio MCP──► coding-assistants-mcp-aseprite ──spawns──
 No plugin install. Just have Aseprite available:
 
 ```
-coding-assistants-mcp-aseprite [--aseprite <path>] [--script <dispatch.lua>] [--allow-apply-script]
+coding-assistants-mcp aseprite [--aseprite <path>] [--script <dispatch.lua>] [--allow-apply-script]
 ```
 
 `--aseprite` defaults to `aseprite` on PATH. `--script` defaults to a
@@ -34,8 +34,8 @@ binary when packaging.
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-aseprite": {
-    "command": "/path/to/coding-assistants-mcp-aseprite",
-    "args": ["--script", "/path/to/dispatch.lua"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["aseprite", "--script", "/path/to/dispatch.lua"]
 } } }
 ```
 

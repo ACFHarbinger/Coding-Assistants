@@ -5,11 +5,11 @@ Two halves (mirrors `plugins/blender/`, `plugins/krita/`):
 - **`addons/coding_assistants_bridge/`** — a Godot 4 editor plugin
   (`EditorPlugin`, GDScript). Opens a localhost line-JSON TCP server
   (port **9767**).
-- **`crates/mcp-godot`** (`coding-assistants-mcp-godot`) — the MCP server
+- **`crates/mcp/godot`** (`coding-assistants-mcp godot`) — the MCP server
   an agent's config points at. Connects to the plugin per tool call.
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-godot ──TCP line-JSON──► Godot editor plugin ──► EditorInterface
+agent ──stdio MCP──► coding-assistants-mcp godot ──TCP line-JSON──► Godot editor plugin ──► EditorInterface
 ```
 
 Godot has no in-editor Python, so this half is GDScript. Everything runs on
@@ -29,14 +29,14 @@ and pass a matching `--port`.
 
 ## Register the MCP server
 
-`coding-assistants-mcp-godot [--port N] [--allow-run-script]`
+`coding-assistants-mcp godot [--port N] [--allow-run-script]`
 
 `hub::mcp` renders this into each client's config. Claude `.mcp.json`:
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-godot": {
-    "command": "/path/to/coding-assistants-mcp-godot",
-    "args": ["--port", "9767"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["godot", "--port", "9767"]
 } } }
 ```
 

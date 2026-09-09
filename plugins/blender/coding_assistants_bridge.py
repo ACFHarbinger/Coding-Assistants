@@ -1,6 +1,6 @@
 """Coding-Assistants Blender bridge addon.
 
-Opens a localhost line-JSON TCP server that `crates/mcp-blender`
+Opens a localhost line-JSON TCP server that `crates/mcp/blender`
 (`coding-assistants-mcp-blender`) connects to. One request per line:
 
     {"op": "<tool>", "args": {...}}\n  ->  {"ok": true, "result": ...}\n
