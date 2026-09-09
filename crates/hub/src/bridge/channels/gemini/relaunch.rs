@@ -7,9 +7,11 @@ use crate::bridge::gemini::{
 use crate::harness::{HarnessInjectRequest, HarnessInjectResult};
 use crate::{
     HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState, HubError, HubStore,
+    MessageRecord,
 };
 use std::path::Path;
 use std::process::Command;
+use uuid::Uuid;
 
 /// Returns true if process `pid` is currently running.
 pub fn is_pid_running(pid: u32) -> bool {
@@ -180,6 +182,7 @@ pub fn relaunch_and_deliver_gemini_task_with(
     let (next_state, result) = match run_res {
         Ok((pid, output)) => {
             let new_pid = pid.unwrap_or_else(std::process::id);
+            let worker_texts = output.assistant_texts.join("\n\n");
             let final_conv = output
                 .conversation_id
                 .or(conversation_id)
@@ -190,6 +193,11 @@ pub fn relaunch_and_deliver_gemini_task_with(
                 &final_conv,
                 new_pid,
             );
+            // Publish the worker's own output back into the Hub work
+            // session so a Gemini task result surfaces in Chat & Memory
+            // like a Claude Channel `reply` does, instead of being visible
+            // only as an on-disk diff.
+            let _ = record_gemini_worker_reply(store, request.message_id.as_deref(), &worker_texts);
             let detail = format!("Gemini managed session relaunched and delivered successfully (conversation: {final_conv})");
             (
                 HarnessSessionState::Ready,
@@ -216,9 +224,54 @@ pub fn relaunch_and_deliver_gemini_task_with(
     Ok(result)
 }
 
+/// Resolves the Hub work-session id and the original sender from a
+/// task-inject message id, using the same `channel:session:<id>:...`
+/// subject convention the Claude Channel reply path relies on.
+fn hub_session_and_sender(store: &HubStore, message_id: Option<&str>) -> Option<(String, String)> {
+    let message = store.get_message(message_id?).ok()??;
+    let session_id = message
+        .subject
+        .as_deref()
+        .and_then(|subject| subject.strip_prefix("channel:session:"))
+        .and_then(|rest| rest.split(':').next())
+        .filter(|id| !id.is_empty())?
+        .to_string();
+    Some((session_id, message.from_agent))
+}
+
+/// Posts a managed `agy` worker's own output back into the originating Hub
+/// work session as a `gemini` message, so a delivered task's result shows
+/// up in Chat & Memory. No-op (returns `Ok(None)`) when the body is empty
+/// or the originating message can't be tied to a session.
+pub fn record_gemini_worker_reply(
+    store: &HubStore,
+    message_id: Option<&str>,
+    body: &str,
+) -> Result<Option<MessageRecord>, HubError> {
+    let body = body.trim();
+    if body.is_empty() {
+        return Ok(None);
+    }
+    let Some((session_id, recipient)) = hub_session_and_sender(store, message_id) else {
+        return Ok(None);
+    };
+    let subject = format!("channel:session:{session_id}:reply:{}", Uuid::new_v4());
+    let sent = store.send_session_message(
+        "gemini",
+        &session_id,
+        &[recipient],
+        body,
+        Some(&subject),
+        None,
+        None,
+    )?;
+    Ok(sent.into_iter().next())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MessageKind;
     use tempfile::tempdir;
 
     #[test]
@@ -238,5 +291,67 @@ mod tests {
 
         let id2 = resolve_gemini_continuation_id(dir.path(), None, Some("req-id"), None);
         assert_eq!(id2.as_deref(), Some("req-id"));
+    }
+
+    #[test]
+    fn worker_reply_lands_in_the_session_addressed_to_the_task_sender() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let session = store.create_work_session("poc").unwrap();
+        let origin = store
+            .send_message(
+                "human",
+                "gemini",
+                MessageKind::Message,
+                "[TASK] do the thing",
+                Some(&format!("channel:session:{}:abcd:kind:task", session.id)),
+                None,
+                None,
+            )
+            .unwrap();
+
+        let reply =
+            record_gemini_worker_reply(&store, Some(&origin.id), "  done: added the guard  ")
+                .unwrap()
+                .expect("a reply message");
+        assert_eq!(reply.from_agent, "gemini");
+        assert_eq!(reply.to_agent, "human");
+        assert_eq!(reply.body, "done: added the guard");
+        assert_eq!(
+            reply
+                .subject
+                .as_deref()
+                .unwrap()
+                .split(':')
+                .take(3)
+                .collect::<Vec<_>>(),
+            vec!["channel", "session", session.id.as_str()]
+        );
+    }
+
+    #[test]
+    fn worker_reply_is_a_noop_without_a_session_subject_or_with_an_empty_body() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let plain = store
+            .send_message(
+                "human",
+                "gemini",
+                MessageKind::Message,
+                "hi",
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        assert!(record_gemini_worker_reply(&store, Some(&plain.id), "text")
+            .unwrap()
+            .is_none());
+        assert!(record_gemini_worker_reply(&store, None, "text")
+            .unwrap()
+            .is_none());
+        assert!(record_gemini_worker_reply(&store, Some(&plain.id), "   ")
+            .unwrap()
+            .is_none());
     }
 }

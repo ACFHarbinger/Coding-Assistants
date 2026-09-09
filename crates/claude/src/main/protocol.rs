@@ -160,10 +160,8 @@ mod tests {
         task.session_id = Some("sess-9".into());
         task.message_id = "msg-task".into();
         task.task_id = Some("t-1".into());
-        let outcome = check_inbox_outcome(
-            Ok(vec![sample_event("message", "grok", "fyi")]),
-            vec![task],
-        );
+        let outcome =
+            check_inbox_outcome(Ok(vec![sample_event("message", "grok", "fyi")]), vec![task]);
         let (text, is_err) = text_of(&outcome);
         assert!(!is_err);
         assert_eq!(
