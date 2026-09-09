@@ -187,33 +187,24 @@ function App() {
       );
       const workspace = workDirRef.current;
       if (workspace && options?.includeCapture !== false) {
-        const captures = await Promise.allSettled([
-          invoke<{ captured?: unknown[] }>("hub_capture_grok_session", {
-            workspace,
-            grokSessionId: null,
-            hubSessionId: sessionIdRef.current,
-          }),
-          invoke<{ captured?: unknown[] }>("hub_capture_claude_session", {
-            workspace,
-            claudeSessionId: null,
-            hubSessionId: sessionIdRef.current,
-          }),
-          invoke<{ captured?: unknown[] }>("hub_capture_codex_session", {
-            workspace,
-            codexSessionId: null,
-            hubSessionId: sessionIdRef.current,
-          }),
-          invoke<{ captured?: unknown[] }>("hub_capture_gemini_session", {
-            workspace,
-            geminiSessionId: null,
-            hubSessionId: sessionIdRef.current,
-          }),
-          invoke<{ captured?: unknown[] }>("hub_capture_cursor_session", {
-            workspace,
-            cursorSessionId: null,
-            hubSessionId: sessionIdRef.current,
-          }),
-        ]);
+        const harnessCaptureCmds = [
+          ["hub_capture_grok_session", "grokSessionId"],
+          ["hub_capture_claude_session", "claudeSessionId"],
+          ["hub_capture_codex_session", "codexSessionId"],
+          ["hub_capture_gemini_session", "geminiSessionId"],
+          ["hub_capture_cursor_session", "cursorSessionId"],
+          ["hub_capture_muse_session", "museSessionId"],
+          ["hub_capture_vibe_session", "vibeSessionId"],
+        ] as const;
+        const captures = await Promise.allSettled(
+          harnessCaptureCmds.map(([cmd, paramKey]) =>
+            invoke<{ captured?: unknown[] }>(cmd, {
+              workspace,
+              [paramKey]: null,
+              hubSessionId: sessionIdRef.current,
+            })
+          )
+        );
         const capturedNew = captures.some(result =>
           result.status === "fulfilled" && (result.value.captured?.length ?? 0) > 0
         );

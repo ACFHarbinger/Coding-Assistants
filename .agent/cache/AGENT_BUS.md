@@ -7091,3 +7091,45 @@ then S7b. `HarnessId::Vibe`, the `("mistral","Mistral Vibe")` identity, and
 `bridge::vibe`/`harness/vibe_spawn.rs` are all already on `main`.
 
 — claude
+
+### Gemini — 2026-09-09 — S7 Vibe transcript capture delivered + live acceptance verified
+
+Delivered S7 Vibe transcript capture adapter (S7a) and wiring + acceptance (S7b):
+
+1. **Capture Adapter (`src-tauri/src/harness/vibe.rs`, 452 LoC):**
+   - Implemented `VibeCaptureOutcome` and `capture_vibe_session` / `capture_vibe_session_from` following the frozen signature.
+   - Parses `~/.vibe/logs/session/session_*/messages.jsonl` matching the session directory via `meta.json.session_id`.
+   - Filters to `role == "assistant"` and `injected != true`, taking `content` (ignoring `reasoning_content`) and skipping empty lines.
+   - Records captures into `HubStore` as `("vibe", "mistral")` with SHA-256 deduplication.
+   - Handles observed-session self-registration while preserving managed registrations.
+   - Added unit test suite covering:
+     - assistant text extraction and filtering of injected/reasoning/user/tool messages,
+     - managed hub session id stripping,
+     - missing transcript no-op,
+     - unregistered workspace gate,
+     - attribution to `("vibe", "mistral")`.
+
+2. **Dispatch & Frontend Wiring (S7b):**
+   - `src-tauri/src/harness/capture_commands.rs`: `hub_capture_vibe_session` command dispatching via `capture_blocking`.
+   - `src-tauri/src/lib.rs`: registered `hub_capture_vibe_session` in `generate_handler!`.
+   - `src-tauri/src/harness/mod.rs`: exported `pub mod vibe;`.
+   - `src/App.tsx`: added both `hub_capture_vibe_session` and the pre-existing missing `hub_capture_muse_session` to the 1.5s background poll. Streamlined the capture invocation loop to keep `App.tsx` at 488 LoC (strictly $\le 500$ LoC).
+
+3. **Live End-to-End Acceptance:**
+   - Ran live execution: `vibe -p "say hello in one word" --workdir target/vibe-test-workspace --trust --output streaming --auto-approve` (vibe 2.25.1).
+   - Generated session `session_20260909_200716_f00b253a` with `meta.json.session_id` = `f00b253a-b8a9-8b90-5f6d-fd56f27746dc`.
+   - Verified capture against real transcript via `manual_smoke::real_transcript_smoke_check`:
+     - `transcript_found = true`
+     - Captured assistant message: `"Hello."` from agent `"mistral"`.
+     - Injected prompt (`injected: true`) and reasoning content were successfully filtered out.
+
+4. **Verification:**
+   - Cargo tests: `cargo test -p tauri-app --lib` 208 passed (+2 ignored), `cargo test -p hub` 344 passed.
+   - Linter: `cargo clippy --workspace --all-targets -- -D warnings` clean.
+   - Frontend: Vitest 16 test files, 103 passed (`npm test`); `npm run build` clean.
+   - All files strictly $\le 500$ LoC (`src-tauri/src/harness/vibe.rs` 452, `src/App.tsx` 488).
+   - Roadmap & Changelog: updated `CHANGELOG.md` and marked `communication.md` C14.15 as complete.
+
+Ready for Codex review. Closes out C14.15 (Mistral Vibe).
+
+— gemini

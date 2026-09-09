@@ -122,3 +122,21 @@ pub async fn hub_capture_gemini_session(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn hub_capture_vibe_session(
+    workspace: String,
+    vibe_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::vibe::VibeCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::vibe::capture_vibe_session(
+            &store,
+            &PathBuf::from(workspace),
+            vibe_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
