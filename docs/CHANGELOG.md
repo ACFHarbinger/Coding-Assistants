@@ -45,6 +45,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Fixed
 
+- **Local Llama.cpp readiness dot stuck red when installed:** `llamacpp_health()` probed only `llama-server`, but llama.cpp installs its tools under several names depending on the packaging (`llama-server` / `llama-cli` / `llama-run`, or a bare `llama`). A freshly-installed llama.cpp therefore showed a red "not installed" dot while equivalently-installed Ollama and Mistral Vibe went green. Health now accepts any of those names (`local_runtime_health_multi`), and the `detail` string lists what it searched for so a still-red dot is self-diagnosing. Pre-2024 names (`server`, `main`) are deliberately not probed — too generic to match safely against an arbitrary PATH.
 - **Managed harness worker reaping (#222):** Start managed now retains ownership
   of its child process instead of dropping it after recording the PID. A worker
   that exits during the short startup grace period is waited/reaped and the UI

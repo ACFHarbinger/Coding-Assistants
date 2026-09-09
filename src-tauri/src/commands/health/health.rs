@@ -482,16 +482,28 @@ fn cursor_health() -> ProviderHealth {
 }
 
 fn local_runtime_health(ids: &Ids, bin: &str) -> ProviderHealth {
-    let installed = resolve_binary(bin).is_some();
+    local_runtime_health_multi(ids, &[bin])
+}
+
+/// Like [`local_runtime_health`] but accepts several acceptable binary
+/// names — a local runtime is "installed" if **any** of them is on PATH.
+/// The `detail` names what was found, or lists everything that was looked
+/// for so a still-red dot is self-diagnosing.
+fn local_runtime_health_multi(ids: &Ids, bins: &[&str]) -> ProviderHealth {
+    let found = bins.iter().find(|bin| resolve_binary(bin).is_some());
     health(
         ids,
-        installed,
+        found.is_some(),
         None,
         None,
-        if installed {
-            "Local runtime binary is present; models run offline and unmetered"
-        } else {
-            "Local runtime binary not found on PATH"
+        match found {
+            Some(bin) => {
+                format!("Local runtime binary `{bin}` is present; models run offline and unmetered")
+            }
+            None => format!(
+                "No local runtime binary found on PATH (looked for: {})",
+                bins.join(", ")
+            ),
         },
     )
 }
@@ -511,8 +523,18 @@ fn ollama_health() -> ProviderHealth {
     local_runtime_health(&OLLAMA, "ollama")
 }
 
+/// llama.cpp ships its tools under different names depending on how it was
+/// installed: the current build (Homebrew, most distro packages, a CMake
+/// `install`) names them `llama-server` / `llama-cli` / `llama-run`, and
+/// some wrappers expose a bare `llama`. Any one of these on PATH means the
+/// runtime is installed — matching against `llama-server` alone left a
+/// freshly-installed llama.cpp showing a red "not installed" dot. The
+/// pre-2024 names (`server`, `main`) are deliberately not probed: they are
+/// too generic to match safely against an arbitrary PATH.
+const LLAMACPP_BINS: &[&str] = &["llama-server", "llama-cli", "llama-run", "llama"];
+
 fn llamacpp_health() -> ProviderHealth {
-    local_runtime_health(&LLAMACPP, "llama-server")
+    local_runtime_health_multi(&LLAMACPP, LLAMACPP_BINS)
 }
 
 fn probe(agent_id: &str) -> ProviderHealth {

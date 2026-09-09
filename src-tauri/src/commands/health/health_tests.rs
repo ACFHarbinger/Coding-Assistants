@@ -226,6 +226,37 @@ fn cursor_health_covers_all_installation_and_token_expiry_states() {
 }
 
 #[test]
+fn local_runtime_health_accepts_any_of_several_binary_names() {
+    // All-bogus list: not installed, and the detail names what was tried so
+    // a still-red dot is self-diagnosing.
+    let miss = local_runtime_health_multi(
+        &LLAMACPP,
+        &["not-a-real-binary-xyz", "also-not-real-abc"],
+    );
+    assert!(!miss.installed);
+    assert_eq!(miss.authenticated, None);
+    assert!(miss.detail.contains("not-a-real-binary-xyz"));
+    assert!(miss.detail.contains("also-not-real-abc"));
+
+    // Any one candidate on PATH ⇒ installed; the detail names the match.
+    // `ps` stands in for a real llama.cpp binary (present in every env this
+    // test runs in).
+    let hit = local_runtime_health_multi(&LLAMACPP, &["not-a-real-binary-xyz", "ps"]);
+    assert!(hit.installed);
+    assert_eq!(hit.authenticated, None);
+    assert!(hit.detail.contains("`ps`"));
+}
+
+#[test]
+fn llamacpp_probe_still_covers_the_canonical_server_name() {
+    // Guard against a future edit dropping the primary name while widening.
+    assert!(LLAMACPP_BINS.contains(&"llama-server"));
+    let h = llamacpp_health();
+    assert_eq!(h.agent_id, "llamacpp");
+    assert_eq!(h.authenticated, None);
+}
+
+#[test]
 fn secret_hygiene_never_leaks_tokens_into_health_snapshots() {
     use super::super::quota_cursor::CursorAuthDetails;
 
