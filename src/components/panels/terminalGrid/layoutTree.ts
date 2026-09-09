@@ -378,3 +378,99 @@ export function deserializeLayout(raw: string | null | undefined): LayoutNode | 
     return null;
   }
 }
+
+export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
+
+/**
+ * Swaps two leaves in the layout tree identified by leaf ID or harness name.
+ * If either leaf is missing or both resolve to the same leaf, returns root unchanged.
+ */
+export function swapLeaves(
+  root: LayoutNode,
+  a: string,
+  b: string,
+): LayoutNode {
+  const leafA = findLeaf(root, a);
+  const leafB = findLeaf(root, b);
+  if (!leafA || !leafB || leafA.id === leafB.id) {
+    return root;
+  }
+  const leafAId = leafA.id;
+  const leafBId = leafB.id;
+  const leafAHarness = leafA.harness;
+  const leafBHarness = leafB.harness;
+
+  function walk(node: LayoutNode): LayoutNode {
+    if (node.type === "leaf") {
+      if (node.id === leafAId) {
+        return { ...node, harness: leafBHarness };
+      }
+      if (node.id === leafBId) {
+        return { ...node, harness: leafAHarness };
+      }
+      return node;
+    }
+    return {
+      ...node,
+      first: walk(node.first),
+      second: walk(node.second),
+    };
+  }
+
+  return walk(root);
+}
+
+/**
+ * Moves a leaf node to an edge of another target leaf in the layout tree.
+ * Removes the source leaf from its current position (collapsing its parent split),
+ * then splits the target leaf along the specified edge.
+ * If source and target are the same, or either is not found, returns root unchanged.
+ */
+export function moveLeaf(
+  root: LayoutNode,
+  sourceLeafIdOrHarness: string,
+  targetLeafIdOrHarness: string,
+  edge: Exclude<DropEdge, "center">,
+): LayoutNode {
+  const sourceLeaf = findLeaf(root, sourceLeafIdOrHarness);
+  const targetLeaf = findLeaf(root, targetLeafIdOrHarness);
+  if (!sourceLeaf || !targetLeaf || sourceLeaf.id === targetLeaf.id) {
+    return root;
+  }
+
+  const fixedSource: LeafNode = { type: "leaf", id: sourceLeaf.id, harness: sourceLeaf.harness };
+  const fixedTarget: LeafNode = { type: "leaf", id: targetLeaf.id, harness: targetLeaf.harness };
+
+  const treeWithoutSource = removeLeaf(root, fixedSource.id);
+  if (!treeWithoutSource) {
+    return root;
+  }
+
+  const direction: SplitDirection = edge === "left" || edge === "right" ? "row" : "col";
+  const sourceIsFirst = edge === "left" || edge === "top";
+
+  function insertAtTarget(node: LayoutNode): LayoutNode {
+    if (node.type === "leaf") {
+      if (node.id === fixedTarget.id) {
+        const newSplit: SplitNode = {
+          type: "split",
+          id: generateNodeId("split"),
+          direction,
+          ratio: 0.5,
+          first: sourceIsFirst ? fixedSource : node,
+          second: sourceIsFirst ? node : fixedSource,
+        };
+        return newSplit;
+      }
+      return node;
+    }
+
+    return {
+      ...node,
+      first: insertAtTarget(node.first),
+      second: insertAtTarget(node.second),
+    };
+  }
+
+  return insertAtTarget(treeWithoutSource);
+}

@@ -11,6 +11,8 @@ import {
   deserializeLayout,
   isValidLayoutNode,
   clampRatio,
+  swapLeaves,
+  moveLeaf,
   type LayoutNode,
 } from "../layoutTree";
 
@@ -265,6 +267,117 @@ describe("layoutTree - pure tree operations", () => {
       expect(deserializeLayout("")).toBeNull();
       expect(deserializeLayout("invalid json {}")).toBeNull();
       expect(deserializeLayout(JSON.stringify({ type: "split", invalid: true }))).toBeNull();
+    });
+  });
+
+  describe("swapLeaves", () => {
+    const tree: LayoutNode = {
+      type: "split",
+      id: "s1",
+      direction: "row",
+      ratio: 0.5,
+      first: { type: "leaf", id: "l1", harness: "grok" },
+      second: {
+        type: "split",
+        id: "s2",
+        direction: "col",
+        ratio: 0.5,
+        first: { type: "leaf", id: "l2", harness: "claude" },
+        second: { type: "leaf", id: "l3", harness: "gemini" },
+      },
+    };
+
+    it("swaps two leaves by id or harness", () => {
+      const beforeRects = new Map(
+        computeRects(tree, { x: 0, y: 0, width: 1000, height: 600 })
+          .leaves.map(({ node, rect }) => [node.id, rect]),
+      );
+      const swapped = swapLeaves(tree, "grok", "gemini");
+      expect(collectLeaves(swapped).map((l) => l.harness)).toEqual(["gemini", "claude", "grok"]);
+      // Positions (leaf ids) do not move; only their harness payloads swap.
+      expect(findLeaf(swapped, "gemini")?.id).toBe("l1");
+      expect(findLeaf(swapped, "grok")?.id).toBe("l3");
+      for (const { node, rect } of computeRects(swapped, { x: 0, y: 0, width: 1000, height: 600 }).leaves) {
+        expect(rect).toEqual(beforeRects.get(node.id));
+      }
+    });
+
+    it("returns tree unchanged if leaf is missing or same leaf", () => {
+      expect(swapLeaves(tree, "grok", "nonexistent")).toBe(tree);
+      expect(swapLeaves(tree, "grok", "grok")).toBe(tree);
+      expect(swapLeaves(tree, "l1", "l1")).toBe(tree);
+    });
+  });
+
+  describe("moveLeaf", () => {
+    const simpleTree: LayoutNode = {
+      type: "split",
+      id: "s1",
+      direction: "row",
+      ratio: 0.5,
+      first: { type: "leaf", id: "l1", harness: "grok" },
+      second: { type: "leaf", id: "l2", harness: "claude" },
+    };
+
+    it("moves leaf to left edge of target (source becomes first in row split)", () => {
+      const moved = moveLeaf(simpleTree, "claude", "grok", "left");
+      expect(collectLeaves(moved).map((l) => l.harness)).toEqual(["claude", "grok"]);
+      expect((moved as any).direction).toBe("row");
+      expect((moved as any).first.harness).toBe("claude");
+      expect((moved as any).second.harness).toBe("grok");
+    });
+
+    it("moves leaf to right edge of target (source becomes second in row split)", () => {
+      const moved = moveLeaf(simpleTree, "grok", "claude", "right");
+      expect(collectLeaves(moved).map((l) => l.harness)).toEqual(["claude", "grok"]);
+      expect((moved as any).direction).toBe("row");
+      expect((moved as any).first.harness).toBe("claude");
+      expect((moved as any).second.harness).toBe("grok");
+    });
+
+    it("moves leaf to top edge of target (col split, source is first)", () => {
+      const moved = moveLeaf(simpleTree, "claude", "grok", "top");
+      expect(collectLeaves(moved).map((l) => l.harness)).toEqual(["claude", "grok"]);
+      expect((moved as any).direction).toBe("col");
+      expect((moved as any).first.harness).toBe("claude");
+      expect((moved as any).second.harness).toBe("grok");
+    });
+
+    it("moves leaf to bottom edge of target (col split, target is first)", () => {
+      const moved = moveLeaf(simpleTree, "claude", "grok", "bottom");
+      expect(collectLeaves(moved).map((l) => l.harness)).toEqual(["grok", "claude"]);
+      expect((moved as any).direction).toBe("col");
+      expect((moved as any).first.harness).toBe("grok");
+      expect((moved as any).second.harness).toBe("claude");
+    });
+
+    it("moves leaf across a complex multi-level split tree", () => {
+      const complexTree: LayoutNode = {
+        type: "split",
+        id: "s1",
+        direction: "row",
+        ratio: 0.5,
+        first: { type: "leaf", id: "l1", harness: "grok" },
+        second: {
+          type: "split",
+          id: "s2",
+          direction: "col",
+          ratio: 0.5,
+          first: { type: "leaf", id: "l2", harness: "claude" },
+          second: { type: "leaf", id: "l3", harness: "gemini" },
+        },
+      };
+
+      // Move grok to the bottom of gemini
+      const moved = moveLeaf(complexTree, "grok", "gemini", "bottom");
+      const leaves = collectLeaves(moved).map((l) => l.harness);
+      expect(leaves).toEqual(["claude", "gemini", "grok"]);
+    });
+
+    it("returns root unchanged when moving same leaf or invalid leaf", () => {
+      expect(moveLeaf(simpleTree, "grok", "grok", "left")).toBe(simpleTree);
+      expect(moveLeaf(simpleTree, "grok", "nonexistent", "left")).toBe(simpleTree);
+      expect(moveLeaf(simpleTree, "nonexistent", "grok", "left")).toBe(simpleTree);
     });
   });
 });

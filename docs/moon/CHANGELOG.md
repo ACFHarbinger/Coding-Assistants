@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tiled harness-terminal grid drag-rearrange & maximize (Slice 2, #297, `ui.md` U15, Epic #295):**
+  Added pure `swapLeaves` and `moveLeaf` operations to `layoutTree.ts` supporting
+  in-place leaf swapping and 4-edge re-splitting (`left`, `right`, `top`, `bottom`).
+  Pane title bars serve as pointer-capture drag handles with real-time hit-testing
+  against leaf rects (outer ~25% perimeter edge band splits the target; inner ~50%
+  center area swaps with target). Visual `DropZoneOverlay` displays docking edge or
+  swap target during drag. UI-only maximize state (`maximizedHarness`) expands the
+  active pane across the entire grid bounds while non-maximized panes remain mounted
+  in the background via `visibility: hidden` (zero xterm remounts). Grid is restorable
+  via `Escape` key or titlebar/header restore buttons with per-workspace persistence.
 - **Tiled harness-terminal grid in Orchestrate (Slice 1, #296, `ui.md` U15, Epic #295):**
   A pure, zero-dependency `layoutTree.ts` engine (recursive row/col split nodes,
   `computeRects`, auto-balancing `insertLeaf`, `removeLeaf` with sibling promotion,
