@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key and `customer_id` never cross IPC. Pure parser lives next to the local
   Vibe usage reader; per-provider probes moved to `health/probes.rs` so
   `health.rs` is back under 500 LoC.
+- **Mistral Vibe managed spawn + resume (#305, `communication.md` C14.15 S8):**
+  extracted `vibe_spawn.rs` from over-cap `spawn.rs`. Headless argv now uses
+  `--output streaming`; `vibe_spawn_args` delegates to
+  `vibe_managed_spawn_args` with `session_id: None`. `--resume` is passed only
+  for a real disk session id (`managed-*` / `pending` / empty stay a fresh
+  spawn). Managed start follows the Gemini pattern: one turn with no resume
+  flag, then register `meta.json.session_id` from the newest matching
+  `session_*` directory. Interactive relaunch argv is `["--resume", id]`.
+  Disk discovery lives in the harness module until Mistral S6's
+  `bridge::vibe::latest_vibe_session_id` lands (one-line retarget).
 - **Multi-instance harness terminal panes in grid (#301, `ui.md` U15, Epic #295):**
   Moved terminal pane identity from harness name to unique leaf `id`, allowing multiple concurrent
   terminal panes for the same harness (e.g. running multiple `agy` or `grok` instances concurrently).

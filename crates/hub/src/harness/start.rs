@@ -7,8 +7,9 @@ use std::process::Child;
 use super::spawn::{spawn_explicit, spawn_explicit_owned};
 use super::{
     claude_spawn_args, codex_spawn_args, cursor_managed_spawn_args, gemini_managed_spawn_args,
-    grok_spawn_args, muse_managed_spawn_args, opencode_spawn_args, vibe_spawn_args, HarnessId,
-    HarnessStartRequest, HarnessStartResult, DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
+    grok_spawn_args, muse_managed_spawn_args, opencode_spawn_args, vibe_managed_spawn_args,
+    HarnessId, HarnessStartRequest, HarnessStartResult, DEFAULT_DEEPSEEK_MODEL,
+    DEFAULT_OPENCODE_MODEL,
 };
 
 fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubError> {
@@ -39,7 +40,13 @@ fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubEr
             Some(model.unwrap_or(DEFAULT_DEEPSEEK_MODEL)),
             effort,
         )?,
-        HarnessId::Vibe => vibe_spawn_args(&request.workspace, &request.prompt, model, effort)?,
+        HarnessId::Vibe => vibe_managed_spawn_args(
+            &request.workspace,
+            &request.prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
         HarnessId::Muse => muse_managed_spawn_args(
             &request.workspace,
             &request.prompt,

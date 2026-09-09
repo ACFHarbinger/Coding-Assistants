@@ -50,12 +50,17 @@ pub use bridge::relaunch::{
 };
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
+pub use bridge::vibe::{
+    deliver_vibe_task, latest_vibe_session_id, vibe_logs_root, vibe_session_id,
+    vibe_session_log_path, vibe_session_workspace,
+};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
     cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
     inject_harness, inject_harness_with_store, muse_disk_session_id, muse_managed_spawn_args,
-    muse_spawn_args, opencode_spawn_args, start_harness, vibe_spawn_args, HarnessId,
-    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    muse_spawn_args, opencode_spawn_args, start_harness, vibe_disk_session_id,
+    vibe_managed_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
+    HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};

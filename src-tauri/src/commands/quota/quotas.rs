@@ -1,6 +1,8 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
-use super::quota_codex::{codex_quota, now_unix, unavailable_quota, ProviderQuota};
+use super::quota_codex::{
+    codex_quota, now_unix, unavailable_quota, ProviderQuota, ProviderQuotaLocalUsage,
+};
 use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
@@ -26,40 +28,71 @@ fn ollama_quota() -> ProviderQuota {
     )
 }
 
-/// Mistral Vibe has no free *budget* endpoint on a personal plan — the
-/// Mistral Admin API needs a Backoffice admin key an individual subscriber
-/// does not have — so there is still no percent window or balance here. What
-/// the CLI does provide is its own on-disk session accounting, which reads
-/// truthfully on every plan tier for the cost of a few file reads. Reporting
-/// that is strictly better than the previous flat `unavailable` stub.
-///
-/// The Admin-API budget half lands separately (owner has an admin key); when
-/// it does, it fills `windows`/`balance_info` alongside this `local_usage`.
+/// Mistral quota is two independent halves that merge here. The CLI's own
+/// on-disk session accounting (`vibe_usage.rs`) reads truthfully on every
+/// plan tier for the cost of a few file reads; the Admin-API budget half
+/// (`quota_mistral`, S3) fills `windows`/`balance_info` when
+/// `MISTRAL_ADMIN_API_KEY` is configured. Neither half can fail the other:
+/// an admin miss still reports local usage, and a machine with no sessions
+/// yet still reports a working admin budget.
 fn mistral_quota() -> ProviderQuota {
-    let Some(local_usage) = super::quota_vibe_usage::local_usage() else {
-        return unavailable_quota(
-            "mistral",
-            "mistral",
-            "Mistral Vibe",
-            "No Mistral Vibe sessions recorded yet; run `vibe` once (or `vibe --setup` if unauthenticated)",
-        );
-    };
-    ProviderQuota {
-        agent_id: "mistral".into(),
-        provider: "mistral".into(),
-        harness_title: "Mistral Vibe".into(),
-        status: "ok".into(),
-        // No cap is knowable without an admin key, so say so rather than
-        // implying the local totals are a budget.
-        detail: Some(
-            "Locally recorded Vibe session usage. Plan budget needs a Mistral Admin API key."
-                .into(),
-        ),
-        windows: Vec::new(),
-        fetched_at: now_unix(),
-        balance: None,
-        balance_info: None,
-        local_usage: Some(local_usage),
+    compose_mistral_quota(
+        super::quota_mistral::mistral_admin_budget(),
+        super::quota_vibe_usage::local_usage(),
+    )
+}
+
+/// Pure merge of the two Mistral halves so tests can drive a capped admin
+/// response beside local usage without network or disk. `Ok` fills
+/// `windows`/`balance`/`balance_info` beside `local_usage`; `Err` keeps the
+/// local-only read-out with the admin reason in its detail; both failing
+/// stays `unavailable` with both reasons named.
+pub(crate) fn compose_mistral_quota(
+    admin: Result<super::quota_mistral::MistralAdminBudget, String>,
+    local_usage: Option<ProviderQuotaLocalUsage>,
+) -> ProviderQuota {
+    match admin {
+        Ok(budget) => ProviderQuota {
+            agent_id: "mistral".into(),
+            provider: "mistral".into(),
+            harness_title: "Mistral Vibe".into(),
+            status: "ok".into(),
+            detail: budget.detail,
+            windows: budget.windows,
+            fetched_at: now_unix(),
+            balance: budget.balance,
+            balance_info: budget.balance_info,
+            local_usage,
+        },
+        Err(admin_detail) => {
+            let Some(local_usage) = local_usage else {
+                return unavailable_quota(
+                    "mistral",
+                    "mistral",
+                    "Mistral Vibe",
+                    format!(
+                        "{admin_detail} No Mistral Vibe sessions recorded yet either; \
+                         run `vibe` once (or `vibe --setup` if unauthenticated)"
+                    ),
+                );
+            };
+            ProviderQuota {
+                agent_id: "mistral".into(),
+                provider: "mistral".into(),
+                harness_title: "Mistral Vibe".into(),
+                status: "ok".into(),
+                // The local totals are not a budget, so say what is missing
+                // rather than implying they are one.
+                detail: Some(format!(
+                    "Locally recorded Vibe session usage. {admin_detail}"
+                )),
+                windows: Vec::new(),
+                fetched_at: now_unix(),
+                balance: None,
+                balance_info: None,
+                local_usage: Some(local_usage),
+            }
+        }
     }
 }
 

@@ -93,6 +93,10 @@ pub fn start_managed_harness(
         // `--conversation`, capture the id `agy` reports, register that.
         return crate::bridge::gemini::start_gemini_managed_harness(store, workspace, prompt);
     }
+    if harness == HarnessId::Vibe {
+        // Vibe also generates its own session id (no `--session-id` flag).
+        return crate::harness::start_vibe_managed_harness(store, workspace, prompt);
+    }
     // A caller-provided id may name a global, pre-existing provider session.
     // Never register it for a new managed worker: doing so arms the capture
     // poller against someone else's transcript. Gemini accepts this UUID as

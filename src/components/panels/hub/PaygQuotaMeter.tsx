@@ -1,26 +1,33 @@
 import { useEffect, useState } from "react";
 import type { ProviderQuota, ProviderQuotaBalance } from "./types";
 
-interface BalanceSnapshot {
+export interface BalanceSnapshot {
   timestamp: number;
   total: number;
   paid?: number | null;
   gift?: number | null;
 }
 
-const STORAGE_KEY_PREFIX = "ca.quota_history:";
+export const STORAGE_KEY_PREFIX = "ca.quota_history:";
 
-function loadHistory(agentId: string, current?: ProviderQuotaBalance | null, fetchedAt?: number): BalanceSnapshot[] {
+export function loadHistory(
+  agentId: string,
+  current?: ProviderQuotaBalance | null,
+  fetchedAt?: number
+): BalanceSnapshot[] {
   const key = `${STORAGE_KEY_PREFIX}${agentId}`;
   let history: BalanceSnapshot[] = [];
   try {
     const raw = localStorage.getItem(key);
-    if (raw) history = JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) history = parsed;
+    }
   } catch {
     history = [];
   }
 
-  if (current && fetchedAt) {
+  if (current && current.kind !== "spend" && fetchedAt) {
     const exists = history.some((item) => Math.abs(item.timestamp - fetchedAt) < 60);
     if (!exists) {
       history = [
@@ -28,30 +35,47 @@ function loadHistory(agentId: string, current?: ProviderQuotaBalance | null, fet
         {
           timestamp: fetchedAt,
           total: current.total,
-          paid: current.paid ?? current.topped_up,
-          gift: current.gift ?? current.granted,
+          paid: current.paid ?? current.topped_up ?? null,
+          gift: current.gift ?? current.granted ?? null,
         },
-      ].slice(-30); // keep last 30 snapshots
+      ].slice(-30); // retain last 30 snapshots
       try {
         localStorage.setItem(key, JSON.stringify(history));
       } catch {
-        // ignore storage errors
+        // ignore local storage errors
       }
     }
   }
   return history;
 }
 
+function formatTime(timestamp: number): string {
+  try {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function formatFullDate(timestamp: number): string {
+  try {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString();
+  } catch {
+    return "";
+  }
+}
+
 export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
-  const [metric, setMetric] = useState<"cost" | "tokens" | "requests">("cost");
-  const [viewDimension, setViewDimension] = useState<"model" | "key">("model");
   const [history, setHistory] = useState<BalanceSnapshot[]>([]);
 
   const info = quota.balance_info;
+  const isSpend = info?.kind === "spend" || Boolean(quota.balance?.toLowerCase().startsWith("spent"));
   const currency = info?.currency || "USD";
   const total = info?.total ?? (quota.balance ? parseFloat(quota.balance.replace(/[^0-9.]/g, "")) || 0 : 0);
-  const paid = info?.paid ?? info?.topped_up ?? null;
-  const gift = info?.gift ?? info?.granted ?? null;
+  const paid = isSpend ? null : (info?.paid ?? info?.topped_up ?? null);
+  const gift = isSpend ? null : (info?.gift ?? info?.granted ?? null);
 
   const hasBreakdown = paid !== null && gift !== null && total > 0;
   const paidPercent = hasBreakdown ? Math.max(0, Math.min(100, (paid / total) * 100)) : 100;
@@ -61,33 +85,42 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
     setHistory(loadHistory(quota.agent_id, quota.balance_info, quota.fetched_at));
   }, [quota.agent_id, quota.balance_info, quota.fetched_at]);
 
-  // Daily mock series for the DeepSeek Platform dashboard visualizer
-  // Anchored to today so user sees full platform usage breakdown immediately
-  const days = ["D-6", "D-5", "D-4", "D-3", "D-2", "Yesterday", "Today"];
-  const modelA = [0.03, 0.05, 0.08, 0.06, 0.12, 0.09, 0.14]; // deepseek-chat
-  const modelB = [0.05, 0.08, 0.11, 0.09, 0.18, 0.15, 0.22]; // deepseek-reasoner
-
+  // Chart dimensions & layout
   const chartWidth = 720;
   const chartHeight = 150;
-  const paddingX = 40;
-  const paddingY = 25;
-  const plotWidth = chartWidth - paddingX * 2;
-  const plotHeight = chartHeight - paddingY * 2;
+  const paddingLeft = 55;
+  const paddingRight = 25;
+  const paddingTop = 20;
+  const paddingBottom = 25;
+  const plotWidth = chartWidth - paddingLeft - paddingRight;
+  const plotHeight = chartHeight - paddingTop - paddingBottom;
 
-  const getMetricMultiplier = () => {
-    if (metric === "tokens") return 1_000_000;
-    if (metric === "requests") return 120;
-    return 1;
-  };
+  const values = history.map((h) => h.total);
+  const rawMin = values.length > 0 ? Math.min(...values) : 0;
+  const rawMax = values.length > 0 ? Math.max(...values) : 0;
+  const minVal = rawMin === rawMax ? Math.max(0, rawMin - 1) : rawMin;
+  const maxVal = rawMin === rawMax ? rawMax + 1 : rawMax;
+  const range = maxVal - minVal || 1;
 
-  const mult = getMetricMultiplier();
-  const maxVal = Math.max(
-    ...days.map((_, i) => (modelA[i] + modelB[i]) * mult * 1.25)
-  );
+  const points = history.map((snap, i) => {
+    const x = paddingLeft + (history.length > 1 ? (i / (history.length - 1)) * plotWidth : plotWidth / 2);
+    const y = chartHeight - paddingBottom - ((snap.total - minVal) / range) * plotHeight;
+    return { x, y, snap };
+  });
+
+  const polylinePoints = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const areaPath =
+    points.length >= 2
+      ? `M ${points[0].x.toFixed(1)},${chartHeight - paddingBottom} L ${polylinePoints} L ${points[points.length - 1].x.toFixed(1)},${chartHeight - paddingBottom} Z`
+      : "";
+
+  const oldest = history.length > 0 ? history[0] : null;
+  const latest = history.length > 0 ? history[history.length - 1] : null;
+  const delta = oldest && latest ? latest.total - oldest.total : 0;
 
   return (
     <div style={{ display: "grid", gap: "1rem", marginTop: "0.4rem" }}>
-      {/* 1. Stat cards: Available balance, Paid, Gift */}
+      {/* 1. Stat cards: Available balance / Period Spend, Paid, Gift */}
       <div
         style={{
           display: "grid",
@@ -97,8 +130,8 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
       >
         <div
           style={{
-            background: "rgba(34, 197, 94, 0.08)",
-            border: "1px solid rgba(34, 197, 94, 0.25)",
+            background: isSpend ? "rgba(56, 189, 248, 0.08)" : "rgba(34, 197, 94, 0.08)",
+            border: `1px solid ${isSpend ? "rgba(56, 189, 248, 0.25)" : "rgba(34, 197, 94, 0.25)"}`,
             borderRadius: "10px",
             padding: "0.85rem 1rem",
             display: "grid",
@@ -106,10 +139,10 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
           }}
         >
           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-            Available Balance
+            {isSpend ? "Period Spend" : "Available Balance"}
           </span>
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
-            <span style={{ fontSize: "1.45rem", fontWeight: 700, color: "#22c55e" }}>
+            <span style={{ fontSize: "1.45rem", fontWeight: 700, color: isSpend ? "#38bdf8" : "#22c55e" }}>
               ${total.toFixed(2)}
             </span>
             <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
@@ -117,7 +150,7 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
             </span>
           </div>
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-            Current API balance
+            {isSpend ? "Total period spend" : "Current API balance"}
           </span>
         </div>
 
@@ -179,7 +212,8 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
       </div>
 
       {/* 2. Segmented balance bar */}
-      <div style={{ display: "grid", gap: "0.4rem", padding: "0.4rem 0" }}>
+      {!isSpend && (
+        <div style={{ display: "grid", gap: "0.4rem", padding: "0.4rem 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "var(--text-muted)" }}>
           <span style={{ fontWeight: 600 }}>Credit Composition</span>
           <span>{hasBreakdown ? `Paid: $${paid.toFixed(2)} | Gift: $${gift.toFixed(2)}` : `$${total.toFixed(2)} ${currency}`}</span>
@@ -235,8 +269,10 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
           </span>
         </div>
       </div>
+      )}
 
-      {/* 3. DeepSeek Platform-Style Usage Dashboard */}
+      {/* 3. Truthful Local Balance History */}
+      {!isSpend && (
       <div
         style={{
           border: "1px solid var(--border-color)",
@@ -246,222 +282,179 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
           display: "grid",
           gap: "0.85rem",
         }}
+        data-testid="payg-balance-history"
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--text-main)" }}>
-                Platform Usage Activity
+                Balance History
               </span>
               <span
                 style={{
                   fontSize: "0.68rem",
                   padding: "0.15rem 0.45rem",
                   borderRadius: "10px",
-                  background: "rgba(56, 189, 248, 0.12)",
-                  color: "#38bdf8",
-                  border: "1px solid rgba(56, 189, 248, 0.25)",
+                  background: "rgba(34, 197, 94, 0.12)",
+                  color: "#22c55e",
+                  border: "1px solid rgba(34, 197, 94, 0.25)",
                 }}
               >
-                DeepSeek Platform Dashboard
+                Local Snapshots
               </span>
             </div>
             <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
-              API key provides live balance snapshot; accumulating session activity
+              Derived solely from captured balance snapshots over time
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Metric Switcher */}
-            <div style={{ display: "inline-flex", background: "rgba(0,0,0,0.4)", borderRadius: "6px", padding: "2px", border: "1px solid var(--border-color)" }}>
-              {(["cost", "tokens", "requests"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMetric(m)}
-                  style={{
-                    background: metric === m ? "var(--primary)" : "transparent",
-                    color: metric === m ? "#fff" : "var(--text-muted)",
-                    border: "none",
-                    borderRadius: "4px",
-                    padding: "0.2rem 0.55rem",
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    textTransform: "capitalize",
-                  }}
-                >
-                  {m === "cost" ? "Cost ($)" : m === "tokens" ? "Tokens" : "API Requests"}
-                </button>
-              ))}
-            </div>
-
-            {/* Model ↔ API Key toggle */}
-            <div style={{ display: "inline-flex", background: "rgba(0,0,0,0.4)", borderRadius: "6px", padding: "2px", border: "1px solid var(--border-color)" }}>
-              <button
-                type="button"
-                onClick={() => setViewDimension("model")}
-                style={{
-                  background: viewDimension === "model" ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: viewDimension === "model" ? "#fff" : "var(--text-muted)",
-                  border: "none",
-                  borderRadius: "4px",
-                  padding: "0.2rem 0.5rem",
-                  fontSize: "0.72rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                By Model
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewDimension("key")}
-                style={{
-                  background: viewDimension === "key" ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: viewDimension === "key" ? "#fff" : "var(--text-muted)",
-                  border: "none",
-                  borderRadius: "4px",
-                  padding: "0.2rem 0.5rem",
-                  fontSize: "0.72rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                By API Key
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* SVG Chart */}
-        <svg
-          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          width="100%"
-          style={{ height: "auto", overflow: "visible" }}
-          role="img"
-          aria-label="DeepSeek usage history chart"
-        >
-          {/* Horizontal gridlines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const y = chartHeight - paddingY - ratio * plotHeight;
-            const labelVal = (ratio * maxVal).toFixed(metric === "cost" ? 2 : 0);
-            return (
-              <g key={ratio}>
-                <line
-                  x1={paddingX}
-                  y1={y}
-                  x2={chartWidth - paddingX}
-                  y2={y}
-                  stroke="rgba(255,255,255,0.06)"
-                  strokeDasharray="3 3"
-                />
-                <text
-                  x={paddingX - 6}
-                  y={y + 3}
-                  fill="var(--text-muted)"
-                  fontSize="9"
-                  textAnchor="end"
-                >
-                  {metric === "cost" ? `$${labelVal}` : metric === "tokens" ? `${(parseFloat(labelVal) / 1000).toFixed(0)}k` : labelVal}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Bars / Area according to metric */}
-          {days.map((day, i) => {
-            const stepX = plotWidth / days.length;
-            const barWidth = stepX * 0.55;
-            const x = paddingX + i * stepX + (stepX - barWidth) / 2;
-
-            const valA = modelA[i] * mult;
-            const valB = modelB[i] * mult;
-            const heightA = (valA / maxVal) * plotHeight;
-            const heightB = (valB / maxVal) * plotHeight;
-
-            const yA = chartHeight - paddingY - heightA;
-            const yB = yA - heightB;
-
-            return (
-              <g key={day}>
-                {viewDimension === "model" ? (
-                  <>
-                    <rect
-                      x={x}
-                      y={yA}
-                      width={barWidth}
-                      height={Math.max(0, heightA)}
-                      rx="3"
-                      fill="#3b82f6"
-                    >
-                      <title>{`${day}: deepseek-chat: ${valA.toFixed(2)}`}</title>
-                    </rect>
-                    <rect
-                      x={x}
-                      y={yB}
-                      width={barWidth}
-                      height={Math.max(0, heightB)}
-                      rx="3"
-                      fill="#8b5cf6"
-                    >
-                      <title>{`${day}: deepseek-reasoner: ${valB.toFixed(2)}`}</title>
-                    </rect>
-                  </>
-                ) : (
-                  <rect
-                    x={x}
-                    y={yB}
-                    width={barWidth}
-                    height={Math.max(0, heightA + heightB)}
-                    rx="3"
-                    fill="#0ea5e9"
-                  >
-                    <title>{`${day}: Default API Key: ${(valA + valB).toFixed(2)}`}</title>
-                  </rect>
-                )}
-
-                {/* Day label */}
-                <text
-                  x={x + barWidth / 2}
-                  y={chartHeight - 8}
-                  fill="var(--text-muted)"
-                  fontSize="10"
-                  textAnchor="middle"
-                >
-                  {day}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Legend */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.76rem", color: "var(--text-muted)", flexWrap: "wrap", gap: "0.5rem" }}>
-          <div style={{ display: "flex", gap: "1rem" }}>
-            {viewDimension === "model" ? (
-              <>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                  <i style={{ width: 8, height: 8, borderRadius: 2, background: "#3b82f6", display: "inline-block" }} />
-                  deepseek-chat
-                </span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                  <i style={{ width: 8, height: 8, borderRadius: 2, background: "#8b5cf6", display: "inline-block" }} />
-                  deepseek-reasoner (R1)
-                </span>
-              </>
-            ) : (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                <i style={{ width: 8, height: 8, borderRadius: 2, background: "#0ea5e9", display: "inline-block" }} />
-                Default Key (sk-...)
+          {history.length >= 2 && latest && oldest && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.76rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>
+                Change:{" "}
+                <strong style={{ color: delta >= 0 ? "#22c55e" : "#ef4444" }}>
+                  {delta >= 0 ? "+" : ""}${delta.toFixed(2)} {currency}
+                </strong>
               </span>
-            )}
-          </div>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-            {history.length} balance {history.length === 1 ? "snapshot" : "snapshots"} recorded locally
-          </span>
+              <span style={{ color: "var(--text-muted)" }}>
+                ({history.length} snapshots)
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Truthful empty or insufficient history state (< 2 snapshots) */}
+        {history.length < 2 ? (
+          <div
+            style={{
+              border: "1px dashed var(--border-color)",
+              borderRadius: "8px",
+              background: "rgba(0,0,0,0.15)",
+              padding: "1.25rem 1rem",
+              textAlign: "center",
+              display: "grid",
+              gap: "0.35rem",
+            }}
+            data-testid="insufficient-history"
+          >
+            <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--text-main)" }}>
+              Insufficient Snapshot History
+            </span>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              {history.length === 1
+                ? "1 balance snapshot recorded. At least two snapshots are needed to plot balance changes over time."
+                : "No balance snapshots recorded yet. Snapshots accumulate locally across quota refreshes."}
+            </span>
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)", opacity: 0.8 }}>
+              Click Refresh or wait for the auto-refresh cadence to establish a trend.
+            </span>
+          </div>
+        ) : (
+          /* SVG Balance Trend Chart */
+          <div>
+            <svg
+              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+              width="100%"
+              style={{ height: "auto", overflow: "visible" }}
+              role="img"
+              aria-label="Recorded balance over time"
+            >
+              <defs>
+                <linearGradient id="balanceAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Horizontal gridlines */}
+              {[0, 0.5, 1].map((ratio) => {
+                const y = chartHeight - paddingBottom - ratio * plotHeight;
+                const labelVal = minVal + ratio * range;
+                return (
+                  <g key={ratio}>
+                    <line
+                      x1={paddingLeft}
+                      y1={y}
+                      x2={chartWidth - paddingRight}
+                      y2={y}
+                      stroke="rgba(255,255,255,0.06)"
+                      strokeDasharray="3 3"
+                    />
+                    <text
+                      x={paddingLeft - 6}
+                      y={y + 3}
+                      fill="var(--text-muted)"
+                      fontSize="9"
+                      textAnchor="end"
+                    >
+                      ${labelVal.toFixed(2)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Area gradient under line */}
+              {areaPath && <path d={areaPath} fill="url(#balanceAreaGrad)" />}
+
+              {/* Polyline connecting snapshots */}
+              <polyline
+                points={polylinePoints}
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+
+              {/* Snapshot points with hover tooltips */}
+              {points.map((p, idx) => (
+                <g key={idx}>
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r="4"
+                    fill="#22c55e"
+                    stroke="#0f172a"
+                    strokeWidth="1.5"
+                  >
+                    <title>{`${formatFullDate(p.snap.timestamp)}: $${p.snap.total.toFixed(2)} ${currency}${p.snap.paid !== null && p.snap.paid !== undefined ? ` (Paid: $${p.snap.paid.toFixed(2)}, Gift: $${(p.snap.gift ?? 0).toFixed(2)})` : ""}`}</title>
+                  </circle>
+                  {/* Label for first and last points */}
+                  {(idx === 0 || idx === points.length - 1 || (points.length <= 6)) && (
+                    <text
+                      x={p.x}
+                      y={chartHeight - 6}
+                      fill="var(--text-muted)"
+                      fontSize="9"
+                      textAnchor="middle"
+                    >
+                      {formatTime(p.snap.timestamp)}
+                    </text>
+                  )}
+                </g>
+              ))}
+            </svg>
+
+            {/* Chart footer */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "0.74rem",
+                color: "var(--text-muted)",
+                marginTop: "0.4rem",
+                paddingTop: "0.3rem",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              <span>First: {oldest ? formatFullDate(oldest.timestamp) : "—"}</span>
+              <span>Latest: {latest ? formatFullDate(latest.timestamp) : "—"}</span>
+            </div>
+          </div>
+        )}
       </div>
+      )}
     </div>
   );
 }

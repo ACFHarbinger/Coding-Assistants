@@ -75,6 +75,7 @@ export interface ProviderQuotaWindow {
 export interface ProviderQuotaBalance {
   currency: string;
   total: number;
+  kind?: "balance" | "spend" | null;
   granted?: number | null;
   topped_up?: number | null;
   paid?: number | null;

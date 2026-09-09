@@ -244,6 +244,21 @@ pub const CATALOG: &[FieldSpec] = &[
         notes: Some("API key for Mistral models and Vibe CLI authentication."),
     },
     FieldSpec {
+        id: "provider.mistral.admin_api_key",
+        display_name: "Mistral Admin API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "mistral",
+        env_var: Some("MISTRAL_ADMIN_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.mistral.ai/"),
+        notes: Some(
+            "Backoffice admin key for the Mistral Admin API usage/spend-limit quota read \
+             (sent as an `x-api-key` header, not a Bearer token). Optional — local Vibe \
+             session usage works without it. Not a completion API key.",
+        ),
+    },
+    FieldSpec {
         id: "provider.mistral.model",
         display_name: "Mistral Model",
         owner_kind: OwnerKind::Provider,
