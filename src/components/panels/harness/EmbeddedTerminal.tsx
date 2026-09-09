@@ -197,8 +197,10 @@ export default function EmbeddedTerminal({
           term.loadAddon(fit);
           term.open(containerRef.current);
 
+          let candidateWebglAddon: WebglAddon | null = null;
           try {
             const addon = new WebglAddon();
+            candidateWebglAddon = addon;
             addon.onContextLoss(() => {
               try {
                 addon.dispose();
@@ -213,6 +215,11 @@ export default function EmbeddedTerminal({
             webglAddon = addon;
           } catch {
             // WebGL not supported or threw; fallback to DOM renderer
+            try {
+              candidateWebglAddon?.dispose();
+            } catch {
+              // A partially activated addon may already have released itself.
+            }
             webglAddon = null;
           }
 

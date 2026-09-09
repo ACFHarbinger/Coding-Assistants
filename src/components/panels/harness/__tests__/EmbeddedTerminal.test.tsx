@@ -252,6 +252,7 @@ describe("EmbeddedTerminal", () => {
 
     expect(mockFitAddonInstances.length).toBe(1);
     expect(mockFitAddonInstances[0].fitCalls).toBeGreaterThanOrEqual(1);
+    expect(mockWebglInstances[0].disposed).toBe(true);
   });
 
   it("disposes WebglAddon on context loss to degrade to DOM renderer", async () => {
