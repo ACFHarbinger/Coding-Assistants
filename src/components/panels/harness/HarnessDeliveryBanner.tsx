@@ -41,7 +41,7 @@ export default function HarnessDeliveryBanner({
               )}
               <button
                 type="button"
-                className="btn-secondary"
+                className="btn-primary"
                 style={{ marginTop: 0, padding: "0.25rem 0.6rem", fontSize: "0.75rem" }}
                 disabled={pending}
                 title="Hides this notice only. Does not release a writer lease or cancel the provider session."

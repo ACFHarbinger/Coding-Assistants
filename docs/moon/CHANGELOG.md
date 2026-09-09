@@ -219,6 +219,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Claude Channel task/wake delivery is now pull-reliable (C14.3):** the Channel
+  bridge's background poll loop drained wake/task-tagged Hub messages every 2s,
+  acked them, and emitted a `notifications/claude/channel` MCP notification that
+  the current Claude Code build does not surface to the model — so a pushed task
+  was silently consumed and unrecoverable (`check_inbox` filters task-tagged
+  messages by design). `crates/claude` now also buffers each drained disturb
+  event and returns it from `check_inbox`, tagged with its session and message
+  id so a `reply` routes back correctly. `crates/hub` `harness/inject.rs`: when a
+  Channel session is live for the workspace, task inject returns `queued` (the
+  bridge picks it up on its next poll) instead of falling through to the C12
+  discovery bridge, which always reports `unavailable` for a live interactive
+  session because `cc-socks` is undocumented.
+- **Gemini "Start managed" no longer exits immediately (C14.4):** the generic
+  `start_managed_harness` path minted an app-side `managed-<uuid>` and passed it
+  to `agy` as `--conversation`; `agy` assigns its own conversation id and rejects
+  a caller-chosen one, so the worker exited and the Hub row stayed `unavailable`.
+  New `start_gemini_managed_harness` runs one headless `agy` turn with no
+  `--conversation`, captures the real conversation id from its stream-json, and
+  registers that as a `ready` managed session. The Orchestrate readiness panel
+  now accepts a blank disk-session id for `gemini` (meaning "a fresh session")
+  and treats `queued` inject outcomes as success rather than a retryable warning.
 - **Terminal glyph spacing & WebGL rendering (#299):** Fixed uneven and clumped
   glyph spacing in `EmbeddedTerminal` ("i ncl uded" instead of "included") caused
   by xterm v6 DOM-only rendering sub-pixel drift at fractional display scaling

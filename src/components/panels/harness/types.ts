@@ -138,6 +138,7 @@ export function isSuccessfulInject(status: string): boolean {
 export function injectNotice(status: string, _detail: string): { retryable: boolean; tone: "ok" | "warn" | "bad" } {
   const lowered = status.toLowerCase();
   if (isSuccessfulInject(lowered)) return { retryable: false, tone: "ok" };
-  if (lowered === "queued" || lowered === "busy") return { retryable: true, tone: "warn" };
+  if (lowered === "queued") return { retryable: false, tone: "ok" };
+  if (lowered === "busy") return { retryable: true, tone: "warn" };
   return { retryable: lowered === "unavailable", tone: "bad" };
 }

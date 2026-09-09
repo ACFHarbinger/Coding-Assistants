@@ -110,7 +110,7 @@ export default function HarnessReadinessPanel({
       if (harness === "grok") {
         throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
       }
-      if (harness !== "claude" && harness !== "cursor" && !diskId.trim()) {
+      if (harness !== "claude" && harness !== "cursor" && harness !== "gemini" && !diskId.trim()) {
         throw new Error(
           harness === "muse"
             ? "Start managed needs a real Muse session UUID. Do not invent a placeholder."
@@ -119,6 +119,9 @@ export default function HarnessReadinessPanel({
       }
       // Claude: Channel-connected terminal (no disk-session id).
       // Cursor: headless spawn creates a fresh chat and captures its id from stream-json.
+      // Gemini: start_managed_harness discards any supplied id and mints a fresh
+      //   agy conversation id, so a blank field means "new session" (an old id
+      //   here would make agy resume an unrelated conversation).
       // Others: kill any prior managed pid, spawn, register — one atomic call.
       const outcome = await invoke<StartManagedHarnessOutcome>("hub_start_managed_harness", {
         harness,

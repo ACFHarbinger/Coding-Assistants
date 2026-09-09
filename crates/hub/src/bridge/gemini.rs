@@ -163,6 +163,69 @@ pub fn parse_agy_stream_line(line: &str) -> Option<AgyStreamOutput> {
     }
 }
 
+/// C14.4 "Start managed" for Gemini. The generic `start_managed_harness`
+/// path mints an app-side `managed-<uuid>` and passes it to `agy` as
+/// `--conversation`; `agy` never adopts a caller-chosen id (it assigns its
+/// own), so it rejected the flag and exited, leaving the Hub row
+/// `unavailable`. Instead run one headless `agy` turn with **no**
+/// `--conversation` so `agy` opens a fresh conversation, then capture the
+/// real id it reports in its stream-json and register *that*.
+pub fn start_gemini_managed_harness(
+    store: &HubStore,
+    workspace: &Path,
+    prompt: &str,
+) -> Result<(crate::harness::HarnessStartResult, crate::HarnessSessionRegistration), String> {
+    if !workspace.is_absolute() {
+        return Err("workspace must be an absolute path".into());
+    }
+    let workspace = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
+    let workspace_str = workspace.to_string_lossy().into_owned();
+
+    // Kill any prior managed agy pid the Hub still tracks, same as the
+    // generic path, so a second "Start managed" never orphans a worker.
+    if let Ok(Some(existing)) = store.get_harness_session("gemini", &workspace_str) {
+        if let Some(pid) = existing.managed_pid {
+            crate::bridge::channels::gemini::kill_managed_agy_process(pid);
+        }
+    }
+
+    let (pid, output) = run_agy_worker(&workspace, prompt, None)?;
+
+    let Some(conversation_id) = output
+        .conversation_id
+        .filter(|conv| !conv.trim().is_empty())
+    else {
+        return Err(
+            "agy started but reported no conversation id in its stream-json output; \
+             managed session not registered"
+                .into(),
+        );
+    };
+
+    let managed_pid = pid.unwrap_or_else(std::process::id);
+    let registration = store
+        .register_managed_harness_session_with_state(
+            "gemini",
+            &workspace_str,
+            &conversation_id,
+            Some(managed_pid),
+            HarnessSessionState::Ready,
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok((
+        crate::harness::HarnessStartResult {
+            harness: "gemini".into(),
+            pid,
+            status: "started".into(),
+            detail: format!("Gemini managed session started (agy conversation {conversation_id})"),
+        },
+        registration,
+    ))
+}
+
 pub fn deliver_gemini_task(
     store: &HubStore,
     request: &HarnessInjectRequest,

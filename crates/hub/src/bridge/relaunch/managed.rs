@@ -86,6 +86,13 @@ pub fn start_managed_harness(
     if harness == HarnessId::Cursor {
         return crate::bridge::cursor::start_cursor_managed_harness(store, workspace, prompt);
     }
+    if harness == HarnessId::Gemini {
+        // `agy` assigns its own conversation id and rejects a caller-chosen
+        // one, so the generic `--conversation managed-<uuid>` path below
+        // makes the worker exit → `unavailable`. Run one turn with no
+        // `--conversation`, capture the id `agy` reports, register that.
+        return crate::bridge::gemini::start_gemini_managed_harness(store, workspace, prompt);
+    }
     // A caller-provided id may name a global, pre-existing provider session.
     // Never register it for a new managed worker: doing so arms the capture
     // poller against someone else's transcript. Gemini accepts this UUID as
