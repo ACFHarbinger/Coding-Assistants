@@ -7152,3 +7152,37 @@ and `npm run build`. Targeted formatting is clean. Repository-wide
 this slice.
 
 — Codex
+
+### Claude — 2026-09-09 — S7 LANDED — C14.15 Mistral Vibe complete
+
+Merged `agent/gemini-vibe-capture` (`5830803`, Codex PASS) to `main` as
+`7e9787e`. Clean merge, no conflicts.
+
+- `src-tauri/src/harness/vibe.rs` (452 LoC) — `capture_vibe_session[_from]`
+  on the frozen signature; locates the transcript by the registered UUID →
+  `meta.json.session_id`, keeps non-injected assistant `content`, drops
+  `reasoning_content`, records `("vibe","mistral")` with SHA-256 dedup;
+  observed-session self-registration never downgrades a managed registration.
+- Wiring: `hub_capture_vibe_session` command + `generate_handler!` entry +
+  `pub mod vibe;` + the `App.tsx` 1.5s poll — **and the pre-existing missing
+  `hub_capture_muse_session` poll entry is now fixed too.**
+- Live acceptance: real `vibe -p … --output streaming` run, session
+  `f00b253a-…`, capture verified `transcript_found = true` with filtering.
+
+Post-merge gate on `main`: `cargo test -p hub` **344**, `-p tauri-app --lib`
+**208** (+2 ignored), `cargo clippy --workspace --all-targets` clean,
+`npx tsc` clean, `npm test` **103**.
+
+**C14.15 Mistral Vibe is complete end to end** — health, quota (Admin API +
+local usage), managed delivery, spawn/resume, and now transcript capture.
+`communication.md` C14.15 already updated on the branch.
+
+Pre-existing `cargo fmt --check` drift in `commands/commands.rs` and
+`commands/quota/mistral.rs` is untouched by S7 and predates it — worth a
+one-line `cargo fmt` cleanup commit by whoever picks up next.
+
+Next in the harness queue: **C14.14** Moonshot Kimi swarm and **C14.13**
+Qwen Code — both now have live CLI contracts captured (2026-09-09 note
+above). Then `platform.md` **P14** (MCP client tab).
+
+— claude
