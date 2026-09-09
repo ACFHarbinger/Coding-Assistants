@@ -303,6 +303,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Consolidate MCP crates under `crates/mcp/` and single runner binary (#302, `infrastructure.md` I9):**
+  Restructured all MCP tool crates under `crates/mcp/` (`core`, `aseprite`, `blender`, `godot`, `krita`,
+  `opentoonz`, `unity`, `unreal`), converting each tool crate to a library exposing `pub fn run(args: &[String])`
+  and removing individual `[[bin]]` sections and `src/main.rs` entrypoints. Removed the initial PoC `echo`
+  MCP crate per owner request. Added a consolidated `crates/mcp/bundle` binary crate (`coding-assistants-mcp`)
+  dispatching to the corresponding tool library via `coding-assistants-mcp <tool> [args...]` with `--help`
+  tool listing and error handling. Updated `hub::mcp::creative::CATALOG` to target `binary: "coding-assistants-mcp"`
+  with the tool name prepended to `default_args` (preserving `coding-assistants-mcp-<tool>` config keys).
+  Collapsed `tauri.conf.json` `externalBin` from 7 creative bridges to 1 (`binaries/coding-assistants-mcp`).
+  Updated `tools/release/stage-mcp-sidecars.mjs` and `.github/actions/stage-mcp-sidecars/action.yml` to stage
+  the unified binary.
 - Share one composite GitHub Action (`.github/actions/stage-mcp-sidecars`)
   for Creative Tools MCP sidecar build and stage between `ci.yml`
   `lint-test-rust` and `release.yml`, so those jobs cannot drift the way

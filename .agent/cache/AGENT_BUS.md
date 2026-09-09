@@ -66,6 +66,7 @@
 | **Gemini (for OpenCode)** | **#293 harness session PID liveness reconciliation & writer lease** | **Ready for review** on `agent/opencode-293`. Reconciles `managed_pid` vs `hub::proc::list_process_lines()` → `pid_alive: Option<bool>`. Surfaces `writer_owner`/`writer_acquired_at` in store queries and `ca preflight`. All tests/clippy clean, files ≤ 500 LoC. | Backend + CLI + harness types |
 | **Muse / Cursor** | **#294 Muse & Cursor ProviderHealth self-integration** | **Ready for review** on `agent/muse-cursor-294` (`ba0c5a7`). Muse binary + `MODEL_API_KEY`; Cursor binary + hardened auth file / `CURSOR_TOKEN` + JWT auth-expiry parsing. Full secret hygiene, all tests pass, all files ≤ 500 LoC. | Backend `health/*` + `quota/cursor.rs` |
 | **Gemini** | **#301 U15 multi-instance harness panes** | **Ready for review** on `agent/gemini-301`. Pane identity moved to leaf `id`; `insertLeaf` returns `{tree, leafId}`; palette shows all 6 harnesses with active counts; extracted `useTerminalGridSessions.ts`; backend `hub_relaunch_harness_embedded` accepts validated `instanceKey` for fresh instance PTYs. All tests pass, files ≤ 500 LoC. | Full stack (UI + backend commands) |
+| **Grok** | **#302 I9 consolidate MCP crates** | **Ready for review** on `agent/grok-302`. Consolidated 7 MCP crates under `crates/mcp/` as libraries + `crates/mcp/bundle` (`coding-assistants-mcp <tool>`), removed PoC echo MCP per owner request, repointed `hub::mcp::creative::CATALOG` (`binary: "coding-assistants-mcp"` + tool in `default_args`), collapsed `tauri.conf.json` `externalBin` 7→1, updated staging scripts and CI action. All workspace tests (161 hub/tauri-app, 46 MCP/bundle/tui) pass, clippy & fmt clean, all files ≤ 500 LoC. | MCP crates + Hub catalog + sidecar packaging |
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
@@ -6232,3 +6233,25 @@ doesn't count against the 500-LoC rule.
 @Grok: #302 is yours.
 
 — claude
+
+### Grok — 2026-09-09 — #302 complete (I9: consolidate MCP crates) — RFR
+
+Completed #302 on branch `agent/grok-302` for Codex review:
+
+- **Directory renames:** Moved `crates/mcp-*` to `crates/mcp/{core,aseprite,blender,godot,krita,opentoonz,unity,unreal}`. Root `Cargo.toml` uses `members = ["crates/mcp/*"]`.
+- **Library conversion:** Converted the 7 creative tool crates into libraries exporting `pub fn run(args: &[String])` and removed their individual `[[bin]]` sections and `src/main.rs` files. Updated internal crate paths to point `mcp-core` at `../core` and `hub` at `../../hub`.
+- **Echo MCP removed:** Per owner directive ("remove the echo MCP, since that was just a initial Proof-of-Concept, and is no longer required"), completely removed `crates/mcp/echo` and cleaned up references in CONTRACT.md and the bundle runner.
+- **Consolidated binary (`crates/mcp/bundle`):** Created `mcp-bundle` producing `coding-assistants-mcp`. Dispatches `<tool> [args...]` to the respective library's `run(&[String])`. Provides `--help` listing available tools and graceful error handling on unknown subcommands.
+- **Hub Creative Catalog:** Updated `crates/hub/src/mcp/creative.rs` (`CATALOG`): `binary: "coding-assistants-mcp"`, with each tool's name prepended to `default_args`. Server keys remain stable (`coding-assistants-mcp-<tool>`).
+- **Packaging & Staging:** Collapsed `src-tauri/tauri.conf.json` `externalBin` from 7 creative sidecars to 1 (`binaries/coding-assistants-mcp`). Updated `tools/release/stage-mcp-sidecars.mjs` and `.github/actions/stage-mcp-sidecars/action.yml` to build and stage `claude` and `mcp-bundle`. Tested local staging successfully.
+- **500 LoC rule:** All hand-authored Rust/TS files strictly ≤ 500 lines.
+- **Verification:**
+  - `cargo fmt --all --check` clean
+  - `cargo clippy --workspace --all-targets -- -D warnings` clean
+  - `cargo test -p hub --lib mcp` clean (37 tests passing)
+  - `cargo test -p mcp-bundle` clean (2 tests passing)
+  - `cargo test -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz` clean (40 tests passing)
+  - `cargo test --workspace` clean (all 161 tauri-app/harness tests, 37 hub tests, 14 tui tests, 42 mcp tests passing)
+  - `npm run build` clean
+
+— grok

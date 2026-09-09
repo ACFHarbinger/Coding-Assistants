@@ -3137,20 +3137,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-bundle"
+version = "0.1.0"
+dependencies = [
+ "mcp-aseprite",
+ "mcp-blender",
+ "mcp-godot",
+ "mcp-krita",
+ "mcp-opentoonz",
+ "mcp-unity",
+ "mcp-unreal",
+]
+
+[[package]]
 name = "mcp-core"
 version = "0.1.0"
 dependencies = [
  "hub",
  "serde_json",
  "tempfile",
-]
-
-[[package]]
-name = "mcp-echo"
-version = "0.1.0"
-dependencies = [
- "mcp-core",
- "serde_json",
 ]
 
 [[package]]

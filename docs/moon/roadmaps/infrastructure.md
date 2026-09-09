@@ -12,7 +12,7 @@ Keep only infrastructure with a current local or prototype use.
 | I6 | Keep research and reports separate from active implementation roadmaps | 📋 Pending |
 | I7 | Rename crate/package `tauri-app`/`tauri_app_lib` → `coding-assistants`/`ca` (`src-tauri/Cargo.toml`, root `package.json`, `tauri.conf.json`, capability configs, lockfiles) — owner-confirmed 2026-08-10; dropped from the roadmap during the capability-file restructure, re-added here (Claude verification pass) | 📋 Pending |
 | I8 | Keep Rust and TypeScript/React source units bounded to 500 lines, organized by responsibility, without changing their public API, CLI, or UI contracts ([#158](https://github.com/ACFHarbinger/Coding-Assistants/issues/158)) | 🚧 **Reopened · 2026-08-15** — 5 hand-authored files exceeded the cap post-#161/#162 churn; **split by DeepSeek** (see below). Re-verify the source-length inventory at review. |
-| I9 | Consolidate `crates/mcp-*` under `crates/mcp/` — each tool stays its own **library** crate (`crates/mcp/{core,echo,godot,unity,…}`), plus one `crates/mcp/bundle` binary (`coding-assistants-mcp <tool>`) so the desktop app ships **one** MCP sidecar instead of seven (owner-chosen scope, 2026-09-09) | 📋 **Planned** — [#302](https://github.com/ACFHarbinger/Coding-Assistants/issues/302) (Grok, Codex reviews). `git mv` the 9 dirs, tool `main.rs`→`lib.rs run()`, glob `members = ["crates/mcp/*"]`, repoint `hub::mcp::creative` `CATALOG` (`binary: "coding-assistants-mcp"`, tool name prepended to `default_args`), `tauri.conf.json` `externalBin` 7→1, CI `stage-mcp-sidecars` + `stage-mcp-sidecars.mjs`. No server-behaviour / port / `.mcp.json`-key change. |
+| I9 | Consolidate `crates/mcp-*` under `crates/mcp/` — each tool stays its own **library** crate (`crates/mcp/{core,aseprite,blender,godot,krita,opentoonz,unity,unreal}`), plus one `crates/mcp/bundle` binary (`coding-assistants-mcp <tool>`) so the desktop app ships **one** MCP sidecar instead of seven (owner-chosen scope, 2026-09-09) | ✅ Done |
 
 ## I8 — bounded source modules
 
@@ -72,3 +72,18 @@ Keep only infrastructure with a current local or prototype use.
     --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
     `cargo check -p hub -p cli --all-targets` all clean. No `cargo test`
     (owner go-ahead required). My changed files are rustfmt-clean.
+
+## I9 — consolidate MCP crates
+
+- Moved `crates/mcp-*` into `crates/mcp/*` (`core`, `aseprite`, `blender`,
+  `godot`, `krita`, `opentoonz`, `unity`, `unreal`).
+- Converted all 7 creative tool crates into libraries exporting `pub fn run(args: &[String])`,
+  removing `[[bin]]` sections and individual `src/main.rs` files.
+- Removed initial PoC `crates/mcp/echo` per owner directive.
+- Created `crates/mcp/bundle` (`coding-assistants-mcp`) dispatching to
+  `mcp_<tool>::run(args)` via subcommand (`coding-assistants-mcp <tool> [args...]`).
+- Updated `crates/hub/src/mcp/creative.rs` (`CATALOG`) to use `binary: "coding-assistants-mcp"`
+  with tool name prepended to `default_args` (preserving `coding-assistants-mcp-<tool>` config keys).
+- Collapsed `src-tauri/tauri.conf.json` `externalBin` from 7 sidecars to 1 (`binaries/coding-assistants-mcp`).
+- Updated staging scripts (`tools/release/stage-mcp-sidecars.mjs`,
+  `.github/actions/stage-mcp-sidecars/action.yml`) to build and stage `claude` and `mcp-bundle`.

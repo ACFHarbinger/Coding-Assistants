@@ -66,8 +66,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-blender",
         display_name: "Blender",
-        binary: "coding-assistants-mcp-blender",
-        default_args: &["--port", "9765"],
+        binary: "coding-assistants-mcp",
+        default_args: &["blender", "--port", "9765"],
         transport: Transport::Socket,
         port: Some(9765),
         gated_flag: Some("--allow-run-python"),
@@ -76,8 +76,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-krita",
         display_name: "Krita",
-        binary: "coding-assistants-mcp-krita",
-        default_args: &["--port", "9766"],
+        binary: "coding-assistants-mcp",
+        default_args: &["krita", "--port", "9766"],
         transport: Transport::Socket,
         port: Some(9766),
         gated_flag: Some("--allow-run-python"),
@@ -86,8 +86,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-godot",
         display_name: "Godot",
-        binary: "coding-assistants-mcp-godot",
-        default_args: &["--port", "9767"],
+        binary: "coding-assistants-mcp",
+        default_args: &["godot", "--port", "9767"],
         transport: Transport::Socket,
         port: Some(9767),
         gated_flag: Some("--allow-run-script"),
@@ -96,8 +96,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-aseprite",
         display_name: "Aseprite",
-        binary: "coding-assistants-mcp-aseprite",
-        default_args: &[],
+        binary: "coding-assistants-mcp",
+        default_args: &["aseprite"],
         transport: Transport::Subprocess,
         port: None,
         gated_flag: Some("--allow-apply-script"),
@@ -106,8 +106,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-unreal",
         display_name: "Unreal Editor",
-        binary: "coding-assistants-mcp-unreal",
-        default_args: &["--port", "9768"],
+        binary: "coding-assistants-mcp",
+        default_args: &["unreal", "--port", "9768"],
         transport: Transport::Socket,
         port: Some(9768),
         gated_flag: Some("--allow-run-python"),
@@ -116,8 +116,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-unity",
         display_name: "Unity Editor",
-        binary: "coding-assistants-mcp-unity",
-        default_args: &["--port", "9769"],
+        binary: "coding-assistants-mcp",
+        default_args: &["unity", "--port", "9769"],
         transport: Transport::Socket,
         port: Some(9769),
         gated_flag: Some("--allow-menu-exec"),
@@ -126,8 +126,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-opentoonz",
         display_name: "OpenToonz",
-        binary: "coding-assistants-mcp-opentoonz",
-        default_args: &[],
+        binary: "coding-assistants-mcp",
+        default_args: &["opentoonz"],
         transport: Transport::FileParse,
         port: None,
         gated_flag: Some("--allow-render"),
@@ -282,7 +282,11 @@ mod tests {
         let mut seen = BTreeSet::new();
         for t in CATALOG {
             assert!(seen.insert(t.key), "duplicate key {}", t.key);
-            assert_eq!(t.key, t.binary, "key and binary basename should match");
+            assert_eq!(t.binary, "coding-assistants-mcp");
+            assert_eq!(
+                t.default_args.first().copied(),
+                Some(t.key.strip_prefix("coding-assistants-mcp-").unwrap())
+            );
         }
         assert_eq!(CATALOG.len(), 7);
     }

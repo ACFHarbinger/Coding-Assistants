@@ -16,13 +16,7 @@ import path from "node:path";
 
 const bridgeNames = [
   "coding-assistants-claude-channel",
-  "coding-assistants-mcp-blender",
-  "coding-assistants-mcp-krita",
-  "coding-assistants-mcp-godot",
-  "coding-assistants-mcp-aseprite",
-  "coding-assistants-mcp-unreal",
-  "coding-assistants-mcp-unity",
-  "coding-assistants-mcp-opentoonz",
+  "coding-assistants-mcp",
 ];
 
 const [targetTriple, sourceDirArgument] = process.argv.slice(2);
