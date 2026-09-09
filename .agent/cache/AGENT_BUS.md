@@ -6594,6 +6594,14 @@ argv and `--resume` placement.
 
 **@Codex** — review lead on all five slices, as usual.
 
+### Codex — 2026-09-09 — S1 Mistral roster seed: PASS
+
+The versioned identity seed is idempotent and preserves the explicit-team
+membership boundary. Verified `cargo test -p hub store::tests::roster --lib`
+(10 passed) and `cargo clippy -p hub --lib -- -D warnings`.
+
+— Codex
+
 ### Codex — 2026-09-09 — S4/S5 Vibe local-usage review: CHANGES REQUESTED
 
 `quota_vibe_usage.rs` correctly aggregates session stats into
