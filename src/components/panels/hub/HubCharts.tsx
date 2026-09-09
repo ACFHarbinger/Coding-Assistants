@@ -3,6 +3,7 @@ import { ProviderHealthDot } from "../harness/ProviderHealthChip";
 import { useProviderHealth } from "../harness/useProviderHealth";
 import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
 import { PaygQuotaMeter } from "./PaygQuotaMeter";
+import { LocalUsageMeter } from "./LocalUsageMeter";
 
 
 /**
@@ -172,70 +173,86 @@ export function QuotaChart({
                   )}
                 </div>
               </div>
-              {quota.balance && quota.windows.length > 0 && (
+              {quota.balance && (quota.windows.length > 0 || quota.balance_info?.kind === "spend" || quota.balance.toLowerCase().startsWith("spent")) && (
                 <div style={{ display: "grid", gap: "0.25rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                    <span>Account balance</span>
-                    <strong style={{ color: "#22c55e" }}>{quota.balance}</strong>
+                    <span>{quota.balance.toLowerCase().startsWith("spent") || quota.balance_info?.kind === "spend" ? "Period spend" : "Account balance"}</span>
+                    <strong style={{ color: quota.balance.toLowerCase().startsWith("spent") || quota.balance_info?.kind === "spend" ? "#38bdf8" : "#22c55e" }}>
+                      {quota.balance}
+                    </strong>
                   </div>
                 </div>
               )}
-              {quota.balance_info || (isCurrencyBalance(quota.balance) && quota.windows.length === 0) ? (
-                <PaygQuotaMeter quota={quota} />
+              {((quota.balance_info && quota.balance_info.kind !== "spend") ||
+                (isCurrencyBalance(quota.balance) && !quota.balance?.toLowerCase().startsWith("spent") && quota.windows.length === 0)) ? (
+                <>
+                  <PaygQuotaMeter quota={quota} />
+                  {quota.local_usage && <LocalUsageMeter usage={quota.local_usage} />}
+                </>
               ) : quota.windows.length === 0 ? (
-                <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
+                quota.local_usage ? (
+                  <LocalUsageMeter usage={quota.local_usage} detail={quota.detail} />
+                ) : (
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
+                )
               ) : families.length > 0 ? (
-                families.map((family) => {
-                  const familyWindows = quota.windows.filter((w) => w.family === family);
-                  return (
-                    <div key={`${quota.agent_id}-${family}`} style={{ display: "grid", gap: "0.5rem", marginTop: "0.25rem" }}>
-                      <div style={{ fontSize: "0.86rem", fontWeight: 600, color: "var(--text-main)", opacity: 0.9, letterSpacing: "0.02em" }}>
-                        {family}
-                      </div>
-                      {familyWindows.map((window) => (
-                        <div key={`${quota.agent_id}-${family}-${window.label}`} style={{ display: "grid", gap: "0.25rem", paddingLeft: "0.5rem" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                            <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
-                            <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
-                              {window.remaining_percent}% remaining
-                            </strong>
-                          </div>
-                          <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
-                            <div
-                              style={{
-                                width: `${window.remaining_percent}%`,
-                                height: "100%",
-                                background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
-                                transition: "width 0.3s ease",
-                              }}
-                            />
-                          </div>
+                <>
+                  {families.map((family) => {
+                    const familyWindows = quota.windows.filter((w) => w.family === family);
+                    return (
+                      <div key={`${quota.agent_id}-${family}`} style={{ display: "grid", gap: "0.5rem", marginTop: "0.25rem" }}>
+                        <div style={{ fontSize: "0.86rem", fontWeight: 600, color: "var(--text-main)", opacity: 0.9, letterSpacing: "0.02em" }}>
+                          {family}
                         </div>
-                      ))}
-                    </div>
-                  );
-                })
+                        {familyWindows.map((window) => (
+                          <div key={`${quota.agent_id}-${family}-${window.label}`} style={{ display: "grid", gap: "0.25rem", paddingLeft: "0.5rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                              <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
+                              <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
+                                {window.remaining_percent}% remaining
+                              </strong>
+                            </div>
+                            <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
+                              <div
+                                style={{
+                                  width: `${window.remaining_percent}%`,
+                                  height: "100%",
+                                  background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
+                                  transition: "width 0.3s ease",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {quota.local_usage && <LocalUsageMeter usage={quota.local_usage} />}
+                </>
               ) : (
-                quota.windows.map((window) => (
-                  <div key={`${quota.agent_id}-${window.label}`} style={{ display: "grid", gap: "0.25rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                      <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
-                      <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
-                        {window.remaining_percent}% remaining
-                      </strong>
+                <>
+                  {quota.windows.map((window) => (
+                    <div key={`${quota.agent_id}-${window.label}`} style={{ display: "grid", gap: "0.25rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        <span>{windowName(window)} · {formatReset(window.resets_at)}</span>
+                        <strong style={{ color: window.remaining_percent === 0 ? "#ef4444" : "var(--text-main)" }}>
+                          {window.remaining_percent}% remaining
+                        </strong>
+                      </div>
+                      <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
+                        <div
+                          style={{
+                            width: `${window.remaining_percent}%`,
+                            height: "100%",
+                            background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
+                            transition: "width 0.3s ease",
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div style={{ height: 12, background: "#334155", borderRadius: 6, overflow: "hidden" }}>
-                      <div
-                        style={{
-                          width: `${window.remaining_percent}%`,
-                          height: "100%",
-                          background: window.remaining_percent < 10 ? "#ef4444" : window.remaining_percent < 25 ? "#eab308" : "var(--primary)",
-                          transition: "width 0.3s ease",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))
+                  ))}
+                  {quota.local_usage && <LocalUsageMeter usage={quota.local_usage} />}
+                </>
               )}
             </div>
           );

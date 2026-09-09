@@ -18,6 +18,8 @@ pub struct ProviderQuotaBalance {
     pub currency: String,
     pub total: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub granted: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topped_up: Option<f64>,

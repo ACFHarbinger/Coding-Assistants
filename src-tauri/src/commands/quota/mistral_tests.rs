@@ -92,7 +92,7 @@ fn spend_limit_parses_capped_uncapped_and_absent() {
 #[test]
 fn capped_budget_yields_a_monthly_spend_window() {
     let summary = summarize_usage(&usage_map()).unwrap();
-    let budget = budget_from_summary(&summary, Some(100.0));
+    let budget = budget_from_summary(&summary, SpendLimitResult::Capped(100.0));
     assert_eq!(budget.windows.len(), 1);
     let window = &budget.windows[0];
     assert_eq!(window.label, "Monthly spend");
@@ -107,35 +107,61 @@ fn capped_budget_yields_a_monthly_spend_window() {
     let info = budget.balance_info.expect("currency figure");
     assert_eq!(info.currency, "USD");
     assert!((info.total - 16.25).abs() < 1e-9);
+    assert_eq!(info.kind.as_deref(), Some("spend"));
     assert_eq!(info.paid, None);
 }
 
 #[test]
-fn uncapped_or_missing_limit_reports_spend_only() {
+fn uncapped_limit_reports_spend_only_with_uncapped_note() {
     let summary = summarize_usage(&usage_map()).unwrap();
-    for limit in [None, Some(0.0), Some(-10.0)] {
-        let budget = budget_from_summary(&summary, limit);
-        assert!(budget.windows.is_empty(), "no window for {limit:?}");
-        assert!(budget
-            .balance
+    let budget = budget_from_summary(&summary, SpendLimitResult::Uncapped);
+    assert!(budget.windows.is_empty());
+    assert!(budget
+        .balance
+        .as_deref()
+        .unwrap_or_default()
+        .contains("$16.25"));
+    assert!(
+        budget
+            .detail
             .as_deref()
             .unwrap_or_default()
-            .contains("$16.25"));
-        assert!(
-            budget
-                .detail
-                .as_deref()
-                .unwrap_or_default()
-                .contains("No monthly spend cap"),
-            "spend-only note missing for {limit:?}"
-        );
-    }
+            .contains("No monthly spend cap is set"),
+        "spend-only note missing: {:?}",
+        budget.detail
+    );
+    let info = budget.balance_info.expect("currency figure");
+    assert_eq!(info.kind.as_deref(), Some("spend"));
+}
+
+#[test]
+fn failed_limit_request_reports_failure_reason_not_uncapped() {
+    let summary = summarize_usage(&usage_map()).unwrap();
+    let budget = budget_from_summary(
+        &summary,
+        SpendLimitResult::Failed("HTTP 500 Internal Server Error".into()),
+    );
+    assert!(budget.windows.is_empty());
+    assert!(budget
+        .balance
+        .as_deref()
+        .unwrap_or_default()
+        .contains("$16.25"));
+    let detail = budget.detail.expect("detail note");
+    assert!(
+        detail.contains("could not be read"),
+        "unexpected detail: {detail}"
+    );
+    assert!(
+        !detail.contains("No monthly spend cap is set"),
+        "must not claim uncapped on failed request: {detail}"
+    );
 }
 
 #[test]
 fn window_percent_clamps_at_full_spend() {
     let summary = summarize_usage(&usage_map()).unwrap();
-    let budget = budget_from_summary(&summary, Some(1.0));
+    let budget = budget_from_summary(&summary, SpendLimitResult::Capped(1.0));
     assert_eq!(budget.windows[0].used_percent, 100);
     assert_eq!(budget.windows[0].remaining_percent, 0);
 }
@@ -148,7 +174,7 @@ fn spend_line_degrades_without_vibe_slice_or_dates() {
     }))
     .unwrap();
     assert_eq!(summary.vibe_spend, None);
-    let budget = budget_from_summary(&summary, None);
+    let budget = budget_from_summary(&summary, SpendLimitResult::Uncapped);
     let balance = budget.balance.unwrap();
     assert_eq!(balance, "Spent $4.00 USD this period");
 }

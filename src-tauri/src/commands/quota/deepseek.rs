@@ -153,6 +153,7 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
     let balance_info = ProviderQuotaBalance {
         currency: info.currency.clone(),
         total,
+        kind: Some("balance".into()),
         granted,
         topped_up,
         paid: topped_up,
@@ -196,6 +197,7 @@ mod tests {
         let balance_info = ProviderQuotaBalance {
             currency: info.currency.clone(),
             total,
+            kind: Some("balance".into()),
             granted,
             topped_up,
             paid: topped_up,

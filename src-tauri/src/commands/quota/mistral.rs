@@ -177,20 +177,44 @@ fn format_spend(summary: &UsageSummary) -> String {
     line
 }
 
-/// Pure composition of the two endpoint bodies into a budget. A `None` limit
-/// means uncapped (`no_monthly_limit`, missing/invalid `amount`, or a failed
-/// `/spend-limit` read the caller already degraded): spend only, no window.
-fn budget_from_summary(summary: &UsageSummary, limit: Option<f64>) -> MistralAdminBudget {
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum SpendLimitResult {
+    Capped(f64),
+    Uncapped,
+    Failed(String),
+}
+
+/// Pure composition of the two endpoint bodies into a budget.
+fn budget_from_summary(summary: &UsageSummary, limit: SpendLimitResult) -> MistralAdminBudget {
     let balance_info = ProviderQuotaBalance {
         currency: summary.currency.clone(),
         total: summary.total_spend,
+        kind: Some("spend".into()),
         granted: None,
         topped_up: None,
         paid: None,
         gift: None,
     };
-    let Some(cap) = limit.filter(|cap| *cap > 0.0) else {
-        return MistralAdminBudget {
+    match limit {
+        SpendLimitResult::Capped(cap) => {
+            let used = ((summary.total_spend / cap) * 100.0)
+                .clamp(0.0, 100.0)
+                .round() as i32;
+            MistralAdminBudget {
+                windows: vec![ProviderQuotaWindow {
+                    label: "Monthly spend".into(),
+                    family: Some(FAMILY.into()),
+                    used_percent: used,
+                    remaining_percent: (100 - used).clamp(0, 100),
+                    resets_at: None,
+                    window_minutes: None,
+                }],
+                balance: Some(format_spend(summary)),
+                balance_info: Some(balance_info),
+                detail: None,
+            }
+        }
+        SpendLimitResult::Uncapped => MistralAdminBudget {
             windows: Vec::new(),
             balance: Some(format_spend(summary)),
             balance_info: Some(balance_info),
@@ -198,23 +222,15 @@ fn budget_from_summary(summary: &UsageSummary, limit: Option<f64>) -> MistralAdm
                 "No monthly spend cap is set on this Mistral workspace — reporting spend only."
                     .into(),
             ),
-        };
-    };
-    let used = ((summary.total_spend / cap) * 100.0)
-        .clamp(0.0, 100.0)
-        .round() as i32;
-    MistralAdminBudget {
-        windows: vec![ProviderQuotaWindow {
-            label: "Monthly spend".into(),
-            family: Some(FAMILY.into()),
-            used_percent: used,
-            remaining_percent: (100 - used).clamp(0, 100),
-            resets_at: None,
-            window_minutes: None,
-        }],
-        balance: Some(format_spend(summary)),
-        balance_info: Some(balance_info),
-        detail: None,
+        },
+        SpendLimitResult::Failed(err) => MistralAdminBudget {
+            windows: Vec::new(),
+            balance: Some(format_spend(summary)),
+            balance_info: Some(balance_info),
+            detail: Some(format!(
+                "Monthly spend cap could not be read from Mistral Admin API ({err}) — reporting spend only."
+            )),
+        },
     }
 }
 
@@ -291,17 +307,20 @@ pub(crate) fn mistral_admin_budget() -> Result<MistralAdminBudget, String> {
     };
 
     // A failed or uncapped `/spend-limit` read degrades to spend-only, not to
-    // a total failure: the usage numbers are still truthful on their own.
     let limit = match fetch_admin_json(&client, "/spend-limit", api_key.expose()) {
         Ok(body) => {
             let limit = parse_spend_limit(&body);
             if limit.no_monthly_limit {
-                None
+                SpendLimitResult::Uncapped
+            } else if let Some(amount) = limit.amount.filter(|a| *a > 0.0) {
+                SpendLimitResult::Capped(amount)
             } else {
-                limit.amount
+                SpendLimitResult::Failed(
+                    "Spend limit response contained neither a valid amount nor no_monthly_limit".into(),
+                )
             }
         }
-        Err(_) => None,
+        Err(err) => SpendLimitResult::Failed(err),
     };
     Ok(budget_from_summary(&summary, limit))
 }

@@ -1,6 +1,8 @@
 //! Static and aggregate provider quota commands.
 use super::quota_claude::claude_quota;
-use super::quota_codex::{codex_quota, now_unix, unavailable_quota, ProviderQuota};
+use super::quota_codex::{
+    codex_quota, now_unix, unavailable_quota, ProviderQuota, ProviderQuotaLocalUsage,
+};
 use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
@@ -34,8 +36,22 @@ fn ollama_quota() -> ProviderQuota {
 /// an admin miss still reports local usage, and a machine with no sessions
 /// yet still reports a working admin budget.
 fn mistral_quota() -> ProviderQuota {
-    let local_usage = super::quota_vibe_usage::local_usage();
-    match super::quota_mistral::mistral_admin_budget() {
+    compose_mistral_quota(
+        super::quota_mistral::mistral_admin_budget(),
+        super::quota_vibe_usage::local_usage(),
+    )
+}
+
+/// Pure merge of the two Mistral halves so tests can drive a capped admin
+/// response beside local usage without network or disk. `Ok` fills
+/// `windows`/`balance`/`balance_info` beside `local_usage`; `Err` keeps the
+/// local-only read-out with the admin reason in its detail; both failing
+/// stays `unavailable` with both reasons named.
+pub(crate) fn compose_mistral_quota(
+    admin: Result<super::quota_mistral::MistralAdminBudget, String>,
+    local_usage: Option<ProviderQuotaLocalUsage>,
+) -> ProviderQuota {
+    match admin {
         Ok(budget) => ProviderQuota {
             agent_id: "mistral".into(),
             provider: "mistral".into(),
