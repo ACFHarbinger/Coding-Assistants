@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tiled harness-terminal grid canvas drag-resize & fit-to-window (#298, `ui.md` U15, Epic #295):**
+  Added right, bottom, and bottom-right corner drag handles on the grid canvas enabling explicit
+  `{width, height}` px resizing of the entire terminal grid canvas. Reuses the `setPointerCapture`
+  drag pattern via `useGridCanvasResize.ts` and `CanvasResizeHandles.tsx`. Enforces minimum
+  dimensions (360×280px), clamps width to content width (`maxWidth: 100%`) while allowing vertical
+  expansion in `.main-content`. Adds dynamic canvas dimension badge (`Grid: W×Hpx`) and "Fit to window"
+  button in the grid header bar to reset custom canvas dimensions back to auto-fill (`flex: 1`). Persists
+  custom dimensions per-workspace in `localStorage` under `ca.terminalGrid.canvasSize.<workspace>`,
+  validated on load. Maintains strict `xterm` no-remount invariant and ≤ 500 LoC per file.
 - **Tiled harness-terminal grid drag-rearrange & maximize (Slice 2, #297, `ui.md` U15, Epic #295):**
   Added pure `swapLeaves` and `moveLeaf` operations to `layoutTree.ts` supporting
   in-place leaf swapping and 4-edge re-splitting (`left`, `right`, `top`, `bottom`).

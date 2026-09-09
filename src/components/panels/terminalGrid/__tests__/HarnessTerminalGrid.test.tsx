@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import HarnessTerminalGrid from "../HarnessTerminalGrid";
+import { parseCanvasSize } from "../gridConstants";
 
 const defaultInvokeHandler = (cmd: string, args?: any) => {
   if (cmd === "hub_list_harness_sessions") {
@@ -102,6 +103,13 @@ beforeEach(() => {
 });
 
 describe("HarnessTerminalGrid", () => {
+  it("validates and clamps persisted canvas dimensions", () => {
+    expect(parseCanvasSize(JSON.stringify({ width: 1, height: 1 }))).toEqual({ width: 360, height: 280 });
+    expect(parseCanvasSize(JSON.stringify({ width: 600, height: 99_999 }))).toEqual({ width: 600, height: 20_000 });
+    expect(parseCanvasSize('{"width":1e309,"height":600}')).toBeNull();
+    expect(parseCanvasSize(JSON.stringify({ width: -1, height: 600 }))).toBeNull();
+  });
+
   it("renders empty state with 6 launch buttons when no terminals are open", () => {
     render(<HarnessTerminalGrid workspace="/test/workspace" />);
 
@@ -293,5 +301,71 @@ describe("HarnessTerminalGrid", () => {
     expect(screen.queryByTestId("drop-zone-overlay")).not.toBeInTheDocument();
     const separator = screen.getByRole("separator");
     expect(separator).toHaveAttribute("aria-orientation", "horizontal");
+  });
+
+  it("drag-resizes canvas via corner handle and persists dimensions to localStorage", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    const cornerHandle = screen.getByTestId("canvas-resize-corner");
+    expect(cornerHandle).toBeInTheDocument();
+
+    fireEvent.pointerDown(cornerHandle, { clientX: 1000, clientY: 600, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(cornerHandle, { clientX: 850, clientY: 700, pointerId: 1 });
+    fireEvent.pointerUp(cornerHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 850×700px")).toBeInTheDocument();
+    expect(screen.getByText("Fit to window")).toBeInTheDocument();
+
+    const saved = JSON.parse(storageStore["ca.terminalGrid.canvasSize./test/workspace"] || "{}");
+    expect(saved).toEqual({ width: 850, height: 700 });
+  });
+
+  it("restores valid canvas size from localStorage on mount and clears via Fit to window button", async () => {
+    storageStore["ca.terminalGrid.canvasSize./test/workspace"] = JSON.stringify({
+      width: 800,
+      height: 550,
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    expect(screen.getByText("Grid: 800×550px")).toBeInTheDocument();
+    const fitBtn = screen.getByText("Fit to window");
+    expect(fitBtn).toBeInTheDocument();
+
+    fireEvent.click(fitBtn);
+
+    expect(storageStore["ca.terminalGrid.canvasSize./test/workspace"]).toBeUndefined();
+    expect(screen.queryByText("Fit to window")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grid: 800×550px")).not.toBeInTheDocument();
+  });
+
+  it("resizes width and height independently using right and bottom handles, enforcing minimum boundaries", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    const rightHandle = screen.getByTestId("canvas-resize-right");
+    const bottomHandle = screen.getByTestId("canvas-resize-bottom");
+
+    // Drag right handle past minimum (clamped to min 360)
+    fireEvent.pointerDown(rightHandle, { clientX: 1000, clientY: 300, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(rightHandle, { clientX: 100, clientY: 300, pointerId: 1 });
+    fireEvent.pointerUp(rightHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 360×600px")).toBeInTheDocument();
+
+    // Drag bottom handle past minimum (clamped to min 280)
+    fireEvent.pointerDown(bottomHandle, { clientX: 300, clientY: 600, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(bottomHandle, { clientX: 300, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(bottomHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 360×280px")).toBeInTheDocument();
   });
 });

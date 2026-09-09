@@ -16,6 +16,8 @@ import {
   type SplitterInfo,
 } from "./layoutTree";
 import { useTerminalGridDrag, type DragTargetZone } from "./useTerminalGridDrag";
+import { useGridCanvasResize } from "./useGridCanvasResize";
+import CanvasResizeHandles from "./CanvasResizeHandles";
 import DropZoneOverlay from "./DropZoneOverlay";
 import TerminalPane from "./TerminalPane";
 import {
@@ -24,6 +26,7 @@ import {
   storageKey,
   maxKey,
   terminalSessionId,
+  type CanvasSize,
 } from "./gridConstants";
 
 export interface HarnessTerminalGridProps {
@@ -42,19 +45,10 @@ export default function HarnessTerminalGrid({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [bounds, setBounds] = useState<Rect>({ x: 0, y: 0, width: 900, height: 600 });
   const [layout, setLayout] = useState<LayoutNode | null>(() => {
-    try {
-      return deserializeLayout(localStorage.getItem(storageKey(workspace)));
-    } catch {
-      return null;
-    }
+    try { return deserializeLayout(localStorage.getItem(storageKey(workspace))); } catch { return null; }
   });
-
   const [maximizedHarness, setMaximizedHarness] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(maxKey(workspace));
-    } catch {
-      return null;
-    }
+    try { return localStorage.getItem(maxKey(workspace)); } catch { return null; }
   });
 
   const [terminals, setTerminals] = useState<Record<string, string>>({});
@@ -63,6 +57,18 @@ export default function HarnessTerminalGrid({
   const [statusMsg, setStatusMsg] = useState<string>("");
 
   const { dragState, startPaneDrag } = useTerminalGridDrag();
+
+  const handleCanvasSizeChange = useCallback((size: CanvasSize | null) => {
+    if (size) {
+      setBounds((prev) => ({ ...prev, width: size.width, height: size.height }));
+    }
+  }, []);
+
+  const { canvasSize, startResize, resetCanvasSize } = useGridCanvasResize({
+    workspace,
+    containerRef,
+    onSizeChange: handleCanvasSizeChange,
+  });
 
   useEffect(() => {
     let disposed = false;
@@ -85,7 +91,7 @@ export default function HarnessTerminalGrid({
       try {
         restoredMaximized = localStorage.getItem(maxKey(workspace));
       } catch {
-        // Maximize is presentation state; failure must not block session restore.
+        /* ignore */
       }
       const leaves = collectLeaves(restored);
       const statuses = await Promise.all(
@@ -199,7 +205,7 @@ export default function HarnessTerminalGrid({
           workspace,
           existingPid,
         });
-        const sid = outcome.sessionId ?? (outcome as { session_id?: string }).session_id;
+        const sid = outcome?.sessionId ?? (outcome as { session_id?: string })?.session_id;
         if (!sid) throw new Error("Relaunch did not return an in-app terminal session id.");
         setTerminals((prev) => ({ ...prev, [harness]: sid }));
         setLayout((prev) => insertLeaf(prev, harness));
@@ -238,11 +244,7 @@ export default function HarnessTerminalGrid({
   }, [terminals]);
 
   const handleDrop = useCallback((source: string, target: string, zone: DragTargetZone) => {
-    if (zone === "center") {
-      setLayout((prev) => (prev ? swapLeaves(prev, source, target) : null));
-    } else {
-      setLayout((prev) => (prev ? moveLeaf(prev, source, target, zone) : null));
-    }
+    setLayout((prev) => (prev ? (zone === "center" ? swapLeaves(prev, source, target) : moveLeaf(prev, source, target, zone)) : null));
   }, []);
 
   const startSplitterDrag = useCallback(
@@ -309,6 +311,11 @@ export default function HarnessTerminalGrid({
               Maximized: {DISPLAY_NAMES[maximizedHarness] || maximizedHarness} (Esc to restore)
             </span>
           )}
+          {canvasSize && !maximizedHarness && (
+            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", padding: "0.2rem 0.45rem", borderRadius: "4px", background: "rgba(255, 255, 255, 0.05)" }}>
+              Grid: {canvasSize.width}×{canvasSize.height}px
+            </span>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -321,6 +328,17 @@ export default function HarnessTerminalGrid({
               title="Restore grid layout"
             >
               Restore grid
+            </button>
+          )}
+          {canvasSize && (
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
+              onClick={resetCanvasSize}
+              title="Reset grid size to fit window"
+            >
+              Fit to window
             </button>
           )}
           {openLeaves.length > 0 && (
@@ -358,8 +376,11 @@ export default function HarnessTerminalGrid({
         ref={containerRef}
         style={{
           position: "relative",
-          flex: 1,
-          minHeight: "480px",
+          flex: canvasSize ? "none" : 1,
+          width: canvasSize ? `${canvasSize.width}px` : "100%",
+          height: canvasSize ? `${canvasSize.height}px` : undefined,
+          maxWidth: "100%",
+          minHeight: canvasSize ? "280px" : "480px",
           borderRadius: "10px",
           background: "#030712",
           border: "1px solid var(--border-color)",
@@ -370,7 +391,7 @@ export default function HarnessTerminalGrid({
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Launch any of the 6 supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters to resize.
+              Launch any of the 6 supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginTop: "0.5rem" }}>
               {ALL_HARNESSES.map((h) => (
@@ -454,6 +475,9 @@ export default function HarnessTerminalGrid({
             )}
           </>
         )}
+
+        {/* Canvas border resize handles (right, bottom, corner) - only when not maximized */}
+        {!maximizedHarness && <CanvasResizeHandles onStartResize={startResize} />}
       </div>
     </div>
   );

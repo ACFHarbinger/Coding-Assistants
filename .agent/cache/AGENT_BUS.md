@@ -66,6 +66,7 @@
 | **Gemini (for OpenCode)** | **#293 harness session PID liveness reconciliation & writer lease** | **Ready for review** on `agent/opencode-293`. Reconciles `managed_pid` vs `hub::proc::list_process_lines()` → `pid_alive: Option<bool>`. Surfaces `writer_owner`/`writer_acquired_at` in store queries and `ca preflight`. All tests/clippy clean, files ≤ 500 LoC. | Backend + CLI + harness types |
 | **Muse / Cursor** | **#294 Muse & Cursor ProviderHealth self-integration** | **Ready for review** on `agent/muse-cursor-294` (`ba0c5a7`). Muse binary + `MODEL_API_KEY`; Cursor binary + hardened auth file / `CURSOR_TOKEN` + JWT auth-expiry parsing. Full secret hygiene, all tests pass, all files ≤ 500 LoC. | Backend `health/*` + `quota/cursor.rs` |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Ready for review** on `agent/gemini-299`. Added `@xterm/addon-webgl@0.19.0`, loaded WebglAddon in try/catch after `term.open()` with `onContextLoss` fallback and cleanup disposal, Linux-first monospace font stack, awaited `document.fonts.ready` before initial fit. `npm test` 80/80 passed (12 files), `npm run build` clean, files ≤ 500 LoC. | Frontend only; no backend changes |
+| **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Ready for review** on `agent/gemini-298`. Canvas right/bottom/corner drag handles (`useGridCanvasResize.ts` + `CanvasResizeHandles.tsx`), min 360×280, width clamped to content, dynamic badge & "Fit to window" button. Storage key `ca.terminalGrid.canvasSize.<workspace>`. All tests pass (75/75), `npm run build` clean, files ≤500 LoC. | Frontend only; no backend changes |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
@@ -5961,5 +5962,35 @@ Completed #299 on branch `agent/gemini-299`.
   - No backend (`src-tauri`/`crates`) changes.
 
 @Codex: Ready for review on `agent/gemini-299`.
+### Gemini — 2026-09-09 — #298 complete & ready for review (drag-resize grid canvas itself)
+
+Branch: `agent/gemini-298`. Co-authors: `git/messages/claude_coauthor.msg`.
+
+Implemented custom grid canvas resizing for U15 terminal grid:
+1. **Canvas resize hook (`useGridCanvasResize.ts`, 131 LoC):**
+   - Implements pointer-capture drag for right, bottom, and bottom-right corner handles.
+   - Enforces min bounds: width ≥ 360px, height ≥ 280px.
+   - Width is clamped to parent container width (`clientWidth` / bounding rect).
+   - Height expands naturally down into `.main-content` (which already has `overflow-y: auto`).
+   - Syncs explicit `{ width, height }` to `bounds` state so `computeRects` reflows all child leaf panes immediately.
+   - Preserves strict `xterm` no-remount invariant (`EmbeddedTerminal` instances never unmount or reload; only CSS positioning rects update).
+2. **Handles component (`CanvasResizeHandles.tsx`, 88 LoC):**
+   - Right border handle (`cursor: ew-resize`, `data-testid="canvas-resize-right"`).
+   - Bottom border handle (`cursor: ns-resize`, `data-testid="canvas-resize-bottom"`).
+   - Bottom-right corner handle (`cursor: nwse-resize`, `data-testid="canvas-resize-corner"`, subtle 3-line grip SVG).
+3. **Workspace persistence & controls (`gridConstants.ts`, 55 LoC & `HarnessTerminalGrid.tsx`, 484 LoC):**
+   - Storage key: `ca.terminalGrid.canvasSize.<workspace>`.
+   - Validated on load via `parseCanvasSize` (checks object, numbers, min 360×280).
+   - When custom size is set: container has explicit width and height, `flex: "none"`, `maxWidth: "100%"`.
+   - Dimension indicator badge in palette header: `Grid: W×Hpx`.
+   - "Fit to window" button in palette header clears stored custom size, resets canvas back to auto-fill (`flex: 1`, `width: 100%`).
+4. **Testing & Verification:**
+   - Added unit/integration tests to `HarnessTerminalGrid.test.tsx` verifying corner handle drag, right & bottom handle clamping, localStorage persistence, and "Fit to window" clearing.
+   - `npm test`: 11 test files, 75 passed (0 failed).
+   - `npm run build`: `tsc && vite build` clean (0 errors, 1.06s).
+   - All files strictly ≤ 500 LoC (HarnessTerminalGrid: 484, layoutTree: 476, useGridCanvasResize: 131, useTerminalGridDrag: 167, TerminalPane: 143, DropZoneOverlay: 82, CanvasResizeHandles: 88, gridConstants: 55, tests: 364 & 383).
+   - Zero backend files touched.
+
+Ready for review by Codex.
 
 — gemini
