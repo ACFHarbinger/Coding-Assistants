@@ -128,9 +128,15 @@ const CLAUDE: Ids = Ids {
     title: "Anthropic Claude Code",
 };
 
-/// `~/.claude/.credentials.json` → `claudeAiOauth.expiresAt` (epoch **ms**).
-/// Presence + expiry only; the OAuth token itself is never read into a string
-/// that could be logged.
+/// `~/.claude/.credentials.json` → `claudeAiOauth`. Presence + expiry only;
+/// the OAuth token itself is never read into a string that could be logged.
+///
+/// `claudeAiOauth.expiresAt` is the **short-lived access token** TTL (hours).
+/// Claude Code silently refreshes that token from `refreshToken` on its own,
+/// so `expiresAt` is *not* a re-login deadline — the value the user actually
+/// has to act on is `refreshTokenExpiresAt` (days out). Surfacing `expiresAt`
+/// made the readiness chip count down "expires in Nh" and then flip to "auth
+/// expired" while the session was in fact fine.
 fn claude_health() -> ProviderHealth {
     let installed = resolve_binary("claude").is_some();
     let path = home_dir().join(".claude").join(".credentials.json");
@@ -152,16 +158,58 @@ fn claude_health() -> ProviderHealth {
             "~/.claude/.credentials.json is present but unparseable",
         );
     };
-    let expires_ms = json
-        .get("claudeAiOauth")
-        .and_then(|o| o.get("expiresAt"))
-        .and_then(serde_json::Value::as_i64);
-    match expires_ms {
+    claude_health_from(installed, &json)
+}
+
+/// Testable core: decide Claude Code health from an already-parsed
+/// credentials JSON without touching the filesystem.
+fn claude_health_from(installed: bool, json: &serde_json::Value) -> ProviderHealth {
+    let oauth = json.get("claudeAiOauth");
+    let field_ms = |name: &str| {
+        oauth
+            .and_then(|o| o.get(name))
+            .and_then(serde_json::Value::as_i64)
+    };
+    let has_refresh_token = oauth
+        .and_then(|o| o.get("refreshToken"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|s| !s.trim().is_empty());
+    let now_ms = Utc::now().timestamp_millis();
+
+    if has_refresh_token {
+        // The refresh token is what has to be renewed by hand. Report *its*
+        // expiry (or none, if the field is absent) and treat the session as
+        // live regardless of the access token's `expiresAt`.
+        let refresh_ms = field_ms("refreshTokenExpiresAt");
+        let refresh_expired = refresh_ms.is_some_and(|ms| ms <= now_ms);
+        let iso = refresh_ms.and_then(|ms| epoch_secs_to_iso(ms / 1000));
+        return if refresh_expired {
+            health(
+                &CLAUDE,
+                installed,
+                Some(false),
+                iso,
+                "Claude Code login has fully expired; run `claude` to sign in again",
+            )
+        } else {
+            health(
+                &CLAUDE,
+                installed,
+                Some(true),
+                iso,
+                "Claude Code is logged in (the access token refreshes automatically)",
+            )
+        };
+    }
+
+    // No refresh token stored: the access token's `expiresAt` really is the
+    // deadline.
+    match field_ms("expiresAt") {
         Some(ms) => {
             let iso = epoch_secs_to_iso(ms / 1000);
-            let expired = ms <= Utc::now().timestamp_millis();
+            let expired = ms <= now_ms;
             let detail = if expired {
-                "Claude Code OAuth token expired; run `claude` to refresh login"
+                "Claude Code access token expired and no refresh token is stored; run `claude` to sign in again"
             } else {
                 "Claude Code is logged in"
             };
@@ -349,27 +397,54 @@ const MUSE: Ids = Ids {
     title: "Meta Muse",
 };
 
-fn muse_health_with(installed: bool, has_key: bool) -> ProviderHealth {
+fn muse_health_with(installed: bool, logged_in: bool) -> ProviderHealth {
     health(
         &MUSE,
         installed,
-        Some(has_key),
+        Some(logged_in),
         None,
-        match (installed, has_key) {
-            (true, true) => "muse is installed and MODEL_API_KEY is configured",
-            (true, false) => "muse is installed but MODEL_API_KEY is not set",
-            (false, true) => "MODEL_API_KEY is configured but the `muse` CLI is not on PATH",
-            (false, false) => "`muse` is not on PATH and MODEL_API_KEY is not set",
+        match (installed, logged_in) {
+            (true, true) => "Muse Code is installed and logged in",
+            (true, false) => "muse is installed but not logged in; run `muse` and sign in",
+            (false, true) => "a Muse login exists but the `muse` CLI is not on PATH",
+            (false, false) => "`muse` is not on PATH and no Muse login was found",
         },
     )
 }
 
-/// Muse Code health branch (#294): `muse` binary presence plus `MODEL_API_KEY`
-/// presence for the shared Meta bucket.
+/// Muse Code stores its interactive login under
+/// `$XDG_CONFIG_HOME/muse/auth.json` (default `~/.config/muse/auth.json`) as
+/// a `providers.<vendor>` object per signed-in provider.
+fn muse_config_dir() -> PathBuf {
+    match std::env::var("XDG_CONFIG_HOME") {
+        Ok(dir) if !dir.trim().is_empty() => PathBuf::from(dir),
+        _ => home_dir().join(".config"),
+    }
+    .join("muse")
+}
+
+/// True when `muse/auth.json` holds at least one signed-in provider.
+fn muse_logged_in() -> bool {
+    let path = muse_config_dir().join("auth.json");
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|value| {
+            value
+                .get("providers")
+                .and_then(serde_json::Value::as_object)
+                .map(|providers| !providers.is_empty())
+        })
+        .unwrap_or(false)
+}
+
+/// Muse Code harness health: `muse` binary presence plus the harness's own
+/// on-disk login. **Not** `MODEL_API_KEY` — that credential is for the Meta
+/// Model API *inference* provider (orchestration roles), a separate concern;
+/// keying harness readiness off it made a logged-in harness read as
+/// "needs login" (#294 follow-up).
 fn muse_health() -> ProviderHealth {
-    let installed = resolve_binary("muse").is_some();
-    let has_key = hub::secret::resolve("MODEL_API_KEY").is_some();
-    muse_health_with(installed, has_key)
+    muse_health_with(resolve_binary("muse").is_some(), muse_logged_in())
 }
 
 const CURSOR: Ids = Ids {

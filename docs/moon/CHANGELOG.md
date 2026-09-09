@@ -219,6 +219,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Harness readiness: Claude Code and Meta Muse auth state (#291/#294 follow-up,
+  `platform.md` P3):** two `ProviderHealth` probes reported the wrong login state.
+  `claude_health` surfaced `claudeAiOauth.expiresAt` — the short-lived **access
+  token** TTL that Claude Code silently refreshes from `refreshToken` — so the
+  readiness chip counted down "expires in Nh" and then flipped to "auth expired"
+  while the session was in fact fine. It now honours the `refreshToken` /
+  `refreshTokenExpiresAt` pair: with a live refresh token the session reads
+  `ready` and the surfaced expiry is the refresh token's own (days out), falling
+  back to `expiresAt` only when no refresh token is stored. `muse_health` keyed
+  `authenticated` off `MODEL_API_KEY` — a credential for the Meta Model API
+  *inference* provider, unrelated to the Muse Code *harness* login — so a
+  logged-in harness read as "needs login". It now checks the harness's own
+  `$XDG_CONFIG_HOME/muse/auth.json` (`providers.<vendor>`). Both `claude_health`
+  and `muse_health` gained filesystem-free testable cores.
+
 - **Claude Channel task/wake delivery is now pull-reliable (C14.3):** the Channel
   bridge's background poll loop drained wake/task-tagged Hub messages every 2s,
   acked them, and emitted a `notifications/claude/channel` MCP notification that

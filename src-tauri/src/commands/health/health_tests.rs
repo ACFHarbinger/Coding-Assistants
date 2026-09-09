@@ -69,26 +69,75 @@ fn health_snapshot_serializes_camel_case_and_hides_none_fields() {
 }
 
 #[test]
-fn muse_health_covers_all_installation_and_key_states() {
+fn muse_health_covers_all_installation_and_login_states() {
     let both = muse_health_with(true, true);
     assert!(both.installed);
     assert_eq!(both.authenticated, Some(true));
-    assert!(both.detail.contains("configured"));
+    assert!(both.detail.contains("logged in"));
 
-    let inst_no_key = muse_health_with(true, false);
-    assert!(inst_no_key.installed);
-    assert_eq!(inst_no_key.authenticated, Some(false));
-    assert!(inst_no_key.detail.contains("not set"));
+    let inst_no_login = muse_health_with(true, false);
+    assert!(inst_no_login.installed);
+    assert_eq!(inst_no_login.authenticated, Some(false));
+    assert!(inst_no_login.detail.contains("not logged in"));
 
-    let key_no_bin = muse_health_with(false, true);
-    assert!(!key_no_bin.installed);
-    assert_eq!(key_no_bin.authenticated, Some(true));
-    assert!(key_no_bin.detail.contains("not on PATH"));
+    let login_no_bin = muse_health_with(false, true);
+    assert!(!login_no_bin.installed);
+    assert_eq!(login_no_bin.authenticated, Some(true));
+    assert!(login_no_bin.detail.contains("not on PATH"));
 
     let neither = muse_health_with(false, false);
     assert!(!neither.installed);
     assert_eq!(neither.authenticated, Some(false));
     assert!(neither.detail.contains("not on PATH"));
+}
+
+#[test]
+fn claude_health_honours_the_refresh_token_over_the_access_token_expiry() {
+    let past_ms = (Utc::now().timestamp() - 3_600) * 1000;
+    let far_future_ms = (Utc::now().timestamp() + 7 * 86_400) * 1000;
+
+    // Access token already past `expiresAt`, but a live refresh token: the
+    // session is fine and the surfaced expiry is the refresh token's.
+    let refreshing = serde_json::json!({
+        "claudeAiOauth": {
+            "accessToken": "a".repeat(40),
+            "refreshToken": "r".repeat(40),
+            "expiresAt": past_ms,
+            "refreshTokenExpiresAt": far_future_ms,
+        }
+    });
+    let h = claude_health_from(true, &refreshing);
+    assert_eq!(h.authenticated, Some(true));
+    assert!(h.detail.contains("refreshes automatically"));
+    assert!(
+        h.auth_expires_at.is_some(),
+        "reports the refresh-token expiry"
+    );
+
+    // Refresh token itself expired -> a real re-login is needed.
+    let stale = serde_json::json!({
+        "claudeAiOauth": {
+            "refreshToken": "r".repeat(40),
+            "expiresAt": past_ms,
+            "refreshTokenExpiresAt": past_ms,
+        }
+    });
+    let h2 = claude_health_from(true, &stale);
+    assert_eq!(h2.authenticated, Some(false));
+    assert!(h2.detail.contains("sign in again"));
+
+    // No refresh token at all: fall back to the access-token `expiresAt`.
+    let no_refresh_expired = serde_json::json!({
+        "claudeAiOauth": { "expiresAt": past_ms }
+    });
+    let h3 = claude_health_from(true, &no_refresh_expired);
+    assert_eq!(h3.authenticated, Some(false));
+
+    let no_refresh_live = serde_json::json!({
+        "claudeAiOauth": { "expiresAt": far_future_ms }
+    });
+    let h4 = claude_health_from(true, &no_refresh_live);
+    assert_eq!(h4.authenticated, Some(true));
 }
 
 #[test]
