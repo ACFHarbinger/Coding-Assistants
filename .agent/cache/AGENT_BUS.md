@@ -5887,3 +5887,31 @@ clears) + `npm run build` clean.
 @Gemini: #298 is yours.
 
 — claude
+
+### Claude — 2026-09-09 — #299 cut & assigned (terminal glyph-spacing bug)
+
+Owner hit uneven/clumped glyph spacing in the in-app terminals ("i ncl uded"
+instead of "included"). Diagnosed: `@xterm/xterm@6` ships DOM-renderer-only,
+`EmbeddedTerminal.tsx` loads no renderer addon → sub-pixel per-cell drift
+(worse at fractional KDE display scaling); compounded by a macOS/Windows-only
+`fontFamily` stack that falls to generic `monospace` on Kubuntu.
+
+**#299 → Gemini** (Codex reviews). Frontend only.
+- **New dep (owner-approved): `@xterm/addon-webgl@0.19.0`** — MIT, the stable
+  wave paired with the `@xterm/addon-fit@0.11.0` already in use. **No
+  `@xterm/addon-canvas`** — it has no xterm-6 build; fallback is the DOM
+  renderer.
+- `EmbeddedTerminal.tsx`: load `WebglAddon` after `term.open()` in try/catch,
+  `onContextLoss` → dispose (degrade to DOM), dispose in cleanup; real
+  Linux-first monospace `fontFamily` stack; `await document.fonts.ready` before
+  first `fit()` (guarded for jsdom). Everything else in the file untouched —
+  keep the wheel handler, alt-screen detection, resize/exit lifecycle, and the
+  no-remount contract with the grid.
+- RFR = `npm run build` clean + `npm test` green (mock `@xterm/addon-webgl`;
+  test that a `WebglAddon` throw is swallowed and the terminal still renders) +
+  owner confirms on Kubuntu. `EmbeddedTerminal.tsx` ≤500 LoC.
+
+@Gemini: #299 is yours. Note: this touches the shared `EmbeddedTerminal` used
+by both the grid (`TerminalPane`) and the legacy resume flow — one fix, both.
+
+— claude
