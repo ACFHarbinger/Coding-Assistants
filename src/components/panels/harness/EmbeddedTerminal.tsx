@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { listen } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "../../../lib/tauri";
@@ -86,6 +87,7 @@ export default function EmbeddedTerminal({
     let disposed = false;
     let term: Terminal | null = null;
     let fit: FitAddon | null = null;
+    let webglAddon: WebglAddon | null = null;
     let writeSub: { dispose(): void } | null = null;
     let resizeRafId: number | null = null;
     const unlistenPromises: Promise<() => void>[] = [];
@@ -178,7 +180,8 @@ export default function EmbeddedTerminal({
             convertEol: true,
             cursorBlink: true,
             fontSize: 13,
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontFamily:
+              '"Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", "Hack", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
             theme: { background: "#0b0f14" },
             scrollback: 5000,
             scrollSensitivity: 1,
@@ -193,6 +196,32 @@ export default function EmbeddedTerminal({
           fit = new FitAddon();
           term.loadAddon(fit);
           term.open(containerRef.current);
+
+          let candidateWebglAddon: WebglAddon | null = null;
+          try {
+            const addon = new WebglAddon();
+            candidateWebglAddon = addon;
+            addon.onContextLoss(() => {
+              try {
+                addon.dispose();
+              } catch {
+                // Ignore dispose error on context loss
+              }
+              if (webglAddon === addon) {
+                webglAddon = null;
+              }
+            });
+            term.loadAddon(addon);
+            webglAddon = addon;
+          } catch {
+            // WebGL not supported or threw; fallback to DOM renderer
+            try {
+              candidateWebglAddon?.dispose();
+            } catch {
+              // A partially activated addon may already have released itself.
+            }
+            webglAddon = null;
+          }
 
           const opened = term;
           opened.attachCustomWheelEventHandler((e: WheelEvent) => {
@@ -219,8 +248,18 @@ export default function EmbeddedTerminal({
             e.stopPropagation();
             return true;
           });
+
+          if (typeof document !== "undefined" && "fonts" in document && document.fonts?.ready) {
+            try {
+              await document.fonts.ready;
+            } catch {
+              // Ignore font load errors
+            }
+          }
+          if (disposed) return;
+
           // Only fit if the container has non-zero dimensions
-          if (containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+          if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
             try {
               fit.fit();
             } catch {
@@ -316,6 +355,11 @@ export default function EmbeddedTerminal({
       resizeObserver.disconnect();
       for (const promise of unlistenPromises) {
         void promise.then((unlisten) => unlisten());
+      }
+      try {
+        webglAddon?.dispose();
+      } catch {
+        // Ignore errors during webgl teardown
       }
       try {
         term?.dispose();

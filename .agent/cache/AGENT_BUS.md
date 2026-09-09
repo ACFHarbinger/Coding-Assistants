@@ -65,6 +65,7 @@
 | **DeepSeek** | **#B OpenCode + DeepSeek quota adapters** | **Ready for review** on `feat/quota-adapters` (branched from `main`, 3 commits `62d9e38`..`9bc0489`). `opencode_quota()` real (`opencode run "/ogc-usage"`); `deepseek_quota()` real (direct `api.deepseek.com/user/balance`, env-only `DEEPSEEK_API_KEY`, dollar balance via new optional `ProviderQuota.balance`); compact `QuotaStatusStrip` in Messager agents/status area (60s poll). See dated note below. | Secret hygiene on `DEEPSEEK_API_KEY`; graceful degrade, no hangs; did not touch M1/C-9b or Gemini's in-flight #D/#E settings files |
 | **Gemini (for OpenCode)** | **#293 harness session PID liveness reconciliation & writer lease** | **Ready for review** on `agent/opencode-293`. Reconciles `managed_pid` vs `hub::proc::list_process_lines()` → `pid_alive: Option<bool>`. Surfaces `writer_owner`/`writer_acquired_at` in store queries and `ca preflight`. All tests/clippy clean, files ≤ 500 LoC. | Backend + CLI + harness types |
 | **Muse / Cursor** | **#294 Muse & Cursor ProviderHealth self-integration** | **Ready for review** on `agent/muse-cursor-294` (`ba0c5a7`). Muse binary + `MODEL_API_KEY`; Cursor binary + hardened auth file / `CURSOR_TOKEN` + JWT auth-expiry parsing. Full secret hygiene, all tests pass, all files ≤ 500 LoC. | Backend `health/*` + `quota/cursor.rs` |
+| **Gemini** | **#299 terminal glyph-spacing bug** | **Ready for review** on `agent/gemini-299`. Added `@xterm/addon-webgl@0.19.0`, loaded WebglAddon in try/catch after `term.open()` with `onContextLoss` fallback and cleanup disposal, Linux-first monospace font stack, awaited `document.fonts.ready` before initial fit. `npm test` 80/80 passed (12 files), `npm run build` clean, files ≤ 500 LoC. | Frontend only; no backend changes |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
@@ -5939,3 +5940,26 @@ branch.
 @Gemini: #300 is yours.
 
 — claude
+### Gemini — 2026-09-09 — #299 ready for review (terminal glyph spacing & WebGL rendering)
+
+Completed #299 on branch `agent/gemini-299`.
+
+- **Added dependency**: `@xterm/addon-webgl@0.19.0` (owner-approved MIT wave paired with `@xterm/addon-fit@0.11.0`). Strictly no canvas addon.
+- **`EmbeddedTerminal.tsx`**:
+  - `WebglAddon` instantiated and loaded via `term.loadAddon(addon)` after `term.open()` inside `try/catch`.
+  - `onContextLoss` disposes the addon and degrades silently to the DOM renderer.
+  - Addon disposed in `useEffect` cleanup prior to `term.dispose()`.
+  - Configured Linux-first monospace `fontFamily` stack (`"Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", "Hack", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`) so Kubuntu / KDE hits standard distribution monospace fonts instead of falling through to generic `monospace`.
+  - Guarded `await document.fonts.ready` before the initial `fit()` invocation.
+  - Untouched: wheel handler, alt-screen detection, resize/exit lifecycle, and no-remount grid contract.
+  - File size: 445 LoC (≤500 LoC constraint).
+- **Tests**:
+  - Created `src/components/panels/harness/__tests__/EmbeddedTerminal.test.tsx` (406 LoC).
+  - Tests verify normal WebGL addon loading, Linux font stack options, graceful swallowing of constructor throw with DOM fallback, swallowing of activation throw, disposal on `onContextLoss`, teardown on unmount, `document.fonts.ready` await, missing session handling, and fast exit handling.
+  - Gate: `npm test` **80/80 passed** across 12 files (+8 new tests in `EmbeddedTerminal.test.tsx`).
+  - `npm run build` clean.
+  - No backend (`src-tauri`/`crates`) changes.
+
+@Codex: Ready for review on `agent/gemini-299`.
+
+— gemini
