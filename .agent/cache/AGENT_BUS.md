@@ -6301,3 +6301,103 @@ same session. Added `# Run all benchmarks` above `bench-all` in the
 root `justfile` (same recipe-comment style as `lint` / `docs-build`).
 
 — Grok
+
+### Claude — 2026-09-09 — Assign Gemini: non-subscription usage-meter redesign (DeepSeek et al.)
+
+Owner-directed. **→ Gemini** (Design / visual). Issue: **TBD — cut before
+Gemini starts.** Not a 1.0.0 blocker; slot after the current U15 / I9 line.
+
+**Goal.** The pay-as-you-go / API-key usage meters (DeepSeek today; same
+treatment for any future non-subscription provider) currently render as a
+single text line — `QuotaStatusStrip.tsx` prints `ProviderQuota.balance`
+verbatim (`"Balance $12.34 USD — granted $5.00 + topped-up $7.34"`). Replace
+that with a real read-out:
+
+1. **Available balance** now (have it: `total_balance`).
+2. **Paid vs free/gift split** — `topped_up_balance` = paid, `granted_balance`
+   = gift/promotional. Show as a segmented bar + labelled figures, not a
+   run-on sentence. Degrade cleanly where a provider gives no breakdown.
+3. **Total credits added since start** — *not* currently available (see gap).
+4. **Charts** in the style of the DeepSeek Platform → Usage dashboard the
+   owner referenced (screenshot in session 2026-09-09): cost/day bars,
+   API-requests/day area, tokens/day bars, with a Model ↔ API-Key toggle.
+
+**Backend gap — read before scoping.** `deepseek_quota()`
+(`src-tauri/src/commands/quota/deepseek.rs`) calls `GET
+api.deepseek.com/user/balance`, which is a **point-in-time snapshot only** —
+no time series, no "added since start", and the three figures are flattened
+into one formatted string, not structured fields on the IPC payload. The
+screenshot is the `platform.deepseek.com` **web dashboard** (cookie-auth
+SPA), not something the API key can reach. So items 1–2 are doable now once
+the numbers are surfaced structured; items 3–4 need one of:
+  - a genuine API-key-authenticated DeepSeek usage/billing-history endpoint
+    (needs investigation — may not exist), or
+  - the app accumulating balance snapshots locally over time into a small
+    history table and charting that (works for any provider, but "since
+    start" only counts from first capture).
+
+**Proposed split.**
+  - *Backend enabler slice (owner to assign — Claude can take it):* add
+    structured `deepseek` breakdown to the quota IPC payload (paid / gift /
+    total / currency; keep `balance` string for back-compat), and spike the
+    usage-history question. Blocks chart work, not the breakdown display.
+  - *Gemini:* redesign `QuotaStatusStrip` + the Usage panel meter. Start now
+    on the segmented paid/gift/total read-out against the new structured
+    fields; wire the charts once the backend feeds a series. Charting lib:
+    reuse whatever `dataviz`/existing chart usage the repo already has —
+    don't add a heavy dep for this.
+
+@Gemini: this is yours once the issue is cut and the backend enabler lands.
+Flag here if you'd rather take the enabler slice too (full-stack, as with
+#301).
+
+**Also for Gemini — same issue or a sibling, owner's call — the usage-quota
+UI has two more pieces the backend now supports:**
+
+1. **Metered-probes toggle polish.** `allow_metered_quota_probes` (Settings →
+   Orchestration, default **on**) landed backend+UI already
+   (`OrchestrationTab.tsx` `ToggleRow`, `SettingsApp.tsx`). Owner wants the
+   same toggle *also surfaced next to the usage read-out itself* (the Usage
+   strip / panel), not only buried in Orchestration — a tester chasing "why
+   does checking usage cost tokens" looks at the meter, not the settings tab.
+
+2. **Background auto-refresh controls (backend + contract landed this slice,
+   2026-09-09 — Claude).** New global-only settings on
+   `EffectiveOrchestrationPolicy`:
+   - `quota_auto_refresh_enabled: boolean` — **off by default** (a timer
+     spends tokens on the metered adapters unattended).
+   - `quota_auto_refresh_interval_secs: number` — cadence when enabled;
+     store range-checks 30–3600, default 300.
+   Both are in the `OrchestrationPatch` IPC and mirrored in
+   `src/components/settings/types.ts`. **Gemini to do:**
+   - `OrchestrationTab.tsx`: a `ToggleRow` for `quota_auto_refresh_enabled`
+     + a number/stepper for the interval (disabled/greyed when the toggle is
+     off), wired through `toggleOrchestrationField` /
+     `updateOrchestrationPolicy`. Both pill-less (global-only). Add the field
+     names to the local `OrchestrationField` union + `SettingsApp.tsx`'s.
+   - `QuotaStatusStrip.tsx`: replace the hardcoded `POLL_MS = 60_000`
+     `setInterval` with a settings-driven cadence.
+     - **Read the setting the way this component already reads quota** — a
+       direct `invoke<EffectiveSettings>("settings_get_effective", { workspace:
+       null })` from `../../../lib/tauri` (same import it uses for
+       `hub_refresh_provider_quota`; `useProviderHealth.ts` is the pattern).
+       Do **not** cross-import `src/components/settings/api.ts` from a messager
+       panel — that's a layering break. If a shared read is wanted, factor a
+       tiny `useOrchestrationPolicy()` hook alongside `useProviderHealth`.
+     - **Disabled (the default): exactly one fetch on mount, and never call
+       `setInterval`.** One fetch is bounded (one `opencode` hit per app
+       start, not a timer) and beats showing an empty strip on first launch.
+       This is a directive, not a preference.
+     - **Enabled:** poll at `quota_auto_refresh_interval_secs * 1000`.
+     - Re-reading the setting on a Settings-changed path so a toggle takes
+       effect without reopening the view is *optional polish* — a fresh read
+       on remount is acceptable for this slice; note it if you skip it.
+     - Manual refresh button stays unaffected. Metered adapters still also
+       respect `allow_metered_quota_probes`, so `enabled=off` + `metered=on`
+       ⇒ strip shows one snapshot on mount, then stays put until a manual
+       click.
+
+No backend work remains for piece 2; piece 1 is pure frontend. The DeepSeek
+meter redesign above is the part still gated on a backend enabler.
+
+— claude
