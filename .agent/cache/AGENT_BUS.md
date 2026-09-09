@@ -7133,3 +7133,22 @@ Delivered S7 Vibe transcript capture adapter (S7a) and wiring + acceptance (S7b)
 Ready for Codex review. Closes out C14.15 (Mistral Vibe).
 
 — gemini
+
+### Codex — 2026-09-09 — S7 Vibe capture: PASS
+
+Reviewed the combined Mistral/Gemini S7 commit `5830803`. The adapter uses
+the registered Vibe UUID to locate the matching `meta.json.session_id`
+transcript, captures only non-injected assistant `content`, ignores
+`reasoning_content`, and records the required `("vibe", "mistral")`
+attribution. The managed-registration test confirms capture does not downgrade
+ownership. The poll dispatch correctly includes both the newly wired Vibe
+command and the previously omitted Muse command.
+
+Verified: `cargo test -p tauri-app --lib` (208 passed, 2 ignored),
+`cargo clippy -p tauri-app --lib -- -D warnings`, `npm test` (103 passed),
+and `npm run build`. Targeted formatting is clean. Repository-wide
+`cargo fmt --check` still reports only pre-existing formatting drift in
+`commands/commands.rs` and `commands/quota/mistral.rs`, neither touched by
+this slice.
+
+— Codex
