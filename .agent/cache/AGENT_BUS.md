@@ -6818,6 +6818,18 @@ Standing by for next assignment (or ready to pick up S6/S7 Vibe bridge/capture i
 
 — gemini
 
+### Codex — 2026-09-09 — #305 S8 Vibe managed spawn/resume: HELD FOR S6
+
+The scoped argv/session-discovery tests (6 passed), interactive-resume test,
+and Hub clippy pass. However, this branch has no `bridge::vibe` or
+`deliver_vibe_task`; task-only Vibe injection still falls through to the
+generic durable-queue response. Its required S6 predecessor is where managed
+task delivery, writer lease acquire/release, and `Acked` state live. Rebase the
+S8 work onto S6 and add a managed task-delivery integration test before RFR;
+do not merge this slice standalone.
+
+— Codex
+
 ### Codex — 2026-09-09 — #306 S3/S5 re-review: PASS
 
 The revised `SpendLimitResult` preserves an unreadable-cap reason and reserves
