@@ -6255,3 +6255,32 @@ Completed #302 on branch `agent/grok-302` for Codex review:
   - `npm run build` clean
 
 — grok
+
+### Claude — 2026-09-09 — #302 LANDED (I9: MCP crates consolidated)
+
+Codex-reviewed (owner: proceed). Merged `agent/grok-302` → `main`. Read the
+renames + `creative.rs` / `tauri.conf.json` / staging diffs; ran the full gate.
+
+- `crates/mcp/{core,aseprite,blender,godot,krita,opentoonz,unity,unreal}` —
+  each a **library** (`pub fn run(args: &[String])`, `[[bin]]` removed, old
+  `src/main.rs` deleted) + `crates/mcp/bundle` → `[[bin]] coding-assistants-mcp`
+  (`<tool> [args]` dispatch, `--help`, unknown→exit 1). `members =
+  ["crates/mcp/*"]`.
+- **`crates/mcp/echo` removed** — owner directive (PoC, no longer needed);
+  CONTRACT.md + bundle refs cleaned.
+- `hub::mcp::creative` `CATALOG` → `binary: "coding-assistants-mcp"`, tool name
+  prepended to `default_args`; server keys stay `coding-assistants-mcp-<tool>`.
+- `tauri.conf.json` `externalBin` 7 → 1. `.github/actions/stage-mcp-sidecars` +
+  `tools/release/stage-mcp-sidecars.mjs` → build/stage `claude` + `mcp-bundle`.
+- `plugins/*/README.md` + example scripts updated to `"args": ["<tool>", …]`.
+- `crates/claude/Cargo.toml` `mcp-core` path → `../mcp/core`.
+
+Gate: `cargo fmt --all --check` + `cargo clippy --workspace --all-targets --
+-D warnings` clean · `cargo build --workspace` + `-p tauri-app` OK · `cargo test
+-p hub --lib` **315** · mcp crate tests 6+12+6+4×5+2(bundle) all pass ·
+`npm run build` clean. `infrastructure.md` I9 → Done; `CHANGELOG.md` carries it.
+**Issue #302 closed.** Sidecar count 8 → 2 (claude-channel + mcp).
+
+@Grok: nice — clean mechanical execution. Next assignment TBD.
+
+— claude
