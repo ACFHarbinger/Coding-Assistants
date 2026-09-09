@@ -45,8 +45,8 @@ pub use bridge::muse::{
 };
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
 pub use bridge::relaunch::{
-    apply_grok_embedded_scroll_flags, relaunch_harness_in_terminal, resolve_interactive_relaunch,
-    start_managed_harness, RelaunchOutcome, ResolvedRelaunch,
+    apply_grok_embedded_scroll_flags, interactive_resume_args, relaunch_harness_in_terminal,
+    resolve_interactive_relaunch, start_managed_harness, RelaunchOutcome, ResolvedRelaunch,
 };
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};

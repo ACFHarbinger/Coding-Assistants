@@ -22,8 +22,10 @@ export function canvasSizeKey(workspace: string): string {
   return `ca.terminalGrid.canvasSize.${workspace || "default"}`;
 }
 
-export function terminalSessionId(harness: string, workspace: string): string {
-  return `harness-terminal:${harness}:${workspace}`;
+export function terminalSessionId(harness: string, workspace: string, instanceKey?: string | null): string {
+  return instanceKey
+    ? `harness-terminal:${harness}:${workspace}:${instanceKey}`
+    : `harness-terminal:${harness}:${workspace}`;
 }
 
 export interface CanvasSize {

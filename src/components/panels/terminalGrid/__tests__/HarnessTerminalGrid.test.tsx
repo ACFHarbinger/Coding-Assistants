@@ -136,7 +136,11 @@ describe("HarnessTerminalGrid", () => {
       harness: "claude",
       workspace: "/test/workspace",
       existingPid: null,
+      instanceKey: expect.stringMatching(/^leaf-claude-/),
     });
+
+    // Palette button should now reflect active count: "+ Claude · 1"
+    expect(screen.getByText("+ Claude · 1")).toBeInTheDocument();
   });
 
   it("closes a pane and removes it from layout when clicking close button", async () => {
@@ -368,4 +372,34 @@ describe("HarnessTerminalGrid", () => {
 
     expect(screen.getByText("Grid: 360×280px")).toBeInTheDocument();
   });
+
+  it("supports multiple instances of the same harness and closes them independently", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch first Grok
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("+ Grok · 1")).toBeInTheDocument();
+
+    // Launch second Grok
+    fireEvent.click(screen.getByText("+ Grok · 1"));
+    expect(await screen.findByText("+ Grok · 2")).toBeInTheDocument();
+
+    // Two Grok panes rendered with close buttons
+    const closeButtons = screen.getAllByRole("button", { name: "Close grok pane" });
+    expect(closeButtons).toHaveLength(2);
+
+    // Close first Grok pane
+    fireEvent.click(closeButtons[0]);
+    expect(await screen.findByText("+ Grok · 1")).toBeInTheDocument();
+
+    // One Grok pane remains
+    expect(screen.getAllByRole("button", { name: "Close grok pane" })).toHaveLength(1);
+    expect(screen.queryByText("No active harness terminals in grid")).not.toBeInTheDocument();
+
+    // Close second Grok pane
+    fireEvent.click(screen.getByRole("button", { name: "Close grok pane" }));
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.getByText("+ Grok")).toBeInTheDocument();
+  });
 });
+
