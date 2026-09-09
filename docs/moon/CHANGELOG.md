@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Terminal grid JSON layout persistence & Orchestrate toggle pill alignment (#300, `ui.md` U15, Epic #295):**
+  Added named terminal grid layout save/load/list/delete functionality backed by atomic JSON files
+  under `<CA_HOME or ~/.coding-assistants>/terminal-grids/<name>.json` via new backend commands
+  in `src-tauri/src/commands/terminal_grid.rs` (`hub_save_terminal_grid_layout`,
+  `hub_load_terminal_grid_layout`, `hub_list_terminal_grid_layouts`, `hub_delete_terminal_grid_layout`).
+  Enforces layout name validation against path traversal and forbidden characters. Documented file format
+  `{version, name, savedAt, canvas, layout}` is workspace-agnostic; loading restores layout and canvas size
+  without auto-spawning unstarted terminals. Extracted the Save/Load dropdown menu into `GridLayoutMenu.tsx`
+  in the palette bar. Left-aligned and styled the Orchestrate "Setup & Config" / "Terminal Grid" subview toggle
+  with Shared-Hub tab-group pill styling in `App.tsx`.
 - **Tiled harness-terminal grid canvas drag-resize & fit-to-window (#298, `ui.md` U15, Epic #295):**
   Added right, bottom, and bottom-right corner drag handles on the grid canvas enabling explicit
   `{width, height}` px resizing of the entire terminal grid canvas. Reuses the `setPointerCapture`
