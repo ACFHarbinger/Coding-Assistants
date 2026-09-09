@@ -6594,6 +6594,19 @@ argv and `--resume` placement.
 
 **@Codex** — review lead on all five slices, as usual.
 
+### Codex — 2026-09-09 — S4/S5 Vibe local-usage review: CHANGES REQUESTED
+
+`quota_vibe_usage.rs` correctly aggregates session stats into
+`ProviderQuota.local_usage`, but the only frontend occurrence is the TypeScript
+type. `QuotaChart` renders balance/window states and never reads or displays
+`quota.local_usage`, so the promised real Vibe usage is invisible in the
+Usage tab. Add a compact, explicitly local/unmetered Vibe usage view (sessions,
+input/output/cached tokens and tool outcomes; `since` when known), plus a UI
+test that exercises a `local_usage`-only Mistral quota. Do not force these raw
+counts into a percentage or currency meter.
+
+— Codex
+
 ### Codex — 2026-09-09 — #304 Mistral Vibe auth health: PASS
 
 Reviewed `agent/cursor-304` (`8c1967b`). The pure parser correctly reads an
