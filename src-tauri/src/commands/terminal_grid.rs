@@ -9,6 +9,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+const MAX_LAYOUT_BYTES: usize = 256 * 1024;
+
 fn layouts_dir() -> PathBuf {
     hub::default_hub_home().join("terminal-grids")
 }
@@ -22,9 +24,6 @@ pub fn validate_layout_name(name: &str) -> Result<String, String> {
     if trimmed.len() > 64 {
         return Err("Layout name cannot exceed 64 characters".to_string());
     }
-    if trimmed.starts_with('.') {
-        return Err("Layout name cannot start with a dot".to_string());
-    }
     if trimmed.contains('/')
         || trimmed.contains('\\')
         || trimmed.contains("..")
@@ -34,10 +33,10 @@ pub fn validate_layout_name(name: &str) -> Result<String, String> {
     }
     if !trimmed
         .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ')
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ' '))
     {
         return Err(
-            "Layout name must contain only letters, numbers, spaces, hyphens, and underscores"
+            "Layout name must contain only letters, numbers, spaces, dots, hyphens, and underscores"
                 .to_string(),
         );
     }
@@ -71,8 +70,48 @@ pub struct TerminalGridLayoutFile {
 pub struct TerminalGridLayoutSummary {
     pub name: String,
     pub saved_at: String,
-    pub version: u32,
-    pub canvas: Option<TerminalGridCanvas>,
+    pub pane_count: usize,
+}
+
+fn pane_count(layout: &serde_json::Value) -> Option<usize> {
+    let object = layout.as_object()?;
+    match object.get("type")?.as_str()? {
+        "leaf" if object.get("id")?.is_string() && object.get("harness")?.is_string() => Some(1),
+        "split"
+            if object.get("id")?.is_string()
+                && matches!(object.get("direction")?.as_str(), Some("row" | "col"))
+                && object.get("ratio")?.as_f64().is_some() =>
+        {
+            let first = pane_count(object.get("first")?)?;
+            let second = pane_count(object.get("second")?)?;
+            Some(first + second)
+        }
+        _ => None,
+    }
+}
+
+fn validate_layout(
+    layout: &serde_json::Value,
+    canvas: &Option<TerminalGridCanvas>,
+) -> Result<(), String> {
+    if !layout.is_object() {
+        return Err("Terminal grid layout must be a JSON object".into());
+    }
+    let encoded =
+        serde_json::to_vec(layout).map_err(|e| format!("failed to measure layout JSON: {e}"))?;
+    if encoded.len() > MAX_LAYOUT_BYTES {
+        return Err("Terminal grid layout cannot exceed 256 KiB".into());
+    }
+    if let Some(canvas) = canvas {
+        if !canvas.width.is_finite()
+            || !canvas.height.is_finite()
+            || canvas.width <= 0.0
+            || canvas.height <= 0.0
+        {
+            return Err("Terminal grid canvas dimensions must be finite positive numbers".into());
+        }
+    }
+    Ok(())
 }
 
 pub fn hub_save_terminal_grid_layout_blocking(
@@ -81,6 +120,7 @@ pub fn hub_save_terminal_grid_layout_blocking(
     canvas: Option<TerminalGridCanvas>,
 ) -> Result<TerminalGridLayoutFile, String> {
     let valid_name = validate_layout_name(&name)?;
+    validate_layout(&layout, &canvas)?;
     let dir = layouts_dir();
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create terminal-grids directory: {e}"))?;
@@ -106,7 +146,14 @@ pub fn hub_save_terminal_grid_layout_blocking(
 
     let write_res = (|| -> Result<(), std::io::Error> {
         use std::io::Write;
-        let mut f = std::fs::File::create(&temp_path)?;
+        let mut options = std::fs::File::options();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut f = options.open(&temp_path)?;
         f.write_all(serialized.as_bytes())?;
         f.sync_all()?;
         Ok(())
@@ -120,6 +167,13 @@ pub fn hub_save_terminal_grid_layout_blocking(
     if let Err(e) = std::fs::rename(&temp_path, &target_path) {
         let _ = std::fs::remove_file(&temp_path);
         return Err(format!("failed to commit layout file: {e}"));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("failed to secure layout file permissions: {e}"))?;
     }
 
     Ok(file_data)
@@ -154,7 +208,7 @@ pub fn hub_list_terminal_grid_layouts_blocking() -> Result<Vec<TerminalGridLayou
         };
         let file_name = entry.file_name();
         let file_str = file_name.to_string_lossy();
-        if file_str.starts_with('.') || !file_str.ends_with(".json") {
+        if !file_str.ends_with(".json") {
             continue;
         }
         let content = match std::fs::read_to_string(entry.path()) {
@@ -162,15 +216,20 @@ pub fn hub_list_terminal_grid_layouts_blocking() -> Result<Vec<TerminalGridLayou
             Err(_) => continue,
         };
         if let Ok(data) = serde_json::from_str::<TerminalGridLayoutFile>(&content) {
+            let Ok(name) = validate_layout_name(&data.name) else {
+                continue;
+            };
+            let Some(pane_count) = pane_count(&data.layout) else {
+                continue;
+            };
             summaries.push(TerminalGridLayoutSummary {
-                name: data.name,
+                name,
                 saved_at: data.saved_at,
-                version: data.version,
-                canvas: data.canvas,
+                pane_count,
             });
         }
     }
-    summaries.sort_by(|a, b| b.saved_at.cmp(&a.saved_at));
+    summaries.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(summaries)
 }
 
@@ -241,12 +300,13 @@ mod tests {
     #[test]
     fn test_validate_layout_name() {
         assert_eq!(validate_layout_name("quad-split").unwrap(), "quad-split");
+        assert_eq!(validate_layout_name("quad.split").unwrap(), "quad.split");
         assert_eq!(validate_layout_name(" my layout ").unwrap(), "my layout");
         assert_eq!(validate_layout_name("A_B-1 2").unwrap(), "A_B-1 2");
 
         assert!(validate_layout_name("").is_err());
         assert!(validate_layout_name("   ").is_err());
-        assert!(validate_layout_name(".hidden").is_err());
+        assert_eq!(validate_layout_name(".hidden").unwrap(), ".hidden");
         assert!(validate_layout_name("a/b").is_err());
         assert!(validate_layout_name("a\\b").is_err());
         assert!(validate_layout_name("../test").is_err());
@@ -294,7 +354,7 @@ mod tests {
             let listed = hub_list_terminal_grid_layouts_blocking().unwrap();
             assert_eq!(listed.len(), 1);
             assert_eq!(listed[0].name, "my-pair");
-            assert_eq!(listed[0].canvas, canvas);
+            assert_eq!(listed[0].pane_count, 2);
 
             // 5. Delete
             hub_delete_terminal_grid_layout_blocking("my-pair".to_string()).unwrap();
@@ -322,6 +382,79 @@ mod tests {
             file_names.sort();
 
             assert_eq!(file_names, vec!["atomic-test.json"]);
+        });
+    }
+
+    #[test]
+    fn test_rejects_oversized_or_non_object_layouts() {
+        with_ca_home("validation", || {
+            let oversized = serde_json::json!({ "payload": "x".repeat(MAX_LAYOUT_BYTES) });
+            assert!(
+                hub_save_terminal_grid_layout_blocking("large".into(), oversized, None)
+                    .unwrap_err()
+                    .contains("256 KiB")
+            );
+            assert!(hub_save_terminal_grid_layout_blocking(
+                "array".into(),
+                serde_json::json!([]),
+                None
+            )
+            .unwrap_err()
+            .contains("JSON object"));
+        });
+    }
+
+    #[test]
+    fn test_list_skips_malformed_layout_files() {
+        with_ca_home("skip-bad", || {
+            let dir = layouts_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("bad.json"),
+                r#"{ "version": 1, "name": "bad", "layout": {} }"#,
+            )
+            .unwrap();
+            hub_save_terminal_grid_layout_blocking(
+                "zebra".into(),
+                serde_json::json!({ "type": "leaf", "id": "one", "harness": "claude" }),
+                None,
+            )
+            .unwrap();
+            hub_save_terminal_grid_layout_blocking(
+                "alpha".into(),
+                serde_json::json!({ "type": "leaf", "id": "two", "harness": "gemini" }),
+                None,
+            )
+            .unwrap();
+            let listed = hub_list_terminal_grid_layouts_blocking().unwrap();
+            assert_eq!(
+                listed
+                    .into_iter()
+                    .map(|layout| layout.name)
+                    .collect::<Vec<_>>(),
+                vec!["alpha", "zebra"],
+            );
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_saved_layout_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_ca_home("permissions", || {
+            hub_save_terminal_grid_layout_blocking(
+                "private".into(),
+                serde_json::json!({ "type": "leaf", "id": "one", "harness": "claude" }),
+                None,
+            )
+            .unwrap();
+            let mode = std::fs::metadata(layouts_dir().join("private.json"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
         });
     }
 }

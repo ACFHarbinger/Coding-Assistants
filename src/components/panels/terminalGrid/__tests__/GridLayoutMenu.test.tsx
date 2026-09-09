@@ -111,8 +111,7 @@ describe("GridLayoutMenu", () => {
           {
             name: "saved-pair",
             savedAt: "2026-09-09T02:00:00Z",
-            version: 1,
-            canvas: { width: 1000, height: 600 },
+            paneCount: 2,
           },
         ]);
       }
@@ -141,7 +140,7 @@ describe("GridLayoutMenu", () => {
 
     await waitFor(() => {
       expect(screen.getByText("saved-pair")).toBeInTheDocument();
-      expect(screen.getByText("1000×600px")).toBeInTheDocument();
+      expect(screen.getByText("2 panes")).toBeInTheDocument();
     });
 
     const loadBtn = screen.getByRole("button", { name: /Load/i });
@@ -157,14 +156,43 @@ describe("GridLayoutMenu", () => {
     });
   });
 
+  it("does not apply a hand-edited invalid layout", async () => {
+    const onLoadLayout = vi.fn();
+    const onError = vi.fn();
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([{ name: "broken", savedAt: "2026-09-09T02:00:00Z", paneCount: 1 }]);
+      }
+      if (cmd === "hub_load_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "broken",
+          savedAt: "2026-09-09T02:00:00Z",
+          canvas: null,
+          layout: { type: "split", id: "missing-children" },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<GridLayoutMenu currentLayout={mockLayout} currentCanvas={null} onLoadLayout={onLoadLayout} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    await screen.findByText("broken");
+    fireEvent.click(screen.getByRole("button", { name: /Load/i }));
+
+    await waitFor(() => {
+      expect(onLoadLayout).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining("invalid tree shape"));
+    });
+  });
+
   it("deletes a layout when delete button is clicked", async () => {
     const onStatus = vi.fn();
     let layouts = [
       {
         name: "to-delete",
         savedAt: "2026-09-09T02:00:00Z",
-        version: 1,
-        canvas: null,
+        paneCount: 2,
       },
     ];
 

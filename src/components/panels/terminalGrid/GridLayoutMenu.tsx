@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
-import type { CanvasSize } from "./gridConstants";
-import type { LayoutNode } from "./layoutTree";
+import { parseCanvasSize, type CanvasSize } from "./gridConstants";
+import { deserializeLayout, type LayoutNode } from "./layoutTree";
 
 export interface TerminalGridCanvas {
   width: number;
@@ -13,14 +13,13 @@ export interface TerminalGridLayoutFile {
   name: string;
   savedAt: string;
   canvas: TerminalGridCanvas | null;
-  layout: LayoutNode;
+  layout: unknown;
 }
 
 export interface TerminalGridLayoutSummary {
   name: string;
   savedAt: string;
-  version: number;
-  canvas: TerminalGridCanvas | null;
+  paneCount: number;
 }
 
 export interface GridLayoutMenuProps {
@@ -115,10 +114,10 @@ export default function GridLayoutMenu({
     setActiveActionName(name);
     try {
       const data = await invoke<TerminalGridLayoutFile>("hub_load_terminal_grid_layout", { name });
-      const canvas: CanvasSize | null = data.canvas
-        ? { width: Math.round(data.canvas.width), height: Math.round(data.canvas.height) }
-        : null;
-      onLoadLayout(data.layout, canvas);
+      const layout = deserializeLayout(JSON.stringify(data.layout));
+      if (!layout) throw new Error("saved layout has an invalid tree shape");
+      const canvas = data.canvas ? parseCanvasSize(JSON.stringify(data.canvas)) : null;
+      onLoadLayout(layout, canvas);
       onStatus?.(`Layout "${name}" loaded.`);
       setIsOpen(false);
     } catch (e) {
@@ -271,7 +270,7 @@ export default function GridLayoutMenu({
                         {item.name}
                       </strong>
                       <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                        {item.canvas ? `${item.canvas.width}×${item.canvas.height}px` : "Window fit"}
+                        {item.paneCount} {item.paneCount === 1 ? "pane" : "panes"}
                       </span>
                     </div>
 
