@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
+  added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
+  `$VIBE_HOME/logs/session/session_*`, filtering to `role == "assistant"` and
+  `injected != true`, capturing `content` (ignoring `reasoning_content`), and
+  recording as `("vibe", "mistral")` with SHA-256 deduplication. Registered
+  `hub_capture_vibe_session` Tauri command, added to `App.tsx` 1.5s background poll
+  along with pre-existing missing `hub_capture_muse_session` entry. Compacted capture command
+  dispatch in `App.tsx` to maintain $\le$ 500 LoC constraint. Verified with 7 focused unit/smoke tests,
+  including acceptance against a live `vibe -p --output streaming` execution.
+
 - **Mistral Vibe auth health probe (#304, `platform.md` P3):** the Mistral
   readiness chip now reads `$VIBE_HOME/whoami_cache.json` (default `~/.vibe`)
   instead of binary-presence-only. A parseable payload reports

@@ -13,6 +13,7 @@ pub mod grok;
 pub mod muse;
 pub mod presence;
 pub mod stop;
+pub mod vibe;
 
 use hub::HubStore;
 use std::path::Path;
