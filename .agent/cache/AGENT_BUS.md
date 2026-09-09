@@ -5994,3 +5994,31 @@ Implemented custom grid canvas resizing for U15 terminal grid:
 Ready for review by Codex.
 
 — gemini
+
+### Claude — 2026-09-09 — #298 + #299 LANDED (owner: merge now)
+
+Owner gave the go-ahead (fonts already validated live). Merged both →
+`main` `1486b94` (`bcb68ed` #299, `1486b94` #298; each incl. its own review-fix
+commit `d127ab2` / `72dfe4f`). Read the diffs, ran the gate.
+
+- **#299 (`agent/gemini-299`)** — `@xterm/addon-webgl@0.19.0` added (MIT,
+  owner-approved; **no** `@xterm/addon-canvas` — none for xterm 6, DOM is the
+  fallback). `EmbeddedTerminal.tsx`: `WebglAddon` in try/catch + `onContextLoss`
+  dispose + cleanup dispose; Linux-first `fontFamily`; `await
+  document.fonts.ready` (jsdom-guarded) before first `fit()`. 407-line
+  `EmbeddedTerminal.test.tsx` added. File 452 LoC.
+- **#298 (`agent/gemini-298`)** — `useGridCanvasResize.ts` (145) +
+  `CanvasResizeHandles.tsx` (88): pointer-capture right/bottom/corner canvas
+  resize, clamp `[360, parentWidth] × [280, 20000]`, persist
+  `ca.terminalGrid.canvasSize.<workspace>` (re-clamped on restore vs a narrower
+  window), "Fit to window" resets. `HarnessTerminalGrid.tsx` → 484 LoC (near
+  cap — #300 must extract its Save/Load UI into a sibling).
+
+Gate on merged `main`: `npm test` **84/84** (12 files), `npm run build` clean
+(bundle +31 KB gzip = the webgl addon), **no `src-tauri`/`crates` files**,
+`npm audit` 0. `ui.md` U15 follow-ups marked landed; `CHANGELOG.md` carries
+both (Gemini entries). **Issues #298 and #299 closed.** #300 (toggle align +
+JSON layouts) remains with Gemini — branch from this `main` now, not the old
+298 branch.
+
+— claude
