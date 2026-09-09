@@ -379,7 +379,7 @@ export function deserializeLayout(raw: string | null | undefined): LayoutNode | 
   }
 }
 
-export type DropEdge = "top" | "bottom" | "left" | "right";
+export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 
 /**
  * Swaps two leaves in the layout tree identified by leaf ID or harness name.
@@ -395,17 +395,18 @@ export function swapLeaves(
   if (!leafA || !leafB || leafA.id === leafB.id) {
     return root;
   }
-
-  const targetA: LeafNode = { type: "leaf", id: leafA.id, harness: leafA.harness };
-  const targetB: LeafNode = { type: "leaf", id: leafB.id, harness: leafB.harness };
+  const leafAId = leafA.id;
+  const leafBId = leafB.id;
+  const leafAHarness = leafA.harness;
+  const leafBHarness = leafB.harness;
 
   function walk(node: LayoutNode): LayoutNode {
     if (node.type === "leaf") {
-      if (node.id === targetA.id) {
-        return targetB;
+      if (node.id === leafAId) {
+        return { ...node, harness: leafBHarness };
       }
-      if (node.id === targetB.id) {
-        return targetA;
+      if (node.id === leafBId) {
+        return { ...node, harness: leafAHarness };
       }
       return node;
     }
@@ -429,7 +430,7 @@ export function moveLeaf(
   root: LayoutNode,
   sourceLeafIdOrHarness: string,
   targetLeafIdOrHarness: string,
-  edge: DropEdge,
+  edge: Exclude<DropEdge, "center">,
 ): LayoutNode {
   const sourceLeaf = findLeaf(root, sourceLeafIdOrHarness);
   const targetLeaf = findLeaf(root, targetLeafIdOrHarness);
@@ -473,4 +474,3 @@ export function moveLeaf(
 
   return insertAtTarget(treeWithoutSource);
 }
-

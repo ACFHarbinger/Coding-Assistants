@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import type { LeafRect, Rect, DropEdge } from "./layoutTree";
 
-export type DragTargetZone = DropEdge | "center";
+export type DragTargetZone = DropEdge;
 
 export interface DropTarget {
   leafId: string;

@@ -81,6 +81,12 @@ export default function HarnessTerminalGrid({
         }
         return;
       }
+      let restoredMaximized: string | null = null;
+      try {
+        restoredMaximized = localStorage.getItem(maxKey(workspace));
+      } catch {
+        // Maximize is presentation state; failure must not block session restore.
+      }
       const leaves = collectLeaves(restored);
       const statuses = await Promise.all(
         leaves.map(async (leaf) => {
@@ -102,7 +108,9 @@ export default function HarnessTerminalGrid({
       );
       setLayout(pruned);
       setTerminals(Object.fromEntries(live.map(({ harness, sessionId }) => [harness, sessionId])));
-      setMaximizedHarness((prev) => (prev && liveHarnesses.has(prev) ? prev : null));
+      setMaximizedHarness(
+        restoredMaximized && liveHarnesses.has(restoredMaximized) ? restoredMaximized : null,
+      );
     };
     void restoreLayout();
     return () => { disposed = true; };

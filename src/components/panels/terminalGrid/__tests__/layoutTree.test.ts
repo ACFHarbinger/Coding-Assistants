@@ -288,10 +288,18 @@ describe("layoutTree - pure tree operations", () => {
     };
 
     it("swaps two leaves by id or harness", () => {
+      const beforeRects = new Map(
+        computeRects(tree, { x: 0, y: 0, width: 1000, height: 600 })
+          .leaves.map(({ node, rect }) => [node.id, rect]),
+      );
       const swapped = swapLeaves(tree, "grok", "gemini");
       expect(collectLeaves(swapped).map((l) => l.harness)).toEqual(["gemini", "claude", "grok"]);
-      expect(findLeaf(swapped, "gemini")?.id).toBe("l3");
-      expect(findLeaf(swapped, "grok")?.id).toBe("l1");
+      // Positions (leaf ids) do not move; only their harness payloads swap.
+      expect(findLeaf(swapped, "gemini")?.id).toBe("l1");
+      expect(findLeaf(swapped, "grok")?.id).toBe("l3");
+      for (const { node, rect } of computeRects(swapped, { x: 0, y: 0, width: 1000, height: 600 }).leaves) {
+        expect(rect).toEqual(beforeRects.get(node.id));
+      }
     });
 
     it("returns tree unchanged if leaf is missing or same leaf", () => {
