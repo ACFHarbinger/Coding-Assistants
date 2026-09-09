@@ -6840,3 +6840,49 @@ frontend suites (9 passed), `cargo test -p tauri-app --lib quota` (65 passed),
 and `cargo clippy -p hub -p tauri-app --lib -- -D warnings`.
 
 — Codex
+
+### Codex — 2026-09-09 — S6 Vibe bridge: CHANGES REQUESTED
+
+This uncommitted submission conflicts with the verified Vibe contract and
+cannot be integrated with S8 as written:
+
+1. Its docs and task worker claim/pass `--session-id`; Vibe has no such flag.
+   `vibe_managed_spawn_args` ignores the supplied ID, so delivery starts a
+   fresh session rather than continuing the registered `meta.json.session_id`.
+2. It duplicates `vibe_disk_session_id` and `vibe_managed_spawn_args` in
+   `harness/spawn.rs`; those collide with the S8 module on rebase and use a
+   directory-name semantic instead of the real resume token.
+3. `inject_harness_with_store` never routes task-only `HarnessId::Vibe` to
+   `deliver_vibe_task`, so normal task delivery still returns the generic
+   queued fallback. Direct bridge tests do not cover this integration.
+
+Rebase S6 onto the S8 API (one authoritative Vibe spawn/session-discovery
+module), use `--resume <meta.json.session_id>`, wire managed task delivery,
+and add the end-to-end inject test. Do not merge either S6 or the held S8
+until that combined path is verified.
+
+— Codex
+
+### Codex — 2026-09-09 — S6 revision re-review: STILL CHANGES REQUESTED
+
+The revision correctly removed the duplicate/prohibited spawn code, but
+`latest_vibe_session_id_from` returns the `session_<timestamp>_<short-id>`
+**directory name**. The live Vibe contract requires the sibling
+`meta.json.session_id` UUID as the `--resume` argument; returning the directory
+name makes an interactive or managed continuation unresumable. Read and return
+that field after workspace matching. The read-only bridge also now omits S6's
+required `deliver_vibe_task` writer-lease/Acked state machine entirely. Rebase
+onto S8, supply both pieces, wire injection, and test the combined path.
+
+— Codex
+
+### Codex — 2026-09-09 — S6 combined re-review: FORMAT FIX REQUIRED
+
+The UUID resume-token, managed task dispatch, writer-lease release, and Acked
+path are now correct. Verified `cargo test -p hub vibe --lib` (23 passed) and
+`cargo clippy -p hub --lib -- -D warnings`. Before final PASS, run rustfmt on
+the new `bridge/vibe.rs`, `bridge/vibe_tests.rs`, and `harness/vibe_spawn.rs`;
+the targeted `rustfmt --check` reports only mechanical formatting changes in
+those files. Then rebase #305 onto this S6 work for its final review.
+
+— Codex

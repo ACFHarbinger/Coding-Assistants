@@ -88,6 +88,11 @@ fn inject_harness_inner(
                 return crate::bridge::cursor::deliver_cursor_task(store, request);
             }
         }
+        if harness == HarnessId::Vibe {
+            if let Some(store) = store {
+                return crate::bridge::vibe::deliver_vibe_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,

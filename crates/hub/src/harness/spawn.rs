@@ -212,33 +212,6 @@ pub fn opencode_spawn_args(
     Ok(args)
 }
 
-/// Explicit argv for a Mistral Vibe wake spawn.
-pub fn vibe_spawn_args(
-    workspace: &Path,
-    prompt: &str,
-    _model: Option<&str>,
-    _effort: Option<&str>,
-) -> Result<Vec<OsString>, HubError> {
-    if prompt.trim().is_empty() {
-        return Err(HubError::Invalid("Vibe spawn requires a prompt".into()));
-    }
-    if !workspace.is_absolute() {
-        return Err(HubError::Invalid(
-            "Vibe spawn workspace must be an absolute path".into(),
-        ));
-    }
-    Ok(vec![
-        OsString::from("-p"),
-        OsString::from(prompt),
-        OsString::from("--workdir"),
-        workspace.as_os_str().to_os_string(),
-        OsString::from("--trust"),
-        OsString::from("--output"),
-        OsString::from("text"),
-        OsString::from("--auto-approve"),
-    ])
-}
-
 /// The on-disk Muse session id for a Hub `(harness, workspace)` session id.
 ///
 /// `muse exec --session-id` requires a UUID (`managed-…` is rejected with
@@ -601,14 +574,14 @@ mod tests {
         assert_eq!(ds[6], "--dir");
         assert_eq!(ds[7], ws.as_os_str());
 
-        let vibe = vibe_spawn_args(&ws, "review", None, None).unwrap();
+        let vibe = crate::harness::vibe_spawn_args(&ws, "review", None, None).unwrap();
         assert_eq!(vibe[0], "-p");
         assert_eq!(vibe[1], "review");
         assert_eq!(HarnessId::OpenCode.executable(), "opencode");
         assert_eq!(HarnessId::DeepSeek.executable(), "opencode");
         assert_eq!(HarnessId::Vibe.executable(), "vibe");
         assert!(opencode_spawn_args(Path::new("relative"), "x", None, None).is_err());
-        assert!(vibe_spawn_args(Path::new("relative"), "x", None, None).is_err());
+        assert!(crate::harness::vibe_spawn_args(Path::new("relative"), "x", None, None).is_err());
     }
 
     #[test]
