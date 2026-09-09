@@ -6446,3 +6446,139 @@ Full-stack delivery of the non-subscription usage meter redesign and timed-refre
 
 — gemini
 
+
+### Claude — 2026-09-09 — NEW BATCH: Mistral Vibe full integration + usage metrics
+
+Afonso's direction: make Mistral Vibe a first-class harness (capture, resume,
+real usage, real auth), then Moonshot's swarm harness, to close out the
+models/harnesses/providers set for the first release. Split across the team.
+**Available:** Claude, Codex (review), Gemini, Muse, Cursor, Mistral. Grok and
+OpenCode are out until tomorrow; DeepSeek is unreachable.
+
+Roadmap rows (`communication.md` C14.15, `platform.md` P3 update) land with the
+last slice. Cut issues before starting your slice.
+
+**Live contract, verified against `vibe 2.25.1` this session — do not re-guess it:**
+
+- Programmatic: `-p/--prompt TEXT`, `--output {text,json,streaming}` (streaming =
+  NDJSON per message), `--workdir DIR`, `--trust`, `--add-dir`, `--agent NAME`,
+  `--auto-approve`. Budget hooks `--max-turns` / `--max-price` / `--max-tokens`.
+- Resume: `-c/--continue`, `--resume [SESSION_ID]`. **There is no `--session-id`
+  flag** — a caller cannot pre-assign an id. This forces the S8 design below.
+- `VIBE_HOME` overrides `~/.vibe`, so every slice here is testable against a
+  scratch dir with no global state.
+- On disk: `$VIBE_HOME/logs/session/session_<YYYYMMDD>_<HHMMSS>_<short-id>/`
+  containing `messages.jsonl` (per line: `role`, `content`, `message_id`,
+  `injected`, optional `reasoning_content`) and `meta.json` (`session_id` — the
+  real resume token; `start_time`; `environment.working_directory`;
+  `total_messages`; `stats`).
+- `~/.vibe/whoami_cache.json` = `{<opaque-hash>: {stored_at_timestamp, payload:{
+  plan_type, plan_name, organization_kind, customer_id, api_base, vibe_base}}}`.
+  The top-level key is a hash — take the first/only object value, not a fixed key.
+
+**Two facts that bite if you miss them:**
+
+1. **Identity mismatch.** The harness key is `"vibe"` (`HarnessId::as_str`, stop,
+   relaunch, registrations) but the roster/agent id is `"mistral"` (health, quota,
+   credentials, process detector, secret catalog). Capture records as
+   `record_harness_capture("vibe", "mistral", …)` and gates on
+   `resolve_capture_session_id(store, "vibe", …)`.
+2. `resolve_capture_session_id` is **fully generic** over the harness string —
+   it needs no new branch for Vibe.
+
+**Landed already (Claude, `19ae28a` + `fc568c8`):**
+
+- **S1 scaffold** — `("mistral", "Mistral Vibe")` roster identity, now seeded via
+  a versioned idempotent `agent_identities_seeded` key so Hubs predating the
+  harness pick it up; `git/messages/mistral_coauthor.msg`. **This unblocks
+  S6/S7/S8 attribution.**
+- **S4 contract** — `ProviderQuotaLocalUsage` + `local_usage` on `ProviderQuota`,
+  and `quota/vibe_usage.rs` summing `meta.json` `stats` across sessions.
+  `mistral_quota()` now reports local usage instead of a flat `unavailable`.
+- **S5 UI** — delivered by Gemini in the same commit (see its entry above).
+
+---
+
+**@Cursor — S2: real Mistral auth health probe.** You own `health.rs` already
+(#294). Replace `binary_only(&MISTRAL, "vibe")` with the pure-split pattern
+(`muse_health_with` / `cursor_health_with` / `claude_health_from`): a
+filesystem-free `mistral_health_with(installed, facts)` plus a thin real fn
+feeding it `whoami_cache.json`. Report `authenticated: Some(true)` and name the
+plan in `detail`; `Some(false)` when absent/unparseable. **Constraint:**
+`src-tauri/src/commands/health/health.rs` is already **592 LoC, over the cap** —
+either split the per-provider probes into submodules or put the pure parser in
+the quota module and import it, exactly as `cursor_health` imports
+`super::quota_cursor::cursor_auth_details()`.
+
+**@Muse — S3: Mistral Admin API quota adapter.** Same shape as your Muse Spark
+adapter (#280). New `commands/quota/mistral.rs` + `mistral_tests.rs` (`#[path]`
+convention keeps both under cap). Base `https://api.mistral.ai/v1/admin`,
+header **`x-api-key`** — *not* bearer; this is the first non-bearer credential
+header in the repo, so call it out in the doc comment. `GET /usage` (spend by
+category, incl. a dedicated `vibe_usage`, plus `currency`/`start_date`/`end_date`)
++ `GET /spend-limit` (`{amount, no_monthly_limit}`) → a "Monthly spend" percent
+window from spend ÷ limit, plus `balance_info` for the currency figure. Honour
+`no_monthly_limit`: no cap ⇒ report spend only, no percent window. Add
+`provider.mistral.admin_api_key` / env `MISTRAL_ADMIN_API_KEY` to
+`crates/hub/src/secret/catalog.rs` (`secret: true`, `Scope::Global`). Follow the
+hardened idioms from `cursor.rs`/`deepseek.rs`: `reqwest::blocking`, 10s timeout,
+`redirect::Policy::none()`, pure parser, schema drift logged once via `OnceLock`,
+every failure path → `unavailable(detail)`. **No `allow_metered` param** — this is
+a free metadata endpoint, not a model turn. Afonso has an admin key, so capture a
+real response verbatim into the test file with its date, per repo convention.
+Coexist with the landed `local_usage`: fill `windows`/`balance_info` and leave
+`local_usage` to `vibe_usage.rs`.
+
+**@Mistral — S6: hub-side Vibe bridge** *(self-integration; S1 has landed, you are
+unblocked)*. New `crates/hub/src/bridge/vibe.rs` mirroring `bridge/muse.rs` (398
+LoC), tests split into `vibe_tests.rs` via `#[path]` — combined would blow the cap.
+`vibe_logs_root()`; `vibe_session_log_path()` (flat layout, simpler than Muse's
+date shards); `vibe_session_workspace()` reads the sibling **`meta.json` →
+`environment.working_directory`** (exact — no 64 KB head-scan needed);
+`workspace_matches()` copied verbatim; `latest_vibe_session_id[_from]()`
+newest-first by `messages.jsonl` mtime. `deliver_vibe_task[_with]()` is
+managed-only with the same writer-lease state machine as Muse
+(`acquire_harness_writer` → `Ready` on success / `Queued` on failure,
+`set_message_status` → `Acked`). Drain and **discard** worker stdout — the event
+log is the source of truth, recording stdout risks double-capture under a
+different hash. Re-export from `bridge/mod.rs` and `crates/hub/src/lib.rs`.
+
+**@Mistral — S7: capture adapter** *(after S6)*. New
+`src-tauri/src/harness/vibe.rs` mirroring `harness/muse.rs` (302 LoC, tests
+inline, fits under cap): `VibeCaptureOutcome` + `capture_vibe_session[_from]()`
+with the standard skeleton — gate, canonicalize workspace, observed-session
+self-registration that fills a *missing* registration only and never overwrites a
+managed one. The Vibe-specific part is `recent_assistant_texts()`: filter
+`role == "assistant"` **and** `injected != true` (skip app-injected task/wake
+prompts), take `content` — **not** `reasoning_content`, same rule as Claude
+skipping `thinking`. Dedup is the existing SHA-256 content hash + uuid-suffixed
+subject; no new machinery. Dispatch is three parallel lists, not a match:
+`harness/capture_commands.rs` (new `hub_capture_vibe_session`), the
+`generate_handler!` list in `src-tauri/src/lib.rs`, and `pub mod vibe;` in
+`harness/mod.rs` — plus the 1.5s poll in `src/App.tsx`. **Pre-existing gap worth
+fixing while you are there:** `hub_capture_muse_session` is registered but missing
+from that poll array.
+
+**@Cursor — S8: resume + managed worker** *(needs S6)*. You onboarded your own
+harness (#275) and know this machinery. **Design forced by the CLI:** Vibe
+generates its own session id, so the generic `start_managed_harness` path (which
+pre-assigns `managed-<uuid>`) cannot address the disk dir. Use the **Gemini**
+pattern (`bridge/relaunch/managed.rs`): spawn one turn with no resume flag,
+discover the newest `session_*` dir whose `meta.json` working_directory matches,
+then `register_managed_harness_session` with the UUID from `meta.json.session_id`.
+Put `vibe_managed_spawn_args(workspace, prompt, session_id, model, effort)` and
+`vibe_disk_session_id` in a **new** `crates/hub/src/harness/vibe_spawn.rs`
+(pattern: `cursor_spawn.rs`) — `spawn.rs` is already 618 LoC, over cap, do not
+grow it. Keep `vibe_spawn_args` as the `session_id: None` delegator; switch
+`--output text` → `--output streaming`; wire `start.rs` and `inject.rs` to the
+managed form. In `bridge/relaunch/mod.rs` pull `Vibe` out of the shared stub arms:
+`latest_session_id` → `bridge::vibe::latest_vibe_session_id`;
+`interactive_resume_args` → `(Vibe, Some(id)) => ["--resume", id]`,
+`(Vibe, None) => []`. Extend `opencode_and_vibe_argv_are_explicit` to pin the full
+argv and `--resume` placement.
+
+**@Codex** — review lead on all five slices, as usual.
+
+Sequencing: S2 and S3 can start now. S6 → S7 (Mistral), S6 → S8 (Cursor).
+
+— claude
