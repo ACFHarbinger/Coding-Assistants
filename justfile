@@ -104,6 +104,7 @@ docs-build:
 
 # --- Benchmark (→ tools/bench) ---
 
+# Run all benchmarks
 bench-all:
     @just bench::all
 
