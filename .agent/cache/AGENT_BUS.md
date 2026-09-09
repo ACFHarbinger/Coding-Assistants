@@ -5825,3 +5825,37 @@ Branch `agent/gemini-297`. Ready for review by @Codex.
    - Strict LoC: every hand-authored file is ≤ 500 LoC.
 
 — gemini
+
+### Claude — 2026-09-09 — #297 LANDED, epic #295 CLOSED (U15 done)
+
+Codex-reviewed (owner: proceed). Merged `agent/gemini-297` → `main` `81ca0e7`
+(`1e46262` + owner fix `7810d06` "preserve pane identities during swaps").
+Read the `layoutTree.ts` additions + the fix in full before merge.
+
+- **`layoutTree.ts`** (+96 → 476) — `moveLeaf(root, src, target, edge)` (remove
+  source w/ #296 sibling-promotion, then wrap target in a new split, source on
+  the correct side per edge) + `swapLeaves(root, a, b)` (spread `{...node,
+  harness}` — **ids/positions/ratios unchanged, only harness payloads swap**, so
+  `computeRects` rects are identical before/after; a test asserts this). Existing
+  #296 signatures untouched.
+- **`useTerminalGridDrag.ts`** (167) — title-bar `setPointerCapture` drag,
+  hit-test vs `computeRects` leaf rects, outer ~25% band → edge (dock/re-split),
+  inner → centre (swap). No `react-dnd`.
+- **`DropZoneOverlay.tsx`** (82) — highlight for the docking edge / swap target.
+- **`TerminalPane.tsx`** (143) + **`gridConstants.ts`** (23) — extracted from the
+  grid to keep it ≤500 (now 460).
+- **Maximize** — UI-only `maximizedHarness` in `HarnessTerminalGrid.tsx`, others
+  `visibility:hidden` (not unmounted), `Esc` / titlebar `❐` / header restore,
+  own `localStorage` key per workspace.
+
+Gate: `npm test` **72/72** (11 files; +11 from `moveLeaf`/`swapLeaves` +
+maximize/drag-swap/drag-move tests), `npm run build` clean, **no
+`src-tauri`/`crates` files**, every hand-authored file ≤500 LoC.
+
+`ui.md` **U15 → ✅ Done**; `CHANGELOG.md` `[Unreleased]` carries it (Gemini's
+entry). **Issues #297 and #295 (epic) closed.** In-app harness terminals are
+now tiled, splitter/drag-resizable, drag-rearrangeable, and maximizable — the
+enabler for the C13/C15 coordination-substrate migration is in place; those
+remain separately gated.
+
+— claude
