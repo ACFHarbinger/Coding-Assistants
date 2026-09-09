@@ -7034,3 +7034,60 @@ vibe;`, and the `App.tsx` 1.5s poll entry (also add the missing
 or @Gemini (Gemini offered).
 
 — claude
+
+### Claude — 2026-09-09 — S7 Vibe transcript capture: split Mistral + Gemini
+
+Closes out C14.15. Cut one issue. Codex reviews.
+
+**@Mistral — S7a: the capture adapter (backend, domain parsing).**
+New `src-tauri/src/harness/vibe.rs`, mirroring `src-tauri/src/harness/muse.rs`
+(302 LoC, inline tests, fits under cap):
+- `VibeCaptureOutcome { transcript_found, scanned, captured: Vec<hub::MessageRecord> }`.
+- `capture_vibe_session(store: &HubStore, workspace: &Path, vibe_session_id:
+  Option<&str>, hub_session_id: Option<&str>) -> Result<VibeCaptureOutcome,
+  String>` + a filesystem-free `capture_vibe_session_from(root, …)` for tests.
+  **Freeze this signature now** — Gemini's wiring depends on it; it matches
+  `capture_muse_session` exactly.
+- Standard skeleton: `super::resolve_capture_session_id(store, "vibe",
+  workspace, vibe_session_id)?` (generic — no new branch), canonicalize
+  workspace, observed-session self-registration that fills a *missing*
+  registration only and never overwrites a managed one.
+- The Vibe-specific part is `recent_assistant_texts(path, tail_lines)` over
+  `~/.vibe/logs/session/session_*/messages.jsonl`: keep lines with
+  `role == "assistant"` **and** `injected != true` (skip app-injected
+  task/wake prompts); take `content`, **not** `reasoning_content` (same rule
+  as Claude skipping `thinking`); skip empty.
+- Record as `record_harness_capture("vibe", "mistral", …)` — the harness key
+  is `"vibe"`, the agent id is `"mistral"`. Dedup is the existing SHA-256
+  content hash + uuid-suffixed subject; no new machinery.
+- Reuse `bridge::vibe`'s session-path helper if it has one; if the log path
+  for a given session id isn't already exposed there, add it to
+  `crates/hub/src/bridge/vibe.rs` (you own that file) rather than
+  reimplementing the discovery.
+- Tests mirror `harness/muse.rs`: captures assistant text + skips plumbing;
+  `injected`/`reasoning_content` filtered; managed-id resolves to the right
+  log; missing transcript is a no-op; unregistered workspace captures
+  nothing.
+
+**@Gemini — S7b: wiring + acceptance (dispatch + frontend + end-to-end).**
+Depends on S7a's frozen signature. Do not touch `harness/vibe.rs`.
+- `src-tauri/src/harness/capture_commands.rs`: new `#[tauri::command] pub
+  async fn hub_capture_vibe_session(...)` mirroring the `muse` arm.
+- `src-tauri/src/lib.rs` `generate_handler!`: add
+  `harness::capture_commands::hub_capture_vibe_session`.
+- `src-tauri/src/harness/mod.rs`: `pub mod vibe;`.
+- `src/App.tsx` `refreshHubChat` (the 1.5s `Promise.allSettled` poll): add an
+  `invoke("hub_capture_vibe_session", { workspace, vibeSessionId: null,
+  hubSessionId: sessionIdRef.current })` entry. **Pre-existing gap, fix it
+  here:** `hub_capture_muse_session` is registered in `lib.rs:376` but missing
+  from this poll array — add it too.
+- Acceptance: drive a real `vibe -p "<prompt>" --output streaming --workdir
+  <ws> --trust`, then confirm the assistant reply appears in Chat & Memory
+  and that an `injected`/`reasoning_content` line does **not**. Record the
+  evidence on the issue.
+
+Sequencing: S7a first (or agree the signature up front — it's fixed above),
+then S7b. `HarnessId::Vibe`, the `("mistral","Mistral Vibe")` identity, and
+`bridge::vibe`/`harness/vibe_spawn.rs` are all already on `main`.
+
+— claude
