@@ -98,29 +98,37 @@ describe("layoutTree - pure tree operations", () => {
 
   describe("insertLeaf", () => {
     it("creates first leaf when root is null", () => {
-      const res = insertLeaf(null, "claude");
-      expect(res.type).toBe("leaf");
-      if (res.type === "leaf") {
-        expect(res.harness).toBe("claude");
+      const { tree, leafId } = insertLeaf(null, "claude");
+      expect(tree.type).toBe("leaf");
+      if (tree.type === "leaf") {
+        expect(tree.harness).toBe("claude");
+        expect(tree.id).toBe(leafId);
       }
     });
 
-    it("does not insert duplicate harness", () => {
+    it("allows inserting multiple instances of the same harness", () => {
       const root: LayoutNode = { type: "leaf", id: "l1", harness: "claude" };
-      const res = insertLeaf(root, "claude");
-      expect(res).toBe(root);
+      const { tree, leafId } = insertLeaf(root, "claude");
+      expect(tree.type).toBe("split");
+      const leaves = collectLeaves(tree);
+      expect(leaves).toHaveLength(2);
+      expect(leaves[0].harness).toBe("claude");
+      expect(leaves[1].harness).toBe("claude");
+      expect(leaves[1].id).toBe(leafId);
+      expect(leaves[0].id).toBe("l1");
     });
 
     it("splits single leaf into a split node", () => {
       const root: LayoutNode = { type: "leaf", id: "l1", harness: "grok" };
-      const res = insertLeaf(root, "chat");
+      const { tree, leafId } = insertLeaf(root, "chat");
 
-      expect(res.type).toBe("split");
-      if (res.type === "split") {
-        expect(res.first.type).toBe("leaf");
-        expect(res.second.type).toBe("leaf");
-        expect((res.first as any).harness).toBe("grok");
-        expect((res.second as any).harness).toBe("chat");
+      expect(tree.type).toBe("split");
+      if (tree.type === "split") {
+        expect(tree.first.type).toBe("leaf");
+        expect(tree.second.type).toBe("leaf");
+        expect((tree.first as any).harness).toBe("grok");
+        expect((tree.second as any).harness).toBe("chat");
+        expect((tree.second as any).id).toBe(leafId);
       }
     });
 
@@ -134,15 +142,16 @@ describe("layoutTree - pure tree operations", () => {
         second: { type: "leaf", id: "other-leaf", harness: "claude" },
       };
 
-      const res = insertLeaf(root, "muse", "target-leaf", "col");
-      expect(res.type).toBe("split");
-      if (res.type === "split") {
-        expect(res.second.type).toBe("leaf"); // other-leaf untouched
-        expect(res.first.type).toBe("split");
-        const subSplit = res.first as any;
+      const { tree, leafId } = insertLeaf(root, "muse", "target-leaf", "col");
+      expect(tree.type).toBe("split");
+      if (tree.type === "split") {
+        expect(tree.second.type).toBe("leaf"); // other-leaf untouched
+        expect(tree.first.type).toBe("split");
+        const subSplit = tree.first as any;
         expect(subSplit.direction).toBe("col");
         expect(subSplit.first.harness).toBe("grok");
         expect(subSplit.second.harness).toBe("muse");
+        expect(subSplit.second.id).toBe(leafId);
       }
     });
   });
@@ -294,12 +303,18 @@ describe("layoutTree - pure tree operations", () => {
       );
       const swapped = swapLeaves(tree, "grok", "gemini");
       expect(collectLeaves(swapped).map((l) => l.harness)).toEqual(["gemini", "claude", "grok"]);
-      // Positions (leaf ids) do not move; only their harness payloads swap.
-      expect(findLeaf(swapped, "gemini")?.id).toBe("l1");
-      expect(findLeaf(swapped, "grok")?.id).toBe("l3");
-      for (const { node, rect } of computeRects(swapped, { x: 0, y: 0, width: 1000, height: 600 }).leaves) {
-        expect(rect).toEqual(beforeRects.get(node.id));
-      }
+      expect(collectLeaves(swapped).map((l) => l.id)).toEqual(["l3", "l2", "l1"]);
+      // Leaf nodes move positions in the layout tree (#301)
+      expect(findLeaf(swapped, "gemini")?.id).toBe("l3");
+      expect(findLeaf(swapped, "grok")?.id).toBe("l1");
+
+      const afterRects = new Map(
+        computeRects(swapped, { x: 0, y: 0, width: 1000, height: 600 })
+          .leaves.map(({ node, rect }) => [node.id, rect]),
+      );
+      expect(afterRects.get("l3")).toEqual(beforeRects.get("l1"));
+      expect(afterRects.get("l1")).toEqual(beforeRects.get("l3"));
+      expect(afterRects.get("l2")).toEqual(beforeRects.get("l2"));
     });
 
     it("returns tree unchanged if leaf is missing or same leaf", () => {

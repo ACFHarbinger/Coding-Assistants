@@ -190,28 +190,26 @@ export function hasHarness(root: LayoutNode | null, harness: string): boolean {
 
 /**
  * Insert a harness leaf into the layout.
- * If harness is already present, returns tree unchanged (no duplicate panes).
+ * Each invocation adds a new leaf instance (#301).
  * If targetLeafId is omitted, splits the leaf with the largest area, or balances by row/col.
+ * Returns { tree, leafId } with the new unique leaf ID.
  */
 export function insertLeaf(
   root: LayoutNode | null,
   harness: string,
   targetLeafId?: string,
   direction?: SplitDirection,
-): LayoutNode {
+  leafId?: string,
+): { tree: LayoutNode; leafId: string } {
+  const newLeafId = leafId ?? generateNodeId(`leaf-${harness}`);
   const newLeaf: LeafNode = {
     type: "leaf",
-    id: generateNodeId(`leaf-${harness}`),
+    id: newLeafId,
     harness,
   };
 
   if (!root) {
-    return newLeaf;
-  }
-
-  // Prevent duplicate harness panes per spec constraint
-  if (hasHarness(root, harness)) {
-    return root;
+    return { tree: newLeaf, leafId: newLeafId };
   }
 
   // Target selection
@@ -261,7 +259,7 @@ export function insertLeaf(
     };
   }
 
-  return replaceInNode(root);
+  return { tree: replaceInNode(root), leafId: newLeafId };
 }
 
 /**
@@ -384,6 +382,7 @@ export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 /**
  * Swaps two leaves in the layout tree identified by leaf ID or harness name.
  * If either leaf is missing or both resolve to the same leaf, returns root unchanged.
+ * Swaps the leaf nodes at their positions in the tree (#301).
  */
 export function swapLeaves(
   root: LayoutNode,
@@ -397,16 +396,16 @@ export function swapLeaves(
   }
   const leafAId = leafA.id;
   const leafBId = leafB.id;
-  const leafAHarness = leafA.harness;
-  const leafBHarness = leafB.harness;
+  const fixedLeafA: LeafNode = leafA;
+  const fixedLeafB: LeafNode = leafB;
 
   function walk(node: LayoutNode): LayoutNode {
     if (node.type === "leaf") {
       if (node.id === leafAId) {
-        return { ...node, harness: leafBHarness };
+        return fixedLeafB;
       }
       if (node.id === leafBId) {
-        return { ...node, harness: leafAHarness };
+        return fixedLeafA;
       }
       return node;
     }

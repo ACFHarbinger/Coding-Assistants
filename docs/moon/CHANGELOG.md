@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-instance harness terminal panes in grid (#301, `ui.md` U15, Epic #295):**
+  Moved terminal pane identity from harness name to unique leaf `id`, allowing multiple concurrent
+  terminal panes for the same harness (e.g. running multiple `agy` or `grok` instances concurrently).
+  `insertLeaf` in `layoutTree.ts` returns `{ tree: LayoutNode, leafId: string }` and permits duplicate
+  harness leaves; `swapLeaves`, `moveLeaf`, and `removeLeaf` operate seamlessly by leaf ID with zero xterm
+  remounts. The "+ Add pane" palette bar now displays all 6 supported harnesses permanently, showing an
+  active instance count badge (`+ <Harness> · <N>`), with each click spawning a new independent instance.
+  Extracted session lifecycle and layout persistence state into sibling hook `useTerminalGridSessions.ts`,
+  reducing `HarnessTerminalGrid.tsx` from 484 to 329 LoC (all files ≤ 500 LoC). Updated backend
+  `hub_relaunch_harness_embedded` in `src-tauri/src/harness/commands/relaunch.rs` to accept an optional
+  `instance_key` (`instanceKey`), validating it (1-64 chars, ASCII alphanumeric, hyphen, underscore) and
+  spawning isolated PTY sessions (`harness-terminal:<harness>:<ws>:<key>`) starting fresh without killing
+  prior PIDs or colliding with existing transcripts.
+
 - **Terminal grid JSON layout persistence & Orchestrate toggle pill alignment (#300, `ui.md` U15, Epic #295):**
   Added named terminal grid layout save/load/list/delete functionality backed by atomic JSON files
   under `<CA_HOME or ~/.coding-assistants>/terminal-grids/<name>.json` via new backend commands

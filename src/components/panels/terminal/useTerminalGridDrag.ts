@@ -57,7 +57,7 @@ export function useTerminalGridDrag() {
       leafId: string,
       getLeaves: () => LeafRect[],
       containerEl: HTMLElement | null,
-      onDrop: (sourceHarness: string, targetHarness: string, zone: DragTargetZone) => void,
+      onDrop: (sourceLeafId: string, targetLeafId: string, zone: DragTargetZone) => void,
     ) => {
       if (event.button !== 0) return;
       const targetEl = event.target as HTMLElement;
@@ -94,7 +94,7 @@ export function useTerminalGridDrag() {
         let matchedTarget: DropTarget | null = null;
 
         for (const leaf of currentLeaves) {
-          if (leaf.node.harness === harness) continue;
+          if (leaf.node.id === leafId) continue;
           if (pointInRect(canvasX, canvasY, leaf.rect)) {
             const zone = determineDropZone(canvasX, canvasY, leaf.rect);
             matchedTarget = {
@@ -131,7 +131,7 @@ export function useTerminalGridDrag() {
         cleanup();
         const target = activeTargetRef.current;
         if (hasCrossedThreshold && target) {
-          onDrop(harness, target.harness, target.zone);
+          onDrop(leafId, target.leafId, target.zone);
         }
         activeTargetRef.current = null;
         setDragState({

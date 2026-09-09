@@ -9,7 +9,7 @@ import RemotePanel from "./components/panels/RemotePanel";
 import MessagerPanel from "./components/panels/MessagerPanel";
 import { openSettingsWindow } from "./lib/settingsWindow";
 import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
-import HarnessTerminalGrid from "./components/panels/terminalGrid/HarnessTerminalGrid";
+import HarnessTerminalGrid from "./components/panels/terminal/HarnessTerminalGrid";
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>(() => {
