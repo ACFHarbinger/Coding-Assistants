@@ -6,7 +6,7 @@ import ProviderHealthChip from "./ProviderHealthChip";
 import { useProviderHealth } from "./useProviderHealth";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
-const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen"] as const;
+const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
 
 function formatSince(ts: string | null | undefined): string {
   if (!ts) return "";
@@ -110,7 +110,7 @@ export default function HarnessReadinessPanel({
       if (harness === "grok") {
         throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
       }
-      if (harness !== "claude" && harness !== "cursor" && harness !== "gemini" && harness !== "qwen" && !diskId.trim()) {
+      if (harness !== "claude" && harness !== "cursor" && harness !== "gemini" && harness !== "qwen" && harness !== "kimi" && !diskId.trim()) {
         throw new Error(
           harness === "muse"
             ? "Start managed needs a real Muse session UUID. Do not invent a placeholder."
@@ -236,6 +236,8 @@ export default function HarnessReadinessPanel({
               ? "Start managed registers a managed Muse Code session. Supply a session UUID to track or continue."
             : harness === "qwen"
               ? "Start managed pre-assigns `--session-id` (Muse-style). No discover-then-register; `--chat-recording` is required for later resume."
+            : harness === "kimi"
+              ? "Start managed passes `--session <id>` when a disk session id is known, otherwise starts a fresh session — a UUID here is optional, not required."
               : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
       </p>
 

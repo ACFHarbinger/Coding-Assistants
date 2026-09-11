@@ -103,6 +103,7 @@ export const HARNESS_PREREQUISITES: Record<string, string> = {
   muse: "Managed delivery re-enters `muse exec --session-id <uuid>` under writer lease. Interactive resume runs `muse resume <uuid>` in terminal.",
   cursor: "Managed delivery runs `agent -p` stream-json continuation under writer lease. Interactive resume runs `agent --resume <id>` in terminal.",
   qwen: "Managed delivery re-enters `qwen --session-id <uuid> --chat-recording -y` under writer lease. Interactive resume runs `qwen --resume <id> --chat-recording`.",
+  kimi: "Managed delivery re-enters `kimi -p --session <id> --output-format stream-json` under writer lease when a disk session id is known, else starts a fresh session. Interactive resume runs `kimi --session <id>`.",
 };
 
 export function harnessTone(mode: HarnessSessionMode, state: HarnessSessionState): { label: string; color: string; border: string; bg: string } {

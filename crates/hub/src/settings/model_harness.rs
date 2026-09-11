@@ -34,8 +34,11 @@ impl HarnessSettings {
             // unverified value. The provider default lives in the tauri
             // `MUSE_DEFAULT_MODEL` fallback + `get_available_models`
             // instead, where it cannot leak into harness spawns.
-            // Cursor uses its own account model config.
-            crate::HarnessId::Muse | crate::HarnessId::Cursor | crate::HarnessId::Qwen => None,
+            // Cursor, Qwen, and Kimi all use their own config/account models.
+            crate::HarnessId::Muse
+            | crate::HarnessId::Cursor
+            | crate::HarnessId::Qwen
+            | crate::HarnessId::Kimi => None,
         };
         let default_effort = match id {
             crate::HarnessId::Claude
@@ -47,12 +50,15 @@ impl HarnessSettings {
             crate::HarnessId::Vibe
             | crate::HarnessId::Muse
             | crate::HarnessId::Cursor
-            | crate::HarnessId::Qwen => None,
+            | crate::HarnessId::Qwen
+            | crate::HarnessId::Kimi => None,
         };
         Ok(Self {
             harness: id.as_str().to_string(),
             executable: if id == crate::HarnessId::Cursor {
                 crate::harness::cursor_executable().to_string()
+            } else if id == crate::HarnessId::Kimi {
+                crate::harness::kimi_executable().to_string()
             } else {
                 id.executable().to_string()
             },

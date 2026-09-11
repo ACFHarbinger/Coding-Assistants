@@ -10,7 +10,7 @@ use super::sandbox_strictness_blocks;
 use crate::commands::commands::store::open_store;
 use crate::pty::{self, PtySessions};
 use hub::{
-    apply_grok_embedded_scroll_flags, cursor_executable, interactive_resume_args,
+    apply_grok_embedded_scroll_flags, cursor_executable, interactive_resume_args, kimi_executable,
     relaunch_harness_in_terminal, resolve_interactive_relaunch, start_managed_claude_channel,
     start_managed_harness, HarnessId, HarnessSessionRegistration, HarnessStartResult,
     RelaunchOutcome, ResolvedRelaunch,
@@ -101,6 +101,8 @@ pub async fn hub_relaunch_harness_embedded(
         let parsed = HarnessId::parse(&harness).map_err(|e| e.to_string())?;
         let program = if parsed == HarnessId::Cursor {
             cursor_executable()
+        } else if parsed == HarnessId::Kimi {
+            kimi_executable()
         } else {
             parsed.executable()
         };

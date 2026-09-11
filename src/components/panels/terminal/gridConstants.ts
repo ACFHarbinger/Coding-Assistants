@@ -1,4 +1,4 @@
-export const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen"] as const;
+export const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
 export type HarnessName = (typeof ALL_HARNESSES)[number];
 
 export const DISPLAY_NAMES: Record<string, string> = {
@@ -8,6 +8,8 @@ export const DISPLAY_NAMES: Record<string, string> = {
   gemini: "Gemini",
   muse: "Muse",
   cursor: "Cursor",
+  qwen: "Qwen",
+  kimi: "Kimi",
 };
 
 export function storageKey(workspace: string): string {

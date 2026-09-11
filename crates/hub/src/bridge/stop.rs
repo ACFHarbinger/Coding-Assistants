@@ -44,6 +44,7 @@ fn aliases(harness: HarnessId) -> &'static [&'static str] {
         // if capture ever persists rows under a different name.
         HarnessId::Cursor => &["cursor"],
         HarnessId::Qwen => &["qwen"],
+        HarnessId::Kimi => &["kimi"],
     }
 }
 

@@ -376,6 +376,7 @@ pub fn run() {
             harness::capture_commands::hub_capture_muse_session,
             harness::capture_commands::hub_capture_qwen_session,
             harness::capture_commands::hub_capture_vibe_session,
+            harness::capture_commands::hub_capture_kimi_session,
             harness::commands::claude_channel_list_workspaces,
             harness::commands::claude_channel_rename_workspace,
             harness::commands::claude_channel_delete_workspace,

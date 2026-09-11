@@ -15,12 +15,16 @@ use std::path::PathBuf;
 
 mod cursor_spawn;
 mod inject;
+mod kimi_spawn;
 mod qwen_spawn;
 mod spawn;
 mod start;
 mod vibe_spawn;
 pub use cursor_spawn::{cursor_executable, cursor_managed_spawn_args, cursor_spawn_args};
 pub use inject::{inject_harness, inject_harness_with_store};
+pub use kimi_spawn::{
+    kimi_disk_session_id, kimi_executable, kimi_managed_spawn_args, kimi_spawn_args,
+};
 pub use qwen_spawn::{qwen_disk_session_id, qwen_managed_spawn_args, qwen_spawn_args};
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
@@ -50,6 +54,8 @@ pub enum HarnessId {
     Cursor,
     /// Alibaba Qwen Code CLI (`qwen`). Real spawn/capture/resume is #308.
     Qwen,
+    /// Moonshot Kimi Code CLI. Real spawn/capture/resume is #309.
+    Kimi,
 }
 
 impl HarnessId {
@@ -67,8 +73,9 @@ impl HarnessId {
             "muse" | "muse-code" => Ok(Self::Muse),
             "cursor" | "cursor-agent" => Ok(Self::Cursor),
             "qwen" | "qwen-code" => Ok(Self::Qwen),
+            "kimi" | "kimi-code" | "moonshot" => Ok(Self::Kimi),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, cursor, or qwen)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, cursor, qwen, or kimi)"
             ))),
         }
     }
@@ -85,6 +92,7 @@ impl HarnessId {
             Self::Muse => "muse",
             Self::Cursor => "cursor",
             Self::Qwen => "qwen",
+            Self::Kimi => "kimi",
         }
     }
 
@@ -102,6 +110,10 @@ impl HarnessId {
             // TODO(#275): resolve `agent` vs `cursor-agent` once at setup.
             Self::Cursor => "agent",
             Self::Qwen => "qwen",
+            // A dynamic PATH/KIMI_CODE_HOME-fallback resolver
+            // (`kimi_executable`) is used at the real spawn/relaunch call
+            // sites (see `start.rs`); this is only the static label.
+            Self::Kimi => "kimi",
         }
     }
 }

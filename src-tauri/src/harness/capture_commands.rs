@@ -158,3 +158,21 @@ pub async fn hub_capture_vibe_session(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn hub_capture_kimi_session(
+    workspace: String,
+    kimi_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::kimi::KimiCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::kimi::capture_kimi_session(
+            &store,
+            &PathBuf::from(workspace),
+            kimi_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}

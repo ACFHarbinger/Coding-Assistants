@@ -11,6 +11,7 @@ const PROVIDER_OPTIONS = [
   { id: "deepseek", label: "DeepSeek" },
   { id: "vibe", label: "Mistral Vibe" },
   { id: "qwen", label: "Qwen Code" },
+  { id: "kimi", label: "Kimi" },
   { id: "custom", label: "Custom Provider" },
 ];
 

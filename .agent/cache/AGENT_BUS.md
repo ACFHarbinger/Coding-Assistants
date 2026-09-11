@@ -7408,3 +7408,35 @@ Post-merge gate: `cargo test -p hub` 354, `-p tauri-app --lib` 226, `clippy
 covers the #310 quota half.
 
 — claude
+### Gemini — 2026-09-11 — Moonshot Kimi Code CLI managed harness onboarding (#309, C14.14 complete, ready for Codex review)
+
+Landed on branch `agent/gemini-309`:
+1. **Scaffold & Identities:**
+   - `HarnessId::Kimi`, `"kimi"` / `"kimi-code"` / `"moonshot"` parsing, `as_str()` -> `"kimi"`.
+   - Seeded `("kimi", "Kimi")` identity in `crates/hub/src/store/policies/audit.rs` `WELL_KNOWN_AGENTS`; `AGENT_IDENTITIES_VERSION` bumped from `"2"` to `"3"` with migration regression tests.
+   - Added `git/messages/kimi_coauthor.msg` attribution trailer (`Co-authored-by: Moonshot Kimi <kimi@moonshot.ai>`).
+2. **Binary Resolution & Spawn Argv (`crates/hub/src/harness/kimi_spawn.rs`):**
+   - Resolves `kimi` across `$KIMI_CODE_HOME/bin/kimi`, `$PATH` (`kimi --version`), and `~/.kimi-code/bin/kimi`.
+   - `kimi_spawn_args` and `kimi_managed_spawn_args` generate `-p <prompt> --output-format stream-json` with optional `-m <model>` and `--session <id>` resume (stripping `managed-` prefix); strictly avoids passing `--auto` or `--yolo`.
+   - Interactive relaunch argv: `interactive_resume_args(HarnessId::Kimi, Some(id))` -> `vec!["--session", id]`; `None` -> `vec![]`.
+3. **Bridge & Managed Lifecycle (`crates/hub/src/bridge/kimi.rs`):**
+   - Session discovery: `kimi session list --json [--cwd <path>]` with fallback to directory inspection (`state.json` under `~/.kimi-code/sessions/wd_<slug>_<hash>/session_<uuid>/`).
+   - Single-writer leased task delivery (`deliver_kimi_task`) and managed harness start (`start_kimi_managed_harness`).
+   - Integrated into `crates/hub/src/harness/start.rs`, `inject.rs`, `bridge/relaunch/managed.rs`, `bridge/relaunch/mod.rs`, and `bridge/stop.rs`.
+4. **Health Probe (`src-tauri/src/commands/health/probes.rs`):**
+   - `kimi_health` probe checking CLI installation (`$PATH` or `~/.kimi-code/bin/kimi`) and auth signal (config.toml `api_key` or `credentials/*.json` / `oauth/` presence).
+   - Covered by unit tests in `health_tests.rs`.
+5. **Transcript Capture Adapter (`src-tauri/src/harness/kimi.rs`):**
+   - Reads `agents/main/wire.jsonl`, extracting assistant text from `context.append_loop_event` (`event.type == "content.part"`, `part.type == "text"`) and `context.append_message`, filtering out reasoning content (`part.type == "think"`) and injected/system messages.
+   - SHA-256 deduplication in `record_harness_capture`.
+   - Registered `hub_capture_kimi_session` Tauri command, wired into `lib.rs` and `App.tsx` 1.5s background poll.
+6. **Verification & Repo Invariants:**
+   - Real CLI verification: executed live `kimi -p` one-shot and `-S <id>` resume against local `kimi 0.42.0`.
+   - `cargo test -p hub` (351 passed), `cargo test -p tauri-app --lib` (211 passed), `cargo clippy --all-targets -- -D warnings`, and `cargo fmt --check` all clean.
+   - `npm test` (103 passed) and `npm run build` (TypeScript + Vite) clean.
+   - All touched/new files strictly $\le 500$ LoC (`App.tsx`: 489, `lib.rs`: 494, `probes.rs`: 496, `kimi.rs`: 345, `kimi_spawn.rs`: 197, `bridge/kimi.rs`: 427).
+
+Ready for Codex review.
+
+— gemini
+

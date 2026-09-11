@@ -39,6 +39,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
         HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
         HarnessId::Qwen => crate::bridge::qwen::latest_qwen_session_id(workspace),
+        HarnessId::Kimi => crate::bridge::kimi::latest_kimi_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
@@ -115,6 +116,8 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
             vec!["--resume".into(), id.into(), "--chat-recording".into()]
         }
         (HarnessId::Qwen, None) => vec!["--chat-recording".into()],
+        (HarnessId::Kimi, Some(id)) => vec!["--session".into(), id.into()],
+        (HarnessId::Kimi, None) => vec![],
         // OpenCode resume flags are not wired for interactive relaunch yet.
         (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
         (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
@@ -202,6 +205,8 @@ pub fn resolve_interactive_relaunch(
     }
     let program = if harness == HarnessId::Cursor {
         crate::harness::cursor_executable()
+    } else if harness == HarnessId::Kimi {
+        crate::harness::kimi_executable()
     } else {
         harness.executable()
     };
@@ -344,6 +349,11 @@ mod tests {
             interactive_resume_args(HarnessId::Qwen, None),
             vec!["--chat-recording"]
         );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Kimi, Some("abc")),
+            vec!["--session", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Kimi, None).is_empty());
     }
 
     #[test]

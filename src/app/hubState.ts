@@ -15,6 +15,7 @@ export const PROVIDERS: Record<string, string> = {
   deepseek: "DeepSeek",
   vibe: "Vibe",
   qwen: "Qwen",
+  kimi: "Kimi",
   chat: "Chat",
   codex: "Codex",
   github_copilot: "GitHub Copilot",

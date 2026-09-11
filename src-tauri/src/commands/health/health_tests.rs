@@ -350,3 +350,32 @@ fn mistral_health_names_the_plan_and_never_leaks_customer_id() {
     assert_eq!(h4.authenticated, Some(true));
     assert!(h4.detail.contains("not on PATH"), "{}", h4.detail);
 }
+
+#[test]
+fn kimi_health_covers_all_installation_and_auth_states() {
+    let h1 = kimi_health_with(true, true);
+    assert!(h1.installed);
+    assert_eq!(h1.authenticated, Some(true));
+    assert_eq!(h1.agent_id, "kimi");
+    assert_eq!(h1.provider, "moonshot");
+    assert!(h1.detail.contains("installed and authenticated"));
+
+    let h2 = kimi_health_with(true, false);
+    assert!(h2.installed);
+    assert_eq!(h2.authenticated, Some(false));
+    assert!(h2.detail.contains("not authenticated"));
+
+    let h3 = kimi_health_with(false, true);
+    assert!(!h3.installed);
+    assert_eq!(h3.authenticated, Some(true));
+    assert!(h3.detail.contains("credentials exist"));
+
+    let h4 = kimi_health_with(false, false);
+    assert!(!h4.installed);
+    assert_eq!(h4.authenticated, Some(false));
+    assert!(h4.detail.contains("not installed"));
+
+    let live = probe("kimi");
+    assert_eq!(live.agent_id, "kimi");
+    assert_eq!(live.provider, "moonshot");
+}

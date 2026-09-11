@@ -438,3 +438,59 @@ pub(crate) const LLAMACPP_BINS: &[&str] = &["llama-server", "llama-cli", "llama-
 pub(crate) fn llamacpp_health() -> ProviderHealth {
     local_runtime_health_multi(&LLAMACPP, LLAMACPP_BINS)
 }
+
+pub(crate) const KIMI: Ids = Ids {
+    agent_id: "kimi",
+    provider: "moonshot",
+    title: "Moonshot Kimi",
+};
+
+pub(crate) fn kimi_health_with(installed: bool, authenticated: bool) -> ProviderHealth {
+    health(
+        &KIMI,
+        installed,
+        Some(authenticated),
+        None,
+        match (installed, authenticated) {
+            (true, true) => "Kimi Code is installed and authenticated",
+            (true, false) => "Kimi Code is installed but not authenticated; run `kimi login`",
+            (false, true) => "Kimi credentials exist but `kimi` binary was not found",
+            (false, false) => "`kimi` is not installed and no Kimi credentials were found",
+        },
+    )
+}
+
+pub(crate) fn kimi_config_dir() -> PathBuf {
+    match std::env::var("KIMI_CODE_HOME") {
+        Ok(dir) if !dir.trim().is_empty() => PathBuf::from(dir),
+        _ => home_dir().join(".kimi-code"),
+    }
+}
+
+pub(crate) fn kimi_authenticated() -> bool {
+    let base = kimi_config_dir();
+    let has_file = |dir: std::path::PathBuf| {
+        std::fs::read_dir(dir)
+            .ok()
+            .map(|mut e| e.any(|entry| entry.map(|e| e.path().is_file()).unwrap_or(false)))
+            .unwrap_or(false)
+    };
+    if has_file(base.join("oauth")) || has_file(base.join("credentials")) {
+        return true;
+    }
+    std::fs::read_to_string(base.join("config.toml"))
+        .map(|raw| {
+            raw.lines().any(|l| {
+                let t = l.trim();
+                t.starts_with("api_key") && !t.contains("\"\"") && !t.contains("''")
+            })
+        })
+        .unwrap_or(false)
+}
+
+pub(crate) fn kimi_health() -> ProviderHealth {
+    let installed =
+        resolve_binary("kimi").is_some() || kimi_config_dir().join("bin").join("kimi").is_file();
+    let authenticated = kimi_authenticated();
+    kimi_health_with(installed, authenticated)
+}

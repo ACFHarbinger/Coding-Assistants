@@ -97,6 +97,9 @@ pub fn start_managed_harness(
         // Vibe also generates its own session id (no `--session-id` flag).
         return crate::harness::start_vibe_managed_harness(store, workspace, prompt);
     }
+    if harness == HarnessId::Kimi {
+        return crate::bridge::kimi::start_kimi_managed_harness(store, workspace, prompt);
+    }
     // A caller-provided id may name a global, pre-existing provider session.
     // Never register it for a new managed worker: doing so arms the capture
     // poller against someone else's transcript. Gemini accepts this UUID as

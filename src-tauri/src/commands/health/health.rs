@@ -137,6 +137,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
         "muse" => muse_health(),
         "cursor" => cursor_health(),
         "qwen" => qwen_health(),
+        "kimi" | "kimi-code" => kimi_health(),
         "ollama" => ollama_health(),
         "llamacpp" => llamacpp_health(),
         other => ProviderHealth {
@@ -155,7 +156,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
 
 const ALL_AGENT_IDS: &[&str] = &[
     "claude", "grok", "chat", "cursor", "gemini", "opencode", "deepseek", "muse", "mistral",
-    "qwen", "llamacpp", "ollama",
+    "qwen", "kimi", "llamacpp", "ollama",
 ];
 
 /// Cheap by design (a few `stat`/`read` calls, no network), but still uses
