@@ -7575,3 +7575,108 @@ All four branches from this batch (#310, #308, #309, #303) are now landed.
 `git push` is due whenever the owner wants it public.
 
 — claude
+
+### Claude — 2026-09-11 — NEW BATCH: consolidate #303's balance duplication, then three fresh assignments
+
+Afonso: "let's consolidate this, then start delegating more work." Team note:
+**OpenCode is not present right now** — available implementers are Cursor,
+Gemini, Muse, Grok; Codex stays review lead as always.
+
+---
+
+**@Gemini — consolidate `ProviderQuotaBalance` / `BalanceBreakdown`.** You
+authored both halves (`PaygQuotaMeter` + the #303 `BalanceBreakdownBar`), so
+you have the most context — no spike needed, the design is below.
+
+**The finding:** two backend types now describe "how is this balance
+composed" with overlapping source data — `ProviderQuotaBalance`
+(`total`/`paid`/`gift`, `f64` dollars, `kind: "balance"|"spend"`) and the new
+`BalanceBreakdown` (`spent`/`budget`/`free`, `i64` minor-unit cents). Cursor
+populates only the new one (real win — was plain text). DeepSeek populates
+*both*; `HubCharts`'s render guard routes DeepSeek's `kind="balance"` to
+`PaygQuotaMeter`, so its `balance_breakdown` is computed, unit-tested, and
+never reaches the screen.
+
+**Design — smallest safe unification, reuse `ProviderQuotaBalance`, drop
+`BalanceBreakdown` entirely:**
+
+1. Add exactly **one** new field to `ProviderQuotaBalance`
+   (`src-tauri/src/commands/quota/codex.rs`): `pub spent: Option<f64>`. For
+   `kind: Some("spend")`, reinterpret the existing fields rather than adding
+   more: `total` = the period budget/cap, `spent` = amount consumed against
+   it, `granted`/`gift` = free/bonus credits (same "free money" concept the
+   balance-kind already uses these for). `topped_up`/`paid` stay `None` for
+   spend-kind — nothing to put there.
+2. `cursor.rs`: replace `balance_breakdown_from_period_usage` with a
+   `balance_info` build using `kind: Some("spend".into())`, `total: limit
+   dollars`, `spent: Some(included+on_demand dollars)`, `gift: Some(bonus
+   dollars)`. Cents→dollars is just `/ 100.0` — you already compute cents
+   internally via `json_cents`, so this is a smaller diff than it sounds.
+3. `deepseek.rs`: **delete** `breakdown_from_info`, its two tests, and the
+   `balance_breakdown` population — it was always dead per the finding above.
+4. Remove `BalanceBreakdown` (the struct), the `balance_breakdown` field on
+   `ProviderQuota`, and every `balance_breakdown: None,` line across the
+   other adapters (`claude.rs`, `grok.rs`, `muse.rs`, `gemini.rs`,
+   `opencode.rs`, `qwen.rs`, `mistral.rs`, `kimi.rs`, the shared
+   `unavailable_quota` helper) — net LOC reduction, not a rename exercise.
+5. Frontend: `BalanceBreakdownBar` takes `balance: ProviderQuotaBalance`
+   instead of `breakdown: BalanceBreakdown`; computes `spent = balance.spent
+   ?? 0`, `budget = balance.total`, `free = balance.gift ?? balance.granted
+   ?? 0`; drop `formatMinorCurrency`/the cents convention, reuse whatever
+   `PaygQuotaMeter` already uses for dollar formatting. `types.ts`: remove
+   the `BalanceBreakdown` interface and the `balance_breakdown` field: drop
+   `formatMinorCurrency`/cents, reuse `PaygQuotaMeter`'s existing `$X.XX`
+   formatting. `HubCharts.tsx`'s render guard collapses to one condition:
+   `quota.balance_info?.kind === "spend" ? <BalanceBreakdownBar balance=.../>
+   : quota.balance_info ? <PaygQuotaMeter .../> : ...`.
+6. Worth a look while you're in there, not required: `paid`/`topped_up` and
+   `gift`/`granted` are already literal duplicates of each other on the
+   balance-kind side (`deepseek.rs`: `paid: topped_up, gift: granted`) — your
+   call whether that's worth trimming in the same pass or a separate note.
+
+Keep every test that currently exercises Cursor's spend windows and
+DeepSeek's balance — they should still pass with adjusted field names, not
+be deleted. `cargo test -p tauri-app --lib`, `clippy --workspace
+--all-targets`, `npm test`, `tsc --noEmit`, all files ≤500 LoC as usual.
+
+---
+
+**@Cursor — `platform.md` P14 slice A: MCP client, direct-invoke.** Full spec
+already in `platform.md` P14 — read it before starting, it names the two
+things that keep this small: `McpServerEntry` already carries spawn
+command/args/env (no new config surface needed), and `tools/list` returns a
+JSON Schema per tool (generate the argument form, don't hand-write one per
+tool). Transport prior art: `commands/quota/codex.rs`'s stdio JSON-RPC
+pattern (dedicated reader thread, `recv_timeout`, kill-on-timeout).
+Perplexity is the proof-of-concept target. Scope is **(A) only** — pick a
+tool, fill the generated form, run it, show the result. No task-record
+persistence (that's a later slice), no model-driven loop (that's gated
+behind C16, not yours).
+
+---
+
+**@Muse — `settings.md` S6 remainder: wire the real destructive actions.**
+The confirmation *framework* already landed (#132, `DangerTab.tsx`) — red/
+amber warning container, Cancel-first focus, typed-target confirmation, all
+working today for workspace-override reset. What's still stubbed is
+everything else: the tab's own copy says "Irreversible transcript, memory,
+profile, and data-purge actions remain unavailable until their backing
+behavior is implemented and reviewed." Implement those backing operations
+(transcript purge, memory purge, profile deletion, workspace data purge —
+scope exactly which ones against the S6 acceptance criteria in
+`settings.md`) and wire each into `DangerTab.tsx` reusing the existing
+typed-confirmation pattern, not a new one. Every purge needs an audit event,
+matching the existing `record_settings_audit_event` convention.
+
+---
+
+**Grok — held, not assigned yet.** Live one-shot acceptance for #308 (Qwen)
+and #309 (Kimi) is the next real thing to verify, but Qwen's OAuth token was
+401'd during development and re-login is an interactive device-flow/browser
+step — **Afonso, that one's on you before Grok can drive it.** Once `qwen`
+is re-authed, Grok can run both live acceptance passes (a real one-shot +
+resume for each) and report findings here.
+
+**@Codex** — review lead on all three active assignments, as usual.
+
+— claude
