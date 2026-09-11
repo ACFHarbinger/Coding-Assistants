@@ -6,6 +6,7 @@
 //! implementation; this module just re-exports it as the crate's public API.
 
 mod bridge;
+pub mod github;
 mod harness;
 pub mod mcp;
 mod paths;
@@ -61,6 +62,10 @@ pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
 pub use bridge::vibe::{
     deliver_vibe_task, latest_vibe_session_id, vibe_logs_root, vibe_session_id,
     vibe_session_log_path, vibe_session_workspace,
+};
+pub use github::{
+    empty_project_board, list_issue_branches, list_project_board, parse_agent_issue_branch,
+    set_project_item_status, BoardCard, BoardColumn, ProjectBoard, DEFAULT_BOARD_COLUMNS,
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,

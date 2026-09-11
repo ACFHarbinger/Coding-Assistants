@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+- **Kanban board for GitHub Project issues + internal tasks (U18, #312):**
+  Shared Hub **Board** tab lists Coding-Assistants Project 21 columns
+  (Backlog / On hold / Ready / Rejected / In progress / In review / Done)
+  via `gh project item-list` (60s poll, last-good snapshot cached in Hub
+  SQLite). Cards show labels, GitHub + Hub roster assignees, linked
+  `agent/<name>-<issue>` branches, and an editable deadline overlay.
+  Drag updates GitHub Status (`gh project item-edit`) or an internal
+  card's stored column. `gh` failure degrades to the cached board (or
+  Hub-only cards) with a notice. Auth is the existing `gh` CLI login —
+  no new OAuth app.
+
 - **Consolidate ProviderQuotaBalance and BalanceBreakdown:**
   Unified overlapping balance representations into `ProviderQuotaBalance` by adding `spent: Option<f64>` (`total` as budget cap, `spent` as consumed dollars, and `gift` as bonus/free credits when `kind = "spend"`).
   Converted Cursor quota adapter from minor-unit cents to `ProviderQuotaBalance` in dollars.

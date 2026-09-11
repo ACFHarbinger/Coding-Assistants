@@ -35,6 +35,7 @@ pub use types::*;
 
 mod agents;
 mod attachments;
+mod board;
 mod danger;
 mod exports;
 mod linked_accounts;
