@@ -28,8 +28,12 @@ type CallResult = {
 };
 
 function workspaceRoot(): string | null {
-  const value = localStorage.getItem("ca.workspaceRoot");
-  return value && value.startsWith("/") ? value : null;
+  try {
+    const value = localStorage.getItem("ca.workspaceRoot");
+    return value && value.startsWith("/") ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function McpToolsPanel() {

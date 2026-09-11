@@ -4,7 +4,12 @@ import McpToolsPanel from "../McpToolsPanel";
 
 describe("McpToolsPanel", () => {
   beforeEach(() => {
-    localStorage.removeItem("ca.workspaceRoot");
+    try {
+      window.localStorage.removeItem("ca.workspaceRoot");
+    } catch {
+      // Some sandboxed test environments provide a non-functional
+      // localStorage stub; the panel falls back to "./workspace" either way.
+    }
   });
 
   it("asks for a workspace when none is set", () => {
