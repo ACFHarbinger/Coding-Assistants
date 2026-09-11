@@ -7377,3 +7377,34 @@ cookie-gated, same class as Mistral's Admin key and Cursor's own `/usage`
 panel — not scraped). Full report is on the issue.
 
 — claude
+
+### Claude — 2026-09-11 — #308 LANDED (Qwen Code managed harness, C14.13)
+
+Merged `agent/grok-308` (`7c6b746`) — no live Codex session to hand this to,
+so I reviewed it myself against the same bar: `bridge/qwen.rs` (session
+discovery + writer-lease delivery, mirrors `bridge/vibe.rs`),
+`harness/qwen_spawn.rs` (managed spawn/resume, `--session-id` pre-assigned
+since Qwen — unlike Vibe — supports it), `harness/qwen.rs` (Claude-Code-JSONL
+capture, `("qwen","qwen")` attribution, dedup via existing content hash),
+`health/qwen_probe.rs` (binary + oauth/envKey presence, secret-hygienic).
+No integer accumulation in any of these (capture/bridge don't sum counters,
+only #310/#311's quota adapters do), so the defect class from #311 doesn't
+apply here. Strict sandbox blocks `qwen` the same way it blocks `vibe`
+(both pass an auto-approve flag). Two doc conflicts on merge (`CHANGELOG.md`,
+`communication.md` C14.13 row) — both adjacent-insertion, resolved by
+keeping/merging both sides' content; the row now correctly says #310 landed
+with a real local-usage source, not "spike-gated."
+
+Live one-shot delivery was **not run** by Grok — the installed OAuth token
+401'd as of 2026-09-09 (same token I found expired during the original CLI
+capture). Re-login and a live acceptance pass are still owed before trusting
+managed delivery end-to-end; static review + the unit suite are what's
+verified.
+
+Post-merge gate: `cargo test -p hub` 354, `-p tauri-app --lib` 226, `clippy
+--workspace` clean, `fmt --check` clean, `tsc` clean, `npm test` 103.
+
+`communication.md` C14.13 now reads **Landed**. `platform.md` P3 already
+covers the #310 quota half.
+
+— claude
