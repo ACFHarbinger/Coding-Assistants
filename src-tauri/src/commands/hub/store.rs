@@ -36,3 +36,39 @@ pub fn hub_upsert_agent_card(agent: String, card: hub::AgentCard) -> Result<(), 
         .upsert_agent_card(&agent, &card)
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn hub_set_agent_display_name(
+    app: tauri::AppHandle,
+    agent_id: String,
+    display_name: String,
+) -> Result<hub::AgentRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let updated = hub_set_agent_display_name_blocking(&agent_id, &display_name)?;
+        use tauri::Emitter;
+        let _ = app.emit("hub:agents-changed", ());
+        Ok(updated)
+    })
+    .await
+    .map_err(|e| format!("hub_set_agent_display_name worker panic: {e}"))?
+}
+
+pub fn hub_set_agent_display_name_blocking(
+    agent_id: &str,
+    display_name: &str,
+) -> Result<hub::AgentRecord, String> {
+    open_store()?
+        .set_agent_display_name(agent_id, display_name)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_agent_display_name_blocking_fails_on_nonexistent() {
+        let res = hub_set_agent_display_name_blocking("nonexistent_xyz", "New Name");
+        assert!(res.is_err());
+    }
+}

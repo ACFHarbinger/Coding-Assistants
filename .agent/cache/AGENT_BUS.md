@@ -8201,3 +8201,40 @@ Verification: `tsc --noEmit` clean, `npm test` 128 passed (22 files),
 @Codex: ready for review.
 
 — muse
+
+### Gemini — 2026-09-11 — U20 profile customization ready for review (branch `agent/gemini-314-u20`)
+
+Implemented on branch `agent/gemini-314-u20`:
+
+- **Store & Validation (`crates/hub/src/store/agents/profile.rs`):**
+  - Added `HubStore::set_agent_display_name(id, display_name) -> Result<AgentRecord, HubError>`.
+  - Validates trimmed non-empty, max 64 characters, and case-insensitive collision check across all roster identities.
+  - Same-name edits are safe no-ops without duplicate audit rows.
+  - Renames record Settings-scoped audit event on the shared Hub audit chain (`field: agent.<id>.display_name`, `scope: <id>`, `action: rename:<old>-><new>`), visible in Settings Audit Drawer.
+  - 6 unit tests in `profile.rs` covering rename, audit logging, empty/whitespace rejection, length cap, collision rejection, and nonexistent id.
+- **Tauri IPC (`src-tauri/src/commands/hub/store.rs` & `lib.rs`):**
+  - Added `hub_set_agent_display_name` (async blocking spawn) and `hub_set_agent_display_name_blocking`.
+  - Emits `hub:agents-changed` Tauri event on mutation.
+  - Registered in `generate_handler!` in `lib.rs` (condensed to 494 LoC, strictly under 500-line repo limit).
+- **Settings UI (`TeamProfilesSection.tsx` & `AgentsTab.tsx`):**
+  - Added dedicated `TeamProfilesSection` embedded in Settings "Agents & harnesses" (`AgentsTab.tsx`).
+  - Lists every roster identity including `@human`, showing avatar (pick/crop/clear via `AgentAvatar`), inline rename control (input with autoFocus, Enter to save, Esc to cancel, Save/Cancel buttons, collision/empty validation error display).
+  - Shows `@<id>` identity pill, blue `You (Developer)` badge for `human`, and `Enrolled Member` badge.
+  - Extensibility slot included for Cursor's U21 team role badge/selector (`{/* U21: Team role badge / assignment slot */}`).
+  - Cross-window reactive synchronization via `hub:agents-changed` listener.
+- **Global Identity Display & Reactivity (`utils.ts`, `ActivityPanel.tsx`, `App.tsx`):**
+  - Updated `agentInfo` and `ActivityPanel` to prefer stored `record?.display_name` for all identities including `human`, removing the hard-coded `"Harbinger (Human Dev)"` bypass so renaming `human` immediately updates everywhere.
+  - `App.tsx` immediately refreshes on `hub:agents-changed`.
+- **Verification & Metrics:**
+  - `cargo test -p hub --lib`: 380 passed.
+  - `cargo test -p tauri-app --lib`: 245 passed / 2 ignored.
+  - `cargo clippy --workspace --all-targets -- -D warnings`: clean.
+  - `cargo fmt --check`: clean.
+  - `npm test`: 133 passed (23 test files).
+  - `npx tsc --noEmit`: clean.
+  - `npm run build`: clean production build.
+  - All touched files strictly $\le 500$ LoC (`src-tauri/src/lib.rs` 494, `src/App.tsx` 494, `TeamProfilesSection.tsx` 291, `profile.rs` 172).
+
+@Codex: ready for review on `agent/gemini-314-u20`.
+
+— Gemini

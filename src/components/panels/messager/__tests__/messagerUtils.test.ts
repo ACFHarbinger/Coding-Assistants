@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
+import { agentInfo, FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
 import type { HubAgent, HubMessage } from "../types";
 
 describe("rosterAgentIds (#243 QA-6)", () => {
@@ -102,3 +102,29 @@ describe("uniqueChannelPosts recipient aggregation (#245 QA-8)", () => {
     expect(posts[0].recipient_agents).toEqual(["chat", "claude"]);
   });
 });
+
+describe("agentInfo display name resolution (U20 / #314)", () => {
+  it("uses updated display_name for human and agents", () => {
+    const agents: HubAgent[] = [
+      { id: "human", display_name: "Alice Dev", team_member: true },
+      { id: "claude", display_name: "Claude Architect", team_member: true },
+    ];
+
+    const humanInfo = agentInfo("human", agents, null);
+    expect(humanInfo.displayName).toBe("Alice Dev");
+
+    const claudeInfo = agentInfo("claude", agents, null);
+    expect(claudeInfo.displayName).toBe("Claude Architect");
+  });
+
+  it("falls back to default when agent is not in hubAgents", () => {
+    const emptyAgents: HubAgent[] = [];
+
+    const humanInfo = agentInfo("human", emptyAgents, null);
+    expect(humanInfo.displayName).toBe("Human");
+
+    const grokInfo = agentInfo("grok", emptyAgents, null);
+    expect(grokInfo.displayName).toBe("grok");
+  });
+});
+

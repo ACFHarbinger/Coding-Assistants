@@ -1,4 +1,5 @@
 import { invoke } from "../../lib/tauri";
+import type { HubAgent } from "../../app/hubState";
 import type {
   BudgetStatus,
   CreativeToolsStatus,
@@ -337,3 +338,16 @@ export function linkAccountCli(provider: string, externalLabel?: string | null):
 export function unlinkAccount(provider: string): Promise<boolean> {
   return invoke<boolean>("hub_unlink_account", { provider });
 }
+
+// ─── Team & Roster Profiles (U20 / #314) ──────────────────────────────────
+
+/** List all roster identities in the durable store. */
+export function listHubAgents(): Promise<HubAgent[]> {
+  return invoke<HubAgent[]>("hub_list_agents");
+}
+
+/** Update an agent's display name with validation and Settings audit event. */
+export function setAgentDisplayName(agentId: string, displayName: string): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_display_name", { agentId, displayName });
+}
+

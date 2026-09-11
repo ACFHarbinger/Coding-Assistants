@@ -2,6 +2,7 @@ use super::*;
 
 mod avatar;
 mod capture;
+mod profile;
 mod sessions;
 mod team;
 mod work_sessions;

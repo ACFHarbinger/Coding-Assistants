@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Profile customization: rename + Settings-surfaced profile view (U20, #314):**
+  Added `HubStore::set_agent_display_name` with validation (non-empty, max 64 chars, case-insensitive collision check) and Settings-style audit event logging.
+  Exposed typed Tauri command `hub_set_agent_display_name` (async worker + blocking helper) emitting `hub:agents-changed` on mutation.
+  Built dedicated `TeamProfilesSection` in Settings listing every roster identity (including `human`), integrating avatar pick/crop/clear via `AgentAvatar` and inline display name editing with validation feedback and extensibility slot for U21 team roles.
+  Updated Messager and Activity panels to prefer updated roster display names across all surfaces without restarting.
+
+
 - **Shared Hub roster enroll/unenroll + team persistence fix (U22, #225):**
   dropped both hard-coded persistence allowlists in `App.tsx`
   (`addAgentToTeam`/`removeAgentFromTeam`) — `hub_set_team_member` is now the

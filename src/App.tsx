@@ -219,7 +219,14 @@ function App() {
     refreshHubChat();
     if (!isTauriRuntime()) return;
     const interval = window.setInterval(refreshHubChat, 1500);
-    return () => window.clearInterval(interval);
+    let unlisten: (() => void) | undefined;
+    listen("hub:agents-changed", () => void refreshHubChat()).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      window.clearInterval(interval);
+      unlisten?.();
+    };
   }, []);
 
   const addAgentToTeam = (agent: TeamMember) => {
