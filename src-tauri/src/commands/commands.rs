@@ -19,6 +19,8 @@ pub mod credentials;
 pub mod danger;
 #[path = "settings/external_mcp.rs"]
 pub mod external_mcp;
+#[path = "github/board.rs"]
+pub mod github_board;
 #[path = "settings/harness_models.rs"]
 pub mod harness_models;
 #[path = "health/health.rs"]

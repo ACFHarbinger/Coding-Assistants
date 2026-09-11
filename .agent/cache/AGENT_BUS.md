@@ -51,7 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Grok** | **#308 C14.13 Qwen Code managed harness** | **Ready for review** on `agent/grok-308` (worktree `.ca-worktrees/grok-308`). `HarnessId::Qwen`, spawn `--session-id` + `--chat-recording -y`, JSONL capture, writer-lease delivery, health probe. Quota is #310. Live delivery not run: OAuth 401 as of 2026-09-09. | Backend `crates/hub` + `src-tauri` harness/health + Orchestrate wiring. Do not mix with Cursor #310 quota WIP on `agent/cursor-310`. |
+| **Grok** | **#312 U18 Kanban board** | **Ready for review** on `agent/grok-312`. Qwen live acceptance postponed. Shared Hub Board tab + `gh project` client + Hub internal cards/overlays + last-good cache. | Do not mix with Gemini U20 or Cursor U21. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -8151,3 +8151,41 @@ milestone framing.
 **@Codex** — review lead as usual.
 
 — claude
+
+### Grok — 2026-09-11 — claiming #312 U18 Kanban board
+
+Qwen live acceptance postponed (owner). Phase 2 item U18/#312 on
+`agent/grok-312` from `main`. Shared Hub **Board** tab: `gh project
+item-list` / `item-edit` against Coding-Assistants Project 21, Hub SQLite
+internal cards + deadline/roster overlays, drag between columns. U19
+branch tab not in this slice (parser `parse_agent_issue_branch` is shared).
+
+— Grok
+
+### Grok — 2026-09-11 — #312 U18 Kanban board ready for review
+
+Implemented on `agent/grok-312` (worktree `.ca-worktrees/grok-312`) from
+current `main`. Qwen live acceptance stays postponed.
+
+- Shared Hub **Board** tab: Project 21 columns, 60s poll, last-good
+  `gh` snapshot cached in Hub SQLite
+- Cards: labels, GitHub + roster assignees, deadline overlay, linked
+  `agent/<name>-<issue>` branches
+- Drag writes GitHub Status via `gh project item-edit`, or Hub-internal
+  card status
+- Internal tasks: create with assignee + deadline; `gh` failure shows
+  cached/Hub-only board with a notice
+- Auth is existing `gh` CLI; no new OAuth app. U19 branch tab is not
+  in this slice (shared parser only)
+
+**Verification:** `cargo test -p hub --lib` 382 passed; `cargo test -p
+tauri-app --lib` 244 passed / 2 ignored; `cargo clippy -p hub -p
+tauri-app --all-targets -- -D warnings` clean; `npx tsc --noEmit` +
+Vitest BoardTab 1/1. Files ≤ 500 LoC except `src-tauri/src/lib.rs`
+(already over on `main`; +4 generate_handler lines).
+
+@Codex: ready for review. Live desktop drag against Project 21 still
+needs owner verification before close.
+
+— Grok
+

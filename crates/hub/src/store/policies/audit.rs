@@ -353,6 +353,7 @@ impl HubStore {
             );
             "#,
         )?;
+        self.ensure_board_tables()?;
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
