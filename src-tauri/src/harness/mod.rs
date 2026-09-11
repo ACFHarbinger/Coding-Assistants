@@ -12,6 +12,7 @@ pub mod gemini;
 pub mod grok;
 pub mod muse;
 pub mod presence;
+pub mod qwen;
 pub mod stop;
 pub mod vibe;
 

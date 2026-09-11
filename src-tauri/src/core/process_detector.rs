@@ -27,6 +27,7 @@ fn classify_command(command: &str) -> Option<(&'static str, &'static str)> {
         "grok" | "supergrok" => Some(("Grok", "xai")),
         "opencode" => Some(("OpenCode", "opencode")),
         "vibe" => Some(("Mistral", "mistral")),
+        "qwen" | "qwen-code" => Some(("Qwen", "alibaba")),
         _ => None,
     }
 }
@@ -89,6 +90,10 @@ mod tests {
         assert_eq!(
             classify_command("vibe -p review --trust --output text"),
             Some(("Mistral", "mistral"))
+        );
+        assert_eq!(
+            classify_command("qwen --session-id abc -y review"),
+            Some(("Qwen", "alibaba"))
         );
     }
 

@@ -38,6 +38,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
         HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
         HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
+        HarnessId::Qwen => crate::bridge::qwen::latest_qwen_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
@@ -109,6 +110,11 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Cursor, None) => vec![],
         (HarnessId::Vibe, Some(id)) => vec!["--resume".into(), id.into()],
         (HarnessId::Vibe, None) => vec![],
+        // `--chat-recording` must be set or `-c`/`-r` are no-ops (qwen 0.23.2).
+        (HarnessId::Qwen, Some(id)) => {
+            vec!["--resume".into(), id.into(), "--chat-recording".into()]
+        }
+        (HarnessId::Qwen, None) => vec!["--chat-recording".into()],
         // OpenCode resume flags are not wired for interactive relaunch yet.
         (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
         (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
@@ -330,6 +336,14 @@ mod tests {
             vec!["--resume", "abc"]
         );
         assert!(interactive_resume_args(HarnessId::Vibe, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, Some("abc")),
+            vec!["--resume", "abc", "--chat-recording"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, None),
+            vec!["--chat-recording"]
+        );
     }
 
     #[test]

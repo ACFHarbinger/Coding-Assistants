@@ -194,6 +194,7 @@ function App() {
           ["hub_capture_gemini_session", "geminiSessionId"],
           ["hub_capture_cursor_session", "cursorSessionId"],
           ["hub_capture_muse_session", "museSessionId"],
+          ["hub_capture_qwen_session", "qwenSessionId"],
           ["hub_capture_vibe_session", "vibeSessionId"],
         ] as const;
         const captures = await Promise.allSettled(

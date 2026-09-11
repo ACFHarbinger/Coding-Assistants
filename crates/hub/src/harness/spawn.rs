@@ -470,6 +470,10 @@ mod tests {
         assert_eq!(HarnessId::parse("opencode").unwrap(), HarnessId::OpenCode);
         assert_eq!(HarnessId::parse("deepseek").unwrap(), HarnessId::DeepSeek);
         assert_eq!(HarnessId::parse("mistral").unwrap(), HarnessId::Vibe);
+        assert_eq!(HarnessId::parse("qwen").unwrap(), HarnessId::Qwen);
+        assert_eq!(HarnessId::parse("qwen-code").unwrap(), HarnessId::Qwen);
+        assert_eq!(HarnessId::Qwen.as_str(), "qwen");
+        assert_eq!(HarnessId::Qwen.executable(), "qwen");
         assert!(HarnessId::parse("ollama").is_err());
     }
 

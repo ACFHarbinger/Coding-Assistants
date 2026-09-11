@@ -121,7 +121,9 @@ pub(crate) fn health(
 }
 
 mod probes;
+mod qwen_probe;
 pub(crate) use probes::*;
+pub(crate) use qwen_probe::*;
 
 fn probe(agent_id: &str) -> ProviderHealth {
     match agent_id {
@@ -134,6 +136,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
         "mistral" | "vibe" => mistral_health(),
         "muse" => muse_health(),
         "cursor" => cursor_health(),
+        "qwen" => qwen_health(),
         "ollama" => ollama_health(),
         "llamacpp" => llamacpp_health(),
         other => ProviderHealth {
@@ -152,7 +155,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
 
 const ALL_AGENT_IDS: &[&str] = &[
     "claude", "grok", "chat", "cursor", "gemini", "opencode", "deepseek", "muse", "mistral",
-    "llamacpp", "ollama",
+    "qwen", "llamacpp", "ollama",
 ];
 
 /// Cheap by design (a few `stat`/`read` calls, no network), but still uses

@@ -69,6 +69,26 @@ fn health_snapshot_serializes_camel_case_and_hides_none_fields() {
 }
 
 #[test]
+fn qwen_health_covers_login_and_unknown_states() {
+    let logged_in = qwen_health_with(true, QwenAuth::LoggedIn);
+    assert!(logged_in.installed);
+    assert_eq!(logged_in.authenticated, Some(true));
+    assert!(logged_in.detail.contains("login marker"));
+
+    let logged_out = qwen_health_with(true, QwenAuth::LoggedOut);
+    assert_eq!(logged_out.authenticated, Some(false));
+    assert!(logged_out.detail.contains("not logged in"));
+
+    let unknown = qwen_health_with(true, QwenAuth::Unknown);
+    assert_eq!(unknown.authenticated, None);
+    assert_eq!(unknown.agent_id, "qwen");
+
+    let missing = qwen_health_with(false, QwenAuth::Unknown);
+    assert!(!missing.installed);
+    assert_eq!(missing.authenticated, Some(false));
+}
+
+#[test]
 fn muse_health_covers_all_installation_and_login_states() {
     let both = muse_health_with(true, true);
     assert!(both.installed);

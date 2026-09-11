@@ -35,7 +35,7 @@ impl HarnessSettings {
             // `MUSE_DEFAULT_MODEL` fallback + `get_available_models`
             // instead, where it cannot leak into harness spawns.
             // Cursor uses its own account model config.
-            crate::HarnessId::Muse | crate::HarnessId::Cursor => None,
+            crate::HarnessId::Muse | crate::HarnessId::Cursor | crate::HarnessId::Qwen => None,
         };
         let default_effort = match id {
             crate::HarnessId::Claude
@@ -44,7 +44,10 @@ impl HarnessSettings {
             | crate::HarnessId::Grok
             | crate::HarnessId::OpenCode
             | crate::HarnessId::DeepSeek => Some("medium".to_string()),
-            crate::HarnessId::Vibe | crate::HarnessId::Muse | crate::HarnessId::Cursor => None,
+            crate::HarnessId::Vibe
+            | crate::HarnessId::Muse
+            | crate::HarnessId::Cursor
+            | crate::HarnessId::Qwen => None,
         };
         Ok(Self {
             harness: id.as_str().to_string(),

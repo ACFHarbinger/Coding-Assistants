@@ -1,4 +1,4 @@
-export const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor"] as const;
+export const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen"] as const;
 export type HarnessName = (typeof ALL_HARNESSES)[number];
 
 export const DISPLAY_NAMES: Record<string, string> = {

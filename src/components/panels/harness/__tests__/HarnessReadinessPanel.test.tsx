@@ -138,12 +138,15 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
   it("includes muse and cursor in prerequisites and live terminal harness types", () => {
     expect(LIVE_TERMINAL_HARNESSES).toContain("muse");
     expect(LIVE_TERMINAL_HARNESSES).toContain("cursor");
+    expect(LIVE_TERMINAL_HARNESSES).toContain("qwen");
 
     expect(HARNESS_PREREQUISITES.muse).toContain("muse exec --session-id");
     expect(HARNESS_PREREQUISITES.cursor).toContain("agent -p");
+    expect(HARNESS_PREREQUISITES.qwen).toContain("qwen --session-id");
 
     expect(sessionAliases("muse")).toEqual(["muse"]);
     expect(sessionAliases("cursor")).toEqual(["cursor"]);
+    expect(sessionAliases("qwen")).toEqual(["qwen"]);
   });
 
   it("renders muse and cursor in the harness provider dropdown and registered session rows", async () => {
@@ -158,6 +161,7 @@ describe("HarnessReadinessPanel with muse and cursor (#278)", () => {
     expect(optionValues).toContain("gemini");
     expect(optionValues).toContain("muse");
     expect(optionValues).toContain("cursor");
+    expect(optionValues).toContain("qwen");
 
     // Wait for async sessions to load and render session cards
     expect(await screen.findByText(/12345678-1234-1234-1234-123456789abc/)).toBeInTheDocument();

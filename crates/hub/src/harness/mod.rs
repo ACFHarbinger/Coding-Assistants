@@ -15,11 +15,13 @@ use std::path::PathBuf;
 
 mod cursor_spawn;
 mod inject;
+mod qwen_spawn;
 mod spawn;
 mod start;
 mod vibe_spawn;
 pub use cursor_spawn::{cursor_executable, cursor_managed_spawn_args, cursor_spawn_args};
 pub use inject::{inject_harness, inject_harness_with_store};
+pub use qwen_spawn::{qwen_disk_session_id, qwen_managed_spawn_args, qwen_spawn_args};
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, muse_disk_session_id, muse_managed_spawn_args, muse_spawn_args,
@@ -46,6 +48,8 @@ pub enum HarnessId {
     /// Cursor local CLI agent (`agent`, some installs `cursor-agent`). Real
     /// spawn/capture/resume is #275.
     Cursor,
+    /// Alibaba Qwen Code CLI (`qwen`). Real spawn/capture/resume is #308.
+    Qwen,
 }
 
 impl HarnessId {
@@ -62,8 +66,9 @@ impl HarnessId {
             // and the Muse Spark model provider (#274); "meta" alone is ambiguous.
             "muse" | "muse-code" => Ok(Self::Muse),
             "cursor" | "cursor-agent" => Ok(Self::Cursor),
+            "qwen" | "qwen-code" => Ok(Self::Qwen),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, or cursor)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, cursor, or qwen)"
             ))),
         }
     }
@@ -79,6 +84,7 @@ impl HarnessId {
             Self::Vibe => "vibe",
             Self::Muse => "muse",
             Self::Cursor => "cursor",
+            Self::Qwen => "qwen",
         }
     }
 
@@ -95,6 +101,7 @@ impl HarnessId {
             Self::Muse => "muse",
             // TODO(#275): resolve `agent` vs `cursor-agent` once at setup.
             Self::Cursor => "agent",
+            Self::Qwen => "qwen",
         }
     }
 }

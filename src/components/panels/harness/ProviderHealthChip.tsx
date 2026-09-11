@@ -9,6 +9,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   agy: "Gemini",
   muse: "Muse",
   cursor: "Cursor",
+  qwen: "Qwen",
 };
 
 interface ProviderHealthChipProps {
