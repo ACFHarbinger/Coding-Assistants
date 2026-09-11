@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Usage tab currency balance breakdown visualization (#303):**
+  Turned opaque balance text into a stacked horizontal breakdown bar in `HubCharts.tsx`
+  comparing consumed spend (filled `#38bdf8`, or `#ef4444` if exceeding allowance),
+  available budget (theme-aware `var(--primary)` with `<25%` amber and `<10%` red warning colors),
+  and free/promotional credits (`#34d399`), with currency-formatted total labels. Added
+  `BalanceBreakdown { currency, spent_minor, budget_minor, free_minor }` (cents) and optional
+  `balance_breakdown` field on `ProviderQuota`. Implemented breakdown extraction in `deepseek.rs`
+  (granted vs topped-up balance) and `cursor.rs` (included spend, on-demand spend, bonus spend,
+  and limit), cleanly degrading to `None` on schema drift. Added `formatMinorCurrency` and
+  `BalanceBreakdownBar` with progressbar ARIA accessibility, legend, and theme compatibility.
+  Added unit tests in Rust and Vitest (114 frontend tests pass, 211 cargo tests pass, all files ≤ 500 LoC).
+
 - **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
   added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
   `$VIBE_HOME/logs/session/session_*`, filtering to `role == "assistant"` and

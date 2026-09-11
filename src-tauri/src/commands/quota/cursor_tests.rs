@@ -1,5 +1,36 @@
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CursorContractSummary {
+    pub has_billing_cycle: bool,
+    pub auto_percent: Option<i32>,
+    pub api_percent: Option<i32>,
+    pub total_percent: Option<i32>,
+    pub total_spend_cents: Option<i64>,
+    pub limit_cents: Option<i64>,
+}
+
+pub(crate) fn verify_usage_contract(
+    value: &Value,
+) -> Result<CursorContractSummary, SchemaDriftReason> {
+    check_usage_schema(value)?;
+    let plan = object_field(value, "planUsage", "plan_usage").unwrap();
+    let has_billing_cycle = object_field(value, "billingCycleEnd", "billing_cycle_end")
+        .or_else(|| object_field(plan, "billingCycleEnd", "billing_cycle_end"))
+        .is_some();
+    Ok(CursorContractSummary {
+        has_billing_cycle,
+        auto_percent: object_field(plan, "autoPercentUsed", "auto_percent_used")
+            .and_then(json_percent),
+        api_percent: object_field(plan, "apiPercentUsed", "api_percent_used")
+            .and_then(json_percent),
+        total_percent: object_field(plan, "totalPercentUsed", "total_percent_used")
+            .and_then(json_percent),
+        total_spend_cents: object_field(plan, "totalSpend", "total_spend").and_then(json_cents),
+        limit_cents: object_field(plan, "limit", "limit").and_then(json_cents),
+    })
+}
+
 const LIVE_SAMPLE: &str = r#"{
     "billingCycleStart": "1788608599000",
     "billingCycleEnd": "1791200599000",
@@ -44,6 +75,11 @@ fn parses_live_dashboard_period_usage() {
     assert_eq!(quota.agent_id, "cursor");
     assert_eq!(quota.status, "ok");
     assert!(quota.detail.is_none());
+    let breakdown = quota.balance_breakdown.expect("live sample has breakdown");
+    assert_eq!(breakdown.currency, "USD");
+    assert_eq!(breakdown.spent_minor, 2000);
+    assert_eq!(breakdown.budget_minor, 2000);
+    assert_eq!(breakdown.free_minor, 5122);
 }
 
 #[test]
@@ -297,4 +333,24 @@ fn cursor_auth_details_from_evaluates_precedence_and_expiry() {
         no_auth.detail(false),
         "The Cursor `agent` CLI was not found on PATH"
     );
+}
+
+#[test]
+fn balance_breakdown_handles_spend_and_overage() {
+    let value: Value = serde_json::from_str(
+        r#"{
+            "planUsage": {
+                "limit": 2000,
+                "includedSpend": 2000,
+                "onDemandSpend": 410,
+                "bonusSpend": 1500
+            }
+        }"#,
+    )
+    .unwrap();
+    let breakdown = balance_breakdown_from_period_usage(&value).expect("breakdown present");
+    assert_eq!(breakdown.currency, "USD");
+    assert_eq!(breakdown.budget_minor, 2000);
+    assert_eq!(breakdown.spent_minor, 2410);
+    assert_eq!(breakdown.free_minor, 1500);
 }

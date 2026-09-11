@@ -62,6 +62,7 @@ pub(crate) fn compose_mistral_quota(
             fetched_at: now_unix(),
             balance: budget.balance,
             balance_info: budget.balance_info,
+            balance_breakdown: None,
             local_usage,
         },
         Err(admin_detail) => {
@@ -90,6 +91,7 @@ pub(crate) fn compose_mistral_quota(
                 fetched_at: now_unix(),
                 balance: None,
                 balance_info: None,
+                balance_breakdown: None,
                 local_usage: Some(local_usage),
             }
         }
