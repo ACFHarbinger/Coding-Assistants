@@ -38,6 +38,8 @@
 
 use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaLocalUsage};
 use serde_json::Value;
+use std::collections::VecDeque;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 const AGENT_ID: &str = "qwen";
@@ -82,7 +84,11 @@ fn sum_model_counter(models: &Value, key: &str) -> u64 {
     let Some(map) = models.as_object() else {
         return 0;
     };
-    map.values().map(|model| counter(model, key)).sum()
+    // Saturating fold, not `.sum()`: a crafted or corrupt record with
+    // several models each near `u64::MAX` must clamp the total, not panic a
+    // debug build or wrap a release one into a tiny, wrong number.
+    map.values()
+        .fold(0u64, |acc, model| acc.saturating_add(counter(model, key)))
 }
 
 /// UNIX seconds from a Qwen millisecond (or already-second) timestamp.
@@ -107,14 +113,24 @@ fn session_start(record: &Value) -> Option<i64> {
 pub(crate) fn accumulate(total: &mut ProviderQuotaLocalUsage, record: &Value) {
     total.sessions += 1;
     if let Some(models) = record.get("models") {
-        total.prompt_tokens += sum_model_counter(models, "inputTokens");
-        total.completion_tokens += sum_model_counter(models, "outputTokens");
-        total.completion_tokens += sum_model_counter(models, "thoughtsTokens");
-        total.cached_tokens += sum_model_counter(models, "cachedTokens");
+        total.prompt_tokens = total
+            .prompt_tokens
+            .saturating_add(sum_model_counter(models, "inputTokens"));
+        total.completion_tokens = total
+            .completion_tokens
+            .saturating_add(sum_model_counter(models, "outputTokens"))
+            .saturating_add(sum_model_counter(models, "thoughtsTokens"));
+        total.cached_tokens = total
+            .cached_tokens
+            .saturating_add(sum_model_counter(models, "cachedTokens"));
     }
     if let Some(tools) = record.get("tools") {
-        total.tool_calls_succeeded += counter(tools, "totalSuccess");
-        total.tool_calls_failed += counter(tools, "totalFail");
+        total.tool_calls_succeeded = total
+            .tool_calls_succeeded
+            .saturating_add(counter(tools, "totalSuccess"));
+        total.tool_calls_failed = total
+            .tool_calls_failed
+            .saturating_add(counter(tools, "totalFail"));
     }
     if let Some(started) = session_start(record) {
         total.since = Some(match total.since {
@@ -127,22 +143,37 @@ pub(crate) fn accumulate(total: &mut ProviderQuotaLocalUsage, record: &Value) {
 /// Sum the last [`MAX_SESSIONS_SCANNED`] valid jsonl records. `None` when
 /// the file is missing, empty, or every line is unparseable — so callers can
 /// omit `local_usage` rather than report a row of zeroes.
+///
+/// Streams the file line by line into a bounded ring buffer rather than
+/// reading it whole and parsing every line before trimming to the cap: a
+/// long-lived install's `usage_record.jsonl` grows one line per session
+/// without bound, so peak memory here is `MAX_SESSIONS_SCANNED` parsed
+/// records, not the file's full line count.
 pub(crate) fn local_usage_from(path: &Path) -> Option<ProviderQuotaLocalUsage> {
-    let Ok(raw) = std::fs::read_to_string(path) else {
+    let Ok(file) = std::fs::File::open(path) else {
         return None;
     };
-    let mut parsed: Vec<Value> = raw
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .filter_map(|line| serde_json::from_str(line).ok())
-        .collect();
-    if parsed.len() > MAX_SESSIONS_SCANNED {
-        let skip = parsed.len() - MAX_SESSIONS_SCANNED;
-        parsed = parsed.split_off(skip);
+    let mut window: VecDeque<Value> = VecDeque::with_capacity(MAX_SESSIONS_SCANNED);
+    for line in BufReader::new(file).lines() {
+        // An I/O error (e.g. invalid UTF-8) stops the scan but keeps
+        // whatever window was already built, rather than discarding
+        // everything the way a failed whole-file read would have.
+        let Ok(line) = line else { break };
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(record) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if window.len() == MAX_SESSIONS_SCANNED {
+            window.pop_front();
+        }
+        window.push_back(record);
     }
     let mut total = ProviderQuotaLocalUsage::default();
-    for record in parsed {
-        accumulate(&mut total, &record);
+    for record in &window {
+        accumulate(&mut total, record);
     }
     (total.sessions > 0).then_some(total)
 }

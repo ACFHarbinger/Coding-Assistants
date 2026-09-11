@@ -97,6 +97,68 @@ fn negative_and_non_numeric_counters_are_ignored() {
 }
 
 #[test]
+fn near_max_counters_saturate_instead_of_panicking_or_wrapping() {
+    let mut total = ProviderQuotaLocalUsage::default();
+    // `counter()` parses via `Value::as_i64`, so the largest representable
+    // per-field value is `i64::MAX`, not `u64::MAX` — two models at that
+    // value already lands one record's fold at `u64::MAX - 1`; a second
+    // record pushes the running total's saturating_add past `u64::MAX`.
+    let huge = i64::MAX;
+    let record = json!({
+        "startTime": 1_788_978_936_079_i64,
+        "models": {
+            "qwen3.5-plus": {"inputTokens": huge, "outputTokens": huge,
+                              "cachedTokens": huge, "thoughtsTokens": 0},
+            "qwen3.5-turbo": {"inputTokens": huge, "outputTokens": huge,
+                               "cachedTokens": huge, "thoughtsTokens": huge}
+        }
+    });
+    accumulate(&mut total, &record);
+    accumulate(&mut total, &record);
+    assert_eq!(total.prompt_tokens, u64::MAX);
+    assert_eq!(total.completion_tokens, u64::MAX);
+    assert_eq!(total.cached_tokens, u64::MAX);
+}
+
+#[test]
+fn record_cap_keeps_only_the_newest_tail_without_loading_everything_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("usage_record.jsonl");
+
+    let extra = 5;
+    let mut lines = String::new();
+    for i in 0..(MAX_SESSIONS_SCANNED + extra) {
+        // A distinct sessionId per line makes each record individually
+        // identifiable without needing distinct token counts.
+        let record = json!({
+            "sessionId": format!("s{i:06}"),
+            "startTime": 1_788_000_000_000_i64 + i as i64,
+            "models": {"qwen": {"inputTokens": 1}}
+        });
+        lines.push_str(&record.to_string());
+        lines.push('\n');
+    }
+    std::fs::write(&path, lines).unwrap();
+
+    let usage = local_usage_from(&path).expect("bounded window is non-empty");
+    assert_eq!(
+        usage.sessions,
+        MAX_SESSIONS_SCANNED as u64,
+        "the cap holds even though {} records exist on disk",
+        MAX_SESSIONS_SCANNED + extra
+    );
+    assert_eq!(usage.prompt_tokens, MAX_SESSIONS_SCANNED as u64);
+    // The oldest `extra` records (s000000..s000004) fell out of the window;
+    // `since` should floor at the oldest *kept* record, s000005 — computed
+    // the same way `epoch_secs` does (integer ms -> s truncation), rather
+    // than risking an off-by-a-few from doing that arithmetic by hand here.
+    assert_eq!(
+        usage.since,
+        Some((1_788_000_000_000_i64 + extra as i64) / 1000)
+    );
+}
+
+#[test]
 fn a_missing_file_reads_as_no_usage_rather_than_zeroes() {
     let dir = tempfile::tempdir().unwrap();
     assert!(local_usage_from(&dir.path().join("never-ran.jsonl")).is_none());
