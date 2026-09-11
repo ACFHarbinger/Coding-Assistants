@@ -126,6 +126,84 @@ fn reads_real_session_layout_and_floors_since_on_oldest_created() {
 }
 
 #[test]
+fn near_max_counters_saturate_instead_of_panicking_or_wrapping() {
+    let mut total = ProviderQuotaLocalUsage::default();
+    // Two records each carrying a near-u64::MAX cache value: a naive `+=`
+    // either panics (debug overflow checks) or silently wraps to a tiny
+    // number (release). Saturating addition must clamp at u64::MAX instead.
+    let huge = u64::MAX - 1;
+    accumulate_line(
+        &mut total,
+        &json!({"type": "usage.record",
+                "usage": {"inputOther": huge, "output": huge,
+                          "inputCacheRead": huge, "inputCacheCreation": 0}}),
+    );
+    accumulate_line(
+        &mut total,
+        &json!({"type": "usage.record",
+                "usage": {"inputOther": huge, "output": huge,
+                          "inputCacheRead": huge, "inputCacheCreation": huge}}),
+    );
+    assert_eq!(total.prompt_tokens, u64::MAX);
+    assert_eq!(total.completion_tokens, u64::MAX);
+    assert_eq!(total.cached_tokens, u64::MAX);
+}
+
+#[test]
+fn session_cap_is_enforced_during_traversal_not_after_collecting_everything() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // One more session than the cap, each with a distinct mtime via a
+    // distinct createdAt (session_wires sorts by file mtime, not createdAt,
+    // but writing them in order gives ascending mtimes on any filesystem).
+    let extra = 5;
+    for i in 0..(MAX_SESSIONS_SCANNED + extra) {
+        write_session(
+            root,
+            "wd_bulk",
+            &format!("session_{i:06}"),
+            1_789_000_000_000 + i as i64,
+            &live_record(1, 1, 1, 1).to_string(),
+        );
+        // Force a distinct, monotonically increasing mtime independent of
+        // filesystem timestamp resolution (std-only, no extra dependency).
+        let wire_path = root
+            .join("wd_bulk")
+            .join(format!("session_{i:06}"))
+            .join("agents")
+            .join("main")
+            .join("wire.jsonl");
+        let when = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(i as u64);
+        std::fs::File::open(&wire_path)
+            .unwrap()
+            .set_modified(when)
+            .unwrap();
+    }
+
+    let wires = session_wires(root);
+    assert_eq!(
+        wires.len(),
+        MAX_SESSIONS_SCANNED,
+        "the cap holds even though {} sessions exist on disk",
+        MAX_SESSIONS_SCANNED + extra
+    );
+    // Newest-first: the last-written session (highest mtime) comes first,
+    // and the oldest `extra` sessions were evicted during traversal.
+    assert!(wires[0]
+        .to_string_lossy()
+        .contains(&format!("session_{:06}", MAX_SESSIONS_SCANNED + extra - 1)));
+    for i in 0..extra {
+        assert!(
+            !wires
+                .iter()
+                .any(|p| p.to_string_lossy().contains(&format!("session_{i:06}/"))),
+            "session_{i:06} is older than the cap and must have been evicted"
+        );
+    }
+}
+
+#[test]
 fn a_missing_root_reads_as_no_usage_rather_than_zeroes() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("never-ran");

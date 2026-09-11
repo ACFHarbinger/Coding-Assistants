@@ -39,6 +39,9 @@
 
 use super::quota_codex::ProviderQuotaLocalUsage;
 use serde_json::Value;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -104,9 +107,20 @@ pub(crate) fn accumulate_line(total: &mut ProviderQuotaLocalUsage, line: &Value)
     let Some(usage) = line.get("usage") else {
         return;
     };
-    total.prompt_tokens += counter(usage, "inputOther");
-    total.completion_tokens += counter(usage, "output");
-    total.cached_tokens += counter(usage, "inputCacheRead") + counter(usage, "inputCacheCreation");
+    // Saturating, not `+=`: these counters fold an unbounded number of
+    // sessions from files that are just JSON on disk — a crafted or corrupt
+    // value near `u64::MAX` must clamp the total, not panic a debug build or
+    // silently wrap a release one into a tiny, wrong number.
+    total.prompt_tokens = total
+        .prompt_tokens
+        .saturating_add(counter(usage, "inputOther"));
+    total.completion_tokens = total
+        .completion_tokens
+        .saturating_add(counter(usage, "output"));
+    total.cached_tokens = total
+        .cached_tokens
+        .saturating_add(counter(usage, "inputCacheRead"))
+        .saturating_add(counter(usage, "inputCacheCreation"));
 }
 
 /// `state.json` `createdAt` (ms epoch) beside a `wire.jsonl` path, or `None`
@@ -125,14 +139,23 @@ fn session_created_secs(wire_path: &Path) -> Option<i64> {
 }
 
 /// Fold one session's `wire.jsonl` into the running totals: the session
-/// counts when the log reads (even with zero records), and its `createdAt`
-/// floors `since`. Pure over file content except the timestamp lookup.
+/// counts when the log opens (even with zero records), and its `createdAt`
+/// floors `since`. Streams the file line by line rather than reading it
+/// whole — a `wire.jsonl` is a full agent event log (tool schemas, system
+/// prompts, every loop event), not the terse per-turn record this reader
+/// actually wants, so a long-lived session's log can be large; peak memory
+/// here is one line, not the file.
 fn accumulate_file(total: &mut ProviderQuotaLocalUsage, wire_path: &Path) {
-    let Ok(raw) = std::fs::read_to_string(wire_path) else {
+    let Ok(file) = std::fs::File::open(wire_path) else {
         return;
     };
     total.sessions += 1;
-    for line in raw.lines() {
+    for line in BufReader::new(file).lines() {
+        // An I/O error (e.g. invalid UTF-8) partway through the file stops
+        // this session's folding but keeps what was already summed, rather
+        // than discarding the whole session the way a failed whole-file read
+        // would have.
+        let Ok(line) = line else { break };
         let line = line.trim();
         if line.is_empty() {
             continue;
@@ -153,25 +176,54 @@ fn accumulate_file(total: &mut ProviderQuotaLocalUsage, wire_path: &Path) {
 }
 
 /// Newest-first list of `wire.jsonl` paths under `root`, capped at
-/// [`MAX_SESSIONS_SCANNED`]. A `root` that does not exist yields an empty
-/// list rather than an error — Kimi simply has not run yet.
+/// [`MAX_SESSIONS_SCANNED`]. Walks the CLI's own fixed two-level layout
+/// directly (`root/<workspace>/<session>/agents/main/wire.jsonl`) instead of
+/// a generic recursive directory walk, and keeps at most
+/// [`MAX_SESSIONS_SCANNED`] candidates in memory throughout via a bounded
+/// min-heap — a long-lived install with far more sessions than the cap never
+/// materializes the full list before trimming it down. A `root`, workspace,
+/// or session directory that can't be read is skipped, not fatal — Kimi
+/// simply has not run yet, or a directory disappeared mid-scan.
 fn session_wires(root: &Path) -> Vec<PathBuf> {
-    let mut wires: Vec<(SystemTime, PathBuf)> = walkdir::WalkDir::new(root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file() && entry.file_name() == "wire.jsonl")
-        .map(|entry| {
-            let modified = entry
-                .metadata()
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .unwrap_or(SystemTime::UNIX_EPOCH);
-            (modified, entry.into_path())
-        })
-        .collect();
+    // Min-heap on mtime: the *oldest* kept candidate sits at the top, so once
+    // the heap is at capacity a newer one can evict it in O(log cap) without
+    // the heap ever holding more than `MAX_SESSIONS_SCANNED` entries.
+    let mut newest: BinaryHeap<Reverse<(SystemTime, PathBuf)>> = BinaryHeap::new();
+
+    let Ok(workspace_dirs) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    for workspace_dir in workspace_dirs.flatten() {
+        let Ok(session_dirs) = std::fs::read_dir(workspace_dir.path()) else {
+            continue;
+        };
+        for session_dir in session_dirs.flatten() {
+            let wire_path = session_dir
+                .path()
+                .join("agents")
+                .join("main")
+                .join("wire.jsonl");
+            let Ok(metadata) = std::fs::metadata(&wire_path) else {
+                continue;
+            };
+            if !metadata.is_file() {
+                continue;
+            }
+            let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+            if newest.len() < MAX_SESSIONS_SCANNED {
+                newest.push(Reverse((modified, wire_path)));
+            } else if let Some(Reverse((oldest_kept, _))) = newest.peek() {
+                if modified > *oldest_kept {
+                    newest.pop();
+                    newest.push(Reverse((modified, wire_path)));
+                }
+            }
+        }
+    }
+
+    let mut wires: Vec<(SystemTime, PathBuf)> =
+        newest.into_iter().map(|Reverse(pair)| pair).collect();
     wires.sort_by(|a, b| b.0.cmp(&a.0));
-    wires.truncate(MAX_SESSIONS_SCANNED);
     wires.into_iter().map(|(_, path)| path).collect()
 }
 
