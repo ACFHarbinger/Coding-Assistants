@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+- **Team role assignment (U21, #315):**
+  Added nullable `role` column to `agents` table schema and `AgentRecord` with soft migration in `HubStore`.
+  Implemented `HubStore::set_agent_role` with role trimming, 64-character maximum length cap, None/empty clearing, and Settings-scoped audit event recording (`field: agent.<id>.role`, `scope: <id>`).
+  Exposed typed Tauri command `hub_set_agent_role` emitting `hub:agents-changed` on mutation for immediate multi-window synchronization.
+  Built shared reusable `<TeamRoleBadge />` component supporting standard role presets (`lead`, `reviewer`, `implementer`, `observer`) with distinctive color coding and icons, plus custom arbitrary role labels.
+  Created `RoleAssignmentControl` integrated into Settings `TeamProfilesSection` allowing assigning, editing, or clearing roles for every roster identity (including `human`).
+  Surfaced team role badges across MessagerSidebar (Direct Messages roster), ChatHeader (active direct message peer), and HarnessReadinessPanel (harness session rows). Purely descriptive v1 without behavioral gating.
+
+- **Profile customization: rename + Settings-surfaced profile view (U20, #314):**
+  Added `HubStore::set_agent_display_name` with validation (non-empty, max 64 chars, case-insensitive collision check) and Settings-style audit event logging.
+  Exposed typed Tauri command `hub_set_agent_display_name` (async worker + blocking helper) emitting `hub:agents-changed` on mutation.
+  Built dedicated `TeamProfilesSection` in Settings listing every roster identity (including `human`), integrating avatar pick/crop/clear via `AgentAvatar` and inline display name editing with validation feedback and extensibility slot for U21 team roles.
+  Updated Messager and Activity panels to prefer updated roster display names across all surfaces without restarting.
+  Hardened `HubStore::upsert_agent` with a `custom_display_name` flag to preserve intentional user renames against routine message sends, wakes, policies, tasks, and future identity seeding passes. Added regression test verifying custom renames survive routine operations.
+
+- **Shared Hub roster enroll/unenroll + team persistence fix (U22, #225):**
+  Dropped both hard-coded persistence allowlists in `App.tsx` (`addAgentToTeam`/`removeAgentFromTeam`) — `hub_set_team_member` is now the source of truth for every roster identity, with a visible error banner when persistence fails.
+  Synchronized persistence lifecycle: `addAgentToTeam` and `removeAgentFromTeam` return and await the persistence promise, updating local `teamMembers` only upon resolution and propagating errors.
+  `HubPanel.enrollAgent`/`unenrollAgent` properly awaits the persistence operation before refreshing agents in `finally`, eliminating races against stale state.
+  Shared Hub roster rows (`DashboardPanel`) feature Enroll/Unenroll buttons wired through the shared mapping and guard (`src/app/team.ts`). Added tests for failed enroll and failed unenroll verifying UI consistency with `HubStore` and error display.
+
+
 
 - **Consolidate ProviderQuotaBalance and BalanceBreakdown:**
   Unified overlapping balance representations into `ProviderQuotaBalance` by adding `spent: Option<f64>` (`total` as budget cap, `spent` as consumed dollars, and `gift` as bonus/free credits when `kind = "spend"`).

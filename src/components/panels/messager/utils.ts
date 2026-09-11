@@ -55,11 +55,12 @@ export function agentInfo(
     role: "Agent Participant",
   };
   const record = hubAgents.find((agent) => agent.id === agentId);
-  const displayName = agentId === "human"
-    ? "Harbinger (Human Dev)"
-    : record?.display_name || agentId;
+  const displayName = record?.display_name || (agentId === "human" ? "Human" : agentId);
+  const assignedRole = record?.role ?? null;
   return {
     ...info,
+    role: assignedRole || info.role,
+    assignedRole,
     displayName,
     isLive: agentIsLive(agentId, presence),
     avatarAttachmentId: record?.avatar_attachment_id ?? null,

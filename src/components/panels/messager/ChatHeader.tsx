@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { AgentAvatar } from "./AgentAvatar";
+import { TeamRoleBadge } from "../../common/TeamRoleBadge";
 export default function ChatHeader(props: any) {
   const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, jumpToStartRef, stickToBottomRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink } = props;
   return (
@@ -25,6 +26,9 @@ export default function ChatHeader(props: any) {
                       size={28}
                     />
                     <span>Direct Message: {peer.displayName}</span>
+                    {peer.assignedRole && (
+                      <TeamRoleBadge role={peer.assignedRole} size="normal" />
+                    )}
                   </>
                 );
               })() : (

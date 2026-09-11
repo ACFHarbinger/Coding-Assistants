@@ -11,7 +11,7 @@ export interface TabDef {
 export const TABS: TabDef[] = [
   { id: "general", label: "General", summary: "App-wide defaults, such as which workspace opens on launch.", implemented: true },
   { id: "workspace", label: "Workspace & sessions", summary: "Global default vs. this workspace's default chat session.", implemented: true },
-  { id: "agents", label: "Agents & harnesses", summary: "Named provider profiles and per-harness settings.", implemented: true },
+  { id: "agents", label: "Agents & harnesses", summary: "Team profiles, named provider profiles, and per-harness settings.", implemented: true },
   { id: "creative", label: "Creative Tools", summary: "Expose local creative app MCP bridges (Blender, Krita, Godot, etc.) to coding agents.", implemented: true },
   { id: "external_mcp", label: "External MCP", summary: "External MCP server registry (Perplexity API, Perplexity Web) with launcher status and auth hints.", implemented: true },
   { id: "credentials", label: "Credentials", summary: "Store API keys and tokens in the system keychain. Values are write-only and never displayed.", implemented: true },

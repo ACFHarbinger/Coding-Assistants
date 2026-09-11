@@ -52,6 +52,9 @@ export default function HubPanelView(props: any) {
     run,
     invoke,
     agents,
+    teamMemberIds,
+    enrollAgent,
+    unenrollAgent,
     inboxConversation,
     setInboxConversation,
     setMsgTo,
@@ -140,7 +143,7 @@ export default function HubPanelView(props: any) {
         </div>
       </div>
 
-      {hubTab === "dashboard" && <DashboardPanel agents={agents} />}
+      {hubTab === "dashboard" && <DashboardPanel agents={agents} teamMemberIds={teamMemberIds} onAddAgent={enrollAgent} onRemoveAgent={unenrollAgent} />}
 
       {hubTab === "memory" && (
         <MemoryTab

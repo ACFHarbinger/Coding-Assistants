@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
+import { agentInfo, FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
 import type { HubAgent, HubMessage } from "../types";
 
 describe("rosterAgentIds (#243 QA-6)", () => {
@@ -102,3 +102,49 @@ describe("uniqueChannelPosts recipient aggregation (#245 QA-8)", () => {
     expect(posts[0].recipient_agents).toEqual(["chat", "claude"]);
   });
 });
+
+describe("agentInfo display name resolution (U20 / #314)", () => {
+  it("uses updated display_name for human and agents", () => {
+    const agents: HubAgent[] = [
+      { id: "human", display_name: "Alice Dev", team_member: true },
+      { id: "claude", display_name: "Claude Architect", team_member: true },
+    ];
+
+    const humanInfo = agentInfo("human", agents, null);
+    expect(humanInfo.displayName).toBe("Alice Dev");
+
+    const claudeInfo = agentInfo("claude", agents, null);
+    expect(claudeInfo.displayName).toBe("Claude Architect");
+  });
+
+  it("falls back to default when agent is not in hubAgents", () => {
+    const emptyAgents: HubAgent[] = [];
+
+    const humanInfo = agentInfo("human", emptyAgents, null);
+    expect(humanInfo.displayName).toBe("Human");
+
+    const grokInfo = agentInfo("grok", emptyAgents, null);
+    expect(grokInfo.displayName).toBe("grok");
+  });
+
+  it("resolves assignedRole when present and falls back to default role (U21 / #315)", () => {
+    const agents: HubAgent[] = [
+      { id: "human", display_name: "Human", role: "Team Lead", team_member: true },
+      { id: "claude", display_name: "Claude", role: "reviewer", team_member: true },
+      { id: "gemini", display_name: "Gemini", role: null, team_member: true },
+    ];
+
+    const humanInfo = agentInfo("human", agents, null);
+    expect(humanInfo.assignedRole).toBe("Team Lead");
+    expect(humanInfo.role).toBe("Team Lead");
+
+    const claudeInfo = agentInfo("claude", agents, null);
+    expect(claudeInfo.assignedRole).toBe("reviewer");
+    expect(claudeInfo.role).toBe("reviewer");
+
+    const geminiInfo = agentInfo("gemini", agents, null);
+    expect(geminiInfo.assignedRole).toBeNull();
+    expect(geminiInfo.role).toBe("Supporting");
+  });
+});
+

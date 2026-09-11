@@ -3,6 +3,7 @@ import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
 import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, sameHubAgents, sameHubMessages } from "./app/hubState";
+import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
 import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
@@ -33,23 +34,13 @@ function App() {
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamError, setTeamError] = useState<string | null>(null);
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
-  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem("ca.activeWorkSessionId");
-    } catch {
-      return null;
-    }
-  });
-  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem("ca.activeWorkSessionId");
-    } catch {
-      return null;
-    }
-  });
+  const getSavedWorkSessionId = () => { try { return localStorage.getItem("ca.activeWorkSessionId"); } catch { return null; } };
+  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(getSavedWorkSessionId);
+  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(getSavedWorkSessionId);
   const [chatFocusToken, setChatFocusToken] = useState(0);
   const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) ?? null;
   const workDirRef = useRef(config.work_dir);
@@ -163,14 +154,7 @@ function App() {
       setTeamMembers(previous => {
         const persisted = agents
           .filter(agent => agent.team_member)
-          .map(agent => ({
-            id: agent.id,
-            target_id: agent.id,
-            name: agent.display_name,
-            provider: "",
-            model: "",
-            origin: "existing" as const,
-          }));
+          .map(rosterAgentToTeamMember);
         const persistedIds = new Set(persisted.map(agent => agent.target_id));
         const transient = previous.filter(agent =>
           !persistedIds.has(agent.target_id)
@@ -224,35 +208,39 @@ function App() {
     refreshHubChat();
     if (!isTauriRuntime()) return;
     const interval = window.setInterval(refreshHubChat, 1500);
-    return () => window.clearInterval(interval);
+    let unlisten: (() => void) | undefined;
+    listen("hub:agents-changed", () => void refreshHubChat()).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      window.clearInterval(interval);
+      unlisten?.();
+    };
   }, []);
 
-  const addAgentToTeam = (agent: TeamMember) => {
-    setTeamMembers(prev => {
-      if (prev.some(member => member.id === agent.id)) return prev;
-      return [...prev, agent];
-    });
+  const addAgentToTeam = async (agent: TeamMember): Promise<void> => {
+    setTeamError(null);
     const rosterId = agent.target_id;
-    const persistable = rosterId === "chat"
-      || rosterId === "claude"
-      || rosterId === "gemini"
-      || rosterId === "grok"
-      || rosterId === "human";
-    if (persistable && isTauriRuntime()) {
-      void (async () => {
-        try {
-          await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
-          if (activeWorkSessionId) {
-            await invoke("hub_add_work_session_member", {
-              sessionId: activeWorkSessionId,
-              agentId: rosterId,
-            });
-          }
-          await refreshHubChat();
-        } catch (error) {
-          console.error("Failed to persist team/session enrollment:", error);
-        }
-      })();
+    // No allowlist: any roster identity persists the same way, with
+    // `hub_set_team_member` as the source of truth (U22 / #225). A backend
+    // NotFound (unknown id) surfaces in the banner below instead of console.
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+      return;
+    }
+    try {
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
+      if (activeWorkSessionId) {
+        await invoke("hub_add_work_session_member", {
+          sessionId: activeWorkSessionId,
+          agentId: rosterId,
+        });
+      }
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+      await refreshHubChat();
+    } catch (error) {
+      setTeamError(`Could not enroll ${rosterId} on the persisted team: ${error}`);
+      throw error;
     }
   };
 
@@ -275,20 +263,29 @@ function App() {
     selectWorkSession(session.id);
   };
 
-  const removeAgentFromTeam = (agent: TeamMember) => {
-    setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+  const removeAgentFromTeam = async (agent: TeamMember): Promise<void> => {
+    setTeamError(null);
     const rosterId = agent.target_id;
     if (rosterId === "human") return;
-    const persistable = rosterId === "chat"
-      || rosterId === "claude"
-      || rosterId === "gemini"
-      || rosterId === "grok";
-    if (persistable && isTauriRuntime()) {
-      invoke("hub_set_team_member", { id: rosterId, enrolled: false }).catch(error => {
-        console.error("Failed to persist team unenrollment:", error);
-      });
+    // No allowlist (U22 / #225): unenroll persists for every other identity.
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      return;
+    }
+    try {
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: false });
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      await refreshHubChat();
+    } catch (error) {
+      setTeamError(`Could not remove ${rosterId} from the persisted team: ${error}`);
+      throw error;
     }
   };
+
+  const teamMemberIds = [...new Set([
+    ...teamMembers.flatMap(member => [member.id, member.target_id]),
+    ...hubAgents.filter(agent => agent.team_member).map(agent => agent.id),
+  ])];
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
@@ -364,6 +361,14 @@ function App() {
       </header>
 
       <main className="main-content">
+        {teamError && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", padding: "0.6rem 0.9rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(248, 113, 113, 0.45)", color: "#fca5a5", fontSize: "0.82rem", marginBottom: "1rem" }}>
+            <span>{teamError}</span>
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.25rem 0.7rem", fontSize: "0.75rem" }} onClick={() => setTeamError(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
         <div style={{ display: mainView === "messager" ? "contents" : "none" }}>
           <MessagerPanel
             hubMessages={hubMessages}
@@ -378,7 +383,7 @@ function App() {
           />
         </div>
 
-        {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel /></div>}
+        {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel teamMemberIds={teamMemberIds} onAddAgent={addAgentToTeam} onRemoveAgent={removeAgentFromTeam} /></div>}
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
           <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", width: "fit-content", marginBottom: "1rem" }}>
@@ -407,10 +412,7 @@ function App() {
               resources={resources}
               PROVIDERS={PROVIDERS}
               onPreview={fetchPreview}
-              teamMemberIds={[...new Set([
-                ...teamMembers.flatMap(member => [member.id, member.target_id]),
-                ...hubAgents.filter(agent => agent.team_member).map(agent => agent.id),
-              ])]}
+              teamMemberIds={teamMemberIds}
               onAddAgent={addAgentToTeam}
               onRemoveAgent={removeAgentFromTeam}
               onCreateWorkSession={createWorkSession}

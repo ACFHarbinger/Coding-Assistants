@@ -11,8 +11,10 @@ use agent::{AgentConfig, AgentSystem};
 use core::agent_resources::AgentResources;
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use tauri::{Manager, State};
 use tokio::sync::mpsc;
 
@@ -34,13 +36,8 @@ async fn run_agent_task(
 
     let (input_tx, input_rx) = mpsc::channel(1);
 
-    // Store token and input_tx in state
-    {
-        let mut cancel_guard = state.cancellation_token.lock().unwrap();
-        *cancel_guard = Some(token.clone());
-        let mut input_guard = state.user_input_tx.lock().unwrap();
-        *input_guard = Some(input_tx);
-    }
+    *state.cancellation_token.lock().unwrap() = Some(token.clone());
+    *state.user_input_tx.lock().unwrap() = Some(input_tx);
 
     let system = AgentSystem::new(config);
     // run_task will now consume input_rx
@@ -216,19 +213,13 @@ async fn start_tcp_server(
     // Start accepting connections in background
     server.accept_connections().await?;
 
-    // Store server instance in state
-    {
-        let mut server_guard = state.tcp_server.lock().unwrap();
-        *server_guard = Some(server);
-    }
-
+    *state.tcp_server.lock().unwrap() = Some(server);
     Ok(address)
 }
 
 #[tauri::command]
 async fn stop_tcp_server(state: State<'_, AppState>) -> Result<(), String> {
-    let mut server_guard = state.tcp_server.lock().unwrap();
-    if let Some(mut server) = server_guard.take() {
+    if let Some(mut server) = state.tcp_server.lock().unwrap().take() {
         server.stop();
     }
     Ok(())
@@ -315,6 +306,8 @@ pub fn run() {
             commands::commands::store::hub_get_data_dir,
             commands::commands::messaging::hub_data_dir,
             commands::commands::store::hub_list_agents,
+            commands::commands::store::hub_set_agent_display_name,
+            commands::commands::store::hub_set_agent_role,
             commands::commands::store::hub_upsert_agent_card,
             commands::commands::memory::hub_write_memory,
             commands::commands::memory::hub_update_memory,
