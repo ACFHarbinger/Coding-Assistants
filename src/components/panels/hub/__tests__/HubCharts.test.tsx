@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { BalanceBreakdownBar, formatMinorCurrency, QuotaChart } from "../HubCharts";
-import type { BalanceBreakdown, ProviderQuota } from "../types";
+import { BalanceBreakdownBar, formatCurrency, QuotaChart } from "../HubCharts";
+import type { ProviderQuota, ProviderQuotaBalance } from "../types";
 
 vi.mock("../../../lib/tauri", () => ({
   invoke: vi.fn().mockImplementation((cmd: string) => {
@@ -19,42 +19,43 @@ vi.mock("../../../lib/tauri", () => ({
   isTauriRuntime: vi.fn().mockReturnValue(true),
 }));
 
-describe("formatMinorCurrency", () => {
-  it("formats positive USD cents correctly", () => {
-    expect(formatMinorCurrency(2000, "USD")).toBe("$20.00");
-    expect(formatMinorCurrency(410, "USD")).toBe("$4.10");
-    expect(formatMinorCurrency(0, "USD")).toBe("$0.00");
-    expect(formatMinorCurrency(99, "$")).toBe("$0.99");
+describe("formatCurrency", () => {
+  it("formats positive USD amounts correctly", () => {
+    expect(formatCurrency(20.0, "USD")).toBe("$20.00");
+    expect(formatCurrency(4.1, "USD")).toBe("$4.10");
+    expect(formatCurrency(0, "USD")).toBe("$0.00");
+    expect(formatCurrency(0.99, "$")).toBe("$0.99");
   });
 
   it("formats negative amounts with leading minus", () => {
-    expect(formatMinorCurrency(-150, "USD")).toBe("-$1.50");
+    expect(formatCurrency(-1.5, "USD")).toBe("-$1.50");
   });
 
   it("formats standard international currency symbols", () => {
-    expect(formatMinorCurrency(1550, "EUR")).toBe("€15.50");
-    expect(formatMinorCurrency(2500, "GBP")).toBe("£25.00");
-    expect(formatMinorCurrency(8800, "CNY")).toBe("¥88.00");
+    expect(formatCurrency(15.5, "EUR")).toBe("€15.50");
+    expect(formatCurrency(25.0, "GBP")).toBe("£25.00");
+    expect(formatCurrency(88.0, "CNY")).toBe("¥88.00");
   });
 
   it("formats unmapped currency codes with trailing code", () => {
-    expect(formatMinorCurrency(1200, "CAD")).toBe("12.00 CAD");
-    expect(formatMinorCurrency(500, "AUD")).toBe("5.00 AUD");
+    expect(formatCurrency(12.0, "CAD")).toBe("12.00 CAD");
+    expect(formatCurrency(5.0, "AUD")).toBe("5.00 AUD");
   });
 });
 
 describe("BalanceBreakdownBar", () => {
-  const breakdown: BalanceBreakdown = {
+  const balance: ProviderQuotaBalance = {
     currency: "USD",
-    spent_minor: 2000,
-    budget_minor: 2000,
-    free_minor: 5122,
+    total: 20.0,
+    kind: "spend",
+    spent: 20.0,
+    gift: 51.22,
   };
 
   it("renders stacked bar segments and legend items", () => {
     render(
       <BalanceBreakdownBar
-        breakdown={breakdown}
+        balance={balance}
         balanceText="$20.00 included this cycle"
       />
     );
@@ -79,13 +80,14 @@ describe("BalanceBreakdownBar", () => {
   });
 
   it("computes remaining budget when partially spent", () => {
-    const partial: BalanceBreakdown = {
+    const partial: ProviderQuotaBalance = {
       currency: "USD",
-      spent_minor: 500,
-      budget_minor: 2000,
-      free_minor: 0,
+      total: 20.0,
+      kind: "spend",
+      spent: 5.0,
+      gift: 0,
     };
-    render(<BalanceBreakdownBar breakdown={partial} />);
+    render(<BalanceBreakdownBar balance={partial} />);
 
     expect(screen.getByTestId("breakdown-spent")).toBeInTheDocument();
     const budgetSegment = screen.getByTestId("breakdown-budget");
@@ -98,27 +100,29 @@ describe("BalanceBreakdownBar", () => {
   });
 
   it("handles over-budget spend with warning styling", () => {
-    const overBudget: BalanceBreakdown = {
+    const overBudget: ProviderQuotaBalance = {
       currency: "USD",
-      spent_minor: 2410,
-      budget_minor: 2000,
-      free_minor: 1000,
+      total: 20.0,
+      kind: "spend",
+      spent: 24.1,
+      gift: 10.0,
     };
-    render(<BalanceBreakdownBar breakdown={overBudget} />);
+    render(<BalanceBreakdownBar balance={overBudget} />);
 
     const spentSegment = screen.getByTestId("breakdown-spent");
     expect(spentSegment).toHaveStyle({ background: "#ef4444" });
     expect(screen.getByText("Spent $24.10")).toBeInTheDocument();
   });
 
-  it("handles zero-spent balance (e.g. DeepSeek granted + topped-up)", () => {
-    const deepseekBreakdown: BalanceBreakdown = {
+  it("handles zero-spent balance (e.g. granted + topped-up)", () => {
+    const zeroSpent: ProviderQuotaBalance = {
       currency: "USD",
-      spent_minor: 0,
-      budget_minor: 734,
-      free_minor: 500,
+      total: 7.34,
+      kind: "spend",
+      spent: 0,
+      gift: 5.0,
     };
-    render(<BalanceBreakdownBar breakdown={deepseekBreakdown} />);
+    render(<BalanceBreakdownBar balance={zeroSpent} />);
 
     expect(screen.queryByTestId("breakdown-spent")).not.toBeInTheDocument();
     expect(screen.getByTestId("breakdown-budget")).toBeInTheDocument();
@@ -128,12 +132,12 @@ describe("BalanceBreakdownBar", () => {
   });
 });
 
-describe("QuotaChart with balance_breakdown", () => {
+describe("QuotaChart with balance_info spend", () => {
   beforeEach(() => {
     (window as any).__TAURI_INTERNALS__ = {};
   });
 
-  it("renders BalanceBreakdownBar when balance_breakdown is present on provider with windows", () => {
+  it("renders BalanceBreakdownBar when balance_info with kind=spend is present on provider with windows", () => {
     const cursorQuota: ProviderQuota = {
       agent_id: "cursor",
       provider: "cursor",
@@ -141,11 +145,12 @@ describe("QuotaChart with balance_breakdown", () => {
       status: "ok",
       fetched_at: 1_725_800_000,
       balance: "$20.00 included this cycle",
-      balance_breakdown: {
+      balance_info: {
         currency: "USD",
-        spent_minor: 2000,
-        budget_minor: 2000,
-        free_minor: 5122,
+        total: 20.0,
+        kind: "spend",
+        spent: 20.0,
+        gift: 51.22,
       },
       windows: [
         {
@@ -171,7 +176,7 @@ describe("QuotaChart with balance_breakdown", () => {
     expect(screen.getByText("Free $51.22")).toBeInTheDocument();
   });
 
-  it("falls back to plain balance text when balance_breakdown is absent", () => {
+  it("falls back to plain balance text when balance_info is absent", () => {
     const plainQuota: ProviderQuota = {
       agent_id: "cursor",
       provider: "cursor",
@@ -201,18 +206,19 @@ describe("QuotaChart with balance_breakdown", () => {
     expect(screen.getByText("Account balance")).toBeInTheDocument();
   });
 
-  it("suppresses 'no provider quota windows returned' when balance_breakdown is present", () => {
+  it("suppresses 'no provider quota windows returned' when balance_info is present", () => {
     const noWindowQuota: ProviderQuota = {
       agent_id: "custom",
       provider: "custom",
       harness_title: "Custom Agent",
       status: "ok",
       fetched_at: 1_725_800_000,
-      balance_breakdown: {
+      balance_info: {
         currency: "USD",
-        spent_minor: 0,
-        budget_minor: 1000,
-        free_minor: 200,
+        total: 10.0,
+        kind: "spend",
+        spent: 0,
+        gift: 2.0,
       },
       windows: [],
     };

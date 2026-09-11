@@ -190,6 +190,7 @@ fn budget_from_summary(summary: &UsageSummary, limit: SpendLimitResult) -> Mistr
         currency: summary.currency.clone(),
         total: summary.total_spend,
         kind: Some("spend".into()),
+        spent: None,
         granted: None,
         topped_up: None,
         paid: None,

@@ -23,7 +23,7 @@
 //!     and the adapter degrades cleanly to `status: "unavailable"`.
 
 use super::quota_codex::{
-    now_unix, unavailable_quota, BalanceBreakdown, ProviderQuota, ProviderQuotaWindow,
+    now_unix, unavailable_quota, ProviderQuota, ProviderQuotaBalance, ProviderQuotaWindow,
 };
 use base64::{
     engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD},
@@ -197,7 +197,7 @@ fn balance_from_period_usage(value: &Value) -> Option<String> {
     }
 }
 
-pub(crate) fn balance_breakdown_from_period_usage(value: &Value) -> Option<BalanceBreakdown> {
+pub(crate) fn balance_info_from_period_usage(value: &Value) -> Option<ProviderQuotaBalance> {
     let plan = object_field(value, "planUsage", "plan_usage")?;
     let limit = object_field(plan, "limit", "limit").and_then(json_cents)?;
     let included_spend = object_field(plan, "includedSpend", "included_spend")
@@ -210,11 +210,17 @@ pub(crate) fn balance_breakdown_from_period_usage(value: &Value) -> Option<Balan
         .and_then(json_cents)
         .unwrap_or(0);
 
-    Some(BalanceBreakdown {
+    let spent_cents = included_spend.saturating_add(on_demand_spend);
+
+    Some(ProviderQuotaBalance {
         currency: "USD".into(),
-        spent_minor: included_spend.saturating_add(on_demand_spend),
-        budget_minor: limit,
-        free_minor: bonus_spend,
+        total: limit as f64 / 100.0,
+        kind: Some("spend".into()),
+        spent: Some(spent_cents as f64 / 100.0),
+        granted: None,
+        topped_up: None,
+        paid: None,
+        gift: Some(bonus_spend as f64 / 100.0),
     })
 }
 
@@ -443,7 +449,7 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
     }
     let windows = windows_from_period_usage(period);
     let balance = balance_from_period_usage(period);
-    let balance_breakdown = balance_breakdown_from_period_usage(period);
+    let balance_info = balance_info_from_period_usage(period);
     ProviderQuota {
         agent_id: AGENT_ID.into(),
         provider: PROVIDER.into(),
@@ -462,8 +468,7 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
         windows,
         fetched_at: now_unix(),
         balance,
-        balance_info: None,
-        balance_breakdown,
+        balance_info,
         local_usage: None,
     }
 }

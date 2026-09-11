@@ -17,9 +17,7 @@
 //! window, so it is surfaced via the dedicated `ProviderQuota.balance` field
 //! (rendered distinctly by the frontend) rather than `windows`.
 
-use super::quota_codex::{
-    now_unix, unavailable_quota, BalanceBreakdown, ProviderQuota, ProviderQuotaBalance,
-};
+use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaBalance};
 
 const HARNESS_TITLE: &str = "DeepSeek";
 const AGENT_ID: &str = "deepseek";
@@ -28,33 +26,6 @@ const BALANCE_URL: &str = "https://api.deepseek.com/user/balance";
 
 fn unavailable(detail: impl Into<String>) -> ProviderQuota {
     unavailable_quota(AGENT_ID, PROVIDER, HARNESS_TITLE, detail)
-}
-
-fn parse_minor(val: Option<&str>) -> Option<i64> {
-    let s = val?.trim();
-    let f = s.parse::<f64>().ok()?;
-    if !f.is_finite() || f < 0.0 {
-        return None;
-    }
-    Some((f * 100.0).round() as i64)
-}
-
-fn breakdown_from_info(info: &BalanceInfo) -> Option<BalanceBreakdown> {
-    let currency = info.currency.trim();
-    if currency.is_empty() {
-        return None;
-    }
-    let total_minor = parse_minor(Some(&info.total_balance))?;
-    let free_minor = parse_minor(info.granted_balance.as_deref()).unwrap_or(0);
-    let budget_minor = parse_minor(info.topped_up_balance.as_deref())
-        .unwrap_or_else(|| total_minor.saturating_sub(free_minor));
-
-    Some(BalanceBreakdown {
-        currency: currency.to_string(),
-        spent_minor: 0,
-        budget_minor,
-        free_minor,
-    })
 }
 
 #[derive(serde::Deserialize)]
@@ -183,12 +154,12 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
         currency: info.currency.clone(),
         total,
         kind: Some("balance".into()),
+        spent: None,
         granted,
         topped_up,
         paid: topped_up,
         gift: granted,
     };
-    let balance_breakdown = breakdown_from_info(info);
     ProviderQuota {
         agent_id: AGENT_ID.into(),
         provider: PROVIDER.into(),
@@ -199,7 +170,6 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
         fetched_at: now_unix(),
         balance: Some(balance_text),
         balance_info: Some(balance_info),
-        balance_breakdown,
         local_usage: None,
     }
 }
@@ -229,6 +199,7 @@ mod tests {
             currency: info.currency.clone(),
             total,
             kind: Some("balance".into()),
+            spent: None,
             granted,
             topped_up,
             paid: topped_up,
@@ -303,35 +274,5 @@ mod tests {
             };
             assert!(validate_balance(&info).is_err(), "accepted {amount:?}");
         }
-    }
-
-    #[test]
-    fn extracts_balance_breakdown_structured_minor() {
-        let info = BalanceInfo {
-            currency: "USD".into(),
-            total_balance: "12.34".into(),
-            granted_balance: Some("5.00".into()),
-            topped_up_balance: Some("7.34".into()),
-        };
-        let breakdown = breakdown_from_info(&info).expect("breakdown should parse");
-        assert_eq!(breakdown.currency, "USD");
-        assert_eq!(breakdown.spent_minor, 0);
-        assert_eq!(breakdown.budget_minor, 734);
-        assert_eq!(breakdown.free_minor, 500);
-    }
-
-    #[test]
-    fn breakdown_handles_missing_granted_or_topped_up() {
-        let info = BalanceInfo {
-            currency: "EUR".into(),
-            total_balance: "15.50".into(),
-            granted_balance: None,
-            topped_up_balance: None,
-        };
-        let breakdown = breakdown_from_info(&info).expect("breakdown should parse");
-        assert_eq!(breakdown.currency, "EUR");
-        assert_eq!(breakdown.spent_minor, 0);
-        assert_eq!(breakdown.budget_minor, 1550);
-        assert_eq!(breakdown.free_minor, 0);
     }
 }

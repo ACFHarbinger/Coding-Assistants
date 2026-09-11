@@ -75,11 +75,12 @@ fn parses_live_dashboard_period_usage() {
     assert_eq!(quota.agent_id, "cursor");
     assert_eq!(quota.status, "ok");
     assert!(quota.detail.is_none());
-    let breakdown = quota.balance_breakdown.expect("live sample has breakdown");
-    assert_eq!(breakdown.currency, "USD");
-    assert_eq!(breakdown.spent_minor, 2000);
-    assert_eq!(breakdown.budget_minor, 2000);
-    assert_eq!(breakdown.free_minor, 5122);
+    let info = quota.balance_info.expect("live sample has balance_info");
+    assert_eq!(info.currency, "USD");
+    assert_eq!(info.kind.as_deref(), Some("spend"));
+    assert_eq!(info.total, 20.0);
+    assert_eq!(info.spent, Some(20.0));
+    assert_eq!(info.gift, Some(51.22));
 }
 
 #[test]
@@ -336,7 +337,7 @@ fn cursor_auth_details_from_evaluates_precedence_and_expiry() {
 }
 
 #[test]
-fn balance_breakdown_handles_spend_and_overage() {
+fn balance_info_handles_spend_and_overage() {
     let value: Value = serde_json::from_str(
         r#"{
             "planUsage": {
@@ -348,9 +349,10 @@ fn balance_breakdown_handles_spend_and_overage() {
         }"#,
     )
     .unwrap();
-    let breakdown = balance_breakdown_from_period_usage(&value).expect("breakdown present");
-    assert_eq!(breakdown.currency, "USD");
-    assert_eq!(breakdown.budget_minor, 2000);
-    assert_eq!(breakdown.spent_minor, 2410);
-    assert_eq!(breakdown.free_minor, 1500);
+    let info = balance_info_from_period_usage(&value).expect("balance_info present");
+    assert_eq!(info.currency, "USD");
+    assert_eq!(info.kind.as_deref(), Some("spend"));
+    assert_eq!(info.total, 20.0);
+    assert_eq!(info.spent, Some(24.1));
+    assert_eq!(info.gift, Some(15.0));
 }
