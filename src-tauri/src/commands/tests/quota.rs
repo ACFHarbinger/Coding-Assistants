@@ -95,6 +95,7 @@ fn capped_admin_budget() -> MistralAdminBudget {
             currency: "USD".into(),
             total: 16.25,
             kind: Some("spend".into()),
+            spent: None,
             granted: None,
             topped_up: None,
             paid: None,

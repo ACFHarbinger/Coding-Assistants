@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Consolidate ProviderQuotaBalance and BalanceBreakdown:**
+  Unified overlapping balance representations into `ProviderQuotaBalance` by adding `spent: Option<f64>` (`total` as budget cap, `spent` as consumed dollars, and `gift` as bonus/free credits when `kind = "spend"`).
+  Converted Cursor quota adapter from minor-unit cents to `ProviderQuotaBalance` in dollars.
+  Removed redundant `BalanceBreakdown` struct, `balance_breakdown` field on `ProviderQuota`, and dead `breakdown_from_info` logic in `deepseek.rs`.
+  Updated frontend `BalanceBreakdownBar` and `HubCharts` to consume `ProviderQuotaBalance` directly with standard dollar formatting.
+  Net reduction of 69 lines of code across 16 files; all files strictly $\le 500$ LoC; all frontend (114) and backend (230) tests pass.
 - **Qwen Code local-usage quota adapter (#310, `platform.md` P3):** spike
   found a free persisted source the 2026-09-09 capture had not seen —
   `~/.qwen/usage_record.jsonl` (one end-of-session object per line,

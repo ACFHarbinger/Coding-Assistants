@@ -1,4 +1,4 @@
-import type { BalanceBreakdown, BudgetStatus, ProviderQuota, ProviderQuotaWindow } from "./types";
+import type { BudgetStatus, ProviderQuota, ProviderQuotaBalance, ProviderQuotaWindow } from "./types";
 import { ProviderHealthDot } from "../harness/ProviderHealthChip";
 import { useProviderHealth } from "../harness/useProviderHealth";
 import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
@@ -28,12 +28,12 @@ export function isCurrencyBalance(balance?: string | null): boolean {
 }
 
 /**
- * Format a minor currency unit (e.g. cents) into a standard formatted currency string.
+ * Format a currency amount in dollars into a standard formatted string ($X.XX).
  */
-export function formatMinorCurrency(minor: number, currency = "USD"): string {
-  const isNegative = minor < 0;
-  const absMinor = Math.abs(minor);
-  const dollars = (absMinor / 100).toFixed(2);
+export function formatCurrency(amount: number, currency = "USD"): string {
+  const isNegative = amount < 0;
+  const absAmount = Math.abs(amount);
+  const dollars = absAmount.toFixed(2);
   const prefix = isNegative ? "-" : "";
 
   const curr = currency.trim().toUpperCase();
@@ -56,25 +56,28 @@ export function formatMinorCurrency(minor: number, currency = "USD"): string {
 }
 
 /**
- * Stacked horizontal breakdown bar showing spent vs budget vs free/bonus tokens (#303).
+ * Stacked horizontal breakdown bar showing spent vs budget vs free/bonus tokens.
  */
 export function BalanceBreakdownBar({
-  breakdown,
+  balance,
   balanceText,
 }: {
-  breakdown: BalanceBreakdown;
+  balance: ProviderQuotaBalance;
   balanceText?: string | null;
 }) {
-  const { currency, spent_minor, budget_minor, free_minor } = breakdown;
-  const remaining_budget = Math.max(0, budget_minor - spent_minor);
-  const isOverBudget = budget_minor > 0 && spent_minor > budget_minor;
+  const currency = balance.currency || "USD";
+  const spent = balance.spent ?? 0;
+  const budget = balance.total;
+  const free = balance.gift ?? balance.granted ?? 0;
+  const remaining_budget = Math.max(0, budget - spent);
+  const isOverBudget = budget > 0 && spent > budget;
 
-  const totalCapacity = Math.max(budget_minor, spent_minor) + free_minor;
-  const spentPercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (spent_minor / totalCapacity) * 100)) : 0;
+  const totalCapacity = Math.max(budget, spent) + free;
+  const spentPercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (spent / totalCapacity) * 100)) : 0;
   const remainingBudgetPercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (remaining_budget / totalCapacity) * 100)) : 0;
-  const freePercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (free_minor / totalCapacity) * 100)) : 0;
+  const freePercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (free / totalCapacity) * 100)) : 0;
 
-  const remainingRatio = budget_minor > 0 ? (remaining_budget / budget_minor) * 100 : 0;
+  const remainingRatio = budget > 0 ? (remaining_budget / budget) * 100 : 0;
   const budgetColor =
     remainingRatio === 0
       ? "var(--text-muted)"
@@ -86,7 +89,7 @@ export function BalanceBreakdownBar({
 
   const displayBalance =
     balanceText ||
-    formatMinorCurrency(remaining_budget + free_minor, currency);
+    formatCurrency(remaining_budget + free, currency);
 
   return (
     <div style={{ display: "grid", gap: "0.35rem" }} data-testid="balance-breakdown-bar">
@@ -111,7 +114,7 @@ export function BalanceBreakdownBar({
         {spentPercent > 0 && (
           <div
             data-testid="breakdown-spent"
-            title={`Spent: ${formatMinorCurrency(spent_minor, currency)}`}
+            title={`Spent: ${formatCurrency(spent, currency)}`}
             style={{
               width: `${spentPercent}%`,
               height: "100%",
@@ -123,7 +126,7 @@ export function BalanceBreakdownBar({
         {remainingBudgetPercent > 0 && (
           <div
             data-testid="breakdown-budget"
-            title={`Remaining Budget: ${formatMinorCurrency(remaining_budget, currency)}`}
+            title={`Remaining Budget: ${formatCurrency(remaining_budget, currency)}`}
             style={{
               width: `${remainingBudgetPercent}%`,
               height: "100%",
@@ -135,7 +138,7 @@ export function BalanceBreakdownBar({
         {freePercent > 0 && (
           <div
             data-testid="breakdown-free"
-            title={`Free / Bonus: ${formatMinorCurrency(free_minor, currency)}`}
+            title={`Free / Bonus: ${formatCurrency(free, currency)}`}
             style={{
               width: `${freePercent}%`,
               height: "100%",
@@ -146,22 +149,22 @@ export function BalanceBreakdownBar({
         )}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-start", gap: "0.85rem", flexWrap: "wrap", fontSize: "0.74rem", color: "var(--text-muted)" }}>
-        {spent_minor > 0 && (
+        {spent > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: isOverBudget ? "#ef4444" : "#38bdf8", display: "inline-block" }} />
-            Spent {formatMinorCurrency(spent_minor, currency)}
+            Spent {formatCurrency(spent, currency)}
           </span>
         )}
-        {budget_minor > 0 && (
+        {budget > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: budgetColor, display: "inline-block" }} />
-            Budget {formatMinorCurrency(remaining_budget, currency)}
+            Budget {formatCurrency(remaining_budget, currency)}
           </span>
         )}
-        {free_minor > 0 && (
+        {free > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: "#34d399", display: "inline-block" }} />
-            Free {formatMinorCurrency(free_minor, currency)}
+            Free {formatCurrency(free, currency)}
           </span>
         )}
       </div>
@@ -315,8 +318,8 @@ export function QuotaChart({
                   )}
                 </div>
               </div>
-              {quota.balance_breakdown && (quota.windows.length > 0 || quota.balance_info?.kind === "spend" || !quota.balance_info) ? (
-                <BalanceBreakdownBar breakdown={quota.balance_breakdown} balanceText={quota.balance} />
+              {quota.balance_info?.kind === "spend" && quota.balance_info.spent != null ? (
+                <BalanceBreakdownBar balance={quota.balance_info} balanceText={quota.balance} />
               ) : quota.balance && (quota.windows.length > 0 || quota.balance_info?.kind === "spend" || quota.balance.toLowerCase().startsWith("spent")) ? (
                 <div style={{ display: "grid", gap: "0.25rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
@@ -336,7 +339,7 @@ export function QuotaChart({
               ) : quota.windows.length === 0 ? (
                 quota.local_usage ? (
                   <LocalUsageMeter usage={quota.local_usage} detail={quota.detail} />
-                ) : (quota.balance || quota.balance_breakdown) ? null : (
+                ) : (quota.balance || quota.balance_info) ? null : (
                   <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
                 )
               ) : families.length > 0 ? (

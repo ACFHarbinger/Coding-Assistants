@@ -193,7 +193,6 @@ fn muse_quota_from_subscription(subscription: &Value) -> ProviderQuota {
         fetched_at: now_unix(),
         balance: None,
         balance_info: None,
-        balance_breakdown: None,
         local_usage: None,
     }
 }

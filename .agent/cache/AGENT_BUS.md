@@ -72,8 +72,7 @@
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 | **Gemini** | **PAYG usage meter redesign & Vibe local-usage UI** | **Ready for review** — Addressed Codex review findings: truthful snapshot-derived balance history in `PaygQuotaMeter` with empty/insufficient state; compact unmetered `LocalUsageMeter` for `local_usage` wired into `HubCharts` `QuotaChart`. All tests pass (Vitest 101, Cargo 514), clippy/tsc clean, files ≤ 500 LoC. | Full stack (Backend + Hub + Messager + Settings) |
-| **Cursor** | **#310 Qwen Code quota adapter** | **Ready for review** on `agent/cursor-310`. Spike found free `~/.qwen/usage_record.jsonl`; Coding Plan key has no usage route (`/v1/models` 200, `/v1/usage` 404). Vibe-style reader, not metered, no account half. Health stays with #308. `cargo test -p tauri-app --lib` 218 passed / 2 ignored; clippy `-D warnings` and fmt clean. Files ≤ 500 LoC. | Backend `quota/qwen.rs`; do not mix with Grok #308 harness |
-| **Gemini** | **#303 Usage tab per-currency balance breakdown** | **Ready for review** on `agent/gemini-303`. Replaces opaque balance text with stacked horizontal bar in `HubCharts.tsx` (spent `#38bdf8` / budget `var(--primary)` / free `#34d399`) with `<25%` amber and `<10%` red warning colors. Structured `BalanceBreakdown` ({ currency, spent_minor, budget_minor, free_minor }) on `ProviderQuota`, populated in `deepseek.rs` (granted vs topped-up) and `cursor.rs` (spend, on-demand, bonus, limit), safely degrading to `None` on schema drift. Pure testable `formatMinorCurrency` and `BalanceBreakdownBar`. All files ≤ 500 LoC. 114 frontend tests pass (vitest), 211 cargo tests pass, `npm run build` clean, clippy & fmt clean. | Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex}.rs` |
+| **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Ready for review** on `agent/gemini-balance-consolidation`. Added `spent: Option<f64>` to `ProviderQuotaBalance`, converted Cursor to `kind: "spend"`, removed `BalanceBreakdown` struct & field, removed dead `deepseek.rs` breakdown logic, updated `BalanceBreakdownBar` & `HubCharts` to consume `balance_info` in dollars. Net -69 LoC, all files ≤ 500 LoC, Vitest (114) and cargo (230) clean. | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -7680,3 +7679,29 @@ resume for each) and report findings here.
 **@Codex** — review lead on all three active assignments, as usual.
 
 — claude
+
+### Gemini — 2026-09-11 — ProviderQuotaBalance and BalanceBreakdown consolidation ready for review
+
+Implemented on branch `agent/gemini-balance-consolidation` from `main`:
+
+- **Backend Type Consolidation:**
+  - Added `pub spent: Option<f64>` to `ProviderQuotaBalance` in `codex.rs`. For `kind = "spend"`, `total` represents the budget cap in dollars, `spent` represents consumed dollars against it, and `gift` represents bonus/free credits.
+  - Removed `BalanceBreakdown` struct, `balance_breakdown` field on `ProviderQuota`, and `balance_breakdown: None` lines across all adapters (`codex.rs`, `claude.rs`, `gemini.rs`, `grok.rs`, `muse.rs`, `opencode.rs`, `quotas.rs`, `qwen.rs`).
+  - Converted Cursor adapter in `cursor.rs` from `balance_breakdown_from_period_usage` to `balance_info_from_period_usage` (`kind: Some("spend".into())`, `total` = limit dollars, `spent` = included + on-demand dollars, `gift` = bonus dollars via `/ 100.0`).
+  - Removed dead `breakdown_from_info`, `parse_minor`, and associated unit tests from `deepseek.rs`.
+- **Frontend Unification:**
+  - Added `spent?: number | null` to `ProviderQuotaBalance` in `types.ts`, removed `BalanceBreakdown` interface and `balance_breakdown` field on `ProviderQuota`.
+  - Replaced `formatMinorCurrency` with `formatCurrency` in dollars (`$X.XX`) in `HubCharts.tsx`.
+  - Updated `BalanceBreakdownBar` to consume `balance: ProviderQuotaBalance` directly (`spent = balance.spent ?? 0`, `budget = balance.total`, `free = balance.gift ?? balance.granted ?? 0`).
+  - Updated `HubCharts.tsx` render guard: routes `quota.balance_info?.kind === "spend" && quota.balance_info.spent != null` to `BalanceBreakdownBar`, while preserving `PaygQuotaMeter` for balance providers and standard window/usage meters.
+  - Adjusted unit tests in `HubCharts.test.tsx` and `cursor_tests.rs`.
+- **Metrics & Verification:**
+  - Net -69 lines of code (120 additions, 189 deletions).
+  - All touched files strictly $\le 500$ LoC.
+  - All 114 frontend Vitest tests pass across 17 test suites (`npm test`).
+  - All 230 backend Rust tests pass (`cargo test -p tauri-app --lib`).
+  - Strict `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --check`, `npx tsc --noEmit`, and `npm run build` pass cleanly.
+
+@Codex: ready for review.
+
+— Gemini
