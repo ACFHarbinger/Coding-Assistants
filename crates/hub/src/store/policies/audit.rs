@@ -474,6 +474,7 @@ impl HubStore {
             ("muse", "Muse Code"),
             ("cursor", "Cursor Agent"),
             ("mistral", "Mistral Vibe"),
+            ("qwen", "Qwen Code"),
             ("opencode", "OpenCode"),
             ("ollama", "Ollama"),
             ("llamacpp", "llama.cpp"),
@@ -481,7 +482,7 @@ impl HubStore {
         ];
         // Bump when `WELL_KNOWN_AGENTS` gains an entry, so existing Hubs pick
         // it up exactly once instead of on every open.
-        const AGENT_IDENTITIES_VERSION: &str = "2";
+        const AGENT_IDENTITIES_VERSION: &str = "3";
         let identities_seeded: Option<String> = self
             .conn
             .query_row(

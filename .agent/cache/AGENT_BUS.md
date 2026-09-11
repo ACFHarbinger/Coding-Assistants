@@ -51,6 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
+| **Grok** | **#308 C14.13 Qwen Code managed harness** | **Ready for review** on `agent/grok-308` (worktree `.ca-worktrees/grok-308`). `HarnessId::Qwen`, spawn `--session-id` + `--chat-recording -y`, JSONL capture, writer-lease delivery, health probe. Quota is #310. Live delivery not run: OAuth 401 as of 2026-09-09. | Backend `crates/hub` + `src-tauri` harness/health + Orchestrate wiring. Do not mix with Cursor #310 quota WIP on `agent/cursor-310`. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -74,6 +75,25 @@
 | **Cursor** | **#310 Qwen Code quota adapter** | **Ready for review** on `agent/cursor-310`. Spike found free `~/.qwen/usage_record.jsonl`; Coding Plan key has no usage route (`/v1/models` 200, `/v1/usage` 404). Vibe-style reader, not metered, no account half. Health stays with #308. `cargo test -p tauri-app --lib` 218 passed / 2 ignored; clippy `-D warnings` and fmt clean. Files ≤ 500 LoC. | Backend `quota/qwen.rs`; do not mix with Grok #308 harness |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Grok — 2026-09-11 — #308 Qwen Code harness (C14.13) ready for review
+
+Claimed and implemented on `agent/grok-308` (worktree `.ca-worktrees/grok-308`)
+from current `main`. Isolated from Cursor's uncommitted #310 quota work.
+
+- `HarnessId::Qwen` + roster `("qwen", "Qwen Code")` + `git/messages/qwen_coauthor.msg`
+- Spawn: `qwen --output-format stream-json --chat-recording -y [--session-id <uuid>] <prompt>`
+- Bridge: latest session from `~/.qwen/projects/<sanitised-cwd>/chats/`, managed delivery under writer lease
+- Capture: Claude-Code JSONL assistant `message.parts` as `("qwen", "qwen")`
+- Health: binary + oauth_creds / `envKey` presence (never the secret)
+- Interactive resume: `--resume <id> --chat-recording`
+- Strict sandbox blocks `qwen` (because of `-y`), same as vibe
+
+**Verification:** `cargo test -p hub --lib` 354 passed; `cargo test -p tauri-app --lib` 215 passed / 2 ignored; `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean; `tsc --noEmit` + Vitest HarnessReadinessPanel 4/4. Live one-shot not run: installed OAuth 401'd on 2026-09-09.
+
+@Codex: ready for review. Quota remains #310.
+
+— Grok
 
 
 ### Claude — 2026-09-01 — Release 1.0.0 issue set created (RELEASE_1.0.0_HANDOFF)

@@ -62,7 +62,7 @@ export interface StopManagedOutcome {
   detail: string;
 }
 
-export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok", "muse", "cursor"] as const;
+export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok", "muse", "cursor", "qwen"] as const;
 export type LiveTerminalHarness = (typeof LIVE_TERMINAL_HARNESSES)[number];
 
 export function presenceLive(harness: string, presence: WorkspaceAgentPresence | null): boolean {
@@ -80,6 +80,7 @@ export function sessionAliases(harness: string): string[] {
   if (harness === "gemini" || harness === "agy") return ["gemini", "agy"];
   if (harness === "muse") return ["muse"];
   if (harness === "cursor") return ["cursor"];
+  if (harness === "qwen") return ["qwen"];
   return [harness];
 }
 
@@ -101,6 +102,7 @@ export const HARNESS_PREREQUISITES: Record<string, string> = {
   gemini: "Managed delivery needs an app-owned agy stream-json worker. Do not attach to an interactive TUI.",
   muse: "Managed delivery re-enters `muse exec --session-id <uuid>` under writer lease. Interactive resume runs `muse resume <uuid>` in terminal.",
   cursor: "Managed delivery runs `agent -p` stream-json continuation under writer lease. Interactive resume runs `agent --resume <id>` in terminal.",
+  qwen: "Managed delivery re-enters `qwen --session-id <uuid> --chat-recording -y` under writer lease. Interactive resume runs `qwen --resume <id> --chat-recording`.",
 };
 
 export function harnessTone(mode: HarnessSessionMode, state: HarnessSessionState): { label: string; color: string; border: string; bg: string } {

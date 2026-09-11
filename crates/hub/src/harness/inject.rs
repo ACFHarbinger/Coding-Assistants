@@ -9,8 +9,8 @@ use crate::HubError;
 use super::spawn::spawn_explicit;
 use super::{
     claude_spawn_args, codex_spawn_args, cursor_spawn_args, gemini_spawn_args, grok_spawn_args,
-    muse_spawn_args, opencode_spawn_args, vibe_managed_spawn_args, HarnessId, HarnessInjectRequest,
-    HarnessInjectResult,
+    muse_spawn_args, opencode_spawn_args, qwen_spawn_args, vibe_managed_spawn_args, HarnessId,
+    HarnessInjectRequest, HarnessInjectResult,
 };
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
@@ -93,6 +93,11 @@ fn inject_harness_inner(
                 return crate::bridge::vibe::deliver_vibe_task(store, request);
             }
         }
+        if harness == HarnessId::Qwen {
+            if let Some(store) = store {
+                return crate::bridge::qwen::deliver_qwen_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
@@ -145,6 +150,7 @@ fn inject_harness_inner(
         // re-enters the managed session headlessly and arms capture.
         HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Qwen => qwen_spawn_args(&request.workspace, &prompt, model, effort)?,
     };
 
     let started = spawn_explicit(

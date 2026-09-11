@@ -236,7 +236,7 @@ export default function HarnessTerminalGrid({
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Launch any of the 6 supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
+              Launch any of the 7 supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginTop: "0.5rem" }}>
               {ALL_HARNESSES.map((h) => (

@@ -256,7 +256,7 @@ export default function OrchestrationTab({
 
       <FieldRow
         label="Sandbox strictness"
-        hint="Strict refuses to start or inject a harness that can't run without bypassing approval (currently: vibe)."
+        hint="Strict refuses to start or inject a harness that can't run without bypassing approval (currently: vibe, qwen)."
         pill={scope === "workspace" ? <StatusPill status={effective.orchestration.sandbox_strictness_status} /> : undefined}
       >
         {SANDBOX_LEVELS.map((level) => (

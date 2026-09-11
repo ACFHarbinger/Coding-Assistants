@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Health presence stays with #308. `cargo test -p tauri-app --lib` 218
   passed / 2 ignored; scoped `qwen` 9/9; `cargo clippy -p tauri-app
   --all-targets -- -D warnings` and `cargo fmt` clean.
+- **Alibaba Qwen Code managed harness (C14.13, #308):** `HarnessId::Qwen`,
+  roster identity `("qwen", "Qwen Code")`, and `git/messages/qwen_coauthor.msg`.
+  Headless argv is `qwen --output-format stream-json --chat-recording -y
+  [--session-id <uuid>] <prompt>` (verified `qwen` 0.23.2); `--session-id`
+  pre-assigns the transcript so managed capture is Muse-style. Hub bridge
+  discovers `~/.qwen/projects/<sanitised-cwd>/chats/<id>.jsonl` and delivers
+  tasks under the writer lease. Capture reads Claude-Code JSONL assistant
+  `message.parts` text (`hub_capture_qwen_session` on the 1.5s poll). Health
+  is `qwen` binary plus `oauth_creds.json` / `modelProviders.envKey` presence
+  (never the secret). Interactive resume is `--resume <id> --chat-recording`.
+  Strict sandbox blocks Qwen the same way it blocks Vibe (`-y`). Quota stays
+  on #310.
+
 - **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
   added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
   `$VIBE_HOME/logs/session/session_*`, filtering to `role == "assistant"` and

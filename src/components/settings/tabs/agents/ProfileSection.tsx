@@ -10,6 +10,7 @@ const PROVIDER_OPTIONS = [
   { id: "opencode", label: "OpenCode" },
   { id: "deepseek", label: "DeepSeek" },
   { id: "vibe", label: "Mistral Vibe" },
+  { id: "qwen", label: "Qwen Code" },
   { id: "custom", label: "Custom Provider" },
 ];
 

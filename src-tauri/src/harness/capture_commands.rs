@@ -124,6 +124,24 @@ pub async fn hub_capture_gemini_session(
 }
 
 #[tauri::command]
+pub async fn hub_capture_qwen_session(
+    workspace: String,
+    qwen_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::qwen::QwenCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::qwen::capture_qwen_session(
+            &store,
+            &PathBuf::from(workspace),
+            qwen_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn hub_capture_vibe_session(
     workspace: String,
     vibe_session_id: Option<String>,
