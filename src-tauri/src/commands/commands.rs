@@ -43,10 +43,10 @@ mod quota_mistral;
 mod quota_muse;
 #[path = "quota/opencode.rs"]
 mod quota_opencode;
-#[path = "quota/quotas.rs"]
-pub mod quotas;
 #[path = "quota/vibe_usage.rs"]
 pub(crate) mod quota_vibe_usage;
+#[path = "quota/quotas.rs"]
+pub mod quotas;
 #[path = "settings/roles.rs"]
 pub mod roles;
 #[path = "settings/settings.rs"]

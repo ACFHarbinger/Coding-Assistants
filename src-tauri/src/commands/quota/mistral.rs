@@ -316,7 +316,8 @@ pub(crate) fn mistral_admin_budget() -> Result<MistralAdminBudget, String> {
                 SpendLimitResult::Capped(amount)
             } else {
                 SpendLimitResult::Failed(
-                    "Spend limit response contained neither a valid amount nor no_monthly_limit".into(),
+                    "Spend limit response contained neither a valid amount nor no_monthly_limit"
+                        .into(),
                 )
             }
         }
