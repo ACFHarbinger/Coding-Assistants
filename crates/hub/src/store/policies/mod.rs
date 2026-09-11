@@ -2,6 +2,11 @@ use super::*;
 
 mod audit;
 mod settings_audit;
+
+// Re-exported for the S6 danger purges (`store::danger`, message/memory
+// stores): one transaction must span deletes and their audit row.
+pub(crate) use audit::audit_events::insert_audit_event;
+pub(crate) use settings_audit::SETTINGS_AUDIT_ROOT;
 impl HubStore {
     pub fn get_wake_policy(&self) -> Result<WakePolicy, HubError> {
         let raw: Option<String> = self

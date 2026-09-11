@@ -335,4 +335,25 @@ impl HubStore {
         }
         Ok(ids.len())
     }
+
+    /// Permanently delete every message recorded against `workspace` (S6
+    /// danger-zone transcript purge). Unlike [`Self::delete_message`], which
+    /// soft-cancels one row, this is a hard `DELETE` — irreversible, which is
+    /// why the Settings danger tab gates it behind typed confirmation.
+    /// Matches the path as given plus its canonicalized form when they
+    /// differ, so symlinked checkouts purge exactly one workspace. Returns
+    /// the number of rows deleted; zero is a successful no-op, not an error.
+    pub fn purge_messages_in_workspace(
+        &self,
+        workspace: &std::path::Path,
+    ) -> Result<usize, HubError> {
+        let mut total = 0;
+        for path in danger::workspace_purge_paths(workspace) {
+            total += self.conn.execute(
+                "DELETE FROM messages WHERE workspace_path = ?1",
+                params![path],
+            )?;
+        }
+        Ok(total)
+    }
 }

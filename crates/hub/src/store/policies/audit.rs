@@ -1,7 +1,7 @@
 use super::super::*;
 use crate::store::models::embeddings::embedding_model;
 #[path = "audit_events.rs"]
-mod audit_events;
+pub(crate) mod audit_events;
 
 impl HubStore {
     pub fn open(data_dir: impl AsRef<Path>) -> Result<Self, HubError> {

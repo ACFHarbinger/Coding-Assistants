@@ -307,6 +307,26 @@ impl HubStore {
         Ok(())
     }
 
+    /// Permanently delete every memory recorded against `workspace`, all
+    /// tiers including non-stale ones (S6 danger-zone purge — unlike
+    /// [`Self::purge_stale_memories`], which only takes stale rows).
+    /// Matches the path as given plus its canonicalized form when they
+    /// differ, so symlinked checkouts purge exactly one workspace. Returns
+    /// the number of rows deleted; zero is a successful no-op, not an error.
+    pub fn purge_memories_in_workspace(
+        &self,
+        workspace: &std::path::Path,
+    ) -> Result<usize, HubError> {
+        let mut total = 0;
+        for path in danger::workspace_purge_paths(workspace) {
+            total += self.conn.execute(
+                "DELETE FROM memories WHERE workspace_path = ?1",
+                params![path],
+            )?;
+        }
+        Ok(total)
+    }
+
     /// Promote a memory to another tier, preserving provenance via `source_event_id`.
     pub fn promote_memory(&self, id: &str, to_tier: MemoryTier) -> Result<MemoryRecord, HubError> {
         let src = self

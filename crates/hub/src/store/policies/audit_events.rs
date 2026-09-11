@@ -1,5 +1,73 @@
 use super::super::*;
 
+/// Insert one audit row inside the caller's transaction without committing.
+/// Lets multi-write operations (S6 danger purges) commit their deletes and
+/// their audit row atomically: any failure before the caller's `commit`
+/// rolls back everything. Validation errors return before touching the
+/// transaction, so they never poison it.
+pub(crate) fn insert_audit_event(
+    tx: &rusqlite::Transaction,
+    root_path: &str,
+    path: &str,
+    operation: &str,
+    process_json: &str,
+    content_hash: Option<&str>,
+) -> Result<AuditEvent, HubError> {
+    if operation.trim().is_empty() || process_json.trim().is_empty() {
+        return Err(HubError::Invalid(
+            "audit operation and process metadata are required".into(),
+        ));
+    }
+    let observed_at = Utc::now().to_rfc3339();
+    let id = Uuid::new_v4().to_string();
+    let previous_hash: Option<String> = tx
+        .query_row(
+            "SELECT event_hash FROM audit_events ORDER BY rowid DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let canonical = serde_json::json!({
+        "id": id,
+        "root_path": root_path,
+        "path": path,
+        "operation": operation,
+        "observed_at": observed_at,
+        "process_json": process_json,
+        "content_hash": content_hash,
+        "previous_hash": previous_hash,
+    });
+    let event_hash =
+        sha256_hex(&serde_json::to_vec(&canonical).map_err(|e| HubError::Invalid(e.to_string()))?);
+    tx.execute(
+        "INSERT INTO audit_events(id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'pending')",
+        params![
+            id,
+            root_path,
+            path,
+            operation,
+            observed_at,
+            process_json,
+            content_hash,
+            previous_hash,
+            event_hash
+        ],
+    )?;
+    Ok(AuditEvent {
+        id,
+        root_path: root_path.into(),
+        path: path.into(),
+        operation: operation.into(),
+        observed_at,
+        process_json: process_json.into(),
+        content_hash: content_hash.map(str::to_string),
+        previous_hash,
+        event_hash,
+        status: "pending".into(),
+    })
+}
+
 impl HubStore {
     pub fn record_audit_event(
         &self,
@@ -9,64 +77,17 @@ impl HubStore {
         process_json: &str,
         content_hash: Option<&str>,
     ) -> Result<AuditEvent, HubError> {
-        if operation.trim().is_empty() || process_json.trim().is_empty() {
-            return Err(HubError::Invalid(
-                "audit operation and process metadata are required".into(),
-            ));
-        }
-        let root_path = root_path.to_string_lossy().to_string();
-        let path = path.to_string_lossy().to_string();
-        let observed_at = Utc::now().to_rfc3339();
-        let id = Uuid::new_v4().to_string();
         let tx = self.conn.unchecked_transaction()?;
-        let previous_hash: Option<String> = tx
-            .query_row(
-                "SELECT event_hash FROM audit_events ORDER BY rowid DESC LIMIT 1",
-                [],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let canonical = serde_json::json!({
-            "id": id,
-            "root_path": root_path,
-            "path": path,
-            "operation": operation,
-            "observed_at": observed_at,
-            "process_json": process_json,
-            "content_hash": content_hash,
-            "previous_hash": previous_hash,
-        });
-        let event_hash = sha256_hex(
-            &serde_json::to_vec(&canonical).map_err(|e| HubError::Invalid(e.to_string()))?,
-        );
-        tx.execute(
-            "INSERT INTO audit_events(id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'pending')",
-            params![
-                id,
-                root_path,
-                path,
-                operation,
-                observed_at,
-                process_json,
-                content_hash,
-                previous_hash,
-                event_hash
-            ],
+        let event = insert_audit_event(
+            &tx,
+            &root_path.to_string_lossy(),
+            &path.to_string_lossy(),
+            operation,
+            process_json,
+            content_hash,
         )?;
         tx.commit()?;
-        Ok(AuditEvent {
-            id,
-            root_path,
-            path,
-            operation: operation.into(),
-            observed_at,
-            process_json: process_json.into(),
-            content_hash: content_hash.map(str::to_string),
-            previous_hash,
-            event_hash,
-            status: "pending".into(),
-        })
+        Ok(event)
     }
 
     pub fn list_audit_events(&self, pending_only: bool) -> Result<Vec<AuditEvent>, HubError> {

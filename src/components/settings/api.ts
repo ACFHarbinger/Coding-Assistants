@@ -72,6 +72,27 @@ export function removeSettingsProfile(name: string): Promise<ProfileSnapshot[]> 
   return invoke<ProfileSnapshot[]>("settings_remove_profile", { name });
 }
 
+// Backing commands for the danger tab (S6 remainder / #132). Each purge is
+// hard and irreversible; the tab gates every one behind typed target
+// confirmation, and each resolves with the deleted row count for the
+// success copy. Cancellation never invokes any of these.
+export function purgeWorkspaceTranscript(workspace: string): Promise<number> {
+  return invoke<number>("settings_purge_workspace_transcript", { workspace });
+}
+
+export function purgeWorkspaceMemories(workspace: string): Promise<number> {
+  return invoke<number>("settings_purge_workspace_memories", { workspace });
+}
+
+export interface WorkspacePurgeReport {
+  messages: number;
+  memories: number;
+}
+
+export function purgeWorkspaceData(workspace: string): Promise<WorkspacePurgeReport> {
+  return invoke<WorkspacePurgeReport>("settings_purge_workspace_data", { workspace });
+}
+
 export function setWorkspaceDefaultProfile(
   workspace: string,
   harness: string,

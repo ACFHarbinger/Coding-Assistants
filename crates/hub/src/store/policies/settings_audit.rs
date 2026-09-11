@@ -4,7 +4,7 @@ use super::super::*;
 /// a typed filter over the same hash-chained `audit_events` table other Hub
 /// consumers already read (`list_audit_events`, `hub_approve_audit`), not a
 /// second table.
-const SETTINGS_AUDIT_ROOT: &str = "settings";
+pub(crate) const SETTINGS_AUDIT_ROOT: &str = "settings";
 
 impl HubStore {
     /// Record a settings change on the shared Hub audit chain, scoped under

@@ -15,6 +15,8 @@ pub mod avatar;
 pub mod creative_tools;
 #[path = "settings/credentials.rs"]
 pub mod credentials;
+#[path = "settings/danger.rs"]
+pub mod danger;
 #[path = "settings/external_mcp.rs"]
 pub mod external_mcp;
 #[path = "settings/harness_models.rs"]

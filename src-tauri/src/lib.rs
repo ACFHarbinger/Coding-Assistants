@@ -442,6 +442,10 @@ pub fn run() {
             commands::commands::settings::settings_set_allow_auto_wake,
             commands::commands::settings::settings_list_agent_budgets,
             commands::commands::settings::settings_set_agent_budget,
+            // Danger zone (S6 / #132) — irreversible purges, typed confirmation in UI
+            commands::commands::danger::settings_purge_workspace_transcript,
+            commands::commands::danger::settings_purge_workspace_memories,
+            commands::commands::danger::settings_purge_workspace_data,
             // Credential vault (#283/#284) — write-only; no command returns a secret value
             commands::commands::credentials::settings_list_credential_fields,
             commands::commands::credentials::settings_set_credential,
