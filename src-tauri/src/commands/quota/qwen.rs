@@ -195,6 +195,7 @@ pub(crate) fn qwen_quota_from_local(local: Option<ProviderQuotaLocalUsage>) -> P
             fetched_at: now_unix(),
             balance: None,
             balance_info: None,
+            balance_breakdown: None,
             local_usage: Some(local_usage),
         },
         None => unavailable(NO_SESSIONS_DETAIL),

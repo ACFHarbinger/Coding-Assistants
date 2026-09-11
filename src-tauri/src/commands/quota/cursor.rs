@@ -22,7 +22,9 @@
 //!     is logged once (with structural details only, never leaking auth tokens or payload secrets)
 //!     and the adapter degrades cleanly to `status: "unavailable"`.
 
-use super::quota_codex::{now_unix, unavailable_quota, ProviderQuota, ProviderQuotaWindow};
+use super::quota_codex::{
+    now_unix, unavailable_quota, BalanceBreakdown, ProviderQuota, ProviderQuotaWindow,
+};
 use base64::{
     engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD},
     Engine,
@@ -45,17 +47,6 @@ pub(crate) enum SchemaDriftReason {
     PlanUsageNotAnObject,
     MissingExpectedFields,
     InvalidMetricType,
-}
-
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CursorContractSummary {
-    pub has_billing_cycle: bool,
-    pub auto_percent: Option<i32>,
-    pub api_percent: Option<i32>,
-    pub total_percent: Option<i32>,
-    pub total_spend_cents: Option<i64>,
-    pub limit_cents: Option<i64>,
 }
 
 fn unavailable(detail: impl Into<String>) -> ProviderQuota {
@@ -143,29 +134,6 @@ pub(crate) fn check_usage_schema(value: &Value) -> Result<(), SchemaDriftReason>
     Ok(())
 }
 
-/// Verify the usage contract and extract a typed summary of present fields.
-#[cfg(test)]
-pub(crate) fn verify_usage_contract(
-    value: &Value,
-) -> Result<CursorContractSummary, SchemaDriftReason> {
-    check_usage_schema(value)?;
-    let plan = object_field(value, "planUsage", "plan_usage").unwrap();
-    let has_billing_cycle = object_field(value, "billingCycleEnd", "billing_cycle_end")
-        .or_else(|| object_field(plan, "billingCycleEnd", "billing_cycle_end"))
-        .is_some();
-    Ok(CursorContractSummary {
-        has_billing_cycle,
-        auto_percent: object_field(plan, "autoPercentUsed", "auto_percent_used")
-            .and_then(json_percent),
-        api_percent: object_field(plan, "apiPercentUsed", "api_percent_used")
-            .and_then(json_percent),
-        total_percent: object_field(plan, "totalPercentUsed", "total_percent_used")
-            .and_then(json_percent),
-        total_spend_cents: object_field(plan, "totalSpend", "total_spend").and_then(json_cents),
-        limit_cents: object_field(plan, "limit", "limit").and_then(json_cents),
-    })
-}
-
 /// Pure parser so tests never touch the network or the login file.
 pub(crate) fn windows_from_period_usage(value: &Value) -> Vec<ProviderQuotaWindow> {
     let plan = object_field(value, "planUsage", "plan_usage");
@@ -227,6 +195,27 @@ fn balance_from_period_usage(value: &Value) -> Option<String> {
         Some(on_demand) => Some(format!("{base} · {} on-demand", format_cents(on_demand))),
         None => Some(base),
     }
+}
+
+pub(crate) fn balance_breakdown_from_period_usage(value: &Value) -> Option<BalanceBreakdown> {
+    let plan = object_field(value, "planUsage", "plan_usage")?;
+    let limit = object_field(plan, "limit", "limit").and_then(json_cents)?;
+    let included_spend = object_field(plan, "includedSpend", "included_spend")
+        .and_then(json_cents)
+        .unwrap_or(0);
+    let on_demand_spend = object_field(plan, "onDemandSpend", "on_demand_spend")
+        .and_then(json_cents)
+        .unwrap_or(0);
+    let bonus_spend = object_field(plan, "bonusSpend", "bonus_spend")
+        .and_then(json_cents)
+        .unwrap_or(0);
+
+    Some(BalanceBreakdown {
+        currency: "USD".into(),
+        spent_minor: included_spend.saturating_add(on_demand_spend),
+        budget_minor: limit,
+        free_minor: bonus_spend,
+    })
 }
 
 pub(crate) fn cursor_auth_file() -> PathBuf {
@@ -454,6 +443,7 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
     }
     let windows = windows_from_period_usage(period);
     let balance = balance_from_period_usage(period);
+    let balance_breakdown = balance_breakdown_from_period_usage(period);
     ProviderQuota {
         agent_id: AGENT_ID.into(),
         provider: PROVIDER.into(),
@@ -473,25 +463,17 @@ fn cursor_quota_from_period(period: &Value) -> ProviderQuota {
         fetched_at: now_unix(),
         balance,
         balance_info: None,
+        balance_breakdown,
         local_usage: None,
     }
 }
 
 pub(crate) fn cursor_quota() -> ProviderQuota {
-    // Keep a vault-resolved token in SecretString through authorization-header
-    // construction. The CLI-file fallback is already an ordinary String from
-    // the external CLI and has no additional app-side copy.
-    if let Some(token) = hub::secret::resolve("CURSOR_TOKEN") {
-        return match fetch_period_usage(token.expose()) {
-            Ok(period) => cursor_quota_from_period(&period),
-            Err(detail) => unavailable(detail),
-        };
-    }
-    let token = match cursor_auth_token_from_file() {
-        Ok(token) => token,
-        Err(detail) => return unavailable(detail),
+    let usage = match hub::secret::resolve("CURSOR_TOKEN") {
+        Some(token) => fetch_period_usage(token.expose()),
+        None => cursor_auth_token_from_file().and_then(|t| fetch_period_usage(&t)),
     };
-    match fetch_period_usage(&token) {
+    match usage {
         Ok(period) => cursor_quota_from_period(&period),
         Err(detail) => unavailable(detail),
     }

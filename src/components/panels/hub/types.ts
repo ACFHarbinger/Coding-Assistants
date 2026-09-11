@@ -98,6 +98,13 @@ export interface ProviderQuotaLocalUsage {
   since?: number | null;
 }
 
+export interface BalanceBreakdown {
+  currency: string;
+  spent_minor: number;
+  budget_minor: number;
+  free_minor: number;
+}
+
 export interface ProviderQuota {
   agent_id: string;
   provider: string;
@@ -108,6 +115,7 @@ export interface ProviderQuota {
   fetched_at: number;
   balance?: string | null;
   balance_info?: ProviderQuotaBalance | null;
+  balance_breakdown?: BalanceBreakdown | null;
   local_usage?: ProviderQuotaLocalUsage | null;
 }
 

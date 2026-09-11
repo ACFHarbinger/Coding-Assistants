@@ -55,6 +55,16 @@ pub struct ProviderQuotaLocalUsage {
     pub since: Option<i64>,
 }
 
+/// Currency-denominated balance breakdown in minor units (e.g. cents).
+/// Allows visualization of spent vs budget vs free/bonus credits.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BalanceBreakdown {
+    pub currency: String,
+    pub spent_minor: i64,
+    pub budget_minor: i64,
+    pub free_minor: i64,
+}
+
 #[derive(Clone, serde::Serialize)]
 pub struct ProviderQuota {
     pub agent_id: String,
@@ -72,6 +82,9 @@ pub struct ProviderQuota {
     /// Structured balance details for non-subscription / pay-as-you-go providers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance_info: Option<ProviderQuotaBalance>,
+    /// Structured balance breakdown (spent vs budget vs free tokens) in minor units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance_breakdown: Option<BalanceBreakdown>,
     /// Raw counts read from the harness's own on-disk session accounting.
     /// Independent of `windows`/`balance`: a provider may report both a
     /// billed budget and what this machine actually spent locally.
@@ -110,6 +123,7 @@ pub(crate) fn unavailable_quota(
         fetched_at: now_unix(),
         balance: None,
         balance_info: None,
+        balance_breakdown: None,
         local_usage: None,
     }
 }
@@ -280,6 +294,7 @@ pub(crate) fn codex_quota() -> ProviderQuota {
         fetched_at: now_unix(),
         balance: None,
         balance_info: None,
+        balance_breakdown: None,
         local_usage: None,
     }
 }
