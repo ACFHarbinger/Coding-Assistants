@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Qwen Code local-usage quota adapter (#310, `platform.md` P3):** spike
+  found a free persisted source the 2026-09-09 capture had not seen —
+  `~/.qwen/usage_record.jsonl` (one end-of-session object per line,
+  `$QWEN_HOME`-relocatable). New `quota/qwen.rs` sums `models.*.inputTokens`
+  / `outputTokens`+`thoughtsTokens` / `cachedTokens` and `tools.totalSuccess`
+  / `totalFail` into `ProviderQuotaLocalUsage`, wired into
+  `hub_get_provider_quotas` / `hub_refresh_provider_quota("qwen")`. Not gated
+  on `allow_metered_quota_probes`. Token Plan remaining credits are **not**
+  exposed to the Coding Plan API key (`GET coding-intl…/v1/models` 200,
+  `/v1/usage` and `/api/v1/{usage,quota}` 404); the adapter's detail points
+  at the Qwen Cloud / Model Studio console instead of scraping cookie RPCs.
+  Health presence stays with #308. `cargo test -p tauri-app --lib` 218
+  passed / 2 ignored; scoped `qwen` 9/9; `cargo clippy -p tauri-app
+  --all-targets -- -D warnings` and `cargo fmt` clean.
 - **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
   added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
   `$VIBE_HOME/logs/session/session_*`, filtering to `role == "assistant"` and

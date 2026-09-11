@@ -34,10 +34,10 @@ pub struct ProviderQuotaBalance {
 ///
 /// Distinct from both `windows` (a percentage of a budget) and
 /// `balance`/`balance_info` (a currency figure): these are raw counts with no
-/// cap to divide by, so they cannot be expressed as either. Mistral Vibe is
-/// the first source — every `~/.vibe/logs/session/*/meta.json` carries a
-/// `stats` block — and the shape is deliberately provider-neutral so any
-/// harness that keeps comparable local accounting can fill it in.
+/// cap to divide by, so they cannot be expressed as either. Mistral Vibe
+/// (`~/.vibe/logs/session/*/meta.json` `stats`) and Qwen Code
+/// (`~/.qwen/usage_record.jsonl`) both fill it; the shape is provider-neutral
+/// so any harness that keeps comparable local accounting can use it.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProviderQuotaLocalUsage {
     /// Number of on-disk sessions the counts below were summed from.

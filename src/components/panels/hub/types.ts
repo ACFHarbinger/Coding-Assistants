@@ -82,8 +82,8 @@ export interface ProviderQuotaBalance {
   gift?: number | null;
 }
 
-// Raw counts a harness recorded locally (Mistral Vibe's per-session
-// `meta.json` stats today). Neither a percentage nor a currency — there is no
+// Raw counts a harness recorded locally (Mistral Vibe `meta.json` stats,
+// Qwen Code `usage_record.jsonl`). Neither a percentage nor a currency — there is no
 // cap to divide by — so it is its own field rather than being forced into
 // `windows` or `balance_info`.
 export interface ProviderQuotaLocalUsage {
