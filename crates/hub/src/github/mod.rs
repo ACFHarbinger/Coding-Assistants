@@ -1,6 +1,11 @@
 //! GitHub CLI (`gh`) helpers for U18/U19. Explicit argv, no shell strings.
 
+mod branches;
 mod project;
+pub use branches::{
+    attach_issue_metadata, collect_git_branches, fetch_issue_meta, list_workspace_branches,
+    BranchList, GitBranch, IssueMeta, DEFAULT_ISSUE_REPO,
+};
 pub use project::{
     board_from_items, empty_project_board, list_project_board, parse_agent_issue_branch,
     set_project_item_status, BoardCard, BoardColumn, ProjectBoard, DEFAULT_BOARD_COLUMNS,

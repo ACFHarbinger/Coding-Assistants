@@ -64,8 +64,9 @@ pub use bridge::vibe::{
     vibe_session_log_path, vibe_session_workspace,
 };
 pub use github::{
-    empty_project_board, list_issue_branches, list_project_board, parse_agent_issue_branch,
-    set_project_item_status, BoardCard, BoardColumn, ProjectBoard, DEFAULT_BOARD_COLUMNS,
+    empty_project_board, list_issue_branches, list_project_board, list_workspace_branches,
+    parse_agent_issue_branch, set_project_item_status, BoardCard, BoardColumn, BranchList,
+    GitBranch, ProjectBoard, DEFAULT_BOARD_COLUMNS,
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,

@@ -21,6 +21,8 @@ pub mod danger;
 pub mod external_mcp;
 #[path = "github/board.rs"]
 pub mod github_board;
+#[path = "github/branches.rs"]
+pub mod github_branches;
 #[path = "settings/harness_models.rs"]
 pub mod harness_models;
 #[path = "health/health.rs"]
