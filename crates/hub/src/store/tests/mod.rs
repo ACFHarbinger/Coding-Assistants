@@ -1,5 +1,6 @@
 mod consolidation;
 mod core;
+mod danger_purge;
 mod embeddings;
 mod integration;
 mod memory_recall;

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings danger-zone backing actions (S6 remainder, #132):** new hard-delete
+  store methods `purge_messages_in_workspace` / `purge_memories_in_workspace`
+  (raw + canonicalized path match, count returned, zero rows is a no-op) behind
+  three Tauri commands (`settings_purge_workspace_transcript`,
+  `settings_purge_workspace_memories`, `settings_purge_workspace_data` — the
+  last runs both halves under one audit event). The danger tab extracts the
+  typed-target confirmation into a shared `DangerConfirmBox` (Cancel-first
+  focus, red = irreversible / amber = recoverable) and wires transcript,
+  memory, combined data, and profile-deletion (existing
+  `settings_remove_profile`) sections with exact affected-set copy. Verified
+  with 3 hub tests, 2 command tests (temp `CA_HOME`), and 4 tab tests
+  including cancellation-changes-nothing.
+
 - **Qwen Code local-usage quota adapter (#310, `platform.md` P3):** spike
   found a free persisted source the 2026-09-09 capture had not seen —
   `~/.qwen/usage_record.jsonl` (one end-of-session object per line,
