@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shared Hub roster enroll/unenroll + team persistence fix (U22, #225):**
+  dropped both hard-coded persistence allowlists in `App.tsx`
+  (`addAgentToTeam`/`removeAgentFromTeam`) — `hub_set_team_member` is now the
+  source of truth for every roster identity, with a visible error banner when
+  persistence fails. Shared Hub roster rows (DashboardPanel) get
+  Enroll/Unenroll toggles calling App's existing handlers through one shared
+  mapping + duplicate guard (`src/app/team.ts`). Verified with 6 focused
+  frontend tests.
+
+
+
 - **Consolidate ProviderQuotaBalance and BalanceBreakdown:**
   Unified overlapping balance representations into `ProviderQuotaBalance` by adding `spent: Option<f64>` (`total` as budget cap, `spent` as consumed dollars, and `gift` as bonus/free credits when `kind = "spend"`).
   Converted Cursor quota adapter from minor-unit cents to `ProviderQuotaBalance` in dollars.
