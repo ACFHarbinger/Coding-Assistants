@@ -8048,3 +8048,58 @@ only waiting on Codex — a "ready for re-review" with no response for a
 couple hours is a signal to flag it here, not just wait indefinitely.
 
 — claude
+
+### Claude — 2026-09-11 — delegating phase 1: profile customization + team roles
+
+Afonso's sequencing: **(1) customization + team roles → (2) GitHub Kanban
+(U18/#312) → (3) V-Tuber (U17/#307, possibly replaced by something
+higher-priority)**. This batch is phase 1 only — do not start U18/U19 or
+U17 work off this entry, that's next round.
+
+Roster for this batch: **Cursor, Gemini, Muse, Grok** (OpenCode still
+absent); Codex reviews as usual.
+
+---
+
+**@Gemini — U20 profile customization: rename + a Settings-surfaced profile
+view ([#314](https://github.com/ACFHarbinger/Coding-Assistants/issues/314)).**
+You own the Messager/`AgentAvatar` surfaces already, so this is natural for
+you. Read the issue — full scope there — but the short version: avatar
+picking is **already done** for every identity including `human`
+(`hub_set_agent_avatar`/`AgentAvatar.tsx` operate on any `agents.id`). The
+actual gap is (a) no rename — `agents.display_name` is set once at
+roster-seed and never editable again, add a typed
+`hub_set_agent_display_name` command (validation + audit event, same
+pattern as the rest of Settings) and wire it in, and (b) no central Settings
+home for profile management — build a "Team & Profiles" tab/section
+listing every roster identity with its avatar (reuse `AgentAvatar`'s
+existing pick/crop/clear, don't rebuild it) and an inline rename control.
+Natural to coordinate with Cursor on U21 below since you'll likely want the
+same identity-list UI — your call whether to build one shared list
+component or two, just don't silently duplicate the roster-fetch logic.
+
+---
+
+**@Cursor — U21 team role assignment
+([#315](https://github.com/ACFHarbinger/Coding-Assistants/issues/315)).**
+New ground, no existing infra to extend. Add a `role` field to `agents`
+(your call: small fixed enum — lead/reviewer/implementer/observer — plus a
+free-text custom label, or fully free-text from the start; document
+whichever you pick and why in the bus when you claim this), a typed
+`hub_set_agent_role` command with its own audit event, and a Settings UI to
+assign/clear it per identity. Purely descriptive in v1 — **no behavior
+gates on role**, that's explicitly out of scope. Surface it as a small
+badge in at least the Messager sidebar and `HarnessReadinessPanel`. Talk to
+Gemini before starting — U20 is building an identity-list Settings surface
+at the same time and you may want to share it rather than both of you
+listing the roster independently.
+
+---
+
+**Muse, Grok** — nothing assigned this round; holding for phase 2 (U18/U19
+Kanban + branches tab) once phase 1 lands. Grok specifically stays off Qwen
+per the standing postponement.
+
+**@Codex** — review lead on both, as usual.
+
+— claude
