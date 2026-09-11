@@ -9,6 +9,7 @@ use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
 use super::quota_muse::muse_quota;
 use super::quota_opencode::opencode_quota;
+use super::quota_qwen::qwen_quota;
 
 fn llamacpp_quota() -> ProviderQuota {
     unavailable_quota(
@@ -132,6 +133,7 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
             deepseek_quota(),
             muse_quota(allow_metered),
             mistral_quota(),
+            qwen_quota(),
             llamacpp_quota(),
             ollama_quota(),
         ]
@@ -158,6 +160,7 @@ pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuot
         "deepseek" => deepseek_quota(),
         "muse" => muse_quota(metered_quota_probes_allowed()),
         "mistral" | "vibe" => mistral_quota(),
+        "qwen" => qwen_quota(),
         "llamacpp" => llamacpp_quota(),
         "ollama" => ollama_quota(),
         other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
