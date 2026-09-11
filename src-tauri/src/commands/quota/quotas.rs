@@ -7,6 +7,7 @@ use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
+use super::quota_kimi_usage;
 use super::quota_muse::muse_quota;
 use super::quota_opencode::opencode_quota;
 use super::quota_qwen::qwen_quota;
@@ -97,6 +98,52 @@ pub(crate) fn compose_mistral_quota(
     }
 }
 
+/// Kimi quota is the free local half only, for now. The CLI writes a
+/// per-turn token record into every session's `wire.jsonl`, so a truthful
+/// local read-out is available on every plan tier for the cost of a few
+/// file reads: no network, no model turn, nothing to gate behind
+/// `allow_metered_quota_probes`. The plan-budget half (`/oauth/usage`
+/// weekly + rolling windows, pay-as-you-go balance) is served through the
+/// Kimi Code local daemon (`kimi web` → `GET /api/v1/oauth/usage`), not a
+/// stable direct endpoint — see the `quota_kimi_usage` module header and
+/// #311 — so there is no admin half to merge yet the way `mistral_quota()`
+/// merges its two halves. Neither direction fails the other by
+/// construction: no sessions yet stays `unavailable` with both reasons
+/// named, exactly like the Mistral neither-half case.
+pub(crate) fn kimi_quota() -> ProviderQuota {
+    match quota_kimi_usage::local_usage() {
+        Some(local_usage) => ProviderQuota {
+            agent_id: "kimi".into(),
+            provider: "kimi".into(),
+            harness_title: "Kimi".into(),
+            status: "ok".into(),
+            // The local totals are not a budget, so say what is missing
+            // rather than implying they are one.
+            detail: Some(
+                "Locally recorded Kimi session usage. Plan-budget windows are \
+                 not read here: Moonshot serves account usage through the Kimi \
+                 Code local daemon (`kimi web` → /api/v1/oauth/usage), not a \
+                 stable direct endpoint (see #311)."
+                    .into(),
+            ),
+            windows: Vec::new(),
+            fetched_at: now_unix(),
+            balance: None,
+            balance_info: None,
+            local_usage: Some(local_usage),
+        },
+        None => unavailable_quota(
+            "kimi",
+            "kimi",
+            "Kimi",
+            "No Kimi Code sessions recorded yet; run `kimi` once. \
+             Plan-budget windows are not read here: Moonshot serves account \
+             usage through the Kimi Code local daemon (`kimi web` → \
+             /api/v1/oauth/usage), not a stable direct endpoint (see #311).",
+        ),
+    }
+}
+
 /// `orchestration.allow_metered_quota_probes`, read once per refresh. The
 /// `gemini` / `opencode` / `muse` adapters are the only ones whose usage
 /// read costs the user tokens (a model turn or a minimal completion); when
@@ -134,6 +181,7 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
             muse_quota(allow_metered),
             mistral_quota(),
             qwen_quota(),
+            kimi_quota(),
             llamacpp_quota(),
             ollama_quota(),
         ]
@@ -161,6 +209,7 @@ pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuot
         "muse" => muse_quota(metered_quota_probes_allowed()),
         "mistral" | "vibe" => mistral_quota(),
         "qwen" => qwen_quota(),
+        "kimi" => kimi_quota(),
         "llamacpp" => llamacpp_quota(),
         "ollama" => ollama_quota(),
         other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),

@@ -6,7 +6,7 @@ use super::super::quota_grok::{
     grok_home, grok_quota, grok_token_from_auth, grok_windows_from_value,
 };
 use super::super::quota_mistral::MistralAdminBudget;
-use super::super::quotas::compose_mistral_quota;
+use super::super::quotas::{compose_mistral_quota, kimi_quota};
 
 #[test]
 fn claude_quota_is_well_formed_when_logged_in() {
@@ -159,6 +159,41 @@ fn mistral_quota_without_an_admin_key_stays_local_only() {
         .as_deref()
         .unwrap_or_default()
         .contains("MISTRAL_ADMIN_API_KEY is not set"));
+}
+
+/// Kimi (#311) is local-only: `ok` with `local_usage` and no windows when
+/// sessions exist, `unavailable` with both reasons named when none do. No
+/// environment gate — both branches are asserted, so the test holds on a
+/// machine with or without a Kimi install.
+#[test]
+fn kimi_quota_is_well_formed_with_or_without_sessions() {
+    let quota = kimi_quota();
+    assert_eq!(quota.agent_id, "kimi");
+    assert_eq!(quota.provider, "kimi");
+    match quota.status.as_str() {
+        "ok" => {
+            let local = quota.local_usage.expect("local usage present");
+            assert!(local.sessions > 0);
+            assert!(quota.windows.is_empty(), "local totals are not a budget");
+            assert!(quota
+                .detail
+                .as_deref()
+                .unwrap_or_default()
+                .contains("Locally recorded"));
+        }
+        "unavailable" => {
+            let detail = quota.detail.unwrap_or_default();
+            assert!(
+                detail.contains("No Kimi Code sessions recorded yet"),
+                "{detail}"
+            );
+            assert!(
+                detail.contains("Plan-budget windows are not read here"),
+                "{detail}"
+            );
+        }
+        other => panic!("unexpected status: {other}"),
+    }
 }
 
 #[test]

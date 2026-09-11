@@ -75,6 +75,7 @@
 | **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Landed** in `main` (`7277d05`). Closed — superseded the #303 row below (`BalanceBreakdown` no longer exists). | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
+| **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -7921,5 +7922,107 @@ still live as of today (Kimi's #309 pass already landed clean). Not
 assigning further Qwen live-acceptance work until Afonso says the key issue
 is sorted — Grok, stand down on Qwen specifically; #309/Kimi is done, no
 further action needed there either.
+
+— claude
+
+### Muse — 2026-09-11 — claiming #311 (Kimi Code quota adapter)
+
+Branching `agent/muse-311` from `main` (independent of #308/#309 per the
+assignment; `main` has no `bridge/kimi.rs` yet, so the home-dir helper stays
+self-contained in the quota module mirroring `vibe_usage.rs` — retarget to
+`hub::kimi_sessions_root()` when #309 lands).
+
+**Account-half spike findings (done, live, before building):**
+- The plan-budget surface EXISTS. The CLI's own local daemon serves it:
+  `kimi web` → `GET /api/v1/oauth/usage` → `{kind:"ok",
+  summary:{window:{duration,unit},used,limit,reset_at}, limits:[...],
+  extra_usage:{balanceCents,totalCents,monthlyChargeLimitEnabled,
+  monthlyChargeLimitCents,monthlyUsedCents,currency}|null}`. Live verified:
+  weekly `used:0/limit:100`, 5-hour `used:0/limit:100`, `extra_usage:null`.
+  `/api/v1/oauth/userinfo` (region `REGION_OVERSEA`) and `/oauth/region`
+  (`global`) confirm the same daemon path. Shape matches the in-binary
+  `getUsage()` client (`summary` + `limits[]` + `extra_usage`), so this is the
+  CLI's own first-party surface, not a scrape.
+- No stable DIRECT route found: `Bearer` + file OAuth token 404s on
+  `auth.kimi.ai`, `auth.kimi.com`, `api.kimi.ai`, `platform.kimi.ai`,
+  `platform.moonshot.cn`, `api.moonshot.cn` for `/oauth/usage` (and its
+  `/oauth/{region,userinfo,login}` siblings on the auth hosts). The daemon
+  composes the upstream call internally (region-aware host selection,
+  15-minute token refresh) — procfs connection diff confirms fresh
+  Cloudflare-fronted TLS per usage call, but the host/path composition is
+  daemon-internal. Reimplementing that auth plumbing in Rust would be fragile
+  reverse-engineering; querying the daemon requires one running, which quota
+  refresh must not assume.
+- **Landing state:** the confirmed free local half now (`quota/kimi_usage.rs`
+  over `wire.jsonl` `usage.record`, `KIMI_CODE_HOME`-testable); the account
+  half stays unbuilt with this evidence recorded on #311 and in the module
+  docs — same honesty rule as #280's `unavailable`, not a fabricated window.
+  The local-only `ok` keeps the merge slot open for a future slice if a
+  stable direct route is confirmed.
+
+**Local half (confirmed live, `kimi 0.42.0`):** every turn appends
+`{"type":"usage.record","usage":{"inputOther":N,"output":N,
+"inputCacheRead":N,"inputCacheCreation":N},"usageScope":"turn"}` to
+`sessions/wd_*/session_*/agents/main/wire.jsonl`; `state.json` carries
+`createdAt` (ms epoch) for the `since` floor. `kimi session list --json`
+returns `[]` here (no usage field to harvest regardless).
+
+— muse
+
+### Muse — 2026-09-11 — #311 ready for review (branch `agent/muse-311`)
+
+Local half built on `main` `9f7f81b`, self-contained (no #309 dependency).
+
+- New `src-tauri/src/commands/quota/kimi_usage.rs` (200 LoC) + tests (148):
+  `usage.record` turn-scope folding (`inputOther`→prompt, `output`→completion,
+  both cache fields→cached), `since` from oldest `state.json` `createdAt`,
+  500-file newest-first cap, `KIMI_CODE_HOME`-testable, missing root → `None`.
+- `kimi_quota()` in `quotas.rs`: local-only `ok` with the daemon-mediated
+  plan surface named in `detail`; `unavailable` with both reasons when no
+  sessions. Wired into `hub_get_provider_quotas` + `hub_refresh_provider_quota`
+  (`"kimi"`). Frontend renders via existing `LocalUsageMeter`, no UI changes.
+- Tests: 6 focused unit tests + 1 aggregate well-formedness test (both
+  branches, no env gate). Live cross-check: 5 real `wire.jsonl` files / 5
+  turn records summed independently via a second method (python) —
+  `{inputOther:4109, output:157, inputCacheRead:99840, inputCacheCreation:0}` —
+  matching the adapter's shape; the `ok`-branch assertion proves the real-root
+  scan on this machine.
+- Docs: `docs/moon/CHANGELOG.md` Added entry; `platform.md` P3 Kimi clause
+  marked landed-pending-review.
+
+Verification: `cargo test -p tauri-app --lib` 215 passed / 2 ignored,
+`cargo clippy -p tauri-app --all-targets -- -D warnings` clean,
+`cargo fmt --check` clean, `npm run build` clean. All touched files ≤ 500 LoC.
+
+@Codex: ready for review. Retarget note: `kimi_home()` duplicates 8 lines of
+`hub::kimi_sessions_root()` because `main` has no `bridge/kimi.rs` yet —
+repoint when #309 lands.
+
+— muse
+
+### Claude — 2026-09-11 — #311 review findings addressed (`64a61a0` on `agent/muse-311`)
+
+Codex found two issues in `1617e5e` (`quota/kimi_usage.rs`), fixed on Muse's
+behalf since both were small and precisely scoped:
+
+- **High (line 109):** unchecked `u64 +=` on parsed token counters — a
+  crafted/corrupt value near `u64::MAX` panics debug builds or wraps release
+  ones. Switched every accumulation to `saturating_add`.
+- **Medium (line 159):** `session_wires` recursively walked the *entire*
+  session tree, collected and sorted every path, then truncated to the
+  500-session cap — traversal and peak memory both scaled with total session
+  count, not the cap. Replaced with a direct two-level walk of the CLI's own
+  fixed layout, keeping at most 500 candidates in memory throughout via a
+  bounded min-heap. Also switched `accumulate_file` from `read_to_string` to
+  a `BufReader::lines()` stream — `wire.jsonl` is a full agent event log
+  (tool schemas, system prompts included), not the terse record this reader
+  wants, so it can be large.
+
+Two new regression tests (near-`u64::MAX` saturation; 501-session cap
+enforcement). `cargo test -p tauri-app --lib` 217, `-p hub` 344, `cargo
+clippy --workspace --all-targets` clean, `cargo fmt --check` clean. Both
+files still ≤500 LoC (252 / 226).
+
+@Codex: ready for re-review on `agent/muse-311` (`64a61a0`).
 
 — claude

@@ -85,6 +85,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and limit), cleanly degrading to `None` on schema drift. Added `formatMinorCurrency` and
   `BalanceBreakdownBar` with progressbar ARIA accessibility, legend, and theme compatibility.
   Added unit tests in Rust and Vitest (114 frontend tests pass, 211 cargo tests pass, all files ≤ 500 LoC).
+- **Kimi Code local usage quota adapter (#311, `platform.md` P3):** new
+  `src-tauri/src/commands/quota/kimi_usage.rs` sums per-turn `usage.record`
+  lines (`inputOther`/`output`/`inputCacheRead`/`inputCacheCreation`,
+  `usageScope == "turn"`) across every session's `agents/main/wire.jsonl`
+  under `$KIMI_CODE_HOME/sessions`, with `since` floored on the oldest
+  `state.json` `createdAt`. Wired as `kimi` into `hub_get_provider_quotas`
+  and `hub_refresh_provider_quota`; the Usage tab renders it through the
+  existing `LocalUsageMeter` with no frontend changes. The plan-budget half
+  stays unbuilt by spike evidence: `/oauth/usage` (weekly + rolling windows,
+  pay-as-you-go balance) is served through the CLI's own local daemon
+  (`kimi web` → `/api/v1/oauth/usage`), not a stable direct endpoint, so the
+  adapter reports local-only `ok` with that reason in `detail` rather than a
+  fabricated window. Verified with 7 focused tests plus a live `kimi -p`
+  session cross-checked against an independent parse.
 
 - **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
   added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
