@@ -317,17 +317,8 @@ impl HubStore {
         &self,
         workspace: &std::path::Path,
     ) -> Result<usize, HubError> {
-        let raw = workspace.to_string_lossy().into_owned();
-        let canonical = workspace
-            .canonicalize()
-            .map(|path| path.to_string_lossy().into_owned())
-            .ok();
-        let paths: Vec<&str> = match canonical.as_deref() {
-            Some(resolved) if resolved != raw => vec![raw.as_str(), resolved],
-            _ => vec![raw.as_str()],
-        };
         let mut total = 0;
-        for path in paths {
+        for path in danger::workspace_purge_paths(workspace) {
             total += self.conn.execute(
                 "DELETE FROM memories WHERE workspace_path = ?1",
                 params![path],

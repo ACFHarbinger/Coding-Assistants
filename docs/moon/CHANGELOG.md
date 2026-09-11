@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (raw + canonicalized path match, count returned, zero rows is a no-op) behind
   three Tauri commands (`settings_purge_workspace_transcript`,
   `settings_purge_workspace_memories`, `settings_purge_workspace_data` — the
-  last runs both halves under one audit event). The danger tab extracts the
+  last runs both halves plus its audit row in one transaction, and every purge
+  returns its count only after commit, so deletion can never land without its
+  audit record). The danger tab extracts the
   typed-target confirmation into a shared `DangerConfirmBox` (Cancel-first
   focus, red = irreversible / amber = recoverable) and wires transcript,
   memory, combined data, and profile-deletion (existing

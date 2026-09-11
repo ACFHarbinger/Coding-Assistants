@@ -16,13 +16,6 @@ pub struct WorkspacePurgeReport {
     pub memories: usize,
 }
 
-fn record_settings_audit(field: &str, scope: &str, action: &str) -> Result<(), String> {
-    super::store::open_store()?
-        .record_settings_audit_event(field, scope, action)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
-}
-
 fn workspace_path(workspace: &str) -> Result<PathBuf, String> {
     let trimmed = workspace.trim();
     if trimmed.is_empty() {
@@ -32,48 +25,39 @@ fn workspace_path(workspace: &str) -> Result<PathBuf, String> {
 }
 
 /// Permanently delete every message recorded against `workspace` (hard
-/// `DELETE`, all kinds and statuses). Returns the deleted row count.
+/// `DELETE`, all kinds and statuses) together with its audit row in one
+/// transaction. The count returns only after the commit, so a failed audit
+/// can never leave deletion unrecorded.
 #[tauri::command]
 pub fn settings_purge_workspace_transcript(workspace: String) -> Result<usize, String> {
     let path = workspace_path(&workspace)?;
-    let deleted = super::store::open_store()?
-        .purge_messages_in_workspace(&path)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit("transcript", &workspace, &format!("purge:{deleted}"))?;
-    Ok(deleted)
+    super::store::open_store()?
+        .purge_messages_in_workspace_with_audit(&path)
+        .map_err(|e| e.to_string())
 }
 
-/// Permanently delete every memory recorded against `workspace`, all tiers
-/// including non-stale ones. Returns the deleted row count.
+/// Permanently delete every memory recorded against `workspace` (all tiers
+/// including non-stale ones) together with its audit row in one
+/// transaction. The count returns only after the commit.
 #[tauri::command]
 pub fn settings_purge_workspace_memories(workspace: String) -> Result<usize, String> {
     let path = workspace_path(&workspace)?;
-    let deleted = super::store::open_store()?
-        .purge_memories_in_workspace(&path)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit("memory", &workspace, &format!("purge:{deleted}"))?;
-    Ok(deleted)
+    super::store::open_store()?
+        .purge_memories_in_workspace_with_audit(&path)
+        .map_err(|e| e.to_string())
 }
 
-/// Permanently delete the workspace's transcript *and* memories in one
-/// confirmed action, with a single audit event naming both counts. Wakes are
-/// agent-scoped (no workspace column) and harness registrations are runtime
-/// state — neither is touched, and the danger-tab copy says so.
+/// Permanently delete the workspace's transcript *and* memories plus one
+/// audit row as a single atomic unit: either half (or the audit insert)
+/// failing rolls back everything. Wakes are agent-scoped (no workspace
+/// column) and harness registrations are runtime state — neither is
+/// touched, and the danger-tab copy says so.
 #[tauri::command]
 pub fn settings_purge_workspace_data(workspace: String) -> Result<WorkspacePurgeReport, String> {
     let path = workspace_path(&workspace)?;
-    let store = super::store::open_store()?;
-    let messages = store
-        .purge_messages_in_workspace(&path)
+    let (messages, memories) = super::store::open_store()?
+        .purge_workspace_data_with_audit(&path)
         .map_err(|e| e.to_string())?;
-    let memories = store
-        .purge_memories_in_workspace(&path)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit(
-        "workspace-data",
-        &workspace,
-        &format!("purge:messages={messages},memories={memories}"),
-    )?;
     Ok(WorkspacePurgeReport { messages, memories })
 }
 
