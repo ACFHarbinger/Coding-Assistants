@@ -20,16 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Exposed typed Tauri command `hub_set_agent_display_name` (async worker + blocking helper) emitting `hub:agents-changed` on mutation.
   Built dedicated `TeamProfilesSection` in Settings listing every roster identity (including `human`), integrating avatar pick/crop/clear via `AgentAvatar` and inline display name editing with validation feedback and extensibility slot for U21 team roles.
   Updated Messager and Activity panels to prefer updated roster display names across all surfaces without restarting.
-
+  Hardened `HubStore::upsert_agent` with a `custom_display_name` flag to preserve intentional user renames against routine message sends, wakes, policies, tasks, and future identity seeding passes. Added regression test verifying custom renames survive routine operations.
 
 - **Shared Hub roster enroll/unenroll + team persistence fix (U22, #225):**
-  dropped both hard-coded persistence allowlists in `App.tsx`
-  (`addAgentToTeam`/`removeAgentFromTeam`) — `hub_set_team_member` is now the
-  source of truth for every roster identity, with a visible error banner when
-  persistence fails. Shared Hub roster rows (DashboardPanel) get
-  Enroll/Unenroll toggles calling App's existing handlers through one shared
-  mapping + duplicate guard (`src/app/team.ts`). Verified with 6 focused
-  frontend tests.
+  Dropped both hard-coded persistence allowlists in `App.tsx` (`addAgentToTeam`/`removeAgentFromTeam`) — `hub_set_team_member` is now the source of truth for every roster identity, with a visible error banner when persistence fails.
+  Synchronized persistence lifecycle: `addAgentToTeam` and `removeAgentFromTeam` return and await the persistence promise, updating local `teamMembers` only upon resolution and propagating errors.
+  `HubPanel.enrollAgent`/`unenrollAgent` properly awaits the persistence operation before refreshing agents in `finally`, eliminating races against stale state.
+  Shared Hub roster rows (`DashboardPanel`) feature Enroll/Unenroll buttons wired through the shared mapping and guard (`src/app/team.ts`). Added tests for failed enroll and failed unenroll verifying UI consistency with `HubStore` and error display.
 
 
 

@@ -1,6 +1,7 @@
 use super::*;
 
 mod audit;
+mod seeding;
 mod settings_audit;
 
 // Re-exported for the S6 danger purges (`store::danger`, message/memory

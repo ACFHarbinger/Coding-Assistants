@@ -195,6 +195,10 @@ pub struct AgentRecord {
     /// or an arbitrary custom role string.
     #[serde(default)]
     pub role: Option<String>,
+    /// Whether this identity has an intentional custom display name set by the
+    /// user via `set_agent_display_name` (U20 / #314).
+    #[serde(default)]
+    pub custom_display_name: bool,
 }
 
 /// A named, durable chat scope for one owner-led work session.

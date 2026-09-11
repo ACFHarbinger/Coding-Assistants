@@ -46,7 +46,7 @@ impl HubStore {
 
         let old_name = current.display_name.clone();
         self.conn.execute(
-            "UPDATE agents SET display_name = ?1 WHERE id = ?2",
+            "UPDATE agents SET display_name = ?1, custom_display_name = 1 WHERE id = ?2",
             params![trimmed, id],
         )?;
 
@@ -168,5 +168,88 @@ mod tests {
         assert_eq!(res.display_name, "Human");
         let post_audits = store.list_settings_audit_events().unwrap().len();
         assert_eq!(initial_audits, post_audits);
+    }
+
+    #[test]
+    fn rename_agent_survives_subsequent_upserts_and_sends() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+
+        // 1. Initial state: claude is seeded as "Claude Code"
+        let claude = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "claude")
+            .unwrap();
+        assert_eq!(claude.display_name, "Claude Code");
+        assert!(!claude.custom_display_name);
+
+        // 2. Rename claude to "Claude Architect"
+        store
+            .set_agent_display_name("claude", "Claude Architect")
+            .unwrap();
+        let renamed = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "claude")
+            .unwrap();
+        assert_eq!(renamed.display_name, "Claude Architect");
+        assert!(renamed.custom_display_name);
+
+        // 3. Routine upsert with bare id (as done by wakes/policies/tasks)
+        store.upsert_agent("claude", "claude").unwrap();
+        let after_routine = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "claude")
+            .unwrap();
+        assert_eq!(after_routine.display_name, "Claude Architect");
+        assert!(after_routine.custom_display_name);
+
+        // 4. Routine message send (which executes upsert_agent(from_agent, from_agent) etc.)
+        store
+            .send_message(
+                "claude",
+                "human",
+                MessageKind::Message,
+                "world",
+                Some("hello"),
+                None,
+                None,
+            )
+            .unwrap();
+        let after_send = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "claude")
+            .unwrap();
+        assert_eq!(after_send.display_name, "Claude Architect");
+        assert!(after_send.custom_display_name);
+
+        // 5. Future identity seed attempt (passing default well-known name)
+        store.upsert_agent("claude", "Claude Code").unwrap();
+        let after_seed = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "claude")
+            .unwrap();
+        assert_eq!(after_seed.display_name, "Claude Architect");
+        assert!(after_seed.custom_display_name);
+
+        // 6. Non-renamed agent routine upsert preserves its seeded name
+        store.upsert_agent("grok", "grok").unwrap();
+        let grok = store
+            .list_agents()
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "grok")
+            .unwrap();
+        assert_eq!(grok.display_name, "Grok Build");
+        assert!(!grok.custom_display_name);
     }
 }

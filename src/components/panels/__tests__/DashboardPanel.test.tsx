@@ -67,4 +67,38 @@ describe("DashboardPanel roster enroll (U22 / #225)", () => {
       expect.objectContaining({ id: "kimi", target_id: "kimi" }),
     );
   });
+
+  it("displays visible error and does not toggle state on failed enroll", async () => {
+    const onAddAgent = vi.fn().mockRejectedValue(new Error("Could not enroll kimi: HubStore failure"));
+    render(
+      <DashboardPanel
+        agents={agents}
+        teamMemberIds={[]}
+        onAddAgent={onAddAgent}
+        onRemoveAgent={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Kimi")).toBeTruthy());
+    const enrollButtons = screen.getAllByRole("button", { name: "Enroll" });
+    fireEvent.click(enrollButtons[0]);
+    expect(await screen.findByText(/Could not enroll kimi: HubStore failure/i)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Enroll" })[0]).toBeTruthy();
+  });
+
+  it("displays visible error and does not toggle state on failed unenroll", async () => {
+    const onRemoveAgent = vi.fn().mockRejectedValue(new Error("Could not remove claude: HubStore failure"));
+    render(
+      <DashboardPanel
+        agents={agents}
+        teamMemberIds={["claude"]}
+        onAddAgent={vi.fn()}
+        onRemoveAgent={onRemoveAgent}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Claude")).toBeTruthy());
+    const unenrollBtn = screen.getByRole("button", { name: "Unenroll" });
+    fireEvent.click(unenrollBtn);
+    expect(await screen.findByText(/Could not remove claude: HubStore failure/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unenroll" })).toBeTruthy();
+  });
 });

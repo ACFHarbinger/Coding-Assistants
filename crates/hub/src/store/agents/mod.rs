@@ -10,8 +10,15 @@ mod work_sessions;
 impl HubStore {
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {
         self.conn.execute(
-            "INSERT INTO agents (id, display_name, created_at) VALUES (?1, ?2, ?3)
-             ON CONFLICT(id) DO UPDATE SET display_name = ?2",
+            "INSERT INTO agents (id, display_name, created_at, custom_display_name)
+             VALUES (?1, ?2, ?3, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                display_name = CASE
+                    WHEN agents.custom_display_name = 1 THEN agents.display_name
+                    WHEN ?2 = agents.id THEN agents.display_name
+                    WHEN agents.display_name = agents.id THEN ?2
+                    ELSE ?2
+                END",
             params![id, display_name, Utc::now().to_rfc3339()],
         )?;
         Ok(())
@@ -21,8 +28,14 @@ impl HubStore {
         let card_json =
             serde_json::to_string(card).map_err(|e| HubError::Invalid(e.to_string()))?;
         self.conn.execute(
-            "INSERT INTO agents (id, display_name, created_at, card_json) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(id) DO UPDATE SET display_name = ?2, card_json = ?4",
+            "INSERT INTO agents (id, display_name, created_at, card_json, custom_display_name)
+             VALUES (?1, ?2, ?3, ?4, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                display_name = CASE
+                    WHEN agents.custom_display_name = 1 THEN agents.display_name
+                    ELSE ?2
+                END,
+                card_json = ?4",
             params![id, card.name, Utc::now().to_rfc3339(), card_json],
         )?;
         Ok(())
@@ -30,7 +43,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name
              FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -42,6 +55,7 @@ impl HubStore {
                 team_member: r.get::<_, i64>(4)? != 0,
                 avatar_attachment_id: r.get(5)?,
                 role: r.get(6)?,
+                custom_display_name: r.get::<_, i64>(7).unwrap_or(0) != 0,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

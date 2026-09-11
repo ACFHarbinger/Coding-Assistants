@@ -38,20 +38,9 @@ function App() {
   const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
   const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
-  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem("ca.activeWorkSessionId");
-    } catch {
-      return null;
-    }
-  });
-  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem("ca.activeWorkSessionId");
-    } catch {
-      return null;
-    }
-  });
+  const getSavedWorkSessionId = () => { try { return localStorage.getItem("ca.activeWorkSessionId"); } catch { return null; } };
+  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(getSavedWorkSessionId);
+  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(getSavedWorkSessionId);
   const [chatFocusToken, setChatFocusToken] = useState(0);
   const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) ?? null;
   const workDirRef = useRef(config.work_dir);
@@ -229,28 +218,30 @@ function App() {
     };
   }, []);
 
-  const addAgentToTeam = (agent: TeamMember) => {
-    setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+  const addAgentToTeam = async (agent: TeamMember): Promise<void> => {
     setTeamError(null);
     const rosterId = agent.target_id;
     // No allowlist: any roster identity persists the same way, with
     // `hub_set_team_member` as the source of truth (U22 / #225). A backend
     // NotFound (unknown id) surfaces in the banner below instead of console.
-    if (!isTauriRuntime()) return;
-    void (async () => {
-      try {
-        await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
-        if (activeWorkSessionId) {
-          await invoke("hub_add_work_session_member", {
-            sessionId: activeWorkSessionId,
-            agentId: rosterId,
-          });
-        }
-        await refreshHubChat();
-      } catch (error) {
-        setTeamError(`Could not enroll ${rosterId} on the persisted team: ${error}`);
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+      return;
+    }
+    try {
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
+      if (activeWorkSessionId) {
+        await invoke("hub_add_work_session_member", {
+          sessionId: activeWorkSessionId,
+          agentId: rosterId,
+        });
       }
-    })();
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+      await refreshHubChat();
+    } catch (error) {
+      setTeamError(`Could not enroll ${rosterId} on the persisted team: ${error}`);
+      throw error;
+    }
   };
 
   const selectWorkSession = (sessionId: string | null) => {
@@ -272,16 +263,23 @@ function App() {
     selectWorkSession(session.id);
   };
 
-  const removeAgentFromTeam = (agent: TeamMember) => {
-    setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+  const removeAgentFromTeam = async (agent: TeamMember): Promise<void> => {
     setTeamError(null);
     const rosterId = agent.target_id;
     if (rosterId === "human") return;
     // No allowlist (U22 / #225): unenroll persists for every other identity.
-    if (!isTauriRuntime()) return;
-    invoke("hub_set_team_member", { id: rosterId, enrolled: false }).catch(error => {
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      return;
+    }
+    try {
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: false });
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      await refreshHubChat();
+    } catch (error) {
       setTeamError(`Could not remove ${rosterId} from the persisted team: ${error}`);
-    });
+      throw error;
+    }
   };
 
   const teamMemberIds = [...new Set([

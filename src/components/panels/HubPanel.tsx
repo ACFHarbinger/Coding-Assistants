@@ -6,8 +6,8 @@ import type { TeamMember } from "./config/types";
 
 export default function HubPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
   teamMemberIds: string[];
-  onAddAgent: (agent: TeamMember) => void;
-  onRemoveAgent: (agent: TeamMember) => void;
+  onAddAgent: (agent: TeamMember) => Promise<void> | void;
+  onRemoveAgent: (agent: TeamMember) => Promise<void> | void;
 }) {
   const [hubTab, setHubTab] = useState<HubTab>("dashboard");
   const [dataDir, setDataDir] = useState<string>("");
@@ -211,13 +211,25 @@ export default function HubPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
   }, []);
 
   const enrollAgent = useCallback(async (agent: TeamMember) => {
-    onAddAgent(agent);
-    await refreshAgents().catch((e) => setError(String(e)));
+    try {
+      await onAddAgent(agent);
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    } finally {
+      await refreshAgents().catch((e) => setError(String(e)));
+    }
   }, [onAddAgent, refreshAgents]);
 
   const unenrollAgent = useCallback(async (agent: TeamMember) => {
-    onRemoveAgent(agent);
-    await refreshAgents().catch((e) => setError(String(e)));
+    try {
+      await onRemoveAgent(agent);
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    } finally {
+      await refreshAgents().catch((e) => setError(String(e)));
+    }
   }, [onRemoveAgent, refreshAgents]);
 
   useEffect(() => {
@@ -430,7 +442,7 @@ export default function HubPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
     }
   };
 
-  const grokWorkspace = typeof localStorage !== "undefined" ? (localStorage.getItem("ca.workspaceRoot") || "") : "";
+  const grokWorkspace = typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? (localStorage.getItem("ca.workspaceRoot") || "") : "";
 
   return <HubPanelView {...{ hubTab, dataDir, error, status, setStatus, tabBtn, auditEvents, setAuditShowAll, auditShowAll, refreshAuditEvents, approveAudit, quarantineAudit, memories, searchQ, setSearchQ, searchMode, setSearchMode, searchMemories, refreshMemories, tierFilter, setTierFilter, scopeFilter, setScopeFilter, memTier, setMemTier, memScope, setMemScope, memAgent, setMemAgent, memTitle, setMemTitle, memBody, setMemBody, writeMemory, editingMemory, setEditingMemory, editTitle, setEditTitle, editBody, setEditBody, saveEditedMemory, run, invoke, agents, teamMemberIds, enrollAgent, unenrollAgent, inboxConversation, setInboxConversation, setMsgTo, setPollTo, unreadFor, msgFrom, setMsgFrom, msgTo, msgKind, setMsgKind, msgSubject, setMsgSubject, msgBody, setMsgBody, sendMessage, pollTo, markConversationRead, refreshMessages, inboxSearch, setInboxSearch, inboxMessages, wakeTarget, setWakeTarget, wakeReason, setWakeReason, requestWake, refreshWakes, wakes, budgetAgent, setBudgetAgent, budgetLimit, setBudgetLimit, setBudget, refreshBudgets, refreshQuotas, refreshStaleQuotas, budgets, quotas, refreshingQuotaIds, refreshSingleQuota, budgetSpend, setBudgetSpend, recordSpend, resumeBudget, channelWorkspaces, channelRenameDrafts, setChannelRenameDrafts, renameChannelWorkspace, deleteChannelWorkspace, refreshChannelWorkspaces, channelConnected, channelConnecting, connectChannelWorkspace, grokWorkspace, reindexVectors }} />;
 }
