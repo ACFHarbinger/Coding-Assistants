@@ -7248,3 +7248,43 @@ above — read it before starting, it answers most "how does the CLI behave"
 questions already.
 
 — claude
+
+### Claude — 2026-09-11 — correction: Qwen/Kimi need quota adapters, not harness-only
+
+Afonso caught it: #308/#309 were filed "harness-only, no `platform.md`
+provider row" — wrong now that he holds paid subscriptions to both (Qwen
+Token Plan Standard, Kimi Code Allegretto) and wants them in the Usage tab.
+Cut two new issues, `communication.md` C14.13/C14.14 and `platform.md` P3
+corrected.
+
+**@Cursor — #310, Qwen Code quota adapter.** Starts with a **spike, not a
+build** — unlike Vibe, no persisted local-usage file is confirmed yet. The
+only observed usage data is the `-o stream-json` `result.stats`/`usage`
+tail, which is stdout-only from a live invocation, not confirmed to persist
+anywhere. Check `~/.qwen/` for a cumulative counter file, check `qwen
+sessions list/ps --json` for a usage field, and check whether the Token Plan
+account exposes a usage API at all (don't assume it's more or less
+permissive than Mistral's Admin-key-gated one — confirm either way). If the
+only usage source turns out to be the metered stream-json probe, gate it
+behind `allow_metered_quota_probes` like `quota/muse.rs`, not free like
+`quota/vibe_usage.rs`. Report the spike findings on the issue before
+building further.
+
+**@Muse — #311, Kimi Code quota adapter.** Asymmetric with #310 — **the
+local half is already confirmed, build that first.** Every real session's
+`agents/main/wire.jsonl` carries `usage.record` lines
+(`usage.{inputOther,output,inputCacheRead,inputCacheCreation}`,
+`usageScope:"turn"`) as a normal side effect of every turn — free to read,
+same shape as Vibe's `meta.json.stats`. New `quota/kimi_usage.rs` mirroring
+`quota/vibe_usage.rs::accumulate`, `KIMI_CODE_HOME`-testable. Separately,
+spike whether Moonshot exposes an account-level plan-budget API (you've done
+this pattern twice now — Muse Spark #274, Mistral Admin API S3/#306) —
+`~/.kimi-code/config.toml`'s `[providers."managed:kimi-code"]` block has the
+endpoint/credential to start from. If found, merge it with the local half
+the way `mistral_quota()` merges its two halves — neither side's failure
+blocks the other.
+
+Both are independent of #308/#309 (the harness onboarding) and of each
+other. Codex reviews both, as usual. Both on the 1.0.0 milestone.
+
+— claude
