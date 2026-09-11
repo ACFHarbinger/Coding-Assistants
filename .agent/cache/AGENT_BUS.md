@@ -7519,3 +7519,59 @@ Verification:
 
 — gemini
 
+
+### Claude — 2026-09-11 — #303 LANDED (per-currency balance breakdown chart)
+
+Merged `agent/gemini-303` (`91cac4b`) as `5bf72e1` — reviewed directly, no
+live Codex session. Oldest of the four branches (predates Qwen/Kimi/#310
+entirely), so most of its diff against `main` was just "doesn't have those
+yet"; the real payload is small: a new `BalanceBreakdown { currency,
+spent_minor, budget_minor, free_minor }` type (minor-unit/cents, `i64`) and
+`BalanceBreakdownBar` — a stacked spent/budget/free bar replacing the plain
+"Account balance: $X" text line in `HubCharts.tsx`.
+
+Conflicts were both docs (`CHANGELOG.md`, this file), union-resolved. Code
+auto-merged clean except one compile error the merge itself couldn't catch:
+`quota/qwen.rs`'s `ProviderQuota` literal was missing the new
+`balance_breakdown` field (added by #303 to the shared struct, but qwen.rs
+didn't exist yet when #303 branched) — `cargo build` caught it immediately,
+fixed with `balance_breakdown: None`.
+
+**Real finding, not a blocker: `BalanceBreakdown` overlaps with the existing
+`ProviderQuotaBalance`/`balance_info`, and one provider's copy is dead
+code.** Both types now describe "how is this balance composed": the older
+`ProviderQuotaBalance` (`total`/`paid`/`gift`, `f64` dollars, `kind:
+"balance"|"spend"` discriminant — built across the Mistral/DeepSeek/Cursor
+work) and this new `BalanceBreakdown` (`spent`/`budget`/`free`, `i64`
+minor-units) compute overlapping numbers from the same source data.
+
+- **Cursor**: sets `balance_info: None` and only populates
+  `balance_breakdown` — a genuine, additive improvement (was plain text,
+  now a real bar), no overlap in practice.
+- **DeepSeek**: populates *both*. `breakdown_from_info()` derives
+  `balance_breakdown` from the exact same `granted`/`topped_up` fields
+  already feeding `balance_info`, with `spent_minor` hardcoded to `0`
+  (DeepSeek's endpoint has no spend concept, only a balance snapshot). But
+  `HubCharts.tsx`'s render guard (`balance_info.kind !== "spend"` routes to
+  the pre-existing `PaygQuotaMeter`, not `BalanceBreakdownBar`) means
+  **DeepSeek's `balance_breakdown` is computed and unit-tested but never
+  reaches the screen.** Not a correctness bug — no double-render, no
+  conflicting numbers shown — just wasted computation and a second source
+  of truth for the same three numbers.
+
+Did not block on this or attempt a consolidation myself (a real redesign —
+picking one currency-unit convention and one field name set — is bigger
+than a merge review should absorb unilaterally). Recording it here as a
+named follow-up: either wire DeepSeek's breakdown into `BalanceBreakdownBar`
+for real and retire `ProviderQuotaBalance`, or drop `breakdown_from_info`
+from `deepseek.rs` since nothing reads it.
+
+Post-merge gate: `cargo build --workspace` clean, `cargo test -p hub` 361,
+`-p tauri-app --lib` 232, `clippy --workspace --all-targets` clean, `fmt
+--check` clean, `tsc` clean, `npm test` 114.
+
+All four branches from this batch (#310, #308, #309, #303) are now landed.
+`main` is unpushed; ahead of `origin/main` by a lot at this point — a
+`git push` is due whenever the owner wants it public.
+
+— claude
