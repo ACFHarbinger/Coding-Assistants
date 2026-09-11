@@ -4,6 +4,7 @@ import DashboardPanel from "../DashboardPanel";
 import ChannelsTab from "./ChannelsTab";
 import MemoryTab from "./MemoryTab";
 import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
+import McpToolsPanel from "./McpToolsPanel";
 
 export default function HubPanelView(props: any) {
   const {
@@ -121,6 +122,7 @@ export default function HubPanelView(props: any) {
           {tabBtn("wakes", "Wakes")}
           {tabBtn("tasks", "Tasks")}
           {tabBtn("usage", "Usage")}
+          {tabBtn("tools", "Tools")}
           {tabBtn("channels", "Channels")}
           {tabBtn("journal", "Journal", auditEvents.filter((e) => e.status === "pending").length)}
         </div>
@@ -414,6 +416,7 @@ export default function HubPanelView(props: any) {
           </div>
         </div>
       )}
+      {hubTab === "tools" && <McpToolsPanel />}
 
       {hubTab === "channels" && (
         <ChannelsTab

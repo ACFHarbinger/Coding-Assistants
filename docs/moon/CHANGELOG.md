@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Removed redundant `BalanceBreakdown` struct, `balance_breakdown` field on `ProviderQuota`, and dead `breakdown_from_info` logic in `deepseek.rs`.
   Updated frontend `BalanceBreakdownBar` and `HubCharts` to consume `ProviderQuotaBalance` directly with standard dollar formatting.
   Net reduction of 69 lines of code across 16 files; all files strictly $\le 500$ LoC; all frontend (114) and backend (230) tests pass.
+- **MCP client direct-invoke (P14 slice A):** Coding Assistants can now
+  `initialize` / `tools/list` / `tools/call` against an enabled MCP server
+  itself — Shared Hub → Tools. Drives existing `McpServerEntry` rows
+  (external Perplexity + creative bridges); the argument form is generated
+  from each tool's `inputSchema`. Fresh stdio spawn per invoke, Content-Length
+  + NDJSON framing, timeout-and-kill. No Hub task record (slice C) and no
+  model-driven loop (slice B / C16). `cargo test -p hub --lib` 366 passed;
+  `cargo test -p tauri-app --lib` 235 passed / 2 ignored; `cargo clippy -p
+  hub -p tauri-app --all-targets -- -D warnings` clean; `npx tsc --noEmit`
+  + Vitest 118/118.
 - **Qwen Code local-usage quota adapter (#310, `platform.md` P3):** spike
   found a free persisted source the 2026-09-09 capture had not seen —
   `~/.qwen/usage_record.jsonl` (one end-of-session object per line,

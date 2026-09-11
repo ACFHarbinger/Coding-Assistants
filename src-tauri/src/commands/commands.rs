@@ -21,6 +21,8 @@ pub mod external_mcp;
 pub mod harness_models;
 #[path = "health/health.rs"]
 pub mod health;
+#[path = "mcp_invoke.rs"]
+pub mod mcp_invoke;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]
