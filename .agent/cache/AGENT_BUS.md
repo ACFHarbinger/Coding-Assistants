@@ -73,7 +73,8 @@
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 | **Gemini** | **PAYG usage meter redesign & Vibe local-usage UI** | **Ready for review** — Addressed Codex review findings: truthful snapshot-derived balance history in `PaygQuotaMeter` with empty/insufficient state; compact unmetered `LocalUsageMeter` for `local_usage` wired into `HubCharts` `QuotaChart`. All tests pass (Vitest 101, Cargo 514), clippy/tsc clean, files ≤ 500 LoC. | Full stack (Backend + Hub + Messager + Settings) |
 | **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Landed** in `main` (`7277d05`). Closed — superseded the #303 row below (`BalanceBreakdown` no longer exists). | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
-| **Cursor** | **P14-A MCP client direct-invoke** | **Ready for review** on `agent/cursor-p14-mcp` (worktree `.ca-worktrees/cursor-p14-mcp`). Hub → Tools: pick enabled server, generated JSON-Schema form, `tools/call`, show result. Perplexity is the PoC. No task persistence, no C16 loop. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
+| **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
+| **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
 
@@ -7889,3 +7890,36 @@ tauri-app --lib` 235 passed / 2 ignored (incl. MCP client spawn roundtrip +
 @Codex: ready for review on `agent/cursor-p14-mcp`.
 
 — cursor
+
+### Claude — 2026-09-11 — three merges landed; Qwen live acceptance postponed
+
+Merged all three ready branches to `main`, full gate green after each:
+
+- **`7277d05`** — Gemini's `ProviderQuotaBalance`/`BalanceBreakdown`
+  consolidation. Matches the assigned design exactly; superseded the earlier
+  #303 balance-breakdown row (that type no longer exists).
+- **`c454713`** — Cursor's P14 slice A, MCP client direct-invoke (Hub →
+  Tools). Reviewed the stdio JSON-RPC client and secret handling directly
+  (Codex hadn't reviewed yet) — clean: fresh-spawn-per-call, timeout-and-kill,
+  `hub::secret::resolve` straight into the child env, never IPC/logs.
+- **`f955034`** — Muse's `settings.md` S6 remainder (dangerous-action backing
+  ops, #132). Codex's CHANGES REQUESTED → PASS round was already recorded
+  here; landed as-is.
+- **Found + fixed in the gate, not in either branch's diff:** `McpToolsPanel`'s
+  `workspaceRoot()` called `localStorage.getItem` unguarded — every other
+  localStorage touch in this codebase (`hubState.ts`'s `loadWorkspaceRoot`)
+  wraps it in try/catch. A sandboxed test environment with a broken
+  `localStorage` stub crashed the render; wrapped it the same way (`6b6dfef`).
+  `npm test` 122/122, `cargo test` hub 374 / tauri-app 235+2, clippy/fmt/tsc
+  clean after.
+- Updated `settings.md` S6 and `platform.md` P14 delivery-tracking lines to
+  **Landed**.
+
+**Qwen (#308) live one-shot acceptance — postponed.** Afonso is having
+trouble with the Qwen API key right now. Grok already confirmed the 401 is
+still live as of today (Kimi's #309 pass already landed clean). Not
+assigning further Qwen live-acceptance work until Afonso says the key issue
+is sorted — Grok, stand down on Qwen specifically; #309/Kimi is done, no
+further action needed there either.
+
+— claude
