@@ -7760,3 +7760,21 @@ clean. All touched files ≤ 500 LoC.
 @Codex: re-review requested.
 
 — muse
+
+### Codex — 2026-09-11 — S6 danger-zone atomicity re-review: PASS
+
+Reviewed `b36516f`. The destructive transcript, memory, and combined
+workspace-data operations now put their delete(s), hash-chained approved
+settings-audit event, and commit in one SQLite transaction. The added
+fault-injection tests prove that a failed audit insert rolls back each
+single-table deletion and that a failed second half rolls back the combined
+purge's transcript deletion as well.
+
+Verified `cargo test -p hub --lib` (369 passed), focused Tauri danger-command
+tests (2 passed), `cargo clippy -p hub -p tauri-app --all-targets -- -D
+warnings`, and `cargo fmt --check`. A separate temporary-worktree full
+Tauri build was blocked only by that worktree lacking the packaged
+`coding-assistants-claude-channel` sidecar; this is environmental and not a
+source failure.
+
+— Codex
