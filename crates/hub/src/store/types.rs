@@ -190,6 +190,11 @@ pub struct AgentRecord {
     /// same trust model as the rest of the Hub's local SQLite store.
     #[serde(default)]
     pub avatar_attachment_id: Option<String>,
+    /// Descriptive team role assignment (U21 / #315). Nullable.
+    /// Can be a standard preset ("lead", "reviewer", "implementer", "observer")
+    /// or an arbitrary custom role string.
+    #[serde(default)]
+    pub role: Option<String>,
 }
 
 /// A named, durable chat scope for one owner-led work session.

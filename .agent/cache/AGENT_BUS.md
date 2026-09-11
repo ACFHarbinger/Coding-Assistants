@@ -8238,3 +8238,71 @@ Implemented on branch `agent/gemini-314-u20`:
 @Codex: ready for review on `agent/gemini-314-u20`.
 
 — Gemini
+
+### Gemini — 2026-09-11 — claiming U21 (#315, team role assignment)
+
+Reassigned by user from Cursor to Gemini. Branching `agent/gemini-315-u21` from `agent/gemini-314-u20`.
+
+**Design Decisions:**
+- **Schema & Structs:** Add `role: Option<String>` to `agents` table (nullable) and `AgentRecord`.
+- **Role Model:** Support both standard preset roles (`lead`, `reviewer`, `implementer`, `observer`) with case-insensitive normalization/matching, and arbitrary custom labels (trimmed, max 64 characters). Setting empty/None clears the role.
+  - *Rationale:* Mirrors actual team workflow conventions ("Claude = team lead", "Codex = review lead only") while allowing users and teams to assign any domain-specific roles they require (e.g. "Security", "DevOps", "Architect").
+  - *Non-goals:* Strictly descriptive v1; no execution or permission behavior gates on role.
+- **Typed IPC & Audit:** Add `hub_set_agent_role(agent_id, role)` emitting `hub:agents-changed` and recording Settings-scoped audit events on the Hub chain (`field: agent.<id>.role`, `scope: <id>`).
+- **UI Surfaces:**
+  - Build shared `<TeamRoleBadge />` component with preset color coding (gold for lead, purple for reviewer, emerald for implementer, slate for observer, sky for custom).
+  - Add role assignment/editing/clearing controls to Settings' `TeamProfilesSection.tsx` (using the pre-built U21 slot).
+  - Surface the role badge in `MessagerSidebar` (Direct Messages roster), `ChatHeader` (active DM header), and `HarnessReadinessPanel` (harness session rows).
+
+— Gemini
+
+### Gemini — 2026-09-11 — U21 team role assignment ready for review (branch `agent/gemini-315-u21`)
+
+Implemented on branch `agent/gemini-315-u21`:
+
+- **Store & Schema Migration (`crates/hub/src/store/agents/role.rs`, `types.rs`, `audit.rs`):**
+  - Added nullable `role` column to `agents` table schema in `HubStore` with soft-migration (`ALTER TABLE agents ADD COLUMN role TEXT`).
+  - Added `pub role: Option<String>` to `AgentRecord`.
+  - Implemented `HubStore::set_agent_role(id, role) -> Result<AgentRecord, HubError>` in `crates/hub/src/store/agents/role.rs`.
+  - Trims role, caps length at 64 characters, and clears to `None` on empty or whitespace strings.
+  - Same-role assignments are safe no-ops without creating duplicate audit rows.
+  - Records Settings-scoped audit events on the shared Hub audit chain (`field: agent.<id>.role`, `scope: <id>`, `action: set_role:<old>-><new>` or `clear_role:<old>`).
+  - 6 unit tests in `role.rs` covering preset roles, human custom roles, clearing via `None` and whitespace, no-op deduplication, overlong rejection, and nonexistent ID error.
+- **Tauri IPC (`src-tauri/src/commands/hub/store.rs` & `lib.rs`):**
+  - Added typed `hub_set_agent_role` (async worker + blocking helper) emitting `hub:agents-changed` for reactive cross-window refresh.
+  - Added unit test in `store.rs`.
+  - Registered in `generate_handler!` in `lib.rs` (495 LoC, strictly under 500-line repo limit).
+- **Shared `<TeamRoleBadge />` Component (`src/components/common/TeamRoleBadge.tsx`):**
+  - Distinctive visual badges with icons and high-contrast color coding:
+    - `lead`: gold / amber badge (`★ Team Lead`)
+    - `reviewer`: purple / violet badge (`✓ Reviewer`)
+    - `implementer`: emerald / green badge (`⚡ Implementer`)
+    - `observer`: slate / neutral badge (`◉ Observer`)
+    - Custom: sky / blue badge (`◈ <custom label>`)
+  - Supports optional clear button (`×`), tooltips, and sizes (`small` and `normal`).
+  - Unit tests in `TeamRoleBadge.test.tsx` (4 tests).
+- **Settings UI & Role Assignment Control (`RoleAssignmentControl.tsx` & `TeamProfilesSection.tsx`):**
+  - Created modular `RoleAssignmentControl` component (229 LoC) allowing assigning, editing, and clearing roles for every roster identity including `human`.
+  - Features quick preset picker dropdown (Lead, Reviewer, Implementer, Observer, Custom...) + custom label text input with Enter/Esc shortcuts, 64-char cap validation, and clear button.
+  - Embedded into Settings `TeamProfilesSection` via the pre-built U21 slot.
+  - Unit tests in `RoleAssignmentControl.test.tsx` (6 tests).
+- **Surfaced Across Application UI:**
+  - `MessagerSidebar.tsx`: Renders `<TeamRoleBadge role={info.assignedRole} size="small" />` next to each roster identity in the Direct Messages list.
+  - `ChatHeader.tsx`: Renders `<TeamRoleBadge role={peer.assignedRole} size="normal" />` in the active direct message header.
+  - `HarnessReadinessPanel.tsx`: Dynamically queries `hub_list_agents`, listens to `hub:agents-changed`, and renders `<TeamRoleBadge role={agentRoles[row.harness]} size="small" />` next to harness session names.
+  - Purely descriptive v1: no app behavior or permissions gate on role.
+- **Verification:**
+  - `cargo test -p hub --lib`: 386 passed.
+  - `cargo test -p tauri-app --lib`: 246 passed / 2 ignored.
+  - `cargo clippy --workspace --all-targets -- -D warnings`: clean (0 warnings).
+  - `cargo fmt --all --check`: clean.
+  - `npm test`: 144 passed across 25 test suites.
+  - `npx tsc --noEmit`: clean.
+  - `npm run build`: clean production build.
+  - All touched files strictly $\le 500$ LoC (`src-tauri/src/lib.rs` 495, `TeamProfilesSection.tsx` 300, `RoleAssignmentControl.tsx` 229, `role.rs` 176).
+
+@Codex: ready for review on `agent/gemini-315-u21`.
+
+— Gemini
+
+

@@ -307,6 +307,7 @@ pub fn run() {
             commands::commands::messaging::hub_data_dir,
             commands::commands::store::hub_list_agents,
             commands::commands::store::hub_set_agent_display_name,
+            commands::commands::store::hub_set_agent_role,
             commands::commands::store::hub_upsert_agent_card,
             commands::commands::memory::hub_write_memory,
             commands::commands::memory::hub_update_memory,

@@ -3,6 +3,7 @@ use super::*;
 mod avatar;
 mod capture;
 mod profile;
+mod role;
 mod sessions;
 mod team;
 mod work_sessions;
@@ -29,7 +30,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role
              FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -40,6 +41,7 @@ impl HubStore {
                 card_json: r.get(3)?,
                 team_member: r.get::<_, i64>(4)? != 0,
                 avatar_attachment_id: r.get(5)?,
+                role: r.get(6)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

@@ -59,7 +59,8 @@ impl HubStore {
                 display_name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 card_json TEXT,
-                team_member INTEGER NOT NULL DEFAULT 0
+                team_member INTEGER NOT NULL DEFAULT 0,
+                role TEXT
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -359,6 +360,7 @@ impl HubStore {
             "ALTER TABLE agents ADD COLUMN card_json TEXT",
             "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",
+            "ALTER TABLE agents ADD COLUMN role TEXT",
             "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",

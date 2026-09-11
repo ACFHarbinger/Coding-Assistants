@@ -62,6 +62,31 @@ pub fn hub_set_agent_display_name_blocking(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn hub_set_agent_role(
+    app: tauri::AppHandle,
+    agent_id: String,
+    role: Option<String>,
+) -> Result<hub::AgentRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let updated = hub_set_agent_role_blocking(&agent_id, role.as_deref())?;
+        use tauri::Emitter;
+        let _ = app.emit("hub:agents-changed", ());
+        Ok(updated)
+    })
+    .await
+    .map_err(|e| format!("hub_set_agent_role worker panic: {e}"))?
+}
+
+pub fn hub_set_agent_role_blocking(
+    agent_id: &str,
+    role: Option<&str>,
+) -> Result<hub::AgentRecord, String> {
+    open_store()?
+        .set_agent_role(agent_id, role)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,6 +94,12 @@ mod tests {
     #[test]
     fn set_agent_display_name_blocking_fails_on_nonexistent() {
         let res = hub_set_agent_display_name_blocking("nonexistent_xyz", "New Name");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn set_agent_role_blocking_fails_on_nonexistent() {
+        let res = hub_set_agent_role_blocking("nonexistent_xyz", Some("lead"));
         assert!(res.is_err());
     }
 }

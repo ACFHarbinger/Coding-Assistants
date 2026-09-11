@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+- **Team role assignment (U21, #315):**
+  Added nullable `role` column to `agents` table schema and `AgentRecord` with soft migration in `HubStore`.
+  Implemented `HubStore::set_agent_role` with role trimming, 64-character maximum length cap, None/empty clearing, and Settings-scoped audit event recording (`field: agent.<id>.role`, `scope: <id>`).
+  Exposed typed Tauri command `hub_set_agent_role` emitting `hub:agents-changed` on mutation for immediate multi-window synchronization.
+  Built shared reusable `<TeamRoleBadge />` component supporting standard role presets (`lead`, `reviewer`, `implementer`, `observer`) with distinctive color coding and icons, plus custom arbitrary role labels.
+  Created `RoleAssignmentControl` integrated into Settings `TeamProfilesSection` allowing assigning, editing, or clearing roles for every roster identity (including `human`).
+  Surfaced team role badges across MessagerSidebar (Direct Messages roster), ChatHeader (active direct message peer), and HarnessReadinessPanel (harness session rows). Purely descriptive v1 without behavioral gating.
 
 - **Profile customization: rename + Settings-surfaced profile view (U20, #314):**
   Added `HubStore::set_agent_display_name` with validation (non-empty, max 64 chars, case-insensitive collision check) and Settings-style audit event logging.

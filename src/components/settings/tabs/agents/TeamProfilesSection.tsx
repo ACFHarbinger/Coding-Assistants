@@ -5,6 +5,7 @@ import { isTauriRuntime } from "../../../../lib/tauri";
 import { AgentAvatar } from "../../../panels/messager/AgentAvatar";
 import { listHubAgents, setAgentDisplayName } from "../../api";
 import { inputStyle } from "../shared";
+import RoleAssignmentControl from "./RoleAssignmentControl";
 
 export interface TeamProfilesSectionProps {
   onChanged?: () => void;
@@ -275,7 +276,15 @@ export function TeamProfilesSection({ onChanged }: TeamProfilesSectionProps) {
                           Enrolled Member
                         </span>
                       )}
-                      {/* U21: Team role badge / assignment slot */}
+                      <RoleAssignmentControl
+                        agentId={agent.id}
+                        displayName={agent.display_name}
+                        currentRole={agent.role}
+                        onRoleChanged={() => {
+                          void loadAgents();
+                          onChanged?.();
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

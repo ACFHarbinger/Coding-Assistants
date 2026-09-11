@@ -351,3 +351,8 @@ export function setAgentDisplayName(agentId: string, displayName: string): Promi
   return invoke<HubAgent>("hub_set_agent_display_name", { agentId, displayName });
 }
 
+/** Assign or clear an agent's team role (U21 / #315) with Settings audit event. */
+export function setAgentRole(agentId: string, role: string | null): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_role", { agentId, role: role ?? null });
+}
+

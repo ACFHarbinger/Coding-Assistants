@@ -126,5 +126,25 @@ describe("agentInfo display name resolution (U20 / #314)", () => {
     const grokInfo = agentInfo("grok", emptyAgents, null);
     expect(grokInfo.displayName).toBe("grok");
   });
+
+  it("resolves assignedRole when present and falls back to default role (U21 / #315)", () => {
+    const agents: HubAgent[] = [
+      { id: "human", display_name: "Human", role: "Team Lead", team_member: true },
+      { id: "claude", display_name: "Claude", role: "reviewer", team_member: true },
+      { id: "gemini", display_name: "Gemini", role: null, team_member: true },
+    ];
+
+    const humanInfo = agentInfo("human", agents, null);
+    expect(humanInfo.assignedRole).toBe("Team Lead");
+    expect(humanInfo.role).toBe("Team Lead");
+
+    const claudeInfo = agentInfo("claude", agents, null);
+    expect(claudeInfo.assignedRole).toBe("reviewer");
+    expect(claudeInfo.role).toBe("reviewer");
+
+    const geminiInfo = agentInfo("gemini", agents, null);
+    expect(geminiInfo.assignedRole).toBeNull();
+    expect(geminiInfo.role).toBe("Supporting");
+  });
 });
 

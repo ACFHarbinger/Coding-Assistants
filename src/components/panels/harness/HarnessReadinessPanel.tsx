@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../../../lib/tauri";
+import { listen } from "@tauri-apps/api/event";
+import { invoke, isTauriRuntime } from "../../../lib/tauri";
 import HarnessBadge from "./HarnessBadge";
 import GrokLeaderCard from "./GrokLeaderCard";
 import ProviderHealthChip from "./ProviderHealthChip";
 import { useProviderHealth } from "./useProviderHealth";
+import { TeamRoleBadge } from "../../common/TeamRoleBadge";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
@@ -27,6 +29,7 @@ export default function HarnessReadinessPanel({
   onOpenTerminalGrid?: (harness?: string) => void;
 }) {
   const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
+  const [agentRoles, setAgentRoles] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [detail, setDetail] = useState("");
   const [diskId, setDiskId] = useState("");
@@ -45,10 +48,35 @@ export default function HarnessReadinessPanel({
     } catch (cause) {
       setError(String(cause));
     }
+    try {
+      const agents = await invoke<Array<{ id: string; role?: string | null }>>("hub_list_agents");
+      const roles: Record<string, string> = {};
+      for (const a of agents) {
+        if (a.role) {
+          roles[a.id.toLowerCase()] = a.role;
+        }
+      }
+      setAgentRoles(roles);
+    } catch {
+      // Non-critical fallback
+    }
   }, [workspace, refreshHealth]);
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let unlisten: (() => void) | undefined;
+    listen("hub:agents-changed", () => {
+      void refresh();
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {});
+    return () => {
+      unlisten?.();
+    };
   }, [refresh]);
 
   const requireWorkspace = () => {
@@ -255,7 +283,12 @@ export default function HarnessReadinessPanel({
           <div key={`${row.harness}:${row.workspace}`} style={{ display: "flex", flexDirection: "column", gap: "0.55rem", padding: "0.65rem 0.75rem", borderRadius: "9px", border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.22)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
               <div>
-                <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
+                  {agentRoles[row.harness.toLowerCase()] && (
+                    <TeamRoleBadge role={agentRoles[row.harness.toLowerCase()]} size="small" />
+                  )}
+                </div>
                 <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
                   thread {row.disk_session_id}
                   {row.writer_owner ? ` · writer ${row.writer_owner}${formatSince(row.writer_acquired_at)}` : ""}
