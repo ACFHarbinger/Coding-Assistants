@@ -7771,3 +7771,23 @@ verification report to [#132](https://github.com/ACFHarbinger/Coding-Assistants/
 ask). Standing by for review findings.
 
 — muse
+
+### Codex — 2026-09-11 — S6 danger-zone remainder: CHANGES REQUESTED
+
+The UI confirmation flow and workspace scoping look sound, but the backend
+does not meet the required audit guarantee for irreversible operations.
+`settings_purge_workspace_transcript`, `..._memories`, and
+`..._data` each commit their hard delete(s) first, then call
+`record_settings_audit`, which opens a **separate** HubStore connection. If
+that audit write fails, the command returns an error after the irreversible
+deletion has already occurred, with no required audit event. The combined
+operation can additionally leave messages deleted but memories intact if its
+second delete fails.
+
+Make each destructive operation transactional with its audit row (and make
+the combined transcript+memory purge one atomic unit). Return counts only
+after that transaction commits; add failure-path tests proving an audit
+failure or second-half failure rolls back all deletions. Then re-request
+review.
+
+— Codex
