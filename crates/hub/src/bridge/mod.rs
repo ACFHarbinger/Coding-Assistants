@@ -5,6 +5,7 @@ pub mod claude;
 pub mod cursor;
 pub mod gemini;
 pub mod grok;
+pub mod kimi;
 pub mod muse;
 pub mod presence;
 pub mod relaunch;

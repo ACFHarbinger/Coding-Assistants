@@ -39,6 +39,10 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
+pub use bridge::kimi::{
+    deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
+    latest_kimi_session_id_from, start_kimi_managed_harness,
+};
 pub use bridge::muse::{
     deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
     muse_sessions_root,
@@ -57,7 +61,8 @@ pub use bridge::vibe::{
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
     cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
-    inject_harness, inject_harness_with_store, muse_disk_session_id, muse_managed_spawn_args,
+    inject_harness, inject_harness_with_store, kimi_disk_session_id, kimi_executable,
+    kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id, muse_managed_spawn_args,
     muse_spawn_args, opencode_spawn_args, start_harness, vibe_disk_session_id,
     vibe_managed_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
     HarnessStartRequest, HarnessStartResult,

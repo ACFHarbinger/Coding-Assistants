@@ -61,6 +61,13 @@ fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubEr
             model,
             effort,
         )?,
+        HarnessId::Kimi => super::kimi_managed_spawn_args(
+            &request.workspace,
+            &request.prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
     };
     Ok(args)
 }
@@ -68,6 +75,8 @@ fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubEr
 fn spawn_program(harness: HarnessId) -> &'static str {
     if harness == HarnessId::Cursor {
         super::cursor_executable()
+    } else if harness == HarnessId::Kimi {
+        super::kimi_executable()
     } else {
         harness.executable()
     }

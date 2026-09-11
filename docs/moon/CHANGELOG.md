@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Moonshot Kimi Code CLI managed harness onboarding (#309, `communication.md` C14.14):**
+  - Added `HarnessId::Kimi`, `"kimi"` / `"kimi-code"` / `"moonshot"` parsing, `("kimi", "Kimi")` identity in `WELL_KNOWN_AGENTS` (seed version bumped to `"3"`), and `git/messages/kimi_coauthor.msg`.
+  - Added `crates/hub/src/harness/kimi_spawn.rs`: binary resolution checking `$KIMI_CODE_HOME/bin/kimi`, `$PATH` via `kimi --version`, and `~/.kimi-code/bin/kimi`; `kimi_spawn_args` and `kimi_managed_spawn_args` using `-p <prompt> --output-format stream-json` with optional `--session <id>` resume (stripping `managed-` prefix) and `-m <model>`, strictly avoiding `--auto` and `--yolo`.
+  - Added `crates/hub/src/bridge/kimi.rs`: session discovery via `kimi session list --json [--cwd <path>]` with fallback to directory inspection (`state.json` parsing under `~/.kimi-code/sessions`), managed start lifecycle, and single-writer leased task delivery (`deliver_kimi_task`).
+  - Added `src-tauri/src/commands/health/probes.rs`: `kimi_health` probe checking CLI installation and auth state from `~/.kimi-code/config.toml` or `credentials/*.json` / `oauth/` token presence.
+  - Added `src-tauri/src/harness/kimi.rs`: transcript capture adapter reading `agents/main/wire.jsonl`, extracting assistant text from `context.append_loop_event` (`event.type == "content.part"`, `part.type == "text"`) and `context.append_message`, filtering out reasoning content (`part.type == "think"`) and injected/system messages, with SHA-256 deduplication.
+  - Registered `hub_capture_kimi_session` Tauri command, wired into `lib.rs` and `App.tsx` 1.5s background poll.
+  - All files strictly maintain $\le 500$ LoC constraint.
+
 - **Mistral Vibe transcript capture adapter (S7, `communication.md` C14.15):**
   added `src-tauri/src/harness/vibe.rs` reading `messages.jsonl` from
   `$VIBE_HOME/logs/session/session_*`, filtering to `role == "assistant"` and

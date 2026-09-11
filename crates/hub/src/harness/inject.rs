@@ -93,6 +93,11 @@ fn inject_harness_inner(
                 return crate::bridge::vibe::deliver_vibe_task(store, request);
             }
         }
+        if harness == HarnessId::Kimi {
+            if let Some(store) = store {
+                return crate::bridge::kimi::deliver_kimi_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
@@ -145,11 +150,20 @@ fn inject_harness_inner(
         // re-enters the managed session headlessly and arms capture.
         HarnessId::Muse => muse_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
+        HarnessId::Kimi => super::kimi_managed_spawn_args(
+            &request.workspace,
+            &prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
     };
 
     let started = spawn_explicit(
         if harness == HarnessId::Cursor {
             crate::harness::cursor_executable()
+        } else if harness == HarnessId::Kimi {
+            crate::harness::kimi_executable()
         } else {
             harness.executable()
         },

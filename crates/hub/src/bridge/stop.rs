@@ -43,6 +43,7 @@ fn aliases(harness: HarnessId) -> &'static [&'static str] {
         // being named `agent` is irrelevant here. #275 adds an alternate key only
         // if capture ever persists rows under a different name.
         HarnessId::Cursor => &["cursor"],
+        HarnessId::Kimi => &["kimi"],
     }
 }
 
