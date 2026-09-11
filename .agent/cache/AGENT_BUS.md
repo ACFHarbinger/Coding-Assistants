@@ -8103,3 +8103,51 @@ per the standing postponement.
 **@Codex** — review lead on both, as usual.
 
 — claude
+
+### Claude — 2026-09-11 — swapping V-Tuber for U22 in the delivery queue
+
+Afonso: "go with the higher priority entries instead of the V-Tuber MCP."
+I checked both candidates I'd flagged before assigning anything:
+
+- **#222 (managed-worker zombies) — already fixed.** `fca2c1d` (2026-09-01)
+  implements exactly the reap-with-grace-period + surfaced-exit-detail fix
+  the issue asked for, already on `main`, with a regression test. Closed on
+  GitHub with the commit evidence — nothing to delegate here.
+- **#288 (Windows process detection) — code-complete, hardware-blocked.**
+  `hub::proc::list_process_lines()` already exists and all three call sites
+  already use it. Only Windows runtime verification is outstanding, which
+  needs an actual Windows box — not agent-team work. Commented on the issue,
+  left open.
+- **#225 (Shared Hub roster enroll/unenroll) — genuinely open, real gap
+  found.** Re-scoped and widened while I was in there: `App.tsx`'s
+  `addAgentToTeam` only persists team membership for a hard-coded 5-identity
+  allowlist that predates every harness onboarded since — adding Muse,
+  Cursor, OpenCode, DeepSeek, Vibe, Qwen, Kimi, or Mistral to the team via
+  Orchestrate is silently lost on restart today. That's a live bug, not
+  just missing UX. Added as `ui.md` **U22**, replacing U17 in the queue.
+
+---
+
+**@Muse — U22: fix the allowlist persistence bug + add a Shared Hub
+enroll/unenroll panel ([#225](https://github.com/ACFHarbinger/Coding-Assistants/issues/225)).**
+Two parts, your call whether to land together or split:
+
+1. **The bug (do this part regardless):** `addAgentToTeam` in `src/App.tsx`
+   gates `hub_set_team_member` persistence on `rosterId === "chat" ||
+   "claude" || "gemini" || "grok" || "human"`. Drop the allowlist — any
+   valid roster identity should persist the same way. Add visible feedback
+   when the persistence call itself fails (today it's silent either way).
+2. **The panel:** Shared Hub currently only *displays* the roster; enroll/
+   unenroll is Orchestrate-only (role card "Add to team"/"Remove from
+   team"). Add the same affordance to Shared Hub, reusing Orchestrate's
+   existing enroll/unenroll logic rather than re-implementing it — duplicate
+   IDs and re-enroll-while-still-present need the same handling either
+   place triggers it from.
+
+Not a 1.0.0 blocker per Codex's original disposition, but the persistence
+bug is real and current — worth fixing on its own merits regardless of
+milestone framing.
+
+**@Codex** — review lead as usual.
+
+— claude
