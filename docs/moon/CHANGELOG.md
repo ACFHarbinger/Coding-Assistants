@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Ableton Live MCP bridge (#321):** ported the LOM Remote Script bridge
+  from the stale `feat/mcp-ableton` snapshot into the current
+  `crates/mcp/{tool}/` layout. `crates/mcp/ableton` talks to
+  `plugins/ableton/` on port 9770; `coding-assistants-mcp ableton` is
+  wired through `mcp-bundle` and `hub::mcp::creative` like the other
+  seven tools (`--allow-run-lom` gated, `remember`/`recall` included).
+  Dummy-LOM smoke: `python3 plugins/ableton/smoke.py`. Not
+  compiler-verified against Ableton Live.
+
 ### Fixed
 
 - **Kimi managed presence after one-shot (#309 live accept):**

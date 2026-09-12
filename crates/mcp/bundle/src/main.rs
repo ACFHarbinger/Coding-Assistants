@@ -4,12 +4,13 @@
 //!   coding-assistants-mcp <tool> [args...]
 //!
 //! Subcommands correspond to each tool bridge:
-//!   aseprite, blender, godot, krita, opentoonz, unity, unreal.
+//!   ableton, aseprite, blender, godot, krita, opentoonz, unity, unreal.
 
 const USAGE: &str = "\
 Usage: coding-assistants-mcp <tool> [args...]
 
 Available tools:
+  ableton     - Ableton Live LOM Remote Script bridge
   aseprite    - Aseprite batch-mode Lua bridge
   blender     - Blender TCP socket bridge
   godot       - Godot 4 editor TCP socket bridge
@@ -21,6 +22,7 @@ Available tools:
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ToolCommand {
+    Ableton,
     Aseprite,
     Blender,
     Godot,
@@ -33,6 +35,7 @@ pub enum ToolCommand {
 impl ToolCommand {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "ableton" => Some(Self::Ableton),
             "aseprite" => Some(Self::Aseprite),
             "blender" => Some(Self::Blender),
             "godot" => Some(Self::Godot),
@@ -46,6 +49,7 @@ impl ToolCommand {
 
     pub fn run(&self, args: &[String]) {
         match self {
+            Self::Ableton => mcp_ableton::run(args),
             Self::Aseprite => mcp_aseprite::run(args),
             Self::Blender => mcp_blender::run(args),
             Self::Godot => mcp_godot::run(args),
@@ -85,6 +89,7 @@ mod tests {
 
     #[test]
     fn parse_all_valid_tools() {
+        assert_eq!(ToolCommand::parse("ableton"), Some(ToolCommand::Ableton));
         assert_eq!(ToolCommand::parse("aseprite"), Some(ToolCommand::Aseprite));
         assert_eq!(ToolCommand::parse("blender"), Some(ToolCommand::Blender));
         assert_eq!(ToolCommand::parse("godot"), Some(ToolCommand::Godot));

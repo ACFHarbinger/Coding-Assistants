@@ -1,7 +1,7 @@
 //! Track C-9 — per-workspace registration of the creative-tool MCP bridges.
 //!
-//! The `crates/mcp-<tool>` bridges (Blender, Krita, Godot, Aseprite,
-//! Unreal, Unity, OpenToonz) are all built but nothing hands them to an
+//! The `crates/mcp/<tool>` bridges (Blender, Krita, Godot, Aseprite,
+//! Unreal, Unity, OpenToonz, Ableton) are all built but nothing hands them to an
 //! agent. This module owns:
 //!
 //! - [`CATALOG`] — static metadata for each bridge (key, binary basename,
@@ -132,6 +132,16 @@ pub const CATALOG: &[CreativeTool] = &[
         port: None,
         gated_flag: Some("--allow-render"),
         app_process_names: &["OpenToonz", "opentoonz"],
+    },
+    CreativeTool {
+        key: "coding-assistants-mcp-ableton",
+        display_name: "Ableton Live",
+        binary: "coding-assistants-mcp",
+        default_args: &["ableton", "--port", "9770"],
+        transport: Transport::Socket,
+        port: Some(9770),
+        gated_flag: Some("--allow-run-lom"),
+        app_process_names: &["Live", "Ableton Live"],
     },
 ];
 
@@ -288,7 +298,17 @@ mod tests {
                 Some(t.key.strip_prefix("coding-assistants-mcp-").unwrap())
             );
         }
-        assert_eq!(CATALOG.len(), 7);
+        assert_eq!(CATALOG.len(), 8);
+    }
+
+    #[test]
+    fn ableton_catalog_entry_uses_port_9770_and_lom_gate() {
+        let ableton = tool("coding-assistants-mcp-ableton").expect("ableton catalog row");
+        assert_eq!(ableton.port, Some(9770));
+        assert_eq!(ableton.gated_flag, Some("--allow-run-lom"));
+        assert_eq!(ableton.transport, Transport::Socket);
+        assert_eq!(ableton.default_args, &["ableton", "--port", "9770"]);
+        assert!(ableton.app_process_names.contains(&"Live"));
     }
 
     #[test]

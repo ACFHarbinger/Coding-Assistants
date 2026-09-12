@@ -306,14 +306,14 @@ mod tests {
     }
 
     #[test]
-    fn status_reports_all_seven_with_enabled_flags() {
+    fn status_reports_all_catalog_tools_with_enabled_flags() {
         let dir = tempfile::tempdir().unwrap();
         let ws = dir.path();
         let enabled: BTreeSet<String> = ["coding-assistants-mcp-blender".to_string()]
             .into_iter()
             .collect();
         let status = build_status(ws, &enabled, Vec::new());
-        assert_eq!(status.tools.len(), 7);
+        assert_eq!(status.tools.len(), 8);
         let blender = status
             .tools
             .iter()
@@ -321,6 +321,13 @@ mod tests {
             .unwrap();
         assert!(blender.enabled);
         assert_eq!(blender.port, Some(9765));
-        assert!(status.tools.iter().filter(|t| !t.enabled).count() == 6);
+        let ableton = status
+            .tools
+            .iter()
+            .find(|t| t.key == "coding-assistants-mcp-ableton")
+            .unwrap();
+        assert!(!ableton.enabled);
+        assert_eq!(ableton.port, Some(9770));
+        assert!(status.tools.iter().filter(|t| !t.enabled).count() == 7);
     }
 }
