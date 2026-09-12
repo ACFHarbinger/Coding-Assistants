@@ -25,7 +25,9 @@ pub use inject::{inject_harness, inject_harness_with_store};
 pub use kimi_spawn::{
     kimi_disk_session_id, kimi_executable, kimi_managed_spawn_args, kimi_spawn_args,
 };
-pub use qwen_spawn::{qwen_disk_session_id, qwen_managed_spawn_args, qwen_spawn_args};
+pub use qwen_spawn::{
+    qwen_disk_session_id, qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args,
+};
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, muse_disk_session_id, muse_managed_spawn_args, muse_spawn_args,

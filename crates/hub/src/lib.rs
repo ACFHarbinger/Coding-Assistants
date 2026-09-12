@@ -74,8 +74,9 @@ pub use harness::{
     inject_harness, inject_harness_with_store, kimi_disk_session_id, kimi_executable,
     kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id, muse_managed_spawn_args,
     muse_spawn_args, opencode_spawn_args, qwen_disk_session_id, qwen_managed_spawn_args,
-    qwen_spawn_args, start_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args,
-    HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    qwen_resume_spawn_args, qwen_spawn_args, start_harness, vibe_disk_session_id,
+    vibe_managed_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
+    HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
