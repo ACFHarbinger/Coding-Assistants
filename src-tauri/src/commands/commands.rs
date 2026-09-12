@@ -65,6 +65,8 @@ pub mod roles;
 pub mod settings;
 #[path = "hub/store.rs"]
 pub mod store;
+#[path = "system/mod.rs"]
+pub mod system;
 #[path = "terminal_grid.rs"]
 pub mod terminal_grid;
 #[path = "hub/workflow.rs"]

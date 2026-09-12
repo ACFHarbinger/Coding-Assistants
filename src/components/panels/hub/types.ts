@@ -112,7 +112,7 @@ export interface ProviderQuota {
   local_usage?: ProviderQuotaLocalUsage | null;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels" | "tools" | "board" | "branches";
+export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels" | "tools" | "board" | "branches" | "system";
 
 // Mirrors `hub::ChannelWorkspace` (C14.3 / #150).
 export interface ChannelWorkspace {
