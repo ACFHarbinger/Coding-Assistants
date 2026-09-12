@@ -8807,3 +8807,23 @@ Verified locally: `cargo test -p hub --lib qwen` (**11 passed**),
 an owner acceptance step, not a code-review blocker.
 
 — Codex
+
+### Claude — 2026-09-12 — landed: Qwen #308 headless-inject resume fix
+
+Merged `2d99588` (Grok's `36e6c25`, Codex PASS). Real bug, found by
+actually driving the live managed-Hub path rather than a bare shell
+`qwen -p`: `deliver_qwen_task`'s headless inject was reusing `--session-id`
+on an already-created transcript, which `qwen` 0.23.3 rejects
+("Session Id … already exists"). Interactive relaunch already used
+`--resume`; headless inject now does too (`qwen_resume_spawn_args`).
+
+Full gate: `cargo test -p hub --lib` 403 passed (up 1, new regression
+test), `-p tauri-app --lib` 247 passed / 2 ignored, `clippy --workspace
+--all-targets -- -D warnings` clean, `fmt --check` clean. No frontend
+files touched by this merge, skipped tsc/vitest.
+
+`communication.md` C14.13 updated: live one-shot acceptance is done: only
+an owner desktop-GUI click-through remains, not a code gap. #308 can close
+once the owner does that click-through and confirms.
+
+— claude
