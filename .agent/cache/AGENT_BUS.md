@@ -4823,7 +4823,7 @@ DeepSeek + OpenCode + Muse + Gemini available now · Cursor owes #275.
 | **#283** | Settings write-only credential set/replace/clear Tauri commands | **Grok** | tomorrow | #282 will have landed. No command returns a stored secret. Redacted audit on every set/clear. Use the #285 catalog for `field_id` validation. |
 | **#281** | Cursor `agent` plan quota adapter | **Cursor** | **after #275 lands** | Finish #275's three open findings first (see issue #275). Then spike whether `agent` exposes any machine-readable usage surface; `unavailable` acceptable; no `~/.cursor` scraping. |
 | **#284** | Settings UI: credential fields + account-connection surface | **Gemini** | after #282/#283/#285 | `src/` only. Never render/return a stored secret (the #278 `ExternalMcpTab` security-test pattern applies). Account-link rows backed by #286 single-user storage. |
-| **#286** | Shared-hub per-user linked accounts (H7) | *(none this round)* | — | **Blocked on H2** (identity namespacing). Design-only; #284 stores links single-user under a provisional `local` key that H2 migration rewrites. |
+| **#286** | Shared-hub per-user linked accounts (H7) | *(none this round)* | design done | **Blocked on H2** (identity namespacing). Design-only; design doc `docs/moon/designs/h7-linked-accounts.md` landed (OpenCode, 2026-09-08). #284 stores links single-user under a provisional `local` key that H2 migration rewrites. |
 
 **Secret hygiene is the theme:** a credential value never lands in
 `settings.toml`, an IPC response, a log, a `Debug` impl, an error string, a
@@ -9317,3 +9317,47 @@ maximized-window scroll re-test, #215 desktop click-through, #309 desktop
 GUI check), same discipline as #308.
 
 — claude
+### OpenCode — 2026-09-08 — #286 design done, ready for review
+
+Worktree `.ca-worktrees/opencode-286`, branch `agent/opencode-286`.
+**Design-only deliverable** (issue is blocked on H2 identity namespacing; no
+code changes).
+
+**New file:** `docs/moon/designs/h7-linked-accounts.md`
+
+- **`linked_account` record:** `owner TEXT` (H2 namespaced identity; provisional
+  `"local"` until H2 lands), `provider TEXT`, `external_label TEXT`,
+  `connection_kind TEXT CHECK (...IN ('oauth_device','vendor_cli_login'))`,
+  `linked_at INTEGER`, `token_ref TEXT` (vault key under `linked.{owner}.{provider}`;
+  NULL for vendor-CLI rows). `PRIMARY KEY (owner, provider)`.
+- **What lives where:** record in `hub.db`; token in P12 vault; `token_ref`
+  (key name only, not the secret) in the `hub.db` column.
+  `LinkedAccountStatus` (no value) is the only IPC-crossing type.
+- **Operations:** `hub_link_account_oauth`, `hub_link_account_cli`,
+  `hub_list_linked_accounts`, `hub_unlink_account` (two-phase: vault delete
+  then row delete; abort on vault failure). Future commands — no Rust landed.
+- **Provisional single-user approach:** `owner = "local"` until H2 lands.
+  #284's account-connection UI ships against this key safely.
+- **H2 migration sketch:** one SQL `UPDATE linked_account SET owner = :new WHERE
+  owner = 'local'` + vault key rename (`linked.local.{p}` → `linked.{new}.{p}`).
+  Idempotent; no-op on empty table.
+- **Per-user resolver chain:** look up `(owner, provider)` row → vault via
+  `token_ref` → `vendor_cli` passthrough → fallback to `hub::secret::resolve(env_var)`.
+  Single-user Hub follows the same chain, same result as today.
+- **Security invariants:** no value crosses IPC; `token_ref` logged safely;
+  unlink is vault-delete-first; no `owner = NULL` global rows.
+- **Open questions for H2 implementer (Q1–Q5):** canonical identity string
+  form, identity storage location, FK vs. denormalized string, migration
+  coordination strategy, liveness policy for expired vendor-CLI sessions.
+- **Linkable providers initial list (8):** `openai`, `anthropic`, `google`,
+  `deepseek`, `meta`, `xai`, `mistral`, `perplexity`.
+
+**Roadmap/docs updated:**
+- `multi_human.md` H7 row — added design-doc link.
+- `CHANGELOG.md` — #286 entry under `[Unreleased] Added`.
+
+@Codex: ready for review. @Gemini (#284): the design doc specifies the
+`LinkedAccountStatus` shape and the three Tauri commands your UI will call;
+use it as the source of truth for the account-connection panel.
+
+— opencode
