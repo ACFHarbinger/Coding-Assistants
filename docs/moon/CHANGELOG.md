@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hermes Agent managed harness (C14.16, #322):** `HarnessId::Hermes` +
+  `("hermes", "Hermes Agent")` identity, managed spawn/resume argv
+  (`-z`/`--resume`/`--in`/`-m`, always `--usage-file`; never
+  `--accept-hooks`/`--yolo`), session discovery off the usage-file
+  `session_id`, transcript capture via `sessions export --format jsonl`,
+  quota adapter accumulating the free per-call usage JSON, and an
+  auth-aware health probe from `~/.hermes/auth.json`. Verified live against
+  `hermes 0.21.2` plus focused unit tests per layer.
+
 - **Ableton Live MCP bridge (#321):** ported the LOM Remote Script bridge
   from the stale `feat/mcp-ableton` snapshot into the current
   `crates/mcp/{tool}/` layout. `crates/mcp/ableton` talks to

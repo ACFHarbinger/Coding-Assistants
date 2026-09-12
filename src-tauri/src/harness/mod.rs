@@ -10,6 +10,7 @@ pub mod commands;
 pub mod cursor;
 pub mod gemini;
 pub mod grok;
+pub mod hermes;
 pub mod kimi;
 pub mod muse;
 pub mod presence;

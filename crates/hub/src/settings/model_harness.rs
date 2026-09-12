@@ -38,7 +38,8 @@ impl HarnessSettings {
             crate::HarnessId::Muse
             | crate::HarnessId::Cursor
             | crate::HarnessId::Qwen
-            | crate::HarnessId::Kimi => None,
+            | crate::HarnessId::Kimi
+            | crate::HarnessId::Hermes => None,
         };
         let default_effort = match id {
             crate::HarnessId::Claude
@@ -51,7 +52,8 @@ impl HarnessSettings {
             | crate::HarnessId::Muse
             | crate::HarnessId::Cursor
             | crate::HarnessId::Qwen
-            | crate::HarnessId::Kimi => None,
+            | crate::HarnessId::Kimi
+            | crate::HarnessId::Hermes => None,
         };
         Ok(Self {
             harness: id.as_str().to_string(),

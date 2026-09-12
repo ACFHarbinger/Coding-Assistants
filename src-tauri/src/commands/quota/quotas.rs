@@ -7,6 +7,7 @@ use super::quota_cursor::cursor_quota;
 use super::quota_deepseek::deepseek_quota;
 use super::quota_gemini::gemini_quota;
 use super::quota_grok::grok_quota;
+use super::quota_hermes::hermes_quota;
 use super::quota_kimi_usage;
 use super::quota_muse::muse_quota;
 use super::quota_opencode::opencode_quota;
@@ -182,6 +183,7 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
             mistral_quota(),
             qwen_quota(),
             kimi_quota(),
+            hermes_quota(),
             llamacpp_quota(),
             ollama_quota(),
         ]
@@ -210,6 +212,7 @@ pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuot
         "mistral" | "vibe" => mistral_quota(),
         "qwen" => qwen_quota(),
         "kimi" => kimi_quota(),
+        "hermes" | "hermes-agent" => hermes_quota(),
         "llamacpp" => llamacpp_quota(),
         "ollama" => ollama_quota(),
         other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),

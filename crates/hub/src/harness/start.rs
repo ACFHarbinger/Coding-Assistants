@@ -75,6 +75,13 @@ fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubEr
             model,
             effort,
         )?,
+        HarnessId::Hermes => super::hermes_managed_spawn_args(
+            &request.workspace,
+            &request.prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
     };
     Ok(args)
 }

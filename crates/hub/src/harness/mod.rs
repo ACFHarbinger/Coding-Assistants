@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 mod cursor_spawn;
+mod hermes_spawn;
 mod inject;
 mod kimi_spawn;
 mod qwen_spawn;
@@ -21,6 +22,10 @@ mod spawn;
 mod start;
 mod vibe_spawn;
 pub use cursor_spawn::{cursor_executable, cursor_managed_spawn_args, cursor_spawn_args};
+pub use hermes_spawn::{
+    hermes_disk_session_id, hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir,
+    hermes_usage_file, resolve_hermes_path,
+};
 pub use inject::{inject_harness, inject_harness_with_store};
 pub use kimi_spawn::{
     kimi_disk_session_id, kimi_executable, kimi_managed_spawn_args, kimi_spawn_args,
@@ -58,6 +63,8 @@ pub enum HarnessId {
     Qwen,
     /// Moonshot Kimi Code CLI. Real spawn/capture/resume is #309.
     Kimi,
+    /// Nous Research Hermes Agent CLI (`hermes`). Real spawn/capture is #322.
+    Hermes,
 }
 
 impl HarnessId {
@@ -76,8 +83,9 @@ impl HarnessId {
             "cursor" | "cursor-agent" => Ok(Self::Cursor),
             "qwen" | "qwen-code" => Ok(Self::Qwen),
             "kimi" | "kimi-code" | "moonshot" => Ok(Self::Kimi),
+            "hermes" | "hermes-agent" => Ok(Self::Hermes),
             other => Err(HubError::Invalid(format!(
-                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, cursor, qwen, or kimi)"
+                "unknown harness: {other} (expected grok, chat, claude, gemini, opencode, deepseek, vibe, muse, cursor, qwen, kimi, or hermes)"
             ))),
         }
     }
@@ -95,6 +103,7 @@ impl HarnessId {
             Self::Cursor => "cursor",
             Self::Qwen => "qwen",
             Self::Kimi => "kimi",
+            Self::Hermes => "hermes",
         }
     }
 
@@ -116,6 +125,9 @@ impl HarnessId {
             // (`kimi_executable`) is used at the real spawn/relaunch call
             // sites (see `start.rs`); this is only the static label.
             Self::Kimi => "kimi",
+            // `hermes` resolves on `$PATH` (see `resolve_hermes_path`); the
+            // static label is enough for registration and display.
+            Self::Hermes => "hermes",
         }
     }
 }

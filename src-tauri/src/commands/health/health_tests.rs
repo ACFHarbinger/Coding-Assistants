@@ -379,3 +379,33 @@ fn kimi_health_covers_all_installation_and_auth_states() {
     assert_eq!(live.agent_id, "kimi");
     assert_eq!(live.provider, "moonshot");
 }
+
+#[test]
+fn hermes_health_covers_login_and_unknown_states() {
+    let auth = serde_json::json!({
+        "active_provider": "nous",
+        "providers": {
+            "nous": { "access_token": "live-token", "obtained_at": "2026-09-12T22:17:19Z" },
+            "openai": {},
+        },
+    });
+    let logged_in = hermes_health_from(true, &auth);
+    assert_eq!(logged_in.agent_id, "hermes");
+    assert_eq!(logged_in.provider, "nous");
+    assert!(logged_in.installed);
+    assert_eq!(logged_in.authenticated, Some(true));
+    assert!(logged_in.detail.contains("installed and logged in"));
+
+    let empty_token = serde_json::json!({ "providers": { "nous": { "access_token": "  " } } });
+    let logged_out = hermes_health_from(true, &empty_token);
+    assert_eq!(logged_out.authenticated, Some(false));
+
+    let missing_cli = hermes_health_from(false, &auth);
+    assert!(!missing_cli.installed);
+    assert_eq!(missing_cli.authenticated, Some(true));
+    assert!(missing_cli.detail.contains("not on PATH"));
+
+    let live = probe("hermes");
+    assert_eq!(live.agent_id, "hermes");
+    assert_eq!(live.provider, "nous");
+}

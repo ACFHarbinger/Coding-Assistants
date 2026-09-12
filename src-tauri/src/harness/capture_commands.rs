@@ -176,3 +176,21 @@ pub async fn hub_capture_kimi_session(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn hub_capture_hermes_session(
+    workspace: String,
+    hermes_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::hermes::HermesCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::hermes::capture_hermes_session(
+            &store,
+            &PathBuf::from(workspace),
+            hermes_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}

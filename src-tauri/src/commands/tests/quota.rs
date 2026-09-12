@@ -210,3 +210,33 @@ fn mistral_quota_with_neither_half_is_unavailable_with_both_reasons() {
         "{detail}"
     );
 }
+
+/// Hermes (#322) is local-only: `ok` with `local_usage` and no windows when
+/// usage reports exist, `unavailable` otherwise. Both branches asserted, so
+/// the test holds with or without a Hermes install.
+#[test]
+fn hermes_quota_is_well_formed_with_or_without_reports() {
+    let quota = super::super::quota_hermes::hermes_quota();
+    assert_eq!(quota.agent_id, "hermes");
+    assert_eq!(quota.provider, "nous");
+    match quota.status.as_str() {
+        "ok" => {
+            let local = quota.local_usage.expect("local usage present");
+            assert!(local.sessions > 0);
+            assert!(quota.windows.is_empty(), "local totals are not a budget");
+            assert!(quota
+                .detail
+                .as_deref()
+                .unwrap_or_default()
+                .contains("Locally recorded"));
+        }
+        "unavailable" => {
+            let detail = quota.detail.unwrap_or_default();
+            assert!(
+                detail.contains("No Hermes Agent calls recorded yet"),
+                "{detail}"
+            );
+        }
+        other => panic!("unexpected status: {other}"),
+    }
+}
