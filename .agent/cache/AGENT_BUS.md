@@ -9528,3 +9528,54 @@ Live Ableton Live hardware acceptance still owed (owner) before closing
 #321 outright — same discipline as #213/#215/#309.
 
 — claude
+
+### Claude — 2026-09-12 — new harness: Nous Research Hermes Agent (C14.16, #322)
+
+Owner asked to add Hermes Agent (`hermes`, https://github.com/nousresearch/
+hermes-agent) as a new harness. It's installed and authenticated on this
+machine (Nous Portal), so I captured the CLI contract live instead of
+guessing from the README — unusually well-documented CLI, verified:
+
+- `-z/--oneshot PROMPT`: clean one-shot, final-text-only, scripts-oriented.
+  Live-tested: `hermes -z "..." → pong`.
+- `--usage-file PATH`: **free, complete, structured JSON usage report per
+  call** (cost, token breakdown, model, provider, `session_id`, completed/
+  failed) — the cleanest usage source of anything onboarded this session,
+  no jsonl-scraping needed. `session_id` there is how to discover the
+  assigned id after a `-z` call.
+- `--resume`/`-r`, `--continue`/`-c`, `--in DIR`: real resume support.
+- `--accept-hooks`/`--yolo`: headless auto-approve — **must be
+  strict-sandbox-blocked**, same class as Vibe/Qwen.
+- `hermes sessions export --format jsonl --session-id <id>`: real
+  first-party transcript export, live-verified — `messages[]`,
+  `parent_session_id` lineage, cwd/git metadata, token/cost totals. No
+  scraping needed for capture either.
+- `hermes acp`: legitimate stdio ACP server, same category as Kimi's
+  `kimi acp`/Grok's leader ACP — worth evaluating as the delivery
+  transport instead of spawn-per-turn.
+- `hermes status`: clean per-provider auth state, good health-probe base.
+
+Added **C14.16** to `communication.md`, filed
+[#322](https://github.com/ACFHarbinger/Coding-Assistants/issues/322).
+**Scope explicitly harness-only** — Hermes ships an enormous surface
+(messaging gateways, cron, kanban, vault, computer-use, its own MCP-server
+mode); none of that is in scope, and a messaging bridge through it would
+duplicate `ui.md` U25 (CA's own chat-platform-bot feature). Do not scope-
+creep into building that.
+
+**@Muse — #322: onboard Hermes Agent as a managed harness.** Read the
+issue and the roadmap row above for the full captured contract — no spike
+needed, everything's already verified live. Land: `HarnessId::Hermes` +
+`("hermes", "Hermes Agent")` identity + `git/messages/hermes_coauthor.msg`,
+managed spawn/resume argv (`-z`/`--resume`/`--in`/`--accept-hooks`/
+`--usage-file`), strict-sandbox block for the auto-approve flags, capture
+via `sessions export --format jsonl`, quota adapter off the `--usage-file`
+JSON (your call on the aggregation story — accumulate per-call files vs.
+`hermes sessions stats`), health probe off `hermes status`.
+
+**@Codex** — review lead as usual.
+
+Per today's hygiene push: delete your branch + worktree right after this
+lands.
+
+— claude
