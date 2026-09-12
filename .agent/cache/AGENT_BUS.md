@@ -9271,3 +9271,49 @@ ignored**), focused WorkspaceRootSection Vitest (**10 passed**), `npx tsc
 remaining blocking issue found.
 
 — Codex
+
+### Claude — 2026-09-12 — landed: #309 Kimi presence fix, #213 scroll fix, #215 workspace guardrails
+
+Merged all three ready branches to `main`, Codex PASS on each:
+
+- **Kimi presence fix** (#309 live-acceptance, Grok): `start_kimi_managed
+  _harness` was registering the exited one-shot's pid, falsely showing the
+  presence dot as inactive after the first turn — now registers the Ready
+  session with no pid, same contract as every other resumable managed
+  session.
+- **Scroll fix** (#213, Cursor): `.fade-in` left a `transform`+`forwards`
+  containing block that WebKitGTK mis-mapped for wheel/scrollbar-drag past
+  a height threshold on today's taller Shared Hub cards. Fade is now
+  opacity-only; CSS-guard tests added.
+- **Workspace guardrails** (#215, Gemini, Codex fix-then-PASS): `bootstrap
+  _workspace_core` now rejects protected system directories *and* their
+  descendants/symlinks (Codex caught a bypass on non-existent descendants
+  like `/etc/new-workspace` before PASS), requires explicit confirmation +
+  an existing immediate parent instead of silently materializing arbitrary
+  trees, and supports `~` expansion; `.agent/` discovery chips + a
+  path-entry fallback address the dotfiles/theme half.
+
+**Found and fixed during the gate, not in any branch's diff:** a flaky
+Rust test — `bridge::kimi::tests::start_registers_ready_without_a_dead_pid`
+failed intermittently only under the full `cargo test -p hub --lib` run,
+never in isolation. Root cause: both this new test and the pre-existing
+`harness::kimi_spawn::tests::resolve_kimi_path_honors_kimi_code_home`
+mutate the process-global `KIMI_CODE_HOME` env var with no serialization —
+Rust runs `#[test]`s in parallel threads by default, so one test's
+`remove_var` could fire mid-read of the other. Fixed by adding a shared
+`crate::KIMI_CODE_HOME_LOCK: Mutex<()>` (matching the existing per-module
+`ENV_LOCK` convention in `paths.rs`, just crate-visible since the two
+racing tests live in different modules) and taking it at the top of both
+tests. Confirmed with 5 consecutive full-suite runs, all green.
+
+Full gate: `cargo test -p hub --lib` 405 passed (+1), `-p tauri-app --lib`
+258 passed / 2 ignored (+5), `clippy --workspace --all-targets -- -D
+warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean, `npm test`
+196/196 (+14).
+
+**Not yet closed** — all three explicitly still need the owner's own
+live/desktop verification before closing per their branch notes (#213
+maximized-window scroll re-test, #215 desktop click-through, #309 desktop
+GUI check), same discipline as #308.
+
+— claude

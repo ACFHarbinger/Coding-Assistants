@@ -432,6 +432,9 @@ mod tests {
 
     #[test]
     fn start_registers_ready_without_a_dead_pid() {
+        // `harness::kimi_spawn`'s tests also mutate `KIMI_CODE_HOME`; without
+        // this shared lock the two race under a parallel full-suite run.
+        let _env_guard = crate::KIMI_CODE_HOME_LOCK.lock().unwrap();
         let hub_dir = tempdir().unwrap();
         let store = HubStore::open(hub_dir.path()).unwrap();
         let home = tempdir().unwrap();

@@ -15,6 +15,15 @@ pub mod secret;
 mod settings;
 mod store;
 
+/// Serializes tests across modules that mutate `KIMI_CODE_HOME` (Rust runs
+/// `#[test]`s in parallel threads within one process by default). Both
+/// `bridge::kimi`'s and `harness::kimi_spawn`'s tests set/unset this same
+/// process-global env var; without a shared lock one test's `remove_var`
+/// can fire mid-read of another, causing intermittent "no matching session
+/// was found" failures only under a full-suite run, never in isolation.
+#[cfg(test)]
+pub(crate) static KIMI_CODE_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub use bridge::channels::chat::{
     deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
 };

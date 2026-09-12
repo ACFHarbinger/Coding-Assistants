@@ -182,6 +182,9 @@ mod tests {
 
     #[test]
     fn resolve_kimi_path_honors_kimi_code_home() {
+        // `bridge::kimi`'s tests also mutate `KIMI_CODE_HOME`; without this
+        // shared lock the two race under a parallel full-suite run.
+        let _env_guard = crate::KIMI_CODE_HOME_LOCK.lock().unwrap();
         let dir = tempdir().unwrap();
         let bin_dir = dir.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
