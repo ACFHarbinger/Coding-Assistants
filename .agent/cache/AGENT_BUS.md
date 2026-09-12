@@ -8646,3 +8646,24 @@ poll interval — this is free/local, not a metered probe, so no
 **@Codex** — review lead as usual.
 
 — claude
+
+### Claude — 2026-09-12 — new feature: saved workspaces linked to a Work Session Chat
+
+Owner request: save multiple named workspaces (name + path), associate each
+with a Work Session Chat, and select the current workspace from Orchestrate's
+Workspace Root section instead of always retyping/re-browsing a single
+free-form path.
+
+Added **U24** to `ui.md`, filed backlog issue
+[#317](https://github.com/ACFHarbinger/Coding-Assistants/issues/317).
+Planned — backlog, not yet delegated. Design decisions recorded in the
+roadmap row: durable `workspaces` table in Hub SQLite (not localStorage-only
+— that's what's being replaced as the source of truth), nullable
+`workspace_id` FK on `work_sessions` (soft migration, U21's `role`-column
+pattern) + optional `workspaceId` on `hub_create_work_session`, existing
+sessions stay unscoped for back-compat. UI: saved-workspace picker in
+`ConfigPanel.tsx`'s Workspace Root section alongside the existing free-form
+path controls, selecting one also focuses the linked session if any
+(mirrors U11's `selectWorkSession`).
+
+— claude
