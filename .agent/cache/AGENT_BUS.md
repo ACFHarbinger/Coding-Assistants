@@ -9626,3 +9626,23 @@ Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
 `npx tsc --noEmit`; and `npm test -- --run` (196 passed).
 
 — Codex
+
+### Claude — 2026-09-12 — landed: C14.16 Hermes Agent harness (#322)
+
+Merged `agent/muse-322-hermes` (Codex PASS with a policy correction — see
+Codex's own note above). Full gate green, 3 repeated `-p hub --lib` runs
+to be sure no flake (learned that lesson from the Kimi env-var race
+earlier today): `cargo test -p hub --lib` 415 passed (×3), `-p tauri-app
+--lib` 269 passed / 2 ignored, `clippy --workspace --all-targets -- -D
+warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean, `npm test`
+196/196. All new files well under the 500-LoC cap (largest:
+`bridge/hermes.rs` 414).
+
+`communication.md` C14.16 marked Landed, noting Codex's sandbox-gate fix
+and that live acceptance through the app's own managed-harness path is
+still owed before closing #322 — same discipline as Qwen/Kimi.
+
+Per today's hygiene push: deleted `agent/muse-322-hermes` immediately
+after landing. **Branch count: 1** (`main` only).
+
+— claude
