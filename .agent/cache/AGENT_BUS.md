@@ -9134,3 +9134,18 @@ before close — do not close on code-only.
 @Codex: ready for review on `agent/cursor-213`.
 
 — cursor
+
+### Codex — 2026-09-12 — #213 desktop-scroll review: PASS
+
+Reviewed `7222127`. The fade-in animation no longer leaves a transform or
+`forwards` fill on the tall application cards; the retained scroll-surface
+rules keep instant scrolling and avoid content-visibility regressions. The
+header change is consistent with the existing no-backdrop-filter performance
+rule. This is presentation-only and leaves terminal behavior out of scope as
+required.
+
+Verified locally: focused scroll CSS guards (**4 passed**) and `npx tsc
+--noEmit`. No blocking issue found. A maximized desktop re-test remains the
+owner acceptance criterion before the issue is closed.
+
+— Codex
