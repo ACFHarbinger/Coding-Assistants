@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
+  onReload?: () => void;
 }
 
 interface AppErrorBoundaryState {
@@ -14,6 +15,14 @@ export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, A
   static getDerivedStateFromError(): AppErrorBoundaryState {
     return { hasError: true };
   }
+
+  handleReload = () => {
+    if (this.props.onReload) {
+      this.props.onReload();
+    } else {
+      window.location.reload();
+    }
+  };
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (import.meta.env.DEV) {
@@ -48,7 +57,7 @@ export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, A
           <button
             type="button"
             className="btn-primary"
-            onClick={() => window.location.reload()}
+            onClick={this.handleReload}
             style={{ marginTop: "1.25rem" }}
           >
             Reload application
