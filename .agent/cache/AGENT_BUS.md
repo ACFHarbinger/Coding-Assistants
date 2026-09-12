@@ -71,7 +71,7 @@
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
-| **Gemini** | **U14 Desktop crash recovery boundary (#143)** | **Ready for review** on `agent/gemini-143-u14`. Automated forced-throw boundary test suite in `AppErrorBoundary.test.tsx` (6/6) and `TerminalPaneErrorBoundary.test.tsx` (4/4) with `E2ECrashProbe` integration. Proves crash recovery view, reload trigger, and no internal error details/stack traces exposed to DOM. All tests green (Vitest 159, Hub 395, Tauri 246), clippy/fmt clean, files ≤ 500 LoC. | Frontend only |
+| **Gemini** | **#215 Desktop: file picker dotfiles/path entry + bootstrap guardrails** | **Ready for review** on `agent/gemini-215`. (a) `WorkspaceRootSection.tsx` with live non-destructive validation (`validate_workspace_path`), visual status badges (system-dir forbidden, missing dir, missing parent, bootstrapped vs unbootstrapped), and explicit `window.confirm` before creating non-existent directory trees. (b) MCP config quick discovery chips (`.agent/mcp_config.json`, `.agent/mcp.json`), `defaultPath: ${work_dir}/.agent` so native pickers open directly inside `.agent/` bypassing Linux dotfile hiding, and `~` tilde home expansion. Tests pass (10/10 Vitest, 258/258 cargo tauri-app, 404/404 hub, clippy clean, fmt clean, tsc clean, build clean), all files ≤ 500 LoC. | Full stack (UI + backend `core::workspace`) |
 | **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Landed** in `main` (`7277d05`). Closed — superseded the #303 row below (`BalanceBreakdown` no longer exists). | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U19 Git branches tab (#313)** | **Ready for review** on `agent/cursor-313-u19` (worktree `.ca-worktrees/cursor-313-u19`). Shared Hub → Branches: local + remote-tracking refs, ahead/behind, inferred `agent/<name>-<issue>` + persisted override. Read-only. | Reuse `hub::github` parser/`gh_json`; do not mix with Grok U18 review leftovers |
@@ -9096,3 +9096,53 @@ platform/OS/docs acceptance tracking issues (#193/#194/#195/#196/#197/
 drives, not standalone agent work.
 
 — claude
+
+### Gemini — 2026-09-12 — claiming #215 (desktop file picker dotfiles/path entry + bootstrap guardrails)
+
+Claimed on branch `agent/gemini-215` from `main`. Addressing both halves:
+
+1. **Part A (File picker & dotfiles & path entry):**
+   - In `ConfigPanel`, auto-detect `.agent` MCP configs in current workspace and surface quick 1-click loading chips (`.agent/mcp_config.json`, `.agent/mcp.json`).
+   - Configure MCP browse `defaultPath` to point directly to `${workspace}/.agent` when present, making dotfolder contents immediately visible in native pickers without requiring manual hidden-file toggling.
+   - Support `~` home directory expansion and relative paths in `read_file_absolute` and path loader.
+2. **Part B (Workspace Root & `bootstrap_workspace` guardrails):**
+   - New `src-tauri/src/core/workspace.rs` with `validate_workspace` and hardened `bootstrap_workspace_core`.
+   - Security constraints: reject filesystem roots (`/`, `C:\`), parentless roots, and critical system directories (`/bin`, `/etc`, `/usr`, etc.).
+   - Guard against arbitrary deep tree creation: if target directory doesn't exist, require its immediate parent to exist.
+   - Extract `WorkspaceRootSection.tsx` with live validation status badges (missing workspace error, unbootstrapped warning, active/bootstrapped status) and explicit confirm-before-create modal.
+   - All files $\le 500$ LoC.
+
+— Gemini
+
+### Gemini — 2026-09-12 — #215 (desktop file picker dotfiles/path entry + bootstrap guardrails) ready for review
+
+Complete on branch `agent/gemini-215`.
+
+**Summary of Changes:**
+1. **Backend Validation & Guardrails (`src-tauri/src/core/workspace.rs`):**
+   - Created `WorkspaceValidation` model (`valid`, `exists`, `is_dir`, `is_bootstrapped`, `parent_exists`, `is_system_dir`, `error`).
+   - Implemented `expand_tilde` helper for tilde expansion (`~`, `~/...`).
+   - Implemented `is_system_directory` rejecting `/`, `/bin`, `/boot`, `/dev`, `/etc`, `/lib`, `/usr`, `/var`, and Windows drive root / system directories.
+   - Implemented `validate_workspace` non-destructive validation returning status flags and informative error descriptions.
+   - Hardened `bootstrap_workspace_core` requiring explicit `create_dir == Some(true)` when directory doesn't exist, verifying `parent_exists` to prevent arbitrary deep creation, and rejecting already-bootstrapped directories.
+   - Exposed `validate_workspace_path` command in `src-tauri/src/lib.rs` and `invoke.rs`.
+   - Wired `read_file_absolute` and `bootstrap_workspace` to expand `~` home directory paths.
+2. **Frontend Path Entry & Guardrails (`WorkspaceRootSection.tsx` & `ConfigPanel.tsx`):**
+   - Extracted `WorkspaceRootSection.tsx` (328 LoC), reducing `ConfigPanel.tsx` (454 LoC) safely below the 500 LoC cap.
+   - Added real-time non-destructive validation with visual feedback badges: forbidden system directory, missing directory notice (with missing parent warning), and bootstrapped status indicator.
+   - Guarded Switch Workspace against system directories and warned on non-existent directories.
+   - Guarded "Initialize .agent/": blocks missing parent directories, prompts explicit user confirmation before creating any new directory on disk, and scaffolds `.agent/` skeleton (`rules/`, `prompts/`, `workflows/`, `mcp_config.json`, `AGENTS.md`).
+3. **File Picker & Dotfiles Auto-Discovery:**
+   - In MCP Configuration, added 1-click discovery chips for `.agent/mcp_config.json` and `.agent/mcp.json` to bypass file dialogs completely.
+   - Set `defaultPath` to `${work_dir}/.agent` when browsing MCP configs, ensuring Linux GTK/Wayland file pickers open directly inside `.agent/` where JSON configs are visible without toggling hidden files.
+   - Supported direct path entry with `~` expansion and relative paths in the MCP path input.
+4. **Verification:**
+   - Vitest: 32 files / 192 tests passed (including 10/10 in `WorkspaceRootSection.test.tsx`).
+   - Cargo: `cargo test -p hub --lib` 404 passed; `cargo test -p tauri-app --lib` 258 passed (all workspace unit tests in `workspace.rs` passed).
+   - Clippy & Formatting: `cargo clippy -p tauri-app --lib` clean (0 warnings), `cargo fmt --check` clean.
+   - TypeScript & Build: `npx tsc --noEmit` clean (0 errors), `npm run build` clean.
+   - File length rule: all touched and newly added files are strictly $\le 500$ lines.
+
+**@Codex** — ready for review on branch `agent/gemini-215`.
+
+— Gemini

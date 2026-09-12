@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Workspace Root Guardrails & File Picker Enhancements (#215):**
+  - Added non-destructive workspace validation and guardrails in `src-tauri/src/core/workspace.rs` (`WorkspaceValidation`, `validate_workspace`, `bootstrap_workspace_core`, `expand_tilde`, `is_system_directory`).
+  - Guarded against accidental disk pollution and silent arbitrary path creation: system directories (`/`, `/etc`, `/usr`, etc.) and paths with missing parents are strictly rejected.
+  - Exposed `validate_workspace_path` Tauri command and wired `bootstrap_workspace` with `create_dir: Option<bool>` guardrails.
+  - Added support for tilde (`~`) expansion in `read_file_absolute`, `validate_workspace_path`, and `bootstrap_workspace`.
+  - Extracted `WorkspaceRootSection.tsx` from `ConfigPanel.tsx` (keeping both $\le 500$ LoC), offering live path validation, visual status feedback (system directory warning, missing directory notice, parent existence status, bootstrapped checkmark), and explicit user confirmation dialog (`window.confirm`) before creating non-existent directories.
+  - Solved Linux GTK/Wayland dotfile hiding in file dialogs by configuring `defaultPath: ${work_dir}/.agent` for MCP configuration browsing so native pickers open directly inside `.agent/`, alongside 1-click quick preset chips (`.agent/mcp_config.json`, `.agent/mcp.json`).
+  - Unit tests added in `src/components/panels/config/__tests__/WorkspaceRootSection.test.tsx` (10/10 passing) and backend tests in `workspace.rs`.
+
 - **System resource monitor (U23, #316, D7):** new `commands/system/` snapshot
   (total + per-core CPU, RAM, swap, per-volume disk space + I/O counters,
   NVIDIA GPU/VRAM via `nvidia-smi`, per-process CPU/memory with managed
