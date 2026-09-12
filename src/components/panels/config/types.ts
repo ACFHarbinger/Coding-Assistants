@@ -73,3 +73,14 @@ export function spawnedRoleTeamMember(index: number, role: RoleConfig): TeamMemb
     origin: role.origin || "spawned",
   };
 }
+
+export interface WorkspaceValidation {
+  path: string;
+  valid: boolean;
+  exists: boolean;
+  is_dir: boolean;
+  is_bootstrapped: boolean;
+  parent_exists: boolean;
+  is_system_dir: boolean;
+  error?: string | null;
+}

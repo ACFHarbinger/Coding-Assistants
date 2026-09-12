@@ -4,6 +4,7 @@ import { invoke } from "../../lib/tauri";
 import { ModelSelect } from "./config/ModelSelect";
 import WorkSessionSection from "./config/WorkSessionSection";
 import DetectedProcessesSection from "./config/DetectedProcessesSection";
+import WorkspaceRootSection from "./config/WorkspaceRootSection";
 import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 import { processTargetId, spawnedRoleTeamMember } from "./config/types";
 import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
@@ -56,7 +57,6 @@ export default function ConfigPanel({
   const [creatingWorkSession, setCreatingWorkSession] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [externalConfigPath, setExternalConfigPath] = useState("");
-  const [bootstrapping, setBootstrapping] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
 
   const loadConfigFromPath = async (inputPath: string) => {
@@ -64,7 +64,12 @@ export default function ConfigPanel({
     if (!trimmed) return;
     try {
       let resolvedPath = trimmed;
-      if (!trimmed.startsWith("/") && !trimmed.startsWith("~") && config.work_dir) {
+      if (
+        !trimmed.startsWith("/") &&
+        !trimmed.startsWith("~") &&
+        !/^[a-zA-Z]:[/\\]/.test(trimmed) &&
+        config.work_dir
+      ) {
         resolvedPath = `${config.work_dir.replace(/\/+$/, "")}/${trimmed.replace(/^\/+/, "")}`;
       }
       const content = await invoke<string>("read_file_absolute", { path: resolvedPath });
@@ -97,58 +102,17 @@ export default function ConfigPanel({
     }
   };
 
-  const invokeErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) return error.message;
-    if (typeof error === "string") return error;
-    return String(error);
-  };
-
-  const applyWorkspace = (newPath?: string) => {
-    const path = (newPath ?? config.work_dir).trim();
-    if (!path) {
-      alert("Set an absolute workspace path first.");
-      return;
-    }
+  const applyWorkspace = (newPath: string) => {
+    const path = newPath.trim();
+    if (!path) return;
     try {
       localStorage.setItem("ca.workspaceRoot", path);
     } catch {}
-    setConfig({ ...config, work_dir: path });
+    setConfig(prev => ({ ...prev, work_dir: path }));
     setWorkspaceNotice(`Workspace active: ${path}`);
     setTimeout(() => setWorkspaceNotice(""), 4000);
   };
 
-  const bootstrapWorkspace = async (createDir = false) => {
-    await invoke("bootstrap_workspace", { workDir: config.work_dir.trim(), createDir });
-  };
-
-  const initializeAgentDir = async () => {
-    const path = config.work_dir.trim();
-    if (!path) {
-      alert("Set an absolute workspace path first.");
-      return;
-    }
-    if (bootstrapping) return;
-    setBootstrapping(true);
-    try {
-      try {
-        await bootstrapWorkspace(false);
-      } catch (error) {
-        const message = invokeErrorMessage(error);
-        if (!/does not exist/i.test(message)) throw error;
-        const confirmed = window.confirm(
-          `${path} does not exist. Create this directory and initialize .agent/ in it?`,
-        );
-        if (!confirmed) return;
-        await bootstrapWorkspace(true);
-      }
-      setWorkspaceNotice(`Successfully bootstrapped .agent/ in ${path}`);
-      setTimeout(() => setWorkspaceNotice(""), 4000);
-    } catch (error) {
-      alert(`Failed to bootstrap: ${invokeErrorMessage(error)}`);
-    } finally {
-      setBootstrapping(false);
-    }
-  };
 
   const loadWorkSession = (sessionId: string) => {
     if (!sessionId) return;
@@ -292,51 +256,13 @@ export default function ConfigPanel({
         </button>
       </div>
 
-      <section style={{ marginBottom: '1.5rem', padding: '1.25rem', border: '1px solid rgba(16, 185, 129, 0.32)', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.06)' }}>
-        <label className="label" style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'block' }}>Workspace Root</label>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>All team sessions, harness capture, and task delivery use this absolute repository path.</div>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            style={{ flex: '1 1 360px', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
-            placeholder="/absolute/path/to/workspace"
-            value={config.work_dir}
-            onChange={e => setConfig({ ...config, work_dir: e.target.value })}
-          />
-          <button
-            className="btn-primary"
-            style={{ marginTop: 0 }}
-            onClick={() => applyWorkspace()}
-            title="Switch active workspace to this directory"
-          >
-            Switch Workspace
-          </button>
-          <button
-            className="btn-secondary"
-            style={{ marginTop: 0 }}
-            onClick={async () => {
-              const selected = await open({ directory: true, multiple: false, defaultPath: config.work_dir || undefined });
-              if (selected) {
-                applyWorkspace(selected as string);
-              }
-            }}
-          >
-            Browse
-          </button>
-          <button
-            className="btn-secondary"
-            style={{ marginTop: 0, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-            onClick={() => void initializeAgentDir()}
-            disabled={bootstrapping}
-          >
-            {bootstrapping ? "Initializing…" : "Initialize .agent/"}
-          </button>
-        </div>
-        {workspaceNotice && (
-          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", borderRadius: "8px", background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", color: "#34d399", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            <span>✓</span> {workspaceNotice}
-          </div>
-        )}
-      </section>
+      <WorkspaceRootSection
+        workDir={config.work_dir}
+        onWorkDirChange={(workDir) => setConfig(prev => ({ ...prev, work_dir: workDir }))}
+        onWorkspaceApplied={applyWorkspace}
+        workspaceNotice={workspaceNotice}
+        setWorkspaceNotice={setWorkspaceNotice}
+      />
 
       <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
 
@@ -416,12 +342,12 @@ export default function ConfigPanel({
         </div>
 
         <div style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' }}>
             <label className="label" style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>MCP Configuration (JSON)</label>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 style={{ width: '260px', padding: '0.4rem 0.65rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
-                placeholder=".agent/mcp.json or /path/to/config.json"
+                placeholder=".agent/mcp_config.json or ~/path.json"
                 value={externalConfigPath}
                 onChange={e => setExternalConfigPath(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") void loadConfigFromPath(externalConfigPath); }}
@@ -439,9 +365,12 @@ export default function ConfigPanel({
                 style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
                 onClick={async () => {
                   try {
+                    const defaultAgentPath = config.work_dir
+                      ? `${config.work_dir.replace(/\/+$/, "")}/.agent`
+                      : undefined;
                     const selected = await open({
                       multiple: false,
-                      defaultPath: config.work_dir || undefined,
+                      defaultPath: defaultAgentPath || config.work_dir || undefined,
                       filters: [{ name: 'JSON Config', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }]
                     });
                     if (selected) {
@@ -458,6 +387,43 @@ export default function ConfigPanel({
                 Browse…
               </button>
             </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Quick Presets:</span>
+            <button
+              type="button"
+              className="chip"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+              onClick={() => void loadConfigFromPath(".agent/mcp_config.json")}
+              title="Load .agent/mcp_config.json from active workspace"
+            >
+              📄 .agent/mcp_config.json
+            </button>
+            <button
+              type="button"
+              className="chip"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+              onClick={() => void loadConfigFromPath(".agent/mcp.json")}
+              title="Load .agent/mcp.json from active workspace"
+            >
+              📄 .agent/mcp.json
+            </button>
           </div>
           <textarea
             value={config.mcp_config}

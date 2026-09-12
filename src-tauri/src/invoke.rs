@@ -11,6 +11,7 @@ macro_rules! invoke_handler {
             get_resource_content,
             read_file_absolute,
             bootstrap_workspace,
+            validate_workspace_path,
             get_available_models,
             start_tcp_server,
             stop_tcp_server,

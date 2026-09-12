@@ -106,73 +106,26 @@ async fn get_resource_content(work_dir: String, path: String) -> Result<String, 
 
 #[tauri::command]
 async fn read_file_absolute(path: String) -> Result<String, String> {
-    tokio::fs::read_to_string(path)
+    let expanded = core::workspace::expand_tilde(&path);
+    tokio::fs::read_to_string(expanded)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
+async fn validate_workspace_path(
+    path: String,
+) -> Result<core::workspace::WorkspaceValidation, String> {
+    let expanded = core::workspace::expand_tilde(&path);
+    Ok(core::workspace::validate_workspace(
+        &expanded.to_string_lossy(),
+    ))
+}
+
+#[tauri::command]
 async fn bootstrap_workspace(work_dir: String, create_dir: Option<bool>) -> Result<(), String> {
-    let trimmed = work_dir.trim();
-    if trimmed.is_empty() {
-        return Err("Workspace path cannot be empty".to_string());
-    }
-
-    let work_path = std::path::Path::new(trimmed);
-    if !work_path.is_absolute() {
-        return Err("Workspace root must be an absolute path".to_string());
-    }
-
-    if !work_path.exists() {
-        if create_dir != Some(true) {
-            return Err(format!("Workspace directory '{}' does not exist", trimmed));
-        }
-        tokio::fs::create_dir_all(work_path)
-            .await
-            .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
-    } else if !work_path.is_dir() {
-        return Err(format!("Workspace path '{}' is not a directory", trimmed));
-    }
-
-    let base = work_path.join(".agent");
-    if base.exists() {
-        return Err("Workspace is already bootstrapped (.agent directory exists)".to_string());
-    }
-
-    tokio::fs::create_dir_all(base.join("rules"))
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(base.join("prompts"))
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(base.join("workflows"))
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mcp_config = r#"{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-    }
-  }
-}"#;
-
-    tokio::fs::write(base.join("mcp_config.json"), mcp_config)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let agents_md = r#"# AGENTS.md
-
-Welcome to your new Coding Assistants workspace!
-Place your instructions in this file or under the `rules/` directory.
-"#;
-
-    tokio::fs::write(base.join("AGENTS.md"), agents_md)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    let expanded = core::workspace::expand_tilde(&work_dir);
+    core::workspace::bootstrap_workspace_core(&expanded.to_string_lossy(), create_dir).await
 }
 
 #[tauri::command]
