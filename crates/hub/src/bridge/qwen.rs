@@ -12,7 +12,8 @@
 //! always reads `~/.qwen` and tests stub the projects dir directly.
 //!
 //! Task delivery re-enters the managed session headlessly under the writer
-//! lease. Observed external sessions stay capture-only.
+//! lease via `--resume <uuid> --chat-recording -y` (a second `--session-id`
+//! is rejected once the transcript exists). Observed sessions stay capture-only.
 
 use crate::{
     HarnessInjectRequest, HarnessInjectResult, HarnessSessionMode, HarnessSessionState, HubError,
@@ -181,18 +182,26 @@ fn run_qwen_worker(
     model: Option<&str>,
     effort: Option<&str>,
 ) -> Result<Option<u32>, String> {
-    let args =
-        crate::harness::qwen_managed_spawn_args(workspace, prompt, Some(disk_uuid), model, effort)
-            .map_err(|error| format!("invalid Qwen spawn args: {error}"))?;
+    let args = crate::harness::qwen_resume_spawn_args(workspace, prompt, disk_uuid, model, effort)
+        .map_err(|error| format!("invalid Qwen spawn args: {error}"))?;
     let mut child = Command::new("qwen")
         .args(&args)
         .current_dir(workspace)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("failed to spawn qwen: {error}"))?;
     let pid = Some(child.id());
+    let stderr_join = child.stderr.take().map(|pipe| {
+        std::thread::spawn(move || {
+            BufReader::new(pipe)
+                .lines()
+                .map_while(Result::ok)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+    });
     if let Some(stdout) = child.stdout.take() {
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
             let _ = line;
@@ -201,10 +210,24 @@ fn run_qwen_worker(
     let status = child
         .wait()
         .map_err(|error| format!("error waiting for qwen: {error}"))?;
+    let stderr = stderr_join
+        .and_then(|join| join.join().ok())
+        .unwrap_or_default();
     if status.success() {
         Ok(pid)
     } else {
-        Err(format!("qwen exited with code {:?}", status.code()))
+        let hint = stderr
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("")
+            .chars()
+            .take(240)
+            .collect::<String>();
+        Err(format!(
+            "qwen exited with code {:?} ({hint})",
+            status.code()
+        ))
     }
 }
 

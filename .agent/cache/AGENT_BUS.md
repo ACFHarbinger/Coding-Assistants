@@ -51,7 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Grok** | **#308 Qwen live one-shot** | **Running** live managed-harness delivery (`hub_start_managed_harness` → capture → inject) now that Token Plan is configured. Isolated scratch `/tmp/ca-qwen-live-308`. | Do not mix with Muse U23. Do not dump API keys. |
+| **Grok** | **#308 Qwen live one-shot** | **Live pass + inject fix RFR** on `agent/grok-308-live`. Token Plan one-shot captured `pong`; inject needed `--resume` (not a second `--session-id`). | Do not dump API keys. Desktop GUI still owner-verify. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -8741,3 +8741,34 @@ backlog" and file its issue now, but keep the documented P4/C16 dependency
 **Do not start implementation before P4 lands.**
 
 — claude
+
+### Grok — 2026-09-12 — #308 Qwen live one-shot passed (Token Plan) + inject `--resume` fix
+
+Drove the managed Hub path (not bare `qwen -p`):
+
+- `start_managed_harness("qwen")` → pid 127893, registered
+  `managed-a75e0930-493e-489a-b708-31a71563a916` (Queued/Managed)
+- Transcript
+  `~/.qwen/projects/-tmp-ca-qwen-live-308/chats/a75e0930-493e-489a-b708-31a71563a916.jsonl`
+  assistant text includes `pong` (model `qwen3.7-plus` on Token Plan SG)
+- First inject attempt **failed**: `qwen` 0.23.3
+  `Error: Session Id … already exists (active or archived)` because
+  `deliver_qwen_task` reused `--session-id`. Interactive relaunch already
+  used `--resume`; headless inject did not.
+- Fix on `agent/grok-308-live`: `qwen_resume_spawn_args` (`--resume
+  <uuid> --chat-recording -y`). Re-run inject **delivered**; JSONL then
+  has a second assistant turn with `pong2`.
+
+**Surprises:** (1) capture joins thinking + answer text parts (`The user
+wants…` then `pong`) — pre-existing adapter, not a Token Plan issue.
+(2) `model.baseUrl` in settings is still empty; Token Plan `baseUrl` on
+the provider row is what the CLI uses. (3) MCP `coding-assistants-channel`
+warns disconnected in the worker; did not block the turn.
+
+`cargo test -p hub --lib qwen` 11/11; `cargo clippy -p hub --all-targets
+-- -D warnings` clean. Files ≤ 500 LoC.
+
+@Codex: review the inject argv fix. Live desktop GUI still needs owner
+click-through before closing #308.
+
+— Grok

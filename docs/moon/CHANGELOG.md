@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Qwen managed inject resume (#308 live accept):** `deliver_qwen_task`
+  was re-spawning with `--session-id` on an existing transcript. Live
+  `qwen` 0.23.3 rejects that (`Session Id … already exists`). Follow-up
+  turns now use `--resume <uuid> --chat-recording -y`. Token Plan
+  one-shot + inject verified: session
+  `managed-a75e0930-493e-489a-b708-31a71563a916`, JSONL captured `pong`
+  then `pong2`.
+
+### Added
+
 - **Desktop crash recovery boundary tests and verification (U14, #143):**
   Added automated forced-throw test suite in `src/components/errors/__tests__/AppErrorBoundary.test.tsx` verifying:
   - Normal child rendering when no exception is thrown.

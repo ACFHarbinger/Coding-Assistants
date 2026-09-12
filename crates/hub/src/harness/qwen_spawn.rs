@@ -89,6 +89,36 @@ pub fn qwen_managed_spawn_args(
     Ok(args)
 }
 
+/// Headless follow-up turn against an existing Qwen transcript.
+///
+/// Live `qwen` 0.23.3 rejects a second `--session-id` for an id that already
+/// exists (`Session Id … already exists (active or archived)`). Task inject
+/// must use `--resume <uuid>` plus `--chat-recording` (or `-r` is a no-op).
+pub fn qwen_resume_spawn_args(
+    workspace: &Path,
+    prompt: &str,
+    session_id: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Result<Vec<OsString>, HubError> {
+    let mut args = qwen_managed_spawn_args(workspace, prompt, None, model, effort)?;
+    let disk_id = qwen_disk_session_id(session_id).ok_or_else(|| {
+        HubError::Invalid(format!(
+            "Qwen session id {session_id:?} is not a UUID and cannot be passed to `qwen --resume`"
+        ))
+    })?;
+    let at = args
+        .iter()
+        .position(|arg| arg == "-y")
+        .map(|i| i + 1)
+        .unwrap_or(args.len().saturating_sub(1));
+    args.splice(
+        at..at,
+        [OsString::from("--resume"), OsString::from(disk_id)],
+    );
+    Ok(args)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +180,25 @@ mod tests {
         assert_eq!(qwen_disk_session_id("chat-1"), None);
         assert_eq!(qwen_disk_session_id("managed-not-a-uuid"), None);
         assert_eq!(qwen_disk_session_id("  "), None);
+    }
+
+    #[test]
+    fn qwen_resume_spawn_args_uses_resume_not_session_id() {
+        let uuid = "123e4567-e89b-42d3-a456-426614174000";
+        let args = qwen_resume_spawn_args(
+            Path::new(WS),
+            "pong2",
+            &format!("managed-{uuid}"),
+            None,
+            None,
+        )
+        .unwrap();
+        let at = args.iter().position(|arg| arg == "--resume").unwrap();
+        assert_eq!(args[at + 1], uuid);
+        assert!(args.iter().any(|arg| arg == "--chat-recording"));
+        assert!(args.iter().any(|arg| arg == "-y"));
+        assert!(!args.iter().any(|arg| arg == "--session-id"));
+        assert_eq!(args.last().unwrap(), "pong2");
+        assert!(qwen_resume_spawn_args(Path::new(WS), "x", "chat-1", None, None).is_err());
     }
 }
