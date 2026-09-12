@@ -7,6 +7,7 @@ import { UsageChart, QuotaChart, cardStyle, inputStyle } from "./HubCharts";
 import McpToolsPanel from "./McpToolsPanel";
 import BoardTab from "./BoardTab";
 import BranchesTab from "./BranchesTab";
+import SystemTab from "./SystemTab";
 
 export default function HubPanelView(props: any) {
   const {
@@ -128,6 +129,7 @@ export default function HubPanelView(props: any) {
           {tabBtn("tasks", "Tasks")}
           {tabBtn("board", "Board")}
           {tabBtn("branches", "Branches")}
+          {tabBtn("system", "System")}
           {tabBtn("usage", "Usage")}
           {tabBtn("tools", "Tools")}
           {tabBtn("channels", "Channels")}
@@ -150,6 +152,7 @@ export default function HubPanelView(props: any) {
       {hubTab === "dashboard" && <DashboardPanel agents={agents} teamMemberIds={teamMemberIds} onAddAgent={enrollAgent} onRemoveAgent={unenrollAgent} />}
       {hubTab === "board" && <BoardTab />}
       {hubTab === "branches" && <BranchesTab />}
+      {hubTab === "system" && <SystemTab />}
 
       {hubTab === "memory" && (
         <MemoryTab

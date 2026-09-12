@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **System resource monitor (U23, #316, D7):** new `commands/system/` snapshot
+  (total + per-core CPU, RAM, swap, per-volume disk space + I/O counters,
+  NVIDIA GPU/VRAM via `nvidia-smi`, per-process CPU/memory with managed
+  harness PIDs attributed) behind a `system_snapshot` command, plus a Shared
+  Hub "System" tab with live meters, sparklines, and per-volume I/O rates on
+  a 3s poll. `sysinfo 0.38` (MIT) added per DEPENDENCY_POLICY — stdlib cannot
+  enumerate host telemetry cross-platform. Read-only v1. Verified with 5
+  backend + 4 tab tests; full gates green.
+
 ### Fixed
 
 - **Qwen managed inject resume (#308 live accept):** `deliver_qwen_task`
