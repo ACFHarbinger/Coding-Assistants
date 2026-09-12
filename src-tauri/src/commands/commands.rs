@@ -45,6 +45,8 @@ mod quota_deepseek;
 mod quota_gemini;
 #[path = "quota/grok.rs"]
 mod quota_grok;
+#[path = "quota/hermes.rs"]
+mod quota_hermes;
 #[path = "quota/kimi_usage.rs"]
 pub(crate) mod quota_kimi_usage;
 #[path = "quota/mistral.rs"]

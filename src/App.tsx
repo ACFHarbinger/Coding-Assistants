@@ -181,6 +181,7 @@ function App() {
           ["hub_capture_qwen_session", "qwenSessionId"],
           ["hub_capture_vibe_session", "vibeSessionId"],
           ["hub_capture_kimi_session", "kimiSessionId"],
+          ["hub_capture_hermes_session", "hermesSessionId"],
         ] as const;
         const captures = await Promise.allSettled(
           harnessCaptureCmds.map(([cmd, paramKey]) =>

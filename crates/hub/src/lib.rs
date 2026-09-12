@@ -24,6 +24,12 @@ mod store;
 #[cfg(test)]
 pub(crate) static KIMI_CODE_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// `harness::hermes_spawn`'s tests redirect `CA_HOME` at the hub usage dir;
+/// serialized the same way so a parallel full-suite run cannot observe a
+/// half-swapped home.
+#[cfg(test)]
+pub(crate) static CA_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub use bridge::channels::chat::{
     deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
 };
@@ -48,6 +54,9 @@ pub use bridge::grok::{
     connect_grok_leader_session, default_leader_socket, deliver_grok_task, grok_leader_status,
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
+};
+pub use bridge::hermes::{
+    deliver_hermes_task, hermes_home_dir, latest_hermes_session_id, latest_usage_session_id,
 };
 pub use bridge::kimi::{
     deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
@@ -80,12 +89,13 @@ pub use github::{
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
     cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
-    inject_harness, inject_harness_with_store, kimi_disk_session_id, kimi_executable,
-    kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id, muse_managed_spawn_args,
-    muse_spawn_args, opencode_spawn_args, qwen_disk_session_id, qwen_managed_spawn_args,
-    qwen_resume_spawn_args, qwen_spawn_args, start_harness, vibe_disk_session_id,
-    vibe_managed_spawn_args, vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult,
-    HarnessStartRequest, HarnessStartResult,
+    hermes_disk_session_id, hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir,
+    hermes_usage_file, inject_harness, inject_harness_with_store, kimi_disk_session_id,
+    kimi_executable, kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id,
+    muse_managed_spawn_args, muse_spawn_args, opencode_spawn_args, qwen_disk_session_id,
+    qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args, resolve_hermes_path,
+    start_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args, HarnessId,
+    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
 };
 pub use paths::default_hub_home;
 pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};

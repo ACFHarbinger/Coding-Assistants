@@ -45,6 +45,7 @@ fn aliases(harness: HarnessId) -> &'static [&'static str] {
         HarnessId::Cursor => &["cursor"],
         HarnessId::Qwen => &["qwen"],
         HarnessId::Kimi => &["kimi"],
+        HarnessId::Hermes => &["hermes"],
     }
 }
 

@@ -40,6 +40,7 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
         HarnessId::Qwen => crate::bridge::qwen::latest_qwen_session_id(workspace),
         HarnessId::Kimi => crate::bridge::kimi::latest_kimi_session_id(workspace),
+        HarnessId::Hermes => crate::bridge::hermes::latest_hermes_session_id(workspace),
         HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
@@ -118,6 +119,10 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Qwen, None) => vec!["--chat-recording".into()],
         (HarnessId::Kimi, Some(id)) => vec!["--session".into(), id.into()],
         (HarnessId::Kimi, None) => vec![],
+        // `hermes --resume <session-id>` is the documented resume convention
+        // (verified #322: `--resume SESSION`, workspace-scoped disk ids).
+        (HarnessId::Hermes, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Hermes, None) => vec![],
         // OpenCode resume flags are not wired for interactive relaunch yet.
         (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
         (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],

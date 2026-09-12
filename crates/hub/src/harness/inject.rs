@@ -103,6 +103,11 @@ fn inject_harness_inner(
                 return crate::bridge::kimi::deliver_kimi_task(store, request);
             }
         }
+        if harness == HarnessId::Hermes {
+            if let Some(store) = store {
+                return crate::bridge::hermes::deliver_hermes_task(store, request);
+            }
+        }
         return Ok(HarnessInjectResult {
             harness: harness.as_str().into(),
             pid: None,
@@ -157,6 +162,13 @@ fn inject_harness_inner(
         HarnessId::Cursor => cursor_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::Qwen => qwen_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::Kimi => super::kimi_managed_spawn_args(
+            &request.workspace,
+            &prompt,
+            request.session_id.as_deref(),
+            model,
+            effort,
+        )?,
+        HarnessId::Hermes => super::hermes_managed_spawn_args(
             &request.workspace,
             &prompt,
             request.session_id.as_deref(),

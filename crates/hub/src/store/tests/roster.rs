@@ -121,6 +121,45 @@ fn a_hub_predating_kimi_picks_up_its_identity_without_enrolling_it() {
 }
 
 #[test]
+fn a_hub_predating_hermes_picks_up_its_identity_without_enrolling_it() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+
+    // Simulate a Hub created before Hermes was onboarded (seed version 4):
+    // drop the identity row and rewind the seed version to 4.
+    store
+        .conn
+        .execute("DELETE FROM agents WHERE id = 'hermes'", [])
+        .unwrap();
+    store
+        .conn
+        .execute(
+            "UPDATE meta SET value = '4' WHERE key = 'agent_identities_seeded'",
+            [],
+        )
+        .unwrap();
+    store.set_team_member("kimi", true).unwrap();
+    drop(store);
+
+    let migrated = HubStore::open(dir.path()).unwrap();
+    let hermes = migrated
+        .list_agents()
+        .unwrap()
+        .into_iter()
+        .find(|agent| agent.id == "hermes")
+        .expect("reopening seeds the new Hermes identity");
+    assert_eq!(hermes.display_name, "Hermes Agent");
+
+    let members: Vec<_> = migrated
+        .list_team_members()
+        .unwrap()
+        .into_iter()
+        .map(|agent| agent.id)
+        .collect();
+    assert_eq!(members, vec!["human", "kimi"]);
+}
+
+#[test]
 fn memory_message_wake_roundtrip() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

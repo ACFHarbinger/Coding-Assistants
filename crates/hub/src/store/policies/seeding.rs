@@ -24,13 +24,14 @@ impl HubStore {
             ("qwen", "Qwen Code"),
             ("opencode", "OpenCode"),
             ("kimi", "Kimi"),
+            ("hermes", "Hermes Agent"),
             ("ollama", "Ollama"),
             ("llamacpp", "llama.cpp"),
             ("system", "System"),
         ];
         // Bump when `WELL_KNOWN_AGENTS` gains an entry, so existing Hubs pick
         // it up exactly once instead of on every open.
-        const AGENT_IDENTITIES_VERSION: &str = "4";
+        const AGENT_IDENTITIES_VERSION: &str = "5";
         let identities_seeded: Option<String> = self
             .conn
             .query_row(
