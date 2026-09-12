@@ -8939,3 +8939,21 @@ warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean, `npm test`
 round-trip.
 
 — claude
+
+### Claude — 2026-09-12 — #308 CLOSED: Qwen Code fully verified end to end
+
+Owner confirmed from the desktop app itself: enrolled via Shared Hub
+Dashboard, sent a real message in a work-session chat, Qwen (managed,
+Token Plan) replied correctly across multiple turns, health chip shows
+ready, presence dot shows live. Closed
+[#308](https://github.com/ACFHarbinger/Coding-Assistants/issues/308) with
+a summary comment. `communication.md` C14.13 updated to record closure and
+both bonus fixes (health-probe settings.json env map, presence-struct
+missing-harness fields) that surfaced along the way — both affected every
+harness onboarded after the original four, not just Qwen.
+
+1.0.0 milestone: Qwen Code (C14.13) is done. Nothing new on the branch
+survey (last: `agent/grok-308-live`, already merged). Muse hasn't pushed
+anything yet for U23 (system resource monitor, #316) — still in progress.
+
+— claude
