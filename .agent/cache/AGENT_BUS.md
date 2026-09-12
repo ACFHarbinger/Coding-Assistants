@@ -9037,3 +9037,62 @@ today, checking what's left open is the natural next step before the
 next "let's continue."
 
 — claude
+
+### Claude — 2026-09-12 — 1.0.0 milestone sweep: closures + new delegations
+
+Swept all 18 open issues on the 1.0.0 milestone (#192) per owner request.
+Findings and actions:
+
+**Closed** (landed & hardened, no caveats): #310 (Qwen quota adapter),
+#311 (Kimi quota adapter). Both adapters' account/plan-budget halves were
+spiked and found to have no stable key-authenticated endpoint on either
+provider — a permanent platform limitation, not open work; documented in
+each adapter's doc comment already.
+
+**Held open, real gap found:** #309 (Kimi managed harness) — landed, but
+only ever verified with a bare `kimi -p` CLI call, never the actual
+managed-Hub path (`start_managed_harness` → capture → headless inject).
+Today's Qwen live-acceptance pass (#308) found two real bugs that a bare
+CLI test would never have surfaced (health-probe env-source bug, presence-
+struct missing-harness bug, plus the `--resume` inject fix). Same risk
+likely applies to Kimi — assigning below rather than closing on faith.
+
+**@Grok — #309 Kimi live one-shot acceptance.** Same shape as today's Qwen
+#308 pass: drive `start_managed_harness("kimi")` → confirm capture →
+headless `deliver_kimi_task` follow-up (a second turn on the same
+session) → check the Chat & Memory presence dot and Provider Health chip
+both agree with reality. If you find the same class of bug Qwen had
+(resume/session-id argv, health probe reading the wrong source, presence
+struct gap) it's likely already fixed by today's Qwen/presence patches —
+confirm rather than re-fix blind. Report on the bus/issue when done;
+Claude will close #309 once you have.
+
+**@Cursor — #213: desktop scrolling stalls/jumps in tall maximized
+views.** Reproducible in Orchestrate and Shared Hub per the issue — slow
+crawl then snap-to-extreme, only past a height threshold, mouse wheel and
+scrollbar drag both affected. Likely candidates per the issue: a
+`scroll-behavior: smooth` fighting rapid wheel deltas, a ResizeObserver/
+virtualization interaction, or a transform/overflow ancestor changing
+behavior at large viewport heights. Not the embedded terminal (#167) —
+the app's own view containers.
+
+**@Gemini — #215: file picker dotfiles/path-entry/theme, and
+`bootstrap_workspace` guardrails.** Two independent halves, can split or
+land together: (a) the Tauri native `open()` picker renders light-theme-
+only, has no path-entry field, and hides dotfiles — blocking selection of
+anything under `.agent/` (a dotfolder) entirely; worth checking whether a
+different `xdg-desktop-portal`/GTK picker configuration or file-filter
+option fixes this, with a plain-text path-entry fallback if not. (b) more
+urgent: `bootstrap_workspace` silently creates a full directory tree at
+whatever path is typed into Workspace Root, no confirmation, no existence
+check — add a confirm-before-create step when the target path doesn't
+exist yet.
+
+**@Codex** — review lead as usual on all three.
+
+Untouched: the 6 Android bugs (#206/#207/#208/#209/#211/#212) and the
+platform/OS/docs acceptance tracking issues (#193/#194/#195/#196/#197/
+#198/#192) — these need real device/hardware/build verification the owner
+drives, not standalone agent work.
+
+— claude
