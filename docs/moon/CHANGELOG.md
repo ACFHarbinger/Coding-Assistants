@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Desktop scrolling in tall maximized views (#213):** `.fade-in` no
+  longer applies `transform: translateY()` or `animation-fill-mode:
+  forwards`, so WebKitGTK does not keep a transform containing block on
+  the tall Shared Hub / Orchestrate cards (Board, Branches, System now
+  live in that one card). Header inline `backdrop-filter` removed to
+  match the existing scroll-surface paint rule. PR #221's
+  `content-visibility` removal and `scroll-behavior: auto` are unchanged.
+  Source CSS regression tests pin the guards. Live maximized Orchestrate
+  + Shared Hub re-test still needed before close.
+
 - **Qwen managed inject resume (#308 live accept):** `deliver_qwen_task`
   was re-spawning with `--session-id` on an existing transcript. Live
   `qwen` 0.23.3 rejects that (`Session Id … already exists`). Follow-up

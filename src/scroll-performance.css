@@ -11,6 +11,15 @@
    window that correction occurs during a wheel/scrollbar gesture and makes
    the document crawl or jump to an edge. */
 
+/* Do not leave a transform containing block on the app scroller's
+   descendants. Shared Hub wraps Board/Branches/System in one `.fade-in`
+   card; `forwards` + translateY(0) is enough for WebKitGTK to promote
+   that card and mis-map wheel/scrollbar input past a height threshold. */
+.main-content .fade-in {
+  transform: none;
+  will-change: auto;
+}
+
 /* Keep the app scroller cheap at every CSS viewport size. Display scaling can
    make a physically maximized window fall below a width/height media-query
    threshold, which left the expensive path enabled on the affected systems. */
@@ -18,6 +27,10 @@
 .main-content .btn-primary,
 .main-content .btn-secondary {
   box-shadow: none;
+}
+
+.main-content .glass-card {
+  flex-shrink: 0;
 }
 
 /* The header is a flex sibling of the scroller, so no content is visible

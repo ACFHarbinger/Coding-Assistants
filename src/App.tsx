@@ -293,7 +293,6 @@ function App() {
         padding: '1.5rem 2.5rem',
         borderBottom: '1px solid var(--border-color)',
         background: 'rgba(2, 6, 23, 0.85)',
-        backdropFilter: 'var(--glass-blur)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',

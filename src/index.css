@@ -232,17 +232,16 @@ pre {
   background: var(--text-muted);
 }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
-  opacity: 0;
-  /* Promote to own layer immediately so WebKit allocates and paints tiles
-     right away at opacity:0, instead of deferring tile paint until the
-     animation makes the element visible (which stalls the first scroll). */
-  will-change: opacity, transform;
+  /* Opacity only. A transform (even identity translateY(0) left by
+     animation-fill-mode: forwards) creates a containing block on the
+     tall Hub/Orchestrate cards and WebKitGTK then mis-maps wheel and
+     scrollbar-drag deltas past a height threshold (#213). */
+  animation: fadeIn 0.4s ease-out;
 }
 
 @keyframes pulse {
