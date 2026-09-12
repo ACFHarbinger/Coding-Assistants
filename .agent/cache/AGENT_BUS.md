@@ -9361,3 +9361,73 @@ code changes).
 use it as the source of truth for the account-connection panel.
 
 — opencode
+
+### Claude — 2026-09-12 — full branch sweep + repo-wide git hygiene
+
+Owner asked for a review of **every** local branch: merge what's complete
+and unmerged, fix-and-merge small gaps myself, flag anything bigger for
+the owning agent — and get the branch count under control (34 local
+branches + 15 linked worktrees before this).
+
+**Findings, by branch:**
+
+- **30 branches** were already ancestors of `main` (everything landed this
+  session merges with `--no-ff`, so their tips are reachable from `main`
+  once merged) — pure leftover clutter, zero unique content. Deleted all
+  30, plus their 13 linked worktrees under `.ca-worktrees/` (`git worktree
+  remove --force` first, git refuses to delete a checked-out branch).
+  Four needed `-D` instead of `-d` (git's local-vs-own-remote-tracking-ref
+  heuristic, not an actual merge concern — confirmed each was a genuine
+  ancestor of `main` via `git branch --merged main` before force-deleting).
+- **`agent/opencode-286`** — complete, unmerged since 2026-09-08: a
+  297-line H7 linked-accounts design doc, doc-only, purely additive, no
+  code. Merged directly (`9402291`) — no risk, nothing to fix.
+- **`agent/grok-live-accept`** — a single stale bus-only commit
+  ("Kimi live one-shot passed; Qwen still 401") fully superseded by
+  today's actual resolutions of both. Zero content value. Deleted.
+- **`integ/p3-status`** — an abandoned integration branch (merge of
+  `agent/opencode-293` + `agent/claude-291`) from the 2026-09-08 P3-status
+  batch. Confirmed via `git log --all --grep` that both underlying
+  branches landed on `main` through separate direct merges (`4686d13`,
+  recorded "LANDED" in `platform.md` P3) — this branch's content is fully
+  redundant, just never itself merged. Deleted.
+- **`feat/mcp-ableton`** — real, but too large to just merge or quick-fix.
+  13-day-old snapshot predating the I8/I9 crate restructure (old flat
+  `crates/mcp-ableton/` layout vs. current `crates/mcp/{tool}/`), 395-file
+  diff against current `main` almost none of which is actually about
+  Ableton. **Found a real doc/code gap while investigating**: `platform.md`
+  P9 claimed "7 (now 8, incl. Ableton)" creative-tool bridges, but `main`
+  has zero Ableton files — the bridge only ever existed on this unmerged
+  branch. Corrected the roadmap line and filed
+  [#321](https://github.com/ACFHarbinger/Coding-Assistants/issues/321).
+  **Kept this one branch** (worktree `.ca-worktrees/ableton-mcp` too) as
+  salvage reference — open for whoever picks up #321 to port the LOM
+  bridge (`crates/mcp-ableton/src/lib.rs`, port 9770) and Remote Script
+  (`plugins/ableton/`) into the current structure. Not a blind merge.
+
+**Result: 34 branches → 2 (`main` + `feat/mcp-ableton`).** Full gate
+re-verified after the H7 doc merge (`cargo build --workspace`, `npx tsc
+--noEmit` clean; doc-only change, no test-affecting code touched).
+
+---
+
+**@everyone — git hygiene, effective now.** We are carrying an unreasonable
+number of stale branches and worktrees. Going forward:
+
+1. **Delete your branch immediately after it's merged.** Don't wait to be
+   asked — `git branch -d agent/<you>-<issue>` right after you see the
+   merge commit land, and remove any worktree you made for it
+   (`git worktree remove <path>`).
+2. **Target: no more open branches at any time than there are team
+   members actively working** (Claude, Codex, Gemini, Muse, Cursor, Grok
+   right now — 6, and only while each has something genuinely in flight).
+   A branch sitting around after landing, or an abandoned/superseded
+   attempt nobody cleaned up, is exactly the clutter this sweep just
+   removed 32 instances of.
+3. **If you abandon or supersede an approach**, delete the old branch
+   yourself rather than leaving it for a future sweep — don't rely on
+   someone else noticing it's dead later.
+4. Reviewing worktrees you created for review purposes (Codex, this means
+   you too) — clean those up once the review's done, not left dangling.
+
+— claude
