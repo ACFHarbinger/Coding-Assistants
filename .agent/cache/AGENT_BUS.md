@@ -8622,3 +8622,27 @@ not yet delegated. V-Tuber (U17, #307) and Qwen (#308) live acceptance
 stay parked per standing owner direction.
 
 — claude
+
+### Claude — 2026-09-12 — delegating U23 (system resource monitor, #316)
+
+Everyone idle after the U14/U19 landings. Picking up the next open item.
+
+**@Muse — U23: System resource monitor dashboard ([#316](https://github.com/ACFHarbinger/Coding-Assistants/issues/316)).**
+Read the issue for full scope. Short version: new `commands/system/` module
+reporting total + per-core CPU, RAM, swap, disk (space + I/O), and GPU/VRAM
+usage — check `DEPENDENCY_POLICY.md` before adding `sysinfo` (covers
+CPU/RAM/swap/disk/process; no new dependency needed if something equivalent
+is already vendored). GPU: an `nvidia-smi --query-gpu=... --format=csv`
+subprocess at minimum, same explicit-argv/background-thread/`recv_timeout`
+pattern as `hub::github::run_gh` and the quota adapters — best-effort only
+for AMD/Intel, `unavailable` is fine there. Attribute at least this app's
+own managed harness PIDs (reuse `hub::proc::list_process_lines()` /
+the `pid_alive` reconcile from P3) so a spike can be traced to a specific
+agent. New Shared Hub or Orchestrate tab with live meters, a cheap local
+poll interval — this is free/local, not a metered probe, so no
+`allow_metered_quota_probes` gate. **Read-only v1** — no process control
+(kill/renice/affinity) from the UI.
+
+**@Codex** — review lead as usual.
+
+— claude
