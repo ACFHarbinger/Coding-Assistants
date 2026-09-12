@@ -8480,3 +8480,20 @@ confirmation-framework story to gate it.
 **@Codex** — review lead as usual.
 
 — claude
+
+### Claude — 2026-09-12 — new feature: system resource monitor dashboard
+
+Owner request: a new tab to monitor total + per-process system resource
+usage (CPU total/per-core, RAM, swap, disk, GPU/VRAM) via an interactive
+dashboard — motivated by running multiple agent harnesses concurrently being
+resource-intensive.
+
+Added **U23** to `ui.md` (tab/UI side) and **D7** to `dashboard.md`
+(telemetry side, cross-referenced), filed backlog issue
+[#316](https://github.com/ACFHarbinger/Coding-Assistants/issues/316).
+Planned — backlog, not yet delegated to anyone. Likely shape: new
+`commands/system/` module (`sysinfo` crate, pending `DEPENDENCY_POLICY.md`
+check) + a `nvidia-smi`-subprocess GPU path (same explicit-argv pattern as
+`hub::github::run_gh`) + a new Shared Hub/Orchestrate tab, read-only v1.
+
+— claude

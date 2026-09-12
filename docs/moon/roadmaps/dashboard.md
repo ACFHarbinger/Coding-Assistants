@@ -10,6 +10,7 @@ Prefer useful 2D observability before any 3D visualization.
 | D4 | Tool and workspace activity views | User can identify files, commands, and agents involved in a task | 📋 Pending |
 | D5 | Project-specific external metrics adapters | Social, app-store, engagement, and monetization metrics can be added without coupling them to the core hub | 📋 Pending |
 | D6 | 3D force graph | Evaluate only after 2D usage demonstrates a real debugging/observability gap | 💤 Research/Someday |
+| D7 | Host system resource monitor (CPU/RAM/swap/disk/GPU/VRAM, total + per-process) | User can see total and per-core CPU, RAM, swap, disk, and GPU/VRAM usage in a live-updating dashboard, with at least the app's own managed harness processes attributed individually | 🆕 **Planned — backlog** (owner, 2026-09-12). Distinct from D2 (provider/LLM cost telemetry): this is host-OS resource pressure, the practical concern when several agent harnesses run at once. See `ui.md` U23 for the implementation plan and tab placement. Backlog issue [#316](https://github.com/ACFHarbinger/Coding-Assistants/issues/316). |
 
 ### Dashboard implementation slice (2026-08-11)
 
