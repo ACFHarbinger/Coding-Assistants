@@ -8857,3 +8857,40 @@ review — small, self-contained, security-neutral (presence-only check,
 same as before) fix on `main` directly rather than a branch/PR round-trip.
 
 — claude
+
+### Claude — 2026-09-12 — fix: role-card provider dropdown offered dead harness identities
+
+Owner-reported confusion, correctly identified as a bug on investigation:
+Orchestrate's role-card "Provider" dropdown offered **every** roster/chat
+display-name entry (`hubState.ts` `PROVIDERS` — Qwen, Kimi, Cursor, Codex,
+Chat, GitHub Copilot, …) as if each were a real selectable direct-call
+provider, when `get_available_models`'s backend (`client/llm.rs
+list_models()`) only ever returns models for opencode-routed providers
+plus hand-special-cased `vibe`/`muse`. Selecting Qwen (or almost anything
+else in that list) always landed on a permanently empty model dropdown —
+not a timing issue, not owner error, a real UI/backend mismatch: two
+separate systems (managed CLI harnesses vs. this narrow direct-HTTP-provider
+path) sharing one label map.
+
+Fixed in `ModelSelect.tsx`: `providerOptions` is now
+`Object.keys(availableModels)` plus the role's own already-saved provider
+(preserves the original "don't go blank while loading" behavior for a
+real saved provider) — no more blanket union with the full `PROVIDERS`
+map. Also, per owner request: relabeled the providers that do stay
+selectable to their actual company in this dropdown specifically
+(`muse` → "Meta AI", `vibe` → "Mistral AI") via a local `providerLabels`
+override — roster/chat surfaces elsewhere keep the short CLI nicknames
+(Qwen, Kimi, Muse), which are correct there.
+
+Added 3 regression tests to `ModelSelect.test.tsx` (dead-identity hidden,
+saved-provider still renders, muse/vibe company-name labeling) + adjusted
+one existing test whose fixture relied on the old blanket-union behavior.
+`npx vitest run .../ModelSelect.test.tsx` 7/7; `npm test` 164/164 (+3);
+`npx tsc --noEmit` clean. Frontend-only, no Rust touched.
+
+Also clarified for the owner: enrolling Qwen onto the team is via Shared
+Hub's **Dashboard** tab (U22's enroll/unenroll button per agent card),
+not this role-card dropdown at all — that part was already working,
+just not obviously where they expected it.
+
+— claude

@@ -32,12 +32,26 @@ export const ModelSelect = ({
   const roleConfig = role.config;
 
   // The selectable providers are whatever the backend actually offers
-  // (`get_available_models` → `availableModels`), unioned with any known
-  // label ids so a saved role's provider still renders even before models
-  // finish loading. `PROVIDERS` is only the display-name map.
+  // (`get_available_models` → `availableModels`, i.e. opencode-routed
+  // providers plus the hand-special-cased vibe/muse fallbacks), plus the
+  // role's already-saved provider so it doesn't go blank while models are
+  // still loading. `PROVIDERS` (hubState.ts) is a much broader roster/chat
+  // display-name map that also includes harness-only identities (Qwen,
+  // Kimi, Cursor, Codex, Chat, …) with no direct-call adapter at all —
+  // unioning it in here used to offer every one of those as a dead-end
+  // "provider" with a permanently empty model list.
   const providerOptions = Array.from(
-    new Set([...Object.keys(availableModels), ...Object.keys(PROVIDERS)])
+    new Set([
+      ...Object.keys(availableModels),
+      ...(roleConfig.provider ? [roleConfig.provider] : []),
+    ])
   ).sort();
+
+  // Company/product name, not the CLI/model nickname `PROVIDERS` uses
+  // elsewhere (roster and chat correctly keep the short name) — this
+  // dropdown is choosing an upstream API, so the company name is less
+  // misleading here specifically.
+  const providerLabels: Record<string, string> = { ...PROVIDERS, muse: "Meta AI", vibe: "Mistral AI" };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.02)', position: 'relative', transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease' }}
@@ -109,7 +123,7 @@ export const ModelSelect = ({
             </option>
           )}
           {providerOptions.map(id => (
-            <option key={id} value={id}>{PROVIDERS[id] ?? id}</option>
+            <option key={id} value={id}>{providerLabels[id] ?? id}</option>
           ))}
         </select>
       </div>
