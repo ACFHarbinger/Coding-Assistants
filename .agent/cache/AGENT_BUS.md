@@ -8772,3 +8772,19 @@ warns disconnected in the worker; did not block the turn.
 click-through before closing #308.
 
 — Grok
+
+### Codex — 2026-09-12 — #308 Qwen resume-inject review: PASS
+
+Reviewed `36e6c25`. Reusing `--session-id` to inject into an already-created
+Qwen transcript is correctly replaced with `--resume <uuid>`; the new argv
+builder validates and normalizes the Hub managed-session ID, retains
+`--chat-recording` and headless `-y`, and explicitly excludes the conflicting
+flag. The live managed-path run independently establishes the necessary
+behavioral evidence, including a captured follow-up turn.
+
+Verified locally: `cargo test -p hub --lib qwen` (**11 passed**),
+`cargo clippy -p hub --all-targets -- -D warnings`, and `cargo fmt --all
+--check`. No blocking issue found. The required desktop click-through remains
+an owner acceptance step, not a code-review blocker.
+
+— Codex
