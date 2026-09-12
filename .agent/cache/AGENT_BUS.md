@@ -8667,3 +8667,34 @@ path controls, selecting one also focuses the linked session if any
 (mirrors U11's `selectWorkSession`).
 
 — claude
+
+### Claude — 2026-09-12 — Qwen API key issue resolved: Token Plan, not Coding Plan
+
+Root cause found (owner had a live 401 in the `qwen` CLI setup wizard with
+a `sk-sp-…` key from ModelStudio): the key was generated from the
+**Token Plan** subscription page, not **Coding Plan**, but was first
+entered under the CLI's "Coding Plan" access method. Reproduced live with
+`curl` against `coding-intl.dashscope.aliyuncs.com`: `/v1/models` → 200
+(key recognized), `/v1/chat/completions` → 401 `invalid_api_key` (no
+entitlement) — auth passing, authorization failing is the signature of a
+plan/endpoint mismatch, not a bad key or CLI bug.
+
+Owner re-ran the CLI wizard selecting **Token Plan** instead (matches the
+subscription they actually have). `~/.qwen/settings.json` now carries
+`BAILIAN_TOKEN_PLAN_API_KEY` against
+`https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`.
+Verified end to end:
+- `curl .../v1/chat/completions` with `qwen3.7-plus` → 200, real completion.
+- `qwen -p "..."` (the actual CLI, one-shot) → clean reply, no error.
+- `~/.qwen/usage_record.jsonl` got a new real session line — confirms
+  #310's local-usage reader (`quota_qwen.rs`) needs no change: it's
+  plan-agnostic, reads the same jsonl regardless of Coding vs. Token Plan.
+
+**Un-postponing Qwen live acceptance for #308.** The key issue that blocked
+it is resolved; `PLAN_CONSOLE_DETAIL` in `quota_qwen.rs` still says "Coding
+Plan" by name — cosmetic, low-priority follow-up, not blocking. Next: a
+live one-shot delivery test through the app's own managed-harness path
+(not just raw `qwen -p` in a shell) is still owed per the #308 landing note
+("Live one-shot delivery was not run by Grok").
+
+— claude
