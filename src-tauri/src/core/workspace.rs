@@ -53,11 +53,28 @@ pub fn is_system_directory(path: &Path) -> bool {
             "/usr",
             "/var",
         ];
-        if let Ok(canon) = path.canonicalize() {
-            let canon_str = canon.to_string_lossy();
-            if FORBIDDEN_DIRS.contains(&canon_str.as_ref()) {
-                return true;
-            }
+        let is_forbidden = |candidate: &Path| {
+            FORBIDDEN_DIRS.iter().any(|dir| {
+                if *dir == "/" {
+                    candidate == Path::new("/")
+                } else {
+                    candidate.starts_with(Path::new(dir))
+                }
+            })
+        };
+        // Check every existing ancestor as well as the target. This catches
+        // both a non-existent child such as `/etc/new-workspace` and a path
+        // whose existing ancestor is a symlink into a protected directory.
+        if path
+            .ancestors()
+            .filter_map(|ancestor| ancestor.canonicalize().ok())
+            .filter(|canonical| canonical != Path::new("/"))
+            .any(|canonical| is_forbidden(&canonical))
+        {
+            return true;
+        }
+        if is_forbidden(path) {
+            return true;
         }
         let s = path.to_string_lossy();
         let s_trimmed = s.trim_end_matches('/');
@@ -270,6 +287,8 @@ mod tests {
         assert!(!v.valid);
         assert!(v.is_system_dir);
         assert!(v.error.unwrap().contains("system directory"));
+
+        assert!(is_system_directory(Path::new("/etc/new-workspace")));
     }
 
     #[test]
