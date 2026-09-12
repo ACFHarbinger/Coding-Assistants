@@ -10,6 +10,7 @@ name = "coding-assistants-mcp"
 path = "src/main.rs"
 
 [dependencies]
+mcp-ableton = { path = "../ableton" }
 mcp-aseprite = { path = "../aseprite" }
 mcp-blender = { path = "../blender" }
 mcp-godot = { path = "../godot" }

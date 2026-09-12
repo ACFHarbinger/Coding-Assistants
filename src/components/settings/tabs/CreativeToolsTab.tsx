@@ -111,7 +111,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
         <div>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Creative Tools MCP Bridges</h3>
           <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
-            Expose local creative software (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz) to coding agents in{" "}
+            Expose local creative software (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz, Ableton Live) to coding agents in{" "}
             <strong>{shortenPath(workspaceRoot, 32)}</strong>.
           </p>
         </div>
