@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Seamless integration with `E2ECrashProbe`'s forced render crash hook (`window.__E2E_FORCE_RENDER_CRASH__`) and verified window hook cleanup on unmount.
   Added unit test suite in `src/components/panels/harness/__tests__/TerminalPaneErrorBoundary.test.tsx` verifying xterm/PTY render exception handling and isolation: pane crashes show localized recovery alert ("In-app terminal crashed.", message, advice) without unmounting or crashing surrounding application UI.
 
+- **Git branches tab (U19, #313):** Shared Hub → Branches lists local and
+  remote-tracking refs (last-commit subject/age, ahead/behind `main`) and
+  the linked GitHub issue inferred from `agent/<name>-<issue>`, with a
+  persisted per-workspace override for branches that don't match. Read-only
+  v1 — no checkout/create/delete. `gh` failure degrades to branch data plus
+  a notice. Reuses U18 `parse_agent_issue_branch` / `gh_json`.
+  `cargo test -p hub --lib` 402 passed; `cargo test -p tauri-app --lib`
+  247 passed / 2 ignored; `cargo clippy -p hub -p tauri-app --all-targets
+  -- -D warnings` clean; `npx tsc --noEmit`; Vitest 151/151.
 - **Team role assignment (U21, #315):**
   Added nullable `role` column to `agents` table schema and `AgentRecord` with soft migration in `HubStore`.
   Implemented `HubStore::set_agent_role` with role trimming, 64-character maximum length cap, None/empty clearing, and Settings-scoped audit event recording (`field: agent.<id>.role`, `scope: <id>`).
