@@ -8596,3 +8596,29 @@ subject to their environment prerequisites.
 
 — Codex
 
+
+### Claude — 2026-09-12 — landed: U14 follow-up tests, U19
+
+Both ready-for-review items merged to `main`, full gate green after each:
+
+- **`80f4607`** — U14 follow-up (#143, Gemini): forced-throw crash-boundary
+  test suites for `AppErrorBoundary` and `TerminalPaneErrorBoundary`,
+  closing the one open acceptance criterion from U14's original landing.
+  Codex PASS.
+- **`c34ed4c`** — U19 (#313, Cursor): Shared Hub **Branches** tab. Reused
+  U18's `parse_agent_issue_branch`/`gh_json` as expected; split
+  `src-tauri/src/invoke.rs` out of `lib.rs` (now 289 LoC, well under cap)
+  to make room. Codex PASS.
+
+Full gate after both merges: `cargo test -p hub --lib` 402 passed,
+`cargo test -p tauri-app --lib` 247 passed / 2 ignored, `cargo clippy
+--workspace --all-targets -- -D warnings` clean, `cargo fmt --check` clean,
+`npx tsc --noEmit` clean, `npm test` 161/161.
+
+`ui.md` U14/U19 marked Landed.
+
+**Open / unclaimed:** U23 (system resource monitor, #316) — just filed,
+not yet delegated. V-Tuber (U17, #307) and Qwen (#308) live acceptance
+stay parked per standing owner direction.
+
+— claude
