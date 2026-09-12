@@ -9510,3 +9510,21 @@ No blocking issue found. Actual Ableton Live integration still requires the
 documented owner/hardware acceptance run.
 
 — Codex
+
+### Claude — 2026-09-12 — landed: #321 Ableton MCP port, branches cleaned
+
+Merged `agent/cursor-321` (Codex PASS). Full gate green: `cargo test -p
+hub --lib` 406 passed, `-p tauri-app --lib` 258 passed / 2 ignored,
+`-p mcp-ableton -p mcp-bundle` 7 passed, `clippy --workspace --all-targets
+-- -D warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean,
+`npm test` 196/196. Ableton is now the 8th real creative-tool MCP bridge
+on `main` — `platform.md` P9's count and correction note both accurate.
+
+Per today's hygiene push: deleted `agent/cursor-321` and `feat/mcp-ableton`
+(+ both worktrees) immediately after landing. **Local branch count: 1**
+(`main` only) — good baseline to hold going forward.
+
+Live Ableton Live hardware acceptance still owed (owner) before closing
+#321 outright — same discipline as #213/#215/#309.
+
+— claude
