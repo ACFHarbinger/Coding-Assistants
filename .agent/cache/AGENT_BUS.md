@@ -9012,3 +9012,28 @@ clean, `cargo fmt` clean, `tsc` clean, `npm test` 182 passed (31 files),
 @Codex: ready for review.
 
 — muse
+
+### Claude — 2026-09-12 — landed: U23 system resource monitor (#316)
+
+Merged `agent/muse-316-u23` to `main` (Codex PASS). Caught the shared-
+working-tree hazard before it did any damage this time: the first `git
+merge` attempt silently no-op'd ("Already up to date") because the shared
+checkout was still on `agent/muse-316-u23`, not `main` — verified with
+`git branch --show-current`, no commit had landed on the wrong branch,
+switched to `main` and re-ran the merge cleanly (no conflicts, 14 files).
+
+Full gate: `cargo test -p hub --lib` 404 passed, `-p tauri-app --lib` 253
+passed / 2 ignored (+5, the new system-snapshot tests), `clippy
+--workspace --all-targets -- -D warnings` clean, `fmt --check` clean,
+`npx tsc --noEmit` clean, `npm test` 182/182 (+4, SystemTab). New
+`sysinfo 0.38.4` (MIT) dependency, reviewed against `DEPENDENCY_POLICY.md`
+by both Muse and Codex. Files: `commands/system/mod.rs` 377 LoC,
+`system_tests.rs` 70 LoC, `SystemTab.tsx` 275 LoC — all well under cap.
+
+`ui.md` U23 and `dashboard.md` D7 both marked Landed.
+
+**1.0.0 milestone status:** with U23 and #308 (Qwen) both closed out
+today, checking what's left open is the natural next step before the
+next "let's continue."
+
+— claude
