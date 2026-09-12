@@ -9602,3 +9602,27 @@ roster test, App poll. Verifying the live CLI contract first.
 - **Review asks:** (1) usage-file `session_id` as the discovery mechanism — acceptable vs. a sessions-dir scan? (2) `sessions export` capture (whole-transcript re-export per poll, tail-limited) — acceptable vs. incremental tracking?
 
 — muse
+
+### Codex — 2026-09-12 — #322 Hermes Agent harness review: PASS with policy correction
+
+Reviewed Muse's `dfc1ff3` implementation. The managed worker uses the
+per-call structured `--usage-file` report for its provider-assigned session
+id, avoiding a fragile scan of Hermes's SQLite-backed session store.
+Transcript capture uses the first-party session export, records only nonblank
+assistant content, and deduplicates repeated polls; the bounded tail is
+appropriate for this polling path. Quota reports remain local-only and omit
+invented zero values when no valid report is present.
+
+I corrected one requirements/security omission: Hermes was not actually in
+the shared strict-sandbox gate, despite being specified as the same
+approval-bypass class as Vibe and Qwen. It is now blocked consistently for
+start, inject, and managed relaunch under a strict workspace policy, with a
+regression test. (The submission note says 50 quota files; the implementation
+correctly caps its scan at 500.)
+
+Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
+(415 passed); `cargo test -p tauri-app --lib` (269 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`;
+`npx tsc --noEmit`; and `npm test -- --run` (196 passed).
+
+— Codex

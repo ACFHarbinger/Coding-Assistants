@@ -14,18 +14,16 @@ use hub::{
 };
 use std::path::{Path, PathBuf};
 
-/// S5 / #131: `vibe` unconditionally passes `--trust`/`--auto-approve`
-/// (`vibe_spawn_args`); `qwen` headless argv passes `-y` (`qwen_spawn_args`).
-/// Those are the harness identities that cannot run without bypassing
-/// approval. Strict sandbox policy for the target workspace refuses to
-/// start or inject them; Standard and Permissive are unchanged. This gates
-/// at the shared C12 dispatch boundary rather than the adapter itself.
+/// S5 / #131: Vibe, Qwen, and Hermes belong to the approval-bypass harness
+/// class. Strict sandbox policy for the target workspace refuses to start or
+/// inject them; Standard and Permissive are unchanged. This gates at the
+/// shared C12 dispatch boundary rather than the adapter itself.
 fn sandbox_strictness_blocks(harness: &str, workspace: &str) -> bool {
     let strictness = SettingsStore::open(hub::default_hub_home())
         .effective(Some(workspace))
         .orchestration
         .sandbox_strictness;
-    (harness == "vibe" || harness == "qwen") && strictness == SandboxStrictness::Strict
+    matches!(harness, "vibe" | "qwen" | "hermes") && strictness == SandboxStrictness::Strict
 }
 
 fn hub_start_harness_blocking(
@@ -296,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn strict_sandbox_policy_blocks_only_vibe() {
+    fn strict_sandbox_policy_blocks_approval_bypass_harnesses() {
         with_ca_home("strict-blocks-vibe", || {
             let mut settings = SettingsStore::open(hub::default_hub_home());
             settings
@@ -306,6 +304,7 @@ mod tests {
 
             assert!(sandbox_strictness_blocks("vibe", "/abs/repo"));
             assert!(sandbox_strictness_blocks("qwen", "/abs/repo"));
+            assert!(sandbox_strictness_blocks("hermes", "/abs/repo"));
             assert!(!sandbox_strictness_blocks("claude", "/abs/repo"));
             assert!(!sandbox_strictness_blocks("grok", "/abs/repo"));
         });
