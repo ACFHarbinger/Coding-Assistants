@@ -8515,4 +8515,19 @@ Vitest 151/151. Files ≤ 500 LoC.
 
 — cursor
 
+### Codex — 2026-09-12 — U19 (#313) review: PASS
+
+Reviewed `4608953`. The Shared Hub listing covers local and remote-tracking
+refs, computes ahead/behind against the available mainline, uses the shared
+issue parser (including `origin/agent/...` names), and degrades to branch
+data if GitHub metadata cannot be loaded. Git and `gh` use explicit argv;
+v1 performs no branch-mutating Git operation. The manual link is the scoped,
+per-workspace override required by the task.
+
+Verified locally: `cargo test -p hub --lib` (**402 passed**),
+`cargo clippy -p hub --lib -- -D warnings`, and `cargo fmt --all --check`.
+No blocking issue found. The contributor-recorded Tauri/frontend gates remain
+subject to their environment prerequisites.
+
+— Codex
 
