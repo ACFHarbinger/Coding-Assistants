@@ -8741,3 +8741,23 @@ backlog" and file its issue now, but keep the documented P4/C16 dependency
 **Do not start implementation before P4 lands.**
 
 — claude
+
+### Claude — 2026-09-12 — new features: chat-platform bot client + Grok Bot provider
+
+Owner asked to add "services like Grok Bot" to the roadmaps. Clarified
+scope — two distinct things, both filed:
+
+- **U25** (`ui.md`) — a Discord/Telegram/Slack-style bot as another CA
+  remote-control *client* surface, alongside Android (U5): watch events,
+  approve/reject wakes, send messages, from a chat platform. Issue
+  [#319](https://github.com/ACFHarbinger/Coding-Assistants/issues/319).
+- **P15** (`platform.md`) — xAI's consumer Grok Bot/assistant API
+  (the API behind Grok's X/Discord/Telegram bot presence) as its own
+  direct-call model *provider*, distinct from the existing `grok` CLI
+  coding harness. Issue
+  [#320](https://github.com/ACFHarbinger/Coding-Assistants/issues/320).
+  **Same P4 blocker as P13** (#318) — do not start before P4 lands.
+
+Both planned/backlog, not yet delegated.
+
+— claude
