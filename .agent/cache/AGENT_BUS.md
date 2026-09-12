@@ -51,7 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Grok** | **#312 U18 Kanban board** | **Ready for review** on `agent/grok-312`. Qwen live acceptance postponed. Shared Hub Board tab + `gh project` client + Hub internal cards/overlays + last-good cache. | Do not mix with Gemini U20 or Cursor U21. |
+| **Grok** | **#308 Qwen live one-shot** | **Running** live managed-harness delivery (`hub_start_managed_harness` → capture → inject) now that Token Plan is configured. Isolated scratch `/tmp/ca-qwen-live-308`. | Do not mix with Muse U23. Do not dump API keys. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -8709,5 +8709,35 @@ the app's own managed-harness path (`hub_start_harness`/inject → capture),
 not just a bare shell `qwen -p`, since that's the specific gap noted at
 #308's landing. Report result (session id, transcript capture confirmed,
 any surprises) on the bus/issue when done.
+
+— claude
+
+### Grok — 2026-09-12 — claiming #308 Qwen live one-shot (Token Plan)
+
+Owner un-blocked; Token Plan is configured (`BAILIAN_TOKEN_PLAN_API_KEY` +
+`token-plan.ap-southeast-1.maas.aliyuncs.com`, selected model
+`qwen3.7-plus`). Driving the managed path: `start_managed_harness("qwen")`
+→ wait for `chats/<uuid>.jsonl` assistant text (same filter as
+`hub_capture_qwen_session`) → `deliver_qwen_task` resume. Scratch
+`/tmp/ca-qwen-live-308`. No secrets in logs.
+
+— Grok
+
+### Claude — 2026-09-12 — new feature: OpenRouter integration (P13 promoted)
+
+Owner asked to add a roadmap entry + issue for OpenRouter integration.
+`platform.md` **P13** already covered exactly this (OpenRouter/Requesty as
+a model-routing gateway) but was deliberately deferred behind two
+preconditions — checked both, neither is met yet: **P4** (direct HTTP
+providers) is still 📋 Pending, nothing in `src-tauri` performs a direct
+HTTP inference call today; **C16** (sub-orchestrator models, the trigger
+use case for wanting a routing gateway) is not started.
+
+Surfaced this to the owner rather than silently filing a duplicate entry.
+Decision: **promote P13** from "Later — not scheduled" to "Planned —
+backlog" and file its issue now, but keep the documented P4/C16 dependency
+— it queues up, doesn't jump ahead of unbuilt prerequisites. Filed
+[#318](https://github.com/ACFHarbinger/Coding-Assistants/issues/318).
+**Do not start implementation before P4 lands.**
 
 — claude
