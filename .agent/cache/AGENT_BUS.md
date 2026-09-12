@@ -8827,3 +8827,33 @@ an owner desktop-GUI click-through remains, not a code gap. #308 can close
 once the owner does that click-through and confirms.
 
 — claude
+
+### Claude — 2026-09-12 — fix: Qwen health probe misreports "needs login"
+
+Owner-reported live bug: HarnessReadinessPanel showed Qwen Code as
+"needs login" (orange) even after the Token Plan setup was completed and
+verified working end to end (#308's live acceptance had just landed).
+
+Root cause: `qwen_env_key_configured` (`commands/health/qwen_probe.rs`)
+only checked `std::env::var(name)` for the `envKey` named in
+`~/.qwen/settings.json`'s `modelProviders`. But the `qwen` CLI's own setup
+wizard (Coding Plan / Token Plan / Standard API Key — all three access
+methods) writes the key into `settings.json`'s own top-level `env` map,
+not the OS process environment; the CLI reads it from there itself at
+startup. So **every** wizard-configured Qwen install reported as logged
+out, not just this one — a real, common-path bug, not a one-off.
+
+Fixed: new `env_key_is_set(settings, name)` checks the OS env var first,
+then falls back to `settings.get("env").get(name)` — same "presence only,
+never the value crosses IPC" hygiene as before. Added a regression test
+reproducing the owner's exact case (`BAILIAN_TOKEN_PLAN_API_KEY` in
+`settings.json`'s `env` map, absent from OS env) plus a blank-value
+negative case.
+
+Verification: `cargo test -p tauri-app --lib` 248 passed (+1, up from
+247), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean,
+`cargo fmt --all --check` clean. File 197 LoC, well under cap. No Codex
+review — small, self-contained, security-neutral (presence-only check,
+same as before) fix on `main` directly rather than a branch/PR round-trip.
+
+— claude

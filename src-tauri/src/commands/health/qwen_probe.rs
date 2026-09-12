@@ -70,6 +70,23 @@ fn qwen_oauth_logged_in(json: &serde_json::Value) -> bool {
         })
 }
 
+/// A named key counts as configured if it's a real OS environment variable
+/// **or** set in `settings.json`'s own top-level `env` map — the CLI's
+/// setup wizard (Coding Plan / Token Plan / Standard API Key access
+/// methods) writes the key there, not into the process environment, and
+/// the `qwen` CLI reads it from there itself at startup. Checking only
+/// `std::env::var` reported every wizard-configured key as logged out.
+fn env_key_is_set(settings: &serde_json::Value, name: &str) -> bool {
+    if std::env::var(name).is_ok_and(|value| !value.trim().is_empty()) {
+        return true;
+    }
+    settings
+        .get("env")
+        .and_then(|env| env.get(name))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
 fn qwen_env_key_configured(settings: &serde_json::Value) -> Option<bool> {
     let providers = settings.get("modelProviders")?.as_object()?;
     let mut saw_key = false;
@@ -88,7 +105,7 @@ fn qwen_env_key_configured(settings: &serde_json::Value) -> Option<bool> {
                 continue;
             };
             saw_key = true;
-            if std::env::var(name).is_ok_and(|value| !value.trim().is_empty()) {
+            if env_key_is_set(settings, name) {
                 return Some(true);
             }
         }
@@ -148,5 +165,33 @@ mod tests {
         std::env::remove_var("QWEN_PROBE_TEST_KEY");
         let none = serde_json::json!({"modelProviders": {}});
         assert_eq!(qwen_env_key_configured(&none), None);
+    }
+
+    /// Regression for the wizard-configured-but-shown-as-"needs login" bug:
+    /// the Coding Plan / Token Plan / Standard API Key setup wizard writes
+    /// the key into `settings.json`'s own `env` map, not the OS process
+    /// environment, so the probe must read that map too.
+    #[test]
+    fn settings_json_env_map_counts_as_configured_without_an_os_env_var() {
+        let settings = serde_json::json!({
+            "env": { "BAILIAN_TOKEN_PLAN_API_KEY": "sk-sp-does-not-matter" },
+            "modelProviders": {
+                "openai": [{
+                    "id": "qwen3.7-plus",
+                    "envKey": "BAILIAN_TOKEN_PLAN_API_KEY",
+                    "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+                }]
+            }
+        });
+        std::env::remove_var("BAILIAN_TOKEN_PLAN_API_KEY");
+        assert_eq!(qwen_env_key_configured(&settings), Some(true));
+
+        let blank = serde_json::json!({
+            "env": { "BAILIAN_TOKEN_PLAN_API_KEY": "   " },
+            "modelProviders": {
+                "openai": [{"id": "p1", "envKey": "BAILIAN_TOKEN_PLAN_API_KEY"}]
+            }
+        });
+        assert_eq!(qwen_env_key_configured(&blank), Some(false));
     }
 }
