@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Desktop crash recovery boundary tests and verification (U14, #143):**
+  Added automated forced-throw test suite in `src/components/errors/__tests__/AppErrorBoundary.test.tsx` verifying:
+  - Normal child rendering when no exception is thrown.
+  - Catches top-level render crashes and renders accessible fallback alert (`role="alert"`) with "Coding-Assistants needs to reload" and "A screen could not be rendered. Your local Hub data has not been changed."
+  - Strict privacy and security guarantee: internal stack traces, component names, and sensitive runtime messages are never rendered or leaked to the DOM.
+  - Reload action triggers `onReload` or falls back to `window.location.reload()`.
+  - Seamless integration with `E2ECrashProbe`'s forced render crash hook (`window.__E2E_FORCE_RENDER_CRASH__`) and verified window hook cleanup on unmount.
+  Added unit test suite in `src/components/panels/harness/__tests__/TerminalPaneErrorBoundary.test.tsx` verifying xterm/PTY render exception handling and isolation: pane crashes show localized recovery alert ("In-app terminal crashed.", message, advice) without unmounting or crashing surrounding application UI.
+
 - **Team role assignment (U21, #315):**
   Added nullable `role` column to `agents` table schema and `AgentRecord` with soft migration in `HubStore`.
   Implemented `HubStore::set_agent_role` with role trimming, 64-character maximum length cap, None/empty clearing, and Settings-scoped audit event recording (`field: agent.<id>.role`, `scope: <id>`).
