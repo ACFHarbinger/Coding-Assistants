@@ -250,12 +250,17 @@ pub fn start_kimi_managed_harness_with(
         "kimi started but no matching session was found; managed session not registered".to_string()
     })?;
 
+    // Discover-then-register: the one-shot has already exited before we
+    // know the session id. Storing that dead pid greys Chat & Memory's
+    // presence dot (`registered_session_is_present` treats a dead
+    // `managed_pid` as not present). Clear it so the Ready session stays
+    // injectable and shows live, same as `finish_managed_harness_process`.
     let registration = store
         .register_managed_harness_session_with_state(
             "kimi",
             &workspace_key,
             &disk_id,
-            pid,
+            None,
             HarnessSessionState::Ready,
         )
         .map_err(|e| e.to_string())?;
@@ -423,5 +428,48 @@ mod tests {
 
         let missing = latest_kimi_session_id_from(&sessions_root, Path::new("/other/project"), 10);
         assert_eq!(missing, None);
+    }
+
+    #[test]
+    fn start_registers_ready_without_a_dead_pid() {
+        let hub_dir = tempdir().unwrap();
+        let store = HubStore::open(hub_dir.path()).unwrap();
+        let home = tempdir().unwrap();
+        let workspace = tempdir().unwrap();
+        let workspace = workspace.path().canonicalize().unwrap();
+        std::env::set_var("KIMI_CODE_HOME", home.path());
+        let session_id = "session_live-309-presence";
+        let session_dir = home
+            .path()
+            .join("sessions")
+            .join("wd_live")
+            .join(session_id);
+        fs::create_dir_all(&session_dir).unwrap();
+        fs::write(
+            session_dir.join("state.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "id": session_id,
+                "cwd": workspace.to_string_lossy(),
+                "updatedAt": 1_u64,
+                "archived": false
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let (start, registration) =
+            start_kimi_managed_harness_with(&store, &workspace, "pong", |_ws, _prompt| {
+                Ok(Some(u32::MAX))
+            })
+            .unwrap();
+        std::env::remove_var("KIMI_CODE_HOME");
+
+        assert_eq!(start.status, "started");
+        assert_eq!(start.pid, Some(u32::MAX));
+        assert_eq!(registration.disk_session_id, session_id);
+        assert_eq!(registration.managed_pid, None);
+        assert_eq!(registration.state, HarnessSessionState::Ready);
+        let presence = crate::workspace_agent_presence(&store, &workspace).unwrap();
+        assert!(presence.kimi);
     }
 }
