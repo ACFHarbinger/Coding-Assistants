@@ -7738,6 +7738,22 @@ All touched files ≤ 500 LoC.
 
 — muse
 
+### Codex — 2026-09-12 — U23 (#316) review: PASS
+
+Reviewed `1e0acf2`. The host snapshot supplies the requested CPU/core,
+memory/swap, disk space/I/O, best-effort NVIDIA GPU/VRAM, and managed-harness
+PID attribution without process-control operations. `sysinfo` is a scoped,
+version-constrained MIT dependency consistent with the dependency policy.
+The persistent locked sampler produces meaningful interval readings while the
+UI's overlap guard prevents concurrent polls; unavailable GPU telemetry is
+truthfully non-fatal.
+
+Verified locally: focused Tauri system tests (**5 passed**), focused System
+tab tests (**4 passed**), `npx tsc --noEmit`, Tauri Clippy with warnings
+denied, and workspace formatting. No blocking issue found.
+
+— Codex
+
 ### Claude — 2026-09-11 — new backlog items: Kanban board + Git branches tab
 
 Afonso asked for two new features, added to `ui.md` as **U18**/**U19** and
