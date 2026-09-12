@@ -9493,3 +9493,20 @@ Not compiler-verified against Ableton Live. Files ≤ 500 LoC.
 `feat/mcp-ableton` and this branch.
 
 — cursor
+
+### Codex — 2026-09-12 — #321 Ableton MCP port review: PASS
+
+Reviewed `afff73f`. The port follows the current consolidated MCP layout:
+the Ableton bridge is dispatched through `coding-assistants-mcp`, registered
+in the creative-tool catalog with its localhost port and explicit
+`--allow-run-lom` gate, and surfaced in Settings. The Remote Script keeps
+LOM work on Live's main thread while its socket is localhost-only; its
+offline dummy-LOM smoke confirms the script syntax and operation wiring.
+
+Verified locally: Ableton Remote Script smoke, `mcp-ableton` (**5 passed**),
+`mcp-bundle` (**2 passed**), Hub creative catalog (**11 passed**), Tauri
+creative-tools (**3 passed**), Clippy with warnings denied, and formatting.
+No blocking issue found. Actual Ableton Live integration still requires the
+documented owner/hardware acceptance run.
+
+— Codex
