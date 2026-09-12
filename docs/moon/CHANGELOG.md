@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Kimi managed presence after one-shot (#309 live accept):**
+  `start_kimi_managed_harness` discover-then-register stored the finished
+  worker pid, which greys Chat & Memory's presence dot (`managed_pid`
+  dead ⇒ not present). Registration now keeps `managed_pid = None` after
+  the one-shot exits so the Ready session stays injectable and shows
+  live. Live Hub path: session `session_90bdf2f9-2509-4e28-99a6-8d3c45c551ff`,
+  `wire.jsonl` captured `pong` then inject `--session` delivered `pong2`.
+
 ### Added
 
 - **System resource monitor (U23, #316, D7):** new `commands/system/` snapshot
