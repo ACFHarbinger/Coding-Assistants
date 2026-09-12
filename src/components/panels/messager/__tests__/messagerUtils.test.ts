@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { agentInfo, FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
-import type { HubAgent, HubMessage } from "../types";
+import { agentInfo, agentIsLive, FALLBACK_ROSTER, rosterAgentIds, uniqueChannelPosts } from "../utils";
+import type { HubAgent, HubMessage, WorkspaceAgentPresence } from "../types";
 
 describe("rosterAgentIds (#243 QA-6)", () => {
   it("uses FALLBACK_ROSTER when only human is enrolled", () => {
@@ -145,6 +145,49 @@ describe("agentInfo display name resolution (U20 / #314)", () => {
     const geminiInfo = agentInfo("gemini", agents, null);
     expect(geminiInfo.assignedRole).toBeNull();
     expect(geminiInfo.role).toBe("Supporting");
+  });
+});
+
+describe("agentIsLive presence dot for harnesses onboarded after the original four", () => {
+  const presence: WorkspaceAgentPresence = {
+    claude: false,
+    chat: false,
+    gemini: false,
+    grok: false,
+    opencode: true,
+    deepseek: true,
+    vibe: true,
+    muse: true,
+    cursor: true,
+    qwen: true,
+    kimi: true,
+  };
+
+  // Regression: `agentIsLive` originally recognized only chat/claude/gemini/
+  // grok, so every harness onboarded since always showed grey regardless of
+  // real session state (see #308 owner report). One id + one alias per
+  // newer field is enough to cover the dispatch table.
+  it.each([
+    ["opencode", "opencode"],
+    ["deepseek", "deepseek"],
+    ["vibe", "vibe"],
+    ["mistral", "vibe"],
+    ["muse", "muse"],
+    ["muse-code", "muse"],
+    ["cursor", "cursor"],
+    ["cursor-agent", "cursor"],
+    ["qwen", "qwen"],
+    ["qwen-code", "qwen"],
+    ["kimi", "kimi"],
+    ["kimi-code", "kimi"],
+    ["moonshot", "kimi"],
+  ])("agentIsLive(%s) reads WorkspaceAgentPresence.%s", (agentId) => {
+    expect(agentIsLive(agentId, presence)).toBe(true);
+  });
+
+  it("is false when null presence or the harness has no live session", () => {
+    expect(agentIsLive("qwen", null)).toBe(false);
+    expect(agentIsLive("qwen", { ...presence, qwen: false })).toBe(false);
   });
 });
 

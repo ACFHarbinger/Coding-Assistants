@@ -40,6 +40,15 @@ export function agentIsLive(agentId: string, presence: WorkspaceAgentPresence | 
   if (key === "claude") return presence.claude;
   if (key === "gemini" || key === "agy") return presence.gemini;
   if (key === "grok") return presence.grok;
+  if (key === "opencode") return presence.opencode;
+  if (key === "deepseek") return presence.deepseek;
+  // Harness id "vibe" and roster id "mistral" both name the same agent
+  // (`HarnessId::parse`'s "vibe" | "mistral" alias) — same one field.
+  if (key === "vibe" || key === "mistral") return presence.vibe;
+  if (key === "muse" || key === "muse-code") return presence.muse;
+  if (key === "cursor" || key === "cursor-agent") return presence.cursor;
+  if (key === "qwen" || key === "qwen-code") return presence.qwen;
+  if (key === "kimi" || key === "kimi-code" || key === "moonshot") return presence.kimi;
   return false;
 }
 

@@ -8894,3 +8894,48 @@ not this role-card dropdown at all — that part was already working,
 just not obviously where they expected it.
 
 — claude
+
+### Claude — 2026-09-12 — fix: presence dot grey for every harness onboarded after the original four
+
+Owner-reported: Qwen's Chat & Memory sidebar presence dot stayed grey
+despite an active, responding managed session (worked correctly in the
+transcript and session badges — this was purely the dot). Traced to
+`WorkspaceAgentPresence` (`crates/hub/src/bridge/presence.rs`): the struct
+only ever carried `claude`/`chat`/`gemini`/`grok` — a leftover from before
+opencode/deepseek/vibe/muse/cursor/qwen/kimi were onboarded. The underlying
+liveness check (`any_managed_live`, managed-pid + observed-session logic)
+was already fully generic; the struct just never called it for the newer
+seven. Same root-cause shape as U22's hard-coded 5-identity allowlist bug,
+different surface.
+
+Fixed both sides:
+- **Backend**: `WorkspaceAgentPresence` gained `opencode`/`deepseek`/
+  `vibe`/`muse`/`cursor`/`qwen`/`kimi` fields, each wired through the same
+  `any_managed_live(sessions, workspace, ALIASES)` helper the original
+  four already used. `vibe`'s field also backs the `mistral` roster id
+  (same harness, two names — `HarnessId::parse`'s existing alias).
+- **Frontend**: `messager/types.ts` `WorkspaceAgentPresence` mirrors the
+  new fields; `messager/utils.ts` `agentIsLive` dispatches all the new
+  ids/aliases (`mistral`→vibe, `muse-code`→muse, `cursor-agent`→cursor,
+  `qwen-code`→qwen, `kimi-code`/`moonshot`→kimi) instead of falling
+  through to `false` for everything but the original four.
+
+Added a Rust regression test (`newer_harnesses_report_live_through_the_
+same_generic_path`) and a parametrized frontend suite (13 id/alias cases)
+covering every newly-wired harness, not just Qwen.
+
+**Found, not fixed (out of scope, unused):** `harness/types.ts` has a
+second, independently-drifted copy of this same struct + a `presenceLive`
+function with the identical four-harness-only bug — but neither it nor
+`LIVE_TERMINAL_HARNESSES`/`sessionAliases` next to it are imported
+anywhere outside their own test file. Dead code today; flagging so it
+doesn't reintroduce this bug if someone wires it in later without also
+fixing it.
+
+Verification: `cargo test -p hub --lib` 404 passed (+1), `-p tauri-app
+--lib` 248 passed / 2 ignored, `clippy --workspace --all-targets -- -D
+warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean, `npm test`
+178/178 (+14). Committed directly to `main` — self-contained, no Codex
+round-trip.
+
+— claude

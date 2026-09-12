@@ -74,6 +74,14 @@ export interface WorkspaceAgentPresence {
   chat: boolean;
   gemini: boolean;
   grok: boolean;
+  opencode: boolean;
+  deepseek: boolean;
+  /** Harness id `vibe`; the roster/agent id `mistral` maps onto this too. */
+  vibe: boolean;
+  muse: boolean;
+  cursor: boolean;
+  qwen: boolean;
+  kimi: boolean;
 }
 
 export interface ChannelRecord {
