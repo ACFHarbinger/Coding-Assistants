@@ -69,6 +69,9 @@ macro_rules! invoke_handler {
             commands::commands::messaging::hub_create_work_session,
             commands::commands::messaging::hub_list_work_sessions,
             commands::commands::messaging::hub_add_work_session_member,
+            commands::commands::workspaces::hub_list_workspaces,
+            commands::commands::workspaces::hub_save_workspace,
+            commands::commands::workspaces::hub_delete_workspace,
             harness::commands::hub_start_harness,
             // Moved to the relaunch submodule when commands/ split (#158);
             // the tauri macro-generated __cmd__ items live there too.

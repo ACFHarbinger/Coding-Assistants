@@ -73,6 +73,8 @@ pub mod system;
 pub mod terminal_grid;
 #[path = "hub/workflow.rs"]
 pub mod workflow;
+#[path = "hub/workspaces.rs"]
+pub mod workspaces;
 
 #[cfg(test)]
 #[path = "tests/mod.rs"]

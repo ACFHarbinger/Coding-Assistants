@@ -49,6 +49,7 @@ mod roles;
 mod tasks;
 #[cfg(test)]
 mod tests;
+mod workspaces;
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,

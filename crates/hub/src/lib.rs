@@ -115,5 +115,6 @@ pub use store::{
     LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord, MemoryRecord,
     MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
     ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
+    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord,
+    UNATTRIBUTED_AUTHOR,
 };

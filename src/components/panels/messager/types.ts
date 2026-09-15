@@ -27,6 +27,7 @@ export interface WorkSession {
   name: string;
   created_at: string;
   member_ids: string[];
+  workspace_id?: string | null;
 }
 
 export interface MemoryRecord {

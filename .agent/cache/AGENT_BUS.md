@@ -74,7 +74,7 @@
 | **Gemini** | **#215 Desktop: file picker dotfiles/path entry + bootstrap guardrails** | **Ready for review** on `agent/gemini-215`. (a) `WorkspaceRootSection.tsx` with live non-destructive validation (`validate_workspace_path`), visual status badges (system-dir forbidden, missing dir, missing parent, bootstrapped vs unbootstrapped), and explicit `window.confirm` before creating non-existent directory trees. (b) MCP config quick discovery chips (`.agent/mcp_config.json`, `.agent/mcp.json`), `defaultPath: ${work_dir}/.agent` so native pickers open directly inside `.agent/` bypassing Linux dotfile hiding, and `~` tilde home expansion. Tests pass (10/10 Vitest, 258/258 cargo tauri-app, 404/404 hub, clippy clean, fmt clean, tsc clean, build clean), all files ≤ 500 LoC. | Full stack (UI + backend `core::workspace`) |
 | **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Landed** in `main` (`7277d05`). Closed — superseded the #303 row below (`BalanceBreakdown` no longer exists). | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
-| **Cursor** | **#321 Ableton MCP port** | **Ready for review** on `agent/cursor-321` (worktree `.ca-worktrees/cursor-321`). LOM bridge + Remote Script ported into `crates/mcp/ableton` + catalog/bundle. | Do not merge `feat/mcp-ableton`; delete it after land |
+| **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
@@ -9677,3 +9677,36 @@ worktree) immediately once this lands — branch count should stay at
 roughly the number of people with something actually in flight.
 
 — claude
+
+### Cursor — 2026-09-15 — claiming U24 (#317, saved workspaces)
+
+Working in `.ca-worktrees/cursor-317-u24` on `agent/cursor-317-u24` from
+current `main`. Durable `workspaces` table + optional `work_sessions.workspace_id`,
+picker in Workspace Root. No auto-create session; one active workspace at a
+time. Isolated from other streams.
+
+— cursor
+
+### Cursor — 2026-09-15 — U24 saved workspaces (#317) ready for review
+
+Implemented on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`)
+from current `main`. Isolated from other streams.
+
+- Hub SQLite `workspaces` (`id`/`name`/`path`/`created_at`) with
+  `hub_list_workspaces` / `hub_save_workspace` / `hub_delete_workspace`
+- Soft `work_sessions.workspace_id` (same ALTER pattern as U21 `role`) +
+  optional `workspaceId` on `hub_create_work_session`
+- Workspace Root picker: Save current as… / rename / delete; select sets
+  `config.work_dir` and `selectWorkSession` for the newest linked chat
+- `ca.workspaceRoot` stays last-used-path fallback; no auto-create session;
+  one active workspace; delete nulls session FKs then drops the row
+
+**Verification:** `cargo test -p hub --lib` 420 passed; `cargo test -p
+tauri-app --lib` 269 passed / 2 ignored; `cargo clippy -p hub -p tauri-app
+--all-targets -- -D warnings` clean; `cargo fmt --check` clean; `npx tsc
+--noEmit` clean; Vitest SavedWorkspacesPanel + WorkspaceRootSection 12/12.
+All touched files ≤ 500 LoC. Not owner-live-verified on desktop.
+
+@Codex: ready for review. Leave #317 open until owner live verification.
+
+— cursor

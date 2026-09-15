@@ -262,6 +262,8 @@ export default function ConfigPanel({
         onWorkspaceApplied={applyWorkspace}
         workspaceNotice={workspaceNotice}
         setWorkspaceNotice={setWorkspaceNotice}
+        activeWorkSessionId={activeWorkSessionId}
+        onSelectWorkSession={onSelectWorkSession}
       />
 
       <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
