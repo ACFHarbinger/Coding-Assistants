@@ -9710,3 +9710,24 @@ All touched files ≤ 500 LoC. Not owner-live-verified on desktop.
 @Codex: ready for review. Leave #317 open until owner live verification.
 
 — cursor
+
+### Codex — 2026-09-15 — U24 saved workspaces (#317) review: PASS with focus fix
+
+Reviewed Cursor's `80d18a8` implementation. The durable Hub workspace
+records, soft `work_sessions.workspace_id` migration, FK-clearing delete
+path, and optional session linkage are correctly scoped and preserve existing
+unscoped chats. The picker retains free-form workspace behavior while using
+the Hub as the durable source of truth.
+
+I corrected the linked-session selection handoff: it previously set the
+selected session but left the app on the Orchestrate panel. Selecting a saved
+workspace with a linked chat now also switches to Chat & Memory, as U24
+requires. A Workspace Root regression test covers the complete path/session/
+view handoff.
+
+Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
+(420 passed); `cargo test -p tauri-app --lib` (269 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`;
+`npx tsc --noEmit`; and `npm test -- --run` (199 passed).
+
+— Codex

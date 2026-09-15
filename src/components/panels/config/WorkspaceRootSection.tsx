@@ -12,6 +12,7 @@ export interface WorkspaceRootSectionProps {
   setWorkspaceNotice?: (notice: string) => void;
   activeWorkSessionId?: string | null;
   onSelectWorkSession?: (sessionId: string | null) => void;
+  onSwitchToChatView?: () => void;
 }
 
 export default function WorkspaceRootSection({
@@ -22,6 +23,7 @@ export default function WorkspaceRootSection({
   setWorkspaceNotice,
   activeWorkSessionId,
   onSelectWorkSession,
+  onSwitchToChatView,
 }: WorkspaceRootSectionProps) {
   const [validation, setValidation] = useState<WorkspaceValidation | null>(null);
   const [validating, setValidating] = useState(false);
@@ -230,7 +232,10 @@ export default function WorkspaceRootSection({
           onWorkDirChange(path);
           onWorkspaceApplied(path);
         }}
-        onSelectLinkedSession={onSelectWorkSession ? (sessionId) => onSelectWorkSession(sessionId) : undefined}
+        onSelectLinkedSession={onSelectWorkSession ? (sessionId) => {
+          onSelectWorkSession(sessionId);
+          onSwitchToChatView?.();
+        } : undefined}
       />
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
