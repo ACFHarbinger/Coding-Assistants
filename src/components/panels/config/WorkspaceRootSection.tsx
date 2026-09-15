@@ -2,6 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState, useCallback } from "react";
 import { invoke, isTauriRuntime } from "../../../lib/tauri";
 import type { WorkspaceValidation } from "./types";
+import SavedWorkspacesPanel from "./SavedWorkspacesPanel";
 
 export interface WorkspaceRootSectionProps {
   workDir: string;
@@ -9,6 +10,9 @@ export interface WorkspaceRootSectionProps {
   onWorkspaceApplied: (newPath: string) => void;
   workspaceNotice?: string;
   setWorkspaceNotice?: (notice: string) => void;
+  activeWorkSessionId?: string | null;
+  onSelectWorkSession?: (sessionId: string | null) => void;
+  onSwitchToChatView?: () => void;
 }
 
 export default function WorkspaceRootSection({
@@ -17,6 +21,9 @@ export default function WorkspaceRootSection({
   onWorkspaceApplied,
   workspaceNotice,
   setWorkspaceNotice,
+  activeWorkSessionId,
+  onSelectWorkSession,
+  onSwitchToChatView,
 }: WorkspaceRootSectionProps) {
   const [validation, setValidation] = useState<WorkspaceValidation | null>(null);
   const [validating, setValidating] = useState(false);
@@ -218,6 +225,18 @@ export default function WorkspaceRootSection({
       <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: "0.75rem" }}>
         All team sessions, harness capture, and task delivery use this absolute repository path. Direct path entry and ~ expansion supported.
       </div>
+      <SavedWorkspacesPanel
+        workDir={workDir}
+        activeWorkSessionId={activeWorkSessionId}
+        onSelectPath={(path) => {
+          onWorkDirChange(path);
+          onWorkspaceApplied(path);
+        }}
+        onSelectLinkedSession={onSelectWorkSession ? (sessionId) => {
+          onSelectWorkSession(sessionId);
+          onSwitchToChatView?.();
+        } : undefined}
+      />
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           id="workspace-root-input"

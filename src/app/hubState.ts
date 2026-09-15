@@ -1,3 +1,5 @@
+import { invoke } from "../lib/tauri";
+
 /**
  * Display-name labels for known providers. This is only a label map — the
  * actual list of selectable providers is driven by what
@@ -47,6 +49,16 @@ export interface WorkSession {
   name: string;
   created_at: string;
   member_ids: string[];
+  workspace_id?: string | null;
+}
+
+export interface SavedWorkspace {
+  id: string;
+  name: string;
+  path: string;
+  created_at: string;
+  linked_session_id?: string | null;
+  linked_session_name?: string | null;
 }
 
 /** Chat refresh. Capture is the four-provider on-disk transcript scan. */
@@ -82,4 +94,16 @@ export function loadWorkspaceRoot(): string {
   } catch {
     return "./workspace";
   }
+}
+
+export async function persistWorkSession(name: string, workDir: string): Promise<WorkSession> {
+  let workspaceId: string | null = null;
+  try {
+    const saved = await invoke<SavedWorkspace[]>("hub_list_workspaces");
+    const needle = workDir.trim().replace(/\/+$/, "") || workDir.trim();
+    workspaceId = saved.find((row) => row.path === needle || row.path === workDir.trim())?.id ?? null;
+  } catch {
+    workspaceId = null;
+  }
+  return invoke<WorkSession>("hub_create_work_session", { name, workspaceId });
 }

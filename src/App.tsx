@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, sameHubAgents, sameHubMessages } from "./app/hubState";
+import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages } from "./app/hubState";
 import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
 import HubPanel from "./components/panels/HubPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
@@ -259,7 +259,7 @@ function App() {
     if (!trimmed || trimmed.length > 120) {
       throw new Error("Work session name must be between 1 and 120 characters");
     }
-    const session = await invoke<WorkSession>("hub_create_work_session", { name: trimmed });
+    const session = await persistWorkSession(trimmed, config.work_dir);
     setWorkSessions(prev => [session, ...prev.filter(existing => existing.id !== session.id)]);
     selectWorkSession(session.id);
   };

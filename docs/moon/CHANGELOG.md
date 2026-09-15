@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saved workspaces linked to a Work Session Chat (U24, #317):** durable
+  Hub `workspaces` table (`id`/`name`/`path`/`created_at`) with
+  `hub_list_workspaces` / `hub_save_workspace` / `hub_delete_workspace`.
+  Optional `work_sessions.workspace_id` (soft migration; existing sessions
+  stay unscoped) and `workspaceId` on create. Orchestrate Workspace Root
+  lists saved rows (name + path + linked chat); selecting one sets
+  `config.work_dir` and focuses the linked session. "Save current as…"
+  can attach the active team chat. `ca.workspaceRoot` remains last-used
+  fallback. No auto-create session; one active workspace at a time.
+
 - **Hermes Agent managed harness (C14.16, #322):** `HarnessId::Hermes` +
   `("hermes", "Hermes Agent")` identity, managed spawn/resume argv
   (`-z`/`--resume`/`--in`/`-m`, always `--usage-file`; never

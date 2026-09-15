@@ -84,21 +84,24 @@ impl HubStore {
     }
 
     pub fn list_work_sessions(&self) -> Result<Vec<WorkSessionRecord>, HubError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, created_at FROM work_sessions ORDER BY created_at DESC")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, created_at, workspace_id FROM work_sessions ORDER BY created_at DESC",
+        )?;
         let sessions = stmt
             .query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         sessions
             .into_iter()
-            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .map(|(id, name, created_at, workspace_id)| {
+                self.work_session_record(id, name, created_at, workspace_id)
+            })
             .collect()
     }
 
@@ -392,21 +395,24 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(session_id.to_string()))
     }
 
-    pub(super) fn get_work_session(&self, id: &str) -> Result<Option<WorkSessionRecord>, HubError> {
+    pub(crate) fn get_work_session(&self, id: &str) -> Result<Option<WorkSessionRecord>, HubError> {
         self.conn
             .query_row(
-                "SELECT id, name, created_at FROM work_sessions WHERE id = ?1",
+                "SELECT id, name, created_at, workspace_id FROM work_sessions WHERE id = ?1",
                 params![id],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
                     ))
                 },
             )
             .optional()?
-            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .map(|(id, name, created_at, workspace_id)| {
+                self.work_session_record(id, name, created_at, workspace_id)
+            })
             .transpose()
     }
 
@@ -415,6 +421,7 @@ impl HubStore {
         id: String,
         name: String,
         created_at: String,
+        workspace_id: Option<String>,
     ) -> Result<WorkSessionRecord, HubError> {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id FROM work_session_members WHERE session_id = ?1 ORDER BY agent_id",
@@ -427,6 +434,7 @@ impl HubStore {
             name,
             created_at,
             member_ids,
+            workspace_id,
         })
     }
 }

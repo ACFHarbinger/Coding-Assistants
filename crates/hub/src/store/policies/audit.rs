@@ -357,6 +357,7 @@ impl HubStore {
         )?;
         self.ensure_board_tables()?;
         self.ensure_branch_link_table()?;
+        self.ensure_workspaces_table()?;
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
@@ -377,6 +378,7 @@ impl HubStore {
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_owner TEXT",
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_acquired_at TEXT",
             "ALTER TABLE memories ADD COLUMN tool TEXT",
+            "ALTER TABLE work_sessions ADD COLUMN workspace_id TEXT",
         ] {
             let _ = self.conn.execute(ddl, []);
         }

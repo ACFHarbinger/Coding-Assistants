@@ -208,6 +208,23 @@ pub struct WorkSessionRecord {
     pub name: String,
     pub created_at: String,
     pub member_ids: Vec<String>,
+    /// Saved workspace this session was created for (U24 / #317). Unscoped
+    /// sessions created before this column stay `None`.
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+}
+
+/// A named, durable workspace path selectable from Orchestrate (U24 / #317).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceRecord {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub created_at: String,
+    #[serde(default)]
+    pub linked_session_id: Option<String>,
+    #[serde(default)]
+    pub linked_session_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

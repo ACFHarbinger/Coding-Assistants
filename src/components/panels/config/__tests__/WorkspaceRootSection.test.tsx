@@ -49,6 +49,57 @@ describe("WorkspaceRootSection Component (#215)", () => {
     expect(onWorkDirChange).toHaveBeenCalledWith("/home/user/other-project");
   });
 
+  it("opens the linked team chat when selecting a saved workspace", async () => {
+    const runtimeSpy = vi.spyOn(tauriLib, "isTauriRuntime").mockReturnValue(true);
+    const invokeSpy = vi.spyOn(tauriLib, "invoke").mockImplementation(async (cmd) => {
+      if (cmd === "hub_list_workspaces") {
+        return [{
+          id: "workspace-1",
+          name: "Saved project",
+          path: "/tmp/saved-project",
+          created_at: "2026-09-15T00:00:00Z",
+          linked_session_id: "session-1",
+          linked_session_name: "Project chat",
+        }];
+      }
+      if (cmd === "validate_workspace_path") {
+        return {
+          path: "/home/user/my-project",
+          valid: true,
+          exists: true,
+          is_dir: true,
+          is_bootstrapped: true,
+          parent_exists: true,
+          is_system_dir: false,
+          error: null,
+        };
+      }
+      return null;
+    });
+    const onWorkDirChange = vi.fn();
+    const onWorkspaceApplied = vi.fn();
+    const onSelectWorkSession = vi.fn();
+    const onSwitchToChatView = vi.fn();
+
+    render(
+      <WorkspaceRootSection
+        workDir="/home/user/my-project"
+        onWorkDirChange={onWorkDirChange}
+        onWorkspaceApplied={onWorkspaceApplied}
+        onSelectWorkSession={onSelectWorkSession}
+        onSwitchToChatView={onSwitchToChatView}
+      />
+    );
+
+    fireEvent.click(await screen.findByText("Saved project"));
+    expect(onWorkDirChange).toHaveBeenCalledWith("/tmp/saved-project");
+    expect(onWorkspaceApplied).toHaveBeenCalledWith("/tmp/saved-project");
+    expect(onSelectWorkSession).toHaveBeenCalledWith("session-1");
+    expect(onSwitchToChatView).toHaveBeenCalledOnce();
+    invokeSpy.mockRestore();
+    runtimeSpy.mockRestore();
+  });
+
   it("applies workspace when Switch Workspace is clicked with non-empty path", () => {
     const onWorkDirChange = vi.fn();
     const onWorkspaceApplied = vi.fn();
