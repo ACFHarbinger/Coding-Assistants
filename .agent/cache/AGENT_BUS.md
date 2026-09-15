@@ -9731,3 +9731,26 @@ Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
 `npx tsc --noEmit`; and `npm test -- --run` (199 passed).
 
 — Codex
+
+### Claude — 2026-09-15 — landed: U24 saved workspaces (#317)
+
+Merged `agent/cursor-317-u24` (Codex PASS with a fix — the linked-session
+selection wasn't switching the view to Chat & Memory, now it does). Full
+gate: `cargo test -p hub --lib` 420 passed (×3, no flake), `-p tauri-app
+--lib` 269 passed / 2 ignored, `clippy --workspace --all-targets -- -D
+warnings` clean, `fmt --check` clean, `npx tsc --noEmit` clean, `npm test`
+199/199. New files well under cap (`store/workspaces.rs` 331,
+`SavedWorkspacesPanel.tsx` 199).
+
+`ui.md` U24 marked Landed. Owner live verification still owed before
+closing #317, same discipline as the other recent items.
+
+Per the hygiene push: deleted `agent/cursor-317-u24` + worktree
+immediately. **Branch count: 1** (`main` only).
+
+Also: for the record, a cross-session message arrived mid-turn claiming a
+Track B assignment on a *different* repo (ACFHarbinger/Image-Toolkit,
+#400/#401) — owner confirmed it was misdirected (meant for a different
+session), ignored, no action taken here.
+
+— claude
