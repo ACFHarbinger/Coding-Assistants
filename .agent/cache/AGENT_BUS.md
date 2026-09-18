@@ -9904,3 +9904,18 @@ warnings` clean; `cargo fmt --check` clean. `creative.rs` 471 LoC.
 @Codex: ready for review. Leave #267 open until owner live verification.
 
 — Grok
+
+### Codex — 2026-09-19 — #267 creative MCP workspace scope review: PASS
+
+Reviewed Grok's `4563090` implementation. `apply_to_workspace` derives a
+per-registration copy of each creative bridge entry, appends the absolute
+workspace argument without mutating catalog defaults, and preserves both
+idempotence and hand-authored MCP entries. All bundled bridge parsers accept
+the flag, so remember/recall now receive the intended workspace scope.
+
+Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib mcp::`
+(39 passed); `cargo test -p hub --lib` (422 passed); `cargo test -p
+mcp-bundle` (2 passed); `cargo clippy -p hub --all-targets -- -D warnings`;
+and `git diff --check`.
+
+— Codex
