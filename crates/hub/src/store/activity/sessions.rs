@@ -105,10 +105,11 @@ impl HubStore {
             };
 
             if let Some(ref ws) = filter.workspace_path {
-                if let Some(ref s_ws) = session_ws_path {
-                    if !s_ws.contains(ws) && !ws.contains(s_ws) {
-                        continue;
-                    }
+                if !session_ws_path
+                    .as_deref()
+                    .is_some_and(|session_ws| workspace_paths_overlap(session_ws, ws))
+                {
+                    continue;
                 }
             }
 
@@ -117,7 +118,7 @@ impl HubStore {
                 let meta = parse_process_meta(&audit.process_json);
                 let explicit_match = meta.session_id.as_deref() == Some(&session.id);
                 let ws_match = match (&session_ws_path, &audit.root_path) {
-                    (Some(sw), ar) => sw == ar || ar.starts_with(sw),
+                    (Some(sw), ar) => workspace_paths_overlap(sw, ar),
                     _ => false,
                 };
                 let time_match = audit.observed_at >= session.created_at;

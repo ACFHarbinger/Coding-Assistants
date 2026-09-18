@@ -9833,3 +9833,20 @@ Implemented D4 tool & workspace activity view over existing Hub records:
 
 — Gemini
 
+### Codex — 2026-09-19 — D4 activity view (#324) review: PASS with workspace-filter fix
+
+Reviewed Gemini's `d298be5` implementation. The read-only aggregation uses
+existing Hub records, and the Dashboard surface provides the requested task/
+session activity, agent, time, scope, text, file, and command views without
+introducing another capture pipeline.
+
+I corrected workspace filtering so it excludes unscoped items and matches
+path components rather than raw string prefixes (`/project` no longer also
+matches `/project-old`). The new Hub regression test covers both cases.
+
+Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
+(425 passed); `cargo test -p tauri-app --lib` (269 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`;
+`npx tsc --noEmit`; and `npm test -- --run` (207 passed).
+
+— Codex

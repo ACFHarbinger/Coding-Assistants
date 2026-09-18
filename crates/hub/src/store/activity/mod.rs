@@ -8,6 +8,30 @@ mod workspaces;
 
 pub use types::*;
 
+/// True when either normalized workspace path is the other or its child.
+/// This is deliberately component-aware: `/repo/app` must not match
+/// `/repo/application` merely because the strings share a prefix.
+pub(super) fn workspace_paths_overlap(left: &str, right: &str) -> bool {
+    fn normalized(path: &str) -> &str {
+        if path == "/" {
+            path
+        } else {
+            path.trim_end_matches(['/', '\\'])
+        }
+    }
+    fn same_or_child(path: &str, root: &str) -> bool {
+        path == root
+            || root == "/"
+            || path
+                .strip_prefix(root)
+                .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
+    }
+
+    let left = normalized(left);
+    let right = normalized(right);
+    same_or_child(left, right) || same_or_child(right, left)
+}
+
 impl HubStore {
     /// Read-only activity query over tasks, work sessions, audit events,
     /// and harness captures (Roadmap D4 / #324).

@@ -25,10 +25,12 @@ impl HubStore {
                 }
             }
             if let Some(ref ws) = filter.workspace_path {
-                if let Some(ref task_ws) = task.workspace_path {
-                    if !task_ws.contains(ws) && !ws.contains(task_ws) {
-                        continue;
-                    }
+                if !task
+                    .workspace_path
+                    .as_deref()
+                    .is_some_and(|task_ws| workspace_paths_overlap(task_ws, ws))
+                {
+                    continue;
                 }
             }
 
@@ -98,7 +100,7 @@ impl HubStore {
                 let meta = parse_process_meta(&audit.process_json);
                 let explicit_match = meta.task_id.as_deref() == Some(&task.id);
                 let ws_match = match (&task.workspace_path, &audit.root_path) {
-                    (Some(tw), ar) => tw == ar || ar.starts_with(tw),
+                    (Some(tw), ar) => workspace_paths_overlap(tw, ar),
                     _ => false,
                 };
                 let is_active = task.status == "pending" || task.status == "running";

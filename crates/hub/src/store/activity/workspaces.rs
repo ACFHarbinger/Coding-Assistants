@@ -23,7 +23,7 @@ impl HubStore {
 
         for (ws_root, events) in ws_groups {
             if let Some(ref ws) = filter.workspace_path {
-                if !ws_root.contains(ws) && !ws.contains(&ws_root) {
+                if !workspace_paths_overlap(&ws_root, ws) {
                     continue;
                 }
             }

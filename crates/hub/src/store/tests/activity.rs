@@ -196,3 +196,41 @@ fn activity_view_filters_by_time_range_and_limit() {
     assert!(items_sessions.iter().all(|i| i.kind == "work_session"));
     assert!(!items_sessions.iter().any(|i| i.id == task1.id));
 }
+
+#[test]
+fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let steps = vec![WorkflowStep {
+        agent: "gemini".into(),
+        role: None,
+        instruction: "Inspect activity".into(),
+        max_retries: 0,
+        parallel_group: None,
+    }];
+
+    let matching = store
+        .create_task("Matching workspace", Some("/tmp/activity-project"), &steps)
+        .unwrap();
+    let prefixed = store
+        .create_task(
+            "Prefix workspace",
+            Some("/tmp/activity-project-old"),
+            &steps,
+        )
+        .unwrap();
+    let unscoped = store.create_task("Unscoped", None, &steps).unwrap();
+    let session = store.create_work_session("Unscoped session").unwrap();
+
+    let items = store
+        .get_activity_view(&ActivityFilter {
+            workspace_path: Some("/tmp/activity-project".into()),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert!(items.iter().any(|item| item.id == matching.id));
+    assert!(!items.iter().any(|item| item.id == prefixed.id));
+    assert!(!items.iter().any(|item| item.id == unscoped.id));
+    assert!(!items.iter().any(|item| item.id == session.id));
+}
