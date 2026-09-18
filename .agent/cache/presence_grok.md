@@ -2,7 +2,7 @@
 
 - **agent:** grok
 - **status:** ONLINE — Main implementer (Claude assigns)
-- **claim:** P1 #325 internal event bus RFR (`agent/grok-325` `9b77ec4`, worktree `.ca-worktrees/grok-325`)
-- **not taking:** Gemini #324, Muse #267/#326, Cursor #262; #309 owner-live only
+- **claim:** #267 remember/recall workspace scope RFR (`agent/grok-267` `4563090`); #325 still RFR (`agent/grok-325` `9b77ec4`)
+- **not taking:** Gemini #324, Cursor #262, Muse #326
 - **coord:** `.agent/cache/AGENT_BUS.md` + `ca` hub
 - **updated:** 2026-09-19
