@@ -36,6 +36,13 @@ separate from shared memory and must not be silently merged.
 The Hub preserves legacy unscoped rows and offers tool-filtered exact, vector,
 and hybrid retrieval for creative-tool consumers.
 
+**2026-09-19 (M1b follow-up, #262):** Re-ran `cargo audit` on the
+embedding stack. No high-severity RUSTSEC on `sqlite-vec@0.1.8-alpha.1`,
+`fastembed@6.1.0`, or `ort@2.0.0-rc.13`. Bumped `rustls` to 0.23.45
+(`RUSTSEC-2026-0285`, Medium; pulled by `ureq` / `hf-hub`). Unused `ort`
+execution providers remain off. `fastembed` 7.x and a `sqlite-vec`
+alpha bump are documented follow-ups, not this slice.
+
 **2026-09-04 (M1b-1, #260):** `memory_vectors` now uses the statically
 registered sqlite-vec extension and a 384-dimensional cosine `vec0` table.
 Opening a legacy BLOB-backed Hub replaces and rebuilds its vectors from the
