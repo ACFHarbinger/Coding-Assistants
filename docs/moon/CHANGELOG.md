@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tool and workspace activity views (D4, #324):** read-only Hub store
+  query `hub_get_activity_view` and Dashboard tab `ActivityView` over
+  existing records (`tasks`, `work_sessions`, `audit_events`, `messages`,
+  `harness_captures`). Aggregates agents involved, commands run (from
+  process executions and tool calls), and files touched per task,
+  work session, and workspace. Dashboard view features agent dropdown
+  filter, quick time presets (`1h`, `24h`, `7d`, `30d`, `all`), scope
+  filter (`all`, `task`, `work_session`), search filtering, summary
+  telemetry cards, and collapsible command/file lists.
+
 - **Saved workspaces linked to a Work Session Chat (U24, #317):** durable
   Hub `workspaces` table (`id`/`name`/`path`/`created_at`) with
   `hub_list_workspaces` / `hub_save_workspace` / `hub_delete_workspace`.

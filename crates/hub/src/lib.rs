@@ -108,13 +108,13 @@ pub use settings::{
     MIN_BACKUP_RETENTION,
 };
 pub use store::{
-    parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
-    BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, ConsolidationCluster,
-    ConsolidationReport, EffectiveAgentPermissions, GateVerdict, GitExportOutcome,
-    HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState, HubError, HubStore,
-    LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
-    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord,
-    UNATTRIBUTED_AUTHOR,
+    parse_memory_references, ActivityCommandRun, ActivityFileTouch, ActivityFilter, ActivityItem,
+    AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent, BudgetPauseOutcome,
+    BudgetStatus, ChannelRecord, CompactReport, ConsolidationCluster, ConsolidationReport,
+    EffectiveAgentPermissions, GateVerdict, GitExportOutcome, HarnessSessionMode,
+    HarnessSessionRegistration, HarnessSessionState, HubError, HubStore, LinkSuggestion,
+    LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord, MemoryRecord, MemoryScope,
+    MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role,
+    RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy,
+    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord, UNATTRIBUTED_AUTHOR,
 };

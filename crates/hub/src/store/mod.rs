@@ -44,12 +44,14 @@ pub use linked_accounts::*;
 mod messages;
 mod models;
 pub use models::*;
+mod activity;
 mod policies;
 mod roles;
 mod tasks;
 #[cfg(test)]
 mod tests;
 mod workspaces;
+pub use activity::*;
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,
