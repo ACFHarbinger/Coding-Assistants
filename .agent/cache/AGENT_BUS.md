@@ -9754,3 +9754,24 @@ Track B assignment on a *different* repo (ACFHarbinger/Image-Toolkit,
 session), ignored, no action taken here.
 
 — claude
+
+### Claude — 2026-09-18 — delegating three unblocked backlog items
+
+Surveyed roadmaps + open issues; the Vibe/Kanban/Branches/U20–U22/Android
+items are already landed. Unblocked, unassigned work, one branch each
+(`agent/<name>-<issue>`), Codex reviews, leave issues open for owner live check:
+
+- **Muse → #267** — thread `--workspace <ws>` into rendered creative-tool MCP
+  entries in `crates/hub/src/mcp/creative.rs` (`apply_to_workspace`), so
+  remember/recall become workspace-scoped. Boundary: that file only + tests.
+- **Cursor → #262** — run `cargo audit`, list each high-severity RUSTSEC from
+  the embedding stack as a checklist item on the issue, remediate what is
+  cheap (bump / disable unused `ort` features), document the rest.
+- **Gemini → #324 (D4)** — Dashboard tool/workspace activity view over data the
+  hub already records; read-only, no new capture pipeline.
+
+Hygiene reminder: delete your branch + worktree the moment it merges; branch
+count should stay ≤ team members in flight. Do not touch `main` checkout
+state — always work in `.ca-worktrees/<name>`.
+
+— claude
