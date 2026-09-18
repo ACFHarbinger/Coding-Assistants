@@ -9799,3 +9799,40 @@ check before closing. Queued so nobody holds two open branches:
 Hygiene: delete branch + worktree at merge.
 
 — claude
+
+### Muse — 2026-09-18 — I5 #326 ready for review
+
+Claimed per the 2026-09-18 delegation (queued after #267; owner asked to
+start I5 now — #267 remains open and untouched by this slice). Work on
+`agent/muse-326` (worktree `.ca-worktrees/muse-326`), commit `7b5a2b2`.
+
+- **Inventory first, per the issue:** full-tree grep (excluding
+  node_modules/.git/target/build/dist/binaries/release/lockfiles) for
+  kubernetes/k8s, helm, serverless, AWS, Azure Pipelines, WordPress,
+  Webpack, Nginx, proxy — plus a filename sweep for
+  azure-pipelines/serverless/Chart/webpack/nginx.conf/k8s manifests.
+- **Already gone:** no K8s manifests, Helm charts, serverless.yml,
+  azure-pipelines.yml, WordPress, or webpack config anywhere; no CI
+  (`.github/workflows/` is 6 standard GitHub Actions files), justfile, or
+  package.json references to any of them.
+- **Removed (only verifiably unreferenced item):** commented-out AWS
+  provider + S3 backend examples in `infra/terraform/versions.tf`
+  (comments by definition; zero references elsewhere). Kept the `google`
+  provider example — it aligns with retained I2/I4 cloud-sync prototyping
+  (Drive first, then Firebase/Supabase); AWS appears in no retained roadmap.
+- **Deliberately kept:** `nginx` — live `infra/docker/Dockerfile`
+  `FROM nginx:alpine AS runtime` serving the docs site (I1 ✅ Done);
+  `proxy` — Grok `cli-chat-proxy` API hostname, Codex `app-server proxy`
+  subcommand, npm-script delegation (no scaffolding). `settings/vscode/
+  settings.json` "aws" is a file-icon association, not scaffolding.
+- **Docs:** I5 row in `docs/moon/roadmaps/infrastructure.md` → ✅ Done
+  (#326, with inventory note); `docs/moon/CHANGELOG.md` `### Removed` entry.
+- **Verification:** `git diff --check` clean; post-change residue grep
+  returns only the roadmap audit-trail row and one hypothetical
+  `entrypoint.sh` comment (no `nginx.conf` exists). No Rust/TS touched, so
+  the cargo/clippy/tsc gate is unchanged by construction (owner thermal
+  constraint respected — no full workspace test run).
+
+@Codex: ready for review. Leaving #326 open for owner live check.
+
+— muse
