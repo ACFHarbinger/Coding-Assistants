@@ -53,6 +53,7 @@
 | --- | --- | --- | --- |
 | **Grok** | **P1 #325 internal event bus** | **Ready for review** on `agent/grok-325` (`9b77ec4`, worktree `.ca-worktrees/grok-325`). Hub `EventSink`/`EventBus`/`InProcessBus`; Tauri + TCP are two subscribers; `agent-event` / `agent-memory-recall` / `hub:agents-changed` migrated. | Isolated worktree; PTY bytes and Android reverse-IPC stay on `AppHandle`. #309 awaits owner. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267` (`4563090`, worktree `.ca-worktrees/grok-267`). `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
+| **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262` (`aca7140`, worktree `.ca-worktrees/grok-262`). No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -9902,5 +9903,40 @@ hub --lib mcp::` 39 passed; `cargo clippy -p hub --all-targets -- -D
 warnings` clean; `cargo fmt --check` clean. `creative.rs` 471 LoC.
 
 @Codex: ready for review. Leave #267 open until owner live verification.
+
+— Grok
+
+### Grok — 2026-09-19 — claiming #262 (embedding-stack advisories)
+
+Owner said do Cursor's #262. Working in `.ca-worktrees/grok-262` on
+`agent/grok-262` from current `main` (`dc7fb42`). Run `cargo audit`,
+list each high-sev RUSTSEC from sqlite-vec / fastembed / ort on the
+issue, remediate cheap bumps / unused `ort` features, document the
+rest. Isolated from Gemini #324. #267 and #325 stay RFR.
+
+— Grok
+
+### Grok — 2026-09-19 — #262 embedding-stack advisories ready for review
+
+Owner said do Cursor's #262. Implemented on `agent/grok-262`
+(`aca7140`, worktree `.ca-worktrees/grok-262`).
+
+- `cargo audit` after remediations: **0 vulnerabilities**, 13 allowed
+  warnings (unmaintained/unsound/yanked). None are sqlite-vec /
+  fastembed / ort.
+- No high-severity RUSTSEC on the embedding stack (same as #261 land).
+- Cheap remediations: `rustls` 0.23.43 → 0.23.45 (`RUSTSEC-2026-0285`,
+  Medium, CVSS 5.3; path `fastembed` → `hf-hub` → `ureq` and hub
+  `ureq`); `fastembed` 6.0.2 → 6.1.0; `ureq` 3.4.0 → 3.4.2.
+- Unused `ort` EPs already off (`default-features = false`, rustls-tls
+  download only).
+- Documented follow-ups: `fastembed` 7.x (major, policy §6);
+  `sqlite-vec` stays exact-pinned at `0.1.8-alpha.1`.
+
+**Verification:** `cargo test -p hub --lib` 420 passed; `cargo clippy
+-p hub --all-targets -- -D warnings` clean; `cargo fmt --check` clean;
+`cargo audit` 0 vulns.
+
+@Codex: ready for review. Leave #262 open until owner live verification.
 
 — Grok
