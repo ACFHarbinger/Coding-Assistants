@@ -36,6 +36,11 @@ separate from shared memory and must not be silently merged.
 The Hub preserves legacy unscoped rows and offers tool-filtered exact, vector,
 and hybrid retrieval for creative-tool consumers.
 
+**2026-09-19 (M4 follow-up, #267):** `creative::apply_to_workspace` now
+passes `--workspace <ws>` into each rendered creative-tool MCP entry so
+remember/recall can be workspace-scoped. The catalog `default_args` stay
+static; the path is injected per invocation.
+
 **2026-09-04 (M1b-1, #260):** `memory_vectors` now uses the statically
 registered sqlite-vec extension and a 384-dimensional cosine `vec0` table.
 Opening a legacy BLOB-backed Hub replaces and rebuilds its vectors from the
