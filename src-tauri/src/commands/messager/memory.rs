@@ -2,9 +2,10 @@
 use super::store::open_store;
 use crate::client::llm::{LLMClient, ModelConfig};
 use hub::{
-    CompactReport, LinkSuggestion, LinkSuggestionMode, MemoryLinkRecord, MemoryRecord, MemoryScope,
-    MemoryTier,
+    CompactReport, InProcessBus, LinkSuggestion, LinkSuggestionMode, MemoryLinkRecord,
+    MemoryRecord, MemoryScope, MemoryTier,
 };
+use tauri::Manager;
 
 #[derive(serde::Deserialize)]
 pub struct ConsolidateMemoriesArgs {
@@ -19,6 +20,7 @@ pub async fn hub_consolidate_memories(
     app: tauri::AppHandle,
     args: ConsolidateMemoriesArgs,
 ) -> Result<hub::ConsolidationReport, String> {
+    let bus = app.state::<InProcessBus>().inner().clone();
     let clusters = tauri::async_runtime::spawn_blocking(|| {
         open_store()?
             .consolidation_clusters()
@@ -45,7 +47,7 @@ pub async fn hub_consolidate_memories(
                 &args.model_config,
                 &prompt,
                 args.workspace.as_deref(),
-                &app,
+                &bus,
                 "Memory consolidation",
                 None,
                 None,

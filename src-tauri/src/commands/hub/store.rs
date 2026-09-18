@@ -1,5 +1,8 @@
 //! Hub store initialization and agent-card commands.
-use hub::HubStore;
+use hub::{
+    bus::{InProcessBus, TOPIC_AGENTS_CHANGED},
+    HubStore,
+};
 use std::path::PathBuf;
 fn default_home() -> PathBuf {
     hub::default_hub_home()
@@ -39,14 +42,14 @@ pub fn hub_upsert_agent_card(agent: String, card: hub::AgentCard) -> Result<(), 
 
 #[tauri::command]
 pub async fn hub_set_agent_display_name(
-    app: tauri::AppHandle,
+    bus: tauri::State<'_, InProcessBus>,
     agent_id: String,
     display_name: String,
 ) -> Result<hub::AgentRecord, String> {
+    let bus = bus.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let updated = hub_set_agent_display_name_blocking(&agent_id, &display_name)?;
-        use tauri::Emitter;
-        let _ = app.emit("hub:agents-changed", ());
+        bus.emit(TOPIC_AGENTS_CHANGED, ());
         Ok(updated)
     })
     .await
@@ -64,14 +67,14 @@ pub fn hub_set_agent_display_name_blocking(
 
 #[tauri::command]
 pub async fn hub_set_agent_role(
-    app: tauri::AppHandle,
+    bus: tauri::State<'_, InProcessBus>,
     agent_id: String,
     role: Option<String>,
 ) -> Result<hub::AgentRecord, String> {
+    let bus = bus.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let updated = hub_set_agent_role_blocking(&agent_id, role.as_deref())?;
-        use tauri::Emitter;
-        let _ = app.emit("hub:agents-changed", ());
+        bus.emit(TOPIC_AGENTS_CHANGED, ());
         Ok(updated)
     })
     .await

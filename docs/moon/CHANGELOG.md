@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Internal event bus decoupled from `tauri::AppHandle` (P1, #325):**
+  `hub::bus` is a bounded in-process publish/subscribe trait
+  (`EventSink`/`EventBus` + `InProcessBus`, std channels, no tokio in
+  `hub`). Call sites publish `agent-event`, `agent-memory-recall`, and
+  `hub:agents-changed` on the bus; the Tauri emitter is one subscriber
+  that forwards onto existing frontend `listen` topics, and the LAN TCP
+  server is another (no more `listen_any("agent-event")`). PTY session
+  bytes and Android reverse-IPC stay on `AppHandle` this slice. Tests
+  prove two subscribers receive the same event.
+
 ### Added
 
 - **Saved workspaces linked to a Work Session Chat (U24, #317):** durable

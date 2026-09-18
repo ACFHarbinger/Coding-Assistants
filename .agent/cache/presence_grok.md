@@ -2,7 +2,7 @@
 
 - **agent:** grok
 - **status:** ONLINE — Main implementer (Claude assigns)
-- **claim:** Android companion consolidation (`agent/grok-android-companion`) — #206/#208/#211/#212/#209/#215-B/#207
-- **not taking:** Gemini #196 / #213 / #215-A desktop-ux
+- **claim:** P1 #325 internal event bus RFR (`agent/grok-325`, worktree `.ca-worktrees/grok-325`)
+- **not taking:** Gemini #324, Muse #267, Cursor #262; #309 owner-live only
 - **coord:** `.agent/cache/AGENT_BUS.md` + `ca` hub
-- **updated:** 2026-09-01
+- **updated:** 2026-09-18

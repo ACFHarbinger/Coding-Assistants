@@ -3,11 +3,10 @@ use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
-use hub::HubStore;
+use hub::{bus::InProcessBus, HubStore};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::Emitter;
 use tokio::sync::mpsc;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -62,16 +61,19 @@ impl AgentSystem {
         &self,
         task: &str,
         app: &tauri::AppHandle,
+        bus: &InProcessBus,
         token: Arc<AtomicBool>,
         mut input_rx: mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        self.execute_phases(task, app, token, &mut input_rx).await
+        self.execute_phases(task, app, bus, token, &mut input_rx)
+            .await
     }
 
     async fn execute_phases(
         &self,
         task: &str,
         app: &tauri::AppHandle,
+        bus: &InProcessBus,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
@@ -147,8 +149,8 @@ impl AgentSystem {
             .await?;
 
             if let Some(recalled_memories) = recalled_memories {
-                let _ = app.emit(
-                    "agent-memory-recall",
+                bus.emit(
+                    hub::bus::TOPIC_AGENT_MEMORY_RECALL,
                     MemoryRecallEvent {
                         role: role_name.clone(),
                         workspace: self.config.work_dir.clone(),
@@ -158,20 +160,13 @@ impl AgentSystem {
                 );
             }
 
-            let _ = app.emit(
-                "agent-event",
-                AgentEvent {
-                    source: role_name.clone(),
-                    event_type: "thought".into(),
-                    content: prompt.clone(),
-                },
-            );
+            emit_agent(bus, role_name.clone(), "thought", prompt.clone());
 
             let completion = self
                 .interactive_completion(
                     &role_config.config,
                     &prompt,
-                    app,
+                    bus,
                     role_name,
                     token.clone(),
                     input_rx,
@@ -255,7 +250,7 @@ impl AgentSystem {
                         &role_config.config,
                         &summary_prompt,
                         Some(&self.config.work_dir),
-                        app,
+                        bus,
                         "System",
                         mcp_abs_path.as_deref(),
                         Some(token.clone()),
@@ -290,7 +285,7 @@ impl AgentSystem {
         &self,
         config: &ModelConfig,
         initial_prompt: &str,
-        app: &tauri::AppHandle,
+        bus: &InProcessBus,
         source: &str,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
@@ -306,7 +301,7 @@ impl AgentSystem {
                     config,
                     &history,
                     Some(&self.config.work_dir),
-                    app,
+                    bus,
                     source,
                     mcp_config_path,
                     Some(token.clone()),
@@ -322,15 +317,7 @@ impl AgentSystem {
                     question
                 };
 
-                // Emit event to frontend to show prompt
-                let _ = app.emit(
-                    "agent-event",
-                    AgentEvent {
-                        source: source.to_string(),
-                        event_type: "question".into(),
-                        content: question_text.clone(),
-                    },
-                );
+                emit_agent(bus, source, "question", question_text.clone());
 
                 // Wait for input
                 let user_input = match input_rx.recv().await {
@@ -338,15 +325,7 @@ impl AgentSystem {
                     None => return Err("User input channel closed".into()),
                 };
 
-                // Emit acknowledgement
-                let _ = app.emit(
-                    "agent-event",
-                    AgentEvent {
-                        source: "User".into(),
-                        event_type: "input".into(),
-                        content: user_input.clone(),
-                    },
-                );
+                emit_agent(bus, "User", "input", user_input.clone());
 
                 history.push_str("\n\nAgent: ");
                 history.push_str(&response);
@@ -391,14 +370,7 @@ impl AgentSystem {
                     })
                     .to_string();
 
-                    let _ = app.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: "System".into(),
-                            event_type: "authorization".into(),
-                            content: auth_payload,
-                        },
-                    );
+                    emit_agent(bus, "System", "authorization", auth_payload);
 
                     // Wait for authorization
                     let auth_response = match input_rx.recv().await {
@@ -407,16 +379,11 @@ impl AgentSystem {
                     };
 
                     if auth_response != "APPROVED" {
-                        let _ = app.emit(
-                            "agent-event",
-                            AgentEvent {
-                                source: "System".into(),
-                                event_type: "thought".into(),
-                                content: format!(
-                                    "Authorization DENIED for asking {}",
-                                    target_role_name
-                                ),
-                            },
+                        emit_agent(
+                            bus,
+                            "System",
+                            "thought",
+                            format!("Authorization DENIED for asking {}", target_role_name),
                         );
 
                         history.push_str(&format!(
@@ -426,13 +393,11 @@ impl AgentSystem {
                         continue;
                     }
 
-                    let _ = app.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: source.to_string(),
-                            event_type: "thought".into(),
-                            content: format!("Asking {}: {}", target_role_name, question),
-                        },
+                    emit_agent(
+                        bus,
+                        source,
+                        "thought",
+                        format!("Asking {}: {}", target_role_name, question),
                     );
 
                     let target_context = format!(
@@ -453,7 +418,7 @@ impl AgentSystem {
                             target_config,
                             &target_prompt,
                             Some(&self.config.work_dir),
-                            app,
+                            bus,
                             target_role_name,
                             mcp_config_path,
                             Some(token.clone()),
@@ -472,6 +437,22 @@ impl AgentSystem {
             }
         }
     }
+}
+
+fn emit_agent(
+    bus: &InProcessBus,
+    source: impl Into<String>,
+    event_type: impl Into<String>,
+    content: impl Into<String>,
+) {
+    bus.emit(
+        hub::bus::TOPIC_AGENT_EVENT,
+        AgentEvent {
+            source: source.into(),
+            event_type: event_type.into(),
+            content: content.into(),
+        },
+    );
 }
 
 fn default_hub_dir() -> std::path::PathBuf {

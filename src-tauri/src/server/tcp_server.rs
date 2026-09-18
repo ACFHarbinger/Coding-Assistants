@@ -7,6 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::agent::AgentConfig;
+use hub::bus::{EventBus, InProcessBus, TOPIC_AGENT_EVENT};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -64,6 +65,7 @@ pub enum ServerResponse {
 
 pub struct TcpServer {
     app_handle: AppHandle,
+    bus: InProcessBus,
     port: u16,
     listener: Option<Arc<TcpListener>>,
     broadcast_tx: broadcast::Sender<ServerResponse>,
@@ -71,10 +73,11 @@ pub struct TcpServer {
 }
 
 impl TcpServer {
-    pub fn new(app_handle: AppHandle, port: u16) -> Self {
+    pub fn new(app_handle: AppHandle, bus: InProcessBus, port: u16) -> Self {
         let (tx, _) = broadcast::channel(100);
         Self {
             app_handle,
+            bus,
             port,
             listener: None,
             broadcast_tx: tx,
@@ -110,23 +113,28 @@ impl TcpServer {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
         self.shutdown_tx = Some(shutdown_tx);
 
-        // Forward Tauri events to TCP clients
-        let app_clone = app_handle.clone();
+        // Forward hub bus agent-events to TCP clients (Tauri is another subscriber).
+        let rx = self.bus.subscribe();
         let tx_clone = broadcast_tx.clone();
-        tokio::spawn(async move {
-            use tauri::Listener;
-            app_clone.listen_any("agent-event", move |event| {
-                if let Ok(agent_event) =
-                    serde_json::from_str::<crate::agent::AgentEvent>(event.payload())
-                {
-                    let _ = tx_clone.send(ServerResponse::TaskEvent {
-                        source: agent_event.source,
-                        event_type: agent_event.event_type,
-                        content: agent_event.content,
-                    });
+        std::thread::Builder::new()
+            .name("ca-bus-tcp".into())
+            .spawn(move || {
+                while let Ok(event) = rx.recv() {
+                    if event.topic != TOPIC_AGENT_EVENT {
+                        continue;
+                    }
+                    if let Ok(agent_event) =
+                        serde_json::from_value::<crate::agent::AgentEvent>(event.payload)
+                    {
+                        let _ = tx_clone.send(ServerResponse::TaskEvent {
+                            source: agent_event.source,
+                            event_type: agent_event.event_type,
+                            content: agent_event.content,
+                        });
+                    }
                 }
-            });
-        });
+            })
+            .expect("ca-bus-tcp forwarder thread");
 
         tokio::spawn(async move {
             loop {

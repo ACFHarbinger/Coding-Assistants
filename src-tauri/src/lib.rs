@@ -1,4 +1,5 @@
 mod agent;
+mod bus;
 mod client;
 mod commands;
 mod core;
@@ -10,6 +11,7 @@ mod tray;
 
 use agent::{AgentConfig, AgentSystem};
 use core::agent_resources::AgentResources;
+use hub::InProcessBus;
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::{
@@ -32,6 +34,7 @@ async fn run_agent_task(
     task: String,
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
+    bus: State<'_, InProcessBus>,
 ) -> Result<String, String> {
     let token = Arc::new(AtomicBool::new(false));
 
@@ -41,8 +44,11 @@ async fn run_agent_task(
     *state.user_input_tx.lock().unwrap() = Some(input_tx);
 
     let system = AgentSystem::new(config);
+    let bus = bus.inner().clone();
     // run_task will now consume input_rx
-    let result = system.run_task(&task, &app_handle, token, input_rx).await?;
+    let result = system
+        .run_task(&task, &app_handle, &bus, token, input_rx)
+        .await?;
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
@@ -160,8 +166,9 @@ async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> 
 async fn start_tcp_server(
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
+    bus: State<'_, InProcessBus>,
 ) -> Result<String, String> {
-    let mut server = TcpServer::new(app_handle.clone(), 5555);
+    let mut server = TcpServer::new(app_handle.clone(), bus.inner().clone(), 5555);
     let address = server.start().await?;
 
     // Start accepting connections in background
@@ -212,6 +219,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(InProcessBus::new())
         .manage(AppState {
             agents: Mutex::new(None),
             cancellation_token: Mutex::new(None),
@@ -219,7 +227,12 @@ pub fn run() {
             tcp_server: Mutex::new(None),
         })
         .manage(pty::PtySessions::default())
-        .setup(tray::setup_tray)
+        .setup(|app| {
+            tray::setup_tray(app)?;
+            let bus = app.state::<InProcessBus>().inner().clone();
+            bus::spawn_tauri_forwarder(bus, app.handle().clone());
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Only the main window is tray-resident (hide instead of
