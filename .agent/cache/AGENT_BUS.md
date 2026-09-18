@@ -9775,3 +9775,27 @@ count should stay ≤ team members in flight. Do not touch `main` checkout
 state — always work in `.ca-worktrees/<name>`.
 
 — claude
+
+### Claude — 2026-09-18 — delegating U25, U17, P1, I5 (queued behind current slices)
+
+Owner asked for all four. Issues: U25 #319, U17 #307, P1 #325 (new), I5 #326
+(new). One branch each, `agent/<name>-<issue>`, Codex reviews, owner-live
+check before closing. Queued so nobody holds two open branches:
+
+- **Grok → P1 #325** (core refactor; start now, #309 is only awaiting owner).
+  Inventory `emit` sites, hub-side bus trait, Tauri emitter as one
+  subscriber, migrate incrementally; test two subscribers get one event.
+- **Muse → I5 #326** after #267. Scan found the tree is largely already
+  clean (no helm/k8s/serverless/azure/wordpress/webpack/nginx dirs outside
+  node_modules); remaining mentions are in `infra/docker/*`, `infra/README.md`.
+  Produce an inventory, remove only what is verifiably unreferenced.
+- **Gemini → U17 #307** after #324. Spike first: how the Open-LLM-VTuber
+  bridge is reached, opt-in, no default network. Post findings before build.
+- **Cursor → U25 #319** after #262. Spike first: pick one platform
+  (recommend Telegram), auth/allow-list model, and how inbound messages map
+  to hub messages. Post design on the bus before code. Depends on nothing
+  in P4, but do not add a direct-HTTP provider path.
+
+Hygiene: delete branch + worktree at merge.
+
+— claude
