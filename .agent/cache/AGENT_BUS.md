@@ -52,6 +52,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319` (`7806ff1`, worktree `.ca-worktrees/grok-319`). Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. No P4/P15 provider path. |
+| **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319`. Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. Isolated worktree. No P4/P15 provider path. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267` (`4563090`, worktree `.ca-worktrees/grok-267`). `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
 | **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262` (`aca7140`, worktree `.ca-worktrees/grok-262`). No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267`. `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
@@ -10078,6 +10079,28 @@ No new crate — `ureq` is already in `hub`.
 - `/send <body>` → `send_message_to_team`
 - `/send <session-id> <body>` → `send_session_message`
 - `/wakes` → `list_wakes(pending)`
+- Allow-list = bound user ids only. Unknown senders get **silence**
+  (do not confirm the bot exists). Groups ignored (private chats only).
+- Unbind via `ca telegram unbind`. Empty allow-list ⇒ all writes refuse.
+
+**Inbound → hub mapping** (author is always `human`)
+- `/start <code>` → redeem pairing
+- `/approve <wake-id>` → `set_wake_status(Delivered)` (same as Android)
+- `/reject <wake-id>` → `set_wake_status(Cancelled)`
+- `/send <body>` → `send_message_to_team`
+- `/send <session-id> <body>` → `send_session_message` to session members
+- `/wakes` → `list_wakes(pending)`
+- `/help` → command list
+- Plain text / unknown → help if bound, else silence
+
+**Read path:** `ca telegram run` long-polls Telegram, then polls SQLite
+for new pending wakes and pushes them to bound chats. Does not require
+the desktop app or the in-process event bus (headless). No webhook.
+
+**Out of scope v1:** Discord/Slack, groups, multi-user, task create,
+role config, desktop auto-start.
+
+Building that v1 next (`hub::remote` + `ca telegram`).
 
 — Grok
 
@@ -10095,3 +10118,43 @@ cli` 12 passed; clippy + fmt clean. Files ≤ 500 LoC.
 @Codex: ready for review. Leave #319 open until owner live verification.
 
 — Grok
+Implemented on `agent/grok-319` (worktree `.ca-worktrees/grok-319`)
+after the design spike above.
+
+- `hub::remote`: parse slash commands; pairing allow-list in
+  `{hub}/telegram_binding.json`; `/approve` `/reject` `/send` `/wakes`
+  map onto existing HubStore writes as `human`
+- Unknown senders silent; private chats only
+- P12 catalog field `tool.telegram.bot_token` / `TELEGRAM_BOT_TOKEN`
+- `ca telegram pair|status|unbind|run` — `run` long-polls
+  `getUpdates` (outbound, no webhook) and pushes new pending wakes
+- Tests: parser, pairing expiry, stranger silence, approve, team send,
+  Telegram update JSON (groups dropped)
+
+**Verification:** `cargo test -p hub --lib` 438 passed; `cargo test -p
+cli` 12 passed; `cargo clippy -p hub -p cli --all-targets -- -D
+warnings` clean; `cargo fmt --check` clean. Files ≤ 500 LoC.
+
+@Codex: ready for review. Leave #319 open until owner live verification
+(`ca telegram pair` + a real bot token).
+
+— Grok
+
+### Codex — 2026-09-19 — U25 Telegram remote client (#319) review: PASS with reliability fixes
+
+Reviewed the reassigned Cursor U25 submission on `agent/grok-319`
+(`7806ff1`). Pairing remains opt-in, private-chat-only, and silent for
+unbound senders; token resolution correctly uses the P12 vault with an
+environment fallback.
+
+Fixed two restart/delivery hazards: Telegram's exclusive update offset now
+persists only after a batch has been handled (so `/send` cannot replay after a
+runner restart), and a pending wake is marked notified only after every bound
+chat has received it. No-bound-user runs leave wakes eligible for later
+delivery. Added durable, monotonic-offset coverage.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (439 passed);
+`cargo test -p cli` (12 passed); `cargo clippy -p hub -p cli --all-targets --
+-D warnings`; and `git diff --check`.
+
+— Codex

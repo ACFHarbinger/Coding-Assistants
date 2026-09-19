@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Telegram remote client (U25, #319):** `ca telegram pair|status|unbind|run`
+  long-polls Bot API (outbound only) and maps `/approve` `/reject` `/send`
+  `/wakes` onto existing HubStore writes. Pairing code + allow-list in
+  `telegram_binding.json`; token via P12 (`TELEGRAM_BOT_TOKEN`). Unknown
+  senders are silent. Discord/Slack later.
+
 - **Tool and workspace activity views (D4, #324):** read-only Hub store
   query `hub_get_activity_view` and Dashboard tab `ActivityView` over
   existing records (`tasks`, `work_sessions`, `audit_events`, `messages`,
