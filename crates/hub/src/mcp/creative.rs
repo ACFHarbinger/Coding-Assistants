@@ -224,6 +224,18 @@ pub fn entry_for(tool: &CreativeTool, binary_path: &Path) -> McpServerEntry {
     }
 }
 
+/// Append `--workspace <path>` so remember/recall are workspace-scoped
+/// (#267). The catalog's `default_args` stay static; this is built per
+/// invocation. An entry that already carries the flag is left as-is.
+fn with_workspace_flag(entry: &McpServerEntry, workspace: &Path) -> McpServerEntry {
+    let mut entry = entry.clone();
+    if !entry.args.iter().any(|arg| arg == "--workspace") {
+        entry.args.push("--workspace".into());
+        entry.args.push(workspace.to_string_lossy().into_owned());
+    }
+    entry
+}
+
 /// Rewrite every [`WORKSPACE_CLIENTS`] config in `workspace` so that
 /// exactly `entries` (already resolved to real binary paths by the
 /// caller) are the app-managed creative bridges: the enabled ones are
@@ -243,6 +255,10 @@ pub fn apply_to_workspace(
             "creative-tool registration requires an absolute workspace path".into(),
         ));
     }
+    let entries: Vec<McpServerEntry> = entries
+        .iter()
+        .map(|entry| with_workspace_flag(entry, workspace))
+        .collect();
     let owned: Vec<&str> = CATALOG.iter().map(|t| t.key).collect();
     let mut written = Vec::new();
     for &client in WORKSPACE_CLIENTS {
@@ -255,7 +271,7 @@ pub fn apply_to_workspace(
         if !existed && entries.is_empty() {
             continue;
         }
-        let rendered = render_replacing(client, &owned, entries, &existing);
+        let rendered = render_replacing(client, &owned, &entries, &existing);
         if existed && rendered == existing {
             continue;
         }
@@ -402,6 +418,44 @@ mod tests {
     #[test]
     fn apply_rejects_a_relative_workspace() {
         assert!(apply_to_workspace(Path::new("rel/path"), &[]).is_err());
+    }
+
+    #[test]
+    fn apply_appends_workspace_flag_to_each_rendered_entry() {
+        let ws = tempdir().unwrap();
+        apply_to_workspace(ws.path(), &[blender_entry()]).unwrap();
+        let v: Value =
+            serde_json::from_str(&std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        let args: Vec<&str> = v["mcpServers"]["coding-assistants-mcp-blender"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        let path = ws.path().to_str().expect("utf-8 tempdir");
+        assert_eq!(args, ["blender", "--port", "9765", "--workspace", path]);
+    }
+
+    #[test]
+    fn apply_does_not_duplicate_an_existing_workspace_flag() {
+        let ws = tempdir().unwrap();
+        let mut entry = blender_entry();
+        entry.args.extend([
+            "--workspace".into(),
+            ws.path().to_string_lossy().into_owned(),
+        ]);
+        apply_to_workspace(ws.path(), &[entry]).unwrap();
+        let v: Value =
+            serde_json::from_str(&std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        let args: Vec<&str> = v["mcpServers"]["coding-assistants-mcp-blender"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(args.iter().filter(|a| **a == "--workspace").count(), 1);
     }
 
     #[test]

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Creative-tool MCP remember/recall is workspace-scoped (#267):**
+  `hub::mcp::creative::apply_to_workspace` now appends `--workspace <ws>`
+  to each rendered server entry. The catalog `default_args` stay static;
+  the path is injected per invocation so `remember`/`recall` use
+  `MemoryScope::Workspace` instead of always landing in Global.
+
 ### Added
 
 - **Saved workspaces linked to a Work Session Chat (U24, #317):** durable
