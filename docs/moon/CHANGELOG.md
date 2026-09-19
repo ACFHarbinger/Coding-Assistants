@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Direct HTTP providers (P4, #327):** Orchestrate roles with
+  `provider: openai` (the default Planner/Developer/Reviewer configs)
+  now call OpenAI-compatible `chat/completions` in-process via the
+  already-vendored `async-openai` crate, instead of spawning `opencode`.
+  Presence-only `OPENAI_API_KEY` (P12 vault → env); structured errors
+  (`unauthenticated` / `transport` / `timeout` / `api` /
+  `invalid_response` / `cancelled`); SSE streaming onto `agent-event`
+  (`stream` + `usage` + `response`); per-request token usage from the
+  completion (and `stream_options.include_usage` on the stream path).
+  `ModelConfig.endpoint` and LM Studio (`127.0.0.1:1234`) share the same
+  client. Cheap P3 health row for `openai` (HTTP-only, key presence).
+  Does not implement P13/P15/C16 or rewrite the P4a Muse adapter.
+
 - **Animated V-Tuber avatar presence (U17, #307):** optional, default-off
   integration with local Open-LLM-VTuber instances. Per-identity toggle in
   Settings (`TeamProfilesSection` / `VTuberProfileControl`) stored in

@@ -1,4 +1,9 @@
 use crate::agent::AgentEvent;
+use crate::client::http::{
+    chat_stream, is_lm_studio_provider, is_openai_provider, openai_is_authenticated,
+    openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
+    OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS, OPENAI_REQUEST_TIMEOUT_SECS,
+};
 use crate::client::providers::{
     canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
     muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
@@ -115,7 +120,16 @@ impl LLMClient {
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
-            return existing_endpoint_completion(endpoint, config, prompt, bus, source).await;
+            return direct_http_completion(
+                endpoint,
+                is_openai_provider(&config.provider),
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         if config.provider == "ollama" {
@@ -135,11 +149,17 @@ impl LLMClient {
             return stream_cli_child(child, bus.clone(), source, token, "Ollama").await;
         }
 
-        if config.provider == "lm_studio" {
-            return Err(
-                "LM Studio support is partially implemented. Please ensure it is running on 127.0.0.1:1234"
-                    .to_string(),
-            );
+        if is_lm_studio_provider(&config.provider) {
+            return direct_http_completion(
+                LM_STUDIO_DEFAULT_BASE,
+                false,
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         if is_vibe_provider(&config.provider) {
@@ -148,6 +168,19 @@ impl LLMClient {
 
         if is_muse_provider(&config.provider) {
             return muse_completion(config, prompt, work_dir, bus, source, token).await;
+        }
+
+        if is_openai_provider(&config.provider) {
+            return direct_http_completion(
+                OPENAI_DEFAULT_BASE,
+                true,
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         opencode_completion(
@@ -211,56 +244,87 @@ impl LLMClient {
             }
         }
 
+        if openai_is_authenticated(
+            hub::secret::resolve("OPENAI_API_KEY")
+                .as_ref()
+                .map(|s| s.expose()),
+        ) {
+            for model in OPENAI_FALLBACK_MODELS {
+                models.push(format!("openai/{model}"));
+            }
+        }
+
         Ok(models)
     }
 }
 
-async fn existing_endpoint_completion(
-    endpoint: &str,
+/// Direct OpenAI-compatible chat (P4). `require_key` is true for the
+/// hosted OpenAI API; attached local endpoints and LM Studio may run
+/// without a key. The key travels only in `Authorization`.
+async fn direct_http_completion(
+    api_base: &str,
+    require_key: bool,
     config: &ModelConfig,
     prompt: &str,
     bus: &InProcessBus,
     source: &str,
+    token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
-    let base = endpoint.trim_end_matches('/');
-    let url = if base.ends_with("/v1") {
-        format!("{base}/chat/completions")
-    } else {
-        format!("{base}/v1/chat/completions")
-    };
-    let response = reqwest::Client::new()
-        .post(&url)
-        .json(&serde_json::json!({
-            "model": config.model,
-            "messages": [{ "role": "user", "content": prompt }],
-            "stream": false
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("Existing model process request failed: {e}"))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("Existing model process response read failed: {e}"))?;
-    if !status.is_success() {
-        return Err(format!("Existing model process returned {status}: {body}"));
+    let api_key_secret = hub::secret::resolve("OPENAI_API_KEY");
+    if require_key && !openai_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
+        return Err(openai_unavailable_unauthenticated());
     }
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("Existing model process returned invalid JSON: {e}"))?;
-    let output = payload["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("Existing model process response had no choices[0].message.content")?
-        .to_string();
+    let api_key = api_key_secret
+        .as_ref()
+        .map(|secret| secret.expose())
+        .filter(|key| !key.trim().is_empty())
+        .unwrap_or("");
+    let model = config.model.trim();
+    let model = if model.is_empty() {
+        OPENAI_DEFAULT_MODEL
+    } else {
+        model
+    };
+    let bus_delta = bus.clone();
+    let source_delta = source.to_string();
+    let result = chat_stream(
+        api_base,
+        api_key,
+        model,
+        prompt,
+        std::time::Duration::from_secs(OPENAI_REQUEST_TIMEOUT_SECS),
+        token,
+        |delta| {
+            bus_delta.emit(
+                TOPIC_AGENT_EVENT,
+                AgentEvent {
+                    source: source_delta.clone(),
+                    event_type: "stream".to_string(),
+                    content: delta.to_string(),
+                },
+            );
+        },
+    )
+    .await?;
+    if let Some(usage) = result.usage.as_ref() {
+        bus.emit(
+            TOPIC_AGENT_EVENT,
+            AgentEvent {
+                source: source.to_string(),
+                event_type: "usage".to_string(),
+                content: usage.to_json().to_string(),
+            },
+        );
+    }
     bus.emit(
         TOPIC_AGENT_EVENT,
         AgentEvent {
             source: source.to_string(),
             event_type: "response".to_string(),
-            content: output.clone(),
+            content: result.text.clone(),
         },
     );
-    Ok(output)
+    Ok(result.text)
 }
 
 /// Muse Spark chat completion against the Meta Model API (OpenAI-compatible,

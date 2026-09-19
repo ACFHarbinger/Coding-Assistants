@@ -29,6 +29,22 @@ fn deepseek_needs_no_binary_but_tracks_key_presence() {
 }
 
 #[test]
+fn openai_needs_no_binary_but_tracks_key_presence() {
+    let with_key = openai_health_with(true);
+    assert!(
+        with_key.installed,
+        "HTTP-only provider is always 'installed'"
+    );
+    assert_eq!(with_key.authenticated, Some(true));
+    assert!(with_key.detail.contains("OPENAI_API_KEY is configured"));
+    assert!(!with_key.detail.contains("sk-"));
+
+    let without_key = openai_health_with(false);
+    assert_eq!(without_key.authenticated, Some(false));
+    assert!(without_key.detail.contains("not set"));
+}
+
+#[test]
 fn gemini_health_is_binary_presence_only() {
     let h = gemini_health();
     // `agy` may or may not be on PATH in CI; either way auth is unknowable
