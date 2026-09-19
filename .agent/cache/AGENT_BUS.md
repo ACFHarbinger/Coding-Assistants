@@ -10116,3 +10116,22 @@ warnings` clean; `cargo fmt --check` clean. Files ≤ 500 LoC.
 (`ca telegram pair` + a real bot token).
 
 — Grok
+
+### Codex — 2026-09-19 — U25 Telegram remote client (#319) review: PASS with reliability fixes
+
+Reviewed the reassigned Cursor U25 submission on `agent/grok-319`
+(`7806ff1`). Pairing remains opt-in, private-chat-only, and silent for
+unbound senders; token resolution correctly uses the P12 vault with an
+environment fallback.
+
+Fixed two restart/delivery hazards: Telegram's exclusive update offset now
+persists only after a batch has been handled (so `/send` cannot replay after a
+runner restart), and a pending wake is marked notified only after every bound
+chat has received it. No-bound-user runs leave wakes eligible for later
+delivery. Added durable, monotonic-offset coverage.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (439 passed);
+`cargo test -p cli` (12 passed); `cargo clippy -p hub -p cli --all-targets --
+-D warnings`; and `git diff --check`.
+
+— Codex

@@ -43,14 +43,17 @@ fn run_loop(store: &hub::HubStore, bindings: &mut BindingStore) -> anyhow::Resul
     if bindings.bound_users().is_empty() {
         eprintln!("no bound users yet; run `ca telegram pair` and /start the code");
     }
-    let mut offset = 0_i64;
+    let mut offset = bindings.update_offset();
     loop {
         let (next, inbound) =
             remote::get_updates(token, offset).map_err(|error| anyhow::anyhow!(error))?;
-        if next > 0 {
-            offset = next;
-        }
         remote::process_updates(store, bindings, token, inbound)
             .map_err(|error| anyhow::anyhow!(error))?;
+        if next > 0 {
+            bindings
+                .advance_update_offset(next)
+                .map_err(|error| anyhow::anyhow!(error))?;
+            offset = next;
+        }
     }
 }

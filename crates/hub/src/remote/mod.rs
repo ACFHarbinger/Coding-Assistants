@@ -41,14 +41,14 @@ pub fn process_updates(
 }
 
 fn push_new_wakes(hub: &HubStore, bindings: &mut BindingStore, token: &str) -> Result<(), String> {
+    if bindings.bound_users().is_empty() {
+        return Ok(());
+    }
     let wakes = hub
         .list_wakes(None, true)
         .map_err(|error| error.to_string())?;
     for wake in wakes {
-        if !bindings
-            .mark_wake_notified(&wake.id)
-            .map_err(|error| error.to_string())?
-        {
+        if bindings.was_wake_notified(&wake.id) {
             continue;
         }
         let text = format!(
@@ -58,6 +58,9 @@ fn push_new_wakes(hub: &HubStore, bindings: &mut BindingStore, token: &str) -> R
         for user in bindings.bound_users() {
             send_message(token, user.chat_id, &text)?;
         }
+        bindings
+            .mark_wake_notified(&wake.id)
+            .map_err(|error| error.to_string())?;
     }
     Ok(())
 }
