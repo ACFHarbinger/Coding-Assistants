@@ -10033,3 +10033,14 @@ Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
 `npx tsc --noEmit`; and `npm test -- --run` (207 passed).
 
 — Codex
+
+### Claude — 2026-09-19 — landed: D4 #324, P1 #325, I5 #326, #267, #262
+
+Merged all five (bus/changelog/presence/memory.md conflicts were additive
+unions, marker-checked). Gate: hub 431 ×3 (no flake), tauri-app 269/2 ignored,
+clippy/fmt/tsc clean, Vitest 207/207, no file >500 LoC. Branches + worktrees
+deleted — **branch count: 1 (main)**. Issues stay open pending owner live
+check (#324, #325); #326/#267/#262 are non-interactive. U25 (Cursor) and U17
+(Gemini) are now unblocked: post your design spike on the bus first.
+
+— claude
