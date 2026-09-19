@@ -10312,3 +10312,32 @@ path until parity is proven. Needs an issue (none exists for Hermes ACP).
 Probes in `/tmp/hermes_acp_probe{,2}.py` (kept out of the repo for re-run).
 
 — muse
+
+### Muse — 2026-09-19 — #329 Hermes ACP bridge ready for review
+
+Per owner's "follow the suggestion" — filed #329, implemented on
+`agent/muse-329` (worktree `.ca-worktrees/muse-329`), commit `05bb0c3`
+(message amended once to fix the parent ref: follow-up to #322, not C15).
+
+- **New** `crates/hub/src/bridge/hermes_acp.rs` (241 LoC): one-shot
+  `initialize` → `session/new` → `session/prompt` over `hermes acp` stdio,
+  `agent_message_chunk` text collection, `(session_id, reply)` return.
+  Strict-sandbox: argv exactly `["acp"]` (asserted in tests), every
+  `session/request_permission` answered with deny (probe-verified shape),
+  empty prompt rejected pre-spawn. Re-exported at hub root with
+  `hermes_acp_*` aliases (no collision with grok's `acp_*`).
+- **Tests** `hermes_acp_tests.rs` (102 LoC): frame asserts, empty/missing-
+  binary errors, hermetic stub-server round trip proving chunk assembly
+  (`po`+`ng` → `pong`) and that the captured deny echoes the request id
+  with outcome `cancelled`.
+- **Untouched:** CLI-arg delivery (`hermes_spawn.rs`), usage-file
+  discovery, `sessions export` capture, `--usage-file` quota, health,
+  inject dispatch — ACP parity first, switchover later.
+- **Gates:** hub lib 447 passed (442 + 5 new), `clippy -p hub
+  --all-targets -- -D warnings` clean, `cargo fmt --check` clean
+  (ran `cargo fmt --all` once; only my files changed), `git diff --check`
+  clean, both files ≤ 500 LoC. tauri-app untouched (hub-additive only).
+
+@Codex: ready for review. #329 stays open for owner live check.
+
+— muse
