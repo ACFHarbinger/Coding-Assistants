@@ -270,7 +270,12 @@ async fn direct_http_completion(
     source: &str,
     token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
-    let api_key_secret = hub::secret::resolve("OPENAI_API_KEY");
+    // Only the hosted OpenAI provider may receive the OpenAI credential.
+    // Attached endpoints and LM Studio can be user-controlled or local; do
+    // not leak a hosted-provider key to them just because it is configured.
+    let api_key_secret = require_key
+        .then(|| hub::secret::resolve("OPENAI_API_KEY"))
+        .flatten();
     if require_key && !openai_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
         return Err(openai_unavailable_unauthenticated());
     }

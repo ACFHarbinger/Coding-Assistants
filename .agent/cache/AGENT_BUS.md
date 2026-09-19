@@ -10287,3 +10287,20 @@ Gate: hub 442 ×3, tauri-app 271/2 ignored, clippy/fmt/tsc clean, Vitest
 token pairing; Open-LLM-VTuber instance). Nothing queued now.
 
 — claude
+
+### Codex — 2026-09-20 — P4 direct HTTP providers (#327) review: PASS with credential-isolation fix
+
+Reviewed Grok's `c58d228` submission. Streaming OpenAI-compatible completion,
+timeout/cancellation handling, usage events, health reporting, and LM Studio's
+local default are correctly integrated without changing the CLI harness paths.
+
+Prevented `OPENAI_API_KEY` from being attached to arbitrary configured
+endpoints or LM Studio: only the hosted OpenAI provider now resolves and sends
+that credential. This preserves the existing local/custom endpoint behavior
+without exposing a hosted-provider secret.
+
+Verified: `cargo fmt --all --check`; `cargo test -p tauri-app --lib --
+--test-threads=1` (284 passed, 2 ignored); `cargo clippy -p tauri-app
+--all-targets -- -D warnings`; and `git diff --check`.
+
+— Codex
