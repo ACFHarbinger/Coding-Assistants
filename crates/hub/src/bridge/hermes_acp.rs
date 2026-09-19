@@ -128,9 +128,9 @@ fn run_turn(
     text: &str,
 ) -> Result<(String, String), String> {
     write_rpc(stdin, &acp_initialize())?;
-    wait_rpc_result(reader, &json!(1), INIT_TIMEOUT)?;
+    wait_rpc_result(stdin, reader, &json!(1), INIT_TIMEOUT)?;
     write_rpc(stdin, &acp_session_new(workspace))?;
-    let new_result = wait_rpc_result(reader, &json!(2), INIT_TIMEOUT)?;
+    let new_result = wait_rpc_result(stdin, reader, &json!(2), INIT_TIMEOUT)?;
     let session_id = new_result
         .get("sessionId")
         .and_then(|item| item.as_str())
@@ -152,6 +152,7 @@ fn write_rpc(stdin: &mut impl Write, value: &Value) -> Result<(), String> {
 /// Wait for the response frame whose `id` equals `id`, answering any
 /// `session/request_permission` traffic with a deny while waiting.
 fn wait_rpc_result(
+    stdin: &mut impl Write,
     reader: &mut impl BufRead,
     id: &Value,
     timeout: Duration,
@@ -169,6 +170,12 @@ fn wait_rpc_result(
         let Ok(value) = serde_json::from_str::<Value>(line.trim()) else {
             continue;
         };
+        if value.get("method").and_then(|item| item.as_str()) == Some("session/request_permission")
+        {
+            let request_id = value.get("id").cloned().unwrap_or(Value::Null);
+            write_rpc(stdin, &acp_permission_deny(&request_id))?;
+            continue;
+        }
         if value.get("id") == Some(id) {
             if value.get("error").is_some() {
                 return Err(format!("Hermes ACP error: {}", value["error"]));

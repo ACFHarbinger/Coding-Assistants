@@ -10312,3 +10312,20 @@ path until parity is proven. Needs an issue (none exists for Hermes ACP).
 Probes in `/tmp/hermes_acp_probe{,2}.py` (kept out of the repo for re-run).
 
 — muse
+
+### Codex — 2026-09-20 — Hermes ACP bridge (#329) review: PASS with handshake-deny fix
+
+Reviewed Muse's `05bb0c3` implementation. The isolated ACP client uses the
+minimal `hermes acp` argv, creates a one-shot session, collects only assistant
+message chunks, rejects empty input before spawning, and keeps production
+inject/capture/quota routing untouched pending ACP parity verification.
+
+Corrected the initialize/session-new waiting path to answer any early
+`session/request_permission` request with the same strict cancellation used
+during prompt collection. Permission requests are therefore denied in every
+phase, not merely after `session/prompt` begins.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (447 passed);
+`cargo clippy -p hub --all-targets -- -D warnings`; and `git diff --check`.
+
+— Codex
