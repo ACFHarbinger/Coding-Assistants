@@ -60,6 +60,11 @@ pub use bridge::grok::{
 pub use bridge::hermes::{
     deliver_hermes_task, hermes_home_dir, latest_hermes_session_id, latest_usage_session_id,
 };
+pub use bridge::hermes_acp::{
+    acp_initialize as hermes_acp_initialize, acp_permission_deny as hermes_acp_permission_deny,
+    acp_session_new as hermes_acp_session_new, acp_session_prompt as hermes_acp_session_prompt,
+    hermes_acp_args, run_hermes_acp_prompt,
+};
 pub use bridge::kimi::{
     deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
     latest_kimi_session_id_from, start_kimi_managed_harness,

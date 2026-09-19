@@ -6,6 +6,7 @@ pub mod cursor;
 pub mod gemini;
 pub mod grok;
 pub mod hermes;
+pub mod hermes_acp;
 pub mod kimi;
 pub mod muse;
 pub mod presence;
