@@ -6,6 +6,7 @@ mod profile;
 mod role;
 mod sessions;
 mod team;
+mod vtuber;
 mod work_sessions;
 impl HubStore {
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {
@@ -43,7 +44,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name, animated_avatar, vtuber_character
              FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -56,6 +57,8 @@ impl HubStore {
                 avatar_attachment_id: r.get(5)?,
                 role: r.get(6)?,
                 custom_display_name: r.get::<_, i64>(7).unwrap_or(0) != 0,
+                animated_avatar: r.get::<_, i64>(8).unwrap_or(0) != 0,
+                vtuber_character: r.get(9)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

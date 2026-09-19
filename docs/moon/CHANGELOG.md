@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Animated V-Tuber avatar presence (U17, #307):** optional, default-off
+  integration with local Open-LLM-VTuber instances. Per-identity toggle in
+  Settings (`TeamProfilesSection` / `VTuberProfileControl`) stored in
+  `agents.animated_avatar` / `vtuber_character` with soft schema migrations
+  and Settings audit logging. Bypasses Open-LLM-VTuber's internal LLM loop
+  by dispatching direct speech payloads (`hub_forward_vtuber_speech`) to
+  prevent double generation. Includes on-demand connection probing
+  (`hub_test_vtuber_bridge`), zero default network traffic, graceful failure
+  degradation with one-line status notices, and `VTuberPresenceDock` in
+  Chat & Memory with a live Live2D viewport toggle.
+
 ### Fixed
 
 - **Creative-tool MCP remember/recall is workspace-scoped (#267):**

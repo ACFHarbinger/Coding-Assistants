@@ -42,6 +42,10 @@ export interface HubAgent {
   avatar_attachment_id?: string | null;
   /** Descriptive team role (U21 / #315), e.g. "lead", "reviewer", or custom. */
   role?: string | null;
+  /** Whether the identity opted into an animated V-Tuber avatar presence (U17 / #307). */
+  animated_avatar?: boolean;
+  /** Optional character name/ID configured in Open-LLM-VTuber (U17 / #307). */
+  vtuber_character?: string | null;
 }
 
 export interface WorkSession {

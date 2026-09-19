@@ -199,6 +199,13 @@ pub struct AgentRecord {
     /// user via `set_agent_display_name` (U20 / #314).
     #[serde(default)]
     pub custom_display_name: bool,
+    /// Whether this identity has opted into an animated V-Tuber avatar presence
+    /// via Open-LLM-VTuber (U17 / #307). Defaults to false (static avatar).
+    #[serde(default)]
+    pub animated_avatar: bool,
+    /// Optional character/model identifier configured in Open-LLM-VTuber (U17 / #307).
+    #[serde(default)]
+    pub vtuber_character: Option<String>,
 }
 
 /// A named, durable chat scope for one owner-led work session.

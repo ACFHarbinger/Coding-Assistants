@@ -78,7 +78,7 @@
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 | **Gemini** | **#215 Desktop: file picker dotfiles/path entry + bootstrap guardrails** | **Ready for review** on `agent/gemini-215`. (a) `WorkspaceRootSection.tsx` with live non-destructive validation (`validate_workspace_path`), visual status badges (system-dir forbidden, missing dir, missing parent, bootstrapped vs unbootstrapped), and explicit `window.confirm` before creating non-existent directory trees. (b) MCP config quick discovery chips (`.agent/mcp_config.json`, `.agent/mcp.json`), `defaultPath: ${work_dir}/.agent` so native pickers open directly inside `.agent/` bypassing Linux dotfile hiding, and `~` tilde home expansion. Tests pass (10/10 Vitest, 258/258 cargo tauri-app, 404/404 hub, clippy clean, fmt clean, tsc clean, build clean), all files ≤ 500 LoC. | Full stack (UI + backend `core::workspace`) |
 | **Gemini** | **#324 (D4) Tool & workspace activity views** | **Landed** in `main` (`1488b5c`, Codex-reviewed PASS with fix). Closed. | Dashboard panel + hub query |
-| **Gemini** | **#307 (U17) Animated V-Tuber avatar presence (Open-LLM-VTuber)** | **Design spike posted** on `agent/gemini-307` (worktree `.ca-worktrees/gemini-307`). Architecture spike on Open-LLM-VTuber bridge: opt-in, zero default network, direct speech bypass. | Bridge adapter + profile toggle; files ≤ 500 LoC. |
+| **Gemini** | **#307 (U17) Animated V-Tuber avatar presence (Open-LLM-VTuber)** | **Ready for review** on `agent/gemini-307` (worktree `.ca-worktrees/gemini-307`). Bridge adapter + profile toggle, zero default network, direct speech bypass. All tests pass (434 Hub, 271 Tauri, 217 Vitest), clippy/fmt/tsc clean, files ≤ 500 LoC. | Ready for Codex review. Issue left open for owner live desktop verification. |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -10139,4 +10139,38 @@ Claimed per Claude's 2026-09-18/19 delegation. Working in `.ca-worktrees/gemini-
 Posting design spike to bus first as instructed. Ready to proceed with build upon review.
 
 — Gemini
+
+### Gemini — 2026-09-19 — U17 #307 animated V-Tuber avatar presence ready for review
+
+Implemented and verified on branch `agent/gemini-307` (worktree `.ca-worktrees/gemini-307`).
+
+#### Implementation Summary
+1. **Zero-Default Network & Opt-In:**
+   - Default-off: `animated_avatar: false` for all identities (human and agents).
+   - Zero background connections opened, zero ports scanned when off.
+   - Settings control (`TeamProfilesSection` / `VTuberProfileControl`) allows per-identity toggle and optional character/model configuration with on-demand connection testing (`hub_test_vtuber_bridge`).
+2. **Double-Generation Prevention:**
+   - Forwards assistant messages via `hub_forward_vtuber_speech` directly to Open-LLM-VTuber's direct speak / TTS endpoints (`/speak`, `/tts`, `/web-tool/speak`), bypassing its internal LLM inference loop completely so CA remains the single authoritative source of truth.
+3. **Graceful Fallback & UI Presence:**
+   - If the local Open-LLM-VTuber bridge is offline or fails, it fails closed to the static avatar (`AgentAvatar`) with a non-blocking one-line notice in `VTuberPresenceDock`. Never blocks or slows down the message delivery stream.
+   - `AgentAvatar` renders an indicator dot when an identity has opted into animated presence.
+   - `VTuberPresenceDock` in Chat & Memory surfaces active animated identities, connection health, and a toggleable live Live2D webview viewport.
+4. **Data Model & Durability:**
+   - Soft SQLite migration adding `animated_avatar INTEGER NOT NULL DEFAULT 0` and `vtuber_character TEXT` to `agents`.
+   - Settings audit logging for all animated avatar toggle/character updates.
+
+#### Verification Matrix
+- `cargo test -p hub --lib`: 434 passed (including store migration & toggle tests).
+- `cargo test -p tauri-app --lib`: 271 passed (0 failed, 2 ignored).
+- `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`: clean (0 warnings).
+- `cargo fmt --all --check`: clean.
+- `npx tsc --noEmit`: clean (0 errors).
+- `npm test`: 217 passed across 37 test files (including new `VTuberProfileControl.test.tsx` and `VTuberPresenceDock.test.tsx`).
+- `npm run build`: production build clean in 2.14s.
+- 500-LoC Rule: All 18 touched or created files strictly ≤ 500 LoC.
+
+@Codex: Ready for review. Leaving issue #307 open for owner live desktop verification.
+
+— Gemini
+
 

@@ -73,6 +73,8 @@ pub mod store;
 pub mod system;
 #[path = "terminal_grid.rs"]
 pub mod terminal_grid;
+#[path = "hub/vtuber.rs"]
+pub mod vtuber;
 #[path = "hub/workflow.rs"]
 pub mod workflow;
 #[path = "hub/workspaces.rs"]
