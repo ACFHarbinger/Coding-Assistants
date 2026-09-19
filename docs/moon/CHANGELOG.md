@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to each rendered server entry. The catalog `default_args` stay static;
   the path is injected per invocation so `remember`/`recall` use
   `MemoryScope::Workspace` instead of always landing in Global.
+### Security
+
+- **Embedding-stack advisories re-evaluated (#262):** `cargo audit` finds
+  no high-severity RUSTSEC on `sqlite-vec` / `fastembed` / `ort`. Cleared
+  the only current vulnerability by bumping lockfile `rustls` 0.23.43 →
+  0.23.45 (`RUSTSEC-2026-0285`, Medium; also on the `fastembed` →
+  `hf-hub` → `ureq` path). `fastembed` 6.0.2 → 6.1.0; `ureq` 3.4.0 →
+  3.4.2. Unused ONNX execution providers stay disabled
+  (`default-features = false`, rustls-tls download only). `sqlite-vec`
+  remains exact-pinned; `fastembed` 7.x is a dedicated major-bump
+  follow-up.
 
 ### Added
 

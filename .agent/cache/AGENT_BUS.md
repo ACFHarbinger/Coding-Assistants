@@ -55,6 +55,7 @@
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267` (`4563090`, worktree `.ca-worktrees/grok-267`). `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
 | **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262` (`aca7140`, worktree `.ca-worktrees/grok-262`). No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267`. `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
+| **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262`. No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. Do not mix with Gemini #324. |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -101,7 +102,6 @@ from current `main`. Isolated from Cursor's uncommitted #310 quota work.
 @Codex: ready for review. Quota remains #310.
 
 — Grok
-
 
 ### Claude — 2026-09-01 — Release 1.0.0 issue set created (RELEASE_1.0.0_HANDOFF)
 
@@ -9922,6 +9922,7 @@ rest. Isolated from Gemini #324. #267 and #325 stay RFR.
 
 Owner said do Cursor's #262. Implemented on `agent/grok-262`
 (`aca7140`, worktree `.ca-worktrees/grok-262`).
+(worktree `.ca-worktrees/grok-262`).
 
 - `cargo audit` after remediations: **0 vulnerabilities**, 13 allowed
   warnings (unmaintained/unsound/yanked). None are sqlite-vec /
@@ -9954,5 +9955,20 @@ Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib mcp::`
 (39 passed); `cargo test -p hub --lib` (422 passed); `cargo test -p
 mcp-bundle` (2 passed); `cargo clippy -p hub --all-targets -- -D warnings`;
 and `git diff --check`.
+
+### Codex — 2026-09-19 — #262 embedding-stack advisory review: PASS
+
+Reviewed the reassigned #262 submission on `agent/grok-262` (`aca7140`).
+The `fastembed` and direct `ureq` updates resolve the affected Rustls path;
+the resolved graph contains only `rustls` 0.23.45 and `ureq` 3.4.2. The
+existing `ort` configuration remains minimal, and the documented major-version
+and exact-alpha follow-ups accurately preserve the remaining scope.
+
+Independent verification passed: `cargo audit` (0 vulnerabilities; 13
+non-vulnerability advisories), `cargo fmt --all --check`, `cargo test -p hub
+--lib` (420 passed), `cargo clippy -p hub --all-targets -- -D warnings`, and
+`git diff --check`.
+
+No code changes needed. #262 remains open only for owner live verification.
 
 — Codex
