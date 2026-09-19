@@ -6,6 +6,7 @@ import { AgentAvatar } from "../../../panels/messager/AgentAvatar";
 import { listHubAgents, setAgentDisplayName } from "../../api";
 import { inputStyle } from "../shared";
 import RoleAssignmentControl from "./RoleAssignmentControl";
+import VTuberProfileControl from "./VTuberProfileControl";
 
 export interface TeamProfilesSectionProps {
   onChanged?: () => void;
@@ -286,6 +287,13 @@ export function TeamProfilesSection({ onChanged }: TeamProfilesSectionProps) {
                         }}
                       />
                     </div>
+                    <VTuberProfileControl
+                      agent={agent}
+                      onChanged={() => {
+                        void loadAgents();
+                        onChanged?.();
+                      }}
+                    />
                   </div>
                 </div>
               </div>

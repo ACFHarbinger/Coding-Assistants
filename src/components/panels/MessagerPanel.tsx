@@ -8,6 +8,7 @@ import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
 import MemoryDrawer from "./messager/MemoryDrawer";
 import MessageContextMenu from "./messager/MessageContextMenu";
+import { forwardVtuberSpeech } from "../settings/api";
 export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, MessagerPanelProps } from "./messager/types";
 export default function MessagerPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: MessagerPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
@@ -70,6 +71,30 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const prevChannelRef = useRef(activeChannel);
   const [jumpToLatest, setJumpToLatest] = useState(false);
   const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) || null;
+  const [vtuberNotice, setVtuberNotice] = useState<string | null>(null);
+  const forwardedMessageIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    const animatedAgents = (hubAgents || []).filter(a => a.animated_avatar);
+    if (animatedAgents.length === 0) return;
+    const map = new Map(animatedAgents.map(a => [a.id, a]));
+
+    for (const msg of hubMessages) {
+      if (forwardedMessageIds.current.has(msg.id)) continue;
+      forwardedMessageIds.current.add(msg.id);
+      const agent = map.get(msg.from_agent);
+      if (agent) {
+        forwardVtuberSpeech(agent.id, msg.body, agent.vtuber_character)
+          .then(res => {
+            if (!res.forwarded && res.error) setVtuberNotice(res.error);
+          })
+          .catch(e => {
+            setVtuberNotice(`VTuber bridge: ${e}`);
+          });
+      }
+    }
+  }, [hubMessages, hubAgents]);
 
   useEffect(() => {
     if (!focusSessionId) return;
@@ -385,7 +410,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel, sortOrder]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>

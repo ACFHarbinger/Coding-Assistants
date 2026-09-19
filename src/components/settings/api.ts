@@ -356,3 +356,50 @@ export function setAgentRole(agentId: string, role: string | null): Promise<HubA
   return invoke<HubAgent>("hub_set_agent_role", { agentId, role: role ?? null });
 }
 
+export interface VtuberBridgeStatus {
+  available: boolean;
+  endpoint: string;
+  message: string;
+}
+
+export interface VtuberForwardResult {
+  forwarded: boolean;
+  error?: string | null;
+}
+
+/** Opt an agent into or out of animated V-Tuber avatar presence (U17 / #307). */
+export function setAgentAnimatedAvatar(
+  agentId: string,
+  enabled: boolean,
+  character?: string | null,
+): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_animated_avatar", {
+    agentId,
+    enabled,
+    character: character ?? null,
+  });
+}
+
+/** Probes whether local Open-LLM-VTuber instance is accessible (on-demand test only). */
+export function testVtuberBridge(baseUrl?: string): Promise<VtuberBridgeStatus> {
+  return invoke<VtuberBridgeStatus>("hub_test_vtuber_bridge", {
+    baseUrl: baseUrl ?? null,
+  });
+}
+
+/** Forwards assistant speech text to Open-LLM-VTuber direct speak endpoint. */
+export function forwardVtuberSpeech(
+  agentId: string,
+  text: string,
+  character?: string | null,
+  baseUrl?: string,
+): Promise<VtuberForwardResult> {
+  return invoke<VtuberForwardResult>("hub_forward_vtuber_speech", {
+    agentId,
+    text,
+    character: character ?? null,
+    baseUrl: baseUrl ?? null,
+  });
+}
+
+

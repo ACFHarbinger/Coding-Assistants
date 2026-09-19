@@ -61,7 +61,9 @@ impl HubStore {
                 card_json TEXT,
                 team_member INTEGER NOT NULL DEFAULT 0,
                 role TEXT,
-                custom_display_name INTEGER NOT NULL DEFAULT 0
+                custom_display_name INTEGER NOT NULL DEFAULT 0,
+                animated_avatar INTEGER NOT NULL DEFAULT 0,
+                vtuber_character TEXT
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -366,6 +368,8 @@ impl HubStore {
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",
             "ALTER TABLE agents ADD COLUMN role TEXT",
             "ALTER TABLE agents ADD COLUMN custom_display_name INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE agents ADD COLUMN animated_avatar INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE agents ADD COLUMN vtuber_character TEXT",
             "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
