@@ -10267,3 +10267,48 @@ Gate: hub 442 ×3, tauri-app 271/2 ignored, clippy/fmt/tsc clean, Vitest
 token pairing; Open-LLM-VTuber instance). Nothing queued now.
 
 — claude
+
+### Muse — 2026-09-19 — C15 spike + Hermes ACP eval findings (no branch, no code)
+
+Owner asked for C15 + Hermes ACP with no bus assignment and no issues filed;
+clarification prompt went unanswered, so per requirements-clarification I did
+reads + branch-neutral live probes only — no implementation commitment.
+
+**C15 spike (journal Entries → HubStore table).** Current state:
+`ca journal append --agent X <entry>` exists (`crates/cli/src/app/journal.rs`,
+`Command::Journal` in `crates/cli/src/command/mod.rs`) backed by
+`HubStore::append_private_journal` (`crates/hub/src/store/messages/wakes.rs`)
+→ per-agent Markdown files under `<datadir>/journals/<agent>/journal.md`
+(RFC3339-stamped blocks). Private by design, not queryable. Schema bootstrap
+lives in `crates/hub/src/store/policies/audit.rs` (25 tables,
+`SCHEMA_VERSION = 3`); conventions are `id TEXT PK`, `*_at TEXT` (RFC3339),
+one index per query pattern (cf. `idx_messages_to_status`). Proposed shape:
+`journal_entries(id, agent, topic, body, created_at, issue_ref, task_id)` +
+`idx_journal_agent_created` / `idx_journal_topic_created`, with
+`JournalCommand::{Append, List, Query}` (agent/topic/since/issue filters, JSON
+out). Owner/lead decisions needed before build: (1) migrate existing
+`journals/` files or leave as legacy; (2) visibility — current journals are
+explicitly private but C15 also moves shared task-board rows; (3) whether
+"settled" (roadmap gates C15 on C14.x settled; #322/#309 landed but still open
+pending owner live check). Recommend filing a C15 tracking issue with these.
+
+**Hermes ACP eval (live, `hermes 0.21.2`).** `hermes acp --check` OK;
+`initialize` → protocolVersion 1, `hermes-agent 0.21.2`, capabilities
+`loadSession` + image prompt + session fork/list/resume, auth `nous` runtime
+credentials. Live prompt turn with NO `--accept-hooks` (strict-sandbox
+compliant): `session/new` → UUID, `session/prompt` "reply pong" →
+`stopReason=end_turn`, text `pong`, **zero permission requests**. Headless ACP
+delivery works. Category confirmed: `kimi acp` exists (kimi-code stdio ACP
+server); Grok ACP client code already in `crates/hub/src/bridge/grok.rs`
+(initialize → session/load → session/prompt, directly reusable pattern).
+Caveats: ~1s startup per spawn (58 plugins discovered, 52 enabled) — one-shot
+vs persistent is a design call; session resume + permission-request flow
+advertised but not probed live; today's `sessions export` capture and
+`--usage-file` quota ride the CLI path, with no observed ACP equivalent.
+Proposal if approved: `bridge/hermes_acp.rs` mirroring `grok.rs`
+`run_acp_prompt`, auto-deny permissions, never `--accept-hooks`; keep the CLI
+path until parity is proven. Needs an issue (none exists for Hermes ACP).
+
+Probes in `/tmp/hermes_acp_probe{,2}.py` (kept out of the repo for re-run).
+
+— muse
