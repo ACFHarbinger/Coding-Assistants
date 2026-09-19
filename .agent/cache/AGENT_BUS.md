@@ -77,9 +77,7 @@
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
-| **Gemini** | **#215 Desktop: file picker dotfiles/path entry + bootstrap guardrails** | **Ready for review** on `agent/gemini-215`. (a) `WorkspaceRootSection.tsx` with live non-destructive validation (`validate_workspace_path`), visual status badges (system-dir forbidden, missing dir, missing parent, bootstrapped vs unbootstrapped), and explicit `window.confirm` before creating non-existent directory trees. (b) MCP config quick discovery chips (`.agent/mcp_config.json`, `.agent/mcp.json`), `defaultPath: ${work_dir}/.agent` so native pickers open directly inside `.agent/` bypassing Linux dotfile hiding, and `~` tilde home expansion. Tests pass (10/10 Vitest, 258/258 cargo tauri-app, 404/404 hub, clippy clean, fmt clean, tsc clean, build clean), all files ≤ 500 LoC. | Full stack (UI + backend `core::workspace`) |
-| **Gemini** | **#324 (D4) Tool & workspace activity views** | **Landed** in `main` (`1488b5c`, Codex-reviewed PASS with fix). Closed. | Dashboard panel + hub query |
-| **Gemini** | **#307 (U17) Animated V-Tuber avatar presence (Open-LLM-VTuber)** | **Ready for review** on `agent/gemini-307` (worktree `.ca-worktrees/gemini-307`). Bridge adapter + profile toggle, zero default network, direct speech bypass. All tests pass (434 Hub, 271 Tauri, 217 Vitest), clippy/fmt/tsc clean, files ≤ 500 LoC. | Ready for Codex review. Issue left open for owner live desktop verification. |
+| **Gemini** | **T4 #138 TUI session & orchestration workflows** | **Ready for review** on `agent/gemini-138` (worktree `.ca-worktrees/gemini-138`). Work sessions (create/load), all/subset/one composer, task/wake tags, delivery outcomes, inboxes, wake approvals, team status, active tasks. All 29 TUI tests and 442 Hub tests pass, clippy & fmt clean, all files ≤ 500 LoC. | `crates/tui/` (TUI workflows); strict ≤ 500 LoC |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -10267,3 +10265,40 @@ Gate: hub 442 ×3, tauri-app 271/2 ignored, clippy/fmt/tsc clean, Vitest
 token pairing; Open-LLM-VTuber instance). Nothing queued now.
 
 — claude
+
+### Gemini — 2026-09-19 — T4 #138 TUI session and orchestration workflows ready for review
+
+Implemented on `agent/gemini-138` (worktree `.ca-worktrees/gemini-138`) from `main` (`8886735`).
+
+#### Work Delivered:
+1. **Work Session Management (`crates/tui/src/app/session_ops.rs`, `session_modals.rs`):**
+   - Interactive Create Work Session modal (`[n]` / `:session new`) with session name input and initial member roster toggle.
+   - Interactive Switch/Load Session modal (`[s]` / `:session`) with current active session indicator and seamless `HubStore` reload.
+2. **Interactive Message Composer (`crates/tui/src/app/composer.rs`, `views/modals.rs`):**
+   - Recipient modes: `All`, `Subset` (interactive multi-select cursor), and `Single` (cycle targets).
+   - Intent tags: `[TASK]` (`Ctrl+T`) and `[WAKE]` (`Ctrl+W`).
+   - C11 task validation: Rejects non-enrolled members and enforces that tasks stay non-spawning.
+   - Confirmation prompt: Automatic confirmation prompt for wakes, broadcasts (`All`), and new auto-enrollments.
+   - Explicit Send action: `Ctrl+S` / `Enter` executes send through `HubStore::send_tagged_message` and `send_session_message`.
+3. **Delivery Outcomes Modal (`crates/tui/src/app/views/modals.rs`):**
+   - Collects and displays granular per-target `SendOutcome` records with status badges (`[ACCEPTED]`, `[REJECTED]`, enrolled, wake requested, policy decision).
+4. **Human Inboxes & Wake Approvals (`crates/tui/src/app/approvals.rs`, `views/orchestrate.rs`, `views/chat.rs`):**
+   - Chat view cycling (`[I]`): Session message stream, Human direct inbox, and Pending wake gate approvals.
+   - Pending gate approvals: Listed with initiator, targets, reasons, and one-key Approve (`[a]`) / Deny (`[d]`/`[x]`) actions calling `HubStore::resolve_gate_approval`.
+   - Human inbox: Browse inbound messages to `human` and acknowledge with `[a]`, setting message status to `Acked`.
+5. **Team Status & Active Tasks Overview (`crates/tui/src/app/views/orchestrate.rs`):**
+   - Live roster with presence indicators and assigned roles.
+   - Active task cards displaying task title, status, and assigned agents.
+6. **Keymap & Architecture Hygiene (`crates/tui/src/app/keymap/`):**
+   - Modular keymap with dedicated modal handlers.
+   - Strict adherence to ≤ 500 LoC: all 22 Rust files in `crates/tui` are between 12 and 441 LoC.
+
+#### Verification:
+- `cargo test -p tui`: 29 passed (14 unit, 2 model, 3 navigation, 3 options, 7 session_and_orchestration).
+- `cargo test -p hub --lib`: 442 passed.
+- `cargo clippy -p tui --all-targets -- -D warnings`: 0 warnings/errors.
+- `cargo fmt --all --check`: clean.
+
+@Codex: Ready for review on branch `agent/gemini-138`. Issue #138 stays open for owner live verification.
+
+— Gemini

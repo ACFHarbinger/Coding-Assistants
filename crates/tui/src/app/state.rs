@@ -1,3 +1,6 @@
+use super::approvals::ApprovalsState;
+use super::composer::ComposerState;
+use super::session_ops::{CreateSessionState, SessionSwitcherState};
 use crate::model::HubReadModel;
 use crate::options::TuiOptions;
 use crate::theme::{Theme, ThemeName};
@@ -65,6 +68,11 @@ pub struct AppState {
     /// idle splash's animated gradient sweep and spinner glyph. Never
     /// persisted — purely a render-time animation clock.
     pub tick: u64,
+    // T4 Orchestration & Collaboration State
+    pub composer: ComposerState,
+    pub session_switcher: SessionSwitcherState,
+    pub create_session: CreateSessionState,
+    pub approvals: ApprovalsState,
 }
 
 impl AppState {
@@ -120,6 +128,10 @@ impl AppState {
             theme_name: ThemeName::Grok,
             theme: Theme::from_name(ThemeName::Grok),
             tick: 0,
+            composer: ComposerState::default(),
+            session_switcher: SessionSwitcherState::default(),
+            create_session: CreateSessionState::default(),
+            approvals: ApprovalsState::default(),
         }
     }
 
@@ -129,6 +141,32 @@ impl AppState {
         self.theme_name = self.theme_name.next();
         self.theme = Theme::from_name(self.theme_name);
         self.status_message = format!("Theme: {}", self.theme_name.label());
+    }
+
+    pub fn open_composer(&mut self) {
+        self.composer.open(&self.read_model.team_members);
+    }
+
+    pub fn open_session_switcher(&mut self) {
+        self.session_switcher.open();
+    }
+
+    pub fn open_create_session(&mut self) {
+        self.create_session.open(&self.read_model.team_members);
+    }
+
+    pub fn load_session(&mut self, session_id: String) {
+        self.session_id = Some(session_id.clone());
+        self.session_switcher.close();
+        self.refresh();
+        let name = self
+            .read_model
+            .work_sessions
+            .iter()
+            .find(|s| s.id == session_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| session_id.clone());
+        self.status_message = format!("Loaded work session '{name}' ({session_id}).");
     }
 
     pub fn refresh(&mut self) {
@@ -174,6 +212,25 @@ impl AppState {
             "4" | "settings" => {
                 self.active_tab = TabIndex::Settings;
                 self.status_message = String::from("Navigated to Settings panel.");
+            }
+            "c" | "compose" => {
+                self.open_composer();
+            }
+            "session" | "sessions" | "session switch" | "switch session" => {
+                self.open_session_switcher();
+            }
+            "session new" | "new session" => {
+                self.open_create_session();
+            }
+            "inbox" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = super::approvals::ChatViewMode::HumanInbox;
+                self.status_message = String::from("Viewing Human Direct Inbox.");
+            }
+            "approvals" | "wakes" | "gates" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = super::approvals::ChatViewMode::PendingApprovals;
+                self.status_message = String::from("Viewing Pending Wake Gate Approvals.");
             }
             "r" | "refresh" => {
                 self.refresh();

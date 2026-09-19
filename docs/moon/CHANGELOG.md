@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Session and orchestration workflows in the TUI (T4, #138):**
+  Desktop-parity work session management (Create and Load modals, roster
+  configuration, workspace binding), interactive message composer with
+  All / Subset / Single recipient modes, `[TASK]` and `[WAKE]` intent tags,
+  strict C11 task validation (rejects absent members, keeps tasks non-spawning),
+  confirmation modal defaults for wakes, broadcasts, and auto-enrollments,
+  explicit Send action, structured delivery outcomes popup, direct human inbox
+  browsing and acknowledgment, pending wake gate approval/denial controls, and
+  full team roster and active task overview in Orchestrate and Chat & Memory tabs.
+
 - **Animated V-Tuber avatar presence (U17, #307):** optional, default-off
   integration with local Open-LLM-VTuber instances. Per-identity toggle in
   Settings (`TeamProfilesSection` / `VTuberProfileControl`) stored in

@@ -10,14 +10,7 @@ fn test_tui_app_state_navigation_and_command_palette() {
     let effective = settings_store.effective(None);
 
     let opts = TuiOptions::default();
-    let read_model = HubReadModel {
-        work_sessions: vec![],
-        team_members: vec![],
-        channel_messages: vec![],
-        tasks: vec![],
-        audit_events: vec![],
-        effective_settings: effective.clone(),
-    };
+    let read_model = HubReadModel::empty(effective.clone());
 
     let mut app = AppState::new(&opts, home_path, &effective, read_model);
 
@@ -61,14 +54,7 @@ fn test_refresh_hides_internal_hub_errors() {
     let invalid_home = dir.path().join("not-a-directory");
     std::fs::write(&invalid_home, "not a hub directory").unwrap();
     let effective = hub::SettingsStore::open(dir.path()).effective(None);
-    let read_model = HubReadModel {
-        work_sessions: vec![],
-        team_members: vec![],
-        channel_messages: vec![],
-        tasks: vec![],
-        audit_events: vec![],
-        effective_settings: effective.clone(),
-    };
+    let read_model = HubReadModel::empty(effective.clone());
 
     let mut app = AppState::new(&TuiOptions::default(), invalid_home, &effective, read_model);
     app.refresh();
@@ -92,14 +78,7 @@ fn test_tui_preferences_and_prefix_mode() {
     assert!(effective.tui.high_contrast);
 
     let opts = TuiOptions::default();
-    let read_model = HubReadModel {
-        work_sessions: vec![],
-        team_members: vec![],
-        channel_messages: vec![],
-        tasks: vec![],
-        audit_events: vec![],
-        effective_settings: effective.clone(),
-    };
+    let read_model = HubReadModel::empty(effective.clone());
 
     let mut app = AppState::new(&opts, home_path.clone(), &effective, read_model);
     assert!(!app.is_prefix_mode_active);

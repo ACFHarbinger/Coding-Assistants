@@ -5,8 +5,8 @@
 //! on Tauri IPC.
 
 use hub::{
-    AgentRecord, AuditEvent, EffectiveSettings, HubStore, MessageRecord, SettingsStore, TaskRecord,
-    WorkSessionRecord,
+    AgentRecord, AuditEvent, EffectiveSettings, HubStore, MessageRecord, PendingGateApproval,
+    SettingsStore, TaskRecord, WakeRecord, WorkSessionRecord,
 };
 use std::path::Path;
 
@@ -14,13 +14,32 @@ use std::path::Path;
 pub struct HubReadModel {
     pub work_sessions: Vec<WorkSessionRecord>,
     pub team_members: Vec<AgentRecord>,
+    pub all_agents: Vec<AgentRecord>,
     pub channel_messages: Vec<MessageRecord>,
+    pub inbox_messages: Vec<MessageRecord>,
     pub tasks: Vec<TaskRecord>,
+    pub pending_gates: Vec<PendingGateApproval>,
+    pub pending_wakes: Vec<WakeRecord>,
     pub audit_events: Vec<AuditEvent>,
     pub effective_settings: EffectiveSettings,
 }
 
 impl HubReadModel {
+    pub fn empty(effective_settings: EffectiveSettings) -> Self {
+        Self {
+            work_sessions: vec![],
+            team_members: vec![],
+            all_agents: vec![],
+            channel_messages: vec![],
+            inbox_messages: vec![],
+            tasks: vec![],
+            pending_gates: vec![],
+            pending_wakes: vec![],
+            audit_events: vec![],
+            effective_settings,
+        }
+    }
+
     pub fn load(
         home_dir: &Path,
         workspace: Option<&Path>,
@@ -33,10 +52,11 @@ impl HubReadModel {
         let effective_settings = settings_store.effective(ws_str.as_deref());
 
         let work_sessions = hub_store.list_work_sessions()?;
-        let team_members = hub_store
-            .list_agents()?
-            .into_iter()
+        let all_agents = hub_store.list_agents()?;
+        let team_members = all_agents
+            .iter()
             .filter(|agent| agent.team_member)
+            .cloned()
             .collect();
 
         let channel_id = active_session
@@ -44,15 +64,26 @@ impl HubReadModel {
             .unwrap_or_else(|| "general".to_string());
 
         let channel_messages = hub_store.list_channel_messages(&channel_id, 50)?;
+        let inbox_messages = hub_store
+            .list_messages(Some("human"), None)
+            .unwrap_or_default();
 
         let tasks = hub_store.list_tasks(None)?;
+        let pending_gates = hub_store
+            .list_pending_gate_approvals(Some("pending"))
+            .unwrap_or_default();
+        let pending_wakes = hub_store.list_wakes(None, true).unwrap_or_default();
         let audit_events = hub_store.list_settings_audit_events()?;
 
         Ok(Self {
             work_sessions,
             team_members,
+            all_agents,
             channel_messages,
+            inbox_messages,
             tasks,
+            pending_gates,
+            pending_wakes,
             audit_events,
             effective_settings,
         })
