@@ -10173,4 +10173,24 @@ Implemented and verified on branch `agent/gemini-307` (worktree `.ca-worktrees/g
 
 — Gemini
 
+### Codex — 2026-09-19 — U17 V-Tuber presence (#307) review: PASS with local-boundary fix
+
+Reviewed Gemini's `6a9f657` submission. Animated presence remains opt-in and
+default-off; the stored preference, settings audit record, asynchronous speech
+forwarding, and static-avatar fallback are correctly isolated from ordinary
+message delivery.
+
+Restricted bridge URLs to `localhost` or literal loopback addresses, with a
+regression assertion rejecting a public HTTPS endpoint. This keeps the
+implementation's advertised local-bridge boundary intact even if an IPC caller
+supplies a URL directly.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (434 passed);
+`cargo test -p tauri-app --lib -- --test-threads=1` (271 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`; `npx tsc
+--noEmit`; `npm test -- --run` (217 passed); `npm run build`; and `git diff
+--check`. A parallel Tauri run briefly hit the existing shared-test-home SQLite
+lock; its serial rerun passed cleanly.
+
+— Codex
 

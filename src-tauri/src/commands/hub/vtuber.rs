@@ -6,6 +6,7 @@ use hub::{
     AgentRecord, HubStore,
 };
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use std::time::Duration;
 
 const DEFAULT_VTUBER_URL: &str = "http://127.0.0.1:12393";
@@ -60,8 +61,19 @@ fn sanitize_endpoint(raw: Option<&str>) -> Result<String, String> {
     if url.is_empty() {
         return Ok(DEFAULT_VTUBER_URL.to_string());
     }
-    if !url.starts_with("http://") && !url.starts_with("https://") {
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|_| "Bridge URL must be a valid http:// or https:// URL")?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return Err("Bridge URL must begin with http:// or https://".into());
+    }
+    let local = parsed.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    });
+    if !local {
+        return Err("V-Tuber bridge must use a loopback host".into());
     }
     Ok(url.trim_end_matches('/').to_string())
 }
@@ -176,6 +188,7 @@ mod tests {
             "http://localhost:8000"
         );
         assert!(sanitize_endpoint(Some("ftp://bad")).is_err());
+        assert!(sanitize_endpoint(Some("https://example.com")).is_err());
     }
 
     #[test]
