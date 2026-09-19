@@ -117,7 +117,8 @@ pub use store::{
     EffectiveAgentPermissions, GateVerdict, GitExportOutcome, HarnessSessionMode,
     HarnessSessionRegistration, HarnessSessionState, HubError, HubStore, LinkSuggestion,
     LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord, MemoryRecord, MemoryScope,
-    MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval, ReadMarker, Role,
-    RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy,
-    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord, UNATTRIBUTED_AUTHOR,
+    MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval, ProviderCallGate,
+    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
+    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord,
+    DEFAULT_PROVIDER_CALL_UNITS, UNATTRIBUTED_AUTHOR,
 };

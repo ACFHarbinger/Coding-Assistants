@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Runtime budget pause/summary/shutdown gate (P10, #328):**
+  `HubStore::gate_provider_call` is the single pre-call decision
+  (unmetered / reserved / stopped). First exhaustion writes the C6
+  Markdown summary + handoff; a later call against an already-paused
+  agent is denied without another file. `record_shutdown` now pauses a
+  configured budget so wakes and further calls stay blocked until
+  `resume_agent`. `AgentSystem` reserves one call unit before every
+  in-process `chat_completion` (role turn, `[[ASK_AGENT]]` target, and
+  session summary), persists the role report before stopping remaining
+  roles, and exposes `hub_gate_provider_call` for external adapters.
+  Affine/compile-time budget types remain postponed.
+
 - **Animated V-Tuber avatar presence (U17, #307):** optional, default-off
   integration with local Open-LLM-VTuber instances. Per-identity toggle in
   Settings (`TeamProfilesSection` / `VTuberProfileControl`) stored in

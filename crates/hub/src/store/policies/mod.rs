@@ -1,6 +1,7 @@
 use super::*;
 
 mod audit;
+mod budget_gate;
 mod seeding;
 mod settings_audit;
 
@@ -297,6 +298,8 @@ impl HubStore {
     }
 
     /// Persist a cancellation/shutdown handoff so interrupted work is not lost.
+    /// If a budget exists for `agent_id`, it is paused so further provider
+    /// calls and wakes stay blocked until a human `resume_agent`s (P10).
     pub fn record_shutdown(
         &self,
         agent_id: &str,
@@ -305,6 +308,10 @@ impl HubStore {
         reason: &str,
         delegate_to: Option<&str>,
     ) -> Result<ShutdownOutcome, HubError> {
+        let _ = self.conn.execute(
+            "UPDATE agent_budgets SET paused = 1, updated_at = ?1 WHERE agent_id = ?2",
+            params![Utc::now().to_rfc3339(), agent_id],
+        )?;
         let delegate = delegate_to.unwrap_or("human");
         let now = Utc::now().to_rfc3339();
         let summary = format!(

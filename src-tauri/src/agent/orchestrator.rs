@@ -1,9 +1,10 @@
+use super::budget::BudgetContext;
 use super::memory_recall::MemoryRecallEvent;
 use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
-use hub::{bus::InProcessBus, HubStore};
+use hub::bus::InProcessBus;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -97,33 +98,17 @@ impl AgentSystem {
 
         let mut previous_outputs = format!("Task: {}\n", task);
         let mut final_result = String::new();
+        let budget = BudgetContext::open(task);
 
         let mut file_vector = Vec::<String>::new();
         let total_roles = self.config.roles.len();
         for (idx, role_config) in self.config.roles.iter().enumerate() {
             if token.load(Ordering::SeqCst) {
+                budget.shutdown(&role_config.name, "Task cancelled");
                 return Err("Task cancelled".into());
             }
 
             let role_name = &role_config.name;
-            let budget_store = HubStore::open(default_hub_dir()).ok();
-            let budget_reservation = if let Some(store) = &budget_store {
-                if store
-                    .get_budget(role_name)
-                    .map_err(|e| e.to_string())?
-                    .is_some()
-                {
-                    Some(
-                        store
-                            .try_consume_budget(role_name, 1.0)
-                            .map_err(|e| e.to_string())?,
-                    )
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
             let default_system = format!(
                 "You are an expert {}. Work with your team to complete the task. \n\
                  Review the previous outputs and contribute your expertise. \n\
@@ -171,45 +156,19 @@ impl AgentSystem {
                     token.clone(),
                     input_rx,
                     mcp_abs_path.as_deref(),
+                    &budget,
                 )
                 .await;
 
             if let Err(error) = &completion {
-                if token.load(Ordering::SeqCst) {
-                    if let Ok(store) = HubStore::open(default_hub_dir()) {
-                        let _ = store.record_shutdown(role_name, None, task, error, None);
-                    }
-                }
+                budget.shutdown_if_cancelled(role_name, &token, error);
                 return Err(error.clone());
             }
-            let completion = completion.expect("completion checked above");
-
-            if let (Some(store), Some(status)) = (&budget_store, budget_reservation) {
-                if status.paused {
-                    let completed = if completion.is_empty() {
-                        "Provider call completed without output."
-                    } else {
-                        "Provider call completed and its output was captured in the task transcript."
-                    };
-                    let _ = store.pause_for_budget(
-                        role_name,
-                        None,
-                        task,
-                        completed,
-                        "Remaining workflow roles and final synthesis.",
-                        None,
-                    );
-                    return Err(format!(
-                        "agent {role_name} reached its budget ({}/{} units); handoff written",
-                        status.spent_units, status.limit_units
-                    ));
-                }
-            }
-            let output = completion;
+            let output = completion.expect("completion checked above");
 
             // Persist local, provider-neutral observability counters. Exact
             // token/cache values can be supplied later by provider adapters.
-            if let Ok(store) = HubStore::open(default_hub_dir()) {
+            if let Ok(store) = hub::HubStore::open(hub::default_hub_home()) {
                 let _ = store.record_agent_metrics(
                     role_name,
                     output.lines().count() as i64,
@@ -228,7 +187,8 @@ impl AgentSystem {
 
             previous_outputs.push_str(&format!("\nOutput from {}:\n{}\n", role_name, output));
             final_result.push_str(&format!("## {} Output\n{}\n\n", role_name, output));
-            if idx == total_roles - 1 {
+            if idx == total_roles - 1 && !budget.is_paused(role_name) {
+                budget.deny_unless_allowed(role_name)?;
                 let mut all_contents = String::new();
                 for file_path in &file_vector {
                     if let Ok(content) = self.file_tools.read_file(file_path).await {
@@ -255,7 +215,12 @@ impl AgentSystem {
                         mcp_abs_path.as_deref(),
                         Some(token.clone()),
                     )
-                    .await?;
+                    .await;
+                if let Err(error) = &summary {
+                    budget.shutdown_if_cancelled(role_name, &token, error);
+                    return Err(error.clone());
+                }
+                let summary = summary.expect("summary checked above");
 
                 if let Err(e) = self
                     .file_tools
@@ -274,6 +239,13 @@ impl AgentSystem {
                 )
                 .await;
             }
+
+            let completed = if output.is_empty() {
+                "Provider call completed without output."
+            } else {
+                "Provider call completed and its output was captured in the task transcript."
+            };
+            budget.handoff_if_paused(role_name, completed)?;
         }
         Ok(final_result)
     }
@@ -290,11 +262,12 @@ impl AgentSystem {
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
         mcp_config_path: Option<&str>,
+        budget: &BudgetContext,
     ) -> Result<String, String> {
         let mut history = initial_prompt.to_string();
 
         loop {
-            // Call LLM
+            budget.deny_unless_allowed(source)?;
             let response = self
                 .client
                 .chat_completion(
@@ -307,6 +280,9 @@ impl AgentSystem {
                     Some(token.clone()),
                 )
                 .await?;
+            if budget.is_paused(source) {
+                return Ok(response);
+            }
 
             // Check for [[ASK_USER]]
             if let Some(pos) = response.find("[[ASK_USER]]") {
@@ -411,7 +387,10 @@ impl AgentSystem {
 
                     let target_prompt = format!("{}\n\n{}", target_system, target_context);
 
-                    // Call target agent (non-interactive to avoid infinite loops for now)
+                    if let Err(stop) = budget.deny_unless_allowed(target_role_name) {
+                        history.push_str(&format!("\n\nSystem: {stop}"));
+                        continue;
+                    }
                     let answer = self
                         .client
                         .chat_completion(
@@ -424,6 +403,10 @@ impl AgentSystem {
                             Some(token.clone()),
                         )
                         .await?;
+                    budget.write_exhaustion_handoff(
+                        target_role_name,
+                        "Answered a peer ASK_AGENT turn.",
+                    );
 
                     history.push_str("\n\nAgent: ");
                     history.push_str(&response);
@@ -453,8 +436,4 @@ fn emit_agent(
             content: content.into(),
         },
     );
-}
-
-fn default_hub_dir() -> std::path::PathBuf {
-    hub::default_hub_home()
 }
