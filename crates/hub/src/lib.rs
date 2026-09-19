@@ -12,6 +12,7 @@ mod harness;
 pub mod mcp;
 mod paths;
 pub mod proc;
+pub mod remote;
 pub mod secret;
 mod settings;
 mod store;

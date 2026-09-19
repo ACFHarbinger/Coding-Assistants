@@ -10,6 +10,7 @@ mod agent;
 mod commands;
 mod harness;
 mod journal;
+mod telegram;
 
 pub(crate) use agent::AgentCommand;
 pub(crate) use commands::{
@@ -17,6 +18,7 @@ pub(crate) use commands::{
 };
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
+pub(crate) use telegram::TelegramCommand;
 
 #[derive(Parser)]
 #[command(name = "ca", about = "Coding-Assistants shared hub CLI")]
@@ -125,6 +127,11 @@ pub(crate) enum Command {
         /// Persist the specified invocation session as the default session setting.
         #[arg(long, requires = "session")]
         set_as_default_session_settings: bool,
+    },
+    /// Telegram remote-control bot (U25). Opt-in; outbound long-poll only.
+    Telegram {
+        #[command(subcommand)]
+        action: TelegramCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {

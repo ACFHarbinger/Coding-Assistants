@@ -390,6 +390,19 @@ pub const CATALOG: &[FieldSpec] = &[
         docs_url: None,
         notes: Some("Custom endpoint URL when using OpenAI-compatible embeddings."),
     },
+    FieldSpec {
+        id: "tool.telegram.bot_token",
+        display_name: "Telegram Bot Token",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "telegram",
+        env_var: Some("TELEGRAM_BOT_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://core.telegram.org/bots/tutorial"),
+        notes: Some(
+            "BotFather token for the U25 Telegram remote client. Vault wins; env is the fallback.",
+        ),
+    },
 ];
 
 /// Look up a field in the catalog by its unique id.

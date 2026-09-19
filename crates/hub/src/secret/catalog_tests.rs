@@ -108,6 +108,7 @@ fn catalog_accessors_find_expected_fields() {
     assert!(secrets.iter().any(|f| f.id == "provider.deepseek.api_key"));
     assert!(secrets.iter().any(|f| f.id == "harness.cursor.login_token"));
     assert!(secrets.iter().any(|f| f.id == "mcp.perplexity.api_key"));
+    assert!(secrets.iter().any(|f| f.id == "tool.telegram.bot_token"));
 
     let by_env = field_by_env_var("DEEPSEEK_API_KEY").expect("should find by env var");
     assert_eq!(by_env.id, "provider.deepseek.api_key");
