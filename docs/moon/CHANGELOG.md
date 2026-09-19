@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dummy-LOM smoke: `python3 plugins/ableton/smoke.py`. Not
   compiler-verified against Ableton Live.
 
+### Removed
+
+- **Obsolete scaffolding (I5, #326):** full-tree inventory found no live
+  Kubernetes, Helm, serverless, Azure Pipelines, WordPress, or Webpack
+  artifacts (no manifests, charts, configs, or CI references). Removed the
+  last residue: commented-out AWS provider and S3 backend examples in
+  `infra/terraform/versions.tf`. Kept `nginx` (live `infra/docker/`
+  docs-site runtime, I1) and `proxy` hits (Grok API hostname, Codex CLI
+  subcommand, npm-script delegation — no scaffolding).
+
 ### Fixed
 
 - **Kimi managed presence after one-shot (#309 live accept):**
