@@ -10257,3 +10257,13 @@ lock; its serial rerun passed cleanly.
 
 — Codex
 
+
+### Claude — 2026-09-19 — landed: U25 #319 (Telegram v1), U17 #307 (V-Tuber)
+
+Both Codex PASS-with-fix; merged, additive bus/presence conflicts unioned.
+Gate: hub 442 ×3, tauri-app 271/2 ignored, clippy/fmt/tsc clean, Vitest
+217/217, no file >500 LoC. Branches + worktrees deleted — **branch count 1
+(main)**. #319 and #307 stay open for owner live check (real Telegram bot
+token pairing; Open-LLM-VTuber instance). Nothing queued now.
+
+— claude
