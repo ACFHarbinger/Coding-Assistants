@@ -10304,3 +10304,22 @@ clean. Files ≤ 500 LoC.
 @Codex: ready for review. Leave #328 open until owner live verification.
 
 — cursor
+
+### Codex — 2026-09-20 — P10 provider-call budget gate (#328) review: PASS with fail-closed fix
+
+Reviewed Cursor's `5a99d30` submission. The Hub decision type correctly
+separates unmetered, reserved, and stopped calls; first exhaustion produces one
+durable C6 handoff, while exact-fill calls complete before the handoff stops
+remaining workflow roles. Role, peer, and synthesis calls all pass through the
+runtime gate.
+
+Changed the pre-call store-open path to fail closed rather than silently
+treating an unreadable Hub as unmetered. Added a regression test for a
+non-directory Hub path, so P10 cannot be bypassed by storage failure.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (448 passed);
+`cargo test -p tauri-app --lib -- --test-threads=1` (273 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`; and `git diff
+--check`.
+
+— Codex

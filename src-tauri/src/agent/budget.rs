@@ -21,14 +21,13 @@ impl BudgetContext {
         }
     }
 
-    fn store(&self) -> Option<HubStore> {
-        HubStore::open(self.home.clone().unwrap_or_else(hub::default_hub_home)).ok()
+    fn store(&self) -> Result<HubStore, String> {
+        HubStore::open(self.home.clone().unwrap_or_else(hub::default_hub_home))
+            .map_err(|error| format!("budget gate could not open HubStore: {error}"))
     }
 
     pub fn gate(&self, agent_id: &str) -> Result<ProviderCallGate, String> {
-        let Some(store) = self.store() else {
-            return Ok(ProviderCallGate::Unmetered);
-        };
+        let store = self.store()?;
         store
             .gate_provider_call(
                 agent_id,
@@ -52,7 +51,7 @@ impl BudgetContext {
     }
 
     pub fn is_paused(&self, agent_id: &str) -> bool {
-        let Some(store) = self.store() else {
+        let Ok(store) = self.store() else {
             return false;
         };
         store
@@ -63,7 +62,7 @@ impl BudgetContext {
     }
 
     pub fn write_exhaustion_handoff(&self, agent_id: &str, completed: &str) {
-        let Some(store) = self.store() else {
+        let Ok(store) = self.store() else {
             return;
         };
         let Ok(Some(status)) = store.get_budget(agent_id) else {
@@ -91,13 +90,14 @@ impl BudgetContext {
         self.write_exhaustion_handoff(agent_id, completed);
         let status = self
             .store()
+            .ok()
             .and_then(|store| store.get_budget(agent_id).ok().flatten())
             .ok_or_else(|| format!("agent {agent_id} is budget-paused"))?;
         Err(stop_message(agent_id, &status, true))
     }
 
     pub fn shutdown(&self, agent_id: &str, reason: &str) {
-        let Some(store) = self.store() else {
+        let Ok(store) = self.store() else {
             return;
         };
         let _ = store.record_shutdown(agent_id, None, &self.task, reason, None);
@@ -145,5 +145,17 @@ mod tests {
             err.contains("budget-paused") || err.contains("reached its budget"),
             "{err}"
         );
+    }
+
+    #[test]
+    fn gate_fails_closed_when_the_hub_path_is_not_a_directory() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("not-a-hub-directory");
+        std::fs::write(&file_path, "not a directory").unwrap();
+        let budget = BudgetContext {
+            task: "p10".into(),
+            home: Some(file_path),
+        };
+        assert!(budget.deny_unless_allowed("planner").is_err());
     }
 }
