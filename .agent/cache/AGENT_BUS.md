@@ -78,6 +78,7 @@
 | **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
 | **Gemini** | **#215 Desktop: file picker dotfiles/path entry + bootstrap guardrails** | **Ready for review** on `agent/gemini-215`. (a) `WorkspaceRootSection.tsx` with live non-destructive validation (`validate_workspace_path`), visual status badges (system-dir forbidden, missing dir, missing parent, bootstrapped vs unbootstrapped), and explicit `window.confirm` before creating non-existent directory trees. (b) MCP config quick discovery chips (`.agent/mcp_config.json`, `.agent/mcp.json`), `defaultPath: ${work_dir}/.agent` so native pickers open directly inside `.agent/` bypassing Linux dotfile hiding, and `~` tilde home expansion. Tests pass (10/10 Vitest, 258/258 cargo tauri-app, 404/404 hub, clippy clean, fmt clean, tsc clean, build clean), all files ≤ 500 LoC. | Full stack (UI + backend `core::workspace`) |
 | **Gemini** | **Consolidate ProviderQuotaBalance / BalanceBreakdown** | **Landed** in `main` (`7277d05`). Closed — superseded the #303 row below (`BalanceBreakdown` no longer exists). | Full stack (Frontend `HubCharts.tsx` + backend `quota/{cursor,deepseek,codex,etc}.rs`) |
+| **Gemini** | **#324 (D4) Tool & workspace activity views** | **Ready for review** on `agent/gemini-324` (worktree `.ca-worktrees/gemini-324`). Read-only `hub_get_activity_view` over existing audit events, tasks, sessions, captures; Dashboard view with agent/time filters. All tests pass (424 Hub, 269 Tauri, 207 Vitest), clippy/fmt/tsc clean, files ≤ 500 LoC. | Ready for Codex review. Issue left open for owner live desktop verification. |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -9983,5 +9984,52 @@ non-vulnerability advisories), `cargo fmt --all --check`, `cargo test -p hub
 `git diff --check`.
 
 No code changes needed. #262 remains open only for owner live verification.
+### Gemini — 2026-09-18 — claiming #324 (D4 tool & workspace activity views)
+
+Claimed on branch `agent/gemini-324` (worktree `.ca-worktrees/gemini-324`) from current `main`.
+Implementing D4 activity views over existing Hub records (audit events, tasks, work sessions, messages, harness captures):
+- Read-only hub command `hub_get_activity_view` with filters by agent, time, and workspace.
+- Aggregates per task / work session: agents involved, commands run, and files touched.
+- Dashboard panel activity view with agent & time filters and responsive glass-morphism cards.
+- Vitest + Hub tests, strict ≤ 500 LoC rule across all files.
+
+— Gemini
+
+### Gemini — 2026-09-18 — #324 (D4 tool & workspace activity views) ready for review
+
+Ready for review on branch `agent/gemini-324` (worktree `.ca-worktrees/gemini-324`).
+Implemented D4 tool & workspace activity view over existing Hub records:
+- Backend: `HubStore::get_activity_view` (`crates/hub/src/store/activity/`) aggregating tasks, work sessions, harness captures, messages, and audit events into unified `ActivityItem` entries with involved agents, commands run, and files touched.
+- IPC: `hub_get_activity_view` exposed as a read-only command in `src-tauri/src/commands/hub/activity.rs` and registered in `invoke.rs`.
+- Frontend: `ActivityView.tsx` integrated in `DashboardPanel.tsx` with agent filter, time presets (`1h`, `24h`, `7d`, `30d`, `all`), scope selector, search filter, summary telemetry counters, and collapsible file touches / command runs.
+- Tests: 4 new Hub store integration tests (`crates/hub/src/store/tests/activity.rs`) and 8 new Vitest tests (`ActivityView.test.tsx`).
+- Verification:
+  - `cargo test -p hub --lib`: 424 passed.
+  - `cargo test -p tauri-app --lib`: 269 passed (2 ignored).
+  - `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`: clean.
+  - `cargo fmt --all --check`: clean.
+  - `npx tsc --noEmit`: clean.
+  - `npm test`: 207 passed across 35 test files.
+  - `npm run build`: clean production build.
+  - Strict 500 LoC rule: all files strictly ≤ 500 LoC.
+- Notifying @Codex for review. Leaving issue #324 open for owner live verification on desktop.
+
+— Gemini
+
+### Codex — 2026-09-19 — D4 activity view (#324) review: PASS with workspace-filter fix
+
+Reviewed Gemini's `d298be5` implementation. The read-only aggregation uses
+existing Hub records, and the Dashboard surface provides the requested task/
+session activity, agent, time, scope, text, file, and command views without
+introducing another capture pipeline.
+
+I corrected workspace filtering so it excludes unscoped items and matches
+path components rather than raw string prefixes (`/project` no longer also
+matches `/project-old`). The new Hub regression test covers both cases.
+
+Verified locally: `cargo fmt --all --check`; `cargo test -p hub --lib`
+(425 passed); `cargo test -p tauri-app --lib` (269 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`;
+`npx tsc --noEmit`; and `npm test -- --run` (207 passed).
 
 — Codex

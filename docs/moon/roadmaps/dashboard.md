@@ -7,10 +7,26 @@ Prefer useful 2D observability before any 3D visualization.
 | D1 | Agent/task timeline and 2D collaboration DAG | User can trace messages, wake-ups, tool calls, and state transitions | 🚧 Partial · Dashboard now summarizes tasks, messages, wakes, and pending wakes; task event timeline remains |
 | D2 | Provider token, cost, latency, and error telemetry | Metrics are persisted with provider/session provenance | 🚧 Partial · local token/call/output counters are persisted; Usage now plots provider quota remaining for Codex, Claude, Grok, and Gemini/Antigravity (only Codex/Grok are truly live; others refresh on demand). Exact token/cost/latency adapters and a real Gemini/Antigravity data source remain |
 | D3 | Usage view with soft warnings and optional hard stop | User can see used/available budget and why execution paused | ✅ Done · Shared Hub Dashboard and Usage tab show per-agent utilization bars, pause state, and provider-quota remaining bars |
-| D4 | Tool and workspace activity views | User can identify files, commands, and agents involved in a task | 📋 Pending |
+| D4 | Tool and workspace activity views | User can identify files, commands, and agents involved in a task | 🔍 **Ready for review** on `agent/gemini-324` (Gemini, #324). Read-only `hub_get_activity_view` queries existing `audit_events`, `tasks`, `work_sessions`, `messages`, and `harness_captures` to aggregate involved agents, commands run, and files touched per task/session/workspace. Dashboard tab adds interactive Activity view with agent filter, time presets (`1h`, `24h`, `7d`, `30d`, `all`), scope selector, search filter, summary telemetry counters, and collapsible details. |
 | D5 | Project-specific external metrics adapters | Social, app-store, engagement, and monetization metrics can be added without coupling them to the core hub | 📋 Pending |
 | D6 | 3D force graph | Evaluate only after 2D usage demonstrates a real debugging/observability gap | 💤 Research/Someday |
 | D7 | Host system resource monitor (CPU/RAM/swap/disk/GPU/VRAM, total + per-process) | User can see total and per-core CPU, RAM, swap, disk, and GPU/VRAM usage in a live-updating dashboard, with at least the app's own managed harness processes attributed individually | ✅ **Landed** in `main` (Muse, Codex-reviewed PASS). Distinct from D2 (provider/LLM cost telemetry): this is host-OS resource pressure, the practical concern when several agent harnesses run at once. `system_snapshot` + Shared Hub System tab — see `ui.md` **U23** for the full implementation writeup. Issue [#316](https://github.com/ACFHarbinger/Coding-Assistants/issues/316). |
+
+### Tool and workspace activity views (D4, 2026-09-18)
+
+- Read-only `hub_get_activity_view` query over existing SQLite tables:
+  `tasks`, `work_sessions`, `audit_events`, `messages`, and `harness_captures`.
+  No new capture pipeline or database migrations required.
+- Aggregates per task, work session, and workspace:
+  - Agents involved (creators, assignees, step performers, session members, capture actors).
+  - Commands executed (parsed from audit event tool calls and process execution payloads).
+  - Files touched (parsed from file edit/create/delete audit events).
+- Dashboard panel exposes a subtab switcher (`Telemetry & Overview` vs `Tool & Workspace Activity`).
+- Activity view includes agent dropdown filter, time range buttons (`1h`, `24h`, `7d`, `30d`, `all`),
+  scope selector (`all`, `task`, `work_session`), search query box, summary telemetry metrics,
+  and collapsible command run and file touch lists.
+- Tracked under issue [#324](https://github.com/ACFHarbinger/Coding-Assistants/issues/324).
+
 
 ### Dashboard implementation slice (2026-08-11)
 

@@ -7,6 +7,8 @@
 //! `commands::quotas`, etc.) are unchanged for callers — only the on-disk
 //! file layout moved.
 
+#[path = "hub/activity.rs"]
+pub mod activity;
 #[path = "messager/attachments.rs"]
 pub mod attachments;
 #[path = "hub/avatar.rs"]

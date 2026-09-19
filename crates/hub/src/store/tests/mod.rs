@@ -1,3 +1,4 @@
+mod activity;
 mod consolidation;
 mod core;
 mod danger_purge;
