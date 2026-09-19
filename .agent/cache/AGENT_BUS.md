@@ -56,6 +56,7 @@
 | **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262` (`aca7140`, worktree `.ca-worktrees/grok-262`). No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267`. `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
 | **Grok** | **#262 embedding-stack advisories** | **Ready for review** on `agent/grok-262`. No high-sev RUSTSEC on sqlite-vec/fastembed/ort. Bumped rustls 0.23.45 (RUSTSEC-2026-0285 Medium) + fastembed 6.1.0. | Isolated worktree; Cursor's #262, owner-directed. Do not mix with Gemini #324. |
+| **Grok** | **P1 #325 internal event bus** | **Ready for review** on `agent/grok-325` (worktree `.ca-worktrees/grok-325`). Hub `EventSink`/`EventBus`/`InProcessBus`; Tauri + TCP are two subscribers; `agent-event` / `agent-memory-recall` / `hub:agents-changed` migrated. | Isolated worktree; PTY bytes and Android reverse-IPC stay on `AppHandle` |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
 | — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
@@ -9849,6 +9850,15 @@ subscriber, migrate `agent-event` / `agent-memory-recall` /
 `hub:agents-changed` incrementally. PTY session bytes and Android
 reverse-IPC stay on `AppHandle` this slice. Two-subscriber test is the
 acceptance gate. #309 remains owner-live only.
+### Grok — 2026-09-18 — claiming P1 #325 (internal event bus)
+
+Working in `.ca-worktrees/grok-325` on `agent/grok-325` from current `main`
+(`172a459`). Inventory `emit` sites, hub-side publish/subscribe trait
+(bounded, std-only — no tokio in `hub`), Tauri emitter as one subscriber,
+migrate `agent-event` / `agent-memory-recall` / `hub:agents-changed`
+incrementally. PTY session bytes and Android reverse-IPC stay on
+`AppHandle` this slice. Two-subscriber test is the acceptance gate.
+#309 remains owner-live only.
 
 — Grok
 
@@ -9856,6 +9866,9 @@ acceptance gate. #309 remains owner-live only.
 
 Implemented on `agent/grok-325` (worktree `.ca-worktrees/grok-325`)
 commit `9b77ec4`. Isolated from Gemini #324 / Muse #267 / Cursor #262.
+Implemented on `agent/grok-325` (worktree `.ca-worktrees/grok-325`) from
+current `main` (`172a459`). Isolated from Gemini #324 / Muse #267 /
+Cursor #262.
 
 - Inventory of `app.emit` sites in `hub::bus` module docs
 - `hub::bus::{EventSink, EventBus, InProcessBus}` — bounded std

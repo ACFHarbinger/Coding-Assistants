@@ -6,20 +6,18 @@ use crate::client::providers::{
     vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
     vibe_unavailable_unsupported, MUSE_DEFAULT_MODEL, MUSE_FALLBACK_MODELS, VIBE_FALLBACK_MODELS,
 };
+use crate::client::stream::stream_cli_child;
 use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
+use hub::bus::{InProcessBus, TOPIC_AGENT_EVENT};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
-use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
-use tokio::sync::oneshot;
-use tokio::time::Duration;
+use tokio::process::Command;
 
 /// Per-provider token-bucket rate limiter for outbound LLM calls.
 ///
@@ -83,14 +81,6 @@ impl Default for ModelConfig {
     }
 }
 
-struct KillOnDrop(Child);
-
-impl Drop for KillOnDrop {
-    fn drop(&mut self) {
-        let _ = self.0.start_kill();
-    }
-}
-
 fn is_vibe_provider(provider: &str) -> bool {
     matches!(provider, "mistral" | "vibe")
 }
@@ -110,7 +100,7 @@ impl LLMClient {
         config: &ModelConfig,
         prompt: &str,
         work_dir: Option<&str>,
-        app: &AppHandle,
+        bus: &InProcessBus,
         source: &str,
         mcp_config_path: Option<&str>,
         token: Option<Arc<AtomicBool>>,
@@ -125,7 +115,7 @@ impl LLMClient {
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
-            return existing_endpoint_completion(endpoint, config, prompt, app, source).await;
+            return existing_endpoint_completion(endpoint, config, prompt, bus, source).await;
         }
 
         if config.provider == "ollama" {
@@ -142,7 +132,7 @@ impl LLMClient {
             let child = command
                 .spawn()
                 .map_err(|e| format!("Failed to spawn ollama: {}", e))?;
-            return stream_cli_child(child, app, source, token, "Ollama").await;
+            return stream_cli_child(child, bus.clone(), source, token, "Ollama").await;
         }
 
         if config.provider == "lm_studio" {
@@ -153,18 +143,18 @@ impl LLMClient {
         }
 
         if is_vibe_provider(&config.provider) {
-            return vibe_completion(config, prompt, work_dir, app, source, token).await;
+            return vibe_completion(config, prompt, work_dir, bus, source, token).await;
         }
 
         if is_muse_provider(&config.provider) {
-            return muse_completion(config, prompt, work_dir, app, source, token).await;
+            return muse_completion(config, prompt, work_dir, bus, source, token).await;
         }
 
         opencode_completion(
             config,
             prompt,
             work_dir,
-            app,
+            bus,
             source,
             mcp_config_path,
             token,
@@ -229,7 +219,7 @@ async fn existing_endpoint_completion(
     endpoint: &str,
     config: &ModelConfig,
     prompt: &str,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
 ) -> Result<String, String> {
     let base = endpoint.trim_end_matches('/');
@@ -262,8 +252,8 @@ async fn existing_endpoint_completion(
         .as_str()
         .ok_or("Existing model process response had no choices[0].message.content")?
         .to_string();
-    let _ = app.emit(
-        "agent-event",
+    bus.emit(
+        TOPIC_AGENT_EVENT,
         AgentEvent {
             source: source.to_string(),
             event_type: "response".to_string(),
@@ -283,7 +273,7 @@ async fn muse_completion(
     config: &ModelConfig,
     prompt: &str,
     _work_dir: Option<&str>,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
     _token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
@@ -308,8 +298,8 @@ async fn muse_completion(
         model
     };
     let output = muse_chat_request(api_key, model, prompt).await?;
-    let _ = app.emit(
-        "agent-event",
+    bus.emit(
+        TOPIC_AGENT_EVENT,
         AgentEvent {
             source: source.to_string(),
             event_type: "response".to_string(),
@@ -323,7 +313,7 @@ async fn vibe_completion(
     config: &ModelConfig,
     prompt: &str,
     work_dir: Option<&str>,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
     token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
@@ -377,14 +367,14 @@ async fn vibe_completion(
         command.current_dir(dir);
     }
     let child = command.spawn().map_err(vibe_unavailable_not_installed)?;
-    stream_cli_child(child, app, source, token, "Mistral Vibe").await
+    stream_cli_child(child, bus.clone(), source, token, "Mistral Vibe").await
 }
 
 async fn opencode_completion(
     config: &ModelConfig,
     prompt: &str,
     work_dir: Option<&str>,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
     mcp_config_path: Option<&str>,
     token: Option<Arc<AtomicBool>>,
@@ -421,85 +411,5 @@ async fn opencode_completion(
     } else {
         "Opencode"
     };
-    stream_cli_child(child, app, source, token, label).await
-}
-
-async fn stream_cli_child(
-    mut child: Child,
-    app: &AppHandle,
-    source: &str,
-    token: Option<Arc<AtomicBool>>,
-    fail_label: &str,
-) -> Result<String, String> {
-    let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
-    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-    let mut child_guard = KillOnDrop(child);
-    let app_clone = app.clone();
-    let source_clone = source.to_string();
-
-    tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr);
-        let mut line = String::new();
-        while let Ok(n) = reader.read_line(&mut line).await {
-            if n == 0 {
-                break;
-            }
-            let _ = app_clone.emit(
-                "agent-event",
-                AgentEvent {
-                    source: source_clone.clone(),
-                    event_type: "log".to_string(),
-                    content: line.clone(),
-                },
-            );
-            line.clear();
-        }
-    });
-
-    let (cancel_tx, mut cancel_rx) = oneshot::channel();
-    if let Some(token) = token {
-        tokio::spawn(async move {
-            loop {
-                if token.load(Ordering::SeqCst) {
-                    let _ = cancel_tx.send(());
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(500)).await;
-            }
-        });
-    }
-
-    let mut reader = BufReader::new(stdout);
-    let mut line = String::new();
-    let mut full_output = String::new();
-
-    loop {
-        tokio::select! {
-            result = reader.read_line(&mut line) => {
-                 match result {
-                     Ok(0) => break,
-                     Ok(_) => {
-                        let _ = app.emit("agent-event", AgentEvent {
-                            source: source.to_string(),
-                            event_type: "stream".to_string(),
-                            content: line.clone(),
-                        });
-                        full_output.push_str(&line);
-                        line.clear();
-                     }
-                     Err(e) => return Err(e.to_string()),
-                 }
-            }
-            _ = &mut cancel_rx => {
-                 return Err("Task cancelled".to_string());
-            }
-        }
-    }
-
-    let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
-    if status.success() {
-        Ok(full_output)
-    } else {
-        Err(format!("{fail_label} failed with status: {status}."))
-    }
+    stream_cli_child(child, bus.clone(), source, token, label).await
 }
