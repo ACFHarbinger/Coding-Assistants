@@ -91,6 +91,17 @@ impl HubStore {
         Ok(event)
     }
 
+    pub fn get_audit_event(&self, id: &str) -> Result<AuditEvent, HubError> {
+        self.conn
+            .query_row(
+                "SELECT id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status FROM audit_events WHERE id = ?1",
+                params![id],
+                audit_event_from_row,
+            )
+            .optional()?
+            .ok_or_else(|| HubError::NotFound(format!("audit event {id}")))
+    }
+
     pub fn list_audit_events(&self, pending_only: bool) -> Result<Vec<AuditEvent>, HubError> {
         let sql = if pending_only {
             "SELECT id, root_path, path, operation, observed_at, process_json, content_hash, previous_hash, event_hash, status FROM audit_events WHERE status = 'pending' ORDER BY rowid"

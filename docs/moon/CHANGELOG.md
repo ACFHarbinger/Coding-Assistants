@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   category policy, and sync-result types with no live provider. S2/S3
   (crypto, Drive adapter) follow on the same branch. Implementation spike
   recorded in `roadmaps/cloud_sync.md`.
+- **OS-level tool execution (P5, #333):** `hub_run_os_tool` /
+  `hub_approve_os_tool` run a PATH program with explicit argv (never a
+  shell). Policy uses existing `orchestration.sandbox_strictness`
+  (default Standard): Standard auto-runs read-ish tools inside the
+  workspace and holds mutating/unknown tools for approval; Strict is
+  tighter; Permissive auto-runs except a hard denylist (shells, `sudo`,
+  shutdown/mkfs). Every attempt is a hash-chained `audit_events` row
+  (`os_tool.ran` / `os_tool.proposed` / `os_tool.denied`) so D4 activity
+  views see the cmdline. CLI parity: `ca tool run|approve|pending`.
+  No Settings UI this slice.
+
 - **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
   direct-call OpenAI-compatible client against `https://api.x.ai/v1`,
   distinct from `HarnessId::Grok` (the CLI coding harness). Auth is

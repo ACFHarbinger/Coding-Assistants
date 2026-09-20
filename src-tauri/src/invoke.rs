@@ -123,6 +123,8 @@ macro_rules! invoke_handler {
             commands::commands::messaging::hub_list_audit_events,
             commands::commands::messaging::hub_approve_audit,
             commands::commands::messaging::hub_quarantine_audit,
+            commands::commands::os_tool::hub_run_os_tool,
+            commands::commands::os_tool::hub_approve_os_tool,
             commands::commands::messaging::hub_get_wake_policy,
             commands::commands::messaging::hub_set_wake_policy,
             commands::commands::workflow::hub_create_task,

@@ -35,6 +35,8 @@ pub mod mcp_invoke;
 pub mod memory;
 #[path = "messager/messaging.rs"]
 pub mod messaging;
+#[path = "os_tool.rs"]
+pub mod os_tool;
 #[path = "quota/claude.rs"]
 mod quota_claude;
 #[path = "quota/codex.rs"]

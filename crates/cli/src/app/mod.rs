@@ -12,6 +12,7 @@ mod harness;
 mod journal;
 mod sync;
 mod telegram;
+mod tool;
 
 pub(crate) use agent::AgentCommand;
 pub(crate) use commands::{
@@ -21,6 +22,7 @@ pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
 pub(crate) use sync::SyncCommand;
 pub(crate) use telegram::TelegramCommand;
+pub(crate) use tool::ToolCommand;
 
 #[derive(Parser)]
 #[command(name = "ca", about = "Coding-Assistants shared hub CLI")]
@@ -139,6 +141,11 @@ pub(crate) enum Command {
     Sync {
         #[command(subcommand)]
         action: SyncCommand,
+    },
+    /// OS-level tool execution with sandbox and audit (P5).
+    Tool {
+        #[command(subcommand)]
+        action: ToolCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {
