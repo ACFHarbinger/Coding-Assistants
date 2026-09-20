@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S3 Google Drive adapter (#93):** `hub::sync::GoogleDrive`
+  talks Drive v3 `drive.appdata` through a transport so unit tests never
+  hit the network. File names are hashed BlobIds only. The refresh token
+  is P12 `tool.sync.google_refresh_token` / `GOOGLE_DRIVE_REFRESH_TOKEN`.
+  Credentials are omitted from `Debug` and error text. Browser OAuth is
+  S4; a live Drive run is S5.
 - **Cloud-sync S2 key and CAS1 objects (#92):** Local `keys/cloud-sync.key`
   (32 bytes, mode 0600, create-or-import) seals versioned ChaCha20-Poly1305
   objects (`CAS1`). Journal Fernet blocks stay opaque file bytes. FakeDrive

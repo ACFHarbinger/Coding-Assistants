@@ -238,9 +238,9 @@ before the first upload.
 
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
-| S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | 🚧 **In progress** (2026-09-20) · [#91](https://github.com/ACFHarbinger/Coding-Assistants/issues/91) (Cursor). `hub::sync` types + FakeDrive + policy unit-tested. Crypto is S2. |
-| S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | 🚧 **Ready for review** (2026-09-20) · [#92](https://github.com/ACFHarbinger/Coding-Assistants/issues/92) (Cursor). `CAS1` + FakeDrive leak tests. Google adapter is S3. |
-| S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | 🚧 **Spike** (2026-09-20) · [#93](https://github.com/ACFHarbinger/Coding-Assistants/issues/93) (Cursor). After S2 fake-provider leak tests. |
+| S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | 🚧 **Ready for review** (2026-09-20) · [#91](https://github.com/ACFHarbinger/Coding-Assistants/issues/91) (Cursor). `hub::sync` types + FakeDrive + policy unit-tested. Owner live check still open. |
+| S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | 🚧 **Ready for review** (2026-09-20) · [#92](https://github.com/ACFHarbinger/Coding-Assistants/issues/92) (Cursor). `CAS1` + FakeDrive leak tests. Owner live check still open. |
+| S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | 🚧 **Ready for review** (2026-09-20) · [#93](https://github.com/ACFHarbinger/Coding-Assistants/issues/93) (Cursor). Scripted Drive v3 adapter; browser OAuth is S4; live account is S5. |
 | S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | 📋 Planned |
 | S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 📋 Planned |
 | S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 📋 Planned |
@@ -466,3 +466,14 @@ sequential commits, ≤500 LoC/file. Two open branches max.
 **Out of scope here.** Hub mutation lock, `ca sync` CLI, desktop Sync tab,
 three-way merge, real Drive acceptance, key escrow, I2 terraform,
 Firebase/Supabase (S10/S11).
+
+### Cursor — 2026-09-20 — S3 Google Drive adapter (#93)
+
+`GoogleDrive` implements `DriveClient` on Drive v3 `spaces=appDataFolder`.
+Remote names are BlobIds only; non-hex names such as `journals/claude.md`
+are skipped. Refresh token is P12 `tool.sync.google_refresh_token` /
+`GOOGLE_DRIVE_REFRESH_TOKEN`. `UreqTransport` attaches Authorization and
+maps 404/412; `Debug` and errors omit tokens. Tests use
+`ScriptedTransport` (no network). Browser OAuth loopback is S4. Live
+Drive is S5. Prune-after replica advance is still not a multi-object
+transaction.

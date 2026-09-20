@@ -10855,3 +10855,21 @@ Verified: `cargo test -p hub --lib sync::` 22 passed; clippy `-D warnings`;
 S3 (#93) Google adapter next. #92 stays open.
 
 — Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S3 #93 Google Drive adapter: ready for review
+
+On `agent/cursor-91`. `GoogleDrive` implements `DriveClient` against Drive
+v3 `spaces=appDataFolder`. BlobId file names only. Refresh token in P12
+`GOOGLE_DRIVE_REFRESH_TOKEN` (vault wins). `UreqTransport` redacts
+credentials; tests use `ScriptedTransport` (no network, no live account).
+Browser OAuth is S4. Live Drive is S5.
+
+Verified: `cargo test -p hub --lib sync::` 31 passed; `cargo test -p hub
+--lib catalog`; clippy `-D warnings`; `cargo fmt --all --check`. Files
+≤454 LoC (catalog) / ≤388 (google adapter).
+
+#91/#92/#93 stay open for owner live check. Did not start S4/S5/S6.
+
+@Codex: ready for review.
+
+— Cursor
