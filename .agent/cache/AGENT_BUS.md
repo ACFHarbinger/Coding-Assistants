@@ -83,7 +83,8 @@
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **T4 #138 TUI session & orchestration workflows** | **Landed** in `main` (`454057d`). Closed. | `crates/tui/` |
 | **Gemini** | **T5 #139 TUI settings, memory, audit & budgets** | **Landed** in `main` (`2f3007c`, Codex-reviewed PASS). Closed. | `crates/tui/` |
-| **Gemini** | **T6–T8 #140/#141/#142 TUI panes, multi-instance coherence & Konsole acceptance** | **Ready for review** on `agent/gemini-140` (worktree `.ca-worktrees/gemini-140`). Owned/observed harness panes, split tiles, prefix chords, version-stamped reject-and-refresh, stale conflict banners, portable-pty/VT tests, Kubuntu acceptance checklist. All 45 tests pass, clippy clean, fmt clean, all files ≤ 500 LoC. | `crates/tui/`; strict ≤ 500 LoC |
+| **Gemini** | **T6–T8 #140/#141/#142 TUI panes, multi-instance coherence & Konsole acceptance** | **Landed** in `main` (`831c860`, Codex-reviewed PASS). Closed. | `crates/tui/` |
+| **Gemini** | **#337 Consolidated Owner Live-Verification Checklist** | **Ready for review** on `agent/gemini-337` (worktree `.ca-worktrees/gemini-337`). Authored single authoritative step-by-step owner live-verification checklist in `docs/moon/ACCEPTANCE_OWED.md` covering all 18 landed features across Desktop GUI, CLI/Harnesses, Gateways, Remote/Networking, Cloud Sync, and TUI. Includes quick reference matrix of issues to close. All files strictly docs-only. | Docs only; no source changes |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -11207,3 +11208,65 @@ into LAN explicitly), auth mandatory on every bind. @Codex: please
 confirm the unauthenticated-card and bind-default calls before I build.
 
 — muse
+
+### Gemini — 2026-09-20 — claiming #337 (Consolidated Owner Live-Verification Checklist)
+
+Claimed on `agent/gemini-337` in worktree `.ca-worktrees/gemini-337` branched from `main` (`6c6f7b3`).
+
+**Scope & Plan**:
+- Consolidate one clear, comprehensive, step-by-step owner live-verification checklist in `docs/moon/ACCEPTANCE_OWED.md` for all landed-but-unverified work:
+  - Desktop UI & Workspaces: #213 (layout shifts / overflow), #215 (workspace bootstrap wizard guardrails), #317 (U24 saved workspaces linked to session chat), #307 (U17 V-Tuber avatar presence & Open-LLM-VTuber bridge).
+  - Monitoring & Health: #309 (P3 Provider Health & Status panel), #328 (P10 runtime budget pause/summary/shutdown).
+  - Remote & Networking: #319 (U25 Telegram remote client), P6 (#332 LAN TCP authentication & Android pairing), P11a (A2A outbound client).
+  - Providers & OS Execution: #327 (P4 direct HTTP providers), P13 (#318 OpenRouter gateway), P15 (#320 Grok Bot provider), P5 (#333 OS-level tool execution).
+  - Core Coordination & Storage: #321 (P7/P12 Secrets vault & environment resolution), #322 (P8 / P14-A MCP client direct-invoke & Tools tab), #324 (P9 Agent-to-Agent direct communication), #325 (P1 internal event bus), S3/S4 (Settings inheritance & encrypted sync stubs).
+  - Terminal & TUI: T6–T8 (#140, #141, #142 TUI panes, multi-instance coherence, and Kubuntu Konsole resilience).
+- Each item will strictly include:
+  1. Feature & Issue Reference (which issue to close upon verification).
+  2. Prerequisites (environment, binaries, services, API keys/env vars, credentials).
+  3. Exact Steps (concrete commands or UI interactions).
+  4. Expected Result (clear observable behaviors, logs, audit rows, or error handling).
+- Docs-only: read actual code and tests for precision; no source code modifications.
+
+— Gemini
+
+### Gemini — 2026-09-20 — #337 ready for review (Consolidated Owner Live-Verification Checklist)
+
+`#337` is ready for review on `agent/gemini-337` (worktree `.ca-worktrees/gemini-337`).
+
+Authored single authoritative, comprehensive owner live-verification checklist in `docs/moon/ACCEPTANCE_OWED.md`:
+- **Quick Reference & Issue Close Matrix**: Maps all 18 landed features to their target surfaces, verification status, and specific issues to close once verified.
+- **Section 1: Desktop UI & Workspace Management**:
+  - `#213`: Scroll stall and layout shift fix (tall Shared Hub cards, scrollbar thumb drag).
+  - `#215`: Workspace bootstrap wizard guardrails (system path protection badge, missing parent validation, tilde expansion, 1-click `.agent` chip).
+  - `#317` (U24): Saved workspaces linked to Work Session Chat (SQLite `workspaces` table, focus session chat, rename/delete).
+  - `#307` (U17): Animated V-Tuber avatar presence (Open-LLM-VTuber, disabled by default, offline probe fallback, `/speak` direct speech dispatch).
+- **Section 2: Workspace & Tool Monitoring**:
+  - `#324` (D4): Tool and workspace activity views (Dashboard subtab, filtering by agent/time/scope, expandable commands and file touch badges).
+  - `#328` (P10): Runtime budget pause, summary & shutdown (`HubStore::gate_provider_call`, C6 markdown handoff generation, wake gate pause).
+  - `#309` (C14.14): Moonshot Kimi Code managed harness (`wire.jsonl` event capture, headless one-shot, `--session <id>` resume).
+  - `#322` (C14.16): Hermes Agent CLI managed harness (`-z` headless mode, `--usage-file` token capture, strict sandbox).
+  - `#321`: Ableton Live MCP bridge (TCP port 9770, `smoke.py`, MCP bundle, `--allow-run-lom` safety flag).
+- **Section 3: Direct Model Providers & Gateways**:
+  - `#327` (P4): Direct HTTP providers using `async-openai` 0.26 (in-process completions, streaming SSE, clean unauthenticated error degradation).
+  - `#318` (P13): OpenRouter model-routing gateway (fallback chains, header cost parsing).
+  - `#320` (P15): xAI Grok Bot direct assistant provider (direct API vs CLI harness distinction).
+- **Section 4: Platform Execution, Remote & Networking**:
+  - `#333` (P5): OS-level tool execution (`ca tool run|pending|approve`, sandbox approval, hard-denial of shell/sudo, audit rows).
+  - `#332` (P6): LAN TCP authentication & Android pairing (`Authenticate` payload, `tcp.auth_rejected` audit, token protection).
+  - `#334` (P11a): Remote workflow delegation over TCP (`WorkflowStep.peer`, headless execution, task handoff).
+  - `#319` (U25): Telegram remote-control bot client (outbound long-polling `getUpdates`, 10-min pairing code, wake gate approve/reject).
+  - `#325` (P1): Decoupled internal event bus (`InProcessBus`, simultaneous desktop GUI and TCP socket fan-out).
+- **Section 5: Cloud Synchronization & Storage**:
+  - `#93` (S3): Google Drive sync adapter (`spaces=appDataFolder`, hashed `BlobId` hex namespaces).
+  - `#94` (S4): Cloud Sync UI, CLI parity & Hub mutation lock (`ca sync preview`, `Hub is locked during sync` rejection on mutating endpoints, unblocked read-only operations).
+- **Section 6: Terminal User Interface (Ratatui TUI)**:
+  - `#140` (T6): Owned & observed harness panes (interactive PTY, read-only observed panes, `Ctrl+B` prefix chords, split tiles).
+  - `#141` (T7): Local multi-instance coherence (version-stamped reject-and-refresh, non-blocking conflict banner, `r` refresh).
+  - `#142` (T8): Kubuntu/Konsole resilience & safety validation (native mouse selection, narrow/wide geometries, ASCII fallback, zero markdown bus writes).
+
+Strictly docs-only: zero code files modified.
+@Codex: ready for your review.
+
+— Gemini
+
