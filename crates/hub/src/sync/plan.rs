@@ -1,11 +1,14 @@
-//! Shared sync plan for CLI and desktop (S4 / #94).
+//! Shared sync plan for CLI and desktop (S4–S5 / #94–#95).
 //!
 //! Category counts only — no secret filenames, tokens, or absolute paths.
 
+use super::fs_drive::FsDrive;
 use super::google_auth::resolve_refresh_token;
+use super::key::CloudSyncKey;
 use super::lock;
 use super::policy::classify;
-use super::types::{BlobId, Category};
+use super::snapshot::{self, LIVE_DB_WARNING};
+use super::types::{BlobId, Category, SyncConfig};
 use super::{SyncError, SyncResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -75,7 +78,7 @@ pub fn build_plan(home: &Path, local_schema: i64, action: &str) -> Result<SyncPl
     })
 }
 
-/// Owner-started run: take the lock, emit the plan, do not copy hub.db.
+/// Owner-started run: take the lock, then transfer an encrypted snapshot.
 pub fn run_locked(home: &Path, local_schema: i64, action: &str) -> Result<SyncSession, SyncError> {
     if action == "preview" {
         return Err(SyncError::Invalid(
@@ -108,10 +111,48 @@ fn finish_run(home: &Path, local_schema: i64, action: &str) -> Result<SyncSessio
     if let Some(warning) = plan.schema_warning.clone() {
         result.warnings.push(warning);
     }
-    result
-        .warnings
-        .push("snapshot transfer is S5; this run did not copy hub.db".into());
+    let key = CloudSyncKey::load(home)?;
+    let config = SyncConfig::v1_defaults();
+    let mut drive = FsDrive::open_local(home)?;
+    match action {
+        "up" => merge_result(
+            &mut result,
+            snapshot::upload_home(home, &key, &mut drive, &config, local_schema)?,
+        ),
+        "down" => merge_result(
+            &mut result,
+            snapshot::download_home(home, &key, &drive, &config)?,
+        ),
+        "sync" => {
+            merge_result(
+                &mut result,
+                snapshot::upload_home(home, &key, &mut drive, &config, local_schema)?,
+            );
+            merge_result(
+                &mut result,
+                snapshot::download_home(home, &key, &drive, &config)?,
+            );
+        }
+        _ => {
+            return Err(SyncError::Invalid(format!("unknown sync action: {action}")));
+        }
+    }
+    if !result.warnings.iter().any(|row| row == LIVE_DB_WARNING) {
+        result.warnings.push(LIVE_DB_WARNING.into());
+    }
     Ok(SyncSession { plan, result })
+}
+
+fn merge_result(into: &mut SyncResult, from: SyncResult) {
+    into.uploaded += from.uploaded;
+    into.downloaded += from.downloaded;
+    into.pruned += from.pruned;
+    into.conflicts += from.conflicts;
+    for warning in from.warnings {
+        if !into.warnings.contains(&warning) {
+            into.warnings.push(warning);
+        }
+    }
 }
 
 fn read_last_verified(home: &Path) -> Option<LastVerified> {
@@ -193,16 +234,33 @@ mod tests {
     #[test]
     fn preview_does_not_lock_and_run_releases() {
         let dir = tempdir().unwrap();
+        CloudSyncKey::create(dir.path()).unwrap();
         fs::write(dir.path().join("hub.db"), b"sqlite").unwrap();
+        fs::create_dir_all(dir.path().join("journals")).unwrap();
+        fs::write(dir.path().join("journals/claude.md"), b"secret-journal").unwrap();
         let plan = build_plan(dir.path(), 3, "preview").unwrap();
         assert!(!plan.lock_held);
         let session = run_locked(dir.path(), 3, "up").unwrap();
         assert!(!lock::is_held(dir.path()));
+        assert!(session.result.uploaded >= 1);
         assert!(session
             .result
             .warnings
             .iter()
-            .any(|row| row.contains("did not copy hub.db")));
-        assert!(!serde_json::to_string(&session).unwrap().contains("Bearer"));
+            .any(|row| row.contains(LIVE_DB_WARNING)));
+        assert_eq!(fs::read(dir.path().join("hub.db")).unwrap(), b"sqlite");
+        let json = serde_json::to_string(&session).unwrap();
+        assert!(!json.contains("Bearer"));
+        assert!(!json.contains("secret-journal"));
+        let replica = dir.path().join("sync/remote/replica");
+        for name in fs::read_dir(&replica).unwrap().flatten() {
+            let file = name.file_name();
+            let text = file.to_string_lossy();
+            if text.ends_with(".etag") {
+                continue;
+            }
+            assert_eq!(text.len(), 64);
+            assert!(!text.contains('/'));
+        }
     }
 }

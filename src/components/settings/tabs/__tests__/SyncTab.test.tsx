@@ -34,7 +34,7 @@ describe("SyncTab (#94)", () => {
         downloaded: 0,
         pruned: 0,
         conflicts: 0,
-        warnings: ["snapshot transfer is S5; this run did not copy hub.db"],
+        warnings: ["live hub.db was not replaced"],
       },
     });
     vi.mocked(api.hubSyncCancel).mockResolvedValue();
