@@ -490,7 +490,7 @@
 
 ### 6.3 Kubuntu/Konsole Resilience & Safety Validation (T8 / #142)
 - **Issue to Close:** [#142](https://github.com/ACFHarbinger/Coding-Assistants/issues/142)
-- **Prerequisites:** Kubuntu (KDE Plasma + Konsole). See also [`docs/moon/checklists/tui_konsole_acceptance.md`](file:///home/pkhunter/Repositories/Repo/Coding-Assistants/docs/moon/checklists/tui_konsole_acceptance.md).
+- **Prerequisites:** Kubuntu (KDE Plasma + Konsole). See also [the Konsole acceptance checklist](checklists/tui_konsole_acceptance.md).
 - **Verification Steps:**
   1. Launch `ca tui` in KDE Konsole.
   2. **Mouse-Off Selection**: Left-click and drag to select text on screen. Middle-click to paste. Verify native Konsole selection works natively without mouse capture interception.
