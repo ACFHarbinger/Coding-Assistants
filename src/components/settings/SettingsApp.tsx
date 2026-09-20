@@ -19,6 +19,7 @@ import AgentsTab from "./tabs/AgentsTab";
 import CreativeToolsTab from "./tabs/CreativeToolsTab";
 import ExternalMcpTab from "./tabs/ExternalMcpTab";
 import CredentialsTab from "./tabs/CredentialsTab";
+import SyncTab from "./tabs/SyncTab";
 import DiagnosticsTab from "./tabs/DiagnosticsTab";
 import DangerTab from "./tabs/DangerTab";
 import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
@@ -420,6 +421,7 @@ export default function SettingsApp() {
           {activeTab.id === "creative" && <CreativeToolsTab workspaceRoot={workspaceRoot} busy={busy} />}
           {activeTab.id === "external_mcp" && <ExternalMcpTab workspaceRoot={workspaceRoot} busy={busy} />}
           {activeTab.id === "credentials" && <CredentialsTab />}
+          {activeTab.id === "sync" && <SyncTab />}
 
           {activeTab.id === "memory" && effective && (
             <MemoryTab

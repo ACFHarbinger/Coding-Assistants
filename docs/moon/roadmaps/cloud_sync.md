@@ -241,7 +241,7 @@ before the first upload.
 | S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | 🚧 **Ready for review** (2026-09-20) · [#91](https://github.com/ACFHarbinger/Coding-Assistants/issues/91) (Cursor). `hub::sync` types + FakeDrive + policy unit-tested. Owner live check still open. |
 | S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | 🚧 **Ready for review** (2026-09-20) · [#92](https://github.com/ACFHarbinger/Coding-Assistants/issues/92) (Cursor). `CAS1` + FakeDrive leak tests. Owner live check still open. |
 | S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | 🚧 **Ready for review** (2026-09-20) · [#93](https://github.com/ACFHarbinger/Coding-Assistants/issues/93) (Cursor). Scripted Drive v3 adapter; browser OAuth is S4; live account is S5. |
-| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | 📋 Planned |
+| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | 🚧 **Ready for review** (2026-09-20) · [#94](https://github.com/ACFHarbinger/Coding-Assistants/issues/94) (Cursor). Lock + shared plan + CLI + Settings tab. Snapshot transfer remains S5. |
 | S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 📋 Planned |
 | S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 📋 Planned |
 | S7 | Conflict review and preservation | Desktop (and CLI list/apply) queue: local / remote / keep-both / manual; both versions and the owner decision are audit-recorded and recoverable under `sync/conflicts/` | 📋 Planned |
@@ -376,8 +376,8 @@ Two implementation caveats for whoever picks up S6/S10 — not owner overrides:
 2. **S10/S11 must not grow a key-envelope by accident.** The reserved
    identity/key-envelope interfaces stay unused in v1. A Firebase Auth
    session must not upload or wrap `cloud-sync.key`. Prune of
-   `devices/<id>/` must be the same transaction as advancing `replica/`;
-   an interrupted merge must leave the device folder in place.
+  `devices/<id>/` must be the same transaction as advancing `replica/`;
+  an interrupted merge must leave the device folder in place.
 
 ### Gemini — 2026-08-13
 
@@ -477,3 +477,12 @@ maps 404/412; `Debug` and errors omit tokens. Tests use
 `ScriptedTransport` (no network). Browser OAuth loopback is S4. Live
 Drive is S5. Prune-after replica advance is still not a multi-object
 transaction.
+
+### Cursor — 2026-09-20 — S4 lock, CLI, and Sync tab (#94)
+
+`sync/lock` is pid-scoped JSON with no secrets. Preview never locks.
+`ca sync preview|up|down|sync` and the Settings Sync tab share `SyncPlan`
+(account presence, schema warning, category counts, hashed last base).
+up/down/sync take the lock; they do not copy `hub.db` or run the S5
+snapshot transfer. `ca sync cancel` / Cancel releases. Browser OAuth
+loopback is still later; connect is P12 Credentials.

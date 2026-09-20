@@ -1,8 +1,9 @@
-//! Cloud Drive synchronization domain (S1–S3 / #91/#92/#93).
+//! Cloud Drive synchronization domain (S1–S4 / #91–#94).
 //!
-//! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, and a
-//! Google Drive `drive.appdata` adapter. This module never uploads plaintext
-//! or credentials. Live Drive acceptance is S5.
+//! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
+//! Google Drive `drive.appdata` adapter, owner-started CLI/UI, and a
+//! mutation-only Hub lock. This module never uploads plaintext or
+//! credentials. Live Drive acceptance is S5.
 
 mod client;
 mod crypto;
@@ -11,7 +12,9 @@ mod google_auth;
 mod google_http;
 mod key;
 mod layout;
+mod lock;
 mod pack;
+mod plan;
 pub mod policy;
 mod types;
 
@@ -25,7 +28,11 @@ pub use google_auth::{
 pub use google_http::{HttpResponse, Transport, UreqTransport};
 pub use key::CloudSyncKey;
 pub use layout::{device_prefix, manifests_prefix, replica_prefix};
+pub use lock::{
+    acquire_persisted, is_held, read as read_lock, release, LockFile, SyncLockGuard, LOCKED_MESSAGE,
+};
 pub use pack::seal_and_put;
+pub use plan::{build_plan, run_locked, start_persisted, SyncPlan, SyncSession};
 pub use types::{
     BlobId, Category, CategoryPolicy, DeviceId, DeviceIdentity, ETag, Manifest, ManifestEntry,
     ObjectKind, ProviderKind, RemotePrefix, Snapshot, SyncConfig, SyncResult, TrustedAccount,

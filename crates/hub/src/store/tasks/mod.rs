@@ -76,6 +76,7 @@ impl HubStore {
         max_parallel: u32,
         require_human_approval: bool,
     ) -> Result<TaskRecord, HubError> {
+        self.ensure_mutable()?;
         if title.trim().is_empty() {
             return Err(HubError::Invalid("task title must not be empty".into()));
         }

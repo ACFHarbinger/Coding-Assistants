@@ -13,6 +13,7 @@ pub(crate) fn run(store: &HubStore, action: InboxCommand) -> anyhow::Result<()> 
             if interval_ms == 0 {
                 anyhow::bail!("--interval-ms must be greater than zero");
             }
+            store.ensure_mutable()?;
             use std::io::Write;
             let mut forwarder = if let Some(program) = forward {
                 let mut child = std::process::Command::new(program)

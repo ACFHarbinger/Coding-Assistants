@@ -8,6 +8,7 @@ mod memory;
 mod msg;
 mod preflight;
 mod shutdown;
+mod sync;
 mod telegram;
 mod tui_command;
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
@@ -231,6 +232,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         },
         Command::Audit { action } => match action {
             AuditCommand::Watch { root } => {
+                store.ensure_mutable()?;
                 let root = std::fs::canonicalize(&root)?;
                 if !root.is_dir() {
                     anyhow::bail!("audit root is not a directory: {}", root.display());
@@ -322,6 +324,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             set_as_default_session_settings,
         )?,
         Command::Telegram { action } => telegram::run(&store, action)?,
+        Command::Sync { action } => sync::run(&store, action)?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

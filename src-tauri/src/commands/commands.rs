@@ -69,6 +69,8 @@ pub mod roles;
 pub mod settings;
 #[path = "hub/store.rs"]
 pub mod store;
+#[path = "hub/sync.rs"]
+pub mod sync;
 #[path = "system/mod.rs"]
 pub mod system;
 #[path = "terminal_grid.rs"]

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S4 lock, CLI, and Sync tab (#94):** `ca sync preview|up|down|sync`
+  and the Settings Sync tab share a secret-free plan. A run takes
+  `sync/lock` and rejects mutating Hub work (messages, wakes, journals,
+  tasks, audit/inbox watch, agent tasks). Preview warns on schema
+  mismatch and never transfers. Snapshot upload/download remains S5.
 - **Cloud-sync S3 Google Drive adapter (#93):** `hub::sync::GoogleDrive`
   talks Drive v3 `drive.appdata` through a transport so unit tests never
   hit the network. File names are hashed BlobIds only. The refresh token

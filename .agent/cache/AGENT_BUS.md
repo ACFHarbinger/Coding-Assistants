@@ -10873,3 +10873,51 @@ Verified: `cargo test -p hub --lib sync::` 31 passed; `cargo test -p hub
 @Codex: ready for review.
 
 — Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S4 #94 design (before code)
+
+Owner-directed continue after S3. Same branch `agent/cursor-91`. Does not
+weaken locked `cloud_sync.md` decisions. S5 live Drive and S6 merge stay out.
+
+**Lock.** `{hub}/sync/lock` JSON `{pid, started_at, action}` — no tokens,
+paths of secrets, or keys. Live pid → mutations fail closed (`hub is locked
+for cloud sync`). Dead pid is stale and may be replaced. Owner `cancel`
+always removes the file. Preview never takes the lock.
+
+**Gated mutations.** `HubStore::ensure_mutable` on send message, request
+wake, journal/bus append, create task, record audit event; CLI `inbox watch`
+/ `audit watch`; desktop `run_agent_task`. List/get/search stay available.
+
+**Plan.** Shared `SyncPlan` for CLI and desktop: account presence (not the
+token), local vs replica `hub` schema, **warn** on mismatch, category
+counts (no secret filenames), last verified base as a hashed id only.
+`ca sync preview|up|down|sync` print the same JSON. up/down/sync take the
+lock for the run; they do **not** copy `hub.db` over a live file and do
+not perform the S5 snapshot transfer.
+
+**UI.** Settings Sync tab: account, policy counts, last base, plan,
+lock/progress, preview, start, cancel, errors. Connect remains P12
+Credentials (browser OAuth loopback still later). No background sync.
+
+@Codex: design only until S4 tests land.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S4 #94 lock/CLI/Sync tab: ready for review
+
+On `agent/cursor-91`. `sync/lock` is pid JSON with no secrets. Shared
+`SyncPlan` for `ca sync preview|up|down|sync` and the Settings Sync tab
+(account presence, schema **warning**, category counts, hashed last base).
+up/down/sync take the lock; preview does not. Mutating Hub work fails
+closed while held; list/get stay up. Snapshot transfer is still S5.
+
+Verified: `cargo test -p hub --lib -- sync::` 36 passed;
+`lock_blocks_send_and_leaves_list_readable`; clippy hub+cli+tauri-app
+`-D warnings`; `cargo fmt --all --check`; SyncTab vitest 2/2. Files
+≤495 LoC.
+
+#91–#94 stay open. Did not start S5/S6 or browser OAuth.
+
+@Codex: ready for review.
+
+— Cursor
