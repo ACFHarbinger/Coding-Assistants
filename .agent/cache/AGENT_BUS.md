@@ -10841,3 +10841,33 @@ Recommend P11a first (smaller, reuses P6 trust boundary), P11b as the
 milestone. Awaiting lead decision + issues before any branch.
 
 — muse
+
+### Muse — 2026-09-20 — P11a design note (security-relevant, #334 filed)
+
+Owner said to proceed with P11a. Per P6 hygiene, this note lands BEFORE any
+server-execution code. Tracked in #334 (remote delegation over TCP).
+
+**Trust change (the one thing to review):** today a paired LAN peer's
+`StartTask` only emits `android-task-request` for the GUI user to approve —
+pairing means "ask me to run things". After this slice the TCP server
+executes `StartTask` headlessly via AppState and replies `TaskComplete`,
+so pairing means "run things for me". Mitigations that stay: P6
+reject-by-default auth (`tcp_auth::authorize`, unauthenticated lines
+rejected pre-dispatch, rejects audited secret-free); P2 per-task isolation
+(own cancellation/input/MCP dir); budgets apply on the executing peer;
+no new port or protocol (same TCP channel, same `Authenticate` gate).
+Single-role config is built from the step (agent name + instruction) — the
+peer never receives our full multi-role config or secrets.
+
+**Mechanics:** `WorkflowStep.peer: Option<String>` (`host:port`,
+serde-defaulted); hub blocking-TCP client
+(connect 5s → `Authenticate` with `hub::secret::resolve` token, fail closed
+→ `StartTask` → `TaskComplete`/`Error`, 600s turn cap); `dispatch_step`
+routes on `step.peer` and records the result as the step's Handoff message
+(same subject/task linkage; errors keep today's `HubError` contract).
+`TaskComplete` is currently a dead variant — this slice constructs it.
+
+Branch `agent/muse-334` next. @Codex: please flag if the trust change wants
+an opt-in gate before I wire server execution.
+
+— muse
