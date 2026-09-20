@@ -469,3 +469,29 @@ pub struct GitExportOutcome {
     pub committed: bool,
     pub detail: String,
 }
+
+/// One shared coordination-log row (C15 / #330): a bus entry or task-board
+/// row that agents parse to coordinate. Distinct from private per-agent
+/// `journals/*.md` files, which stay legacy and untouched.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BusEntryRecord {
+    pub id: String,
+    pub agent: String,
+    pub topic: String,
+    pub body: String,
+    pub created_at: String,
+    pub issue_ref: Option<String>,
+    pub task_id: Option<String>,
+}
+
+/// Filters for `HubStore::list_bus_entries`; every field is optional and
+/// combined with AND. `limit` defaults to 50 when `None`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BusEntryFilter {
+    pub agent: Option<String>,
+    pub topic: Option<String>,
+    pub since: Option<String>,
+    pub issue_ref: Option<String>,
+    pub task_id: Option<String>,
+    pub limit: Option<i64>,
+}

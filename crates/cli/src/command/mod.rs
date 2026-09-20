@@ -1,6 +1,6 @@
 use crate::app::*;
 use crate::helpers::{audit_file_hash, audit_operation, audit_process_context, default_home};
-use hub::{HubStore, TaskStatus, WakeStatus, WorkflowStep};
+use hub::{BusEntryFilter, HubStore, TaskStatus, WakeStatus, WorkflowStep};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
 mod harness;
@@ -99,9 +99,45 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             }
         },
         Command::Journal { action } => match action {
-            JournalCommand::Append { agent, entry } => {
-                let path = store.append_private_journal(&agent, &entry)?;
-                println!("appended to {}", path.display());
+            JournalCommand::Append {
+                agent,
+                entry,
+                shared,
+                topic,
+                issue,
+                task,
+            } => {
+                if shared {
+                    let record = store.append_bus_entry(
+                        &agent,
+                        topic.as_deref(),
+                        &entry,
+                        issue.as_deref(),
+                        task.as_deref(),
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&record)?);
+                } else {
+                    let path = store.append_private_journal(&agent, &entry)?;
+                    println!("appended to {}", path.display());
+                }
+            }
+            JournalCommand::List {
+                agent,
+                topic,
+                since,
+                issue,
+                task,
+                limit,
+            } => {
+                let entries = store.list_bus_entries(&BusEntryFilter {
+                    agent,
+                    topic,
+                    since,
+                    issue_ref: issue,
+                    task_id: task,
+                    limit,
+                })?;
+                println!("{}", serde_json::to_string_pretty(&entries)?);
             }
         },
         Command::Task { action } => match action {

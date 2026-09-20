@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shared coordination log (C15, #330):** new `bus_entries` HubStore table
+  (agent/topic/body/created_at + optional issue/task refs) for bus entries
+  and task-board rows agents parse to coordinate. `ca journal append
+  --shared` writes it (JSON out); `ca journal list` queries it with
+  agent/topic/since/issue/task/limit filters, newest first. The default
+  `ca journal append` still writes the private per-agent `journals/` file,
+  which stays legacy and unmigrated. Markdown remains readable output, not
+  the coordination record.
+
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the
