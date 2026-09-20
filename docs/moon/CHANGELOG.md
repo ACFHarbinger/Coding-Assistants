@@ -64,6 +64,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Comprehensive multi-scope memory search (`global`, `workspace`) with tag/term
   filtering in Chat & Memory, reviewable audit journal with hash-chain integrity
   verification, and provider/local budgets view with truthful freshness timestamps.
+- **Owned and observed harness panes (T6, #140):** Multiplexed harness workspaces in
+  `crates/tui` with `portable-pty`. Supports launching multiple explicitly owned interactive
+  harness terminals (e.g. Gemini, Claude, Grok, etc.) with responsive PTY resize,
+  user-focused input routing, ANSI/VT escape parsing, and scrollback. Supports attaching
+  observed sessions as strictly read-only viewports with clear distinction, rejecting
+  all input forwarding without attaching to foreign PIDs. Features tabbed active-pane
+  bar, wide-terminal split tiles (≥100 cols), launcher modal with owned vs observed
+  toggle, and tmux-style prefix chords (`Ctrl+B`: `c` launch, `x` close, `d` detach, `s` split,
+  `n`/`p` cycle).
+- **Local multi-instance coherence (T7, #141):** Version-stamped reject-and-refresh
+  for concurrent `ca tui` instances and desktop operations. Modification timestamp and
+  file size checking guards against stale overwrites without last-writer-wins. External
+  file modifications trigger a persistent, non-blocking red/amber status banner with
+  focused `[r] Refresh and retry` and `[Esc] Dismiss` actions. Periodic runner tick
+  detection ensures background external changes are surfaced immediately.
+- **Kubuntu/Konsole resilience, safety validation, and acceptance (T8, #142):** Automated
+  integration suites verifying narrow (<80 cols) and wide (≥120 cols) terminal layouts
+  without panics, graceful horizontal split collapse, dynamic Unicode/ASCII fallback
+  (`[*]`, `[OK]`, `[X]`, `[OBS]`), mouse-off native selection preservation in Konsole, and
+  terminal raw-mode / alternate screen restoration hooks on panic and exit. Reconstructs
+  complete C10–C13 workflows (session creation, team validation, wake gates, message delivery)
+  strictly via Hub SQLite and `settings.toml` with zero writes to `.agent/cache/AGENT_BUS.md`.
+  Includes documented owner-run acceptance checklist in `docs/moon/checklists/tui_konsole_acceptance.md`.
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the

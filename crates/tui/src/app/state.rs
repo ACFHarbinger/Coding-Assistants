@@ -17,6 +17,7 @@ pub enum TabIndex {
     ChatAndMemory = 1,
     SharedHub = 2,
     Settings = 3,
+    HarnessPanes = 4,
 }
 
 impl TabIndex {
@@ -26,6 +27,7 @@ impl TabIndex {
             1 => TabIndex::ChatAndMemory,
             2 => TabIndex::SharedHub,
             3 => TabIndex::Settings,
+            4 => TabIndex::HarnessPanes,
             _ => TabIndex::Orchestrate,
         }
     }
@@ -35,16 +37,18 @@ impl TabIndex {
             TabIndex::Orchestrate => TabIndex::ChatAndMemory,
             TabIndex::ChatAndMemory => TabIndex::SharedHub,
             TabIndex::SharedHub => TabIndex::Settings,
-            TabIndex::Settings => TabIndex::Orchestrate,
+            TabIndex::Settings => TabIndex::HarnessPanes,
+            TabIndex::HarnessPanes => TabIndex::Orchestrate,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            TabIndex::Orchestrate => TabIndex::Settings,
+            TabIndex::Orchestrate => TabIndex::HarnessPanes,
             TabIndex::ChatAndMemory => TabIndex::Orchestrate,
             TabIndex::SharedHub => TabIndex::ChatAndMemory,
             TabIndex::Settings => TabIndex::SharedHub,
+            TabIndex::HarnessPanes => TabIndex::Settings,
         }
     }
 }
@@ -84,6 +88,10 @@ pub struct AppState {
     pub recovery: RecoveryModalState,
     pub memory: MemorySearchState,
     pub hub_view_mode: HubViewMode,
+    // T6 & T7 Harness Panes & Multi-Instance Coherence State
+    pub harnesses: super::pane_ops::HarnessWorkspaceState,
+    pub is_pane_focused: bool,
+    pub conflict: super::conflict_ops::ConflictState,
 }
 
 impl AppState {
@@ -120,6 +128,7 @@ impl AppState {
 
         let mut recovery = RecoveryModalState::default();
         recovery.check_load_status(&read_model.settings_load.status);
+        let conflict = super::conflict_ops::ConflictState::new(&home_dir);
 
         Self {
             active_tab: TabIndex::Orchestrate,
@@ -151,6 +160,9 @@ impl AppState {
             recovery,
             memory: MemorySearchState::default(),
             hub_view_mode: HubViewMode::Tasks,
+            harnesses: super::pane_ops::HarnessWorkspaceState::new(),
+            is_pane_focused: false,
+            conflict,
         }
     }
 
@@ -189,6 +201,8 @@ impl AppState {
     }
 
     pub fn refresh(&mut self) {
+        self.conflict.update_stamp(&self.home_dir);
+        self.harnesses.drain_all();
         match HubReadModel::load(
             &self.home_dir,
             self.workspace_path.as_deref(),
@@ -232,6 +246,24 @@ impl AppState {
             "4" | "settings" => {
                 self.active_tab = TabIndex::Settings;
                 self.status_message = String::from("Navigated to Settings panel.");
+            }
+            "5" | "harness" | "panes" | "term" | "terminal" => {
+                self.active_tab = TabIndex::HarnessPanes;
+                self.status_message = String::from("Navigated to Harness Workspace Panes.");
+            }
+            "launch" => {
+                self.active_tab = TabIndex::HarnessPanes;
+                self.harnesses.is_launcher_open = true;
+                self.status_message = String::from("Opened Harness Launcher dialog.");
+            }
+            "split" => {
+                self.harnesses.toggle_split();
+                let mode = if self.harnesses.is_split_view {
+                    "split tiles"
+                } else {
+                    "single tab"
+                };
+                self.status_message = format!("Harness layout: {mode}.");
             }
             "danger" => {
                 self.active_tab = TabIndex::Settings;

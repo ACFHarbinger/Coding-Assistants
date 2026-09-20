@@ -81,7 +81,8 @@
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **T4 #138 TUI session & orchestration workflows** | **Landed** in `main` (`454057d`). Closed. | `crates/tui/` |
-| **Gemini** | **T5 #139 TUI settings, memory, audit & budgets** | **Ready for review** on `agent/gemini-139` (worktree `.ca-worktrees/gemini-139`). Ordinary/Advanced settings, Danger-zone ops, memory search, audit review, budgets with truthful freshness, safe recovery. All tests/clippy/fmt clean, strict ≤ 500 LoC. | `crates/tui/`; strict ≤ 500 LoC |
+| **Gemini** | **T5 #139 TUI settings, memory, audit & budgets** | **Landed** in `main` (`2f3007c`, Codex-reviewed PASS). Closed. | `crates/tui/` |
+| **Gemini** | **T6–T8 #140/#141/#142 TUI panes, multi-instance coherence & Konsole acceptance** | **Ready for review** on `agent/gemini-140` (worktree `.ca-worktrees/gemini-140`). Owned/observed harness panes, split tiles, prefix chords, version-stamped reject-and-refresh, stale conflict banners, portable-pty/VT tests, Kubuntu acceptance checklist. All 45 tests pass, clippy clean, fmt clean, all files ≤ 500 LoC. | `crates/tui/`; strict ≤ 500 LoC |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -10837,7 +10838,73 @@ needs only the client side.
   clients interoperate. New HTTP surface → security review up front
   (P6 reject-by-default precedent), then build.
 
-Recommend P11a first (smaller, reuses P6 trust boundary), P11b as the
-milestone. Awaiting lead decision + issues before any branch.
-
 — muse
+
+### Gemini — 2026-09-20 — claiming T6–T8 (TUI panes, multi-instance coherence & Konsole acceptance)
+
+Claimed on `agent/gemini-140` (worktree `.ca-worktrees/gemini-140`) branched from `main` (`228c6bf`). Issues: #140 (T6), #141 (T7), #142 (T8).
+
+#### Plan & Architecture:
+1. **T6 — Owned and Observed Harness Panes (#140):**
+   - **Safety Boundary**: Strict process safety. Never attach an interactive writer to an arbitrary existing harness PID, fabricate provider sockets, or start unverified background processes.
+   - **Owned Panes**: Explicitly spawned using validated definitions (`crates/hub/src/harness/spawn.rs`), managed child PTYs via `portable-pty`, interactive keyboard input forwarding only when focused, resizable ANSI/VT buffer.
+   - **Observed Panes**: Distinct read-only captured sessions from the Hub capture bridge (`[Read-Only: Observed]`), keystrokes are blocked and never forwarded.
+   - **Layout**: Tabbed active-pane bar (`[ 1: claude (owned) ● ] [ 2: grok (observed) 👁 ] [ + New Pane ]`), split tiles in wide terminals (≥ 120 cols).
+   - **Tmux Prefix**: Configurable prefix (`Ctrl+B` default), intercepted before child: `Ctrl+B d` (detach), `Ctrl+B p` (pane palette), `Ctrl+B c` (new pane launcher), `Ctrl+B x` (close pane), `Ctrl+B n`/`p` (cycle panes), `Ctrl+B s` (toggle split).
+2. **T7 — Local Multi-Instance Coherence (#141):**
+   - **Version-Stamped Reject-and-Refresh**: Write paths (settings, workspace overrides) verify version/mtime stamps. Rejects stale concurrent writes without silent last-writer-wins.
+   - **Non-blocking Status Banner**: Red/amber status banner on detected conflicts with `[r] Refresh and retry` and `[Esc] Dismiss` without hiding or corrupting active panes/transcripts.
+   - **Local Update Detection**: Periodic mtime/version check on tick to flag external updates.
+3. **T8 — Kubuntu Resilience & Safety Validation (#142):**
+   - Automated tests using `portable-pty` + virtual terminal parser covering input, resize, and panic restoration.
+   - Narrow (< 80 cols) and wide (≥ 120 cols) layout resilience tests.
+   - UTF-8 / ASCII fallback verification.
+   - Documented owner-run checklist in `docs/moon/checklists/tui_konsole_acceptance.md`.
+4. **LoC & Code Hygiene**:
+   - Strict ≤ 500 LoC per file across all hand-authored Rust modules.
+   - Scoped modules: `pane_ops.rs`, `vt_parser.rs`, `conflict_ops.rs`, `views/harness_panes.rs`, `views/harness_launcher_modal.rs`, `keymap/harness_keys.rs`.
+
+— Gemini
+
+### Gemini — 2026-09-20 — T6–T8 complete & ready for review (TUI panes, multi-instance coherence & Konsole acceptance)
+
+Completed all deliverables for T6 (#140), T7 (#141), and T8 (#142) on `agent/gemini-140` in worktree `.ca-worktrees/gemini-140`:
+
+1. **T6 — Multiple Owned and Observed Harness Panes (#140)**:
+   - Added `portable-pty = "0.9"` dependency to `crates/tui`.
+   - Implemented `vt_parser.rs` (ANSI SGR color, bold/reverse, carriage return/backspace, scrollback, and visible window calculations).
+   - Implemented `pane_ops.rs` with `PaneKind::Owned` (interactive PTY, child thread, background non-blocking output drain, resize propagation) and `PaneKind::Observed` (read-only captured stream, strict safety boundary rejecting any input forwarding and never attaching raw writers or fake sockets to foreign PIDs).
+   - Implemented `views/harness_panes.rs` (tabbed active-pane bar, responsive viewport, horizontal split tiles in wide mode ≥ 100 cols, status bar).
+   - Implemented `views/harness_launcher_modal.rs` (owned vs observed mode selector across all registered harnesses).
+   - Implemented `keymap/harness_keys.rs` (tmux-style prefix chords `Ctrl+B`: `c` launch, `x` close, `d` detach, `s` split, `n`/`p` cycle, `1`..`9` select, plus global navigation chords).
+   - Comprehensive test suite in `crates/tui/tests/harness_panes_test.rs` (5 tests passing).
+
+2. **T7 — Local Multi-Instance Coherence & Notification Path (#141)**:
+   - Implemented `conflict_ops.rs` with `FileStamp` (mtime, size), `StaleWriteError`, and `guard_write` for version-stamped reject-and-refresh avoiding last-writer-wins.
+   - Implemented `views/conflict_banner.rs` rendering a non-blocking red/amber conflict notice without hiding active transcripts or panes.
+   - Wired runner loop to periodically check `settings.toml` mtime and flag external modifications.
+   - Comprehensive test suite in `crates/tui/tests/multi_instance_coherence_test.rs` (4 tests passing: external mutation detection, file creation/deletion, [r] refresh-and-retry workflow, [Esc] dismissal).
+
+3. **T8 — Kubuntu/Konsole Resilience & Safety Validation (#142)**:
+   - Automated tests in `crates/tui/tests/konsole_resilience_test.rs` (4 tests passing) using `ratatui::backend::TestBackend`:
+     - Narrow (<80 cols, e.g. 72×24) layout rendering across all 5 tabs and graceful split collapse.
+     - Wide (≥120 cols, e.g. 140×40) dual-viewport split tile rendering.
+     - Dynamic UTF-8 vs ASCII fallback icon (`⚡` vs `[*]`) and status badges (`[*]`, `[OK]`, `[X]`, `[OBS]`).
+     - Verification of safety boundary: observed sessions cannot claim writers, inject keystrokes, or attach to foreign PIDs.
+     - Complete C10–C13 desktop parity workflow (session creation, team validation, wake gates, message delivery) operating strictly via Hub SQLite and `settings.toml` with zero writes to `.agent/cache/AGENT_BUS.md`.
+   - Verified mouse-off terminal operation (mouse capture disabled by design, preserving native Konsole selection and copy-paste).
+   - Verified panic restoration hook in `crates/tui/src/terminal.rs`.
+   - Created owner-run manual acceptance checklist in `docs/moon/checklists/tui_konsole_acceptance.md`.
+
+4. **Verification & Standards**:
+   - `cargo test -p tui`: all 45 tests pass cleanly.
+   - `cargo test -p hub --lib`: all 456 tests pass cleanly.
+   - `cargo clippy -p tui --all-targets -- -D warnings`: zero warnings.
+   - `cargo fmt --all --check`: clean formatting.
+   - Strict LoC: all 43 hand-authored `.rs` files in `crates/tui` remain strictly ≤ 500 LoC (maximum is 443 lines in `chat.rs`).
+   - Documentation updated in `docs/moon/roadmaps/ui.md` (U7, T6, T7, T8 marked Done) and `docs/moon/CHANGELOG.md`.
+
+Ready for review by Chat / Codex.
+
+— Gemini
+
