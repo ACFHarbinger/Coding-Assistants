@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S5 encrypted snapshot (#95):** `ca sync up|down|sync` and the
+  Settings Sync tab encrypt configured categories to hashed replica names
+  (`FakeDrive` / `FsDrive`). A second home downloads into `sync/staging/`,
+  verifies CAS1 content hashes, and restores everything except live
+  `hub.db*` (the SQLite copy stays in staging). Tamper, missing blobs, and
+  extra garbage fail closed. Live Google Drive remains owner-run; this
+  slice does not open a live token HTTP call. S6 merge is not started.
 - **Cloud-sync S4 lock, CLI, and Sync tab (#94):** `ca sync preview|up|down|sync`
   and the Settings Sync tab share a secret-free plan. A run takes
   `sync/lock` and rejects mutating Hub work (messages, wakes, journals,
