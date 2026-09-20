@@ -156,6 +156,15 @@ Task descriptions and agent outputs may be sent to cloud LLM providers. Be aware
 
 ## File System Security
 
+### OS-level tool execution (P5)
+
+`hub::os_tool` runs a PATH program with **explicit argv** (`Command::new(program).args(args)`). It never invokes `sh -c`. Policy is the existing `orchestration.sandbox_strictness` setting (default **Standard**):
+
+- Shells (`bash`, `sh`, `powershell`, …) and `sudo`/`shutdown`/`mkfs` are denied at every level, including after approval.
+- Standard/Strict require an absolute workspace and a cwd inside it.
+- Mutating or unknown tools return `needs_approval` and only run after `hub_approve_os_tool`.
+- Every attempt is written to the hash-chained `audit_events` table (`os_tool.ran` / `os_tool.proposed` / `os_tool.denied`). stdout/stderr in the audit payload are truncated previews.
+
 ### Workspace Operations
 
 `FileTools` (`file_tools.rs`) provides sandboxed file operations:

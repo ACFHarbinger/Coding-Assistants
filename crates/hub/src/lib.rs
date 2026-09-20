@@ -10,6 +10,7 @@ pub mod bus;
 pub mod github;
 mod harness;
 pub mod mcp;
+pub mod os_tool;
 mod paths;
 pub mod proc;
 pub mod remote;
@@ -104,6 +105,9 @@ pub use harness::{
     qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args, resolve_hermes_path,
     start_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args, HarnessId,
     HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+};
+pub use os_tool::{
+    approve as approve_os_tool, submit as submit_os_tool, OsToolRequest, OsToolResult,
 };
 pub use paths::default_hub_home;
 pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
