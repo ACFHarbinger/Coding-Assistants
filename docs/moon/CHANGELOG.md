@@ -41,6 +41,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   P1 bus `task-lifecycle` topic. No frontend callers of the old signatures
   existed, so no `invoke` updates were needed.
 
+- **LAN TCP authentication (P6, #332):** The Android remote-control
+  listener still binds `0.0.0.0:5555`, but every connection starts
+  unauthenticated. Clients must send `Authenticate` with the P12 vault
+  secret `tool.tcp.auth_token` / `CA_TCP_AUTH_TOKEN` (vault wins, env
+  fallback). Unset, missing, or wrong tokens — and any other command
+  before a successful handshake — are rejected, audited as
+  `tcp.auth_rejected` (peer + reason, never the secret), and the socket
+  is dropped. Broadcasts are withheld until auth succeeds. The Android
+  companion pairs by sending the token as the first line. TLS is not
+  part of this slice.
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the

@@ -462,6 +462,19 @@ pub const CATALOG: &[FieldSpec] = &[
             "BotFather token for the U25 Telegram remote client. Vault wins; env is the fallback.",
         ),
     },
+    FieldSpec {
+        id: "tool.tcp.auth_token",
+        display_name: "LAN TCP Auth Token",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "tcp",
+        env_var: Some("CA_TCP_AUTH_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some(
+            "Shared secret for Android LAN TCP pairing. Vault wins; env is the fallback. Unset rejects every client. Never logged or returned over IPC.",
+        ),
+    },
 ];
 
 /// Look up a field in the catalog by its unique id.

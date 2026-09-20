@@ -119,8 +119,8 @@ bumping to `1.0.0`.
   the existing public API, IPC, CLI, and UI contracts. See I8 / #158 in
   [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md).
 
-LAN TCP remains available during early development. Authentication and TLS are
-  later platform work. **`.coding-assistants` multi-device replica transport
+LAN TCP now requires a pairing token (`Authenticate` on connect; vault
+  secret `CA_TCP_AUTH_TOKEN`). TLS remains later platform work. **`.coding-assistants` multi-device replica transport
   starts with Google Drive**, then Firebase Auth + private Storage, Supabase
   Auth + private Storage, and finally Dropbox/OneDrive — see
   [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md). Other unused deployment

@@ -22,6 +22,12 @@ import java.net.Socket
 @Serializable
 sealed class ClientRequest {
     @Serializable
+    @SerialName("Authenticate")
+    data class Authenticate(
+        val token: String,
+    ) : ClientRequest()
+
+    @Serializable
     @SerialName("GetModels")
     class GetModels : ClientRequest()
 
@@ -189,19 +195,54 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
         onConnectionLostListener = listener
     }
 
-    suspend fun connect(): Result<Unit> =
+    suspend fun connect(token: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
+                if (token.isBlank()) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("authentication token required"),
+                    )
+                }
                 userInitiatedDisconnect = false
                 socket = Socket(host, port)
                 writer = PrintWriter(socket!!.getOutputStream(), true)
                 reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
+
+                val handshake = json.encodeToString<ClientRequest>(ClientRequest.Authenticate(token))
+                writer?.println(handshake)
+                if (writer?.checkError() == true) {
+                    disconnectInternal()
+                    return@withContext Result.failure(java.io.IOException("Socket write error"))
+                }
+                val reply = reader?.readLine()
+                    ?: return@withContext Result.failure(java.io.IOException("No handshake response"))
+                when (val response = json.decodeFromString<ServerResponse>(reply)) {
+                    is ServerResponse.Error -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(IllegalStateException(response.message))
+                    }
+                    is ServerResponse.Status -> {
+                        if (response.message != "Authenticated") {
+                            disconnectInternal()
+                            return@withContext Result.failure(
+                                IllegalStateException("authentication required"),
+                            )
+                        }
+                    }
+                    else -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(
+                            IllegalStateException("authentication required"),
+                        )
+                    }
+                }
 
                 startListening()
                 startHeartbeat()
 
                 Result.success(Unit)
             } catch (e: Exception) {
+                disconnectInternal()
                 Result.failure(e)
             }
         }

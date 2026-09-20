@@ -224,7 +224,8 @@ After selecting a workspace with an `.agent/` directory:
 1. Install the Android companion app (see [android/README.md](../android/README.md))
 2. Ensure both devices are on the **same WiFi network**
 3. Enter the IP address shown in the desktop app
-4. Tap **Connect**
+4. Enter the same LAN TCP auth token you set in desktop Settings (`tool.tcp.auth_token` or `CA_TCP_AUTH_TOKEN`)
+5. Tap **Connect**
 
 ### Remote Operations
 

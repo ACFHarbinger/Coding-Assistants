@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -7,11 +8,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::agent::AgentConfig;
+use crate::server::tcp_auth::{self, RejectReason};
 use hub::bus::{EventBus, InProcessBus, TOPIC_AGENT_EVENT};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientRequest {
+    Authenticate { token: String },
     GetModels,
     StartTask { config: AgentConfig, task: String },
     CancelTask,
@@ -146,7 +149,7 @@ impl TcpServer {
                                 let app = app_handle.clone();
                                 let b_tx = broadcast_tx.clone();
                                 tokio::spawn(async move {
-                                    if let Err(e) = handle_client(stream, app, b_tx).await {
+                                    if let Err(e) = handle_client(stream, addr, app, b_tx).await {
                                         eprintln!("Error handling client: {}", e);
                                     }
                                 });
@@ -170,6 +173,7 @@ impl TcpServer {
 
 async fn handle_client(
     stream: TcpStream,
+    peer: SocketAddr,
     app_handle: AppHandle,
     broadcast_tx: broadcast::Sender<ServerResponse>,
 ) -> Result<(), String> {
@@ -177,10 +181,10 @@ async fn handle_client(
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
     let mut broadcast_rx = broadcast_tx.subscribe();
+    let mut authenticated = false;
 
     loop {
         tokio::select! {
-            // Read from client
             result = reader.read_line(&mut line) => {
                 match result {
                     Ok(0) | Err(_) => break,
@@ -191,14 +195,11 @@ async fn handle_client(
                             continue;
                         }
 
-                        println!("Received: {}", trimmed);
-
-                        let response = match serde_json::from_str::<ClientRequest>(trimmed) {
-                            Ok(request) => handle_request(request, &app_handle).await,
-                            Err(e) => ServerResponse::Error {
-                                message: format!("Invalid request: {}", e),
-                            },
-                        };
+                        let (response, grant_auth, drop_after) =
+                            dispatch_client_line(trimmed, peer, authenticated, &app_handle).await;
+                        if grant_auth {
+                            authenticated = true;
+                        }
 
                         let response_json = serde_json::to_string(&response).unwrap();
                         if let Err(e) = writer
@@ -210,11 +211,16 @@ async fn handle_client(
                         }
 
                         line.clear();
+                        if drop_after {
+                            break;
+                        }
                     }
                 }
             }
-            // Read from broadcast
             Ok(response) = broadcast_rx.recv() => {
+                if !authenticated {
+                    continue;
+                }
                 let response_json = serde_json::to_string(&response).unwrap();
                 if let Err(e) = writer
                     .write_all(format!("{}\n", response_json).as_bytes())
@@ -230,8 +236,67 @@ async fn handle_client(
     Ok(())
 }
 
+async fn dispatch_client_line(
+    trimmed: &str,
+    peer: SocketAddr,
+    authenticated: bool,
+    app_handle: &AppHandle,
+) -> (ServerResponse, bool, bool) {
+    let request = match serde_json::from_str::<ClientRequest>(trimmed) {
+        Ok(request) => request,
+        Err(_) if !authenticated => {
+            return reject_client(peer, RejectReason::UnauthenticatedCommand);
+        }
+        Err(error) => {
+            return (
+                ServerResponse::Error {
+                    message: format!("Invalid request: {error}"),
+                },
+                false,
+                false,
+            );
+        }
+    };
+
+    match request {
+        ClientRequest::Authenticate { token } => {
+            let expected = hub::secret::resolve(tcp_auth::TOKEN_VAULT_KEY);
+            match tcp_auth::authorize(
+                expected.as_ref().map(|secret| secret.expose()),
+                Some(&token),
+            ) {
+                Ok(()) => (
+                    ServerResponse::Status {
+                        running: true,
+                        message: "Authenticated".into(),
+                    },
+                    true,
+                    false,
+                ),
+                Err(reason) => reject_client(peer, reason),
+            }
+        }
+        _ if !authenticated => reject_client(peer, RejectReason::UnauthenticatedCommand),
+        other => (handle_request(other, app_handle).await, false, false),
+    }
+}
+
+fn reject_client(peer: SocketAddr, reason: RejectReason) -> (ServerResponse, bool, bool) {
+    tcp_auth::record_reject(&peer.to_string(), reason);
+    (
+        ServerResponse::Error {
+            message: "authentication required".into(),
+        },
+        false,
+        true,
+    )
+}
+
 async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> ServerResponse {
     match request {
+        ClientRequest::Authenticate { .. } => ServerResponse::Error {
+            message: "authentication required".into(),
+        },
         ClientRequest::GetModels => {
             let client = crate::client::llm::LLMClient::new();
             match client.list_models().await {

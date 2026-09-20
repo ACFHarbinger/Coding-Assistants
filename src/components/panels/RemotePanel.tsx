@@ -34,7 +34,9 @@ export default function RemotePanel({
             Status: <span style={{ color: isListening ? '#22c55e' : 'var(--text-muted)' }}>{remoteStatus}</span>
           </p>
           <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Control from Android app via WiFi
+            Control from Android app via WiFi. Pairing requires the LAN TCP
+            auth token from Settings (<code>tool.tcp.auth_token</code> or{' '}
+            <code>CA_TCP_AUTH_TOKEN</code>). Unauthenticated clients are rejected.
           </p>
           {serverIP && (
             <div style={{ marginTop: '1rem', background: 'rgba(168, 85, 247, 0.1)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>

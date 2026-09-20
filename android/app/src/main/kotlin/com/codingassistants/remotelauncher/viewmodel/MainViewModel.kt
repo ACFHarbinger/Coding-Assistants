@@ -62,6 +62,7 @@ data class AppState(
     val activeEvents: List<ServerResponse.TaskEvent> = emptyList(),
     val agentResources: AgentResources = AgentResources(),
     val lastServerIp: String = "",
+    val lastLanToken: String = "",
 )
 
 fun parseHostPort(
@@ -88,7 +89,11 @@ class MainViewModel(
         application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private val _state =
-        MutableStateFlow(AppState(lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: ""))
+        MutableStateFlow(
+            AppState(
+                lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: "",
+            ),
+        )
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     private var tcpClient: TcpClient? = null
@@ -97,7 +102,10 @@ class MainViewModel(
         prefs.edit().putString(PREF_LAST_SERVER_IP, ipAddress).apply()
     }
 
-    fun connectToServer(ipAddress: String) {
+    fun connectToServer(
+        ipAddress: String,
+        token: String,
+    ) {
         viewModelScope.launch {
             val (host, port) = parseHostPort(ipAddress)
             try {
@@ -105,12 +113,13 @@ class MainViewModel(
                     _state.value.copy(
                         errorMessage = null,
                         serverAddress = ipAddress.trim(),
+                        lastLanToken = token,
                         isConnectionLost = false,
                         isReconnecting = false,
                     )
 
                 val client = TcpClient(host, port)
-                val connectResult = client.connect()
+                val connectResult = client.connect(token)
 
                 if (connectResult.isSuccess) {
                     tcpClient = client
@@ -121,6 +130,7 @@ class MainViewModel(
                             isConnectionLost = false,
                             isReconnecting = false,
                             lastServerIp = ipAddress.trim(),
+                            lastLanToken = token,
                             currentScreen = Screen.Dashboard,
                         )
 
@@ -192,8 +202,9 @@ class MainViewModel(
             }
             try {
                 val (host, port) = parseHostPort(address)
+                val token = _state.value.lastLanToken
                 val client = TcpClient(host, port)
-                val connectResult = client.connect()
+                val connectResult = client.connect(token)
                 if (connectResult.isSuccess) {
                     tcpClient = client
                     persistServerIp(address.trim())
@@ -203,6 +214,7 @@ class MainViewModel(
                             isConnectionLost = false,
                             isReconnecting = false,
                             lastServerIp = address.trim(),
+                            lastLanToken = token,
                             errorMessage = null,
                         )
 

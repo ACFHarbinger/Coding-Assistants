@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                         is Screen.Connection ->
                             ConnectionScreen(
                                 state = state,
-                                onConnect = { viewModel.connectToServer(it) },
+                                onConnect = { host, token -> viewModel.connectToServer(host, token) },
                             )
                         is Screen.Dashboard ->
                             DashboardScreen(
