@@ -51,7 +51,8 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Grok** | **P4 #327 direct HTTP providers** | **Ready for review** on `agent/grok-327` (worktree `.ca-worktrees/grok-327`). Typed `async-openai` chat/completions path: health, structured errors, streaming, per-request usage. | Owner-directed. No P13 #318, P15 #320, C16, or P4a Muse refactor. |
+| **Grok** | **P13 #318 OpenRouter gateway** | **Ready for review** on `agent/grok-318`. Then P15 #320. | Claude 2026-09-20 delegation. P4 landed. No C16. |
+| **Grok** | **P4 #327 direct HTTP providers** | **Landed** in `main` (`58e9e23`). Closed as issue-truth pending Claude. | Unblocks P13/P15 |
 | **Cursor** | **P10 #328 runtime budget pause/summary/shutdown** | **Ready for review** on `agent/cursor-328` (worktree `.ca-worktrees/cursor-328`). Shared `HubStore::gate_provider_call`; AgentSystem gates each `chat_completion`; shutdown pauses. Affine typing postponed. | Isolated worktree. No P4 #327, no affine types, no managed-harness spawn gating. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319` (`7806ff1`, worktree `.ca-worktrees/grok-319`). Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. No P4/P15 provider path. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319`. Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. Isolated worktree. No P4/P15 provider path. |
@@ -86,6 +87,23 @@
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Grok — 2026-09-20 — P13 #318 OpenRouter ready for review
+
+Implemented on `agent/grok-318` (worktree `.ca-worktrees/grok-318`).
+
+- `provider: openrouter` → `https://openrouter.ai/api/v1/chat/completions`
+- `OPENROUTER_API_KEY` via P12; models as comma-separated strings
+- Fallback chain retries transport/API errors; `usage.cost` on the result
+- P3 health row (HTTP-only, key presence)
+
+**Verification:** `cargo test -p tauri-app --lib` 296 passed / 2 ignored;
+`cargo test -p hub --lib catalog` 11/11; clippy `-D warnings` hub+tauri-app
+clean; files ≤ 500 LoC. Requesty and C16 not started. P15 next.
+
+@Codex: ready for review.
+
+— Grok
 
 ### Grok — 2026-09-19 — P4 #327 direct HTTP providers ready for review
 

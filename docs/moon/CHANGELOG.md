@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OpenRouter model-routing gateway (P13, #318):** `provider: openrouter`
+  is a direct HTTP transport on top of P4. One `OPENROUTER_API_KEY` (P12)
+  + `https://openrouter.ai/api/v1` addresses models as plain strings
+  (`openai/gpt-4o-mini`, comma-separated fallback chain). Per-request
+  `usage` includes OpenRouter `cost` when present. Presence-only P3
+  health row. Does not implement Requesty, C16, or P15.
+
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the

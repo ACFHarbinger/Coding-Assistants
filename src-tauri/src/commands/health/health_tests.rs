@@ -29,6 +29,22 @@ fn deepseek_needs_no_binary_but_tracks_key_presence() {
 }
 
 #[test]
+fn openrouter_needs_no_binary_but_tracks_key_presence() {
+    let with_key = openrouter_health_with(true);
+    assert!(
+        with_key.installed,
+        "HTTP-only provider is always 'installed'"
+    );
+    assert_eq!(with_key.authenticated, Some(true));
+    assert!(with_key.detail.contains("OPENROUTER_API_KEY is configured"));
+    assert!(!with_key.detail.contains("sk-"));
+
+    let without_key = openrouter_health_with(false);
+    assert_eq!(without_key.authenticated, Some(false));
+    assert!(without_key.detail.contains("not set"));
+}
+
+#[test]
 fn openai_needs_no_binary_but_tracks_key_presence() {
     let with_key = openai_health_with(true);
     assert!(

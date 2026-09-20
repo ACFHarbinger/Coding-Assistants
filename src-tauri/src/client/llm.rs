@@ -1,9 +1,12 @@
 use crate::agent::AgentEvent;
+use crate::client::events::emit_http_result;
 use crate::client::http::{
-    chat_stream, is_lm_studio_provider, is_openai_provider, openai_is_authenticated,
-    openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
-    OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS, OPENAI_REQUEST_TIMEOUT_SECS,
+    chat_stream, is_lm_studio_provider, is_openai_provider, is_openrouter_provider,
+    openai_is_authenticated, openai_unavailable_unauthenticated, openrouter_is_authenticated,
+    LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE, OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS,
+    OPENAI_REQUEST_TIMEOUT_SECS, OPENROUTER_FALLBACK_MODELS,
 };
+use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
     canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
     muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
@@ -113,6 +116,18 @@ impl LLMClient {
         // Aliases of one upstream share a rate-limit bucket (`muse`/`meta`
         // both hit the Model API); every other provider keys on itself.
         wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
+
+        if is_openrouter_provider(&config.provider) {
+            return openrouter_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
 
         if let Some(endpoint) = config
             .endpoint
@@ -254,6 +269,16 @@ impl LLMClient {
             }
         }
 
+        if openrouter_is_authenticated(
+            hub::secret::resolve("OPENROUTER_API_KEY")
+                .as_ref()
+                .map(|s| s.expose()),
+        ) {
+            for model in OPENROUTER_FALLBACK_MODELS {
+                models.push(format!("openrouter/{model}"));
+            }
+        }
+
         Ok(models)
     }
 }
@@ -311,24 +336,7 @@ async fn direct_http_completion(
         },
     )
     .await?;
-    if let Some(usage) = result.usage.as_ref() {
-        bus.emit(
-            TOPIC_AGENT_EVENT,
-            AgentEvent {
-                source: source.to_string(),
-                event_type: "usage".to_string(),
-                content: usage.to_json().to_string(),
-            },
-        );
-    }
-    bus.emit(
-        TOPIC_AGENT_EVENT,
-        AgentEvent {
-            source: source.to_string(),
-            event_type: "response".to_string(),
-            content: result.text.clone(),
-        },
-    );
+    emit_http_result(bus, source, &result, false);
     Ok(result.text)
 }
 
