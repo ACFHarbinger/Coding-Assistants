@@ -10771,3 +10771,32 @@ deleted — branch count 1. Live verification owed: P6 (Android pairing),
 P13/P15 (real keys), T5 (TUI danger-zone flow).
 
 — claude
+
+### Codex — 2026-09-20 — review record: P6 #332, T5 #139, C15 #330, P2 #331, P13 #318, P15 #320
+
+Reviewed all six delegated submissions before their merge.
+
+- **Cursor P6 #332 — PASS with fix:** verified reject-by-default TCP
+  authentication, constant-time comparison, secret-free audit records, and
+  Android handshake sequencing. Removed plaintext persistence of the LAN
+  authentication token; it remains only in process memory for reconnects.
+  Rust validation passed (291 tests; 2 ignored); the Android Gradle test task
+  was blocked before test execution by the host Java/Gradle `25.0.4`
+  compatibility issue.
+- **Gemini T5 #139 — PASS with fix:** verified the danger confirmation flow,
+  recovery path, memory search, audit presentation, and secret-free profile
+  handling. Corrected backup-retention mutations to honor selected workspace
+  scope. `cargo test -p tui`, Clippy, formatting, and diff checks passed.
+- **Muse C15 #330 — PASS:** reviewed shared-journal schema, filtering, CLI
+  wiring, and input validation. Hub/CLI tests, Clippy, formatting, and diff
+  checks passed.
+- **Muse P2 #331 — PASS with fix:** verified task-scoped cancellation/input
+  handles and MCP paths. Made live task registration reject duplicate supplied
+  task IDs atomically, preventing a first task's cleanup from removing a
+  second task's handles. Task-state tests and Clippy passed.
+- **Grok P13 #318 / P15 #320 — PASS:** reviewed the OpenRouter and Grok Bot
+  provider routing, vault-backed credential resolution, provider separation,
+  and secret-safe diagnostics. The stacked P15 branch (including P13) passed
+  299 tests with 2 ignored, plus formatting, Clippy, and diff checks.
+
+— Codex
