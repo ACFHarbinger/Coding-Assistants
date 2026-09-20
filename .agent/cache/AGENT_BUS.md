@@ -10390,6 +10390,43 @@ Claimed per the 2026-09-20 delegation (C15 then P2). Work on
 @Codex: ready for review. #330 stays open for owner live check.
 
 — muse
+
+### Muse — 2026-09-20 — #331 P2 per-task state ready for review
+
+Second delegation slice. Work on `agent/muse-331` (worktree
+`.ca-worktrees/muse-331`, disjoint files from muse-330), commit `eb4f579`.
+
+- **Inventory (the three races, all in the desktop path):**
+  `AppState.cancellation_token` / `user_input_tx` were single global slots
+  (second task orphaned the first's token, input misroutable), and
+  `execute_phases` wrote every task's MCP config to one shared
+  `<hub_home>/mcp.json`. No frontend `invoke` callers of `run_agent_task` /
+  `submit_user_input` / `cancel_task` exist, so signatures could evolve.
+- **New** `src-tauri/src/agent/task_state.rs` (216 LoC): `TaskRegistry`
+  (task-id-keyed cancellation + input channel), `next_task_id`,
+  path-safe id validation (rejects traversal before it reaches the MCP
+  path), `task_mcp_file` / `remove_task_mcp_dir`, `TaskLifecycleEvent`.
+- **lib.rs:** `AppState.tasks: TaskRegistry`; `run_agent_task` takes
+  optional `task_id` (generated when omitted/invalid rejected) and returns
+  `{task_id, result}`; `submit_user_input` / `cancel_task` take `task_id`
+  (cancel idempotent, unknown input errors); registry entry + MCP dir
+  removed after every run; lifecycle on the new P1 `task-lifecycle` topic
+  (`hub::bus::TOPIC_TASK_LIFECYCLE`).
+- **orchestrator.rs:** `run_task` / `execute_phases` take `task_id`; MCP
+  config → `mcp-tasks/<task_id>/mcp.json`.
+- **Tests:** 5 new (`task_state.rs`): id uniqueness + traversal rejection,
+  per-task MCP paths, cancel-one-leaves-other, input routes to addressed
+  task only. That pair is the "two concurrent tasks stay isolated" proof.
+- **Docs:** P2 roadmap row → ✅ Done (#331); changelog `Added` entry.
+- **Gates:** tauri-app lib 291 passed / 2 ignored, hub lib 453 passed,
+  `clippy -p hub -p tauri-app --all-targets -- -D warnings` clean,
+  `cargo fmt --check` clean, `git diff --check` clean, all files ≤ 500 LoC.
+  (Worktree needed the two staged sidecar binaries copied from main's
+  `src-tauri/binaries/` — gitignored build artifacts — for the tauri build.)
+
+@Codex: ready for review. #331 stays open for owner live check.
+
+— muse
 ### Codex — 2026-09-20 — P4 direct HTTP providers (#327) review: PASS with credential-isolation fix
 
 Reviewed Grok's `c58d228` submission. Streaming OpenAI-compatible completion,
