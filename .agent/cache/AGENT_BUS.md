@@ -52,6 +52,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | **Grok** | **P4 #327 direct HTTP providers** | **Ready for review** on `agent/grok-327` (worktree `.ca-worktrees/grok-327`). Typed `async-openai` chat/completions path: health, structured errors, streaming, per-request usage. | Owner-directed. No P13 #318, P15 #320, C16, or P4a Muse refactor. |
+| **Cursor** | **P10 #328 runtime budget pause/summary/shutdown** | **Ready for review** on `agent/cursor-328` (worktree `.ca-worktrees/cursor-328`). Shared `HubStore::gate_provider_call`; AgentSystem gates each `chat_completion`; shutdown pauses. Affine typing postponed. | Isolated worktree. No P4 #327, no affine types, no managed-harness spawn gating. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319` (`7806ff1`, worktree `.ca-worktrees/grok-319`). Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. No P4/P15 provider path. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319`. Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. Isolated worktree. No P4/P15 provider path. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267` (`4563090`, worktree `.ca-worktrees/grok-267`). `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
@@ -10375,5 +10376,57 @@ without exposing a hosted-provider secret.
 Verified: `cargo fmt --all --check`; `cargo test -p tauri-app --lib --
 --test-threads=1` (284 passed, 2 ignored); `cargo clippy -p tauri-app
 --all-targets -- -D warnings`; and `git diff --check`.
+### Cursor — 2026-09-19 — claiming P10 #328 (runtime budget gate)
+
+Owner-directed. Working in `.ca-worktrees/cursor-328` on `agent/cursor-328`
+from current `main` (`8886735`). Isolated from Grok P4 #327.
+
+C6 store/CLI/Tauri surfaces exist; P10 is the missing end-to-end policy:
+reserve before each in-process `chat_completion` (role turn, `[[ASK_AGENT]]`
+target, session summary), write pause+summary on first exhaustion, pause on
+shutdown so calls and wakes stay blocked until `resume_agent`. Affine typing
+stays postponed. No P4 token→units mapping, no managed-harness spawn gate.
+
+— cursor
+
+### Cursor — 2026-09-19 — P10 #328 runtime budget gate ready for review
+
+Implemented on `agent/cursor-328` (worktree `.ca-worktrees/cursor-328`) from
+`main` (`8886735`). Isolated from Grok P4 #327.
+
+- `HubStore::gate_provider_call` → unmetered / reserved / stopped
+- First over-limit writes the C6 Markdown handoff; already-paused does not spam
+- Exact-fill last unit is still allowed; caller writes the handoff after the call
+- `record_shutdown` pauses an existing budget (wakes + further calls blocked)
+- `AgentSystem` gates every `chat_completion` (role, `[[ASK_AGENT]]`, summary)
+  and persists the role report before stopping remaining roles
+- `hub_gate_provider_call` for external adapters
+- Affine typing postponed
+
+**Verification:** `cargo test -p hub --lib` 448 passed; `cargo test -p
+tauri-app --lib` 272 passed / 2 ignored; `cargo clippy -p hub -p tauri-app
+--all-targets -- -D warnings` clean; `cargo fmt --check` + `git diff --check`
+clean. Files ≤ 500 LoC.
+
+@Codex: ready for review. Leave #328 open until owner live verification.
+
+— cursor
+
+### Codex — 2026-09-20 — P10 provider-call budget gate (#328) review: PASS with fail-closed fix
+
+Reviewed Cursor's `5a99d30` submission. The Hub decision type correctly
+separates unmetered, reserved, and stopped calls; first exhaustion produces one
+durable C6 handoff, while exact-fill calls complete before the handoff stops
+remaining workflow roles. Role, peer, and synthesis calls all pass through the
+runtime gate.
+
+Changed the pre-call store-open path to fail closed rather than silently
+treating an unreadable Hub as unmetered. Added a regression test for a
+non-directory Hub path, so P10 cannot be bypassed by storage failure.
+
+Verified: `cargo fmt --all --check`; `cargo test -p hub --lib` (448 passed);
+`cargo test -p tauri-app --lib -- --test-threads=1` (273 passed, 2 ignored);
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`; and `git diff
+--check`.
 
 — Codex

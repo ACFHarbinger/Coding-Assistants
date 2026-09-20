@@ -140,6 +140,7 @@ macro_rules! invoke_handler {
             commands::commands::system::system_snapshot,
             commands::commands::workflow::hub_record_budget_usage,
             commands::commands::workflow::hub_consume_budget,
+            commands::commands::workflow::hub_gate_provider_call,
             commands::commands::workflow::hub_resume_agent,
             commands::commands::workflow::hub_pause_for_budget,
             commands::commands::workflow::hub_record_shutdown,

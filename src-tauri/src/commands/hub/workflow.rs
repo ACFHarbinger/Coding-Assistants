@@ -131,6 +131,32 @@ pub fn hub_consume_budget(agent: String, amount: f64) -> Result<BudgetStatus, St
         .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+pub struct GateProviderCallArgs {
+    pub agent: String,
+    pub amount: Option<f64>,
+    pub task: Option<String>,
+    pub objective: String,
+    pub completed: String,
+    pub missing: String,
+    pub delegate_to: Option<String>,
+}
+
+#[tauri::command]
+pub fn hub_gate_provider_call(args: GateProviderCallArgs) -> Result<hub::ProviderCallGate, String> {
+    open_store()?
+        .gate_provider_call(
+            &args.agent,
+            args.amount.unwrap_or(hub::DEFAULT_PROVIDER_CALL_UNITS),
+            args.task.as_deref(),
+            &args.objective,
+            &args.completed,
+            &args.missing,
+            args.delegate_to.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn hub_resume_agent(agent: String) -> Result<BudgetStatus, String> {
     open_store()?

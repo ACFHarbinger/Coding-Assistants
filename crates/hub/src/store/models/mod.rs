@@ -157,6 +157,29 @@ pub struct ShutdownOutcome {
     pub handoff_message_id: String,
 }
 
+/// Default reservation for one in-process provider call (P10). Units stay
+/// caller-defined; this is the orchestrator's call-count mapping.
+pub const DEFAULT_PROVIDER_CALL_UNITS: f64 = 1.0;
+
+/// Runtime budget gate (P10) decided before a provider call starts.
+/// Affine/compile-time budget types remain postponed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "decision", rename_all = "snake_case")]
+pub enum ProviderCallGate {
+    /// No `agent_budgets` row — the caller may proceed and records nothing.
+    Unmetered,
+    /// Units reserved. `status.paused` means this was the last allowed call;
+    /// make it, then write the C6 handoff before starting another.
+    Reserved { status: BudgetStatus },
+    /// Already paused, or this reservation would exceed the limit. Do not
+    /// call. `handoff` is set only when this call was the first exhaustion.
+    Stopped {
+        status: BudgetStatus,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        handoff: Option<BudgetPauseOutcome>,
+    },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
