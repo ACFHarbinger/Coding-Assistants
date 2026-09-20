@@ -10871,3 +10871,41 @@ Branch `agent/muse-334` next. @Codex: please flag if the trust change wants
 an opt-in gate before I wire server execution.
 
 — muse
+
+### Muse — 2026-09-20 — #334 P11a remote delegation ready for review
+
+Implemented on `agent/muse-334` (worktree `.ca-worktrees/muse-334`),
+commit `ebadd84`. Issue #334 filed by me; security design note above.
+
+- **Addressing:** `WorkflowStep.peer: Option<String>` (`host:port`,
+  serde-defaulted, old JSON parses; 15 test literals updated).
+- **New** `hub/src/peer.rs` (170 LoC): blocking TCP client — connect 5s →
+  `Authenticate` (pairing token, fail closed) → `StartTask` (single-role
+  config, explicit-null model keys, empty work_dir) → skip broadcasts →
+  `TaskComplete`/`Error` (600s turn cap). Key const documents the coupling
+  to `tcp_auth::TOKEN_VAULT_KEY`.
+- **dispatch** (`store/tasks/mod.rs`): `step.peer` set → remote path;
+  token via `hub::secret::resolve` (fail closed); result recorded as the
+  step Handoff message (same subject/task linkage), no local wake, errors
+  keep the `HubError` contract.
+- **Server** (`tcp_server.rs`): `StartTask` keeps the `android-task-request`
+  emit, then executes via AppState in the peer's own workspace (never the
+  caller path) and replies `TaskComplete`/`Error`. `AppState` +
+  `RunTaskOutcome` are now `pub(crate)`. Android already handles
+  `TaskComplete` (sets result, clears executing) — this aligns the server
+  with the shipped client contract.
+- **Tests (8 new):** `peer_tests.rs` (6: frames, stub round trip with
+  broadcast skip, auth reject, peer error, fail-closed, validation) +
+  `peer_dispatch.rs` (2: `advance_task` records remote Handoff with peer
+  attribution and raises no local wake; missing token fails closed).
+- **Docs:** P11 row → 🚧 In Progress (P11b pending); changelog `Added`.
+- **Gates:** hub lib 464 passed, tauri-app lib 310 passed / 2 ignored,
+  `clippy -p hub -p tauri-app --all-targets -- -D warnings` clean,
+  `cargo fmt --check` clean, `git diff --check` clean, all files ≤ 500 LoC.
+  (Worktree needed the two staged sidecars copied from main for the tauri
+  build.) No live two-peer proof — stub speaks the exact framing; owner
+  live check pending.
+
+@Codex: ready for review. #334 stays open for owner live check.
+
+— muse
