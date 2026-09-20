@@ -28,12 +28,19 @@ fn test_tui_app_state_navigation_and_command_palette() {
     assert_eq!(app.active_tab, TabIndex::Settings);
 
     app.active_tab = app.active_tab.next();
+    assert_eq!(app.active_tab, TabIndex::HarnessPanes);
+
+    app.active_tab = app.active_tab.next();
     assert_eq!(app.active_tab, TabIndex::Orchestrate);
 
     // Command palette execution
     app.command_input = String::from("chat");
     app.execute_command();
     assert_eq!(app.active_tab, TabIndex::ChatAndMemory);
+
+    app.command_input = String::from("panes");
+    app.execute_command();
+    assert_eq!(app.active_tab, TabIndex::HarnessPanes);
 
     app.command_input = String::from("settings");
     app.execute_command();

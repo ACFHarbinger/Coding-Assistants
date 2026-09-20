@@ -144,12 +144,33 @@ fn run_loop(
     store: &HubStore,
 ) -> Result<()> {
     while !app.should_quit {
+        // Drain any output from background harness processes
+        app.harnesses.drain_all();
+
         terminal.draw(|frame| draw_ui(frame, app))?;
 
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                handle_key(app, store, key);
+            match event::read()? {
+                Event::Key(key) => {
+                    handle_key(app, store, key);
+                }
+                Event::Resize(cols, rows) => {
+                    for pane in &app.harnesses.panes {
+                        pane.resize(rows, cols);
+                    }
+                }
+                _ => {}
             }
+        }
+
+        // T7: Periodic check (~1s) for concurrent modifications to settings.toml
+        if app.tick.is_multiple_of(10)
+            && !app.conflict.is_conflict_active
+            && app.conflict.is_stale(&app.home_dir)
+        {
+            app.conflict.record_conflict(
+                "settings.toml was modified by another instance or desktop. Press [r] to Refresh & retry.".to_string(),
+            );
         }
 
         // Advances the idle splash's animated gradient sweep and spinner

@@ -1,9 +1,10 @@
 use super::runner::is_ascii_terminal;
 use super::state::{AppState, TabIndex};
 use super::views::{
-    draw_chat_view, draw_composer_modal, draw_confirmation_modal, draw_create_session_modal,
-    draw_danger_modal, draw_delivery_outcomes_modal, draw_orchestrate_view, draw_recovery_modal,
-    draw_session_switcher_modal, draw_settings_view, draw_shared_hub_view,
+    draw_chat_view, draw_composer_modal, draw_confirmation_modal, draw_conflict_banner,
+    draw_create_session_modal, draw_danger_modal, draw_delivery_outcomes_modal,
+    draw_harness_launcher_modal, draw_harness_workspace_view, draw_orchestrate_view,
+    draw_recovery_modal, draw_session_switcher_modal, draw_settings_view, draw_shared_hub_view,
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -36,6 +37,20 @@ pub(crate) fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 pub fn draw_ui(frame: &mut Frame, app: &AppState) {
+    let (banner_area, content_area) = if app.conflict.is_conflict_active {
+        let splits = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .split(frame.area());
+        (Some(splits[0]), splits[1])
+    } else {
+        (None, frame.area())
+    };
+
+    if let Some(banner) = banner_area {
+        draw_conflict_banner(frame, banner, app);
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -44,7 +59,7 @@ pub fn draw_ui(frame: &mut Frame, app: &AppState) {
             Constraint::Min(10),
             Constraint::Length(3),
         ])
-        .split(frame.area());
+        .split(content_area);
 
     draw_header(frame, chunks[0], app);
     draw_tabs(frame, chunks[1], app);
@@ -86,6 +101,10 @@ pub fn draw_ui(frame: &mut Frame, app: &AppState) {
     if app.recovery.is_open {
         draw_recovery_modal(frame, frame.area(), app);
     }
+
+    if app.harnesses.is_launcher_open {
+        draw_harness_launcher_modal(frame, frame.area(), app);
+    }
 }
 
 fn draw_header(frame: &mut Frame, area: Rect, app: &AppState) {
@@ -123,6 +142,7 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &AppState) {
         "2: Chat & Memory",
         "3: Shared Hub",
         "4: Settings",
+        "5: Harness Panes",
     ];
     let theme = &app.theme;
     let tabs = Tabs::new(titles)
@@ -148,6 +168,7 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &AppState) {
         TabIndex::ChatAndMemory => draw_chat_view(frame, area, app),
         TabIndex::SharedHub => draw_shared_hub_view(frame, area, app),
         TabIndex::Settings => draw_settings_view(frame, area, app),
+        TabIndex::HarnessPanes => draw_harness_workspace_view(frame, area, app),
     }
 }
 

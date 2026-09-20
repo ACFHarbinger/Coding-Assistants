@@ -3,9 +3,11 @@
 mod ambient;
 pub mod approvals;
 pub mod composer;
+pub mod conflict_ops;
 pub mod danger_ops;
 pub mod keymap;
 pub mod memory_ops;
+pub mod pane_ops;
 pub mod recovery_ops;
 pub mod runner;
 pub mod session_ops;
@@ -13,6 +15,7 @@ pub mod settings_ops;
 pub mod state;
 pub mod ui;
 pub mod views;
+pub mod vt_parser;
 
 pub use runner::{persist_requested_defaults, run};
 pub use state::{AppState, TabIndex};

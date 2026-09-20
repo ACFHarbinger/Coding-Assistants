@@ -6390,6 +6390,7 @@ dependencies = [
  "chrono",
  "crossterm",
  "hub",
+ "portable-pty",
  "ratatui",
  "serde",
  "serde_json",

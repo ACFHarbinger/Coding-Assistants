@@ -3,6 +3,7 @@
 //! Handles modal interactions, prefix chords, session switching, composer shortcuts,
 //! wake approvals, inbox toggling, and standard navigation.
 
+pub mod harness_keys;
 pub mod modals;
 pub mod panel_keys;
 
@@ -12,6 +13,17 @@ use crossterm::event::{self, KeyCode, KeyModifiers};
 use hub::HubStore;
 
 pub fn handle_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
+    // 0. Active conflict banner dismissal or refresh (T7)
+    if app.conflict.is_conflict_active {
+        if key.code == KeyCode::Char('r') {
+            app.refresh();
+            return;
+        } else if key.code == KeyCode::Esc {
+            app.conflict.dismiss();
+            return;
+        }
+    }
+
     // 1. Danger modal (Cancel-first, typed target name confirmation)
     if modals::handle_danger_modal_key(app, store, key) {
         return;
@@ -81,6 +93,10 @@ pub fn handle_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
 
     // 6. Prefix chord mode
     if app.is_prefix_mode_active {
+        if app.active_tab == TabIndex::HarnessPanes {
+            harness_keys::handle_harness_workspace_key(app, store, key);
+            return;
+        }
         app.is_prefix_mode_active = false;
         match key.code {
             KeyCode::Char('b') | KeyCode::Char('a') => {
@@ -157,6 +173,10 @@ pub fn handle_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
 }
 
 fn handle_navigation_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
+    if app.active_tab == TabIndex::HarnessPanes {
+        harness_keys::handle_harness_workspace_key(app, store, key);
+        return;
+    }
     if app.active_tab == TabIndex::Settings && panel_keys::handle_settings_key(app, store, key) {
         return;
     }
@@ -337,6 +357,10 @@ fn handle_navigation_key(app: &mut AppState, store: &HubStore, key: event::KeyEv
         }
         (KeyCode::Char('4'), _) => {
             app.active_tab = TabIndex::Settings;
+            app.scroll_offset = 0;
+        }
+        (KeyCode::Char('5'), _) => {
+            app.active_tab = TabIndex::HarnessPanes;
             app.scroll_offset = 0;
         }
         (KeyCode::Esc, _) => {
