@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tighter; Permissive auto-runs except a hard denylist (shells, `sudo`,
   shutdown/mkfs). Every attempt is a hash-chained `audit_events` row
   (`os_tool.ran` / `os_tool.proposed` / `os_tool.denied`) so D4 activity
-  views see the cmdline. No Settings UI this slice.
+  views see the cmdline. CLI parity: `ca tool run|approve|pending`.
+  No Settings UI this slice.
 
 - **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
   direct-call OpenAI-compatible client against `https://api.x.ai/v1`,

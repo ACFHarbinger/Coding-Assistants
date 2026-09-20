@@ -9,6 +9,7 @@ mod msg;
 mod preflight;
 mod shutdown;
 mod telegram;
+mod tool;
 mod tui_command;
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let home = cli.home.clone().unwrap_or_else(default_home);
@@ -322,6 +323,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             set_as_default_session_settings,
         )?,
         Command::Telegram { action } => telegram::run(&store, action)?,
+        Command::Tool { action } => tool::run(&store, &home, action)?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

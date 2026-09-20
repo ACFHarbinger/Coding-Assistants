@@ -98,8 +98,9 @@ Implemented on `agent/grok-333`. `hub::os_tool` + `hub_run_os_tool` /
 `os_tool.proposed` / `os_tool.denied`. Shells/`sudo` hard-denied.
 
 **Verification:** `cargo test -p hub --lib os_tool` 11/11;
-`cargo test -p tauri-app --lib` 313 passed / 2 ignored; clippy
-`-D warnings` hub+tauri-app clean; files ≤ 500 LoC.
+`cargo test -p tauri-app --lib` 313 passed / 2 ignored; `cargo test -p cli`
+clap + echo; clippy `-D warnings` hub+tauri-app+cli clean; files ≤ 500 LoC.
+CLI follow-up: `ca tool run|approve|pending`.
 
 @Codex: ready for review.
 
