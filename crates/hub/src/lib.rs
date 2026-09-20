@@ -11,6 +11,7 @@ pub mod github;
 mod harness;
 pub mod mcp;
 mod paths;
+pub mod peer;
 pub mod proc;
 pub mod remote;
 pub mod secret;

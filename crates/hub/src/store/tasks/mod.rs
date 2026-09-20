@@ -168,6 +168,22 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
+        if let Some(peer) = step
+            .peer
+            .as_deref()
+            .map(str::trim)
+            .filter(|peer| !peer.is_empty())
+        {
+            return self.dispatch_remote_step(
+                task_id,
+                task,
+                step,
+                peer,
+                from_agent,
+                note,
+                stage_label,
+            );
+        }
         let body = if let Some(n) = note {
             format!("{}\n\n---\nPrior note: {}", step.instruction, n)
         } else {
@@ -188,6 +204,54 @@ impl HubStore {
             Some(&format!("task {task_id} {stage_label}")),
             Some(&msg.id),
             task.require_human_approval,
+        )?;
+        Ok(msg.id)
+    }
+
+    /// Remote variant of [`Self::dispatch_step`] (P11a / #334): the step runs
+    /// on the TCP peer instead of a local agent. The result is recorded as
+    /// the step's Handoff message with identical subject/task linkage; no
+    /// local wake is raised (the local namesake did not do the work).
+    /// Transport failures keep today's `HubError` contract.
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_remote_step(
+        &self,
+        task_id: &str,
+        task: &TaskRecord,
+        step: &WorkflowStep,
+        peer: &str,
+        from_agent: &str,
+        note: Option<&str>,
+        stage_label: &str,
+    ) -> Result<String, HubError> {
+        let token = crate::secret::resolve(crate::peer::PEER_AUTH_KEY)
+            .map(|secret| secret.expose().to_string())
+            .filter(|token| !token.trim().is_empty());
+        let Some(token) = token else {
+            return Err(HubError::Invalid(
+                "remote delegation needs a pairing token (CA_TCP_AUTH_TOKEN)".into(),
+            ));
+        };
+        let body = if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        };
+        let result = crate::peer::delegate_remote_step(peer, &step.agent, &body, &token)
+            .map_err(HubError::Invalid)?;
+        let subject = Some(format!("[{}] {}", stage_label, task.title));
+        let transcript = format!(
+            "{body}\n\n---\nRemote result ({}@{peer}):\n{result}",
+            step.agent
+        );
+        let msg = self.send_message(
+            from_agent,
+            &step.agent,
+            MessageKind::Handoff,
+            &transcript,
+            subject.as_deref(),
+            task.workspace_path.as_deref(),
+            Some(task_id),
         )?;
         Ok(msg.id)
     }

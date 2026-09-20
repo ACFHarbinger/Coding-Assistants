@@ -16,6 +16,7 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             instruction: "Plan feature implementation".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -23,6 +24,7 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             instruction: "Implement Dashboard activity view".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
     ];
 
@@ -120,6 +122,7 @@ fn activity_view_filters_by_agent() {
         instruction: "Work on backend".into(),
         max_retries: 0,
         parallel_group: None,
+        peer: None,
     }];
     let steps_grok = vec![WorkflowStep {
         agent: "grok".into(),
@@ -127,6 +130,7 @@ fn activity_view_filters_by_agent() {
         instruction: "Work on leader".into(),
         max_retries: 0,
         parallel_group: None,
+        peer: None,
     }];
 
     store
@@ -169,6 +173,7 @@ fn activity_view_filters_by_time_range_and_limit() {
         instruction: "Work on dashboard".into(),
         max_retries: 0,
         parallel_group: None,
+        peer: None,
     }];
 
     let task1 = store.create_task("Old Task", None, &steps).unwrap();
@@ -207,6 +212,7 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
         instruction: "Inspect activity".into(),
         max_retries: 0,
         parallel_group: None,
+        peer: None,
     }];
 
     let matching = store

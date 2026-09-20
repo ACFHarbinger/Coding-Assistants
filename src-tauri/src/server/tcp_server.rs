@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, oneshot};
@@ -322,16 +322,28 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
                 },
             }
         }
-        ClientRequest::StartTask { config, task } => {
-            // Emit task to frontend - the actual execution happens through Tauri commands
-            // For now, we return success - the Android app will need to listen for events
+        ClientRequest::StartTask { mut config, task } => {
+            // Kept for existing listeners: the Android app shows "Task Started..."
+            // off TaskStarted + the TaskEvent stream.
             app_handle
                 .emit(
                     "android-task-request",
                     serde_json::json!({"config": config, "task": task}),
                 )
                 .ok();
-            ServerResponse::TaskStarted
+            // P11a / #334: paired peers get headless execution, not just a GUI
+            // request. The task runs in the peer's own workspace (never the
+            // caller-supplied path) under P2 per-task isolation, and the
+            // result returns as TaskComplete. Auth already gated pre-dispatch.
+            config.work_dir = crate::core::agent_resources::resolve_desktop_workspace();
+            let state = app_handle.state::<crate::AppState>();
+            let bus = app_handle.state::<hub::InProcessBus>();
+            match crate::run_agent_task(config, task, None, state, app_handle.clone(), bus).await {
+                Ok(outcome) => ServerResponse::TaskComplete {
+                    result: outcome.result,
+                },
+                Err(error) => ServerResponse::Error { message: error },
+            }
         }
         ClientRequest::CancelTask => {
             app_handle.emit("android-cancel-request", ()).ok();

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Remote workflow delegation over TCP (P11a, #334):** a workflow step
+  with `peer: "host:port"` executes on the paired peer instead of locally.
+  New hub blocking TCP client (connect → `Authenticate` with the pairing
+  token, fail closed → `StartTask` → `TaskComplete`/`Error`); the result is
+  recorded as the step's Handoff message with no local wake. The TCP server
+  now executes `StartTask` headlessly via AppState (in the peer's own
+  workspace, under P2 isolation) and replies `TaskComplete` — the variant
+  the Android client already handled but the server never sent. Pairing now
+  authorizes execution (still reject-by-default P6 auth); no new port or
+  protocol.
+
 - **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
   direct-call OpenAI-compatible client against `https://api.x.ai/v1`,
   distinct from `HarnessId::Grok` (the CLI coding harness). Auth is

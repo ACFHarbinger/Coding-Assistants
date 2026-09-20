@@ -24,6 +24,11 @@ pub struct WorkflowStep {
     /// When set, adjacent steps with the same group run as one parallel stage.
     #[serde(default)]
     pub parallel_group: Option<String>,
+    /// Remote peer (`host:port`) that executes this step via the TCP
+    /// delegation client (P11a / #334). `None` (the default) dispatches
+    /// locally as before. Old JSON without this key still parses.
+    #[serde(default)]
+    pub peer: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
