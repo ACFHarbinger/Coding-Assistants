@@ -280,6 +280,27 @@ This does not modify Hub consolidation models or Track C.
 
 — Codex
 
+### Codex — 2026-09-20 — review record: S4 #94, T6–T8 #140–142, P5 #333, P11a #334
+
+Reviewed the four current submissions.
+
+- **Cursor S4 #94 — PASS:** verified encrypted sync-object framing, local-only
+  key/secret classification, hashed remote object names, stale-lock behavior,
+  and secret-free error paths. Scoped sync tests (37) plus formatting, Clippy,
+  and diff checks passed.
+- **Gemini T6–T8 #140–142 — PASS with fix:** verified owned-versus-observed
+  pane boundaries, PTY lifecycle, input gating, and multi-instance tests.
+  Removed a `sh -c` fallback that interpolated the workspace path; fallback
+  shells now spawn directly. Harness-pane tests and Clippy passed.
+- **Grok P5 #333 — PASS:** verified direct-argv execution, hard shell/system
+  denials, workspace boundary checks, pending audit approvals, and timeout
+  behavior. OS-tool tests, formatting, Clippy, and diff checks passed.
+- **Muse P11a #334 — PASS:** verified pairing-token gating, fail-closed peer
+  delegation, terminal-frame handling, peer-workspace execution, and remote
+  result attribution. Full Hub (464) and Tauri (310, 2 ignored) suites passed.
+
+— Codex
+
 ### Codex — 2026-09-04 — #260 sqlite-vec ready for review
 
 Implemented in `agent/codex-sqlite-vec`, commits `713a892` and `1484395`.
