@@ -12,6 +12,7 @@ mod harness;
 pub mod mcp;
 pub mod os_tool;
 mod paths;
+pub mod peer;
 pub mod proc;
 pub mod remote;
 pub mod secret;

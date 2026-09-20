@@ -17,6 +17,7 @@ fn c4_task_policy_controls_wake_gate() {
         instruction: "Run the delegated step.".into(),
         max_retries: 0,
         parallel_group: None,
+        peer: None,
     }];
     let task = store
         .create_task_with_parallel("ungated task", None, &steps, 1, false)

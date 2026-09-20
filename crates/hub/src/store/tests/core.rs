@@ -260,6 +260,7 @@ fn c5_sequential_task_advance_plan_code_review() {
             instruction: "Plan the dual-mode pathing fix.".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
         WorkflowStep {
             agent: "claude".into(),
@@ -267,6 +268,7 @@ fn c5_sequential_task_advance_plan_code_review() {
             instruction: "Implement the plan.".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -274,6 +276,7 @@ fn c5_sequential_task_advance_plan_code_review() {
             instruction: "Review the implementation.".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
     ];
     let task = store
@@ -319,6 +322,7 @@ fn c5_bounded_parallel_and_retry() {
             instruction: "Plan".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
         WorkflowStep {
             agent: "dev_a".into(),
@@ -326,6 +330,7 @@ fn c5_bounded_parallel_and_retry() {
             instruction: "Code path A".into(),
             max_retries: 1,
             parallel_group: Some("impl".into()),
+            peer: None,
         },
         WorkflowStep {
             agent: "dev_b".into(),
@@ -333,6 +338,7 @@ fn c5_bounded_parallel_and_retry() {
             instruction: "Code path B".into(),
             max_retries: 1,
             parallel_group: Some("impl".into()),
+            peer: None,
         },
         WorkflowStep {
             agent: "dev_c".into(),
@@ -340,6 +346,7 @@ fn c5_bounded_parallel_and_retry() {
             instruction: "Code path C".into(),
             max_retries: 1,
             parallel_group: Some("impl".into()),
+            peer: None,
         },
         WorkflowStep {
             agent: "reviewer".into(),
@@ -347,6 +354,7 @@ fn c5_bounded_parallel_and_retry() {
             instruction: "Review all".into(),
             max_retries: 0,
             parallel_group: None,
+            peer: None,
         },
     ];
     // max_parallel=2 → wake two of three implementers first

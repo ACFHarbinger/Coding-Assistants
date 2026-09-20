@@ -25,7 +25,7 @@ use std::sync::{
 use tauri::{Manager, State};
 use tokio::sync::mpsc;
 
-struct AppState {
+pub(crate) struct AppState {
     agents: Mutex<Option<AgentSystem>>,
     /// Per-task handles keyed by task id (P2 / #331): concurrent tasks no
     /// longer share one cancellation flag or input channel.
@@ -37,9 +37,9 @@ struct AppState {
 /// / `cancel_task` calls with `task_id`, and follows progress on the
 /// `task-lifecycle` bus topic.
 #[derive(serde::Serialize)]
-struct RunTaskOutcome {
-    task_id: String,
-    result: String,
+pub(crate) struct RunTaskOutcome {
+    pub(crate) task_id: String,
+    pub(crate) result: String,
 }
 
 #[tauri::command]
