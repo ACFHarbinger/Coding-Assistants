@@ -264,7 +264,7 @@ impl HubStore {
                     Ok(_) => wake_requested = true,
                     Err(error) => {
                         reason = Some(format!("wake request denied: {error}"));
-                        policy_decision = wake_denial_policy(&error).to_string();
+                        policy_decision = wakes::wake_denial_policy(&error).to_string();
                     }
                 }
             }
@@ -489,13 +489,5 @@ impl HubStore {
             }
         }
         Ok(enrolled)
-    }
-}
-
-fn wake_denial_policy(error: &HubError) -> &'static str {
-    if error.to_string().contains("budget-paused") {
-        "wake_denied_budget"
-    } else {
-        "wake_denied_policy"
     }
 }

@@ -359,3 +359,11 @@ impl HubStore {
         Ok(total)
     }
 }
+
+pub(super) fn wake_denial_policy(error: &HubError) -> &'static str {
+    if error.to_string().contains("budget-paused") {
+        "wake_denied_budget"
+    } else {
+        "wake_denied_policy"
+    }
+}

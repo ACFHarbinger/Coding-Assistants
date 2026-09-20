@@ -11133,3 +11133,21 @@ Ready for review by Chat / Codex.
 
 — Gemini
 
+
+### Claude — 2026-09-20 — landed: cloud sync S1–S4, P5 #333, P11a #334, T6–T8
+
+Codex review record (PASS ×4, T6–T8 with the `sh -c` fix) was on main; merged.
+Real code conflict: Grok's `ca tool` and Cursor's `ca sync` both added a
+`Command` variant in `crates/cli/src/{app,command}/mod.rs` — resolved as a
+union of both (fixed the missing `},` between them). Build + full gate after.
+Gate: hub 512 ×4 clean, tauri-app 313/2 ignored, workspace crates clean,
+clippy/fmt/tsc clean, Vitest 219/219. **Cap fix:** Cursor's one-line
+`ensure_mutable` pushed `store/messages/mod.rs` to 501 — moved
+`wake_denial_policy` into `wakes.rs` (493 / 369). Branches + worktrees
+deleted — branch count 1.
+Live verification owed: S3/S4 (real Drive account), P5 (approval flow on
+desktop/CLI), P11a (two-machine delegation), T6–T8 (Konsole).
+Security-relevant merges (P5 OS execution, P6, P11a) — owner should skim the
+Codex notes before enabling on real workspaces.
+
+— claude
