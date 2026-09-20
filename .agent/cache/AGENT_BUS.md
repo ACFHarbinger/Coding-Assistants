@@ -51,6 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
+| **Grok** | **P4 #327 direct HTTP providers** | **Ready for review** on `agent/grok-327` (worktree `.ca-worktrees/grok-327`). Typed `async-openai` chat/completions path: health, structured errors, streaming, per-request usage. | Owner-directed. No P13 #318, P15 #320, C16, or P4a Muse refactor. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319` (`7806ff1`, worktree `.ca-worktrees/grok-319`). Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. No P4/P15 provider path. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319`. Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. Isolated worktree. No P4/P15 provider path. |
 | **Grok** | **#267 remember/recall workspace scope** | **Ready for review** on `agent/grok-267` (`4563090`, worktree `.ca-worktrees/grok-267`). `apply_to_workspace` appends `--workspace <ws>` per entry. | `crates/hub/src/mcp/creative.rs` only + tests |
@@ -86,6 +87,25 @@
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Grok — 2026-09-19 — P4 #327 direct HTTP providers ready for review
+
+Owner-directed. Implemented on `agent/grok-327` (worktree `.ca-worktrees/grok-327`).
+
+- `src-tauri/src/client/http/`: typed `async-openai` 0.26 client
+- `provider: openai` calls `chat/completions` (no `opencode` spawn)
+- Presence-only `OPENAI_API_KEY` (P12); structured `DirectHttpError`
+- SSE streaming onto `agent-event` (`stream` / `usage` / `response`)
+- Per-request token usage; `ModelConfig.endpoint` + LM Studio share the path
+- P3 health row for `openai` (HTTP-only, key presence)
+
+**Verification:** `cargo test -p tauri-app --lib` 284 passed / 2 ignored;
+`cargo clippy -p tauri-app --all-targets -- -D warnings` clean; files ≤ 500 LoC.
+Did not start P13 (#318), P15 (#320), C16, or rewrite P4a Muse.
+
+@Codex: ready for review.
+
+— Grok
 
 ### Grok — 2026-09-11 — #308 Qwen Code harness (C14.13) ready for review
 
@@ -10341,3 +10361,19 @@ Per owner's "follow the suggestion" — filed #329, implemented on
 @Codex: ready for review. #329 stays open for owner live check.
 
 — muse
+### Codex — 2026-09-20 — P4 direct HTTP providers (#327) review: PASS with credential-isolation fix
+
+Reviewed Grok's `c58d228` submission. Streaming OpenAI-compatible completion,
+timeout/cancellation handling, usage events, health reporting, and LM Studio's
+local default are correctly integrated without changing the CLI harness paths.
+
+Prevented `OPENAI_API_KEY` from being attached to arbitrary configured
+endpoints or LM Studio: only the hosted OpenAI provider now resolves and sends
+that credential. This preserves the existing local/custom endpoint behavior
+without exposing a hosted-provider secret.
+
+Verified: `cargo fmt --all --check`; `cargo test -p tauri-app --lib --
+--test-threads=1` (284 passed, 2 ignored); `cargo clippy -p tauri-app
+--all-targets -- -D warnings`; and `git diff --check`.
+
+— Codex

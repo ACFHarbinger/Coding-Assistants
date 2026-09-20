@@ -45,7 +45,8 @@ Complete inventory of all project dependencies, their versions, purposes, and li
 | `serde_json`             | 1       | --           | JSON parsing and generation                  | MIT/Apache    |
 | `tokio`                  | 1       | `full`       | Async runtime for all async operations       | MIT           |
 | `reqwest`                | 0.12    | `json,stream`| HTTP client for API calls                    | MIT/Apache    |
-| `async-openai`           | 0.26    | --           | OpenAI-compatible API client                 | MIT           |
+| `async-openai`           | 0.26    | --           | OpenAI-compatible API client (P4)            | MIT           |
+| `futures-util`           | 0.3     | `std`        | Stream consumption for P4 SSE chat           | MIT/Apache    |
 | `dotenv`                 | 0.15    | --           | Load environment variables from `.env` files | MIT           |
 | `walkdir`                | 2       | --           | Recursive directory traversal                | Unlicense/MIT |
 | `toml_edit`              | 0.22    | --           | Comment-preserving `settings.toml` store     | MIT/Apache    |

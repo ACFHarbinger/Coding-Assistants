@@ -5658,6 +5658,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "dotenvy",
+ "futures-util",
  "governor",
  "hub",
  "portable-pty",

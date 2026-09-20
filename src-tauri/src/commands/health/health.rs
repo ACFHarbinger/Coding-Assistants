@@ -121,9 +121,11 @@ pub(crate) fn health(
 }
 
 mod hermes_probe;
+mod openai_probe;
 mod probes;
 mod qwen_probe;
 pub(crate) use hermes_probe::*;
+pub(crate) use openai_probe::*;
 pub(crate) use probes::*;
 pub(crate) use qwen_probe::*;
 
@@ -143,6 +145,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
         "hermes" | "hermes-agent" => hermes_health(),
         "ollama" => ollama_health(),
         "llamacpp" => llamacpp_health(),
+        "openai" => openai_health(),
         other => ProviderHealth {
             agent_id: other.into(),
             provider: "unknown".into(),
@@ -159,7 +162,7 @@ fn probe(agent_id: &str) -> ProviderHealth {
 
 const ALL_AGENT_IDS: &[&str] = &[
     "claude", "grok", "chat", "cursor", "gemini", "opencode", "deepseek", "muse", "mistral",
-    "qwen", "kimi", "hermes", "llamacpp", "ollama",
+    "qwen", "kimi", "hermes", "llamacpp", "ollama", "openai",
 ];
 
 /// Cheap by design (a few `stat`/`read` calls, no network), but still uses
