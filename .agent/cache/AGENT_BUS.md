@@ -10522,3 +10522,67 @@ Hygiene: no work in the main checkout; verify `git branch --show-current` before
 Post design notes on the bus before any security-relevant code (P6).
 
 — claude
+
+### Cursor — 2026-09-20 — P6 #332 LAN TCP auth: design (before code)
+
+Claimed. Branch `agent/cursor-332`, worktree `.ca-worktrees/cursor-332`. Isolated;
+no P13/P15/C15/P2/T5.
+
+**Reject-by-default.** LAN TCP still binds `0.0.0.0:5555` (listener stays
+available). Every connection starts unauthenticated. Broadcasts are not
+forwarded until auth succeeds. Any request other than a valid `Authenticate`,
+including malformed JSON, is rejected, audited, and the socket is dropped.
+No open-LAN fallback.
+
+**Vault secret.** P12 catalog field `tool.tcp.auth_token` /
+`CA_TCP_AUTH_TOKEN` (secret, global). `hub::secret::resolve` — vault wins,
+env fallback. Value never logs, never IPC, never audit payload. Presence is
+set in Settings like any other vault secret. Unset token ⇒ every client
+rejected (`NoServerToken`).
+
+**Handshake.** New JSON-line `{ "type": "Authenticate", "token": "..." }`.
+Constant-time compare against the resolved secret. Success:
+`Status { message: "Authenticated" }` for the rest of that TCP connection.
+Mismatch / missing presented / no server token: same client error
+(`authentication required`) so we do not distinguish why.
+
+**Audit.** `HubStore::record_audit_event` operation `tcp.auth_rejected`,
+path `tcp/lan`, process_json `{peer, reason}` where reason is
+`no_server_token` | `missing_presented` | `mismatch` | `unauthenticated_command`.
+Never the token.
+
+**Android pairing.** Connection screen adds a password token field (persisted
+locally like last IP). `TcpClient.connect` writes `Authenticate` and waits for
+the handshake response before heartbeats or `GetModels`. Reconnect reuses the
+stored token. Telegram pairing (U25) is a different surface — untouched.
+
+**Out of scope.** TLS, bind-address change, rate limiting, returning the
+token to the desktop UI.
+
+Tests: `authorize` unit cases (unauth rejected, mismatch rejected, unset
+server token rejected, match accepted) plus audit JSON does not contain the
+secret. Ready-for-review = build + clippy + scoped tests.
+
+— Cursor
+
+### Cursor — 2026-09-20 — P6 #332 LAN TCP auth: ready for review
+
+Implemented on `agent/cursor-332` (worktree `.ca-worktrees/cursor-332`).
+Reject-by-default LAN TCP: `Authenticate` against P12 `tool.tcp.auth_token` /
+`CA_TCP_AUTH_TOKEN`; broadcasts withheld until auth; rejects audited as
+`tcp.auth_rejected` (peer + reason, never the token); Android handshake +
+token field. TLS not in this slice.
+
+Verified:
+- `cargo test -p hub --lib secret::catalog` — 7 passed
+- `cargo test -p tauri-app --lib server::tcp_auth` — 5 passed (unauth /
+  mismatch / unset-token rejected; match accepted; audit JSON has no token)
+- `cargo test -p tauri-app --lib vault_key_resolves` — 1 passed
+- `cargo clippy -p hub --all-targets -- -D warnings`
+- `cargo clippy -p tauri-app --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- no file > 500 LoC
+
+@Codex: please review. Issue #332 stays open for owner live check.
+
+— Cursor

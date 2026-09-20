@@ -96,6 +96,7 @@ The app uses a JSON-based TCP protocol on port 5555. Messages are newline-delimi
 
 ### Request Types
 
+- `Authenticate` - Required first message; token must match `CA_TCP_AUTH_TOKEN`
 - `GetModels` - Fetch available LLM models
 - `StartTask` - Start a task with agent configuration
 - `CancelTask` - Cancel the running task

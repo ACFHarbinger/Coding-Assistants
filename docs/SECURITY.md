@@ -101,17 +101,17 @@ Content Security Policy is currently set to `null` in `tauri.conf.json` for deve
 The TCP server (`tcp_server.rs`) listens on `0.0.0.0:5555` for remote control connections.
 
 **Current state:**
-- No authentication -- any device on the local network can connect
-- No encryption -- communication is plaintext JSON over TCP
+- Token authentication is required on every connection (`Authenticate` JSON line). The shared secret is the P12 vault field `tool.tcp.auth_token` / `CA_TCP_AUTH_TOKEN`. Unset or wrong tokens are rejected and the socket is dropped. Rejected attempts are written to the Hub audit log (`tcp.auth_rejected`) with peer and reason only — never the token.
+- No encryption -- communication is still plaintext JSON over TCP (TLS is a later P6 slice)
 - No rate limiting -- no protection against connection flooding
 
 **Recommendations for production use:**
+- Set a LAN TCP auth token in Settings (or `CA_TCP_AUTH_TOKEN`) before starting the server
 - Only start the server when needed (it's off by default)
 - Ensure your local network is trusted
 - Consider using a VPN for remote access
 
 **Planned improvements** (see [ROADMAP.md](moon/ROADMAP.md)):
-- Token-based authentication
 - TLS encryption
 - Connection allowlisting
 

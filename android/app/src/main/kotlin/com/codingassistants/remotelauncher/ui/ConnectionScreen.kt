@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.codingassistants.remotelauncher.viewmodel.AppState
 
@@ -51,10 +52,12 @@ fun isValidServerHost(input: String): Boolean {
 @Composable
 fun ConnectionScreen(
     state: AppState,
-    onConnect: (String) -> Unit,
+    onConnect: (String, String) -> Unit,
 ) {
     var ipAddress by remember(state.lastServerIp) { mutableStateOf(state.lastServerIp) }
+    var token by remember(state.lastLanToken) { mutableStateOf(state.lastLanToken) }
     val valid = isValidServerHost(ipAddress)
+    val tokenReady = token.isNotBlank()
 
     Column(
         modifier =
@@ -123,15 +126,30 @@ fun ConnectionScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                label = { Text("LAN TCP token") },
+                placeholder = { Text("From desktop Settings") },
+                supportingText = {
+                    Text("Must match the desktop LAN TCP auth token. Unauthenticated clients are rejected.")
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
             Spacer(modifier = Modifier.height(28.dp))
 
             Button(
-                onClick = { onConnect(ipAddress.trim()) },
+                onClick = { onConnect(ipAddress.trim(), token.trim()) },
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                enabled = valid,
+                enabled = valid && tokenReady,
             ) {
                 Text("Connect")
             }

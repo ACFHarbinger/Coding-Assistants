@@ -62,6 +62,7 @@ data class AppState(
     val activeEvents: List<ServerResponse.TaskEvent> = emptyList(),
     val agentResources: AgentResources = AgentResources(),
     val lastServerIp: String = "",
+    val lastLanToken: String = "",
 )
 
 fun parseHostPort(
@@ -88,7 +89,12 @@ class MainViewModel(
         application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private val _state =
-        MutableStateFlow(AppState(lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: ""))
+        MutableStateFlow(
+            AppState(
+                lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: "",
+                lastLanToken = prefs.getString(PREF_LAN_TOKEN, "") ?: "",
+            ),
+        )
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     private var tcpClient: TcpClient? = null
@@ -97,7 +103,14 @@ class MainViewModel(
         prefs.edit().putString(PREF_LAST_SERVER_IP, ipAddress).apply()
     }
 
-    fun connectToServer(ipAddress: String) {
+    private fun persistLanToken(token: String) {
+        prefs.edit().putString(PREF_LAN_TOKEN, token).apply()
+    }
+
+    fun connectToServer(
+        ipAddress: String,
+        token: String,
+    ) {
         viewModelScope.launch {
             val (host, port) = parseHostPort(ipAddress)
             try {
@@ -105,22 +118,25 @@ class MainViewModel(
                     _state.value.copy(
                         errorMessage = null,
                         serverAddress = ipAddress.trim(),
+                        lastLanToken = token,
                         isConnectionLost = false,
                         isReconnecting = false,
                     )
 
                 val client = TcpClient(host, port)
-                val connectResult = client.connect()
+                val connectResult = client.connect(token)
 
                 if (connectResult.isSuccess) {
                     tcpClient = client
                     persistServerIp(ipAddress.trim())
+                    persistLanToken(token)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
                             lastServerIp = ipAddress.trim(),
+                            lastLanToken = token,
                             currentScreen = Screen.Dashboard,
                         )
 
@@ -192,17 +208,20 @@ class MainViewModel(
             }
             try {
                 val (host, port) = parseHostPort(address)
+                val token = _state.value.lastLanToken
                 val client = TcpClient(host, port)
-                val connectResult = client.connect()
+                val connectResult = client.connect(token)
                 if (connectResult.isSuccess) {
                     tcpClient = client
                     persistServerIp(address.trim())
+                    persistLanToken(token)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
                             isConnectionLost = false,
                             isReconnecting = false,
                             lastServerIp = address.trim(),
+                            lastLanToken = token,
                             errorMessage = null,
                         )
 
@@ -306,7 +325,8 @@ class MainViewModel(
         tcpClient?.disconnect()
         tcpClient = null
         val preservedHost = _state.value.lastServerIp.ifBlank { prefs.getString(PREF_LAST_SERVER_IP, "") ?: "" }
-        _state.value = AppState(lastServerIp = preservedHost)
+        val preservedToken = _state.value.lastLanToken.ifBlank { prefs.getString(PREF_LAN_TOKEN, "") ?: "" }
+        _state.value = AppState(lastServerIp = preservedHost, lastLanToken = preservedToken)
     }
 
     fun navigateTo(screen: Screen) {
@@ -440,5 +460,6 @@ class MainViewModel(
     companion object {
         private const val PREFS_NAME = "ca_remote_prefs"
         private const val PREF_LAST_SERVER_IP = "last_server_ip"
+        private const val PREF_LAN_TOKEN = "lan_tcp_token"
     }
 }
