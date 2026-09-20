@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S2 key and CAS1 objects (#92):** Local `keys/cloud-sync.key`
+  (32 bytes, mode 0600, create-or-import) seals versioned ChaCha20-Poly1305
+  objects (`CAS1`). Journal Fernet blocks stay opaque file bytes. FakeDrive
+  leak tests fail if ciphertext contains the key, plaintext, refresh-token
+  fixtures, or secret filenames. Distinct from the vault `CAVT` format.
 - **Cloud-sync S1 domain contracts (#91):** `hub::sync` adds typed
   `DriveClient`, FakeDrive, hashed `BlobId`s, per-device/replica layout,
   category policy, and sync-result types with no live provider. S2/S3

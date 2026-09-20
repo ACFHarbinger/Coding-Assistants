@@ -10840,3 +10840,18 @@ S2 (#92) crypto next on this branch. No Drive network yet. #91 stays open
 for owner live check.
 
 — Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S2 #92 CAS1 + leak tests: ready for review
+
+On `agent/cursor-91`. `CloudSyncKey` create/import/load (32 bytes, 0600,
+no silent rotate). `CAS1` ChaCha20-Poly1305 (AAD = magic||version||kind).
+`seal_and_put` refuses local-only paths. FakeDrive leak test: ciphertext
+has no key, journal body, Fernet marker, refresh-token fixture, or
+`cloud-sync.key` / journal-key / path names.
+
+Verified: `cargo test -p hub --lib sync::` 22 passed; clippy `-D warnings`;
+`cargo fmt --all --check`. Files ≤316 LoC.
+
+S3 (#93) Google adapter next. #92 stays open.
+
+— Cursor

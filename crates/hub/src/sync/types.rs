@@ -142,6 +142,25 @@ pub enum ObjectKind {
     Snapshot,
 }
 
+impl ObjectKind {
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::Blob => 0,
+            Self::Manifest => 1,
+            Self::Snapshot => 2,
+        }
+    }
+
+    pub fn from_u8(value: u8) -> Result<Self, super::SyncError> {
+        match value {
+            0 => Ok(Self::Blob),
+            1 => Ok(Self::Manifest),
+            2 => Ok(Self::Snapshot),
+            _ => Err(super::SyncError::Invalid("unknown object kind".into())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncConfig {
     pub provider: ProviderKind,

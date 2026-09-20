@@ -59,6 +59,14 @@ impl FakeDrive {
         Self::default()
     }
 
+    /// Ciphertexts currently stored. Leak tests scan these; do not log them.
+    pub fn ciphertext_blobs(&self) -> Vec<&[u8]> {
+        self.objects
+            .values()
+            .map(|stored| stored.bytes.as_slice())
+            .collect()
+    }
+
     fn apply_put(
         &mut self,
         prefix: &RemotePrefix,
