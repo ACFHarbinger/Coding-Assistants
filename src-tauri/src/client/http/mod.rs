@@ -61,6 +61,17 @@ pub fn is_lm_studio_provider(provider: &str) -> bool {
     matches!(provider.trim(), "lm_studio" | "lm-studio")
 }
 
+/// P4 in-process HTTP path (C16 sub-orchestrators). CLI harnesses are not.
+pub fn is_direct_http_provider(provider: &str, endpoint: Option<&str>) -> bool {
+    endpoint
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+        || is_openai_provider(provider)
+        || is_openrouter_provider(provider)
+        || is_grok_bot_provider(provider)
+        || is_lm_studio_provider(provider)
+}
+
 /// Default LM Studio OpenAI-compatible listen address.
 pub const LM_STUDIO_DEFAULT_BASE: &str = "http://127.0.0.1:1234";
 
@@ -104,5 +115,21 @@ mod tests {
     fn openrouter_is_not_openai() {
         assert!(!is_openai_provider("openrouter"));
         assert!(is_openrouter_provider("openrouter"));
+    }
+
+    #[test]
+    fn direct_http_covers_p4_providers_not_cli_harnesses() {
+        assert!(is_direct_http_provider("openai", None));
+        assert!(is_direct_http_provider("openrouter", None));
+        assert!(is_direct_http_provider("grok-bot", None));
+        assert!(is_direct_http_provider("lm_studio", None));
+        assert!(is_direct_http_provider(
+            "opencode",
+            Some("http://127.0.0.1:1234")
+        ));
+        assert!(!is_direct_http_provider("opencode", None));
+        assert!(!is_direct_http_provider("vibe", None));
+        assert!(!is_direct_http_provider("ollama", None));
+        assert!(!is_direct_http_provider("muse", None));
     }
 }

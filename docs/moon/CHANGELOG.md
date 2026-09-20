@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sub-orchestrator model calls (C16, #336):** an Orchestrate role can
+  emit `[[SUBORCH:Role]] <instruction>` to invoke a P4 direct-HTTP
+  specialist in-process (openai / openrouter / grok-bot / lm_studio /
+  endpoint). CLI harnesses return `unavailable` (never spawned). Each
+  call is P10-budget-gated and writes a `suborch.call` audit row (no
+  prompt/key). Fan-out capped at 4 per parent turn.
+
 - **Cloud-sync S4 lock, CLI, and Sync tab (#94):** `ca sync preview|up|down|sync`
   and the Settings Sync tab share a secret-free plan. A run takes
   `sync/lock` and rejects mutating Hub work (messages, wakes, journals,

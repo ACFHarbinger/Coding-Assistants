@@ -2,6 +2,7 @@ use super::budget::BudgetContext;
 use super::memory_recall::MemoryRecallEvent;
 use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
+use super::suborch;
 use super::task_state::task_mcp_file;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
@@ -273,6 +274,7 @@ impl AgentSystem {
         budget: &BudgetContext,
     ) -> Result<String, String> {
         let mut history = initial_prompt.to_string();
+        let mut suborch_fanout: u8 = 0;
 
         loop {
             budget.deny_unless_allowed(source)?;
@@ -317,6 +319,22 @@ impl AgentSystem {
                 history.push_str(&user_input);
 
                 // Loop again
+            } else if let Some(invocation) = suborch::parse(&response) {
+                let note = suborch::invoke(
+                    &invocation,
+                    source,
+                    &response,
+                    &self.config.roles,
+                    &self.client,
+                    &self.config.work_dir,
+                    bus,
+                    token.clone(),
+                    mcp_config_path,
+                    budget,
+                    &mut suborch_fanout,
+                )
+                .await?;
+                history.push_str(&note);
             } else if let Some(pos) = response.find("[[ASK_AGENT:") {
                 let rest = &response[pos + "[[ASK_AGENT:".len()..];
                 if let Some(end_bracket) = rest.find("]]") {

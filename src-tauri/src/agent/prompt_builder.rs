@@ -44,9 +44,12 @@ pub async fn construct_prompt(
     prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n");
     let fallback = "Developer".to_string();
     prompt.push_str(&format!(
-        "IMPORTANT: If you need to ask another agent ({}), output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:{}]]. How do I implement X?`\n\n",
+        "IMPORTANT: If you need to ask another agent ({}), output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:{}]]. How do I implement X?`\n",
         roles.join(", "), roles.first().unwrap_or(&fallback)
     ));
+    prompt.push_str(
+        "IMPORTANT: To call a cheap in-process specialist (P4 direct HTTP role only), output `[[SUBORCH:Role]]` followed by a short instruction. Do not use SUBORCH for CLI harnesses.\n\n",
+    );
     prompt.push_str(context);
     Ok((prompt, recalled))
 }
