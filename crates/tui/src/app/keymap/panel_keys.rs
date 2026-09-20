@@ -1,7 +1,7 @@
 //! Panel-specific key event handlers for ca tui (T5 / #139).
 
 use crate::app::danger_ops::DangerAction;
-use crate::app::settings_ops::SettingsSection;
+use crate::app::settings_ops::{SettingsScope, SettingsSection};
 use crate::app::state::AppState;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use hub::HubStore;
@@ -26,10 +26,26 @@ pub fn handle_settings_key(app: &mut AppState, store: &HubStore, key: event::Key
                 (KeyCode::Char('b'), KeyModifiers::NONE) => {
                     let cur = app.read_model.effective_settings.backup_retention;
                     let next = if cur >= 20 { 1 } else { cur + 2 };
-                    if let Ok(()) = app
-                        .settings
-                        .set_backup_retention(&app.home_dir, store, next)
-                    {
+                    let result = (|| -> anyhow::Result<()> {
+                        match (app.settings.active_scope, app.workspace_path.as_deref()) {
+                            (SettingsScope::Workspace, Some(workspace)) => {
+                                let workspace = workspace.display().to_string();
+                                let mut settings = hub::SettingsStore::open(&app.home_dir);
+                                settings.set_workspace_backup_retention(&workspace, next)?;
+                                settings.save()?;
+                                store.record_settings_audit_event(
+                                    "workspace.backup_retention",
+                                    &workspace,
+                                    &next.to_string(),
+                                )?;
+                                Ok(())
+                            }
+                            _ => app
+                                .settings
+                                .set_backup_retention(&app.home_dir, store, next),
+                        }
+                    })();
+                    if result.is_ok() {
                         app.refresh();
                     }
                     true
@@ -128,10 +144,26 @@ pub fn handle_settings_key(app: &mut AppState, store: &HubStore, key: event::Key
                         10 => 20,
                         _ => 5,
                     };
-                    if let Ok(()) = app
-                        .settings
-                        .set_backup_retention(&app.home_dir, store, next)
-                    {
+                    let result = (|| -> anyhow::Result<()> {
+                        match (app.settings.active_scope, app.workspace_path.as_deref()) {
+                            (SettingsScope::Workspace, Some(workspace)) => {
+                                let workspace = workspace.display().to_string();
+                                let mut settings = hub::SettingsStore::open(&app.home_dir);
+                                settings.set_workspace_backup_retention(&workspace, next)?;
+                                settings.save()?;
+                                store.record_settings_audit_event(
+                                    "workspace.backup_retention",
+                                    &workspace,
+                                    &next.to_string(),
+                                )?;
+                                Ok(())
+                            }
+                            _ => app
+                                .settings
+                                .set_backup_retention(&app.home_dir, store, next),
+                        }
+                    })();
+                    if result.is_ok() {
                         app.refresh();
                     }
                     true
