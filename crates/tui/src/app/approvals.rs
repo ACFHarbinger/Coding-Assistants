@@ -10,6 +10,7 @@ pub enum ChatViewMode {
     SessionMessages,
     HumanInbox,
     PendingApprovals,
+    MemorySearch,
 }
 
 impl ChatViewMode {
@@ -17,7 +18,8 @@ impl ChatViewMode {
         match self {
             ChatViewMode::SessionMessages => ChatViewMode::HumanInbox,
             ChatViewMode::HumanInbox => ChatViewMode::PendingApprovals,
-            ChatViewMode::PendingApprovals => ChatViewMode::SessionMessages,
+            ChatViewMode::PendingApprovals => ChatViewMode::MemorySearch,
+            ChatViewMode::MemorySearch => ChatViewMode::SessionMessages,
         }
     }
 
@@ -26,6 +28,7 @@ impl ChatViewMode {
             ChatViewMode::SessionMessages => "Messages",
             ChatViewMode::HumanInbox => "Inbox",
             ChatViewMode::PendingApprovals => "Wake Gates",
+            ChatViewMode::MemorySearch => "Memory",
         }
     }
 
@@ -34,6 +37,7 @@ impl ChatViewMode {
             ChatViewMode::SessionMessages => "Session Message Stream",
             ChatViewMode::HumanInbox => "Human Direct Inbox",
             ChatViewMode::PendingApprovals => "Pending Wake Gate Approvals",
+            ChatViewMode::MemorySearch => "Shared Agentic Memory Search",
         }
     }
 }

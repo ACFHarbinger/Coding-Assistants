@@ -14,6 +14,7 @@ pub fn draw_chat_view(frame: &mut Frame, area: Rect, app: &AppState) {
         ChatViewMode::SessionMessages => draw_session_messages(frame, area, app),
         ChatViewMode::HumanInbox => draw_human_inbox(frame, area, app),
         ChatViewMode::PendingApprovals => draw_approvals_view(frame, area, app),
+        ChatViewMode::MemorySearch => draw_memory_search(frame, area, app),
     }
 }
 
@@ -328,6 +329,109 @@ fn draw_idle_splash(frame: &mut Frame, area: Rect, app: &AppState) {
     let popup = centered_rect_in(logo_width, lines.len() as u16, inner);
     frame.render_widget(Clear, popup);
     frame.render_widget(Paragraph::new(lines), popup);
+}
+
+fn draw_memory_search(frame: &mut Frame, area: Rect, app: &AppState) {
+    let theme = &app.theme;
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(5), Constraint::Length(3)])
+        .split(area);
+
+    let scope_filter = app.memory.scope_filter.as_deref().unwrap_or("All Scopes");
+
+    let mut text = vec![
+        Line::from(vec![
+            Span::styled(
+                "Memory Search: ",
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if app.memory.query.is_empty() {
+                    "(empty query — showing recent memories)"
+                } else {
+                    &app.memory.query
+                },
+                Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("█", Style::default().fg(theme.accent)),
+            Span::styled(
+                format!(" │ Scope Filter: [{scope_filter}] (press [w] to toggle)"),
+                Style::default().fg(theme.muted),
+            ),
+        ]),
+        Line::from(""),
+    ];
+
+    if app.memory.results.is_empty() {
+        text.push(Line::from("  • No memory records matching query."));
+    } else {
+        for (i, mem) in app
+            .memory
+            .results
+            .iter()
+            .skip(app.scroll_offset)
+            .take(8)
+            .enumerate()
+        {
+            let actual_idx = app.scroll_offset + i;
+            let is_sel = actual_idx == app.memory.selected_index;
+            let marker = if is_sel { "▶ " } else { "  " };
+            let style = if is_sel {
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg)
+            };
+            let body_preview: String = mem.body.chars().take(60).collect();
+            let title = mem.title.as_deref().unwrap_or("(untitled)");
+            text.push(Line::from(vec![
+                Span::styled(marker, style),
+                Span::styled(
+                    format!("[{}] ", mem.tier),
+                    Style::default().fg(theme.accent2),
+                ),
+                Span::styled(
+                    format!("[{}] ", mem.scope),
+                    Style::default().fg(theme.muted),
+                ),
+                Span::styled(format!("{title} "), style),
+                Span::styled(
+                    format!("\"{body_preview}...\""),
+                    Style::default().fg(theme.muted),
+                ),
+            ]));
+        }
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
+        .title(" Shared Agentic Memory Review ");
+    frame.render_widget(
+        Paragraph::new(text).block(block).wrap(Wrap { trim: true }),
+        chunks[0],
+    );
+
+    let action_bar = Line::from(vec![
+        Span::styled(
+            "Actions: ",
+            Style::default()
+                .fg(theme.accent2)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "[↑/↓] Select │ [/] Type Query │ [Enter] Search │ [w] Filter Scope │ [I] Cycle View",
+            Style::default().fg(theme.fg),
+        ),
+    ]);
+    let action_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border));
+    frame.render_widget(Paragraph::new(action_bar).block(action_block), chunks[1]);
 }
 
 fn centered_rect_in(width: u16, height: u16, r: Rect) -> Rect {

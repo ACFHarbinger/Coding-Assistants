@@ -2,8 +2,8 @@ use super::runner::is_ascii_terminal;
 use super::state::{AppState, TabIndex};
 use super::views::{
     draw_chat_view, draw_composer_modal, draw_confirmation_modal, draw_create_session_modal,
-    draw_delivery_outcomes_modal, draw_orchestrate_view, draw_session_switcher_modal,
-    draw_settings_view, draw_shared_hub_view,
+    draw_danger_modal, draw_delivery_outcomes_modal, draw_orchestrate_view, draw_recovery_modal,
+    draw_session_switcher_modal, draw_settings_view, draw_shared_hub_view,
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -77,6 +77,14 @@ pub fn draw_ui(frame: &mut Frame, app: &AppState) {
 
     if app.composer.delivery_outcomes.is_some() {
         draw_delivery_outcomes_modal(frame, frame.area(), app);
+    }
+
+    if app.danger.is_open {
+        draw_danger_modal(frame, frame.area(), app);
+    }
+
+    if app.recovery.is_open {
+        draw_recovery_modal(frame, frame.area(), app);
     }
 }
 
@@ -188,8 +196,10 @@ fn draw_help_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         Line::from("  c                    : Open Message Composer (All/Subset/One, [TASK], [WAKE])"),
         Line::from("  s                    : Switch / Load Work Session"),
         Line::from("  n                    : Create New Work Session"),
-        Line::from("  I                    : Cycle Stream / Human Inbox / Wake Gate Approvals"),
+        Line::from("  I                    : Cycle Stream / Human Inbox / Wake Gate Approvals / Memory"),
         Line::from("  a / d                : Approve / Deny Selected Wake Gate"),
+        Line::from("  w                    : Toggle Scope [Global] / [Workspace] (Settings)"),
+        Line::from("  u                    : Cycle Tasks / Audit Journal / Budgets (Shared Hub)"),
         Line::from("  ? or F1              : Toggle Help Modal"),
         Line::from("  q or Esc             : Close Modal / Exit Application"),
         Line::from(""),
@@ -234,7 +244,7 @@ fn draw_command_palette_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         ]),
         Line::from(""),
         Line::from(Span::styled(
-            "Commands: orchestrate | chat | hub | settings | compose | session | new session | inbox | approvals | refresh | quit",
+            "Commands: orchestrate | chat | hub | settings | danger | profiles | memory | audit | budgets | tasks | restore | compose | session | inbox | approvals | refresh | quit",
             Style::default().fg(theme.muted),
         )),
     ];

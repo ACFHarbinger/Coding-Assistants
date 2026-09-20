@@ -1,6 +1,11 @@
-use super::approvals::ApprovalsState;
+use super::approvals::{ApprovalsState, ChatViewMode};
 use super::composer::ComposerState;
+use super::danger_ops::DangerModalState;
+use super::memory_ops::MemorySearchState;
+use super::recovery_ops::RecoveryModalState;
 use super::session_ops::{CreateSessionState, SessionSwitcherState};
+use super::settings_ops::{SettingsSection, SettingsState};
+use super::views::HubViewMode;
 use crate::model::HubReadModel;
 use crate::options::TuiOptions;
 use crate::theme::{Theme, ThemeName};
@@ -73,6 +78,12 @@ pub struct AppState {
     pub session_switcher: SessionSwitcherState,
     pub create_session: CreateSessionState,
     pub approvals: ApprovalsState,
+    // T5 Settings, Memory, Audit, Recovery & Budgets State
+    pub settings: SettingsState,
+    pub danger: DangerModalState,
+    pub recovery: RecoveryModalState,
+    pub memory: MemorySearchState,
+    pub hub_view_mode: HubViewMode,
 }
 
 impl AppState {
@@ -107,6 +118,9 @@ impl AppState {
             status_message = format!("Persisted default session setting: {:?}", session_id);
         }
 
+        let mut recovery = RecoveryModalState::default();
+        recovery.check_load_status(&read_model.settings_load.status);
+
         Self {
             active_tab: TabIndex::Orchestrate,
             home_dir,
@@ -132,6 +146,11 @@ impl AppState {
             session_switcher: SessionSwitcherState::default(),
             create_session: CreateSessionState::default(),
             approvals: ApprovalsState::default(),
+            settings: SettingsState::default(),
+            danger: DangerModalState::default(),
+            recovery,
+            memory: MemorySearchState::default(),
+            hub_view_mode: HubViewMode::Tasks,
         }
     }
 
@@ -176,6 +195,7 @@ impl AppState {
             self.session_id.as_deref(),
         ) {
             Ok(model) => {
+                self.recovery.check_load_status(&model.settings_load.status);
                 self.read_model = model;
                 self.status_message = String::from("Refreshed Hub read model.");
                 if self.read_model.effective_settings.tui.bell_notification {
@@ -213,6 +233,45 @@ impl AppState {
                 self.active_tab = TabIndex::Settings;
                 self.status_message = String::from("Navigated to Settings panel.");
             }
+            "danger" => {
+                self.active_tab = TabIndex::Settings;
+                self.settings.active_section = SettingsSection::DangerZone;
+                self.status_message = String::from("Viewing Settings Danger Zone.");
+            }
+            "profiles" => {
+                self.active_tab = TabIndex::Settings;
+                self.settings.active_section = SettingsSection::Profiles;
+                self.status_message = String::from("Viewing Provider Profiles.");
+            }
+            "memory" | "search memory" | "memories" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = ChatViewMode::MemorySearch;
+                self.status_message = String::from("Viewing Memory Search.");
+            }
+            "audit" | "audit journal" | "journal" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::AuditJournal;
+                self.status_message =
+                    String::from("Viewing Audit Journal with Hash Chain Verification.");
+            }
+            "budgets" | "budget" | "telemetry" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::Budgets;
+                self.status_message = String::from("Viewing Provider & Local Budgets.");
+            }
+            "tasks" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::Tasks;
+                self.status_message = String::from("Viewing Shared Hub Tasks.");
+            }
+            "restore" | "recovery" => {
+                if !self.read_model.backups.is_empty() {
+                    self.recovery.is_open = true;
+                    self.status_message = String::from("Opened Settings Backup Recovery dialog.");
+                } else {
+                    self.status_message = String::from("No settings backups available to restore.");
+                }
+            }
             "c" | "compose" => {
                 self.open_composer();
             }
@@ -224,12 +283,12 @@ impl AppState {
             }
             "inbox" => {
                 self.active_tab = TabIndex::ChatAndMemory;
-                self.approvals.chat_view_mode = super::approvals::ChatViewMode::HumanInbox;
+                self.approvals.chat_view_mode = ChatViewMode::HumanInbox;
                 self.status_message = String::from("Viewing Human Direct Inbox.");
             }
             "approvals" | "wakes" | "gates" => {
                 self.active_tab = TabIndex::ChatAndMemory;
-                self.approvals.chat_view_mode = super::approvals::ChatViewMode::PendingApprovals;
+                self.approvals.chat_view_mode = ChatViewMode::PendingApprovals;
                 self.status_message = String::from("Viewing Pending Wake Gate Approvals.");
             }
             "r" | "refresh" => {

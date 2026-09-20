@@ -51,6 +51,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is dropped. Broadcasts are withheld until auth succeeds. The Android
   companion pairs by sending the token as the first line. TLS is not
   part of this slice.
+- **Settings, memory, audit, and budgets in the TUI (T5, #139):**
+  Desktop-parity settings inspection and typed mutation (`[tui]` preferences,
+  bell, unicode/ASCII fallback, high contrast, prefix key, backup retention),
+  truthful inheritance badges (`[Inherited: Global]` vs `[Overridden: Workspace]`),
+  collapsible advanced trees, select-only provider profiles with non-secret source
+  badges (`[keychain]`, `[env:KEY]`, `[vault]`) and settings audit logging. Full
+  danger-zone operations (`ResetWorkspaceOverrides`, `PurgeTranscript`, `PurgeMemories`,
+  `PurgeAllData`, `DeleteProfile`) with strict cancel-first button focus and exact
+  target matching. Safe defaults on malformed or interrupted settings writes with
+  keyboard-driven backup restore modal (`settings-backups/`) and quarantine & reset.
+  Comprehensive multi-scope memory search (`global`, `workspace`) with tag/term
+  filtering in Chat & Memory, reviewable audit journal with hash-chain integrity
+  verification, and provider/local budgets view with truthful freshness timestamps.
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the
