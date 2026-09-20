@@ -4,34 +4,78 @@
 //! wake approvals, inbox toggling, and standard navigation.
 
 pub mod modals;
+pub mod panel_keys;
 
+use super::approvals::ChatViewMode;
 use super::state::{AppState, TabIndex};
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use hub::HubStore;
 
 pub fn handle_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
-    // 1. Delivery outcomes modal
+    // 1. Danger modal (Cancel-first, typed target name confirmation)
+    if modals::handle_danger_modal_key(app, store, key) {
+        return;
+    }
+
+    // 2. Recovery modal (malformed settings restore/quarantine)
+    if modals::handle_recovery_modal_key(app, key) {
+        return;
+    }
+
+    // 3. Delivery outcomes modal
     if modals::handle_delivery_outcomes_key(app, key) {
         return;
     }
 
-    // 2. Confirmation modal (wakes, broadcasts, auto-enrollments)
+    // 4. Confirmation modal (wakes, broadcasts, auto-enrollments)
     if modals::handle_confirmation_key(app, store, key) {
         return;
     }
 
-    // 3. Work session switcher modal
+    // 5. Work session switcher modal
     if modals::handle_session_switcher_key(app, key) {
         return;
     }
 
-    // 4. Create work session modal
+    // 6. Create work session modal
     if modals::handle_create_session_key(app, store, key) {
         return;
     }
 
-    // 5. Message composer modal
+    // 7. Message composer modal
     if modals::handle_composer_key(app, store, key) {
+        return;
+    }
+
+    // 8. Memory search query input mode
+    if app.active_tab == TabIndex::ChatAndMemory
+        && app.approvals.chat_view_mode == ChatViewMode::MemorySearch
+        && app.memory.is_active
+    {
+        match key.code {
+            KeyCode::Esc => {
+                app.memory.is_active = false;
+            }
+            KeyCode::Enter => {
+                let _ = app
+                    .memory
+                    .execute_search(store, app.workspace_path.as_deref());
+                app.memory.is_active = false;
+            }
+            KeyCode::Backspace => {
+                app.memory.query.pop();
+                let _ = app
+                    .memory
+                    .execute_search(store, app.workspace_path.as_deref());
+            }
+            KeyCode::Char(c) => {
+                app.memory.query.push(c);
+                let _ = app
+                    .memory
+                    .execute_search(store, app.workspace_path.as_deref());
+            }
+            _ => {}
+        }
         return;
     }
 
@@ -113,6 +157,19 @@ pub fn handle_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
 }
 
 fn handle_navigation_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) {
+    if app.active_tab == TabIndex::Settings && panel_keys::handle_settings_key(app, store, key) {
+        return;
+    }
+    if app.active_tab == TabIndex::SharedHub && panel_keys::handle_shared_hub_key(app, key) {
+        return;
+    }
+    if app.active_tab == TabIndex::ChatAndMemory
+        && app.approvals.chat_view_mode == ChatViewMode::MemorySearch
+        && panel_keys::handle_memory_key(app, store, key)
+    {
+        return;
+    }
+
     match (key.code, key.modifiers) {
         (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
             app.should_quit = true;
@@ -224,6 +281,9 @@ fn handle_navigation_key(app: &mut AppState, store: &HubStore, key: event::KeyEv
                     super::approvals::ChatViewMode::SessionMessages => {
                         app.scroll_offset = app.scroll_offset.saturating_add(1);
                     }
+                    super::approvals::ChatViewMode::MemorySearch => {
+                        app.memory.select_next();
+                    }
                 }
             } else {
                 app.scroll_offset = app.scroll_offset.saturating_add(1);
@@ -246,6 +306,9 @@ fn handle_navigation_key(app: &mut AppState, store: &HubStore, key: event::KeyEv
                     }
                     super::approvals::ChatViewMode::SessionMessages => {
                         app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                    }
+                    super::approvals::ChatViewMode::MemorySearch => {
+                        app.memory.select_prev();
                     }
                 }
             } else {

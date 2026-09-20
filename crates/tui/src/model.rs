@@ -1,14 +1,15 @@
-//! Shared Hub read model for the Ratatui TUI client (T2 / #136).
+//! Shared Hub read model for the Ratatui TUI client (T2 / #136, T5 / #139).
 //!
 //! Provides a unified, read-only snapshot of Hub data (work sessions, team roster,
-//! channel messages, tasks, settings audit stream, effective settings) without depending
-//! on Tauri IPC.
+//! channel messages, tasks, settings audit stream, effective settings, agent budgets,
+//! provider profiles, and backup metadata) without depending on Tauri IPC.
 
 use hub::{
-    AgentRecord, AuditEvent, EffectiveSettings, HubStore, MessageRecord, PendingGateApproval,
-    SettingsStore, TaskRecord, WakeRecord, WorkSessionRecord,
+    AgentMetrics, AgentRecord, AuditEvent, BudgetStatus, EffectiveSettings, HubStore, LoadStatus,
+    MessageRecord, PendingGateApproval, ProfileSnapshot, SettingsLoad, SettingsStore, TaskRecord,
+    WakeRecord, WorkSessionRecord,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HubReadModel {
@@ -21,7 +22,13 @@ pub struct HubReadModel {
     pub pending_gates: Vec<PendingGateApproval>,
     pub pending_wakes: Vec<WakeRecord>,
     pub audit_events: Vec<AuditEvent>,
+    pub all_audit_events: Vec<AuditEvent>,
     pub effective_settings: EffectiveSettings,
+    pub agent_budgets: Vec<BudgetStatus>,
+    pub agent_metrics: Vec<AgentMetrics>,
+    pub settings_load: SettingsLoad,
+    pub profiles: Vec<ProfileSnapshot>,
+    pub backups: Vec<PathBuf>,
 }
 
 impl HubReadModel {
@@ -36,7 +43,16 @@ impl HubReadModel {
             pending_gates: vec![],
             pending_wakes: vec![],
             audit_events: vec![],
+            all_audit_events: vec![],
             effective_settings,
+            agent_budgets: vec![],
+            agent_metrics: vec![],
+            settings_load: SettingsLoad {
+                path: PathBuf::from("settings.toml"),
+                status: LoadStatus::Loaded,
+            },
+            profiles: vec![],
+            backups: vec![],
         }
     }
 
@@ -74,6 +90,13 @@ impl HubReadModel {
             .unwrap_or_default();
         let pending_wakes = hub_store.list_wakes(None, true).unwrap_or_default();
         let audit_events = hub_store.list_settings_audit_events()?;
+        let all_audit_events = hub_store.list_audit_events(false).unwrap_or_default();
+
+        let agent_budgets = hub_store.list_agent_budgets().unwrap_or_default();
+        let agent_metrics = hub_store.list_agent_metrics().unwrap_or_default();
+        let settings_load = settings_store.load().clone();
+        let profiles = settings_store.list_profiles();
+        let backups = settings_store.list_backups().unwrap_or_default();
 
         Ok(Self {
             work_sessions,
@@ -85,7 +108,13 @@ impl HubReadModel {
             pending_gates,
             pending_wakes,
             audit_events,
+            all_audit_events,
             effective_settings,
+            agent_budgets,
+            agent_metrics,
+            settings_load,
+            profiles,
+            backups,
         })
     }
 }

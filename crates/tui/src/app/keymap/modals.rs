@@ -1,6 +1,7 @@
 //! Modal key handlers for TUI (T4 / #138).
 
 use crate::app::composer::RecipientMode;
+use crate::app::danger_ops::DangerButton;
 use crate::app::state::AppState;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use hub::HubStore;
@@ -303,4 +304,99 @@ fn cycle_single_recipient(app: &mut AppState, forward: bool) {
         current_idx - 1
     };
     app.composer.single_recipient = candidates[next_idx].clone();
+}
+
+pub fn handle_danger_modal_key(app: &mut AppState, store: &HubStore, key: event::KeyEvent) -> bool {
+    if !app.danger.is_open {
+        return false;
+    }
+
+    match key.code {
+        KeyCode::Esc => {
+            app.danger.close();
+            app.status_message = String::from("Danger action cancelled.");
+        }
+        KeyCode::Tab | KeyCode::BackTab | KeyCode::Left | KeyCode::Right => {
+            app.danger.toggle_button();
+        }
+        KeyCode::Enter => match app.danger.focused_button {
+            DangerButton::Cancel => {
+                app.danger.close();
+                app.status_message = String::from("Danger action cancelled.");
+            }
+            DangerButton::Confirm => {
+                match app
+                    .danger
+                    .execute(store, &app.home_dir, app.workspace_path.as_deref())
+                {
+                    Ok(msg) => {
+                        app.refresh();
+                        app.status_message = msg;
+                    }
+                    Err(err) => {
+                        app.danger.error_message = Some(err.to_string());
+                        app.status_message = format!("Danger operation failed: {err}");
+                    }
+                }
+            }
+        },
+        KeyCode::Backspace => {
+            app.danger.input_text.pop();
+            app.danger.error_message = None;
+        }
+        KeyCode::Char(c) => {
+            app.danger.input_text.push(c);
+            app.danger.error_message = None;
+        }
+        _ => {}
+    }
+    true
+}
+
+pub fn handle_recovery_modal_key(app: &mut AppState, key: event::KeyEvent) -> bool {
+    if !app.recovery.is_open {
+        return false;
+    }
+
+    let total = app.read_model.backups.len();
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.recovery.close();
+            app.status_message = String::from("Settings recovery dismissed.");
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.recovery.select_prev_backup(total);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.recovery.select_next_backup(total);
+        }
+        KeyCode::Enter | KeyCode::Char('r') => {
+            match app
+                .recovery
+                .restore_selected(&app.home_dir, &app.read_model.backups)
+            {
+                Ok(restored) => {
+                    app.refresh();
+                    app.status_message = format!("Restored settings from {}.", restored.display());
+                }
+                Err(e) => {
+                    app.recovery.error_message = Some(e.to_string());
+                }
+            }
+        }
+        KeyCode::Char('x') | KeyCode::Char('Q') => {
+            match app.recovery.quarantine_and_reset(&app.home_dir) {
+                Ok(quarantined) => {
+                    app.refresh();
+                    app.status_message =
+                        format!("Quarantined settings to {}.", quarantined.display());
+                }
+                Err(e) => {
+                    app.recovery.error_message = Some(e.to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+    true
 }

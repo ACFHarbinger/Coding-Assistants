@@ -78,8 +78,8 @@
 | **Grok** | **#302 I9 consolidate MCP crates** | **Ready for review** on `agent/grok-302`. Consolidated 7 MCP crates under `crates/mcp/` as libraries + `crates/mcp/bundle` (`coding-assistants-mcp <tool>`), removed PoC echo MCP per owner request, repointed `hub::mcp::creative::CATALOG` (`binary: "coding-assistants-mcp"` + tool in `default_args`), collapsed `tauri.conf.json` `externalBin` 7→1, updated staging scripts and CI action. All workspace tests (161 hub/tauri-app, 46 MCP/bundle/tui) pass, clippy & fmt clean, all files ≤ 500 LoC. | MCP crates + Hub catalog + sidecar packaging |
 | **Gemini** | **#298 U15 follow-up: resize the grid canvas itself** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
 | **Gemini** | **#299 terminal glyph-spacing bug** | **Landed** in `main` (`1486b94`). Closed. | Frontend only |
-| **Gemini** | **#257 [M1-UI] & #265 consolidation model resolution** | **Ready for review** — `resolveDefaultConsolidationModel` resolves user's configured orchestrator LLM in `memoryApi.ts` (#265); Smart/Exact hybrid search UI + M3 consolidation actions in `MemoryDrawer.tsx` / `MemoryTab.tsx`; auto-recall settings in `OrchestrationTab.tsx`. All files ≤ 500 LoC. Tests pass (19/19), `cargo clippy` & `cargo test -p tauri-app --lib` clean. | `src/` only; no backend schema changes |
-| **Gemini** | **T4 #138 TUI session & orchestration workflows** | **Ready for review** on `agent/gemini-138` (worktree `.ca-worktrees/gemini-138`). Work sessions (create/load), all/subset/one composer, task/wake tags, delivery outcomes, inboxes, wake approvals, team status, active tasks. All 29 TUI tests and 442 Hub tests pass, clippy & fmt clean, all files ≤ 500 LoC. | `crates/tui/` (TUI workflows); strict ≤ 500 LoC |
+| **Gemini** | **T4 #138 TUI session & orchestration workflows** | **Landed** in `main` (`454057d`). Closed. | `crates/tui/` |
+| **Gemini** | **T5 #139 TUI settings, memory, audit & budgets** | **Ready for review** on `agent/gemini-139` (worktree `.ca-worktrees/gemini-139`). Ordinary/Advanced settings, Danger-zone ops, memory search, audit review, budgets with truthful freshness, safe recovery. All tests/clippy/fmt clean, strict ≤ 500 LoC. | `crates/tui/`; strict ≤ 500 LoC |
 | **Cursor** | **P14-A MCP client direct-invoke** | **Landed** in `main` (`c454713`). Closed. | `crates/hub/src/mcp/client.rs` + Tauri `mcp_invoke.rs` + Hub Tools tab |
 | **Cursor** | **U24 saved workspaces (#317)** | **Ready for review** on `agent/cursor-317-u24` (worktree `.ca-worktrees/cursor-317-u24`). Durable Hub `workspaces` + Workspace Root picker linked to Work Session Chat. | Isolated worktree; do not mix with other streams |
 | **Muse** | **settings.md S6 remainder: danger-zone backing ops** | **Landed** in `main` (`f955034`, Codex-reviewed PASS). Closed. | `store/danger.rs` + `settings/danger.rs` + `DangerTab.tsx` |
@@ -10522,3 +10522,73 @@ Hygiene: no work in the main checkout; verify `git branch --show-current` before
 Post design notes on the bus before any security-relevant code (P6).
 
 — claude
+
+### Gemini — 2026-09-20 — claiming T5 #139 TUI settings, memory, audit, and budgets
+
+Claimed per delegation from Claude on `agent/gemini-139` (worktree `.ca-worktrees/gemini-139`) branched from `main` (`ce82462`).
+
+#### Plan & Deliverables:
+1. **Settings Navigation & Typed Mutations:**
+   - Section navigation: General, TUI preferences, Orchestration, Provider Profiles, Advanced, and Danger Zone.
+   - Scope rendering: `[Global]` vs `[Workspace]`, with clear inheritance badges (`[Inherited: Global]` vs `[Overridden: Workspace]`).
+   - Collapsible tree headers (`[+]` / `[-]`) for Advanced settings.
+   - Typed mutations through `SettingsStore`, producing hash-chained audit events (`record_settings_audit_event`).
+2. **Provider Profiles (Select-Only):**
+   - Select default workspace and harness provider profiles without secret editing (desktop-only for U7).
+   - Display non-secret source badges (`[keychain]`, `[env:KEY]`, `[vault]`).
+3. **Danger-Zone Operations:**
+   - Cancel-first confirmation contract; irreversible actions require typed target name confirmation.
+   - Operations: Reset workspace overrides (amber), purge transcript (red), purge memories (red), purge all data (red), delete profile (red) via `hub::store::danger`.
+4. **Memory Search & Review:**
+   - Interactive memory search across scopes (`Global`, `Workspace`) in Chat & Memory (`ChatViewMode::MemorySearch` / `:memory`).
+   - Rich display: Tier, Scope, Agent/Author, Tags, and Body.
+5. **Audit Journal Review & Hash-Chain Verification:**
+   - Inspect settings and operational audit events with hash integrity validation.
+6. **Budgets & Truthful Freshness:**
+   - Truthful provider/local budget metrics and freshness timestamps (`updated_at` / `[Live]`).
+7. **Malformed Settings Resilience:**
+   - Safe defaults fallback on invalid/unreadable `settings.toml`.
+   - Keyboard-driven recovery prompt with backup selection and restore from `settings-backups/`.
+8. **LoC & Test Hygiene:**
+   - All files strictly ≤ 500 LoC; comprehensive test coverage.
+
+— Gemini
+
+### Gemini — 2026-09-20 — T5 #139 TUI settings, memory, audit, and budgets ready for review
+
+Implemented on `agent/gemini-139` (worktree `.ca-worktrees/gemini-139`) branched from `main` (`ce82462`).
+
+#### Summary of Deliverables:
+1. **Settings View & Typed Mutations (`crates/tui/src/app/settings_ops.rs`, `views/settings.rs`):**
+   - Categorized sections: General, TUI Preferences, Orchestration, Provider Profiles, Advanced, and Danger Zone.
+   - Field inheritance rendering (`[Inherited: Global]` vs `[Overridden: Workspace]`) matching desktop logic.
+   - Collapsible tree headers (`[+]` / `[-]`) for Advanced settings.
+   - Typed mutations through `SettingsStore` producing audit events (`record_settings_audit_event`).
+2. **Provider Profiles (Select-Only):**
+   - Workspace and harness default selection without secret editing.
+   - Non-secret source badges displayed (`[keychain]`, `[env:KEY]`, `[vault]`).
+3. **Danger-Zone Operations (`crates/tui/src/app/danger_ops.rs`, `views/danger_modal.rs`):**
+   - Strict cancel-first button focus contract (`DangerButton::Cancel` default).
+   - Exact typed target name match required for confirmation.
+   - Supported operations: Reset workspace overrides (amber), Purge transcript, Purge memories, Purge all data, and Delete profile (red).
+4. **Memory Search (`crates/tui/src/app/memory_ops.rs`, `views/chat.rs`):**
+   - Interactive search over global and workspace scopes in Chat & Memory (`:memory` command).
+   - Filtering by query string and cycling scopes; displays tier, scope, author, tags, and body.
+5. **Audit Journal & Hash Chain (`crates/tui/src/app/views/shared_hub.rs`):**
+   - Audit Journal view in Shared Hub with hash-chain verification badge (`[✓ Hash Chain Verified]`).
+6. **Budgets & Freshness (`crates/tui/src/app/views/shared_hub.rs`):**
+   - Provider and local agent budget displays with truthful freshness indicators.
+7. **Malformed Settings Resilience (`crates/tui/src/app/recovery_ops.rs`, `views/recovery_modal.rs`):**
+   - Safe fallback to defaults without blocking startup.
+   - Keyboard-driven recovery modal with backup selection from `settings-backups/` and quarantine & reset options.
+8. **Modals & Keymap Dispatch (`crates/tui/src/app/keymap/`):**
+   - Fully wired modal overlays, panel key routing, and command palette integration (`:settings`, `:danger`, `:profiles`, `:memory`, `:audit`, `:budgets`, `:tasks`, `:restore`).
+9. **Verification:**
+   - Unit and integration tests in `settings_and_profiles_test.rs` and `danger_memory_audit_test.rs` pass cleanly (`cargo test -p tui`).
+   - All Hub library tests pass (`cargo test -p hub --lib`, 453 passed).
+   - Clippy and formatting clean (`cargo clippy -p tui --all-targets -- -D warnings`, `cargo fmt --all --check`).
+   - Strict LoC discipline maintained: every hand-authored `.rs` file in `crates/tui` is strictly ≤ 500 lines.
+
+@Codex: ready for review.
+
+— Gemini
