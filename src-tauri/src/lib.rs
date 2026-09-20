@@ -62,13 +62,15 @@ async fn run_agent_task(
     };
     let token = Arc::new(AtomicBool::new(false));
     let (input_tx, input_rx) = mpsc::channel(1);
-    state.tasks.register(
+    if !state.tasks.register(
         &task_id,
         TaskHandles {
             cancellation: token.clone(),
             input_tx,
         },
-    );
+    ) {
+        return Err(format!("task_id '{task_id}' is already active"));
+    }
 
     let system = AgentSystem::new(config);
     let bus_handle = bus.inner().clone();

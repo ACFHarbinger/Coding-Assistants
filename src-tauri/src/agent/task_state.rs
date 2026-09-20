@@ -32,11 +32,16 @@ impl TaskRegistry {
         }
     }
 
-    pub fn register(&self, task_id: &str, handles: TaskHandles) {
-        self.inner
-            .lock()
-            .unwrap()
-            .insert(task_id.to_string(), handles);
+    /// Registers a live task, returning false when its caller-supplied id is
+    /// already active. Replacing an existing entry would let the first task's
+    /// cleanup remove the second task's handles.
+    pub fn register(&self, task_id: &str, handles: TaskHandles) -> bool {
+        let mut tasks = self.inner.lock().unwrap();
+        if tasks.contains_key(task_id) {
+            return false;
+        }
+        tasks.insert(task_id.to_string(), handles);
+        true
     }
 
     pub fn get(&self, task_id: &str) -> Option<TaskHandles> {
@@ -150,20 +155,20 @@ mod tests {
         let registry = TaskRegistry::new();
         let (tx_a, _rx_a) = mpsc::channel(1);
         let (tx_b, _rx_b) = mpsc::channel(1);
-        registry.register(
+        assert!(registry.register(
             "task-a",
             TaskHandles {
                 cancellation: Arc::new(AtomicBool::new(false)),
                 input_tx: tx_a,
             },
-        );
-        registry.register(
+        ));
+        assert!(registry.register(
             "task-b",
             TaskHandles {
                 cancellation: Arc::new(AtomicBool::new(false)),
                 input_tx: tx_b,
             },
-        );
+        ));
         registry
             .get("task-a")
             .unwrap()
@@ -189,20 +194,20 @@ mod tests {
         let registry = TaskRegistry::new();
         let (tx_a, mut rx_a) = mpsc::channel(1);
         let (tx_b, mut rx_b) = mpsc::channel(1);
-        registry.register(
+        assert!(registry.register(
             "task-a",
             TaskHandles {
                 cancellation: Arc::new(AtomicBool::new(false)),
                 input_tx: tx_a,
             },
-        );
-        registry.register(
+        ));
+        assert!(registry.register(
             "task-b",
             TaskHandles {
                 cancellation: Arc::new(AtomicBool::new(false)),
                 input_tx: tx_b,
             },
-        );
+        ));
         registry
             .get("task-b")
             .unwrap()
@@ -212,5 +217,32 @@ mod tests {
             .unwrap();
         assert_eq!(rx_b.recv().await.unwrap(), "hello-b");
         assert!(rx_a.try_recv().is_err());
+    }
+
+    #[test]
+    fn duplicate_task_id_does_not_replace_live_handles() {
+        let registry = TaskRegistry::new();
+        let (first_tx, _first_rx) = mpsc::channel(1);
+        let first_cancel = Arc::new(AtomicBool::new(false));
+        assert!(registry.register(
+            "task-a",
+            TaskHandles {
+                cancellation: first_cancel.clone(),
+                input_tx: first_tx,
+            },
+        ));
+
+        let (second_tx, _second_rx) = mpsc::channel(1);
+        assert!(!registry.register(
+            "task-a",
+            TaskHandles {
+                cancellation: Arc::new(AtomicBool::new(false)),
+                input_tx: second_tx,
+            },
+        ));
+        assert!(Arc::ptr_eq(
+            &registry.get("task-a").unwrap().cancellation,
+            &first_cancel
+        ));
     }
 }
