@@ -29,6 +29,7 @@ pub const DEFAULT_CAPACITY: usize = 256;
 pub const TOPIC_AGENT_EVENT: &str = "agent-event";
 pub const TOPIC_AGENT_MEMORY_RECALL: &str = "agent-memory-recall";
 pub const TOPIC_AGENTS_CHANGED: &str = "hub:agents-changed";
+pub const TOPIC_TASK_LIFECYCLE: &str = "task-lifecycle";
 
 /// A named backend event. Topic strings match today's Tauri event names so
 /// the desktop subscriber can forward 1:1.

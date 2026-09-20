@@ -9,8 +9,12 @@ mod pty;
 mod server;
 mod tray;
 
-use agent::{AgentConfig, AgentSystem};
+use agent::{
+    is_valid_task_id, next_task_id, remove_task_mcp_dir, AgentConfig, AgentSystem, TaskHandles,
+    TaskLifecycleEvent, TaskRegistry,
+};
 use core::agent_resources::AgentResources;
+use hub::bus::TOPIC_TASK_LIFECYCLE;
 use hub::InProcessBus;
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
@@ -23,59 +27,112 @@ use tokio::sync::mpsc;
 
 struct AppState {
     agents: Mutex<Option<AgentSystem>>,
-    cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
-    user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
+    /// Per-task handles keyed by task id (P2 / #331): concurrent tasks no
+    /// longer share one cancellation flag or input channel.
+    tasks: TaskRegistry,
     tcp_server: Mutex<Option<TcpServer>>,
+}
+
+/// Outcome of `run_agent_task`: the caller routes later `submit_user_input`
+/// / `cancel_task` calls with `task_id`, and follows progress on the
+/// `task-lifecycle` bus topic.
+#[derive(serde::Serialize)]
+struct RunTaskOutcome {
+    task_id: String,
+    result: String,
 }
 
 #[tauri::command]
 async fn run_agent_task(
     config: AgentConfig,
     task: String,
+    task_id: Option<String>,
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
     bus: State<'_, InProcessBus>,
-) -> Result<String, String> {
+) -> Result<RunTaskOutcome, String> {
+    let task_id = match task_id.map(|id| id.trim().to_string()) {
+        Some(id) if !id.is_empty() => {
+            if !is_valid_task_id(&id) {
+                return Err("task_id must match [A-Za-z0-9_-]+".into());
+            }
+            id
+        }
+        _ => next_task_id(),
+    };
     let token = Arc::new(AtomicBool::new(false));
-
     let (input_tx, input_rx) = mpsc::channel(1);
-
-    *state.cancellation_token.lock().unwrap() = Some(token.clone());
-    *state.user_input_tx.lock().unwrap() = Some(input_tx);
+    state.tasks.register(
+        &task_id,
+        TaskHandles {
+            cancellation: token.clone(),
+            input_tx,
+        },
+    );
 
     let system = AgentSystem::new(config);
-    let bus = bus.inner().clone();
-    // run_task will now consume input_rx
-    let result = system
-        .run_task(&task, &app_handle, &bus, token, input_rx)
-        .await?;
+    let bus_handle = bus.inner().clone();
+    bus_handle.emit(
+        TOPIC_TASK_LIFECYCLE,
+        TaskLifecycleEvent::new(&task_id, "started", None),
+    );
+    let outcome = system
+        .run_task(&task_id, &task, &app_handle, &bus_handle, token, input_rx)
+        .await;
+    state.tasks.remove(&task_id);
+    remove_task_mcp_dir(&hub::default_hub_home(), &task_id);
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
 
-    Ok(result)
-}
-
-#[tauri::command]
-async fn submit_user_input(state: State<'_, AppState>, input: String) -> Result<(), String> {
-    let tx = {
-        let tx_guard = state.user_input_tx.lock().unwrap();
-        tx_guard.clone()
-    };
-
-    if let Some(tx) = tx {
-        tx.send(input).await.map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("No active agent waiting for input".to_string())
+    match outcome {
+        Ok(result) => {
+            bus_handle.emit(
+                TOPIC_TASK_LIFECYCLE,
+                TaskLifecycleEvent::new(&task_id, "finished", None),
+            );
+            Ok(RunTaskOutcome { task_id, result })
+        }
+        Err(error) => {
+            bus_handle.emit(
+                TOPIC_TASK_LIFECYCLE,
+                TaskLifecycleEvent::new(&task_id, "failed", Some(error.clone())),
+            );
+            Err(error)
+        }
     }
 }
 
 #[tauri::command]
-fn cancel_task(state: State<'_, AppState>) -> Result<(), String> {
-    let token_guard = state.cancellation_token.lock().unwrap();
-    if let Some(token) = token_guard.as_ref() {
-        token.store(true, Ordering::SeqCst);
+async fn submit_user_input(
+    state: State<'_, AppState>,
+    task_id: String,
+    input: String,
+) -> Result<(), String> {
+    let handles = state.tasks.get(&task_id).ok_or_else(|| {
+        format!("No active task '{task_id}' waiting for input (it may have finished)")
+    })?;
+    handles
+        .input_tx
+        .send(input)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    bus: State<'_, InProcessBus>,
+) -> Result<(), String> {
+    // Idempotent: an unknown or finished id is already in the desired state.
+    if let Some(handles) = state.tasks.get(&task_id) {
+        handles.cancellation.store(true, Ordering::SeqCst);
+        bus.inner().clone().emit(
+            TOPIC_TASK_LIFECYCLE,
+            TaskLifecycleEvent::new(&task_id, "cancelled", None),
+        );
     }
     Ok(())
 }
@@ -222,8 +279,7 @@ pub fn run() {
         .manage(InProcessBus::new())
         .manage(AppState {
             agents: Mutex::new(None),
-            cancellation_token: Mutex::new(None),
-            user_input_tx: Mutex::new(None),
+            tasks: TaskRegistry::new(),
             tcp_server: Mutex::new(None),
         })
         .manage(pty::PtySessions::default())

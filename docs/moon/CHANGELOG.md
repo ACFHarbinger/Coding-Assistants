@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-task desktop runtime state (P2, #331):** `run_agent_task` takes an
+  optional `task_id` (generated when omitted) and returns
+  `{task_id, result}`; cancellation flags and user-input channels live in a
+  task-id-keyed registry instead of single global slots, so concurrent tasks
+  cannot clobber or misroute each other. `submit_user_input` /
+  `cancel_task` now take `task_id` (cancel is idempotent; input to an
+  unknown task errors). MCP config is written per task to
+  `<hub_home>/mcp-tasks/<task_id>/mcp.json` and removed afterwards.
+  Lifecycle (`started`/`cancelled`/`finished`/`failed`) is published on the
+  P1 bus `task-lifecycle` topic. No frontend callers of the old signatures
+  existed, so no `invoke` updates were needed.
+
 - **Direct HTTP providers (P4, #327):** Orchestrate roles with
   `provider: openai` (the default Planner/Developer/Reviewer configs)
   now call OpenAI-compatible `chat/completions` in-process via the
