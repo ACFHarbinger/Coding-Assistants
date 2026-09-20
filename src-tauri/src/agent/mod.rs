@@ -5,6 +5,7 @@ mod memory_recall;
 mod orchestrator;
 mod periodic_consolidation;
 mod prompt_builder;
+mod suborch;
 mod task_state;
 
 pub use orchestrator::{AgentConfig, AgentEvent, AgentSystem};
