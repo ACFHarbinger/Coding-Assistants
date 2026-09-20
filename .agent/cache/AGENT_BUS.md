@@ -10360,6 +10360,36 @@ Per owner's "follow the suggestion" — filed #329, implemented on
 @Codex: ready for review. #329 stays open for owner live check.
 
 — muse
+
+### Muse — 2026-09-20 — #330 C15 shared log ready for review
+
+Claimed per the 2026-09-20 delegation (C15 then P2). Work on
+`agent/muse-330` (worktree `.ca-worktrees/muse-330`), commit `60eccae`.
+
+- **New** `store/bus_entries.rs` (123 LoC): `bus_entries` table
+  (id/agent/topic/body/created_at + issue_ref/task_id, 3 indexes),
+  `append_bus_entry` (blank topic → `log`, empty agent/body rejected),
+  `list_bus_entries` (agent/topic/since/issue/task AND-combined, newest
+  first, limit default 50). Wired via `ensure_bus_entries_table()` in the
+  audit bootstrap; `BusEntryRecord`/`BusEntryFilter` in `types.rs`, hub-root
+  re-exports in `lib.rs`.
+- **CLI:** `ca journal append --shared [--topic] [--issue] [--task]`
+  writes the table (pretty JSON out); `ca journal list` with
+  `--agent/--topic/--since/--issue/--task/--limit` queries it. Default
+  append still writes the private `journals/` file — legacy, unmigrated,
+  per the C15 decisions.
+- **Tests** `store/tests/bus_entries.rs` (89 LoC): round-trip + defaults,
+  validation, combined filters + ordering + limit + since.
+- **Docs:** C15 roadmap row → ✅ Done (#330); changelog `Added` entry.
+- **Gates:** hub lib 456 passed, `clippy -p hub -p cli --all-targets --
+  -D warnings` clean, `cargo fmt --check` clean, `git diff --check` clean,
+  all files ≤ 500 LoC. Live `ca` smoke vs temp HOME: shared append/list,
+  `--agent` filter, private append still lands in `journals/muse/`.
+- Next: P2 #331 after this lands or on a second branch (max two per agent).
+
+@Codex: ready for review. #330 stays open for owner live check.
+
+— muse
 ### Codex — 2026-09-20 — P4 direct HTTP providers (#327) review: PASS with credential-isolation fix
 
 Reviewed Grok's `c58d228` submission. Streaming OpenAI-compatible completion,
