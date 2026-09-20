@@ -1,9 +1,13 @@
 use crate::agent::AgentEvent;
+use crate::client::events::emit_http_result;
+use crate::client::grok_bot_turn::grok_bot_completion;
 use crate::client::http::{
-    chat_stream, is_lm_studio_provider, is_openai_provider, openai_is_authenticated,
+    chat_stream, http_catalog_models, is_grok_bot_provider, is_lm_studio_provider,
+    is_openai_provider, is_openrouter_provider, openai_is_authenticated,
     openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
-    OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS, OPENAI_REQUEST_TIMEOUT_SECS,
+    OPENAI_DEFAULT_MODEL, OPENAI_REQUEST_TIMEOUT_SECS,
 };
+use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
     canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
     muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
@@ -113,6 +117,30 @@ impl LLMClient {
         // Aliases of one upstream share a rate-limit bucket (`muse`/`meta`
         // both hit the Model API); every other provider keys on itself.
         wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
+
+        if is_openrouter_provider(&config.provider) {
+            return openrouter_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
+
+        if is_grok_bot_provider(&config.provider) {
+            return grok_bot_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
 
         if let Some(endpoint) = config
             .endpoint
@@ -244,15 +272,7 @@ impl LLMClient {
             }
         }
 
-        if openai_is_authenticated(
-            hub::secret::resolve("OPENAI_API_KEY")
-                .as_ref()
-                .map(|s| s.expose()),
-        ) {
-            for model in OPENAI_FALLBACK_MODELS {
-                models.push(format!("openai/{model}"));
-            }
-        }
+        models.extend(http_catalog_models());
 
         Ok(models)
     }
@@ -311,24 +331,7 @@ async fn direct_http_completion(
         },
     )
     .await?;
-    if let Some(usage) = result.usage.as_ref() {
-        bus.emit(
-            TOPIC_AGENT_EVENT,
-            AgentEvent {
-                source: source.to_string(),
-                event_type: "usage".to_string(),
-                content: usage.to_json().to_string(),
-            },
-        );
-    }
-    bus.emit(
-        TOPIC_AGENT_EVENT,
-        AgentEvent {
-            source: source.to_string(),
-            event_type: "response".to_string(),
-            content: result.text.clone(),
-        },
-    );
+    emit_http_result(bus, source, &result, false);
     Ok(result.text)
 }
 

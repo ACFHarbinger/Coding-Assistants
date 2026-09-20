@@ -120,12 +120,16 @@ pub(crate) fn health(
     }
 }
 
+mod grok_bot_probe;
 mod hermes_probe;
 mod openai_probe;
+mod openrouter_probe;
 mod probes;
 mod qwen_probe;
+pub(crate) use grok_bot_probe::*;
 pub(crate) use hermes_probe::*;
 pub(crate) use openai_probe::*;
+pub(crate) use openrouter_probe::*;
 pub(crate) use probes::*;
 pub(crate) use qwen_probe::*;
 
@@ -146,6 +150,8 @@ fn probe(agent_id: &str) -> ProviderHealth {
         "ollama" => ollama_health(),
         "llamacpp" => llamacpp_health(),
         "openai" => openai_health(),
+        "openrouter" => openrouter_health(),
+        "grok-bot" | "grok_bot" => grok_bot_health(),
         other => ProviderHealth {
             agent_id: other.into(),
             provider: "unknown".into(),
@@ -161,8 +167,23 @@ fn probe(agent_id: &str) -> ProviderHealth {
 }
 
 const ALL_AGENT_IDS: &[&str] = &[
-    "claude", "grok", "chat", "cursor", "gemini", "opencode", "deepseek", "muse", "mistral",
-    "qwen", "kimi", "hermes", "llamacpp", "ollama", "openai",
+    "claude",
+    "grok",
+    "chat",
+    "cursor",
+    "gemini",
+    "opencode",
+    "deepseek",
+    "muse",
+    "mistral",
+    "qwen",
+    "kimi",
+    "hermes",
+    "llamacpp",
+    "ollama",
+    "openai",
+    "openrouter",
+    "grok-bot",
 ];
 
 /// Cheap by design (a few `stat`/`read` calls, no network), but still uses

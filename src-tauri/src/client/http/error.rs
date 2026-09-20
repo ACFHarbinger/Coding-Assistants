@@ -33,6 +33,17 @@ impl DirectHttpError {
     pub fn unavailable(hint: impl Into<String>) -> Self {
         Self::Unauthenticated { hint: hint.into() }
     }
+
+    /// Whether a fallback model in a P13 gateway chain should be tried.
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::Transport { .. }
+                | Self::Timeout
+                | Self::Api { .. }
+                | Self::InvalidResponse { .. }
+        )
+    }
 }
 
 impl fmt::Display for DirectHttpError {
@@ -105,6 +116,9 @@ mod tests {
         assert!(api.to_string().contains("invalid_request_error"));
         assert_eq!(DirectHttpError::Timeout.code(), "timeout");
         assert_eq!(DirectHttpError::Cancelled.code(), "cancelled");
+        assert!(DirectHttpError::Timeout.is_retryable());
+        assert!(!DirectHttpError::Cancelled.is_retryable());
+        assert!(!unauth.is_retryable());
     }
 
     #[test]

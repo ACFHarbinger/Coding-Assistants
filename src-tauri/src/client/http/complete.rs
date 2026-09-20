@@ -58,13 +58,32 @@ impl TokenUsage {
             "total_tokens": self.total_tokens,
         })
     }
+
+    /// Include optional gateway cost (USD / credits) without losing tokens.
+    pub fn to_json_with_cost(&self, cost: Option<f64>) -> serde_json::Value {
+        let mut value = self.to_json();
+        if let Some(cost) = cost {
+            value["cost"] = serde_json::json!(cost);
+        }
+        value
+    }
 }
 
 /// Assistant text plus optional usage from one chat turn.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `cost` is OpenRouter/gateway credits when the upstream reports it.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ChatResult {
     pub text: String,
     pub usage: Option<TokenUsage>,
+    pub cost: Option<f64>,
+}
+
+impl ChatResult {
+    pub fn usage_json(&self) -> Option<serde_json::Value> {
+        self.usage
+            .as_ref()
+            .map(|usage| usage.to_json_with_cost(self.cost))
+    }
 }
 
 /// Strip a trailing slash and ensure the base ends with `/v1`, matching
@@ -150,6 +169,7 @@ pub async fn chat(
     Ok(ChatResult {
         text: text_from_response(&response)?,
         usage: response.usage.as_ref().map(TokenUsage::from_openai),
+        cost: None,
     })
 }
 
@@ -208,7 +228,11 @@ where
             message: "stream produced no assistant text".into(),
         });
     }
-    Ok(ChatResult { text, usage })
+    Ok(ChatResult {
+        text,
+        usage,
+        cost: None,
+    })
 }
 
 #[cfg(test)]

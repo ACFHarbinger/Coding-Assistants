@@ -1,4 +1,4 @@
-//! Direct HTTP model providers (`platform.md` P4).
+//! Direct HTTP model providers (`platform.md` P4) and gateways (P13).
 //!
 //! Uses the already-vendored `async-openai` crate against OpenAI-compatible
 //! `chat/completions` endpoints. Distinct from CLI harnesses (P3/C14) and
@@ -6,11 +6,52 @@
 
 mod complete;
 mod error;
+mod gateway;
+mod grok_bot;
 
 pub use complete::{
-    chat_stream, OPENAI_DEFAULT_BASE, OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS,
+    chat_stream, ChatResult, OPENAI_DEFAULT_BASE, OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS,
     OPENAI_REQUEST_TIMEOUT_SECS,
 };
+pub use gateway::{
+    chat_with_fallback, is_openrouter_provider, openrouter_is_authenticated,
+    openrouter_unavailable_unauthenticated, split_fallback_models, OPENROUTER_DEFAULT_BASE,
+    OPENROUTER_FALLBACK_MODELS, OPENROUTER_REQUEST_TIMEOUT_SECS,
+};
+pub use grok_bot::{
+    grok_bot_is_authenticated, grok_bot_unavailable_unauthenticated, is_grok_bot_provider,
+    resolve_grok_bot_key, GROK_BOT_DEFAULT_BASE, GROK_BOT_DEFAULT_MODEL, GROK_BOT_FALLBACK_MODELS,
+    GROK_BOT_REQUEST_TIMEOUT_SECS,
+};
+
+/// Authenticated direct-HTTP catalog rows (openai / openrouter / grok-bot).
+pub fn http_catalog_models() -> Vec<String> {
+    let mut models = Vec::new();
+    if openai_is_authenticated(
+        hub::secret::resolve("OPENAI_API_KEY")
+            .as_ref()
+            .map(|s| s.expose()),
+    ) {
+        for model in OPENAI_FALLBACK_MODELS {
+            models.push(format!("openai/{model}"));
+        }
+    }
+    if openrouter_is_authenticated(
+        hub::secret::resolve("OPENROUTER_API_KEY")
+            .as_ref()
+            .map(|s| s.expose()),
+    ) {
+        for model in OPENROUTER_FALLBACK_MODELS {
+            models.push(format!("openrouter/{model}"));
+        }
+    }
+    if grok_bot_is_authenticated(resolve_grok_bot_key().as_ref().map(|s| s.expose())) {
+        for model in GROK_BOT_FALLBACK_MODELS {
+            models.push(format!("grok-bot/{model}"));
+        }
+    }
+    models
+}
 
 pub fn is_openai_provider(provider: &str) -> bool {
     matches!(provider.trim(), "openai")
@@ -57,5 +98,11 @@ mod tests {
         assert!(openai_is_authenticated(Some("presence-flag-not-a-secret")));
         assert_eq!(OPENAI_DEFAULT_MODEL, "gpt-4o");
         assert_eq!(OPENAI_FALLBACK_MODELS, &["gpt-4o", "gpt-4o-mini"]);
+    }
+
+    #[test]
+    fn openrouter_is_not_openai() {
+        assert!(!is_openai_provider("openrouter"));
+        assert!(is_openrouter_provider("openrouter"));
     }
 }

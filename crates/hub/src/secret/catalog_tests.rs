@@ -106,6 +106,14 @@ fn catalog_accessors_find_expected_fields() {
     assert!(!secrets.is_empty());
     assert!(secrets.iter().all(|f| f.secret));
     assert!(secrets.iter().any(|f| f.id == "provider.deepseek.api_key"));
+    assert!(secrets
+        .iter()
+        .any(|f| f.id == "provider.openrouter.api_key"));
+    let openrouter = field("provider.openrouter.api_key").expect("openrouter key");
+    assert_eq!(openrouter.env_var, Some("OPENROUTER_API_KEY"));
+    assert_eq!(fields_for(OwnerKind::Provider, "openrouter").len(), 3);
+    assert!(secrets.iter().any(|f| f.id == "provider.grok-bot.api_key"));
+    assert_eq!(fields_for(OwnerKind::Provider, "grok-bot").len(), 2);
     assert!(secrets.iter().any(|f| f.id == "harness.cursor.login_token"));
     assert!(secrets.iter().any(|f| f.id == "mcp.perplexity.api_key"));
     assert!(secrets.iter().any(|f| f.id == "tool.telegram.bot_token"));
