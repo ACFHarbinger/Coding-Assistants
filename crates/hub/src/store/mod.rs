@@ -37,6 +37,7 @@ mod agents;
 mod attachments;
 mod board;
 mod branch_links;
+mod bus_entries;
 mod danger;
 mod exports;
 mod linked_accounts;
