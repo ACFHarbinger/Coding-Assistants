@@ -2,6 +2,7 @@ use super::budget::BudgetContext;
 use super::memory_recall::MemoryRecallEvent;
 use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
+use super::task_state::task_mcp_file;
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
 use hub::bus::InProcessBus;
@@ -60,34 +61,41 @@ impl AgentSystem {
 
     pub async fn run_task(
         &self,
+        task_id: &str,
         task: &str,
         app: &tauri::AppHandle,
         bus: &InProcessBus,
         token: Arc<AtomicBool>,
         mut input_rx: mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        self.execute_phases(task, app, bus, token, &mut input_rx)
+        self.execute_phases(task_id, task, app, bus, token, &mut input_rx)
             .await
     }
 
     async fn execute_phases(
         &self,
+        task_id: &str,
         task: &str,
         app: &tauri::AppHandle,
         bus: &InProcessBus,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        // Keep task-scoped MCP config in the same CA_HOME-aware Hub directory
-        // as the rest of this application's state.  Writing through HOME here
-        // leaks an isolated/profiled task into the user's real configuration.
+        // Task-scoped MCP config (P2 / #331): each task writes its own
+        // `<hub_home>/mcp-tasks/<task_id>/mcp.json` so concurrent tasks with
+        // different configs cannot clobber one shared `mcp.json`. The caller
+        // removes the task dir afterwards (best effort). Keep the write in
+        // the CA_HOME-aware Hub directory: writing through HOME would leak an
+        // isolated/profiled task into the user's real configuration.
         let mut mcp_abs_path = None;
         if !self.config.mcp_config.is_empty() {
-            let config_dir = hub::default_hub_home();
-            let mcp_config_file = config_dir.join("mcp.json");
+            let mcp_config_file = task_mcp_file(&hub::default_hub_home(), task_id);
 
-            if let Err(e) = tokio::fs::create_dir_all(&config_dir).await {
-                eprintln!("Failed to create config directory {:?}: {}", config_dir, e);
+            if let Err(e) = tokio::fs::create_dir_all(mcp_config_file.parent().unwrap()).await {
+                eprintln!(
+                    "Failed to create config directory {:?}: {}",
+                    mcp_config_file, e
+                );
             } else if let Err(e) = tokio::fs::write(&mcp_config_file, &self.config.mcp_config).await
             {
                 eprintln!("Failed to write mcp.json to {:?}: {}", mcp_config_file, e);
