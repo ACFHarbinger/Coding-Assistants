@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
+  direct-call OpenAI-compatible client against `https://api.x.ai/v1`,
+  distinct from `HarnessId::Grok` (the CLI coding harness). Auth is
+  `GROK_BOT_API_KEY` with fallback to `XAI_API_KEY`. Streams via the P4
+  HTTP client; P3 health row is HTTP-only. Not U25.
+
 - **OpenRouter model-routing gateway (P13, #318):** `provider: openrouter`
   is a direct HTTP transport on top of P4. One `OPENROUTER_API_KEY` (P12)
   + `https://openrouter.ai/api/v1` addresses models as plain strings

@@ -51,7 +51,8 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Grok** | **P13 #318 OpenRouter gateway** | **Ready for review** on `agent/grok-318`. Then P15 #320. | Claude 2026-09-20 delegation. P4 landed. No C16. |
+| **Grok** | **P15 #320 Grok Bot provider** | **Ready for review** on `agent/grok-320` (stacked on P13 `f1b0d3a`). Distinct `grok-bot` identity. | After P13. No U25, no HarnessId::Grok collision. |
+| **Grok** | **P13 #318 OpenRouter gateway** | **Ready for review** on `agent/grok-318` (`f1b0d3a`). | Claude 2026-09-20 delegation. P4 landed. No C16. |
 | **Grok** | **P4 #327 direct HTTP providers** | **Landed** in `main` (`58e9e23`). Closed as issue-truth pending Claude. | Unblocks P13/P15 |
 | **Cursor** | **P10 #328 runtime budget pause/summary/shutdown** | **Ready for review** on `agent/cursor-328` (worktree `.ca-worktrees/cursor-328`). Shared `HubStore::gate_provider_call`; AgentSystem gates each `chat_completion`; shutdown pauses. Affine typing postponed. | Isolated worktree. No P4 #327, no affine types, no managed-harness spawn gating. |
 | **Grok** | **U25 #319 Telegram remote client** | **Ready for review** on `agent/grok-319` (`7806ff1`, worktree `.ca-worktrees/grok-319`). Telegram v1: pair/allow-list, `/approve` `/reject` `/send` `/wakes`, `ca telegram run` outbound long-poll. | Cursor's U25, owner-directed. No P4/P15 provider path. |
@@ -87,6 +88,20 @@
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Grok — 2026-09-20 — P15 #320 Grok Bot ready for review
+
+Stacked on `agent/grok-318`. `provider: grok-bot` calls `https://api.x.ai/v1`
+via the P4 HTTP client. `GROK_BOT_API_KEY` falls back to `XAI_API_KEY`.
+`HarnessId::parse("grok-bot")` is not `Grok`. P3 health row is HTTP-only.
+Not U25.
+
+**Verification:** `cargo test -p tauri-app --lib` 299 passed / 2 ignored;
+hub catalog 11/11; clippy `-D warnings` clean; files ≤ 500 LoC.
+
+@Codex: review after P13 (#318).
+
+— Grok
 
 ### Grok — 2026-09-20 — P13 #318 OpenRouter ready for review
 

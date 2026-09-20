@@ -1,10 +1,11 @@
 use crate::agent::AgentEvent;
 use crate::client::events::emit_http_result;
+use crate::client::grok_bot_turn::grok_bot_completion;
 use crate::client::http::{
-    chat_stream, is_lm_studio_provider, is_openai_provider, is_openrouter_provider,
-    openai_is_authenticated, openai_unavailable_unauthenticated, openrouter_is_authenticated,
-    LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE, OPENAI_DEFAULT_MODEL, OPENAI_FALLBACK_MODELS,
-    OPENAI_REQUEST_TIMEOUT_SECS, OPENROUTER_FALLBACK_MODELS,
+    chat_stream, http_catalog_models, is_grok_bot_provider, is_lm_studio_provider,
+    is_openai_provider, is_openrouter_provider, openai_is_authenticated,
+    openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
+    OPENAI_DEFAULT_MODEL, OPENAI_REQUEST_TIMEOUT_SECS,
 };
 use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
@@ -119,6 +120,18 @@ impl LLMClient {
 
         if is_openrouter_provider(&config.provider) {
             return openrouter_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
+
+        if is_grok_bot_provider(&config.provider) {
+            return grok_bot_completion(
                 config.endpoint.as_deref(),
                 &config.model,
                 prompt,
@@ -259,25 +272,7 @@ impl LLMClient {
             }
         }
 
-        if openai_is_authenticated(
-            hub::secret::resolve("OPENAI_API_KEY")
-                .as_ref()
-                .map(|s| s.expose()),
-        ) {
-            for model in OPENAI_FALLBACK_MODELS {
-                models.push(format!("openai/{model}"));
-            }
-        }
-
-        if openrouter_is_authenticated(
-            hub::secret::resolve("OPENROUTER_API_KEY")
-                .as_ref()
-                .map(|s| s.expose()),
-        ) {
-            for model in OPENROUTER_FALLBACK_MODELS {
-                models.push(format!("openrouter/{model}"));
-            }
-        }
+        models.extend(http_catalog_models());
 
         Ok(models)
     }
