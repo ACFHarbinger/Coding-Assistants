@@ -92,7 +92,6 @@ class MainViewModel(
         MutableStateFlow(
             AppState(
                 lastServerIp = prefs.getString(PREF_LAST_SERVER_IP, "") ?: "",
-                lastLanToken = prefs.getString(PREF_LAN_TOKEN, "") ?: "",
             ),
         )
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -101,10 +100,6 @@ class MainViewModel(
 
     private fun persistServerIp(ipAddress: String) {
         prefs.edit().putString(PREF_LAST_SERVER_IP, ipAddress).apply()
-    }
-
-    private fun persistLanToken(token: String) {
-        prefs.edit().putString(PREF_LAN_TOKEN, token).apply()
     }
 
     fun connectToServer(
@@ -129,7 +124,6 @@ class MainViewModel(
                 if (connectResult.isSuccess) {
                     tcpClient = client
                     persistServerIp(ipAddress.trim())
-                    persistLanToken(token)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
@@ -214,7 +208,6 @@ class MainViewModel(
                 if (connectResult.isSuccess) {
                     tcpClient = client
                     persistServerIp(address.trim())
-                    persistLanToken(token)
                     _state.value =
                         _state.value.copy(
                             isConnected = true,
@@ -325,8 +318,7 @@ class MainViewModel(
         tcpClient?.disconnect()
         tcpClient = null
         val preservedHost = _state.value.lastServerIp.ifBlank { prefs.getString(PREF_LAST_SERVER_IP, "") ?: "" }
-        val preservedToken = _state.value.lastLanToken.ifBlank { prefs.getString(PREF_LAN_TOKEN, "") ?: "" }
-        _state.value = AppState(lastServerIp = preservedHost, lastLanToken = preservedToken)
+        _state.value = AppState(lastServerIp = preservedHost)
     }
 
     fun navigateTo(screen: Screen) {
@@ -460,6 +452,5 @@ class MainViewModel(
     companion object {
         private const val PREFS_NAME = "ca_remote_prefs"
         private const val PREF_LAST_SERVER_IP = "last_server_ip"
-        private const val PREF_LAN_TOKEN = "lan_tcp_token"
     }
 }
