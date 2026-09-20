@@ -10930,3 +10930,123 @@ commit `ebadd84`. Issue #334 filed by me; security design note above.
 @Codex: ready for review. #334 stays open for owner live check.
 
 — muse
+### Cursor — 2026-09-20 — claiming cloud-sync S1–S3 (#91/#92/#93), design spike
+
+Owner-directed. Branch `agent/cursor-91`, worktree `.ca-worktrees/cursor-91`.
+P6 is merged; this is a new stream. Isolated from T5/C15/P2 leftovers.
+
+**Spike (before security-relevant crypto/Drive code).** Full note in
+`docs/moon/roadmaps/cloud_sync.md` (Cursor 2026-09-20). Summary:
+
+- `hub::sync` (not a new crate, not I2 terraform).
+- `BlobId` = SHA-256 hex of **ciphertext**; remote names are only that id.
+- Device folder name is a hash of a random UUID, never a hostname.
+- `DriveClient` + in-memory FakeDrive: list/get/conditional put/delete +
+  `advance_replica` (atomic in FakeDrive; Google commit point is the replica
+  manifest, prune-after, device folder kept on interrupt).
+- S2: new `CAS1` ChaCha20-Poly1305 objects; 32-byte `keys/cloud-sync.key`;
+  do not reuse vault `CAVT` PBKDF2. Journals are opaque whole files.
+- S3: Drive v3 `drive.appdata` via `ureq`; refresh token in P12
+  `GOOGLE_DRIVE_REFRESH_TOKEN`. Browser OAuth is S4. Live Drive is S5.
+- Sequence: S1 types/FakeDrive/policy → S2 key+leak test → S3 adapter.
+  No merge, no Hub lock, no `ca sync` CLI in this stream.
+
+S1 code follows this note. @Codex: spike only until S1 tests land.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S1 #91 types + FakeDrive: ready for review
+
+S1 landed on `agent/cursor-91` after the spike note. `hub::sync`: BlobId
+(SHA-256 of ciphertext bytes), hashed device folders, category policy
+(mandatory local-only for keys/staging), FakeDrive with conditional writes
+and atomic `advance_replica` (failed put leaves the device folder).
+
+Verified: `cargo test -p hub --lib sync::` 13 passed; `cargo clippy -p hub
+--all-targets -- -D warnings`; `cargo fmt --all --check`. Files ≤298 LoC.
+
+S2 (#92) crypto next on this branch. No Drive network yet. #91 stays open
+for owner live check.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S2 #92 CAS1 + leak tests: ready for review
+
+On `agent/cursor-91`. `CloudSyncKey` create/import/load (32 bytes, 0600,
+no silent rotate). `CAS1` ChaCha20-Poly1305 (AAD = magic||version||kind).
+`seal_and_put` refuses local-only paths. FakeDrive leak test: ciphertext
+has no key, journal body, Fernet marker, refresh-token fixture, or
+`cloud-sync.key` / journal-key / path names.
+
+Verified: `cargo test -p hub --lib sync::` 22 passed; clippy `-D warnings`;
+`cargo fmt --all --check`. Files ≤316 LoC.
+
+S3 (#93) Google adapter next. #92 stays open.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S3 #93 Google Drive adapter: ready for review
+
+On `agent/cursor-91`. `GoogleDrive` implements `DriveClient` against Drive
+v3 `spaces=appDataFolder`. BlobId file names only. Refresh token in P12
+`GOOGLE_DRIVE_REFRESH_TOKEN` (vault wins). `UreqTransport` redacts
+credentials; tests use `ScriptedTransport` (no network, no live account).
+Browser OAuth is S4. Live Drive is S5.
+
+Verified: `cargo test -p hub --lib sync::` 31 passed; `cargo test -p hub
+--lib catalog`; clippy `-D warnings`; `cargo fmt --all --check`. Files
+≤454 LoC (catalog) / ≤388 (google adapter).
+
+#91/#92/#93 stay open for owner live check. Did not start S4/S5/S6.
+
+@Codex: ready for review.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S4 #94 design (before code)
+
+Owner-directed continue after S3. Same branch `agent/cursor-91`. Does not
+weaken locked `cloud_sync.md` decisions. S5 live Drive and S6 merge stay out.
+
+**Lock.** `{hub}/sync/lock` JSON `{pid, started_at, action}` — no tokens,
+paths of secrets, or keys. Live pid → mutations fail closed (`hub is locked
+for cloud sync`). Dead pid is stale and may be replaced. Owner `cancel`
+always removes the file. Preview never takes the lock.
+
+**Gated mutations.** `HubStore::ensure_mutable` on send message, request
+wake, journal/bus append, create task, record audit event; CLI `inbox watch`
+/ `audit watch`; desktop `run_agent_task`. List/get/search stay available.
+
+**Plan.** Shared `SyncPlan` for CLI and desktop: account presence (not the
+token), local vs replica `hub` schema, **warn** on mismatch, category
+counts (no secret filenames), last verified base as a hashed id only.
+`ca sync preview|up|down|sync` print the same JSON. up/down/sync take the
+lock for the run; they do **not** copy `hub.db` over a live file and do
+not perform the S5 snapshot transfer.
+
+**UI.** Settings Sync tab: account, policy counts, last base, plan,
+lock/progress, preview, start, cancel, errors. Connect remains P12
+Credentials (browser OAuth loopback still later). No background sync.
+
+@Codex: design only until S4 tests land.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S4 #94 lock/CLI/Sync tab: ready for review
+
+On `agent/cursor-91`. `sync/lock` is pid JSON with no secrets. Shared
+`SyncPlan` for `ca sync preview|up|down|sync` and the Settings Sync tab
+(account presence, schema **warning**, category counts, hashed last base).
+up/down/sync take the lock; preview does not. Mutating Hub work fails
+closed while held; list/get stay up. Snapshot transfer is still S5.
+
+Verified: `cargo test -p hub --lib -- sync::` 36 passed;
+`lock_blocks_send_and_leaves_list_readable`; clippy hub+cli+tauri-app
+`-D warnings`; `cargo fmt --all --check`; SyncTab vitest 2/2. Files
+≤495 LoC.
+
+#91–#94 stay open. Did not start S5/S6 or browser OAuth.
+
+@Codex: ready for review.
+
+— Cursor

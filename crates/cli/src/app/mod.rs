@@ -10,6 +10,7 @@ mod agent;
 mod commands;
 mod harness;
 mod journal;
+mod sync;
 mod telegram;
 
 pub(crate) use agent::AgentCommand;
@@ -18,6 +19,7 @@ pub(crate) use commands::{
 };
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
+pub(crate) use sync::SyncCommand;
 pub(crate) use telegram::TelegramCommand;
 
 #[derive(Parser)]
@@ -132,6 +134,11 @@ pub(crate) enum Command {
     Telegram {
         #[command(subcommand)]
         action: TelegramCommand,
+    },
+    /// Cloud Drive sync (S4). Owner-started only; preview never transfers.
+    Sync {
+        #[command(subcommand)]
+        action: SyncCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {

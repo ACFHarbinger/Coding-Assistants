@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S4 lock, CLI, and Sync tab (#94):** `ca sync preview|up|down|sync`
+  and the Settings Sync tab share a secret-free plan. A run takes
+  `sync/lock` and rejects mutating Hub work (messages, wakes, journals,
+  tasks, audit/inbox watch, agent tasks). Preview warns on schema
+  mismatch and never transfers. Snapshot upload/download remains S5.
+- **Cloud-sync S3 Google Drive adapter (#93):** `hub::sync::GoogleDrive`
+  talks Drive v3 `drive.appdata` through a transport so unit tests never
+  hit the network. File names are hashed BlobIds only. The refresh token
+  is P12 `tool.sync.google_refresh_token` / `GOOGLE_DRIVE_REFRESH_TOKEN`.
+  Credentials are omitted from `Debug` and error text. Browser OAuth is
+  S4; a live Drive run is S5.
+- **Cloud-sync S2 key and CAS1 objects (#92):** Local `keys/cloud-sync.key`
+  (32 bytes, mode 0600, create-or-import) seals versioned ChaCha20-Poly1305
+  objects (`CAS1`). Journal Fernet blocks stay opaque file bytes. FakeDrive
+  leak tests fail if ciphertext contains the key, plaintext, refresh-token
+  fixtures, or secret filenames. Distinct from the vault `CAVT` format.
+- **Cloud-sync S1 domain contracts (#91):** `hub::sync` adds typed
+  `DriveClient`, FakeDrive, hashed `BlobId`s, per-device/replica layout,
+  category policy, and sync-result types with no live provider. S2/S3
+  (crypto, Drive adapter) follow on the same branch. Implementation spike
+  recorded in `roadmaps/cloud_sync.md`.
 - **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
   direct-call OpenAI-compatible client against `https://api.x.ai/v1`,
   distinct from `HarnessId::Grok` (the CLI coding harness). Auth is

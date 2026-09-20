@@ -7,6 +7,7 @@ impl HubStore {
         message_id: Option<&str>,
         requires_human_gate: bool,
     ) -> Result<WakeRecord, HubError> {
+        self.ensure_mutable()?;
         self.upsert_agent(target_agent, target_agent)?;
 
         if let Some(budget) = self.get_budget(target_agent)? {
@@ -172,6 +173,7 @@ impl HubStore {
 
     /// Append to a private journal file (never written into shared SQLite tables).
     pub fn append_private_journal(&self, agent_id: &str, entry: &str) -> Result<PathBuf, HubError> {
+        self.ensure_mutable()?;
         if entry.trim().is_empty() {
             return Err(HubError::Invalid("journal entry must not be empty".into()));
         }

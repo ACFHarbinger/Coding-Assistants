@@ -36,6 +36,7 @@ impl HubStore {
         issue_ref: Option<&str>,
         task_id: Option<&str>,
     ) -> Result<BusEntryRecord, HubError> {
+        self.ensure_mutable()?;
         let agent = agent.trim();
         if agent.is_empty() {
             return Err(HubError::Invalid("bus entry agent is required".into()));

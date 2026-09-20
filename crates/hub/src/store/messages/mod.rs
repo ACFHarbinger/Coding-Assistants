@@ -15,6 +15,7 @@ impl HubStore {
         workspace_path: Option<&str>,
         task_id: Option<&str>,
     ) -> Result<MessageRecord, HubError> {
+        self.ensure_mutable()?;
         if body.trim().is_empty() {
             return Err(HubError::Invalid("message body must not be empty".into()));
         }

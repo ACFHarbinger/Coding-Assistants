@@ -60,6 +60,9 @@ async fn run_agent_task(
         }
         _ => next_task_id(),
     };
+    if hub::sync::is_held(&hub::default_hub_home()) {
+        return Err(hub::sync::LOCKED_MESSAGE.to_string());
+    }
     let token = Arc::new(AtomicBool::new(false));
     let (input_tx, input_rx) = mpsc::channel(1);
     if !state.tasks.register(

@@ -403,6 +403,19 @@ pub const CATALOG: &[FieldSpec] = &[
             "Shared secret for Android LAN TCP pairing. Vault wins; env is the fallback. Unset rejects every client. Never logged or returned over IPC.",
         ),
     },
+    FieldSpec {
+        id: "tool.sync.google_refresh_token",
+        display_name: "Google Drive Refresh Token",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "sync",
+        env_var: Some("GOOGLE_DRIVE_REFRESH_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://developers.google.com/drive/api/guides/api-specific-auth"),
+        notes: Some(
+            "OAuth refresh token for cloud-sync S3 drive.appdata. Vault wins; env is the fallback. Never logged or returned over IPC. Not the replica key.",
+        ),
+    },
 ];
 
 /// Look up a field in the catalog by its unique id.

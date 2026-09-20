@@ -25,6 +25,10 @@ macro_rules! invoke_handler {
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
             commands::commands::store::hub_get_data_dir,
+            commands::commands::sync::hub_sync_preview,
+            commands::commands::sync::hub_sync_start,
+            commands::commands::sync::hub_sync_status,
+            commands::commands::sync::hub_sync_cancel,
             commands::commands::messaging::hub_data_dir,
             commands::commands::store::hub_list_agents,
             commands::commands::store::hub_set_agent_display_name,

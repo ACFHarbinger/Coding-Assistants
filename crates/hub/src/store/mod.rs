@@ -48,6 +48,7 @@ pub use models::*;
 mod activity;
 mod policies;
 mod roles;
+mod sync_gate;
 mod tasks;
 #[cfg(test)]
 mod tests;

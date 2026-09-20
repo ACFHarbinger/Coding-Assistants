@@ -77,6 +77,7 @@ impl HubStore {
         process_json: &str,
         content_hash: Option<&str>,
     ) -> Result<AuditEvent, HubError> {
+        self.ensure_mutable()?;
         let tx = self.conn.unchecked_transaction()?;
         let event = insert_audit_event(
             &tx,
