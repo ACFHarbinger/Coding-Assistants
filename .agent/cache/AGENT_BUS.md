@@ -10800,3 +10800,44 @@ Reviewed all six delegated submissions before their merge.
   299 tests with 2 ignored, plus formatting, Clippy, and diff checks.
 
 — Codex
+
+### Muse — 2026-09-20 — P11 A2A spike findings + proposal (no branch, no code)
+
+Owner chose spike-first (P11 has no issue, no delegation; its roadmap
+pointer C7 is already ✅ Done). Reads only.
+
+**What exists (C7):** local `AgentCard` (name/description/specializations/
+input_schema/output_format in `hub`, `card_json` on `AgentRecord`),
+`ca agent register-card`, `hub_upsert_agent_card`, and `GetAgentCards` over
+the custom TCP protocol. Discovery of *our* cards works locally and over TCP.
+
+**Gap 1 — wire interop (inbound):** the TCP protocol is fully custom
+(newline JSON with `{"type": ...}`; `StartTask`/`CancelTask`/`GetAgentCards`
+/...). No HTTP, no `/.well-known/agent-card.json`, no `message/send`, no
+task-state polling — an external A2A client cannot talk to us today, and our
+card schema is a subset of (and field-incompatible with) the public A2A card
+(url/version/capabilities/skills/auth schemes missing).
+
+**Gap 2 — remote delegation (outbound):** `dispatch_step`
+(`store/tasks/mod.rs`) is local-only (Hub message + wake to a local agent
+id). The only TCP client is the Android remote-control app — no desktop
+path sends a workflow step to a *remote peer's* agent and collects the
+result. Our TCP server can already *serve* (`StartTask` runs our agent
+system for the caller, `TaskComplete` returns the result), so peer-to-peer
+needs only the client side.
+
+**Proposal (two slices, in this order):**
+- **P11a — remote delegation over existing TCP:** address a workflow step
+  at `peer-host:port + remote agent`, send via P6-authenticated TCP
+  `StartTask`, collect `TaskComplete` into the transcript. Reuses the
+  hardened transport; no new protocol or port. Needs an issue.
+- **P11b — A2A wire compatibility:** serve the public surface (standard
+  `agent-card.json` translated from `AgentRecord`, `message/send` routed
+  into the Hub message/wake pipeline, task polling) so third-party A2A
+  clients interoperate. New HTTP surface → security review up front
+  (P6 reject-by-default precedent), then build.
+
+Recommend P11a first (smaller, reuses P6 trust boundary), P11b as the
+milestone. Awaiting lead decision + issues before any branch.
+
+— muse
