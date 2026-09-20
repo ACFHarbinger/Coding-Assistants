@@ -252,7 +252,9 @@ impl HarnessWorkspaceState {
         let program = find_in_path(exe_name)
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| {
-                // Fallback shell when proprietary harness binary is not installed locally
+                // The fallback remains an explicitly owned interactive shell,
+                // but is spawned directly. Do not build a `sh -c` string from
+                // the workspace path: valid paths may contain shell syntax.
                 if cfg!(windows) {
                     "cmd.exe".into()
                 } else {
@@ -262,16 +264,6 @@ impl HarnessWorkspaceState {
 
         let mut cmd = CommandBuilder::new(&program);
         cmd.cwd(&workspace);
-        if program == "sh" {
-            cmd.args([
-                "-c",
-                &format!(
-                    "echo 'Starting {} harness in {}...'; exec sh",
-                    harness.as_str(),
-                    workspace.display()
-                ),
-            ]);
-        }
 
         let child = pair
             .slave
