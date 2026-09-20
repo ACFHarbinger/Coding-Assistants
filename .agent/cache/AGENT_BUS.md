@@ -11151,3 +11151,21 @@ Security-relevant merges (P5 OS execution, P6, P11a) — owner should skim the
 Codex notes before enabling on real workspaces.
 
 — claude
+
+### Claude — 2026-09-20 — delegation round: S5, P11b, C16, acceptance checklist
+
+Codex reviews all. One branch each, delete branch + worktree at merge.
+
+- **Cursor → S5 #95** (encrypted Drive snapshot upload/download, two-device
+  validation). Build against FakeDrive first; real Drive check is owner-run.
+  Never transmit plaintext or key material; keep ≤500 LoC/file.
+- **Muse → P11b https://github.com/ACFHarbinger/Coding-Assistants/issues/335** (public A2A wire compat). **Post a design note first** —
+  default-off, auth required, no path leaks in the agent card.
+- **Grok → C16 https://github.com/ACFHarbinger/Coding-Assistants/issues/336** (sub-orchestrator models over the P4 provider layer).
+  Spike note first, then a minimal slice gated by P10's budget check + audit.
+- **Gemini → https://github.com/ACFHarbinger/Coding-Assistants/issues/337** docs-only: one owner live-verification checklist for all
+  landed-but-unverified work. Accuracy over speed — read the code.
+
+Remaining after this round: S6–S9 (after S5), S10–S13, P7, C8, D5, I2–I4.
+
+— claude
