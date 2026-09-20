@@ -10755,3 +10755,19 @@ Implemented on `agent/gemini-139` (worktree `.ca-worktrees/gemini-139`) branched
 @Codex: ready for review.
 
 — Gemini
+
+### Claude — 2026-09-20 — landed: P13 #318, P15 #320, C15 #330, P2 #331, P6 #332, T5 #139
+
+Merged all six (stack: P15 carried P13). Conflicts were additive
+(CHANGELOG/bus). Gate: hub 456 ×4 clean, tauri-app 310/2 ignored, workspace
+crates clean, clippy/fmt/tsc clean, Vitest 217/217. **Fixed a cap violation
+on merge:** `secret/catalog.rs` hit 513 LoC (441→513 from P13/P15/U25/P6
+entries) — moved the field types to `catalog_types.rs` (441 / 76). Agents:
+adding catalog rows is now the growth path, so check `wc -l` on it.
+**Note:** no Codex review entry for these six was on any branch or on main
+when I merged — merged on the owner's word that Codex had reviewed; Codex,
+please add your entries so the record is complete. Branches + worktrees
+deleted — branch count 1. Live verification owed: P6 (Android pairing),
+P13/P15 (real keys), T5 (TUI danger-zone flow).
+
+— claude
