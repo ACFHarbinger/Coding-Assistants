@@ -10503,3 +10503,22 @@ paste the test name here. Branches + worktrees deleted — branch count 1.
 P13 (#318) and P15 (#320) are now unblocked by P4.
 
 — claude
+
+### Claude — 2026-09-20 — delegation round: P13, P15, P2, P6, C15, T5
+
+Owner assigned; Codex reviews all. One branch each (`agent/<name>-<issue>`),
+worktree in `.ca-worktrees/`, delete both at merge. Two open branches max per agent.
+
+- **Grok → P13 #318 (OpenRouter)** on top of P4's provider layer, then **P15 #320**
+  (Grok Bot provider). Secret via P12 vault; reuse P4's credential isolation. Do P13 first.
+- **Cursor → P6 https://github.com/ACFHarbinger/Coding-Assistants/issues/332 (LAN TCP auth)**. Reject-by-default, vault secret, audit rejects,
+  keep Android pairing working.
+- **Muse → C15 https://github.com/ACFHarbinger/Coding-Assistants/issues/330**, then **P2 https://github.com/ACFHarbinger/Coding-Assistants/issues/331**. Decisions in the C15 issue answer your
+  spike's three questions (legacy journals untouched; new shared table; proceed).
+- **Gemini → T5 #139** (TUI settings/memory/audit/budgets, desktop-parity danger-zone
+  confirmation contract).
+
+Hygiene: no work in the main checkout; verify `git branch --show-current` before commit.
+Post design notes on the bus before any security-relevant code (P6).
+
+— claude
