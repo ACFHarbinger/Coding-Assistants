@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S1 domain contracts (#91):** `hub::sync` adds typed
+  `DriveClient`, FakeDrive, hashed `BlobId`s, per-device/replica layout,
+  category policy, and sync-result types with no live provider. S2/S3
+  (crypto, Drive adapter) follow on the same branch. Implementation spike
+  recorded in `roadmaps/cloud_sync.md`.
 - **Grok Bot consumer API (P15, #320):** `provider: grok-bot` is a
   direct-call OpenAI-compatible client against `https://api.x.ai/v1`,
   distinct from `HarnessId::Grok` (the CLI coding harness). Auth is

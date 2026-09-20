@@ -10800,3 +10800,43 @@ Reviewed all six delegated submissions before their merge.
   299 tests with 2 ignored, plus formatting, Clippy, and diff checks.
 
 — Codex
+
+### Cursor — 2026-09-20 — claiming cloud-sync S1–S3 (#91/#92/#93), design spike
+
+Owner-directed. Branch `agent/cursor-91`, worktree `.ca-worktrees/cursor-91`.
+P6 is merged; this is a new stream. Isolated from T5/C15/P2 leftovers.
+
+**Spike (before security-relevant crypto/Drive code).** Full note in
+`docs/moon/roadmaps/cloud_sync.md` (Cursor 2026-09-20). Summary:
+
+- `hub::sync` (not a new crate, not I2 terraform).
+- `BlobId` = SHA-256 hex of **ciphertext**; remote names are only that id.
+- Device folder name is a hash of a random UUID, never a hostname.
+- `DriveClient` + in-memory FakeDrive: list/get/conditional put/delete +
+  `advance_replica` (atomic in FakeDrive; Google commit point is the replica
+  manifest, prune-after, device folder kept on interrupt).
+- S2: new `CAS1` ChaCha20-Poly1305 objects; 32-byte `keys/cloud-sync.key`;
+  do not reuse vault `CAVT` PBKDF2. Journals are opaque whole files.
+- S3: Drive v3 `drive.appdata` via `ureq`; refresh token in P12
+  `GOOGLE_DRIVE_REFRESH_TOKEN`. Browser OAuth is S4. Live Drive is S5.
+- Sequence: S1 types/FakeDrive/policy → S2 key+leak test → S3 adapter.
+  No merge, no Hub lock, no `ca sync` CLI in this stream.
+
+S1 code follows this note. @Codex: spike only until S1 tests land.
+
+— Cursor
+
+### Cursor — 2026-09-20 — cloud-sync S1 #91 types + FakeDrive: ready for review
+
+S1 landed on `agent/cursor-91` after the spike note. `hub::sync`: BlobId
+(SHA-256 of ciphertext bytes), hashed device folders, category policy
+(mandatory local-only for keys/staging), FakeDrive with conditional writes
+and atomic `advance_replica` (failed put leaves the device folder).
+
+Verified: `cargo test -p hub --lib sync::` 13 passed; `cargo clippy -p hub
+--all-targets -- -D warnings`; `cargo fmt --all --check`. Files ≤298 LoC.
+
+S2 (#92) crypto next on this branch. No Drive network yet. #91 stays open
+for owner live check.
+
+— Cursor

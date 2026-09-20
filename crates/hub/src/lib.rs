@@ -16,6 +16,7 @@ pub mod remote;
 pub mod secret;
 mod settings;
 mod store;
+pub mod sync;
 
 /// Serializes tests across modules that mutate `KIMI_CODE_HOME` (Rust runs
 /// `#[test]`s in parallel threads within one process by default). Both
