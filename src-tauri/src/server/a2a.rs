@@ -34,7 +34,7 @@ const READ_TIMEOUT: Duration = Duration::from_secs(10);
 /// Build the public agent card. Only team-enrolled agents appear, with
 /// sanitized skill fields — this function never inserts paths, workspaces,
 /// or machine info (pinned by `card_carries_no_paths`).
-pub fn build_agent_card(base_url: &str, version: &str, agents: &[AgentRecord]) -> Value {
+pub fn build_agent_card(version: &str, agents: &[AgentRecord]) -> Value {
     let skills: Vec<Value> = agents
         .iter()
         .filter(|agent| agent.team_member)
@@ -58,7 +58,6 @@ pub fn build_agent_card(base_url: &str, version: &str, agents: &[AgentRecord]) -
     json!({
         "name": "Coding Assistants",
         "description": "Coding Assistants Hub: multi-agent orchestration over A2A.",
-        "url": format!("{base_url}/"),
         "version": version,
         "capabilities": {"streaming": false, "pushNotifications": false},
         "defaultInputModes": ["text"],
@@ -273,12 +272,12 @@ fn http_reply(status: u16, reason: &str, content_type: &str, body: &str) -> Stri
 pub fn route_request(
     store: &HubStore,
     request: &HttpRequest,
-    base_url: &str,
+    _base_url: &str,
     expected_token: Option<&str>,
 ) -> String {
     if request.method == "GET" && request.path == CARD_PATH {
         let agents = store.list_agents().unwrap_or_default();
-        let card = build_agent_card(base_url, env!("CARGO_PKG_VERSION"), &agents);
+        let card = build_agent_card(env!("CARGO_PKG_VERSION"), &agents);
         let body = serde_json::to_string(&card).unwrap_or_default();
         return http_reply(200, "OK", "application/json", &body);
     }

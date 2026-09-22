@@ -36,9 +36,8 @@ fn card_lists_only_teamed_agents_with_fixed_keys() {
     seed_teamed_agent(&store, "dev", "Writes code", &["rust"]);
     store.upsert_agent("ghost", "ghost").unwrap();
     let agents = store.list_agents().unwrap();
-    let card = build_agent_card("http://127.0.0.1:8766", "1.0.0", &agents);
+    let card = build_agent_card("1.0.0", &agents);
     assert_eq!(card["name"], "Coding Assistants");
-    assert_eq!(card["url"], "http://127.0.0.1:8766/");
     let skills = card["skills"].as_array().unwrap();
     // Fresh stores seed `human` as a team member, so the card also lists it.
     assert_eq!(skills.len(), 2);
@@ -61,7 +60,6 @@ fn card_lists_only_teamed_agents_with_fixed_keys() {
     for key in [
         "name",
         "description",
-        "url",
         "version",
         "capabilities",
         "defaultInputModes",
@@ -78,8 +76,7 @@ fn card_carries_no_paths() {
     let (_dir, store) = temp_store();
     seed_teamed_agent(&store, "dev", "Writes code", &["rust"]);
     let agents = store.list_agents().unwrap();
-    let raw = serde_json::to_string(&build_agent_card("http://127.0.0.1:8766", "1.0.0", &agents))
-        .unwrap();
+    let raw = serde_json::to_string(&build_agent_card("1.0.0", &agents)).unwrap();
     let lowered = raw.to_lowercase();
     for needle in [
         "/home/",
