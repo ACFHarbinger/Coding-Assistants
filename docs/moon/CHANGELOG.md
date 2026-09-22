@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Disjoint audit forks replay onto the local tip and write one
   `sync-resolution` event naming both heads; same-path forks refuse.
   `ca audit verify` holds after rebase. S7 review UI is not started.
+- **Public A2A wire listener (P11b, #335):** std-only HTTP/1.1 JSON-RPC
+  endpoint (`message/send`, `tasks/get`, `tasks/cancel`) plus an
+  unauthenticated `/.well-known/agent-card.json` listing teamed agents
+  only (names/descriptions/skill tags — no paths, workspaces, or
+  machine info, pinned by test). Default-off behind
+  `orchestration.a2a_enabled`; every RPC call needs the P6 pairing
+  token as Bearer (fail closed); default bind is loopback
+  (`127.0.0.1`, LAN is an explicit opt-in). `message/send` requires
+  `metadata.ca_agent` and creates + advances a single-step Hub task.
+
 - **Cloud-sync S5 encrypted snapshot (#95):** `ca sync up|down|sync` and the
   Settings Sync tab encrypt configured categories to hashed replica names
   (`FakeDrive` / `FsDrive`). A second home downloads into `sync/staging/`,

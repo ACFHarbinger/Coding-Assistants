@@ -307,6 +307,9 @@ pub struct OrchestrationPatch {
     /// Global-only. Off by default; when on, `quota_auto_refresh_interval_secs`
     /// sets the background usage-refresh cadence.
     pub quota_auto_refresh_enabled: Option<bool>,
+    /// Global-only. Off by default; gates whether the public A2A wire
+    /// listener may start at all (P11b / #335).
+    pub a2a_enabled: Option<bool>,
     /// Global-only. Rejected by the store if outside its allowed range.
     pub quota_auto_refresh_interval_secs: Option<u32>,
 }
@@ -405,6 +408,12 @@ pub fn settings_update_orchestration(
             .set_quota_auto_refresh_enabled(v)
             .map_err(|e| e.to_string())?;
         changed_fields.push("orchestration.quota_auto_refresh_enabled");
+    }
+    if let Some(v) = patch.a2a_enabled {
+        // Global-only like the quota flags: a workspace scope still writes
+        // the single global value (a listener is process-wide).
+        store.set_a2a_enabled(v).map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.a2a_enabled");
     }
     if let Some(v) = patch.quota_auto_refresh_interval_secs {
         store

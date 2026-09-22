@@ -44,6 +44,7 @@ pub(super) fn orchestration_policy_from_table(
         "allow_metered_quota_probes",
         defaults.allow_metered_quota_probes,
     )?;
+    let a2a_enabled = bool_key_or(table, "a2a_enabled", defaults.a2a_enabled)?;
     let quota_auto_refresh_enabled = bool_key_or(
         table,
         "quota_auto_refresh_enabled",
@@ -105,6 +106,7 @@ pub(super) fn orchestration_policy_from_table(
         memory_recall_enabled,
         memory_recall_limit,
         allow_metered_quota_probes,
+        a2a_enabled,
         quota_auto_refresh_enabled,
         quota_auto_refresh_interval_secs,
     })
@@ -175,6 +177,7 @@ pub(super) fn effective_orchestration(
         memory_recall_limit_status,
         // Global-only: no override merge, no status pill.
         allow_metered_quota_probes: global.allow_metered_quota_probes,
+        a2a_enabled: global.a2a_enabled,
         quota_auto_refresh_enabled: global.quota_auto_refresh_enabled,
         quota_auto_refresh_interval_secs: global.quota_auto_refresh_interval_secs,
     }

@@ -135,6 +135,8 @@ export interface OrchestrationPatch {
   memory_recall_enabled?: boolean;
   memory_recall_limit?: number;
   allow_metered_quota_probes?: boolean;
+  // Global-only. Gates the public A2A wire listener (P11b / #335); off by default.
+  a2a_enabled?: boolean;
   quota_auto_refresh_enabled?: boolean;
   quota_auto_refresh_interval_secs?: number;
 }

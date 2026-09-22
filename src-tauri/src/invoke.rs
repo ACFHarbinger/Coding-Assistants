@@ -15,6 +15,8 @@ macro_rules! invoke_handler {
             get_available_models,
             start_tcp_server,
             stop_tcp_server,
+            start_a2a_server,
+            stop_a2a_server,
             get_server_ip,
             // Embedded PTY terminals (in-app "Resume in terminal")
             pty::pty_spawn,

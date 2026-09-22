@@ -277,6 +277,11 @@ pub struct OrchestrationPolicy {
     /// anything; every other provider reads a free endpoint regardless.
     /// Global-only: quota is an account-level concept, not per-workspace.
     pub allow_metered_quota_probes: bool,
+    /// Whether the public A2A wire listener may start at all (P11b / #335).
+    /// **Off by default** — nothing listens for external A2A clients until
+    /// the owner explicitly enables it. Global-only: a network listener is
+    /// process-wide, not per-workspace.
+    pub a2a_enabled: bool,
     /// Whether the app refreshes provider-usage snapshots on a background
     /// timer (the Usage strip's poll). **Off by default** — a background
     /// timer spends tokens on the metered adapters with no user in the
@@ -302,6 +307,7 @@ impl Default for OrchestrationPolicy {
             memory_recall_enabled: true,
             memory_recall_limit: DEFAULT_MEMORY_RECALL_LIMIT,
             allow_metered_quota_probes: true,
+            a2a_enabled: false,
             quota_auto_refresh_enabled: false,
             quota_auto_refresh_interval_secs: DEFAULT_QUOTA_AUTO_REFRESH_SECS,
         }
@@ -403,6 +409,9 @@ pub struct EffectiveOrchestrationPolicy {
     /// paired `_status`: there is no workspace override to be "inherited"
     /// from or to "override".
     pub allow_metered_quota_probes: bool,
+    /// Global-only (no `_status`), same rationale as
+    /// `allow_metered_quota_probes`.
+    pub a2a_enabled: bool,
     /// Global-only (no `_status`), same rationale as
     /// `allow_metered_quota_probes`.
     pub quota_auto_refresh_enabled: bool,
