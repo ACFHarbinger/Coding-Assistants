@@ -9,19 +9,20 @@
 
 mod model;
 mod model_harness;
+mod orchestration;
 mod profiles;
 mod store;
 mod tui;
 pub(crate) mod validation;
 
 pub use model::{
-    EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider, FieldStatus,
-    LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot,
+    EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
     ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind, SettingsError,
     SettingsField, SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
     DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use model_harness::{EffectiveHarnessSettings, HarnessSettings};
+pub use orchestration::{EffectiveOrchestrationPolicy, OrchestrationOverride, OrchestrationPolicy};
 pub use store::{LoadStatus, SettingsLoad, SettingsStore};
 pub use tui::TuiSettings;
 

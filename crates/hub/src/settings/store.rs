@@ -1,10 +1,12 @@
 use super::model::{
-    EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider, FieldStatus,
-    LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy, ProfileSnapshot,
+    EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
     ProviderProfile, SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot,
     WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };
 use super::model_harness::{EffectiveHarnessSettings, HarnessSettings};
+use super::orchestration::{
+    EffectiveOrchestrationPolicy, OrchestrationOverride, OrchestrationPolicy,
+};
 use super::profiles::{
     default_efforts_from_table, default_models_from_table, default_profiles_from_table,
     effective_harnesses, harnesses_from_document, profiles_from_document, validate_harness,
