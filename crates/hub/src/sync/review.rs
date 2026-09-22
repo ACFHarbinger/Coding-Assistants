@@ -96,7 +96,11 @@ pub fn apply_choice(
     let relative = resolve_path(&dir, slug)?;
     let hashes = side_hashes(&dir);
     let _guard = SyncLockGuard::acquire(home, "resolve")?;
-    apply_live(home, &dir, &relative, choice)?;
+    if choice == ConflictChoice::Remote && !dir.join("remote").is_file() {
+        super::tombstone::confirm_delete_locked(store, slug)?;
+    } else {
+        apply_live(home, &dir, &relative, choice)?;
+    }
     let decision = ConflictDecision {
         choice,
         decided_at: chrono::Utc::now().to_rfc3339(),

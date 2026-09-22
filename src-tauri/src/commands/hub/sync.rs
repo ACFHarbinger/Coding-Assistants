@@ -1,7 +1,10 @@
 //! Cloud-sync desktop commands (S4 / #94).
 
 use super::store::open_store;
-use hub::sync::{self, ConflictDecision, ConflictItem, LockFile, SyncPlan, SyncSession};
+use hub::sync::{
+    self, CleanupCandidate, ConflictDecision, ConflictItem, LockFile, PurgeReport, SyncPlan,
+    SyncSession, Tombstone,
+};
 
 #[tauri::command]
 pub fn hub_sync_preview() -> Result<SyncPlan, String> {
@@ -50,6 +53,28 @@ pub fn hub_sync_resolve(slug: String, choice: String) -> Result<ConflictDecision
     let store = open_store()?;
     let parsed = sync::ConflictChoice::parse(&choice).map_err(|error| error.to_string())?;
     sync::apply_choice(&store, &slug, parsed).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_tombstones() -> Result<Vec<Tombstone>, String> {
+    let store = open_store()?;
+    sync::list_tombstones(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_expired() -> Result<Vec<CleanupCandidate>, String> {
+    let store = open_store()?;
+    sync::expired_cleanup_candidates(store.data_dir(), chrono::Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_purge_expired(confirm: bool) -> Result<PurgeReport, String> {
+    if !confirm {
+        return Err("purge-expired requires confirm".into());
+    }
+    let store = open_store()?;
+    sync::purge_expired(&store, &[], true).map_err(|error| error.to_string())
 }
 
 #[derive(serde::Serialize)]

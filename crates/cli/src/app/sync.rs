@@ -18,4 +18,14 @@ pub(crate) enum SyncCommand {
     Conflicts,
     /// Apply an owner choice: local | remote | keep-both | manual.
     Resolve { slug: String, choice: String },
+    /// List confirm-only tombstones as JSON.
+    Tombstones,
+    /// List expired tombstone/conflict cleanup candidates (no delete).
+    Expired,
+    /// Owner-explicit purge of expired tombstones and conflict copies only.
+    PurgeExpired {
+        /// Required. Lists expired items, then deletes only those.
+        #[arg(long)]
+        confirm: bool,
+    },
 }

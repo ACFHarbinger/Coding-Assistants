@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   hubSyncConflicts,
+  hubSyncExpired,
+  hubSyncPurgeExpired,
   hubSyncResolve,
+  hubSyncTombstones,
   type ConflictChoice,
   type ConflictItem,
+  type Tombstone,
 } from "./syncApi";
 
 const SECRET = /cloud-sync\.key|\btoken\b|refresh/i;
@@ -21,11 +25,20 @@ function isSafe(item: ConflictItem): boolean {
 
 export default function SyncConflicts({ disabled }: { disabled: boolean }) {
   const [items, setItems] = useState<ConflictItem[]>([]);
+  const [tombstones, setTombstones] = useState<Tombstone[]>([]);
+  const [expiredCount, setExpiredCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    setItems(await hubSyncConflicts());
+    const [nextItems, nextTombstones, expired] = await Promise.all([
+      hubSyncConflicts(),
+      hubSyncTombstones(),
+      hubSyncExpired(),
+    ]);
+    setItems(nextItems);
+    setTombstones(nextTombstones.filter((item) => !SECRET.test(`${item.slug} ${item.path}`)));
+    setExpiredCount(expired.filter((item) => !SECRET.test(item.slug)).length);
   }, []);
 
   useEffect(() => {
@@ -37,6 +50,19 @@ export default function SyncConflicts({ disabled }: { disabled: boolean }) {
     setError(null);
     try {
       await hubSyncResolve(slug, choice);
+      await refresh();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function purgeExpired() {
+    setBusy(true);
+    setError(null);
+    try {
+      await hubSyncPurgeExpired(true);
       await refresh();
     } catch (err) {
       setError(String(err));
@@ -88,6 +114,33 @@ export default function SyncConflicts({ disabled }: { disabled: boolean }) {
           </div>
         </div>
       ))}
+      <p style={{ fontWeight: 600, fontSize: "0.9rem", margin: "1.25rem 0 0.4rem" }}>
+        Tombstones
+      </p>
+      <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+        Confirm-only deletes. Expired copies ({expiredCount}) stay until you purge.
+        Default retention is 30 days. Live hub.db is never deleted.
+      </p>
+      {tombstones.length === 0 && (
+        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No tombstones.</p>
+      )}
+      {tombstones.map((item) => (
+        <div key={item.slug} style={{ fontSize: "0.85rem", marginBottom: "0.35rem" }}>
+          <code>{item.slug}</code>
+          <span style={{ color: "var(--text-muted)", marginLeft: "0.6rem" }}>
+            expires {item.expires_at}
+          </span>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={disabled || busy || expiredCount === 0}
+        onClick={() => void purgeExpired()}
+        style={{ marginTop: "0.75rem" }}
+      >
+        Purge expired (30d)
+      </button>
       {error && (
         <p role="alert" style={{ color: "#fca5a5" }}>
           {error}

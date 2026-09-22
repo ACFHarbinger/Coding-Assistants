@@ -10,6 +10,9 @@ vi.mock("../syncApi", () => ({
   hubSyncCancel: vi.fn(),
   hubSyncConflicts: vi.fn(),
   hubSyncResolve: vi.fn(),
+  hubSyncTombstones: vi.fn(),
+  hubSyncExpired: vi.fn(),
+  hubSyncPurgeExpired: vi.fn(),
 }));
 
 const plan = {
@@ -58,6 +61,20 @@ describe("SyncTab (#94)", () => {
       remote_hash: "bb",
       base_hash: null,
     });
+    vi.mocked(api.hubSyncTombstones).mockResolvedValue([
+      {
+        slug: "markdown__gone.md",
+        path: "markdown/gone.md",
+        created_at: "t0",
+        expires_at: "t1",
+        content_hash: "cc",
+        policy: "confirm-only",
+      },
+    ]);
+    vi.mocked(api.hubSyncExpired).mockResolvedValue([
+      { kind: "tombstone", slug: "markdown__gone.md", aged_at: "t1" },
+    ]);
+    vi.mocked(api.hubSyncPurgeExpired).mockResolvedValue({ purged: ["tombstone:markdown__gone.md"] });
   });
 
   it("shows account, schema warning, and hashed base without secret names", async () => {
@@ -89,5 +106,9 @@ describe("SyncTab (#94)", () => {
     await waitFor(() =>
       expect(api.hubSyncResolve).toHaveBeenCalledWith("markdown__note.md", "local"),
     );
+    expect(screen.getByText("markdown__gone.md")).toBeInTheDocument();
+    expect(screen.getByText(/Expired copies \(1\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Purge expired (30d)" }));
+    await waitFor(() => expect(api.hubSyncPurgeExpired).toHaveBeenCalledWith(true));
   });
 });

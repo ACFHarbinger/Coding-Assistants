@@ -80,3 +80,34 @@ export function hubSyncConflicts(): Promise<ConflictItem[]> {
 export function hubSyncResolve(slug: string, choice: ConflictChoice): Promise<ConflictDecision> {
   return invoke<ConflictDecision>("hub_sync_resolve", { slug, choice });
 }
+
+export interface Tombstone {
+  slug: string;
+  path: string;
+  created_at: string;
+  expires_at: string;
+  content_hash: string;
+  policy: string;
+}
+
+export interface CleanupCandidate {
+  kind: string;
+  slug: string;
+  aged_at: string;
+}
+
+export interface PurgeReport {
+  purged: string[];
+}
+
+export function hubSyncTombstones(): Promise<Tombstone[]> {
+  return invoke<Tombstone[]>("hub_sync_tombstones");
+}
+
+export function hubSyncExpired(): Promise<CleanupCandidate[]> {
+  return invoke<CleanupCandidate[]>("hub_sync_expired");
+}
+
+export function hubSyncPurgeExpired(confirm: boolean): Promise<PurgeReport> {
+  return invoke<PurgeReport>("hub_sync_purge_expired", { confirm });
+}

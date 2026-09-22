@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S8 confirm-only tombstones (#98):** Owner Remote on a
+  delete-confirm (remote copy missing) writes
+  `sync/tombstones/<slug>.json` (`policy: confirm-only`, 30-day
+  `expires_at`) then removes the live non-db file. Conflict copies stay.
+  `ca sync tombstones|expired|purge-expired --confirm` and Tauri
+  `hub_sync_tombstones` / `hub_sync_expired` / `hub_sync_purge_expired`
+  list or owner-purge expired tombstones and `sync/conflicts/` copies.
+  `ca sync up|down|sync` never deletes. Live `hub.db` is never deleted.
+  S9 device trust is not started.
 - **Cloud-sync S7 owner conflict review (#97):** `ca sync conflicts` and
   `ca sync resolve <slug> <choice>` list/apply the S6 queue (`local` /
   `remote` / `keep-both` / `manual`). The Settings Sync tab and Tauri
