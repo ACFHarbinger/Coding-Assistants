@@ -91,6 +91,33 @@ impl HubStore {
         Ok(event)
     }
 
+    /// Insert an audit row while `sync/lock` is held (S6 rebase / resolution).
+    pub fn record_audit_for_sync(
+        &self,
+        root_path: &Path,
+        path: &Path,
+        operation: &str,
+        process_json: &str,
+        content_hash: Option<&str>,
+    ) -> Result<AuditEvent, HubError> {
+        if !crate::sync::is_held(self.data_dir()) {
+            return Err(HubError::Invalid(
+                "sync lock is required to record sync audit".into(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        let event = insert_audit_event(
+            &tx,
+            &root_path.to_string_lossy(),
+            &path.to_string_lossy(),
+            operation,
+            process_json,
+            content_hash,
+        )?;
+        tx.commit()?;
+        Ok(event)
+    }
+
     pub fn get_audit_event(&self, id: &str) -> Result<AuditEvent, HubError> {
         self.conn
             .query_row(

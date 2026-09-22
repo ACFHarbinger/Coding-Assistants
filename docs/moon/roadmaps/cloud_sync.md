@@ -243,7 +243,7 @@ before the first upload.
 | S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#93](https://github.com/ACFHarbinger/Coding-Assistants/issues/93) (Cursor). Scripted Drive v3 adapter; browser OAuth is S4; live account is S5. |
 | S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#94](https://github.com/ACFHarbinger/Coding-Assistants/issues/94) (Cursor). Lock + shared plan + CLI + Settings tab. Snapshot transfer remains S5. |
 | S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 🛠️ **Code landed** (2026-09-20; live Drive owner-owed) · [#95](https://github.com/ACFHarbinger/Coding-Assistants/issues/95) (Cursor). FakeDrive two-home + `FsDrive` rehearsal. Live `hub.db` never replaced. Do not close until owner Drive check. |
-| S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 📋 Planned |
+| S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 🛠️ **Code landed** (2026-09-22) · [#96](https://github.com/ACFHarbinger/Coding-Assistants/issues/96) (Cursor). Three-way `reconcile` + fork-aware rebase. Live `hub.db` never replaced. Do not close until Codex review. |
 | S7 | Conflict review and preservation | Desktop (and CLI list/apply) queue: local / remote / keep-both / manual; both versions and the owner decision are audit-recorded and recoverable under `sync/conflicts/` | 📋 Planned |
 | S8 | Deletion / tombstone policy | v1 **default is confirm-only**; settings may later add no-propagate and auto-propagate; tombstones and `sync/conflicts/` preserved copies expire after a **30-day** default retention window (manual cleanup only, never automatic deletion) | 📋 Planned |
 | S9 | Reliability, device trust, observability | Device register/trust/**revoke** (trust list — who may sync going forward, *not* rotating an already-shared `cloud-sync.key` after compromise, which stays a manual owner action / v1 non-goal), resumable transfers, offline retry of **owner-started** runs, bandwidth/concurrency limits, quotas, sync history, exportable diagnostics | 📋 Planned |
@@ -497,5 +497,15 @@ hashed BlobIds. Encrypted Manifest is the commit point; stale replica
 objects are pruned afterward. Download decrypts the Manifest, verifies
 content hashes into `sync/staging/restore/`, then applies every file
 except live `hub.db*`. Tamper / missing entry / extra garbage fail
-closed. Live Google Drive HTTP is not invoked here (owner-run). S6 merge
-is out of scope.
+closed. Live Google Drive HTTP is not invoked here (owner-run). S6 now
+reconciles that staging tree instead of a blind apply.
+
+### Cursor — 2026-09-22 — S6 three-way merge + fork-aware rebase (#96)
+
+`reconcile(local, base, remote)` auto-applies independent paths and
+prefix-proven journal/markdown appends. Conflicts (`hub.db`, same-path
+edits, journal rewrite, delete-confirm) go to `sync/conflicts/` without
+touching the live path. `decide_fork` rebases only disjoint observed
+paths; the `sync-resolution` event names both heads. Inserts use
+`record_audit_for_sync` while `sync/lock` is held. Download calls
+reconcile then optional rebase. S7 review UI is out of scope.
