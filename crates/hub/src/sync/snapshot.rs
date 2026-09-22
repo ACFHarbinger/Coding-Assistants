@@ -73,6 +73,7 @@ pub fn upload_home(
     keep.insert(base.clone());
     prune_stale(drive, &keep)?;
     write_last_verified(home, schema, &base)?;
+    super::merge::remember_base(home)?;
     Ok(SyncResult {
         uploaded: uploaded + 1,
         warnings: vec![LIVE_DB_WARNING.into()],
@@ -110,7 +111,11 @@ pub fn download_home(
         }
         fs::write(&dest, plain).map_err(io_err)?;
     }
-    let downloaded = apply_staging(home, &staging)?;
+    let base_dir = home.join("sync").join("staging").join("base");
+    let mut result = super::merge::reconcile(home, &base_dir, &staging)?;
+    if super::rebase::try_rebase_homes(home, &staging)?.is_some() {
+        result.warnings.push("audit fork rebased".into());
+    }
     let schema = manifest
         .schema_version
         .as_deref()
@@ -118,11 +123,10 @@ pub fn download_home(
         .parse()
         .map_err(|_| SyncError::Invalid("replica schema is not an integer".into()))?;
     write_last_verified(home, schema, &base)?;
-    Ok(SyncResult {
-        downloaded,
-        warnings: vec![LIVE_DB_WARNING.into()],
-        ..SyncResult::default()
-    })
+    super::merge::remember_base(home)?;
+    result.warnings.push(LIVE_DB_WARNING.into());
+    result.warnings.dedup();
+    Ok(result)
 }
 
 fn load_manifest(
@@ -222,46 +226,6 @@ fn staging_join(staging: &Path, relative: &str) -> Result<PathBuf, SyncError> {
         return Err(SyncError::Invalid("manifest path is not relative".into()));
     }
     Ok(staging.join(rel))
-}
-
-fn apply_staging(home: &Path, staging: &Path) -> Result<usize, SyncError> {
-    let mut applied = 0usize;
-    apply_tree(home, staging, staging, &mut applied)?;
-    Ok(applied)
-}
-
-fn apply_tree(
-    home: &Path,
-    staging: &Path,
-    dir: &Path,
-    applied: &mut usize,
-) -> Result<(), SyncError> {
-    for entry in fs::read_dir(dir).map_err(io_err)? {
-        let entry = entry.map_err(io_err)?;
-        let path = entry.path();
-        if entry.file_type().map_err(io_err)?.is_dir() {
-            apply_tree(home, staging, &path, applied)?;
-            continue;
-        }
-        let relative = path.strip_prefix(staging).unwrap_or(&path);
-        if is_live_db(relative) {
-            continue;
-        }
-        let dest = home.join(relative);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(io_err)?;
-        }
-        fs::copy(&path, &dest).map_err(io_err)?;
-        *applied += 1;
-    }
-    Ok(())
-}
-
-fn is_live_db(relative: &Path) -> bool {
-    matches!(
-        relative.to_str(),
-        Some("hub.db" | "hub.db-wal" | "hub.db-shm")
-    )
 }
 
 fn write_last_verified(home: &Path, schema: i64, base: &BlobId) -> Result<(), SyncError> {

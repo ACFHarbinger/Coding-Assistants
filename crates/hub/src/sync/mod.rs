@@ -1,9 +1,10 @@
-//! Cloud Drive synchronization domain (S1–S5 / #91–#95).
+//! Cloud Drive synchronization domain (S1–S6 / #91–#96).
 //!
 //! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
 //! Google Drive `drive.appdata` adapter, owner-started CLI/UI, a
-//! mutation-only Hub lock, and encrypted snapshot transfer. This module
-//! never uploads plaintext or credentials. Live Drive is owner-run.
+//! mutation-only Hub lock, encrypted snapshot transfer, and three-way
+//! reconcile with fork-aware audit rebase. Never uploads plaintext or
+//! credentials. Live `hub.db` is never replaced.
 
 mod client;
 mod crypto;
@@ -11,12 +12,15 @@ mod fs_drive;
 mod google;
 mod google_auth;
 mod google_http;
+mod journal;
 mod key;
 mod layout;
 mod lock;
+mod merge;
 mod pack;
 mod plan;
 pub mod policy;
+mod rebase;
 mod snapshot;
 mod types;
 

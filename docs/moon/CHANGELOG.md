@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S6 three-way merge and fork-aware rebase (#96):** Device A and
+  B both ahead of the last replica auto-merge independent paths and
+  proven journal/markdown appends (`<!--ENC-->` blocks stay intact).
+  Same-path edits, journal rewrites, delete-vs-modify, and `hub.db`
+  divergence stage under `sync/conflicts/` and never mutate live data.
+  Disjoint audit forks replay onto the local tip and write one
+  `sync-resolution` event naming both heads; same-path forks refuse.
+  `ca audit verify` holds after rebase. S7 review UI is not started.
 - **Cloud-sync S5 encrypted snapshot (#95):** `ca sync up|down|sync` and the
   Settings Sync tab encrypt configured categories to hashed replica names
   (`FakeDrive` / `FsDrive`). A second home downloads into `sync/staging/`,
