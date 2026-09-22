@@ -8,6 +8,8 @@ vi.mock("../syncApi", () => ({
   hubSyncStart: vi.fn(),
   hubSyncStatus: vi.fn(),
   hubSyncCancel: vi.fn(),
+  hubSyncConflicts: vi.fn(),
+  hubSyncResolve: vi.fn(),
 }));
 
 const plan = {
@@ -38,6 +40,24 @@ describe("SyncTab (#94)", () => {
       },
     });
     vi.mocked(api.hubSyncCancel).mockResolvedValue();
+    vi.mocked(api.hubSyncConflicts).mockResolvedValue([
+      {
+        slug: "markdown__note.md",
+        path: "markdown/note.md",
+        reason: "same-path-edit",
+        decision: null,
+        local_hash: "aa",
+        remote_hash: "bb",
+        base_hash: null,
+      },
+    ]);
+    vi.mocked(api.hubSyncResolve).mockResolvedValue({
+      choice: "local",
+      decided_at: "t",
+      local_hash: "aa",
+      remote_hash: "bb",
+      base_hash: null,
+    });
   });
 
   it("shows account, schema warning, and hashed base without secret names", async () => {
@@ -57,5 +77,17 @@ describe("SyncTab (#94)", () => {
     await waitFor(() => expect(api.hubSyncStart).toHaveBeenCalledWith("up"));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(api.hubSyncCancel).toHaveBeenCalled());
+  });
+
+  it("lists queued conflicts and resolve click applies a choice", async () => {
+    render(<SyncTab />);
+    expect(await screen.findByText("markdown__note.md")).toBeInTheDocument();
+    expect(screen.getByText("same-path-edit")).toBeInTheDocument();
+    expect(screen.getByText("pending")).toBeInTheDocument();
+    expect(screen.queryByText("cloud-sync.key")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Local" }));
+    await waitFor(() =>
+      expect(api.hubSyncResolve).toHaveBeenCalledWith("markdown__note.md", "local"),
+    );
   });
 });

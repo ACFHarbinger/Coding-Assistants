@@ -191,6 +191,7 @@ fn stage_conflict(
     let dest = local.join("sync").join("conflicts").join(slug);
     fs::create_dir_all(&dest).map_err(io_err)?;
     fs::write(dest.join("reason.txt"), reason).map_err(io_err)?;
+    fs::write(dest.join("path.txt"), relative.to_string_lossy().as_bytes()).map_err(io_err)?;
     if let Some(bytes) = read_at(base, relative) {
         fs::write(dest.join("base"), bytes).map_err(io_err)?;
     }
@@ -309,5 +310,9 @@ mod tests {
             .path()
             .join("sync/conflicts/markdown__note.md/reason.txt")
             .exists());
+        assert_eq!(
+            fs::read_to_string(a.path().join("sync/conflicts/markdown__note.md/path.txt")).unwrap(),
+            "markdown/note.md"
+        );
     }
 }

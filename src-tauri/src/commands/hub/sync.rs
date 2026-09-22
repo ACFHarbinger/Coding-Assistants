@@ -1,7 +1,7 @@
 //! Cloud-sync desktop commands (S4 / #94).
 
 use super::store::open_store;
-use hub::sync::{self, LockFile, SyncPlan, SyncSession};
+use hub::sync::{self, ConflictDecision, ConflictItem, LockFile, SyncPlan, SyncSession};
 
 #[tauri::command]
 pub fn hub_sync_preview() -> Result<SyncPlan, String> {
@@ -37,6 +37,19 @@ pub fn hub_sync_status() -> Result<SyncStatus, String> {
 pub fn hub_sync_cancel() -> Result<(), String> {
     let store = open_store()?;
     sync::release(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_conflicts() -> Result<Vec<ConflictItem>, String> {
+    let store = open_store()?;
+    sync::list_conflicts(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_resolve(slug: String, choice: String) -> Result<ConflictDecision, String> {
+    let store = open_store()?;
+    let parsed = sync::ConflictChoice::parse(&choice).map_err(|error| error.to_string())?;
+    sync::apply_choice(&store, &slug, parsed).map_err(|error| error.to_string())
 }
 
 #[derive(serde::Serialize)]
