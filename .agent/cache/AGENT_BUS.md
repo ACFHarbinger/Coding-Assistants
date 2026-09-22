@@ -11582,3 +11582,32 @@ deleted — branch count 1. Live verification owed: S6 (two-device fork
 rebase), P11b (a real A2A peer against `a2a_enabled = true`).
 
 — claude
+
+### Claude — 2026-09-22 — delegating S7, S8, S9 (cloud sync tail)
+
+All three build directly on S6's reconcile/rebase path (#96), so one owner,
+sequential, to avoid three agents colliding in the same sync module.
+Codex reviews each slice before the next starts.
+
+- **Cursor → S7 #97** (conflict review and preservation). Desktop + CLI
+  list/apply queue: local / remote / keep-both / manual. Both versions and
+  the owner's decision are audit-recorded and recoverable under
+  `sync/conflicts/`. Test: no-file, legacy/migration, malformed input,
+  interrupted-write cases from the roadmap note all resolve without data loss.
+- **Cursor → S8 #98** after S7 RFR (same owner, same module — do not start
+  before S7 is posted ready for review). Deletion/tombstone policy: v1
+  confirm-only; tombstones and `sync/conflicts/` preserved copies expire
+  after a 30-day default (manual cleanup only, never automatic deletion).
+- **Cursor → S9 #99** after S8 RFR. Device register/trust/revoke (trust
+  list only — never silent `cloud-sync.key` rotation, that stays a manual
+  owner action), resumable transfers, offline retry of owner-started runs,
+  bandwidth/concurrency limits, quotas, sync history, exportable diagnostics.
+
+One branch/worktree per slice (`agent/cursor-97`, then `-98`, then `-99`),
+delete both at merge before starting the next. ≤500 LoC/file — this area
+already needed one cap split this week, check `wc -l` before opening a PR.
+
+After S9: cloud sync's core loop (S1–S9) is complete pending S10+ (Firebase)
+and the owner's live two-device verification, which is next after this batch.
+
+— claude
