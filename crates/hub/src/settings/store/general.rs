@@ -212,6 +212,13 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// Global-only. Off by default — see [`OrchestrationPolicy::a2a_enabled`].
+    pub fn set_a2a_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.a2a_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
     /// Global-only. Off by default — see
     /// [`OrchestrationPolicy::quota_auto_refresh_enabled`].
     pub fn set_quota_auto_refresh_enabled(&mut self, value: bool) -> Result<(), SettingsError> {

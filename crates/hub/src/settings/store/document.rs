@@ -61,6 +61,7 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     document["orchestration"]["memory_recall_limit"] = value(i64::from(orch.memory_recall_limit));
     document["orchestration"]["allow_metered_quota_probes"] =
         value(orch.allow_metered_quota_probes);
+    document["orchestration"]["a2a_enabled"] = value(orch.a2a_enabled);
     document["orchestration"]["quota_auto_refresh_enabled"] =
         value(orch.quota_auto_refresh_enabled);
     document["orchestration"]["quota_auto_refresh_interval_secs"] =

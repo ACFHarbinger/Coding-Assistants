@@ -16,6 +16,7 @@ use agent::{
 use core::agent_resources::AgentResources;
 use hub::bus::TOPIC_TASK_LIFECYCLE;
 use hub::InProcessBus;
+use server::a2a::{A2aServer, DEFAULT_A2A_PORT, DEFAULT_BIND};
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
 use std::sync::{
@@ -31,6 +32,7 @@ pub(crate) struct AppState {
     /// longer share one cancellation flag or input channel.
     tasks: TaskRegistry,
     tcp_server: Mutex<Option<TcpServer>>,
+    a2a_server: Mutex<Option<A2aServer>>,
 }
 
 /// Outcome of `run_agent_task`: the caller routes later `submit_user_input`
@@ -248,6 +250,44 @@ async fn stop_tcp_server(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+/// Start the public A2A wire listener (P11b / #335). Refuses unless the
+/// owner enabled `orchestration.a2a_enabled` (default-off) and returns the
+/// bound address. `bind` defaults to loopback; the owner opts into LAN
+/// explicitly. Idempotent: returns the current address when already running.
+#[tauri::command]
+async fn start_a2a_server(
+    state: State<'_, AppState>,
+    bind: Option<String>,
+    port: Option<u16>,
+) -> Result<String, String> {
+    if let Some(server) = state.a2a_server.lock().unwrap().as_ref() {
+        return Ok(server.address().to_string());
+    }
+    let enabled = hub::SettingsStore::open(hub::default_hub_home())
+        .snapshot()
+        .orchestration
+        .a2a_enabled;
+    if !enabled {
+        return Err("A2A listener is disabled (orchestration.a2a_enabled)".into());
+    }
+    let bind = bind.unwrap_or_else(|| DEFAULT_BIND.to_string());
+    bind.parse::<std::net::IpAddr>()
+        .map_err(|_| "bind must be an IP address".to_string())?;
+    let port = port.unwrap_or(DEFAULT_A2A_PORT);
+    let server = A2aServer::start(&bind, port)?;
+    let address = server.address().to_string();
+    *state.a2a_server.lock().unwrap() = Some(server);
+    Ok(address)
+}
+
+#[tauri::command]
+async fn stop_a2a_server(state: State<'_, AppState>) -> Result<(), String> {
+    if let Some(mut server) = state.a2a_server.lock().unwrap().take() {
+        server.stop();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn get_server_ip() -> Result<String, String> {
     use std::net::UdpSocket;
@@ -286,6 +326,7 @@ pub fn run() {
             agents: Mutex::new(None),
             tasks: TaskRegistry::new(),
             tcp_server: Mutex::new(None),
+            a2a_server: Mutex::new(None),
         })
         .manage(pty::PtySessions::default())
         .setup(|app| {
