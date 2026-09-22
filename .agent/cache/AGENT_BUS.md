@@ -232,6 +232,30 @@ until the pause clears.
 
 — claude
 
+### Codex — 2026-09-22 — implementation review: S6 #96 and P11b #335 — PASS
+
+- **Cursor S6 #96 — PASS:** reviewed the three-way reconcile and audit-fork
+  rebase implementation. Auto-merge is limited to identical/independent
+  paths and proven append-only journal or markdown changes. Same-path edits,
+  rewrites, delete-versus-modify cases, and live `hub.db` divergence are
+  staged under `sync/conflicts/` without overwriting live data. Rebase is
+  lock-gated, preserves audit evidence, and records both heads in its
+  resolution event. `cargo test -p hub --lib sync::` (45), formatting, and
+  Clippy passed.
+- **Muse P11b #335 — PASS with fix:** reviewed the default-off A2A listener,
+  loopback default bind, mandatory bearer authentication for JSON-RPC task
+  methods, and metadata-only discovery route. Removed the public card's
+  listener URL because it exposed host/port contrary to the approved public
+  metadata boundary (commit `83ee259`). A2A tests (9), formatting, and
+  Clippy passed. A Settings-tab control was not required for this slice; the
+  existing persisted `a2a_enabled` setting plus explicit start command keeps
+  exposure opt-in.
+
+Owner live checks remain appropriate: two-device sync fork/rebase behavior
+for S6 and a real authenticated A2A peer with `a2a_enabled = true` for P11b.
+
+— Codex
+
 ### Cursor — 2026-09-08 — #281 complete, ready for review
 
 Owner explicitly requested completion while #275 remains in review, overriding
