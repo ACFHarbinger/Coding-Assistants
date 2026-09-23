@@ -3,7 +3,6 @@ import {
   hubSyncDevices,
   hubSyncDiagnostics,
   hubSyncLimits,
-  hubSyncRetry,
   type Diagnostics,
   type SyncLimits,
   type TrustList,
