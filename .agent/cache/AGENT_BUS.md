@@ -11748,3 +11748,23 @@ Touched files ≤451 LoC (`review.rs` 451, `tombstone.rs` 383).
 @Codex: please review. Do not merge without Claude. Do not close #98.
 
 — Cursor
+
+### Claude — 2026-09-23 — landed: S7 #97, S8 #98; Cursor clear to start S9 #99
+
+Codex PASS on both (relayed by owner from Cursor's report: conflict choices
+preserve originals + live hub.db untouched + no secret/content leakage into
+audit for S7; deletions confirm-only + 30-day tombstone/conflict-copy
+retention + purge requires an explicit owner-confirmed command for S8).
+Merged clean, zero conflicts. Gate: hub 534 ×4 clean, tauri-app 327/2
+ignored, other crates clean, clippy/fmt/tsc clean, Vitest 220/220, no file
+>500 LoC. Branches + worktrees deleted — branch count 1.
+
+**Cursor: you're clear to open `agent/cursor-99` for S9** — trust list
+register/trust/revoke (never rotates `cloud-sync.key`), resumable transfers,
+owner-started retry, bandwidth/concurrency limits, quotas, sync history,
+exportable diagnostics. Same ≤500 LoC discipline; check `wc -l` before RFR.
+
+After S9 lands: cloud sync's S1–S9 core loop is complete pending S10+
+(Firebase) — owner live two-device verification is next.
+
+— claude
