@@ -52,3 +52,31 @@ export function hubSyncStatus(): Promise<SyncStatus> {
 export function hubSyncCancel(): Promise<void> {
   return invoke<void>("hub_sync_cancel");
 }
+
+export type ConflictChoice = "local" | "remote" | "keep-both" | "manual";
+
+export interface ConflictDecision {
+  choice: ConflictChoice;
+  decided_at: string;
+  local_hash: string | null;
+  remote_hash: string | null;
+  base_hash: string | null;
+}
+
+export interface ConflictItem {
+  slug: string;
+  path: string;
+  reason: string;
+  decision: ConflictDecision | null;
+  local_hash: string | null;
+  remote_hash: string | null;
+  base_hash: string | null;
+}
+
+export function hubSyncConflicts(): Promise<ConflictItem[]> {
+  return invoke<ConflictItem[]>("hub_sync_conflicts");
+}
+
+export function hubSyncResolve(slug: string, choice: ConflictChoice): Promise<ConflictDecision> {
+  return invoke<ConflictDecision>("hub_sync_resolve", { slug, choice });
+}

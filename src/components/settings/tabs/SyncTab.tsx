@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { FieldRow } from "./shared";
+import SyncConflicts from "./SyncConflicts";
 import {
   hubSyncCancel,
   hubSyncPreview,
@@ -129,6 +130,7 @@ export default function SyncTab() {
           {warning}
         </p>
       ))}
+      <SyncConflicts disabled={busy} />
     </div>
   );
 }

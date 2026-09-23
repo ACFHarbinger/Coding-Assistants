@@ -14,4 +14,8 @@ pub(crate) enum SyncCommand {
     Sync,
     /// Release a held Hub sync lock.
     Cancel,
+    /// List staged conflicts as JSON (slug, reason, decision).
+    Conflicts,
+    /// Apply an owner choice: local | remote | keep-both | manual.
+    Resolve { slug: String, choice: String },
 }

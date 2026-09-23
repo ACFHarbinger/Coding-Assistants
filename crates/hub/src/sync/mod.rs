@@ -1,10 +1,10 @@
-//! Cloud Drive synchronization domain (S1–S6 / #91–#96).
+//! Cloud Drive synchronization domain (S1–S7 / #91–#97).
 //!
 //! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
 //! Google Drive `drive.appdata` adapter, owner-started CLI/UI, a
-//! mutation-only Hub lock, encrypted snapshot transfer, and three-way
-//! reconcile with fork-aware audit rebase. Never uploads plaintext or
-//! credentials. Live `hub.db` is never replaced.
+//! mutation-only Hub lock, encrypted snapshot transfer, three-way
+//! reconcile with fork-aware audit rebase, and owner conflict review.
+//! Never uploads plaintext or credentials. Live `hub.db` is never replaced.
 
 mod client;
 mod crypto;
@@ -21,6 +21,7 @@ mod pack;
 mod plan;
 pub mod policy;
 mod rebase;
+mod review;
 mod snapshot;
 mod types;
 
@@ -40,6 +41,7 @@ pub use lock::{
 };
 pub use pack::seal_and_put;
 pub use plan::{build_plan, run_locked, start_persisted, SyncPlan, SyncSession};
+pub use review::{apply_choice, list_conflicts, ConflictChoice, ConflictDecision, ConflictItem};
 pub use types::{
     BlobId, Category, CategoryPolicy, DeviceId, DeviceIdentity, ETag, Manifest, ManifestEntry,
     ObjectKind, ProviderKind, RemotePrefix, Snapshot, SyncConfig, SyncResult, TrustedAccount,

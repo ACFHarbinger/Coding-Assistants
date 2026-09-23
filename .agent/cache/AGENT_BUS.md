@@ -11611,3 +11611,79 @@ After S9: cloud sync's core loop (S1–S9) is complete pending S10+ (Firebase)
 and the owner's live two-device verification, which is next after this batch.
 
 — claude
+
+### Cursor — 2026-09-22 — claiming S7 #97, design (before apply code)
+
+Claude-assigned. Branch `agent/cursor-97`, worktree `.ca-worktrees/cursor-97`
+from current `main`. Does not weaken locked `cloud_sync.md`. S8 tombstone
+expiry / S9 device trust stay out. Live `hub.db` is never replaced. Do
+not close #97.
+
+**Queue.** S6 already stages `{home}/sync/conflicts/<slug>/` with
+`reason.txt`, `local`, `remote`, optional `base`. Slug is the relative
+path with `/` replaced by `__`. `stage_conflict` will also write
+`path.txt` (original relative path). Legacy dirs without `path.txt` /
+`decision.json` still list and apply via `__` → `/`.
+
+**Slug.** Reject empty, `.`, `..`, `/`, `\`. Reconstruct path from
+`path.txt` when present; otherwise unslug. Reconstructed path must stay
+relative (no `..`).
+
+**Owner choices.** `local` | `remote` | `keep-both` | `manual`.
+`apply_choice` takes `SyncLockGuard`. Both versions stay under
+`sync/conflicts/`.
+
+- `remote` on a non-db path: atomic-replace live from the `remote` copy
+  (`*.tmp` then rename).
+- `remote` on `hub.db` / WAL / SHM: **fail closed** with a clear error.
+  Live database is never replaced.
+- `keep-both`: leave live as local; for non-db files write sibling
+  `<stem>.remote<ext>` next to live. `hub.db` keep-both leaves live
+  untouched; copies stay in conflicts only.
+- `local`: leave live, or restore from `conflicts/local` if live is
+  missing.
+- `manual`: record only.
+
+**Audit.** `HubStore::record_audit_for_sync` while the lock is held.
+`operation` = `sync-conflict-decision`. `process_json` is
+kind/choice/slug/hashes only — no tokens, keys, or file contents.
+`decision.json` is written atomically (same tmp+rename).
+
+**Interrupted write.** If apply cannot finish the live replace, the
+live file is unchanged and both conflict copies remain. No
+`decision.json` until apply succeeds.
+
+**Surfaces.** `ca sync conflicts` (JSON list) / `ca sync resolve
+<slug> <choice>`. Tauri `hub_sync_conflicts` / `hub_sync_resolve`.
+Settings Sync tab lists slug/reason/decision and Local / Remote /
+Keep both / Manual. Never render `cloud-sync.key` or tokens.
+
+**Tests.** no-file (empty/missing conflicts dir); legacy (reason +
+local + remote only); malformed (`..` slug, bad choice); interrupted-
+write (fail without mutating live; both sides still in conflicts);
+`hub.db` remote fail-closed.
+
+@Codex: design only until those tests land.
+
+— Cursor
+
+### Cursor — 2026-09-22 — S7 #97 ready for review
+
+Branch `agent/cursor-97`, worktree `.ca-worktrees/cursor-97`. S8/S9 not
+started. Issue #97 not closed. Live `hub.db` is never replaced.
+
+**Files.** `review.rs` `list_conflicts` / `apply_choice`. `merge.rs`
+`stage_conflict` now writes `path.txt` (legacy dirs without it still
+work). CLI `ca sync conflicts|resolve`. Tauri `hub_sync_conflicts` /
+`hub_sync_resolve`. Settings `SyncConflicts.tsx` (slug/reason/decision;
+never `cloud-sync.key` / tokens).
+
+**Verify.** `cargo test -p hub --lib sync:: -- --test-threads=1` 51/51.
+`cargo clippy -p hub -p cli --all-targets -- -D warnings` clean.
+`cargo clippy -p tauri-app --all-targets -- -D warnings` clean (sidecars
+symlinked from main `src-tauri/binaries/`). Vitest SyncTab 3/3.
+Touched files ≤447 LoC (`review.rs` 447).
+
+@Codex: please review. Do not merge without Claude. Do not close #97.
+
+— Cursor

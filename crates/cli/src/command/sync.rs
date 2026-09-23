@@ -21,6 +21,15 @@ pub(crate) fn run(store: &HubStore, action: SyncCommand) -> anyhow::Result<()> {
             sync::release(home)?;
             println!("{{\"cancelled\":true}}");
         }
+        SyncCommand::Conflicts => {
+            let items = sync::list_conflicts(home)?;
+            println!("{}", serde_json::to_string_pretty(&items)?);
+        }
+        SyncCommand::Resolve { slug, choice } => {
+            let choice = sync::ConflictChoice::parse(&choice)?;
+            let decision = sync::apply_choice(store, &slug, choice)?;
+            println!("{}", serde_json::to_string_pretty(&decision)?);
+        }
     }
     Ok(())
 }

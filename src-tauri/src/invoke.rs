@@ -31,6 +31,8 @@ macro_rules! invoke_handler {
             commands::commands::sync::hub_sync_start,
             commands::commands::sync::hub_sync_status,
             commands::commands::sync::hub_sync_cancel,
+            commands::commands::sync::hub_sync_conflicts,
+            commands::commands::sync::hub_sync_resolve,
             commands::commands::messaging::hub_data_dir,
             commands::commands::store::hub_list_agents,
             commands::commands::store::hub_set_agent_display_name,

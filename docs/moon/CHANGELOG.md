@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S7 owner conflict review (#97):** `ca sync conflicts` and
+  `ca sync resolve <slug> <choice>` list/apply the S6 queue (`local` /
+  `remote` / `keep-both` / `manual`). The Settings Sync tab and Tauri
+  `hub_sync_conflicts` / `hub_sync_resolve` share the same surface.
+  Applying `remote` to live `hub.db` fails closed; keep-both writes a
+  sibling `<stem>.remote<ext>` for non-db files. Both versions stay under
+  `sync/conflicts/`; `decision.json` and the `sync-conflict-decision`
+  audit row record hashes + choice only. Writes are `*.tmp` then rename.
+  Owner-closed / S8 tombstones are not started.
 - **Cloud-sync S6 three-way merge and fork-aware rebase (#96):** Device A and
   B both ahead of the last replica auto-merge independent paths and
   proven journal/markdown appends (`<!--ENC-->` blocks stay intact).
