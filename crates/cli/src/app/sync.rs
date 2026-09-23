@@ -28,4 +28,20 @@ pub(crate) enum SyncCommand {
         #[arg(long)]
         confirm: bool,
     },
+    /// List the local trust list as JSON (hashed folders, no key material).
+    Devices,
+    /// Register a device UUID as trusted.
+    Register { id: String },
+    /// Revoke a device UUID. Does not rotate cloud-sync.key.
+    Revoke { id: String },
+    /// Owner re-trust of a device UUID.
+    Trust { id: String },
+    /// Owner-started retry of a pending resume. Invalid without resume.json.
+    Retry,
+    /// Print recent sync history (redacted).
+    History,
+    /// Export redacted diagnostics JSON.
+    Diagnostics,
+    /// Show bandwidth/quota limits.
+    Limits,
 }

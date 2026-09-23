@@ -4,10 +4,13 @@
 
 use super::fs_drive::FsDrive;
 use super::google_auth::resolve_refresh_token;
+use super::history;
 use super::key::CloudSyncKey;
 use super::lock;
+use super::ops;
 use super::policy::classify;
 use super::snapshot::{self, LIVE_DB_WARNING};
+use super::trust;
 use super::types::{BlobId, Category, SyncConfig};
 use super::{SyncError, SyncResult};
 use serde::{Deserialize, Serialize};
@@ -105,8 +108,35 @@ pub fn start_persisted(
 }
 
 fn finish_run(home: &Path, local_schema: i64, action: &str) -> Result<SyncSession, SyncError> {
-    let mut plan = build_plan(home, local_schema, action)?;
+    trust::ensure_local_device(home)?;
+    let resolved = if action == "retry" {
+        ops::pending_retry(home).ok_or_else(|| SyncError::Invalid("no resume file".into()))?
+    } else {
+        action.to_string()
+    };
+    if matches!(resolved.as_str(), "up" | "sync") {
+        ops::begin_resume(home, &resolved)?;
+    }
+    let mut plan = build_plan(home, local_schema, &resolved)?;
     plan.lock_held = lock::is_held(home);
+    match transfer(home, local_schema, &resolved, &plan) {
+        Ok(result) => {
+            let _ = history::append_history(home, &resolved, &result, true);
+            Ok(SyncSession { plan, result })
+        }
+        Err(error) => {
+            let _ = history::append_history(home, &resolved, &SyncResult::default(), false);
+            Err(error)
+        }
+    }
+}
+
+fn transfer(
+    home: &Path,
+    local_schema: i64,
+    action: &str,
+    plan: &SyncPlan,
+) -> Result<SyncResult, SyncError> {
     let mut result = SyncResult::default();
     if let Some(warning) = plan.schema_warning.clone() {
         result.warnings.push(warning);
@@ -140,7 +170,7 @@ fn finish_run(home: &Path, local_schema: i64, action: &str) -> Result<SyncSessio
     if !result.warnings.iter().any(|row| row == LIVE_DB_WARNING) {
         result.warnings.push(LIVE_DB_WARNING.into());
     }
-    Ok(SyncSession { plan, result })
+    Ok(result)
 }
 
 fn merge_result(into: &mut SyncResult, from: SyncResult) {

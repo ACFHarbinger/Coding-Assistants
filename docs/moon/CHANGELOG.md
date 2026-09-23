@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S9 device trust, resume, and diagnostics (#99):** Local
+  `sync/trust.json` + `sync/device.json` register/revoke/retrust devices
+  without rotating `keys/cloud-sync.key`. Unknown and revoked devices
+  fail closed on download. `sync/resume.json` records successful puts;
+  quota stop leaves the live tree and manifest unchanged.
+  `ca sync retry` is owner-started only. History and exportable
+  diagnostics omit tokens, keys, and journal plaintext. CLI
+  `devices|register|revoke|trust|retry|history|diagnostics|limits` and
+  matching Tauri `hub_sync_*` commands. Key rotation stays a manual
+  owner action. Issue #99 stays open for owner live verify.
 - **Cloud-sync S8 confirm-only tombstones (#98):** Owner Remote on a
   delete-confirm (remote copy missing) writes
   `sync/tombstones/<slug>.json` (`policy: confirm-only`, 30-day
@@ -17,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `hub_sync_tombstones` / `hub_sync_expired` / `hub_sync_purge_expired`
   list or owner-purge expired tombstones and `sync/conflicts/` copies.
   `ca sync up|down|sync` never deletes. Live `hub.db` is never deleted.
-  S9 device trust is not started.
 - **Cloud-sync S7 owner conflict review (#97):** `ca sync conflicts` and
   `ca sync resolve <slug> <choice>` list/apply the S6 queue (`local` /
   `remote` / `keep-both` / `manual`). The Settings Sync tab and Tauri
