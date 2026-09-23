@@ -13,6 +13,14 @@ vi.mock("../syncApi", () => ({
   hubSyncTombstones: vi.fn(),
   hubSyncExpired: vi.fn(),
   hubSyncPurgeExpired: vi.fn(),
+  hubSyncDevices: vi.fn(),
+  hubSyncRegister: vi.fn(),
+  hubSyncRevoke: vi.fn(),
+  hubSyncTrust: vi.fn(),
+  hubSyncRetry: vi.fn(),
+  hubSyncHistory: vi.fn(),
+  hubSyncDiagnostics: vi.fn(),
+  hubSyncLimits: vi.fn(),
 }));
 
 const plan = {
@@ -75,6 +83,42 @@ describe("SyncTab (#94)", () => {
       { kind: "tombstone", slug: "markdown__gone.md", aged_at: "t1" },
     ]);
     vi.mocked(api.hubSyncPurgeExpired).mockResolvedValue({ purged: ["tombstone:markdown__gone.md"] });
+    vi.mocked(api.hubSyncDevices).mockResolvedValue({
+      schema: 1,
+      devices: [
+        {
+          id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          folder: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          status: "trusted",
+          registered_at: "t0",
+          revoked_at: null,
+        },
+      ],
+    });
+    vi.mocked(api.hubSyncLimits).mockResolvedValue({
+      max_objects: 10000,
+      max_bytes: 536870912,
+      max_concurrent: 2,
+    });
+    vi.mocked(api.hubSyncRetry).mockResolvedValue({
+      plan: { ...plan, action: "up", lock_held: true },
+      result: {
+        uploaded: 1,
+        downloaded: 0,
+        pruned: 0,
+        conflicts: 0,
+        warnings: ["live hub.db was not replaced"],
+      },
+    });
+    vi.mocked(api.hubSyncDiagnostics).mockResolvedValue({
+      schema: 1,
+      last_verified_base: plan.last_verified_base,
+      trust: [{ folder: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", status: "trusted" }],
+      limits: { max_objects: 10000, max_bytes: 536870912, max_concurrent: 2 },
+      resume_action: null,
+      history: [],
+    });
+    vi.mocked(api.hubSyncHistory).mockResolvedValue([]);
   });
 
   it("shows account, schema warning, and hashed base without secret names", async () => {
@@ -110,5 +154,17 @@ describe("SyncTab (#94)", () => {
     expect(screen.getByText(/Expired copies \(1\)/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Purge expired (30d)" }));
     await waitFor(() => expect(api.hubSyncPurgeExpired).toHaveBeenCalledWith(true));
+  });
+
+  it("shows hashed trust counts and retry/diagnostics without secrets", async () => {
+    render(<SyncTab />);
+    expect(await screen.findByText(/Trusted 1 · Revoked 0/)).toBeInTheDocument();
+    expect(screen.getByText("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")).toBeInTheDocument();
+    expect(screen.queryByText("cloud-sync.key")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(api.hubSyncRetry).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Diagnostics" }));
+    await waitFor(() => expect(api.hubSyncDiagnostics).toHaveBeenCalled());
+    expect(screen.queryByText(/Bearer|ya29/)).not.toBeInTheDocument();
   });
 });

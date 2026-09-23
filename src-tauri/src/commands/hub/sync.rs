@@ -2,8 +2,8 @@
 
 use super::store::open_store;
 use hub::sync::{
-    self, CleanupCandidate, ConflictDecision, ConflictItem, LockFile, PurgeReport, SyncPlan,
-    SyncSession, Tombstone,
+    self, CleanupCandidate, ConflictDecision, ConflictItem, Diagnostics, HistoryEntry, LockFile,
+    PurgeReport, SyncLimits, SyncPlan, SyncSession, Tombstone, TrustEntry, TrustList,
 };
 
 #[tauri::command]
@@ -75,6 +75,60 @@ pub fn hub_sync_purge_expired(confirm: bool) -> Result<PurgeReport, String> {
     }
     let store = open_store()?;
     sync::purge_expired(&store, &[], true).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_devices() -> Result<TrustList, String> {
+    let store = open_store()?;
+    sync::list_trust(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_register(id: String) -> Result<TrustEntry, String> {
+    let store = open_store()?;
+    let parsed = hub::sync::DeviceId::parse(&id).map_err(|error| error.to_string())?;
+    sync::register(store.data_dir(), parsed).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_revoke(id: String) -> Result<TrustEntry, String> {
+    let store = open_store()?;
+    let parsed = hub::sync::DeviceId::parse(&id).map_err(|error| error.to_string())?;
+    sync::revoke(store.data_dir(), parsed).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_trust(id: String) -> Result<TrustEntry, String> {
+    let store = open_store()?;
+    let parsed = hub::sync::DeviceId::parse(&id).map_err(|error| error.to_string())?;
+    sync::retrust(store.data_dir(), parsed).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_retry() -> Result<SyncSession, String> {
+    let store = open_store()?;
+    let schema = store
+        .hub_schema_version()
+        .map_err(|error| error.to_string())?;
+    sync::start_persisted(store.data_dir(), schema, "retry").map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_history() -> Result<Vec<HistoryEntry>, String> {
+    let store = open_store()?;
+    sync::list_history(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_diagnostics() -> Result<Diagnostics, String> {
+    let store = open_store()?;
+    sync::export_diagnostics(store.data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hub_sync_limits() -> Result<SyncLimits, String> {
+    let store = open_store()?;
+    sync::ensure_limits(store.data_dir()).map_err(|error| error.to_string())
 }
 
 #[derive(serde::Serialize)]

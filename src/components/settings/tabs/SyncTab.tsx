@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { FieldRow } from "./shared";
 import SyncConflicts from "./SyncConflicts";
+import SyncOps from "./SyncOps";
 import {
   hubSyncCancel,
   hubSyncPreview,
+  hubSyncRetry,
   hubSyncStart,
   hubSyncStatus,
   type SyncPlan,
@@ -130,6 +132,14 @@ export default function SyncTab() {
           {warning}
         </p>
       ))}
+      <SyncOps
+        disabled={busy}
+        onSession={async () => {
+          const next = await hubSyncRetry();
+          setSession(next);
+          setPlan(next.plan);
+        }}
+      />
       <SyncConflicts disabled={busy} />
     </div>
   );

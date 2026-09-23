@@ -7,11 +7,12 @@ use super::client::DriveClient;
 use super::crypto::decrypt_object;
 use super::key::CloudSyncKey;
 use super::layout::replica_prefix;
+use super::ops::{self, ResumeDone};
 use super::pack::seal_and_put;
 use super::policy::{self, classify};
+use super::trust;
 use super::types::{
-    sha256_hex, BlobId, Category, DeviceId, Manifest, ManifestEntry, ObjectKind, SyncConfig,
-    SyncResult,
+    sha256_hex, BlobId, Category, Manifest, ManifestEntry, ObjectKind, SyncConfig, SyncResult,
 };
 use super::SyncError;
 use serde::{Deserialize, Serialize};
@@ -34,20 +35,58 @@ pub fn upload_home(
     config: &SyncConfig,
     schema: i64,
 ) -> Result<SyncResult, SyncError> {
+    let device = trust::ensure_local_device(home)?;
+    let limits = ops::ensure_limits(home)?;
+    let mut resume = ops::begin_resume(home, "up")?;
     let prefix = replica_prefix();
     let files = collect_uploadable(home, config);
     let mut entries = Vec::new();
     let mut keep = BTreeSet::new();
+    let mut put_count = 0usize;
     for relative in files {
         let bytes = snapshot_bytes(home, &relative)?;
         let kind = object_kind(&relative);
+        let content_hash = sha256_hex(&bytes);
+        let relative_path = relative.to_string_lossy().replace('\\', "/");
+        if let Some(done) = ops::find_done(&resume, &content_hash) {
+            keep.insert(done.blob_id.clone());
+            entries.push(ManifestEntry {
+                blob_id: done.blob_id.clone(),
+                relative_path,
+                category: classify(&relative),
+                content_hash,
+                size: done.size,
+                kind: done.kind,
+            });
+            continue;
+        }
+        if ops::would_exceed(&limits, &resume, bytes.len() as u64) {
+            ops::save_resume(home, &resume)?;
+            return Ok(SyncResult {
+                uploaded: put_count,
+                warnings: vec![ops::QUOTA_WARNING.into(), LIVE_DB_WARNING.into()],
+                ..SyncResult::default()
+            });
+        }
         let blob_id = seal_and_put(drive, &prefix, key, config, &relative, kind, &bytes)?;
         keep.insert(blob_id.clone());
+        ops::record_done(
+            home,
+            &mut resume,
+            ResumeDone {
+                content_hash: content_hash.clone(),
+                blob_id: blob_id.clone(),
+                relative_path: relative_path.clone(),
+                size: bytes.len() as u64,
+                kind,
+            },
+        )?;
+        put_count += 1;
         entries.push(ManifestEntry {
             blob_id,
-            relative_path: relative.to_string_lossy().replace('\\', "/"),
+            relative_path,
             category: classify(&relative),
-            content_hash: sha256_hex(&bytes),
+            content_hash,
             size: bytes.len() as u64,
             kind,
         });
@@ -55,7 +94,7 @@ pub fn upload_home(
     let uploaded = entries.len();
     let manifest = Manifest {
         format_version: 1,
-        device_id: DeviceId::generate(),
+        device_id: device.id,
         schema_version: Some(schema.to_string()),
         entries,
     };
@@ -74,6 +113,7 @@ pub fn upload_home(
     prune_stale(drive, &keep)?;
     write_last_verified(home, schema, &base)?;
     super::merge::remember_base(home)?;
+    ops::clear_resume(home)?;
     Ok(SyncResult {
         uploaded: uploaded + 1,
         warnings: vec![LIVE_DB_WARNING.into()],
@@ -89,6 +129,9 @@ pub fn download_home(
 ) -> Result<SyncResult, SyncError> {
     let listed = drive.list(&replica_prefix())?;
     let (base, manifest) = load_manifest(key, drive, &listed)?;
+    if !trust::may_accept(home, &manifest.device_id) {
+        return Err(SyncError::Invalid("device is not trusted".into()));
+    }
     let staging = home.join("sync").join("staging").join("restore");
     if staging.exists() {
         fs::remove_dir_all(&staging).map_err(io_err)?;
@@ -280,6 +323,11 @@ mod tests {
         (a, b, key, FakeDrive::new())
     }
 
+    fn trust_peer(src: &Path, dest: &Path) {
+        let device = crate::sync::trust::ensure_local_device(src).unwrap();
+        crate::sync::trust::register(dest, device.id).unwrap();
+    }
+
     #[test]
     fn two_devices_restore_without_replacing_live_hub_db() {
         let (a, b, key, mut drive) = seed_pair();
@@ -296,6 +344,7 @@ mod tests {
 
         let config = SyncConfig::v1_defaults();
         upload_home(a.path(), &key, &mut drive, &config, 3).unwrap();
+        trust_peer(a.path(), b.path());
         let junk = BlobId::from_encrypted_bytes(b"not-cas1");
         drive
             .put_if_unmodified(&replica_prefix(), &junk, b"not-cas1", None)
@@ -341,6 +390,7 @@ mod tests {
         fs::write(b.path().join("journals/claude.md"), b"device-b").unwrap();
         let config = SyncConfig::v1_defaults();
         upload_home(a.path(), &key, &mut drive, &config, 3).unwrap();
+        trust_peer(a.path(), b.path());
 
         let object = drive.list(&replica_prefix()).unwrap().pop().unwrap();
         let mut bytes = drive.get(&object.blob_id).unwrap();
@@ -366,6 +416,7 @@ mod tests {
         fs::create_dir_all(b2.path().join("journals")).unwrap();
         fs::write(b2.path().join("journals/claude.md"), b"device-b").unwrap();
         upload_home(a2.path(), &key2, &mut drive2, &config, 3).unwrap();
+        trust_peer(a2.path(), b2.path());
         let victim = drive2
             .list(&replica_prefix())
             .unwrap()

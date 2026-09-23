@@ -111,3 +111,81 @@ export function hubSyncExpired(): Promise<CleanupCandidate[]> {
 export function hubSyncPurgeExpired(confirm: boolean): Promise<PurgeReport> {
   return invoke<PurgeReport>("hub_sync_purge_expired", { confirm });
 }
+
+export type TrustStatus = "trusted" | "revoked";
+
+export interface TrustEntry {
+  id: string;
+  folder: string;
+  status: TrustStatus;
+  registered_at: string;
+  revoked_at: string | null;
+}
+
+export interface TrustList {
+  schema: number;
+  devices: TrustEntry[];
+}
+
+export interface SyncLimits {
+  max_objects: number;
+  max_bytes: number;
+  max_concurrent: number;
+}
+
+export interface HistoryEntry {
+  at: string;
+  action: string;
+  uploaded: number;
+  downloaded: number;
+  conflicts: number;
+  pruned: number;
+  warnings: string[];
+  ok: boolean;
+}
+
+export interface TrustExport {
+  folder: string;
+  status: string;
+}
+
+export interface Diagnostics {
+  schema: number;
+  last_verified_base: string | null;
+  trust: TrustExport[];
+  limits: SyncLimits;
+  resume_action: string | null;
+  history: HistoryEntry[];
+}
+
+export function hubSyncDevices(): Promise<TrustList> {
+  return invoke<TrustList>("hub_sync_devices");
+}
+
+export function hubSyncRegister(id: string): Promise<TrustEntry> {
+  return invoke<TrustEntry>("hub_sync_register", { id });
+}
+
+export function hubSyncRevoke(id: string): Promise<TrustEntry> {
+  return invoke<TrustEntry>("hub_sync_revoke", { id });
+}
+
+export function hubSyncTrust(id: string): Promise<TrustEntry> {
+  return invoke<TrustEntry>("hub_sync_trust", { id });
+}
+
+export function hubSyncRetry(): Promise<SyncSession> {
+  return invoke<SyncSession>("hub_sync_retry");
+}
+
+export function hubSyncHistory(): Promise<HistoryEntry[]> {
+  return invoke<HistoryEntry[]>("hub_sync_history");
+}
+
+export function hubSyncDiagnostics(): Promise<Diagnostics> {
+  return invoke<Diagnostics>("hub_sync_diagnostics");
+}
+
+export function hubSyncLimits(): Promise<SyncLimits> {
+  return invoke<SyncLimits>("hub_sync_limits");
+}
