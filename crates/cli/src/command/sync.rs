@@ -30,6 +30,21 @@ pub(crate) fn run(store: &HubStore, action: SyncCommand) -> anyhow::Result<()> {
             let decision = sync::apply_choice(store, &slug, choice)?;
             println!("{}", serde_json::to_string_pretty(&decision)?);
         }
+        SyncCommand::Tombstones => {
+            let items = sync::list_tombstones(home)?;
+            println!("{}", serde_json::to_string_pretty(&items)?);
+        }
+        SyncCommand::Expired => {
+            let items = sync::expired_cleanup_candidates(home, chrono::Utc::now())?;
+            println!("{}", serde_json::to_string_pretty(&items)?);
+        }
+        SyncCommand::PurgeExpired { confirm } => {
+            if !confirm {
+                anyhow::bail!("purge-expired requires --confirm");
+            }
+            let report = sync::purge_expired(store, &[], true)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
     }
     Ok(())
 }
