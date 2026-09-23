@@ -122,11 +122,15 @@ pub fn pending_retry(home: &Path) -> Option<String> {
         .filter(|action| !action.is_empty())
 }
 
-pub fn find_done<'a>(resume: &'a ResumeState, content_hash: &str) -> Option<&'a ResumeDone> {
+pub fn find_done<'a>(
+    resume: &'a ResumeState,
+    content_hash: &str,
+    kind: ObjectKind,
+) -> Option<&'a ResumeDone> {
     resume
         .done
         .iter()
-        .find(|row| row.content_hash == content_hash)
+        .find(|row| row.content_hash == content_hash && row.kind == kind)
 }
 
 pub fn would_exceed(limits: &SyncLimits, resume: &ResumeState, extra_bytes: u64) -> bool {
@@ -140,7 +144,7 @@ pub fn record_done(
     resume: &mut ResumeState,
     entry: ResumeDone,
 ) -> Result<(), SyncError> {
-    if find_done(resume, &entry.content_hash).is_none() {
+    if find_done(resume, &entry.content_hash, entry.kind).is_none() {
         resume.done.push(entry);
     }
     save_resume(home, resume)

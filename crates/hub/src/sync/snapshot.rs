@@ -48,7 +48,7 @@ pub fn upload_home(
         let kind = object_kind(&relative);
         let content_hash = sha256_hex(&bytes);
         let relative_path = relative.to_string_lossy().replace('\\', "/");
-        if let Some(done) = ops::find_done(&resume, &content_hash) {
+        if let Some(done) = ops::find_done(&resume, &content_hash, kind) {
             keep.insert(done.blob_id.clone());
             entries.push(ManifestEntry {
                 blob_id: done.blob_id.clone(),
