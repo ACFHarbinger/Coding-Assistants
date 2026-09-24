@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /replica/{objectId} {
+      allow read, write: if request.auth != null
+        && objectId.matches('^[0-9a-f]{64}$');
+    }
+    match /manifests/{objectId} {
+      allow read, write: if request.auth != null
+        && objectId.matches('^[0-9a-f]{64}$');
+    }
+    match /devices/{folder}/{objectId} {
+      allow read, write: if request.auth != null
+        && folder.matches('^[0-9a-f]{32}$')
+        && objectId.matches('^[0-9a-f]{64}$');
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

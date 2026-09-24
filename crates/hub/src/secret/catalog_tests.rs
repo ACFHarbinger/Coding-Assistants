@@ -121,6 +121,13 @@ fn catalog_accessors_find_expected_fields() {
     assert!(secrets
         .iter()
         .any(|f| f.id == "tool.sync.google_refresh_token"));
+    assert!(secrets
+        .iter()
+        .any(|f| f.id == "tool.sync.firebase_refresh_token"));
+    assert!(secrets.iter().any(|f| f.id == "tool.sync.firebase_api_key"));
+    let firebase_bucket = field("tool.sync.firebase_storage_bucket").expect("firebase bucket");
+    assert_eq!(firebase_bucket.env_var, Some("FIREBASE_STORAGE_BUCKET"));
+    assert!(!firebase_bucket.secret);
 
     let by_env = field_by_env_var("DEEPSEEK_API_KEY").expect("should find by env var");
     assert_eq!(by_env.id, "provider.deepseek.api_key");

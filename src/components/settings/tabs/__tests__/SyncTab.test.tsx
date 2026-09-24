@@ -124,10 +124,11 @@ describe("SyncTab (#94)", () => {
   it("shows account, schema warning, and hashed base without secret names", async () => {
     render(<SyncTab />);
     expect(await screen.findByText(/connected \(google-drive\)/)).toBeInTheDocument();
+    expect(screen.getByText(/optional Firebase credentials/)).toBeInTheDocument();
     expect(screen.getByText(/hub schema mismatch/)).toBeInTheDocument();
     expect(screen.getByText(plan.last_verified_base)).toBeInTheDocument();
     expect(screen.queryByText("cloud-sync.key")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Bearer|ya29/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bearer|ya29|idToken|AIza/)).not.toBeInTheDocument();
   });
 
   it("preview and start/cancel call the same IPC surface as the CLI", async () => {

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S10 Firebase Auth + private Storage (#100):** Optional
+  Firebase identity (`FIREBASE_REFRESH_TOKEN` / `FIREBASE_API_KEY`) and
+  a scripted private-bucket Storage adapter that writes only hashed
+  encrypted blobs under restrictive Security Rules. Drive remains the
+  primary replica transport. `cloud-sync.key` stays manual; the reserved
+  recovery envelope is unused. Live Firebase (like live Drive) is
+  owner-owed. Issue #100 stays open for owner live verify.
 - **Cloud-sync S9 device trust, resume, and diagnostics (#99):** Local
   `sync/trust.json` + `sync/device.json` register/revoke/retrust devices
   without rotating `keys/cloud-sync.key`. Unknown and revoked devices
