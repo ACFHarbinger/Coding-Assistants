@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S12 OneDrive and Dropbox adapters (#102):** Optional
+  Graph App Folder and Dropbox app-folder backends on the same
+  `DriveClient` contract (hashed BlobIds, conditional writes, failed
+  put does not prune). Drive remains primary; live transfer stays the
+  local rehearsal path; `cloud-sync.key` remains manual. Live OneDrive
+  and Dropbox verification is owner-owed.
 - **Cloud-sync S11 Supabase Auth + private Storage (#101):** Optional
   owner-token identity, catalog/vault settings, an HTTPS-origin private
   Storage adapter, and restrictive authenticated RLS policy for encrypted

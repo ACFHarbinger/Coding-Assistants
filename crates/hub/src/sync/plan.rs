@@ -2,12 +2,14 @@
 //!
 //! Category counts only — no secret filenames, tokens, or absolute paths.
 
+use super::dropbox_auth;
 use super::firebase_auth;
 use super::fs_drive::FsDrive;
 use super::google_auth::resolve_refresh_token;
 use super::history;
 use super::key::CloudSyncKey;
 use super::lock;
+use super::onedrive_auth;
 use super::ops;
 use super::policy::classify;
 use super::snapshot::{self, LIVE_DB_WARNING};
@@ -46,13 +48,23 @@ struct LastVerified {
     base: Option<String>,
 }
 
-fn select_provider(drive: bool, firebase: bool, supabase: bool) -> (bool, String) {
+fn select_provider(
+    drive: bool,
+    firebase: bool,
+    supabase: bool,
+    onedrive: bool,
+    dropbox: bool,
+) -> (bool, String) {
     if drive {
         (true, "google-drive".into())
     } else if firebase {
         (true, "firebase".into())
     } else if supabase {
         (true, "supabase".into())
+    } else if onedrive {
+        (true, "onedrive".into())
+    } else if dropbox {
+        (true, "dropbox".into())
     } else {
         (false, "none".into())
     }
@@ -63,6 +75,8 @@ pub fn build_plan(home: &Path, local_schema: i64, action: &str) -> Result<SyncPl
         resolve_refresh_token().is_some(),
         firebase_auth::resolve_refresh_token().is_some(),
         supabase_auth::resolve_access_token().is_some(),
+        onedrive_auth::resolve_refresh_token().is_some(),
+        dropbox_auth::resolve_access_token().is_some(),
     );
     let last = read_last_verified(home);
     let replica_schema = last.as_ref().and_then(|row| row.schema_version.clone());
@@ -313,22 +327,33 @@ mod tests {
     #[test]
     fn drive_refresh_wins_then_firebase_supabase_then_none() {
         assert_eq!(
-            select_provider(true, true, true),
+            select_provider(true, true, true, true, true),
             (true, "google-drive".into())
         );
         assert_eq!(
-            select_provider(true, false, true),
+            select_provider(true, false, true, true, true),
             (true, "google-drive".into())
         );
         assert_eq!(
-            select_provider(false, true, true),
+            select_provider(false, true, true, true, true),
             (true, "firebase".into())
         );
         assert_eq!(
-            select_provider(false, false, true),
+            select_provider(false, false, true, true, true),
             (true, "supabase".into())
         );
-        assert_eq!(select_provider(false, false, false), (false, "none".into()));
+        assert_eq!(
+            select_provider(false, false, false, true, true),
+            (true, "onedrive".into())
+        );
+        assert_eq!(
+            select_provider(false, false, false, false, true),
+            (true, "dropbox".into())
+        );
+        assert_eq!(
+            select_provider(false, false, false, false, false),
+            (false, "none".into())
+        );
         let plan = SyncPlan {
             action: "preview".into(),
             account_connected: true,

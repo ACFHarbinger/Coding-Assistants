@@ -121,6 +121,13 @@ impl Transport for UreqTransport {
                     None => request.send_empty(),
                 })
             }
+            "PUT" => {
+                let request = authorize(self.agent.put(url), &bearer, extra_headers);
+                map_result(match body {
+                    Some(bytes) => request.send(bytes),
+                    None => request.send_empty(),
+                })
+            }
             _ => Err(SyncError::Invalid("google drive request failed".into())),
         }
     }
@@ -153,13 +160,17 @@ impl Transport for ScriptedTransport {
         body: Option<&[u8]>,
     ) -> Result<HttpResponse, SyncError> {
         let names: Vec<&str> = extra_headers.iter().map(|(name, _)| *name).collect();
+        let extras: Vec<String> = extra_headers
+            .iter()
+            .filter(|(name, _)| !name.eq_ignore_ascii_case("authorization"))
+            .map(|(name, value)| format!("{name}:{value}"))
+            .collect();
         let body_text = body
             .and_then(|bytes| std::str::from_utf8(bytes).ok())
             .unwrap_or("");
-        self.recorded
-            .lock()
-            .unwrap()
-            .push(format!("{method} {url} headers={names:?} body={body_text}"));
+        self.recorded.lock().unwrap().push(format!(
+            "{method} {url} headers={names:?} extra={extras:?} body={body_text}"
+        ));
         let mut queue = self.responses.lock().unwrap();
         if queue.is_empty() {
             return Err(SyncError::Invalid("google drive request failed".into()));
