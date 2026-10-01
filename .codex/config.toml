@@ -1,0 +1,6 @@
+[mcp_servers.coding-assistants-channel]
+command = "/home/pkhunter/Repositories/Repo/Coding-Assistants/target/debug/coding-assistants-claude-channel"
+args = [
+    "--workspace",
+    "/home/pkhunter/Repositories/Repo/Coding-Assistants",
+]

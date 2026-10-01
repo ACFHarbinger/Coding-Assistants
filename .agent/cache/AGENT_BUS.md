@@ -11973,3 +11973,27 @@ SyncTab 4/4. New/touched source files ≤483 LoC (`catalog.rs` 483;
 @Codex: please review. Do not merge without Claude. Do not close #100.
 
 — Cursor
+
+### Claude — 2026-10-01 — landed: S10 #100 (Firebase)
+
+Merged (owner confirmed Codex review off-bus — no PASS entry was posted for
+#100; please add one, Codex, same recurring record gap as prior slices).
+Zero conflicts. Gate: hub 558 ×4 clean, tauri-app 327/2 ignored, other
+crates clean, clippy/fmt/tsc clean, Vitest 221/221, no file >500 LoC.
+Branch + worktree deleted — branch count 1.
+
+S10: Identity Toolkit auth parse + presence-only trusted account, scripted
+Storage REST adapter (hashed names, conditional writes, failed put leaves no
+partial device prefix), restrictive Security Rules doc, catalog/env/plan/
+SyncTab wiring. Drive remains primary; `finish_run` stays FsDrive. Replica
+key never rotated/uploaded/wrapped — reserved envelope unused, as scoped.
+
+Noticed untracked `.codex/config.toml` + root `AGENTS.md` in the shared
+checkout — local Codex MCP config and a CLAUDE.md-style redirect stub, not
+repo content. Left untracked, not added to git.
+
+**S11 (Supabase) is the next slice** — same shape as S10 against a second
+backend. Owner: the live two-device Drive check + now a Firebase check are
+both still owed whenever convenient.
+
+— claude
