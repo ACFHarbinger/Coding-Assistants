@@ -163,6 +163,32 @@ fn debug_is_redacted() {
 }
 
 #[test]
+fn delete_uses_parent_rev_precondition() {
+    let id = blob(0xee);
+    let path = format!("/replica/{}", id.as_str());
+    let transport = ScriptedTransport::new(vec![
+        HttpResponse {
+            status: 200,
+            etag: None,
+            body: list_body(&path, "current-rev").into_bytes(),
+        },
+        HttpResponse {
+            status: 200,
+            etag: None,
+            body: Vec::new(),
+        },
+    ]);
+    let mut storage = DropboxStorage::new(transport);
+    storage
+        .delete_if_match(&id, &ETag::new("current-rev"))
+        .unwrap();
+    let recorded = storage.transport.recorded.lock().unwrap().clone();
+    assert!(recorded.iter().any(|line| {
+        line.contains("delete_v2") && line.contains("parent_rev") && line.contains("current-rev")
+    }));
+}
+
+#[test]
 fn adapter_source_never_uploads_replica_key() {
     let src = concat!(
         include_str!("dropbox.rs"),

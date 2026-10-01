@@ -45,6 +45,14 @@ impl<T: Transport> OneDriveStorage<T> {
         )
     }
 
+    fn item_content_url(id: &str) -> String {
+        format!("{GRAPH}/me/drive/items/{id}/content")
+    }
+
+    fn item_id_url(id: &str) -> String {
+        format!("{GRAPH}/me/drive/items/{id}")
+    }
+
     fn children_url(prefix: &str) -> String {
         let folder = prefix.trim_end_matches('/');
         if folder.is_empty() {
@@ -112,7 +120,7 @@ impl<T: Transport> OneDriveStorage<T> {
 }
 
 struct StorageObject {
-    name: String,
+    item_id: Option<String>,
     object: RemoteObject,
 }
 
@@ -124,6 +132,8 @@ struct ListPayload {
 
 #[derive(Deserialize)]
 struct ItemPayload {
+    #[serde(default)]
+    id: String,
     #[serde(default)]
     name: String,
     #[serde(default, rename = "eTag")]
@@ -180,10 +190,12 @@ fn storage_object(item: ItemPayload, fallback: Option<&str>) -> Option<StorageOb
         return None;
     }
     Some(StorageObject {
-        name,
+        item_id: (!item.id.is_empty()).then_some(item.id.clone()),
         object: RemoteObject {
             blob_id,
-            etag: ETag::new(item.etag.trim_matches('"').to_string()),
+            // Graph's eTag is opaque; preserve its quotes exactly for
+            // subsequent If-Match requests.
+            etag: ETag::new(item.etag),
             size: json_size(&item.size),
         },
     })
@@ -251,9 +263,12 @@ impl<T: Transport> DriveClient for OneDriveStorage<T> {
 
     fn get(&self, id: &BlobId) -> Result<Vec<u8>, SyncError> {
         let found = self.find(id)?;
+        let item_id = found
+            .item_id
+            .ok_or_else(|| SyncError::Invalid("onedrive search result missing item id".into()))?;
         let response = self
             .transport
-            .send("GET", &Self::content_url(&found.name), &[], None)?;
+            .send("GET", &Self::item_content_url(&item_id), &[], None)?;
         status_to_error(response.status)?;
         Ok(response.body)
     }
@@ -285,9 +300,12 @@ impl<T: Transport> DriveClient for OneDriveStorage<T> {
         if found.object.etag != *etag {
             return Err(SyncError::Precondition);
         }
+        let item_id = found
+            .item_id
+            .ok_or_else(|| SyncError::Invalid("onedrive search result missing item id".into()))?;
         let response = self.transport.send(
             "DELETE",
-            &Self::item_url(&found.name),
+            &Self::item_id_url(&item_id),
             &[("If-Match", etag.as_str())],
             None,
         )?;

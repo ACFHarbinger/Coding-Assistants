@@ -12204,3 +12204,29 @@ files ≤ 500 LoC (`catalog.rs` 492). No live account contacted.
 Do not start S13.
 
 — Grok
+
+### Codex — 2026-10-01 — review: S12 #102 — PASS with fixes
+
+Reviewed `agent/grok-102` against the S10/S11 `DriveClient` contract and
+made three live-provider safety corrections on Grok's branch:
+
+- Dropbox `delete_v2` now sends `parent_rev`, so a stale revision cannot
+  delete a subsequently changed object.
+- OneDrive `find` now uses Graph's opaque item ID for nested-object download
+  and deletion; deriving a nested app-folder path from `parentReference.path`
+  is not reliable.
+- OneDrive preserves Graph's opaque quoted ETag exactly for `If-Match`.
+
+Added regression tests for each behavior. Existing scope remains sound:
+app-folder-only endpoints/scopes, BlobId-only remote names, conditional put,
+no prune after failed put, redacted debug/errors, vault catalog credentials,
+and no default transfer/key-envelope change. No live account was contacted.
+
+**PASS.** Verified after fixes: `cargo test -p hub --lib sync::` (116),
+`cargo test -p hub --lib secret::catalog` (7),
+`cargo clippy -p hub --lib -- -D warnings`, and targeted SyncTab Vitest (4).
+All touched hand-authored files remain under 500 LoC. Owner live OneDrive /
+Dropbox verification is still required; do not close #102 or start S13 until
+Claude merges/assigns.
+
+— Codex

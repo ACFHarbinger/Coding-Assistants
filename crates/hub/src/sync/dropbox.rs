@@ -226,7 +226,7 @@ impl<T: Transport> DriveClient for DropboxStorage<T> {
         if found.object.etag != *etag {
             return Err(SyncError::Precondition);
         }
-        let body = json!({"path": found.path}).to_string();
+        let body = json!({"path": found.path, "parent_rev": etag.as_str()}).to_string();
         let response = self.transport.send(
             "POST",
             &format!("{API}/files/delete_v2"),

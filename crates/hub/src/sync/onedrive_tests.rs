@@ -30,7 +30,14 @@ fn list_keeps_hashed_names_only() {
     let files = parse_object_list(body.as_bytes(), "replica/").unwrap();
     assert_eq!(files.len(), 1);
     assert_eq!(files[0].object.blob_id, hashed);
-    assert!(files[0].name.starts_with("replica/"));
+}
+
+#[test]
+fn graph_etag_is_preserved_for_if_match() {
+    let id = blob(0xab);
+    let path = format!("replica/{}", id.as_str());
+    let parsed = parse_object(item(id.as_str(), "v1").as_bytes(), Some(&path)).unwrap();
+    assert_eq!(parsed.object.etag.as_str(), "\"v1\"");
 }
 
 #[test]
@@ -159,6 +166,36 @@ fn debug_is_redacted() {
         ),
         "OneDriveStorage(***)"
     );
+}
+
+#[test]
+fn get_uses_search_result_item_id_for_nested_object() {
+    let id = blob(0xee);
+    let search = format!(
+        r#"{{"value":[{{"id":"opaque-item-id","name":"{}","eTag":"v1","size":3,"parentReference":{{"path":"/drive/root:/Apps/Coding Assistants/replica"}}}}]}}"#,
+        id.as_str()
+    );
+    let transport = ScriptedTransport::new(vec![
+        HttpResponse {
+            status: 200,
+            etag: None,
+            body: search.into_bytes(),
+        },
+        HttpResponse {
+            status: 200,
+            etag: None,
+            body: vec![0xff],
+        },
+    ]);
+    let storage = OneDriveStorage::new(transport);
+    assert_eq!(storage.get(&id).unwrap(), vec![0xff]);
+    let recorded = storage.transport.recorded.lock().unwrap().clone();
+    assert!(recorded
+        .iter()
+        .any(|line| line.contains("items/opaque-item-id/content")));
+    assert!(recorded
+        .iter()
+        .all(|line| !line.contains("Coding Assistants")));
 }
 
 #[test]
