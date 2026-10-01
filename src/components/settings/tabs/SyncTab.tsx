@@ -50,7 +50,7 @@ export default function SyncTab() {
       <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.5 }}>
         Owner-started only. Preview never transfers. A run holds the Hub lock
         and encrypts/restores a snapshot; live hub.db is never replaced.
-        Connect Drive or optional Firebase/Supabase credentials under Credentials.
+        Connect Drive or optional Firebase/Supabase/OneDrive/Dropbox credentials under Credentials.
         Tokens are never shown. Local rehearsal uses CA_SYNC_FAKE_ROOT or
         hub/sync/remote.
       </p>

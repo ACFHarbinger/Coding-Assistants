@@ -39,3 +39,40 @@ pub const SUPABASE_FIELDS: &[FieldSpec] = &[
         ),
     },
 ];
+
+pub const ONEDRIVE_FIELDS: &[FieldSpec] = &[
+    FieldSpec {
+        id: "tool.sync.onedrive_refresh_token",
+        display_name: "OneDrive Refresh Token",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "sync",
+        env_var: Some("ONEDRIVE_REFRESH_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://learn.microsoft.com/graph/onedrive-concept-overview"),
+        notes: Some("App-folder refresh token. Vault wins. Never logged."),
+    },
+    FieldSpec {
+        id: "tool.sync.onedrive_client_id",
+        display_name: "OneDrive Client ID",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "sync",
+        env_var: Some("ONEDRIVE_CLIENT_ID"),
+        secret: false,
+        scope: Scope::Global,
+        docs_url: Some("https://learn.microsoft.com/entra/identity-platform/"),
+        notes: Some("Public client id for the token refresh form. Not a secret."),
+    },
+];
+
+pub const DROPBOX_FIELDS: &[FieldSpec] = &[FieldSpec {
+    id: "tool.sync.dropbox_access_token",
+    display_name: "Dropbox Access Token",
+    owner_kind: OwnerKind::Tool,
+    owner_key: "sync",
+    env_var: Some("DROPBOX_ACCESS_TOKEN"),
+    secret: true,
+    scope: Scope::Global,
+    docs_url: Some("https://www.dropbox.com/developers/documentation/http/documentation"),
+    notes: Some("App-folder bearer token. Vault wins. Never logged."),
+}];

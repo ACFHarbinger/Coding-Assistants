@@ -451,6 +451,8 @@ pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
     },
     ];
     catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::ONEDRIVE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::DROPBOX_FIELDS);
     catalog
 });
 
