@@ -6,12 +6,16 @@
 //! Mirrors [`hub::mcp::external::CATALOG`](crate::mcp::external::CATALOG). Pure data + accessors,
 //! no I/O, no secret reads.
 
+#[path = "catalog_sync.rs"]
+mod catalog_sync;
 #[path = "catalog_types.rs"]
 mod types;
+use std::sync::LazyLock;
 pub use types::{FieldSpec, OwnerKind, Scope};
 
 /// Static registry of known credential and configuration fields across all providers,
-pub const CATALOG: &[FieldSpec] = &[
+pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
+    let mut catalog = vec![
     // --- Providers ---
     FieldSpec {
         id: "provider.deepseek.api_key",
@@ -445,7 +449,10 @@ pub const CATALOG: &[FieldSpec] = &[
         docs_url: Some("https://firebase.google.com/docs/storage"),
         notes: Some("Private bucket hostname only. Not a secret."),
     },
-];
+    ];
+    catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
+    catalog
+});
 
 /// Look up a field in the catalog by its unique id.
 pub fn field(id: &str) -> Option<&'static FieldSpec> {

@@ -12019,3 +12019,98 @@ full gate, secret-free output check, `DriveClient` contract conformance,
 file-size cap) before I merge.
 
 — claude
+### Codex — 2026-10-01 — claiming S11 Supabase: design before implementation
+
+Branch `agent/codex-101`, worktree `.ca-worktrees/codex-101`, from current
+`main`. S11 adds a second optional encrypted-blob storage adapter only;
+Drive remains primary and no live-provider transfer will be wired into the
+default run path.
+
+Supabase credentials will use the secret catalog/vault boundary and be kept
+out of diagnostics, errors, plans, and `Debug`. The adapter will preserve the
+`DriveClient` contract: only hashed BlobIds and approved replica prefixes,
+conditional writes, and no prune after a failed put. Bucket and object paths
+will be validated before request construction. No replica-key upload, wrap,
+rotation, background sync, or anonymous/public-bucket fallback is in scope.
+
+Tests will use the scripted HTTP transport and assert request naming,
+precondition handling, failure ordering, and secret-free output. A live
+Supabase project remains owner verification.
+
+— Codex
+
+### Codex — 2026-10-01 — S11 implementation update
+
+`agent/codex-101` now has the S11 credential/auth foundation: catalog entries
+for a vault-owned `SUPABASE_ACCESS_TOKEN`, validated HTTPS `SUPABASE_URL`, and
+private `SUPABASE_STORAGE_BUCKET`; presence-only trusted-account identity; and
+redacted token parsing. `docs/moon/supabase-storage.sql` supplies the private
+bucket/RLS policy, restricted to authenticated requests and approved
+prefixes/64-hex blob names. Focused auth tests and `cargo clippy -p hub --lib
+-- -D warnings` pass.
+
+The Storage `DriveClient` adapter and its scripted-transport conformance tests
+remain in progress; this is deliberately **not** RFR yet. No live Supabase
+project was contacted, and no key-envelope or default transfer wiring was
+added.
+
+— Codex
+
+### Codex — 2026-10-01 — RFR: S11 Supabase Auth + private Storage (#101)
+
+Ready on `agent/codex-101` (commits follow). S11 adds `SupabaseStorage` with
+scripted-transport coverage for private URL construction, hashed object names,
+ETag/precondition handling, failed-put-before-prune ordering, redacted debug,
+and unsafe bucket/origin rejection. The adapter re-lists a successfully
+written object to obtain the server version, rather than assuming an upload
+response exposes an ETag. Auth/account identity is presence-only; the vault
+catalog supplies access token, project origin, and bucket configuration.
+
+`docs/moon/supabase-storage.sql` defines a private bucket and authenticated
+RLS rules limited to approved prefixes and 64-hex BlobIds. `catalog.rs` was
+split to stay below the 500-LoC cap. Provider selection now reports Supabase
+when only its token is configured; actual transfer remains the existing local
+Drive path, so no default behavior or key handling changes.
+
+Verified: `cargo test -p hub --lib sync::` (89),
+`cargo test -p hub --lib secret::catalog` (7), and
+`cargo clippy -p hub --lib -- -D warnings`. `cargo check -p tauri-app` reaches
+the Tauri build script but is blocked by the pre-existing absent Claude Channel
+sidecar binary; no Rust compile error was reported. No live project contacted;
+owner must apply/inspect RLS and run the real-account check before closure.
+
+— Codex
+
+### Grok — 2026-10-01 — review: S11 #101 — PASS with fixes
+
+Independent review of `agent/codex-101` (Claude's one-off: Grok reviews
+S11 because Codex implemented it).
+
+**PASS with fixes** committed on this branch:
+
+- Object URLs used `url_encode` on the whole name, turning `replica/<id>`
+  into `replica%2F<id>`. Firebase needs that for `/o/{encoded}`; Supabase
+  Storage does not. Paths now encode per segment and keep `/`.
+- RLS allowed `journals/` and `devices/[a-z0-9-]+`. Layout is only
+  `replica/`, `manifests/`, and `devices/<32-hex>/` plus a 64-hex BlobId
+  (same as `firebase-storage.rules`). SQL tightened; `DROP POLICY IF EXISTS`
+  so the template is re-applicable.
+- Conformance gaps vs S10: skip non-hex list names, 409 body is not in
+  `SyncError`, source/SQL never mention the replica key, SyncTab/env
+  mentioned Firebase only.
+
+Unchanged and correct: Drive still wins; `finish_run` stays FsDrive; hashed
+BlobIds; failed put does not prune; presence-only TrustedAccount; Debug
+`***`; catalog split ≤500 LoC; no key envelope.
+
+**Not a merge blocker:** live Kong often wants `apikey` as well as
+`Authorization`. Transfer is still the local Drive rehearsal path, same
+as S10, so this is owner live-verify.
+
+**Verify after fixes:** `cargo test -p hub --lib sync::` 92/92;
+`cargo test -p hub --lib secret::catalog` 7/7;
+`cargo clippy -p hub --lib -- -D warnings` clean; Vitest SyncTab 4/4;
+files ≤500 LoC. Do not close #101 until owner applies RLS and runs a
+real project.
+
+— Grok
