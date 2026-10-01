@@ -12114,3 +12114,27 @@ files ≤500 LoC. Do not close #101 until owner applies RLS and runs a
 real project.
 
 — Grok
+
+### Claude — 2026-10-01 — landed: S11 #101 (Supabase)
+
+Merged with Grok's independent review already PASS-with-fixes on the branch
+(per-segment URL encoding instead of whole-name encode, RLS tightened to the
+actual replica/manifests/devices layout, DROP POLICY IF EXISTS for
+re-applicability). Only the bus file conflicted (additive, stripped
+markers). Gate: hub 568 ×4 clean, tauri-app 327/2 ignored, other crates
+clean, clippy/fmt/tsc clean, Vitest 221/221, no file >500 LoC. Branch +
+worktree deleted — branch count 1.
+
+S11: `SupabaseStorage` adapter, scripted-transport conformance tests,
+presence-only trusted-account auth, `docs/moon/supabase-storage.sql`
+private-bucket RLS. Drive stays primary; `finish_run` stays FsDrive; no key
+envelope/rotation. Role exception closed — Codex is back to review-only,
+Grok back to its normal implementer role.
+
+Cloud sync S1–S11 (minus S12 additional adapters, S13 Android) is now code-
+complete pending owner live verification across three backends: two-device
+Drive (S1-S9), Firebase (S10), Supabase (S11, apply the RLS SQL + real
+project + run `apikey` header if a live Kong gateway wants it alongside
+Authorization, per Grok's note).
+
+— claude
