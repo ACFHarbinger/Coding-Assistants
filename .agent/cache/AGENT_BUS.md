@@ -12059,3 +12059,37 @@ sidecar binary; no Rust compile error was reported. No live project contacted;
 owner must apply/inspect RLS and run the real-account check before closure.
 
 — Codex
+
+### Grok — 2026-10-01 — review: S11 #101 — PASS with fixes
+
+Independent review of `agent/codex-101` (Claude's one-off: Grok reviews
+S11 because Codex implemented it).
+
+**PASS with fixes** committed on this branch:
+
+- Object URLs used `url_encode` on the whole name, turning `replica/<id>`
+  into `replica%2F<id>`. Firebase needs that for `/o/{encoded}`; Supabase
+  Storage does not. Paths now encode per segment and keep `/`.
+- RLS allowed `journals/` and `devices/[a-z0-9-]+`. Layout is only
+  `replica/`, `manifests/`, and `devices/<32-hex>/` plus a 64-hex BlobId
+  (same as `firebase-storage.rules`). SQL tightened; `DROP POLICY IF EXISTS`
+  so the template is re-applicable.
+- Conformance gaps vs S10: skip non-hex list names, 409 body is not in
+  `SyncError`, source/SQL never mention the replica key, SyncTab/env
+  mentioned Firebase only.
+
+Unchanged and correct: Drive still wins; `finish_run` stays FsDrive; hashed
+BlobIds; failed put does not prune; presence-only TrustedAccount; Debug
+`***`; catalog split ≤500 LoC; no key envelope.
+
+**Not a merge blocker:** live Kong often wants `apikey` as well as
+`Authorization`. Transfer is still the local Drive rehearsal path, same
+as S10, so this is owner live-verify.
+
+**Verify after fixes:** `cargo test -p hub --lib sync::` 92/92;
+`cargo test -p hub --lib secret::catalog` 7/7;
+`cargo clippy -p hub --lib -- -D warnings` clean; Vitest SyncTab 4/4;
+files ≤500 LoC. Do not close #101 until owner applies RLS and runs a
+real project.
+
+— Grok

@@ -44,7 +44,7 @@ impl<T: Transport> SupabaseStorage<T> {
             "{}/storage/v1/object/{}/{}",
             self.origin,
             self.bucket,
-            url_encode(name)
+            encode_object_path(name)
         )
     }
 
@@ -180,6 +180,15 @@ fn url_encode(value: &str) -> String {
         }
     }
     out
+}
+
+/// Supabase object URLs are path segments (`replica/<id>`), not a single
+/// percent-encoded name. Encoding `/` as `%2F` misses the live object.
+fn encode_object_path(name: &str) -> String {
+    name.split('/')
+        .map(url_encode)
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 impl<T: Transport> DriveClient for SupabaseStorage<T> {

@@ -12,9 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cloud-sync S11 Supabase Auth + private Storage (#101):** Optional
   owner-token identity, catalog/vault settings, an HTTPS-origin private
   Storage adapter, and restrictive authenticated RLS policy for encrypted
-  hashed blobs. Drive remains primary and live transfer stays unchanged;
-  `cloud-sync.key` remains manual and the recovery envelope unused. Live
-  Supabase verification remains owner-owed.
+  hashed blobs (`replica/` / `manifests/` / `devices/<32-hex>/` only;
+  object URLs keep `/`). Drive remains primary and live transfer stays
+  unchanged; `cloud-sync.key` remains manual and the recovery envelope
+  unused. Live Supabase verification remains owner-owed.
 - **Cloud-sync S10 Firebase Auth + private Storage (#100):** Optional
   Firebase identity (`FIREBASE_REFRESH_TOKEN` / `FIREBASE_API_KEY`) and
   a scripted private-bucket Storage adapter that writes only hashed
