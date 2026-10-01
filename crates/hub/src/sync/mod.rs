@@ -30,6 +30,7 @@ pub mod policy;
 mod rebase;
 mod review;
 mod snapshot;
+mod supabase_auth;
 mod tombstone;
 mod trust;
 mod types;
@@ -68,6 +69,10 @@ pub use ops::{
 pub use pack::seal_and_put;
 pub use plan::{build_plan, run_locked, start_persisted, SyncPlan, SyncSession};
 pub use review::{apply_choice, list_conflicts, ConflictChoice, ConflictDecision, ConflictItem};
+pub use supabase_auth::{
+    parse_access_token as parse_supabase_access_token, supabase_account, SUPABASE_ACCESS_TOKEN_KEY,
+    SUPABASE_URL_KEY,
+};
 pub use tombstone::{
     confirm_delete, expired_cleanup_candidates, list_tombstones, purge_expired, CleanupCandidate,
     PurgeReport, Tombstone, DEFAULT_RETENTION_DAYS,
