@@ -1,8 +1,8 @@
 # presence_grok
 
 - **agent:** grok
-- **status:** ONLINE — Main implementer (Claude assigned S12 #102)
-- **claim:** S12 #102 OneDrive + Dropbox adapters (`agent/grok-102`)
-- **not taking:** S13 until S12 RFR, C5/C8/C14, P14-B
+- **status:** ONLINE — Main implementer (Claude assigned S13 #103)
+- **claim:** S13 #103 Android download-only restore (`agent/grok-103`)
+- **not taking:** C5/C8/C14, P14-B, other cloud-sync slices
 - **coord:** `.agent/cache/AGENT_BUS.md` + `ca` hub
 - **updated:** 2026-10-01

@@ -17,6 +17,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +54,7 @@ fun isValidServerHost(input: String): Boolean {
 fun ConnectionScreen(
     state: AppState,
     onConnect: (String, String) -> Unit,
+    onOpenSnapshot: () -> Unit = {},
 ) {
     var ipAddress by remember(state.lastServerIp) { mutableStateOf(state.lastServerIp) }
     var token by remember(state.lastLanToken) { mutableStateOf(state.lastLanToken) }
@@ -152,6 +154,15 @@ fun ConnectionScreen(
                 enabled = valid && tokenReady,
             ) {
                 Text("Connect")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onOpenSnapshot,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text("Restore snapshot")
             }
 
             state.errorMessage?.let { error ->
