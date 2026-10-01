@@ -4,7 +4,7 @@ use std::collections::HashSet;
 #[test]
 fn catalog_ids_are_unique_and_valid() {
     let mut seen_ids = HashSet::new();
-    for spec in CATALOG {
+    for spec in CATALOG.iter() {
         assert!(
             !spec.id.trim().is_empty(),
             "field id cannot be empty: {:?}",
@@ -31,7 +31,7 @@ fn catalog_ids_are_unique_and_valid() {
 
 #[test]
 fn catalog_fields_have_non_empty_metadata() {
-    for spec in CATALOG {
+    for spec in CATALOG.iter() {
         assert!(
             !spec.display_name.trim().is_empty(),
             "display_name is empty for {}",
@@ -47,7 +47,7 @@ fn catalog_fields_have_non_empty_metadata() {
 
 #[test]
 fn catalog_env_vars_are_consistent_and_valid() {
-    for spec in CATALOG {
+    for spec in CATALOG.iter() {
         if let Some(env_var) = spec.env_var {
             assert!(
                 !env_var.trim().is_empty(),

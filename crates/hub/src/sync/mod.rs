@@ -1,8 +1,8 @@
 //! Cloud Drive synchronization domain (S1–S10 / #91–#100).
 //!
 //! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
-//! Google Drive `drive.appdata` adapter, optional Firebase Auth identity
-//! plus private Storage, owner-started CLI/UI, a mutation-only Hub lock,
+//! Google Drive `drive.appdata` adapter, optional Firebase/Supabase Auth
+//! identities plus private Storage, owner-started CLI/UI, a mutation-only Hub lock,
 //! encrypted snapshot transfer, three-way reconcile with fork-aware
 //! audit rebase, owner conflict review, confirm-only tombstones, device
 //! trust, resumable owner retry, and redacted diagnostics. Never uploads
@@ -30,6 +30,7 @@ pub mod policy;
 mod rebase;
 mod review;
 mod snapshot;
+mod supabase;
 mod supabase_auth;
 mod tombstone;
 mod trust;
@@ -69,6 +70,7 @@ pub use ops::{
 pub use pack::seal_and_put;
 pub use plan::{build_plan, run_locked, start_persisted, SyncPlan, SyncSession};
 pub use review::{apply_choice, list_conflicts, ConflictChoice, ConflictDecision, ConflictItem};
+pub use supabase::SupabaseStorage;
 pub use supabase_auth::{
     parse_access_token as parse_supabase_access_token, parse_project_url,
     resolve_access_token as resolve_supabase_access_token,

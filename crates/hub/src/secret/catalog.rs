@@ -6,12 +6,16 @@
 //! Mirrors [`hub::mcp::external::CATALOG`](crate::mcp::external::CATALOG). Pure data + accessors,
 //! no I/O, no secret reads.
 
+#[path = "catalog_sync.rs"]
+mod catalog_sync;
 #[path = "catalog_types.rs"]
 mod types;
+use std::sync::LazyLock;
 pub use types::{FieldSpec, OwnerKind, Scope};
 
 /// Static registry of known credential and configuration fields across all providers,
-pub const CATALOG: &[FieldSpec] = &[
+pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
+    let mut catalog = vec![
     // --- Providers ---
     FieldSpec {
         id: "provider.deepseek.api_key",
@@ -445,40 +449,10 @@ pub const CATALOG: &[FieldSpec] = &[
         docs_url: Some("https://firebase.google.com/docs/storage"),
         notes: Some("Private bucket hostname only. Not a secret."),
     },
-    FieldSpec {
-        id: "tool.sync.supabase_access_token",
-        display_name: "Supabase Access Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("SUPABASE_ACCESS_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://supabase.com/docs/guides/auth"),
-        notes: Some("Authenticated-owner Storage bearer token. Vault wins. Never logged."),
-    },
-    FieldSpec {
-        id: "tool.sync.supabase_url",
-        display_name: "Supabase Project URL",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("SUPABASE_URL"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: Some("https://supabase.com/docs/guides/api"),
-        notes: Some("HTTPS project origin only; query, fragment, and credentials are rejected."),
-    },
-    FieldSpec {
-        id: "tool.sync.supabase_storage_bucket",
-        display_name: "Supabase Storage Bucket",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("SUPABASE_STORAGE_BUCKET"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: Some("https://supabase.com/docs/guides/storage"),
-        notes: Some("Private Storage bucket name only; RLS must limit it to the authenticated owner."),
-    },
-];
+    ];
+    catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
+    catalog
+});
 
 /// Look up a field in the catalog by its unique id.
 pub fn field(id: &str) -> Option<&'static FieldSpec> {

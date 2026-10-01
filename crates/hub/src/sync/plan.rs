@@ -11,6 +11,7 @@ use super::lock;
 use super::ops;
 use super::policy::classify;
 use super::snapshot::{self, LIVE_DB_WARNING};
+use super::supabase_auth;
 use super::trust;
 use super::types::{BlobId, Category, SyncConfig};
 use super::{SyncError, SyncResult};
@@ -45,11 +46,13 @@ struct LastVerified {
     base: Option<String>,
 }
 
-fn select_provider(drive: bool, firebase: bool) -> (bool, String) {
+fn select_provider(drive: bool, firebase: bool, supabase: bool) -> (bool, String) {
     if drive {
         (true, "google-drive".into())
     } else if firebase {
         (true, "firebase".into())
+    } else if supabase {
+        (true, "supabase".into())
     } else {
         (false, "none".into())
     }
@@ -59,6 +62,7 @@ pub fn build_plan(home: &Path, local_schema: i64, action: &str) -> Result<SyncPl
     let (connected, provider) = select_provider(
         resolve_refresh_token().is_some(),
         firebase_auth::resolve_refresh_token().is_some(),
+        supabase_auth::resolve_access_token().is_some(),
     );
     let last = read_last_verified(home);
     let replica_schema = last.as_ref().and_then(|row| row.schema_version.clone());
@@ -307,11 +311,24 @@ mod tests {
     }
 
     #[test]
-    fn drive_refresh_wins_then_firebase_then_none() {
-        assert_eq!(select_provider(true, true), (true, "google-drive".into()));
-        assert_eq!(select_provider(true, false), (true, "google-drive".into()));
-        assert_eq!(select_provider(false, true), (true, "firebase".into()));
-        assert_eq!(select_provider(false, false), (false, "none".into()));
+    fn drive_refresh_wins_then_firebase_supabase_then_none() {
+        assert_eq!(
+            select_provider(true, true, true),
+            (true, "google-drive".into())
+        );
+        assert_eq!(
+            select_provider(true, false, true),
+            (true, "google-drive".into())
+        );
+        assert_eq!(
+            select_provider(false, true, true),
+            (true, "firebase".into())
+        );
+        assert_eq!(
+            select_provider(false, false, true),
+            (true, "supabase".into())
+        );
+        assert_eq!(select_provider(false, false, false), (false, "none".into()));
         let plan = SyncPlan {
             action: "preview".into(),
             account_connected: true,

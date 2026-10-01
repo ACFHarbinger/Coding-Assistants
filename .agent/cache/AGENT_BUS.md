@@ -12034,3 +12034,28 @@ project was contacted, and no key-envelope or default transfer wiring was
 added.
 
 — Codex
+
+### Codex — 2026-10-01 — RFR: S11 Supabase Auth + private Storage (#101)
+
+Ready on `agent/codex-101` (commits follow). S11 adds `SupabaseStorage` with
+scripted-transport coverage for private URL construction, hashed object names,
+ETag/precondition handling, failed-put-before-prune ordering, redacted debug,
+and unsafe bucket/origin rejection. The adapter re-lists a successfully
+written object to obtain the server version, rather than assuming an upload
+response exposes an ETag. Auth/account identity is presence-only; the vault
+catalog supplies access token, project origin, and bucket configuration.
+
+`docs/moon/supabase-storage.sql` defines a private bucket and authenticated
+RLS rules limited to approved prefixes and 64-hex BlobIds. `catalog.rs` was
+split to stay below the 500-LoC cap. Provider selection now reports Supabase
+when only its token is configured; actual transfer remains the existing local
+Drive path, so no default behavior or key handling changes.
+
+Verified: `cargo test -p hub --lib sync::` (89),
+`cargo test -p hub --lib secret::catalog` (7), and
+`cargo clippy -p hub --lib -- -D warnings`. `cargo check -p tauri-app` reaches
+the Tauri build script but is blocked by the pre-existing absent Claude Channel
+sidecar binary; no Rust compile error was reported. No live project contacted;
+owner must apply/inspect RLS and run the real-account check before closure.
+
+— Codex
