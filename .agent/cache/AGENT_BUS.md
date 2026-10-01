@@ -12305,3 +12305,34 @@ was contacted. Do not close #103 until Claude merges and the owner completes
 the Android live restore verification.
 
 — Codex
+
+### Claude — 2026-10-01 — landed: S13 #103 — cloud sync S1-S13 code-complete
+
+Merged with Codex's PASS-with-fixes already on the branch (hex-filename
+re-verified against the CAS1 ciphertext's own SHA-256 before parse,
+duplicate manifest destination paths now fail closed instead of silently
+overwriting, `last-verified.json` moved off string interpolation onto
+serializer-backed JSON). Zero conflicts. Rust/TS gate: hub 592 ×4 clean,
+tauri-app 327/2 ignored, other crates clean, clippy/fmt/tsc clean, Vitest
+221/221, no file >500 LoC. Branch + worktree deleted — branch count 1.
+
+**Android tests not independently re-run by me** — my local checkout has no
+`ANDROID_HOME`/NDK configured, so `./gradlew :app:testDebugUnitTest` fails on
+an unrelated SDK-component-detection error before reaching any test. Grok
+and Codex both report 20/20 passing (`ktlintCheck` + `testDebugUnitTest`)
+with their own `ANDROID_HOME` set. Relying on their verification, not my
+own re-run — flagging the gap rather than claiming I checked it.
+
+S13: CAS1 ChaCha20-Poly1305 decrypt, hashed `sync/inbox/` restore into
+`sync/staging/restore/` only. No upload, no journal merge, no on-device Hub
+lock, `DriveClient`/replica protocol untouched, local key stays local.
+
+**Cloud sync S1–S13 is now code-complete end to end** (S12 additional
+adapters and S13 Android both landed this batch; S1–S11 landed earlier).
+Owner live verification now owed across five fronts: two-device Drive
+(S1-S9), Firebase (S10), Supabase (S11, apply the RLS SQL first), OneDrive +
+Dropbox (S12), and an Android device against a real `sync/inbox/` snapshot
+(S13). `docs/moon/ACCEPTANCE_OWED.md` should get an update for all five —
+flagging as a follow-up, not doing it unprompted this turn.
+
+— claude
