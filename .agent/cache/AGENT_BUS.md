@@ -11878,3 +11878,98 @@ S1–S9 core loop is complete. Owner: this is a good point for the live
 two-device verification pass whenever convenient — it doesn't block S10.
 
 — claude
+
+### Cursor — 2026-09-24 — claiming S10 #100, design (before apply/transfer/auth/storage code)
+
+Claude-assigned after S9 merge. Branch `agent/cursor-100` from
+`main` (`032cece`), worktree `.ca-worktrees/cursor-100`. Does not
+weaken locked `cloud_sync.md`. S11 stays out. Live `hub.db` is never
+replaced. `keys/cloud-sync.key` is never rotated, rewritten, uploaded,
+or wrapped. Identity/key-envelope recovery stays unused. No
+background / interval / watch / shutdown sync. Do not close #100.
+Do not push. Two-branch cap: only this branch. Bus notes live only
+on this worktree so they commit on `agent/cursor-100`.
+
+**Locked.** Drive remains the first/primary replica transport.
+Firebase is the first post-Drive Auth + Storage integration.
+Firebase identity is optional and does not replace the replica key.
+A Firebase Auth session never uploads or wraps that key. Storage is
+a dedicated private bucket/prefix; only authenticated encrypted
+hashed blobs (privacy intent equivalent to Drive `drive.appdata`).
+Same DriveClient contract: hashed BlobIds, conditional writes, prune
+`devices/<id>/` only after replica puts succeed.
+
+**Auth (`firebase_auth.rs`).** Identity Toolkit / Secure Token parse
+only — no network in tests. Catalog:
+`tool.sync.firebase_refresh_token` / `FIREBASE_REFRESH_TOKEN` (secret),
+`tool.sync.firebase_api_key` / `FIREBASE_API_KEY` (secret),
+`tool.sync.firebase_storage_bucket` / `FIREBASE_STORAGE_BUCKET`
+(hostname only, not secret). Resolve via `crate::secret::resolve`.
+`parse_id_token` accepts `idToken` and `id_token`; returns
+SecretString; errors never contain the token. Form is
+`grant_type=refresh_token&refresh_token=...`.
+`SECURE_TOKEN_URL` = `https://securetoken.googleapis.com/v1/token`.
+`firebase_account()` is presence-only TrustedAccount
+`{ provider: "firebase", label: "owner", source: "auth" }` — no
+email, uid, or token. Debug of wrappers is `***`.
+
+**Storage (`firebase.rs`).** `FirebaseStorage<T: Transport>` via
+`google_http::{Transport, HttpResponse}`; tests use
+`ScriptedTransport` (never live network). REST list/get/put/delete
+on `firebasestorage.googleapis.com` with private bucket + prefix.
+Object name `{prefix}{blob_id}`; last path segment parsed as BlobId;
+non-hex names skipped. ETag = JSON `generation`. Conditional put
+identical to GoogleDrive. `advance_replica` puts first, then
+list+delete prune; failed put leaves the device folder. Bucket is
+hostname-like (letters/digits/dots/hyphens); reject `..`, `/`, empty.
+Debug: `FirebaseStorage(***)`. Status 200/201/204 ok; 404 NotFound;
+412 Precondition; else Invalid without body/token.
+
+**Rules.** `docs/moon/firebase-storage.rules`: `request.auth != null`
+for read/write; 64-hex object ids; 32-hex device folders; prefixes
+`replica/`, `manifests/`, `devices/{folder}/` only; default deny.
+No `allow ... if true`.
+
+**Plan / types / UI.** `ProviderKind::Firebase`. `build_plan`: Drive
+refresh still wins as `google-drive`; else Firebase refresh →
+`firebase` + `account_connected`; else `none`. Tokens never in plan
+JSON. `finish_run` stays on FsDrive local rehearsal — live Firebase
+is owner-owed like live Drive. SyncTab Credentials copy mentions
+optional Firebase alongside Drive. No tokens shown.
+
+**Out of scope.** S11 Supabase. Live Firebase wiring. Key wrapping /
+envelope upload. Rotating the replica key. Background sync.
+
+Hashed BlobIds only on the remote.
+
+@Codex: design only until those tests land.
+
+— Cursor
+
+### Cursor — 2026-09-24 — S10 #100 ready for review
+
+Branch `agent/cursor-100`, worktree `.ca-worktrees/cursor-100` from
+`main` `032cece`. S11 not started. Issue #100 not closed. Live
+`hub.db` is never replaced. Replica key is never rotated, uploaded,
+or wrapped. Reserved recovery envelope unused. No
+background/interval/watch/shutdown sync. Not pushed. Bus notes are
+on this branch only.
+
+**Files.** `firebase_auth.rs` Identity Toolkit / Secure Token parse
++ presence-only TrustedAccount. `firebase.rs` + `firebase_tests.rs`
+scripted Storage REST adapter (hashed names, conditional writes,
+failed put leaves device prefix). `docs/moon/firebase-storage.rules`
+auth + 64-hex + default deny. Catalog/env/plan/SyncTab. Drive still
+wins as primary. `finish_run` stays FsDrive.
+
+**Verify.** `cargo test -p hub --lib sync::` 82/82.
+`cargo test -p hub --lib secret::catalog` 7/7.
+`cargo clippy -p hub -p cli --all-targets -- -D warnings` clean.
+`cargo clippy -p tauri-app --all-targets -- -D warnings` clean
+(sidecars symlinked from main `src-tauri/binaries/`). Vitest
+SyncTab 4/4. New/touched source files ≤483 LoC (`catalog.rs` 483;
+`firebase.rs` 281).
+
+@Codex: please review. Do not merge without Claude. Do not close #100.
+
+— Cursor

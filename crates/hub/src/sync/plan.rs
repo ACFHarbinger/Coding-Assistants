@@ -2,6 +2,7 @@
 //!
 //! Category counts only — no secret filenames, tokens, or absolute paths.
 
+use super::firebase_auth;
 use super::fs_drive::FsDrive;
 use super::google_auth::resolve_refresh_token;
 use super::history;
@@ -44,8 +45,21 @@ struct LastVerified {
     base: Option<String>,
 }
 
+fn select_provider(drive: bool, firebase: bool) -> (bool, String) {
+    if drive {
+        (true, "google-drive".into())
+    } else if firebase {
+        (true, "firebase".into())
+    } else {
+        (false, "none".into())
+    }
+}
+
 pub fn build_plan(home: &Path, local_schema: i64, action: &str) -> Result<SyncPlan, SyncError> {
-    let connected = resolve_refresh_token().is_some();
+    let (connected, provider) = select_provider(
+        resolve_refresh_token().is_some(),
+        firebase_auth::resolve_refresh_token().is_some(),
+    );
     let last = read_last_verified(home);
     let replica_schema = last.as_ref().and_then(|row| row.schema_version.clone());
     let last_verified_base = last.as_ref().and_then(|row| {
@@ -66,11 +80,7 @@ pub fn build_plan(home: &Path, local_schema: i64, action: &str) -> Result<SyncPl
     Ok(SyncPlan {
         action: action.to_string(),
         account_connected: connected,
-        provider: if connected {
-            "google-drive".into()
-        } else {
-            "none".into()
-        },
+        provider,
         local_schema: local_schema.to_string(),
         replica_schema,
         schema_warning,
@@ -254,6 +264,7 @@ mod tests {
         assert!(!json.contains("claude.md"));
         assert!(!json.contains("fernet"));
         assert!(!json.contains("token"));
+        assert!(!json.contains("refresh"));
         assert_eq!(
             plan.last_verified_base.as_deref(),
             Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -282,6 +293,7 @@ mod tests {
         let json = serde_json::to_string(&session).unwrap();
         assert!(!json.contains("Bearer"));
         assert!(!json.contains("secret-journal"));
+        assert!(!session.plan.provider.contains("token"));
         let replica = dir.path().join("sync/remote/replica");
         for name in fs::read_dir(&replica).unwrap().flatten() {
             let file = name.file_name();
@@ -292,5 +304,30 @@ mod tests {
             assert_eq!(text.len(), 64);
             assert!(!text.contains('/'));
         }
+    }
+
+    #[test]
+    fn drive_refresh_wins_then_firebase_then_none() {
+        assert_eq!(select_provider(true, true), (true, "google-drive".into()));
+        assert_eq!(select_provider(true, false), (true, "google-drive".into()));
+        assert_eq!(select_provider(false, true), (true, "firebase".into()));
+        assert_eq!(select_provider(false, false), (false, "none".into()));
+        let plan = SyncPlan {
+            action: "preview".into(),
+            account_connected: true,
+            provider: "firebase".into(),
+            local_schema: "3".into(),
+            replica_schema: None,
+            schema_warning: None,
+            last_verified_base: None,
+            category_counts: BTreeMap::new(),
+            lock_held: false,
+            errors: Vec::new(),
+        };
+        let json = serde_json::to_string(&plan).unwrap();
+        assert!(json.contains("firebase"));
+        assert!(!json.contains("token"));
+        assert!(!json.contains("AIza"));
+        assert!(!json.contains("email"));
     }
 }

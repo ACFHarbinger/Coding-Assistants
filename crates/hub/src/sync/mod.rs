@@ -1,15 +1,18 @@
-//! Cloud Drive synchronization domain (S1–S9 / #91–#99).
+//! Cloud Drive synchronization domain (S1–S10 / #91–#100).
 //!
 //! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
-//! Google Drive `drive.appdata` adapter, owner-started CLI/UI, a
-//! mutation-only Hub lock, encrypted snapshot transfer, three-way
-//! reconcile with fork-aware audit rebase, owner conflict review,
-//! confirm-only tombstones, device trust, resumable owner retry, and
-//! redacted diagnostics. Never uploads plaintext or credentials.
-//! Live `hub.db` is never replaced. Revoke does not rotate the key.
+//! Google Drive `drive.appdata` adapter, optional Firebase Auth identity
+//! plus private Storage, owner-started CLI/UI, a mutation-only Hub lock,
+//! encrypted snapshot transfer, three-way reconcile with fork-aware
+//! audit rebase, owner conflict review, confirm-only tombstones, device
+//! trust, resumable owner retry, and redacted diagnostics. Never uploads
+//! plaintext or credentials. Live `hub.db` is never replaced. Revoke
+//! does not rotate the key. Reserved recovery envelope stays unused.
 
 mod client;
 mod crypto;
+mod firebase;
+mod firebase_auth;
 mod fs_drive;
 mod google;
 mod google_auth;
@@ -33,6 +36,14 @@ mod types;
 
 pub use client::{DriveClient, FakeDrive, RemoteObject, ReplicaAdvance, ReplicaPut};
 pub use crypto::{decrypt_object, encrypt_object};
+pub use firebase::FirebaseStorage;
+pub use firebase_auth::{
+    firebase_account, parse_id_token, resolve_api_key, resolve_bucket,
+    resolve_refresh_token as resolve_firebase_refresh_token,
+    token_request_form as firebase_token_request_form, API_KEY as FIREBASE_API_KEY,
+    REFRESH_TOKEN_KEY as FIREBASE_REFRESH_TOKEN_KEY, SECURE_TOKEN_URL,
+    STORAGE_BUCKET_KEY as FIREBASE_STORAGE_BUCKET,
+};
 pub use fs_drive::FsDrive;
 pub use google::GoogleDrive;
 pub use google_auth::{

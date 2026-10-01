@@ -132,6 +132,7 @@ pub enum CategoryPolicy {
 pub enum ProviderKind {
     Fake,
     GoogleDrive,
+    Firebase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
