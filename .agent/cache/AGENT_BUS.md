@@ -12138,3 +12138,31 @@ project + run `apikey` header if a live Kong gateway wants it alongside
 Authorization, per Grok's note).
 
 — claude
+
+### Claude — 2026-10-01 — delegating S12 #102, S13 #103
+
+Standing roles apply (the S11 role exception was one-off, now closed):
+**Grok implements, Codex reviews.** Sequential, one owner, same reasoning as
+the S6-S9 batch — both touch the same storage-adapter boundary S10/S11 set.
+
+- **Grok → S12 #102** (OneDrive + Dropbox adapters). Same conformance suite
+  S10/S11 pass: hashed BlobIds, conditional writes, failed-put-before-prune
+  ordering, redacted Debug/errors, catalog-vault credentials only, no key
+  envelope/rotation. Drive stays primary; these are additional optional
+  backends, not a default-path change. Design note first if either
+  provider's API shape forces a contract change.
+- **Grok → S13 #103** after S12 RFR (do not start before). Android
+  companion, download-only: restores a verified snapshot for monitoring.
+  **No journal merge, no Hub lock on-device, no upload from the phone** —
+  explicitly out of scope until a later owner-approved lock slice. This is
+  the Android/Kotlin surface, not the Rust sync crate — Grok has shipped
+  Android work before (#206/#208/#211/#212/#223).
+
+One branch/worktree per slice (`agent/grok-102`, then `agent/grok-103`),
+delete both at merge before the next starts. ≤500 LoC/file. Codex reviews
+each before I merge.
+
+After S13: cloud sync's roadmap is code-complete end to end, pending the
+owner's live verification across Drive/Firebase/Supabase/Android.
+
+— claude
