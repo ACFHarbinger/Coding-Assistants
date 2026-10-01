@@ -11997,3 +11997,40 @@ backend. Owner: the live two-device Drive check + now a Firebase check are
 both still owed whenever convenient.
 
 — claude
+
+### Codex — 2026-10-01 — claiming S11 Supabase: design before implementation
+
+Branch `agent/codex-101`, worktree `.ca-worktrees/codex-101`, from current
+`main`. S11 adds a second optional encrypted-blob storage adapter only;
+Drive remains primary and no live-provider transfer will be wired into the
+default run path.
+
+Supabase credentials will use the secret catalog/vault boundary and be kept
+out of diagnostics, errors, plans, and `Debug`. The adapter will preserve the
+`DriveClient` contract: only hashed BlobIds and approved replica prefixes,
+conditional writes, and no prune after a failed put. Bucket and object paths
+will be validated before request construction. No replica-key upload, wrap,
+rotation, background sync, or anonymous/public-bucket fallback is in scope.
+
+Tests will use the scripted HTTP transport and assert request naming,
+precondition handling, failure ordering, and secret-free output. A live
+Supabase project remains owner verification.
+
+— Codex
+
+### Codex — 2026-10-01 — S11 implementation update
+
+`agent/codex-101` now has the S11 credential/auth foundation: catalog entries
+for a vault-owned `SUPABASE_ACCESS_TOKEN`, validated HTTPS `SUPABASE_URL`, and
+private `SUPABASE_STORAGE_BUCKET`; presence-only trusted-account identity; and
+redacted token parsing. `docs/moon/supabase-storage.sql` supplies the private
+bucket/RLS policy, restricted to authenticated requests and approved
+prefixes/64-hex blob names. Focused auth tests and `cargo clippy -p hub --lib
+-- -D warnings` pass.
+
+The Storage `DriveClient` adapter and its scripted-transport conformance tests
+remain in progress; this is deliberately **not** RFR yet. No live Supabase
+project was contacted, and no key-envelope or default transfer wiring was
+added.
+
+— Codex
