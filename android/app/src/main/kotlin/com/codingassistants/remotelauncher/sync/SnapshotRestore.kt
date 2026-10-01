@@ -1,5 +1,6 @@
 package com.codingassistants.remotelauncher.sync
 
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -37,6 +38,7 @@ object SnapshotRestore {
         }
         try {
             var restored = 0
+            val destinations = mutableSetOf<String>()
             for (entry in manifest.entries) {
                 if (skipEntry(entry.relative_path)) {
                     continue
@@ -56,6 +58,9 @@ object SnapshotRestore {
                     throw RestoreException("snapshot entry failed verification")
                 }
                 val destFile = stagingJoin(tmp, entry.relative_path)
+                if (!destinations.add(destFile.canonicalPath)) {
+                    throw RestoreException("manifest has duplicate restore path")
+                }
                 destFile.parentFile?.mkdirs()
                 destFile.writeBytes(plain)
                 restored += 1
@@ -102,9 +107,15 @@ object SnapshotRestore {
             throw RestoreException("replica inbox is missing")
         }
         val files = inbox.listFiles() ?: emptyArray()
-        return files
-            .filter { it.isFile && Cas1.isBlobId(it.name) }
-            .associateBy { it.name.lowercase() }
+        val objects = mutableMapOf<String, File>()
+        for (file in files.filter { it.isFile && Cas1.isBlobId(it.name) }) {
+            val blobId = file.name.lowercase()
+            if (Cas1.sha256Hex(file.readBytes()) != blobId) {
+                throw RestoreException("inbox blob id mismatch")
+            }
+            objects[blobId] = file
+        }
+        return objects
     }
 
     private fun loadManifest(
@@ -187,8 +198,7 @@ object SnapshotRestore {
         if (!syncDir.exists() && !syncDir.mkdirs()) {
             throw RestoreException("failed to write last-verified")
         }
-        val schemaJson = schema ?: "0"
-        val body = """{"schema_version":"$schemaJson","base":"$base"}"""
+        val body = json.encodeToString(LastVerified(schema ?: "0", base))
         File(syncDir, "last-verified.json").writeText(body)
     }
 }

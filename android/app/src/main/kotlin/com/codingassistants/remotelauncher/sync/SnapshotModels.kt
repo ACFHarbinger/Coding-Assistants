@@ -21,6 +21,12 @@ data class ManifestEntry(
     val kind: String,
 )
 
+@Serializable
+data class LastVerified(
+    val schema_version: String,
+    val base: String,
+)
+
 data class RestoreResult(
     val restored: Int,
     val warnings: List<String>,

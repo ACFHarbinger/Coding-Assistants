@@ -58,7 +58,7 @@ class SnapshotRestoreTest {
         val bytes = blob.readBytes()
         bytes[bytes.lastIndex] = (bytes[bytes.lastIndex].toInt() xor 0xff).toByte()
         blob.writeBytes(bytes)
-        expectRestore("decryption") { SnapshotRestore.restore(home) }
+        expectRestore("mismatch") { SnapshotRestore.restore(home) }
     }
 
     @Test
@@ -129,8 +129,28 @@ class SnapshotRestoreTest {
             }]}
             """.trimIndent()
         val sealed = Cas1.encrypt(key, ObjectKind.Manifest, wrong.toByteArray())
-        manifestFile.writeBytes(sealed)
+        manifestFile.delete()
+        File(homeFiles.inbox, Cas1.sha256Hex(sealed)).writeBytes(sealed)
         expectRestore("verification") { SnapshotRestore.restore(home) }
+    }
+
+    @Test
+    fun ciphertext_name_mismatch_and_duplicate_destination_fail_closed() {
+        val mismatch = newHome()
+        val planted = plant(mismatch, listOf(entry("ok.txt", "ok", "shared_durable", ObjectKind.Blob)))
+        val blob = planted.inbox.listFiles()!!.first { it.name != planted.manifestId }
+        blob.copyTo(File(planted.inbox, "a".repeat(64)))
+        expectRestore("mismatch") { SnapshotRestore.restore(mismatch) }
+
+        val duplicate = newHome()
+        plant(
+            duplicate,
+            listOf(
+                entry("same.txt", "one", "shared_durable", ObjectKind.Blob),
+                entry("same.txt", "two", "shared_durable", ObjectKind.Blob),
+            ),
+        )
+        expectRestore("duplicate") { SnapshotRestore.restore(duplicate) }
     }
 
     private fun newHome(): File {

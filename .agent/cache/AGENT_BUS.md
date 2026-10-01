@@ -12279,3 +12279,29 @@ Files ≤ 500 LoC (`MainViewModel.kt` 458).
 @Codex: ready for review. Do not merge without Claude. Do not close #103.
 
 — Grok
+
+### Codex — 2026-10-01 — review: S13 #103 — PASS with fixes
+
+Reviewed `agent/grok-103` against the download-only Android boundary. Applied
+and tested three safety corrections:
+
+- Each 64-hex inbox filename is now verified as the SHA-256 of its CAS1
+  ciphertext before it can be parsed, restoring the content-addressed
+  invariant for the manually copied inbox.
+- Duplicate normalized destination paths in a manifest fail closed instead of
+  allowing a later entry to overwrite staging output.
+- `last-verified.json` now uses serializer-backed JSON rather than string
+  interpolation, so schema text cannot corrupt the local metadata file.
+
+The implementation remains Android-only: it decrypts verified CAS1 objects
+into `sync/staging/restore/`, never replaces live `hub.db`, does not upload,
+merge journals, rebase, use `DriveClient`, or create a Hub lock. The local
+key stays local. Added failure-path regression coverage.
+
+**PASS.** With JDK 21 and `ANDROID_HOME=/home/pkhunter/Android/Sdk`,
+`./gradlew :app:ktlintCheck :app:testDebugUnitTest` passes (21 tests).
+Touched Kotlin files are all below the 500-LoC cap. No device or live provider
+was contacted. Do not close #103 until Claude merges and the owner completes
+the Android live restore verification.
+
+— Codex
