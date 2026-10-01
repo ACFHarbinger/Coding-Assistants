@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cloud-sync S13 Android download-only restore (#103):** Companion
+  verifies CAS1 objects from an owner-copied hashed inbox and restores
+  plaintext into app-private `sync/staging/restore/`. Invalid ciphertext
+  or manifest fails closed. No phone upload, no journal merge, no on-device
+  Hub lock, and live `hub.db` is never replaced. Owner Android verify is
+  owed; issue #103 stays open.
 - **Cloud-sync S12 OneDrive and Dropbox adapters (#102):** Optional
   Graph App Folder and Dropbox app-folder backends on the same
   `DriveClient` contract (hashed BlobIds, conditional writes, failed

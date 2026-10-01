@@ -176,6 +176,9 @@ dependencies {
     // Networking (for TCP communication)
     implementation("io.ktor:ktor-network:2.3.7")
 
+    // CAS1 ChaCha20-Poly1305 on minSdk 24 (API 28+ has a platform cipher)
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.78.1")
+
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

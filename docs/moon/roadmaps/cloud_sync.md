@@ -250,7 +250,7 @@ before the first upload.
 | S10 | Firebase Auth + private Storage | Firebase Auth supports an owner-approved account identity alongside Drive OAuth/manual credentials. Firebase Storage writes only authenticated, encrypted hashed blobs to an app-private bucket/prefix under restrictive Security Rules; it passes the shared storage conformance suite and is the first post-Drive integration. `cloud-sync.key` remains manual in v1, but the identity/key-envelope interfaces are reserved for a future owner-approved recovery/key-sharing feature | 🛠️ **Code landed** (2026-09-24; live Firebase owner-owed) · [#100](https://github.com/ACFHarbinger/Coding-Assistants/issues/100) (Cursor). Identity Toolkit parse + scripted Storage adapter + restrictive rules. Key-envelope unused. Live `hub.db` never replaced. Do not close until owner live verify. |
 | S11 | Supabase Auth + private Storage | Supabase Auth supports the same trusted-account identity contract. Supabase Storage uses a private bucket/prefix with RLS policies that allow only the authenticated owner to access encrypted hashed blobs; it passes the Firebase/Drive conformance suite without changing reconciliation semantics | 🛠️ **Code landed** (2026-10-01; live Supabase owner-owed) · [#101](https://github.com/ACFHarbinger/Coding-Assistants/issues/101) (Codex). Scripted Storage adapter, secret catalog and restrictive RLS template. Drive remains primary; key-envelope unused; live `hub.db` never replaced. Do not close until owner live verify. |
 | S12 | Additional drive adapters | OneDrive and Dropbox pass the same storage and identity conformance suite after Firebase and Supabase | 🛠️ **Code landed** (2026-10-01; live OneDrive/Dropbox owner-owed) · [#102](https://github.com/ACFHarbinger/Coding-Assistants/issues/102) (Grok). Graph `approot` + Dropbox app folder; hashed names; Drive remains primary; key-envelope unused; live `hub.db` never replaced. Do not close until owner live verify. |
-| S13 | Android download-only (later) | Companion app restores a verified snapshot for monitoring; no journal merge, no Hub lock on-device, no upload from the phone until a later owner lock | 📋 Planned · after S5 |
+| S13 | Android download-only (later) | Companion app restores a verified snapshot for monitoring; no journal merge, no Hub lock on-device, no upload from the phone until a later owner lock | 🛠️ **Code landed** (2026-10-01; owner Android verify owed) · [#103](https://github.com/ACFHarbinger/Coding-Assistants/issues/103) (Grok). CAS1 decrypt + hashed inbox restore into `sync/staging/restore/`. No upload, no journal merge, no Hub lock, live `hub.db` never replaced. Do not close until owner live verify. |
 
 Implementation order is S1 → S4 (contracts, crypto, Drive, UI/CLI/lock), then
 **S5 acceptance**, then S6–S8, then S9. S10 (Firebase) follows S5, S11
@@ -537,3 +537,13 @@ successful put; quota stop happens before Manifest/prune. Retry is
 owner-started only. History and diagnostics omit tokens, keys, and
 journal plaintext. Remote names stay hashed BlobIds / hashed device
 folders. S10 stays out. Does not change locked product decisions.
+
+### Grok — 2026-10-01 — S13 Android download-only restore (#103)
+
+Companion CAS1 decrypt (BouncyCastle IETF ChaCha20-Poly1305) plus a
+hashed `sync/inbox/` restore into `sync/staging/restore/`. Owner copies
+`keys/cloud-sync.key` and 64-hex objects onto the phone. One Manifest,
+content-hash + kind checks, path-traversal refuse. No DriveClient, no
+upload, no journal merge, no Hub lock. Live `hub.db` stays put. Owner
+device check is still owed.
+

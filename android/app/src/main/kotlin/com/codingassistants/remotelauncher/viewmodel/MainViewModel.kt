@@ -26,6 +26,8 @@ sealed class Screen {
     object ModelSelection : Screen()
 
     object TaskExecution : Screen()
+
+    object SnapshotRestore : Screen()
 }
 
 data class AppState(

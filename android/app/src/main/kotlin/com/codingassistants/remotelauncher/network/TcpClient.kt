@@ -214,8 +214,9 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
                     disconnectInternal()
                     return@withContext Result.failure(java.io.IOException("Socket write error"))
                 }
-                val reply = reader?.readLine()
-                    ?: return@withContext Result.failure(java.io.IOException("No handshake response"))
+                val reply =
+                    reader?.readLine()
+                        ?: return@withContext Result.failure(java.io.IOException("No handshake response"))
                 when (val response = json.decodeFromString<ServerResponse>(reply)) {
                     is ServerResponse.Error -> {
                         disconnectInternal()
