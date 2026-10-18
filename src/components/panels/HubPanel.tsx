@@ -155,7 +155,7 @@ export default function HubPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
 
   const refreshChannelWorkspaces = useCallback(async () => {
     const list = await run("channels refreshed", () =>
-      invoke<ChannelWorkspace[]>("hub_list_channel_workspaces")
+      invoke<ChannelWorkspace[]>("claude_channel_list_workspaces")
     );
     if (list) {
       setChannelWorkspaces(list);
@@ -233,7 +233,7 @@ export default function HubPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
   }, [onRemoveAgent, refreshAgents]);
 
   useEffect(() => {
-    invoke<string>("get_hub_data_dir").then(setDataDir).catch((e) => setError(String(e)));
+    invoke<string>("hub_get_data_dir").then(setDataDir).catch((e) => setError(String(e)));
     refreshAgents().then((list) => {
       const firstAgent = list.find((a) => a.id !== "human");
       if (firstAgent) {

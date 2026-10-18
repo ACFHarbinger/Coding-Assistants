@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HubPanel from "../HubPanel";
 
 const mockInvoke = vi.fn(async (cmd: string) => {
-  if (cmd === "get_hub_data_dir") return "/test/hub";
+  if (cmd === "hub_get_data_dir") return "/test/hub";
   if (cmd === "hub_list_agents") {
     return [
       { id: "human", display_name: "Human", team_member: true },
@@ -18,7 +18,7 @@ const mockInvoke = vi.fn(async (cmd: string) => {
   if (cmd === "hub_list_wakes") return [];
   if (cmd === "hub_list_budgets") return [];
   if (cmd === "hub_list_provider_quotas") return [];
-  if (cmd === "hub_list_channel_workspaces") return [];
+  if (cmd === "claude_channel_list_workspaces") return [];
   if (cmd === "hub_list_audit_events") return [];
   return [];
 });

@@ -260,6 +260,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Shared Hub command-name mismatches:** `HubPanel.tsx` called two Tauri
+  commands under names that were never registered —
+  `get_hub_data_dir` (the real command is `hub_get_data_dir`) and
+  `hub_list_channel_workspaces` (the real command is
+  `claude_channel_list_workspaces`). Both calls threw "Command ... not
+  found" on every mount, breaking the Shared Hub's "Data dir:" line and
+  the Claude Channel workspaces list. Fixed by pointing the frontend
+  calls at the actual registered command names; no backend change
+  needed.
 - **Creative-tool MCP remember/recall is workspace-scoped (#267):**
   `hub::mcp::creative::apply_to_workspace` now appends `--workspace <ws>`
   to each rendered server entry. The catalog `default_args` stay static;
