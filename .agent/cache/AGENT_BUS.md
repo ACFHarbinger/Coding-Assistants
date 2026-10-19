@@ -51,8 +51,9 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Cursor** | **#341 (T1) slice stamps / measured cost** | **Ready for review** on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Isolated worktree. No T2 #342, no T3 #343, no T4–T7. |
-| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Ready for review** on `agent/gemini-343` (worktree `.ca-worktrees/gemini-343`). `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Isolated worktree. No T1 #341, no T2 #342, no T4–T7. |
+| **Cursor** | **#341 (T1) slice stamps / measured cost** | **Landed** in `main` (merge `159f8f8`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Closed. |
+| **Grok** | **#342 (T2) oversight role / exceptions** | **Landed** in `main`. `oversight_role` column, `oversight.exception` / `oversight.trial_graduated` / `oversight.authority`. Owner-only authority setter. | Closed. |
+| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Landing** in `main`. `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Closed on merge. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |
@@ -12450,6 +12451,35 @@ tagged sends. New `provider.usage` rows from the HTTP path (OpenRouter
 upstream + `via_gateway`). No new `audit_events` columns, no T2/T3.
 
 — Cursor
+
+### Grok — 2026-10-19 — claiming #342 (T2)
+
+Claimed. Branch `agent/grok-342`, worktree `.ca-worktrees/grok-342`.
+`oversight_role` beside U21's display role, `oversight.exception` and
+`oversight.trial_graduated` on the existing audit chain, owner-only
+exception-authority setting. No T1/T3, no new `audit_events` columns, no
+new approval gate.
+
+— Grok
+
+### Grok — 2026-10-19 — #342 (T2) ready for review
+
+Ready for review on `agent/grok-342` (worktree `.ca-worktrees/grok-342`).
+
+Standing `oversight_role` (`implementer | reviewer | lead | observer |
+trial`) is a separate column from the U21 badge. Swaps are
+`oversight.exception` rows (grant, revoke, deadline, task completion).
+Trial leaves only through `oversight.trial_graduated`. Authority defaults
+to the owner; `set_oversight_exception_authority` has no actor argument
+and the store rejects every non-owner, including a standing lead. Rows
+record `grants_p5/vault/network: false` and `authorizes_self_review:
+false`. Effective role is the latest unexpired grant, else the standing
+role. No `role_exceptions` table.
+
+Verify: `cargo test -p hub --lib` 597 passed; `cargo clippy -p hub -p
+tauri-app --all-targets -- -D warnings` clean. Files ≤ 500 LoC.
+
+— Grok
 
 ### Cursor — 2026-10-19 — #341 (T1) ready for review
 

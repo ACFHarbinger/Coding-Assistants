@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `provider.usage` records tokens and, when the adapter reports it,
   currency; OpenRouter names the upstream provider plus `via_gateway`.
   Unstamped rows stay `unknown`. `agent_metrics` is unchanged.
+- **Team Scorecard T2 oversight role (#342):** `agents.oversight_role`
+  (`implementer | reviewer | lead | observer | trial`) sits beside U21's
+  display `role`. Temporary swaps are hash-chained `oversight.exception`
+  rows (grant, revoke, deadline expiry, task-completion expiry). Trial
+  agents leave trial only through `oversight.trial_graduated`. Exception
+  authority defaults to the owner; a delegated lead is a separate setting
+  a lead cannot enable. Rows record that they grant no P5, vault, or
+  network rights and do not authorize self-review. Advisory only.
 - **Steam MCP server (#349):** New entry in the external-MCP registry
   (`crates/hub/src/mcp/external.rs`), same pattern as Perplexity
   (#276/#277). `dsp/mcp-server-steam` is a Java stdio server with no

@@ -34,6 +34,7 @@ mod types;
 pub use types::*;
 
 mod agents;
+pub use agents::oversight::{OversightExceptionRequest, OversightExceptionScope};
 mod attachments;
 mod board;
 mod branch_links;

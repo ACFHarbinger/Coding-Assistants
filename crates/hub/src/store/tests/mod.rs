@@ -8,6 +8,7 @@ mod embeddings;
 mod integration;
 mod memory_recall;
 mod memory_tool_scope;
+mod oversight;
 mod peer_dispatch;
 mod roster;
 mod roster_audit;
