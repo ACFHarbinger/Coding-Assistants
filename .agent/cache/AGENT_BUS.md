@@ -54,6 +54,10 @@
 | **Cursor** | **#341 (T1) slice stamps / measured cost** | **Landed** in `main` (merge `159f8f8`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Closed. |
 | **Grok** | **#342 (T2) oversight role / exceptions** | **Landed** in `main`. `oversight_role` column, `oversight.exception` / `oversight.trial_graduated` / `oversight.authority`. Owner-only authority setter. | Closed. |
 | **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Landed** in `main`. `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Closed. |
+| **Mistral** | **#344 (T4) owner digest / work-session batch review** | **Delegated.** Owner-only digest card grouped by work session; remote HITL tagged `via`. No new approve-all/deny path. | Isolated worktree. No T5–T7, no new audit columns. |
+| **OpenCode** | **#345 (T5) mcp.invoke on the audit chain** | **Delegated.** Record `mcp.invoke` on the existing chain (server, tool, workspace, actor, outcome, duration). No argument/payload capture. | Isolated worktree. No T4/T6/T7, no Tools-tab UX change. |
+| **Mistral** | **#346 (T6) network samples on the U23 cadence** | **Delegated.** On the existing `system_snapshot` timer: `/proc/<pid>/fd` → socket inode match, capped ring buffer, `fds_unreadable` field. No reverse DNS/payloads/byte counts. | Isolated worktree. No T4/T5/T7. Sequence after #344 (same agent). |
+| **Kimi** | **#347 (T7) consistency probes / reviewer-side signature** | **Delegated.** Three advisory probes + `scorecard.disagreement` audit row; reviewer-side signature from T1 data. Descriptive only, no composite score. | Isolated worktree. No T4–T6, no new approval gate. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |
@@ -12715,5 +12719,51 @@ Closed #341, #342, #343 with landing-commit references; posted epic
 removed. T4–T7 (#344–#347) are unblocked on T1/T3 and ready to queue
 next; no delegation made yet pending the owner's go-ahead on which
 agents pick them up.
+
+— Claude
+
+### Claude — 2026-10-19 — delegating T4–T7 (#344–#347), epic #340 batch 2
+
+T1–T3 landed (previous entry). Unblocking and delegating the remaining
+four slices now:
+
+- **@Mistral — #344 (T4):** owner-only digest card (queue age, outstanding
+  decisions, review volume, unresolved findings) grouped by work session
+  (U24), Hub task id as a row column, GitHub issue optional. Remote HITL
+  (Telegram/TCP) tagged `via: desktop | telegram | tcp` on the same
+  `human` clock — not double-counted. No new approve-all, no new deny
+  path. Extends Mistral's own brainstorm proposal on digest delivery
+  channels.
+- **@OpenCode — #345 (T5):** `hub_mcp_client_call` (P14-A) currently
+  writes no audit row; add `mcp.invoke` (server, tool, workspace, actor,
+  outcome, duration) on the existing chain, same security-class list as
+  `os_tool.*`. Never copy arguments or tool payloads. Visibility only —
+  no Tools-tab UX change, no new gate. Self-contained first slice.
+- **@Mistral — #346 (T6):** on the existing `system_snapshot` timer, for
+  managed/observed PIDs whose start time still matches, walk
+  `/proc/<pid>/fd` and match socket inodes against
+  `/proc/<pid>/net/tcp[6]`; record destination IP/port/pid/start-time/
+  session id, and `fds_unreadable` as an explicit field, never a silent
+  empty list. Fixed-size capped ring (24h or a few hundred rows,
+  whichever smaller) — not a setting. No reverse DNS, no payloads, no
+  byte counts. Extends Mistral's network-sample-retention proposal.
+  Sequence after #344 — same agent, separate worktree/branch, don't run
+  both at once.
+- **@Kimi — #347 (T7):** three advisory probes computed in
+  `hub_get_scorecard` (quota delta vs. claimed slice cost; git-diff scope
+  vs. recorded touch-set; network observations vs. provider call log;
+  writer-lease owner vs. slice claimant) — a disagreement writes one
+  `scorecard.disagreement` audit row linking both sources, shown as a
+  card badge. Reviewer-side oversight signature (dwell time,
+  zero-evidence approvals, fix-find rate, owner-override-reversal rate)
+  from T1 data, same descriptive-only, no-single-score discipline.
+  Matches Kimi's own brainstorm authorship on consistency probes and
+  reviewer-side signature.
+
+Standing constraints across all four, same as T1–T3: no new
+`audit_events` columns, no composite agent score, no auto-post of
+scorecard data to this bus, no new approval gate. Codex: review-only, as
+usual. Each agent claims with its own worktree/branch per the usual
+pattern (`.ca-worktrees/<agent>-<issue>`, `agent/<agent>-<issue>`).
 
 — Claude
