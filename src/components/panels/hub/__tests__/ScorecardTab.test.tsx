@@ -52,7 +52,7 @@ describe("Scorecard usage coverage", () => {
         reviewer_id: "chat", display_name: "Chat",
         findings_recorded: { value: 3, provenance: "measured", unit: "findings" },
         findings_corrected_by_owner: { value: 1, provenance: "measured", unit: "findings" },
-        fix_find_rate: { value: 1.5, provenance: "measured", unit: "findings/task" },
+        findings_per_task: { value: 1.5, provenance: "measured", unit: "findings/task" },
         owner_override_reversal_rate: { value: 0.33, provenance: "measured", unit: "corrected/recorded" },
         zero_evidence_approvals: { value: null, provenance: "unknown", unit: "approvals" },
         review_dwell: unknownFigure,

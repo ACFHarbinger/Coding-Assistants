@@ -6,16 +6,30 @@
 //! projects a descriptive signature per reviewer. Same discipline as the
 //! owner's own signal: independently provenanced figures, never a single
 //! reviewer-quality score, no latency-only alerts.
+//!
+//! Review 2026-10-19 (Codex) corrections baked in:
+//! - findings attribute only to enrolled roster agents, and identical
+//!   re-submissions dedupe to the existing row (idempotent recording);
+//! - corrections require actual owner authority, and the reversal rate
+//!   counts distinct owner-corrected findings — never above 100%;
+//! - zero-evidence approvals stay `unknown`: gate decisions record no
+//!   reviewer identity, a tagged send is not proof of evidence inspection,
+//!   and JSON substring matching misses equivalent formatting;
+//! - the per-task figure is scoped to tasks with a documented finding — a
+//!   rate across all reviewed tasks needs a review record the Hub does not
+//!   yet have.
 
 use super::types::ReviewerSignatureRow;
 use super::types::ScorecardFigure;
 use crate::store::{AuditEvent, HubError, HubStore, SliceStamp};
-use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub const REVIEW_FINDING_OP: &str = "review.finding";
 pub const REVIEW_FINDING_CORRECTED_OP: &str = "review.finding_corrected";
+
+/// The only actor allowed to correct a finding's classification.
+pub const REVIEW_CORRECTION_OWNER: &str = "human";
 
 /// Origin of a review finding (Codex's T1 classification). Distinguishing
 /// "your code was wrong" from "the requirement changed" is the whole point —
@@ -38,10 +52,35 @@ pub struct ReviewFinding {
     pub note: Option<String>,
 }
 
+/// Content key for idempotent recording — an identical re-submission is a
+/// retry, not a new finding.
+fn same_finding(value: &Value, finding: &ReviewFinding) -> bool {
+    let str_field = |key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    };
+    let opt_eq = |key: &str, expected: &Option<String>| match expected {
+        Some(expected) => str_field(key) == Some(expected.as_str()),
+        None => str_field(key).is_none(),
+    };
+    str_field("reviewer") == Some(finding.reviewer.trim())
+        && str_field("severity") == Some(finding.severity.as_str())
+        && str_field("origin") == Some(finding.origin.as_str())
+        && opt_eq("task_id", &finding.task_id)
+        && opt_eq(
+            "note",
+            &finding.note.as_ref().map(|note| note.trim().to_string()),
+        )
+}
+
 impl HubStore {
     /// Record one classified review finding on the audit chain. The reviewer
-    /// is explicit identity (a `SliceStamp` with `registered` attribution),
-    /// so the signature never guesses who reviewed what.
+    /// must be an enrolled roster agent — attribution is a roster fact, not
+    /// a free-text claim — and an identical existing finding is returned
+    /// unchanged so double-submission cannot inflate the counts.
     pub fn record_review_finding(&self, finding: &ReviewFinding) -> Result<AuditEvent, HubError> {
         let reviewer = finding.reviewer.trim();
         if reviewer.is_empty() {
@@ -59,6 +98,37 @@ impl HubStore {
                 finding.origin
             )));
         }
+        let enrolled: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT id FROM agents WHERE id = ?1",
+                rusqlite::params![reviewer],
+                |row| row.get(0),
+            )
+            .ok();
+        if enrolled.is_none() {
+            return Err(HubError::Invalid(format!(
+                "reviewer {reviewer:?} is not an enrolled roster agent"
+            )));
+        }
+
+        // Idempotent dedupe: identical content returns the existing row.
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, process_json FROM audit_events WHERE operation = ?1 ORDER BY rowid DESC",
+            )?;
+            let rows = stmt.query_map(rusqlite::params![REVIEW_FINDING_OP], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for (id, raw) in rows.flatten() {
+                if let Ok(value) = serde_json::from_str::<Value>(&raw) {
+                    if same_finding(&value, finding) {
+                        return self.get_audit_event(&id);
+                    }
+                }
+            }
+        }
+
         let stamp =
             SliceStamp::registered(finding.task_id.clone(), None, Some(reviewer.to_string()));
         let mut process = json!({
@@ -82,16 +152,24 @@ impl HubStore {
         self.record_stamped_audit(&root, &root, REVIEW_FINDING_OP, process, &stamp)
     }
 
-    /// The owner corrects a finding's classification. Correction, not
-    /// deletion: the original row stays on the chain and this row points at
-    /// it — the reversal signal is "corrected ÷ recorded", and the audit
-    /// trail keeps both halves.
+    /// The owner corrects a finding's classification. `actor` must be the
+    /// owner — corrections are owner overrides, and counting them as such
+    /// requires actual owner authority, not any nonempty string. Correction,
+    /// not deletion: the original row stays on the chain and this row points
+    /// at it. Repeated corrections of one finding count once in the
+    /// signature (distinct finding ids).
     pub fn record_review_finding_corrected(
         &self,
+        actor: &str,
         finding_id: &str,
         corrected_by: &str,
         reason: &str,
     ) -> Result<AuditEvent, HubError> {
+        if actor.trim() != REVIEW_CORRECTION_OWNER {
+            return Err(HubError::Invalid(
+                "only the owner can correct a review finding".into(),
+            ));
+        }
         let finding = self.get_audit_event(finding_id)?;
         if finding.operation != REVIEW_FINDING_OP {
             return Err(HubError::Invalid(format!(
@@ -123,8 +201,8 @@ impl HubStore {
     }
 
     /// Descriptive signature per reviewer agent. Rows exist for every
-    /// standing reviewer (T2 `oversight_role`) plus any agent that recorded
-    /// findings without the role — omission would hide the data.
+    /// standing reviewer (T2 `oversight_role`) plus any enrolled agent that
+    /// recorded findings without the role — omission would hide the data.
     pub(crate) fn reviewer_signature(&self) -> Result<Vec<ReviewerSignatureRow>, HubError> {
         let mut reviewers: Vec<(String, String)> = Vec::new();
         {
@@ -144,13 +222,14 @@ impl HubStore {
         }
 
         let mut recorded: HashMap<String, u64> = HashMap::new();
-        let mut tasks: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+        let mut tasks: HashMap<String, HashSet<String>> = HashMap::new();
+        // finding id -> original reviewer (corrections resolve through this).
         let mut finding_owner: HashMap<String, String> = HashMap::new();
         {
             let mut stmt = self.conn.prepare(
                 "SELECT id, process_json FROM audit_events WHERE operation = ?1 ORDER BY rowid ASC",
             )?;
-            let rows = stmt.query_map(params![REVIEW_FINDING_OP], |row| {
+            let rows = stmt.query_map(rusqlite::params![REVIEW_FINDING_OP], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?;
             for (id, raw) in rows.flatten() {
@@ -178,12 +257,14 @@ impl HubStore {
             }
         }
 
-        let mut corrected: HashMap<String, u64> = HashMap::new();
+        // Distinct owner-corrected findings per original reviewer: repeated
+        // corrections of one finding never push the rate past 100%.
+        let mut corrected: HashMap<String, HashSet<String>> = HashMap::new();
         {
             let mut stmt = self.conn.prepare(
                 "SELECT process_json FROM audit_events WHERE operation = ?1 ORDER BY rowid ASC",
             )?;
-            let rows = stmt.query_map(params![REVIEW_FINDING_CORRECTED_OP], |row| {
+            let rows = stmt.query_map(rusqlite::params![REVIEW_FINDING_CORRECTED_OP], |row| {
                 row.get::<_, String>(0)
             })?;
             for raw in rows.flatten() {
@@ -195,7 +276,10 @@ impl HubStore {
                     .and_then(Value::as_str)
                     .unwrap_or("");
                 if let Some(owner) = finding_owner.get(finding_id) {
-                    *corrected.entry(owner.clone()).or_default() += 1;
+                    corrected
+                        .entry(owner.clone())
+                        .or_default()
+                        .insert(finding_id.to_string());
                 }
             }
         }
@@ -206,7 +290,6 @@ impl HubStore {
             }
         }
 
-        let zero_evidence = self.zero_evidence_approvals()?;
         let count_figure = |value: u64, unit: &str| {
             if value > 0 {
                 ScorecardFigure::measured(value as f64, unit)
@@ -218,9 +301,9 @@ impl HubStore {
         let mut out = Vec::new();
         for (id, name) in reviewers {
             let rec = recorded.get(&id).copied().unwrap_or(0);
-            let corr = corrected.get(&id).copied().unwrap_or(0);
+            let corr = corrected.get(&id).map(|set| set.len() as u64).unwrap_or(0);
             let task_set = tasks.get(&id).cloned().unwrap_or_default();
-            let fix_find_rate = if !task_set.is_empty() {
+            let findings_per_task = if !task_set.is_empty() {
                 ScorecardFigure::measured(rec as f64 / task_set.len() as f64, "findings/task")
             } else {
                 ScorecardFigure::unknown("findings/task")
@@ -235,47 +318,19 @@ impl HubStore {
                 display_name: name,
                 findings_recorded: count_figure(rec, "findings"),
                 findings_corrected_by_owner: count_figure(corr, "findings"),
-                fix_find_rate,
+                findings_per_task,
                 owner_override_reversal_rate: reversal_rate,
-                zero_evidence_approvals: count_figure(
-                    zero_evidence.get(&id).copied().unwrap_or(0),
-                    "approvals",
-                ),
+                // Gate decisions record no reviewer identity, a tagged send
+                // is not proof evidence was inspected, and substring JSON
+                // matching misses equivalent formatting — so this stays
+                // honestly unknown until real decision actors exist.
+                zero_evidence_approvals: ScorecardFigure::unknown("approvals"),
                 // Reviewer decision timestamps do not exist in the Hub; see
                 // the type's docs. Unknown, never a guessed proxy.
                 review_dwell: ScorecardFigure::unknown("seconds"),
             });
         }
         Ok(out)
-    }
-
-    /// Resolved gate approvals (either verdict) whose linked task carries no
-    /// stamped evidence rows at all. Counted per slice claimant (`from_agent`)
-    /// — the approval is about their slice.
-    pub(crate) fn zero_evidence_approvals(&self) -> Result<HashMap<String, u64>, HubError> {
-        let mut counts: HashMap<String, u64> = HashMap::new();
-        let mut stmt = self.conn.prepare(
-            "SELECT from_agent, task_id FROM pending_gate_approvals \
-             WHERE status IN ('approved','rejected') AND task_id IS NOT NULL AND task_id != ''",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
-        for (from_agent, task_id) in rows.flatten() {
-            let pattern = format!("%\"task_id\":\"{task_id}\"%");
-            let has_evidence: Option<i64> = self
-                .conn
-                .query_row(
-                    "SELECT 1 FROM audit_events WHERE process_json LIKE ?1 LIMIT 1",
-                    params![pattern],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            if has_evidence.is_none() {
-                *counts.entry(from_agent).or_default() += 1;
-            }
-        }
-        Ok(counts)
     }
 }
 

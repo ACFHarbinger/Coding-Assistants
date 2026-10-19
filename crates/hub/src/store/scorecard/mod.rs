@@ -6,6 +6,8 @@
 //! gating.
 
 mod helpers;
+mod probe_claimant;
+mod probe_quota;
 mod probes;
 mod query;
 mod review;

@@ -199,8 +199,10 @@ export interface ReviewerSignatureRow {
   display_name: string;
   findings_recorded: ScorecardFigure;
   findings_corrected_by_owner: ScorecardFigure;
-  fix_find_rate: ScorecardFigure;
+  /** Findings per task WITH a documented finding — not a rate across all reviewed tasks. */
+  findings_per_task: ScorecardFigure;
   owner_override_reversal_rate: ScorecardFigure;
+  /** Always `unknown` until gate decisions record reviewer identity and evidence signals exist. */
   zero_evidence_approvals: ScorecardFigure;
   review_dwell: ScorecardFigure;
 }

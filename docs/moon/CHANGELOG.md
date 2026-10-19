@@ -10,23 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
-  `hub_get_scorecard` now computes four advisory probes — `quota_vs_cost`
-  (measured `provider.usage` spend vs `quota.snapshot` balance movement,
-  snapshots written best-effort on explicit quota refresh with unchanged-value
-  dedupe), `claimant_consistency` (one slice naming multiple stamped agents),
-  `network_vs_provider_log` (activates on T6's `network.sample` rows; honestly
-  `unknown` until then), and `git_scope_vs_touch_set` (`unknown` until a git
-  source exists). Every probe reports `ok | disagreement | unknown` per
-  subject; a disagreement writes one deduped hash-chained
-  `scorecard.disagreement` row linking both sources, and agent cards carry an
-  unresolved-disagreement badge (a count, never a score). Reviewer-side
-  signature: `review.finding` / `review.finding_corrected` audit rows
-  (severity + origin in `process_json`, no new columns) feed fix-find rate,
-  owner-override reversal rate, and zero-evidence approval counts per
-  reviewer — descriptive figures only, owner-private, no reviewer-quality
-  score. New `ca review finding|correct` CLI entry path. Review dwell stays
-  `unknown`: reviewer decision timestamps do not exist in the Hub and are not
-  approximated from an unrelated clock.
+  `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
+  (measured `provider.usage` spend vs `quota.snapshot` balance movement with
+  symmetric >2x divergence inside the declared coverage model; top-up-only
+  histories read `unknown`, never `ok`; snapshots write best-effort on
+  explicit quota refresh with unchanged-value dedupe), `claimant_consistency`
+  (stamped action claims — usage/os_tool/budget/mcp only, never
+  communication — compared against the task's or work session's approved
+  assignment record; collaboration within the assignment is `ok`, no
+  assignment record is `unknown`, only claimants outside the assignment
+  disagree; task and session namespaces stay separate),
+  `network_vs_provider_log` (`unknown` until T6 (#346) lands its local-only
+  sample store and the two crates agree a read contract — raw network
+  samples never join the synced audit chain), and `git_scope_vs_touch_set`
+  (`unknown` until a git source exists). Every probe reports
+  `ok | disagreement | unknown` per subject; a disagreement writes one
+  deduped hash-chained `scorecard.disagreement` row linking both sources —
+  candidates are merged per (probe, subject) and the check-and-insert runs
+  in one transaction — and agent cards carry an unresolved-disagreement
+  badge (a count, never a score). Reviewer-side signature: `review.finding` /
+  `review.finding_corrected` audit rows (severity + origin in `process_json`,
+  no new columns) feed findings-per-documented-task and a reversal rate that
+  counts distinct owner-corrected findings and can never exceed 100%;
+  findings dedupe identical re-submissions at write time and attribute only
+  to enrolled roster agents; corrections require owner authority.
+  Zero-evidence approvals and review dwell stay honestly `unknown` — gate
+  decisions record no reviewer identity and a send is not proof of evidence
+  inspection. New `ca review finding|correct` CLI entry path.
 - **Team Scorecard T1 slice stamps and measured cost (#341):** Nullable
   `task_id` / `work_session_id` / `attribution` are written into
   `audit_events.process_json` (no new columns) on `os_tool` rows, P10

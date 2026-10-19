@@ -23,8 +23,10 @@ pub(super) fn run(store: &HubStore, action: ReviewCommand) -> anyhow::Result<()>
             println!("{}", serde_json::to_string_pretty(&event)?);
         }
         ReviewCommand::Correct { finding_id, reason } => {
-            // The CLI runs as the local owner; corrections are owner-only.
-            let event = store.record_review_finding_corrected(&finding_id, "human", &reason)?;
+            // The CLI runs as the local owner; corrections are owner-only
+            // and the store enforces that authority.
+            let event =
+                store.record_review_finding_corrected("human", &finding_id, "human", &reason)?;
             println!("{}", serde_json::to_string_pretty(&event)?);
         }
     }

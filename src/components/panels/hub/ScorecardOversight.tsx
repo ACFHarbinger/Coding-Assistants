@@ -106,9 +106,14 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
                   <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Reviewer</th>
                   <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Findings</th>
                   <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Owner Corrections</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Fix-find Rate</th>
+                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Findings / Documented Task</th>
                   <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Reversal Rate</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Zero-evidence Approvals</th>
+                  <th
+                    title="Always unknown for now: gate decisions record no reviewer identity, and a send is not proof evidence was inspected"
+                    style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}
+                  >
+                    Zero-evidence Approvals
+                  </th>
                   <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Review Dwell</th>
                 </tr>
               </thead>
@@ -128,7 +133,7 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
                       {figureText(reviewer.findings_corrected_by_owner, 0)} <ProvenanceChip prov={reviewer.findings_corrected_by_owner.provenance} />
                     </td>
                     <td style={{ padding: "0.6rem 1rem" }}>
-                      {figureText(reviewer.fix_find_rate)} <ProvenanceChip prov={reviewer.fix_find_rate.provenance} />
+                      {figureText(reviewer.findings_per_task)} <ProvenanceChip prov={reviewer.findings_per_task.provenance} />
                     </td>
                     <td style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.owner_override_reversal_rate)} <ProvenanceChip prov={reviewer.owner_override_reversal_rate.provenance} />

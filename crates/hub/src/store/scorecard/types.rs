@@ -217,17 +217,24 @@ pub struct ScorecardProbe {
 pub struct ReviewerSignatureRow {
     pub reviewer_id: String,
     pub display_name: String,
-    /// `review.finding` rows recorded by this reviewer.
+    /// `review.finding` rows recorded by this reviewer (identical
+    /// re-submissions dedupe at write time, so retries never inflate this).
     pub findings_recorded: ScorecardFigure,
-    /// Those findings later corrected by the owner (`review.finding_corrected`).
+    /// Distinct findings later corrected by the owner
+    /// (`review.finding_corrected`) — repeated corrections of one finding
+    /// count once, so the reversal rate cannot exceed 100%.
     pub findings_corrected_by_owner: ScorecardFigure,
-    /// Findings per distinct reviewed task. `unknown` until at least one
-    /// finding exists — never zero-by-default.
-    pub fix_find_rate: ScorecardFigure,
-    /// Corrected ÷ recorded. `unknown` while no findings exist.
+    /// Findings per task that has at least one documented finding. This is
+    /// NOT a rate across all reviewed tasks — that needs a review record
+    /// the Hub does not yet have. `unknown` until a documented task exists.
+    pub findings_per_task: ScorecardFigure,
+    /// Distinct owner-corrected findings ÷ recorded findings. `unknown`
+    /// while no findings exist.
     pub owner_override_reversal_rate: ScorecardFigure,
-    /// Resolved gate approvals for slices this reviewer claimed that carry no
-    /// stamped evidence rows for the linked task.
+    /// Always `unknown` for now: gate decisions record no reviewer identity,
+    /// a tagged send is not proof evidence was inspected, and JSON substring
+    /// matching misses equivalent formatting. Reports as a real figure only
+    /// once decision actors and evidence signals exist.
     pub zero_evidence_approvals: ScorecardFigure,
     /// Reviewer decision timestamps do not exist in the Hub yet (review
     /// happens outside the decision rows), so dwell stays `unknown` rather
