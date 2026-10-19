@@ -181,7 +181,7 @@ fn active_task_re_prompts_with_unmet_detail_when_gate_fails_after_response() {
             agent_id: "cursor".into(),
         },
         "2020-01-01T00:00:00Z",
-        Some(0), // no minimum spacing, re-prompt immediately on gate failure
+        Some(1), // positive interval; 00:00:05 is past last_fired+1s
         3600,
         vec![GateCriterion::Command {
             program: "false".into(),
@@ -225,7 +225,7 @@ fn max_attempts_reached_marks_task_failed_unconditionally() {
             agent_id: "cursor".into(),
         },
         "2020-01-01T00:00:00Z",
-        Some(0),
+        Some(1),
         1, // response_timeout_secs: times out almost immediately
         vec![],
         2, // max_attempts
@@ -313,7 +313,7 @@ fn team_target_requires_all_roster_members_to_respond() {
         &workspace.to_string_lossy(),
         ScheduleTarget::Team,
         "2020-01-01T00:00:00Z",
-        Some(0),
+        Some(1),
         3600,
         vec![],
         5,
@@ -351,4 +351,86 @@ fn team_target_requires_all_roster_members_to_respond() {
         .unwrap();
     let s3 = store.tick_scheduled_tasks("2020-01-01T00:00:06Z").unwrap();
     assert_eq!(s3.outcomes[0].action, "completed");
+}
+
+#[test]
+fn final_in_flight_attempt_can_succeed_when_max_attempts_is_one() {
+    let (store, ws, _guard) = open();
+    let workspace = ws.join("ws");
+    fs::create_dir_all(&workspace).unwrap();
+    let task = make(
+        &store,
+        &workspace.to_string_lossy(),
+        ScheduleTarget::Agent {
+            agent_id: "cursor".into(),
+        },
+        "2020-01-01T00:00:00Z",
+        Some(60),
+        3600,
+        vec![],
+        1,
+        None,
+    );
+    store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    store
+        .send_message(
+            "cursor",
+            "system",
+            MessageKind::Message,
+            "done",
+            None,
+            Some(&workspace.to_string_lossy()),
+            Some(&task.id),
+        )
+        .unwrap();
+    let summary = store.tick_scheduled_tasks("2020-01-01T00:00:05Z").unwrap();
+    assert_eq!(summary.outcomes[0].action, "completed");
+    let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Completed);
+    assert_eq!(fetched.attempts, 1);
+}
+
+#[test]
+fn timeout_shorter_than_repeat_interval_does_not_dispatch_early() {
+    let (store, ws, _guard) = open();
+    let workspace = ws.join("ws");
+    fs::create_dir_all(&workspace).unwrap();
+    let task = make(
+        &store,
+        &workspace.to_string_lossy(),
+        ScheduleTarget::Agent {
+            agent_id: "cursor".into(),
+        },
+        "2020-01-01T00:00:00Z",
+        Some(300),
+        30,
+        vec![],
+        5,
+        None,
+    );
+    store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    let summary = store.tick_scheduled_tasks("2020-01-01T00:01:01Z").unwrap();
+    assert_eq!(summary.outcomes[0].action, "waiting");
+    assert!(summary.outcomes[0].detail.contains("repeat interval"));
+    let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(fetched.attempts, 1);
+}
+
+#[test]
+fn tick_rejects_invalid_now_timestamp() {
+    let (store, ws, _guard) = open();
+    let workspace = ws.join("ws");
+    fs::create_dir_all(&workspace).unwrap();
+    make(
+        &store,
+        &workspace.to_string_lossy(),
+        ScheduleTarget::Team,
+        "2020-01-01T00:00:00Z",
+        None,
+        60,
+        vec![],
+        3,
+        None,
+    );
+    assert!(store.tick_scheduled_tasks("not-a-timestamp").is_err());
 }

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scheduled Goals S1/S3/S7 core corrections (#351):** Dispatch now
+  claims an attempt and persists the outbox row before delivery, so
+  concurrent app/CLI ticks and cancel races cannot duplicate a prompt or
+  un-cancel a row. Stored timestamps are UTC instants (not lexical
+  RFC3339); invalid tick `now` and nonpositive repeat intervals fail
+  closed. Corrupt target/gates/budget JSON quarantines the row instead of
+  broadening it to Team or dropping constraints. Timeout and repeat
+  interval both apply before a re-prompt. `max_attempts` caps new
+  dispatches; the final in-flight attempt may still succeed, time out, or
+  miss its gate. Team token baselines omit `human`/`system` and missing
+  metrics (unknown, never zero). P5 gate-resume remains OpenCode #352;
+  `pending_gate_json` and `PendingGateEntry` are the agreed contract.
+  S7 IPC is unchanged (thin wrappers over the corrected store).
+
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
   stdout:** Outside a Flatpak/snap sandbox, GIO's portal-based
   `GProxyResolver` queries `org.freedesktop.portal.ProxyResolver` over

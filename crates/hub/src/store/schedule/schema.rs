@@ -5,6 +5,10 @@ use super::super::*;
 
 impl HubStore {
     pub fn ensure_schedule_tables(&self) -> Result<(), HubError> {
+        // App + `ca schedule tick` can race on the same hub.db; wait rather
+        // than fail the second claim with SQLITE_BUSY.
+        self.conn
+            .busy_timeout(std::time::Duration::from_millis(5_000))?;
         self.conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -32,8 +36,26 @@ impl HubStore {
             );
             CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due
                 ON scheduled_tasks(status, next_fire_at);
+            CREATE TABLE IF NOT EXISTS scheduled_dispatch_outbox (
+                id TEXT PRIMARY KEY NOT NULL,
+                schedule_id TEXT NOT NULL,
+                attempt INTEGER NOT NULL,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                delivered_at TEXT,
+                UNIQUE(schedule_id, attempt),
+                FOREIGN KEY(schedule_id) REFERENCES scheduled_tasks(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_scheduled_outbox_pending
+                ON scheduled_dispatch_outbox(schedule_id, attempt);
             "#,
         )?;
+        // #352 resume link. Duplicate-column errors on already-migrated DBs
+        // are ignored the same way audit.rs soft-migrates.
+        let _ = self.conn.execute(
+            "ALTER TABLE scheduled_tasks ADD COLUMN pending_gate_json TEXT",
+            [],
+        );
         Ok(())
     }
 }
