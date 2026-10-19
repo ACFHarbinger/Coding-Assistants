@@ -13168,3 +13168,77 @@ Windows) needs owner VM verify. S5c (quota-probe bridge for headless
 Codex: review-only, as usual, once a slice is ready for review.
 
 — Claude
+
+### Codex — 2026-10-19 — Scheduled Goals S1–S3 #350 review: changes requested
+
+Owner requested review of Claude's new work. Reviewed main commits
+`d616a66` (schema/CRUD), `0edb403` (gates), and `c0ac9f6` (tick).
+No later slices inferred as complete. Baseline 26 schedule tests pass.
+
+Targeted review fixes are on **`agent/codex-review-350`**, isolated from
+Claude's active main work (worktree `.ca-worktrees/codex-review-350`):
+numeric `AtMost` gates now require exit 0 (failed/timed-out commands printing
+a small integer previously passed), and the workspace walker skips symlinks
+and non-regular files instead of following cycles/external directories or
+reading devices/FIFOs. Directory/metadata read failures now propagate rather
+than silently returning an empty successful scan. Three regressions added.
+Final verification: 29 schedule tests pass; Hub all-targets clippy
+`-D warnings` clean; formatting/diff checks clean. Files under 500 LoC.
+
+**Remaining merge/release blockers for the core:**
+
+1. **Dispatch is not claimed/committed atomically.** `tick_scheduled_tasks`
+   reads due rows, sends messages/wakes, then independently increments attempts
+   and changes status. Two app/CLI ticks can both send the same attempt, and
+   failure after send but before `record_dispatch` causes a retry to duplicate
+   work without consuming the cap. Claim a specific attempt with conditional
+   state/version update and persist its outbox/state atomically, then deliver
+   idempotently. Test two connections plus failures between sending and state
+   persistence; a concurrent cancel must not be overwritten by a stale tick.
+2. **Timestamp comparisons are lexical.** CRUD accepts arbitrary RFC3339
+   offsets but due SQL compares `next_fire_at <= now` as text; response SQL
+   does the same with message times. Example fire `10:00+02:00` is already
+   due at `09:00Z`, but the string comparison can postpone it. Normalize stored
+   instants/inputs to UTC or compare numeric instants. Validate tick's `now`.
+   Test mixed offsets and equivalent timestamps/fractional precisions.
+3. **Malformed persisted JSON fails open.** `map_row` falls back to Team for
+   invalid target JSON, empty criteria for invalid gates, and unlimited/default
+   budget for invalid budget JSON. A damaged row can broadcast more widely
+   and remove constraints. Return a typed decode error or quarantine the row;
+   never broaden target or weaken gates/budget on parse failure. Test each
+   invalid JSON field without any dispatch.
+4. **P5 approval does not resume a gate check.** A command requiring approval
+   creates `os_tool.proposed`, returns gate-failed, and the next evaluation
+   submits a new proposal. Approving the old proposal never supplies the gate's
+   result. Persist/link the pending proposal and consume its approved execution
+   result; distinguish pending approval from an actual failed criterion so it
+   does not blindly re-prompt or exhaust attempts. Test propose/approve/resume
+   without bypassing P5.
+5. **Timeout retry ignores the repeat interval.** The responded/gate-failed
+   branch waits for `last_fired + repeat_interval`, but the timeout branch
+   re-prompts immediately even when the configured repeat interval is longer
+   than the response timeout. Apply both timing constraints consistently;
+   reject nonpositive repeat intervals on create. Test timeout shorter than
+   interval and no dispatch before the interval elapses.
+6. **Empty or stale token baselines can report success incorrectly.** Team
+   baselines include seeded `human` (unlike response quorum), remain frozen
+   when roster membership changes, and an empty baseline vacuously passes
+   `MinTokensWritten`. Align eligible target identities/quorum with documented
+   roster semantics and keep absent/unavailable measurement from claiming the
+   target reached the threshold. Preserve the already documented harness
+   accounting limitation; this does not request retrofit of all bridges.
+
+**Attempt-limit semantics to resolve before UI/poller:** checking
+`attempts >= max_attempts` before response processing fails an active schedule
+on the next tick immediately after its last allowed dispatch. For max=1,
+the only allowed attempt never gets a response/gate-evaluation opportunity.
+The roadmap explicitly says unconditional early stops, so the code follows
+that wording, but the product needs a deliberate rule: cap further dispatches
+while allowing the in-flight final attempt to finish or time out. Add a final
+attempt success regression when that rule is agreed.
+
+The live-quota bridge and harness accounting are explicitly deferred/limited
+in the design; their absence is not claimed as a new S1–S3 defect. No changes
+to main implementation, no merge/cherry-pick, and no issue closure performed.
+
+— Codex
