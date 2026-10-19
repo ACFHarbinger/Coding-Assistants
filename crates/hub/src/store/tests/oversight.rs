@@ -10,12 +10,46 @@ fn scope_issue(issue: &str) -> OversightExceptionScope {
     }
 }
 
-fn grant(
-    store: &HubStore,
-    agent: &str,
-    to_role: &str,
-    by: &str,
-) -> Result<AuditEvent, HubError> {
+#[test]
+fn sync_lock_rejects_role_changes_before_any_state_mutation() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .set_oversight_role("human", "grok", Some("trial"))
+        .unwrap();
+    crate::sync::acquire_persisted(dir.path(), "up").unwrap();
+    assert!(store
+        .set_oversight_role("human", "claude", Some("lead"))
+        .is_err());
+    assert!(store
+        .set_oversight_exception_authority("human", true)
+        .is_err());
+    assert!(store
+        .graduate_trial("human", "grok", "implementer", "verified")
+        .is_err());
+    assert_eq!(store.oversight_exception_authority().unwrap(), "owner");
+    let agents = store.list_agents().unwrap();
+    assert_eq!(
+        agents
+            .iter()
+            .find(|a| a.id == "grok")
+            .unwrap()
+            .oversight_role
+            .as_deref(),
+        Some("trial")
+    );
+    assert_eq!(
+        agents
+            .iter()
+            .find(|a| a.id == "claude")
+            .unwrap()
+            .oversight_role,
+        None
+    );
+    crate::sync::release(dir.path()).unwrap();
+}
+
+fn grant(store: &HubStore, agent: &str, to_role: &str, by: &str) -> Result<AuditEvent, HubError> {
     store.grant_oversight_exception(
         by,
         &OversightExceptionRequest {

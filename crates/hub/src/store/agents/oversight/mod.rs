@@ -62,6 +62,7 @@ impl HubStore {
         role: Option<&str>,
     ) -> Result<AgentRecord, HubError> {
         self.require_owner(actor)?;
+        self.ensure_mutable()?;
         let cleaned = clean_oversight_role(role)?;
         let current = self.standing_oversight_role(id)?;
         if current.as_deref() == Some("trial") && cleaned.as_deref() != Some("trial") {
@@ -116,6 +117,7 @@ impl HubStore {
         delegated_lead: bool,
     ) -> Result<(), HubError> {
         self.require_owner(actor)?;
+        self.ensure_mutable()?;
         let next = if delegated_lead {
             "delegated_lead"
         } else {
@@ -216,6 +218,7 @@ impl HubStore {
     ) -> Result<AgentRecord, HubError> {
         self.grantor_allowed(actor)?;
         let to_role = require_role(to_role)?;
+        self.ensure_mutable()?;
         if to_role == "trial" {
             return Err(HubError::Invalid(
                 "graduation must assign a non-trial oversight role".into(),
