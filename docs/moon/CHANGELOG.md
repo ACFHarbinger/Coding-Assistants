@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Team Scorecard T1 slice stamps and measured cost (#341):** Nullable
+  `task_id` / `work_session_id` / `attribution` are written into
+  `audit_events.process_json` (no new columns) on `os_tool` rows, P10
+  `budget.reserved` / `budget.stopped`, and `tagged.send`. Per-request
+  `provider.usage` records tokens and, when the adapter reports it,
+  currency; OpenRouter names the upstream provider plus `via_gateway`.
+  Unstamped rows stay `unknown`. `agent_metrics` is unchanged.
 - **Steam MCP server (#349):** New entry in the external-MCP registry
   (`crates/hub/src/mcp/external.rs`), same pattern as Perplexity
   (#276/#277). `dsp/mcp-server-steam` is a Java stdio server with no

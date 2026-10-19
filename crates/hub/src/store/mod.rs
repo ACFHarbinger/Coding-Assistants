@@ -54,6 +54,7 @@ mod tasks;
 mod tests;
 mod workspaces;
 pub use activity::*;
+pub use policies::{Attribution, ProviderUsage, SliceStamp};
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,

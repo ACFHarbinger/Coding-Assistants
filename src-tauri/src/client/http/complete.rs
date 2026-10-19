@@ -76,6 +76,7 @@ pub struct ChatResult {
     pub text: String,
     pub usage: Option<TokenUsage>,
     pub cost: Option<f64>,
+    pub model: Option<String>,
 }
 
 impl ChatResult {
@@ -170,6 +171,7 @@ pub async fn chat(
         text: text_from_response(&response)?,
         usage: response.usage.as_ref().map(TokenUsage::from_openai),
         cost: None,
+        model: Some(model.to_string()),
     })
 }
 
@@ -232,6 +234,7 @@ where
         text,
         usage,
         cost: None,
+        model: Some(model.to_string()),
     })
 }
 

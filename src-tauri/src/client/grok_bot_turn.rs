@@ -59,6 +59,6 @@ pub async fn grok_bot_completion(
         },
     )
     .await?;
-    emit_http_result(bus, source, &result, false);
+    emit_http_result(bus, source, &result, false, "grok-bot", None);
     Ok(result.text)
 }

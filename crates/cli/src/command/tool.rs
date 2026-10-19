@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use hub::os_tool::{self, OsToolRequest};
-use hub::{HubStore, SettingsStore};
+use hub::{HubStore, SettingsStore, SliceStamp};
 use std::path::{Path, PathBuf};
 
 use crate::app::ToolCommand;
@@ -35,6 +35,7 @@ pub(crate) fn run(store: &HubStore, home: &Path, action: ToolCommand) -> anyhow:
                 },
                 strictness,
                 os_tool::DEFAULT_TIMEOUT,
+                SliceStamp::default(),
             )
             .map_err(|error| anyhow::anyhow!(error))?;
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -110,6 +111,7 @@ mod tests {
             },
             SandboxStrictness::Standard,
             os_tool::DEFAULT_TIMEOUT,
+            SliceStamp::default(),
         )
         .unwrap();
         assert_eq!(result.status, "ran");

@@ -76,6 +76,17 @@ pub(super) struct ProcessJsonMeta {
     pub task_id: Option<String>,
     #[serde(default)]
     pub session_id: Option<String>,
+    #[serde(default)]
+    pub work_session_id: Option<String>,
+}
+
+impl ProcessJsonMeta {
+    pub(super) fn slice_session_id(&self) -> Option<&str> {
+        self.work_session_id
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .or(self.session_id.as_deref().filter(|id| !id.is_empty()))
+    }
 }
 
 pub(super) fn parse_cmdline(val: &serde_json::Value) -> Vec<String> {

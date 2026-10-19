@@ -40,6 +40,6 @@ pub async fn openrouter_completion(
         token,
     )
     .await?;
-    emit_http_result(bus, source, &result, true);
+    emit_http_result(bus, source, &result, true, "openrouter", Some("openrouter"));
     Ok(result.text)
 }

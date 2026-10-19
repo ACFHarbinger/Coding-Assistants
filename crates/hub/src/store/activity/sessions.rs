@@ -116,7 +116,7 @@ impl HubStore {
             let mut files = Vec::new();
             for audit in audit_events {
                 let meta = parse_process_meta(&audit.process_json);
-                let explicit_match = meta.session_id.as_deref() == Some(&session.id);
+                let explicit_match = meta.slice_session_id() == Some(session.id.as_str());
                 let ws_match = match (&session_ws_path, &audit.root_path) {
                     (Some(sw), ar) => workspace_paths_overlap(sw, ar),
                     _ => false,
