@@ -37,6 +37,8 @@ pub mod memory;
 pub mod messaging;
 #[path = "os_tool.rs"]
 pub mod os_tool;
+#[path = "hub/oversight.rs"]
+pub mod oversight;
 #[path = "quota/claude.rs"]
 mod quota_claude;
 #[path = "quota/codex.rs"]

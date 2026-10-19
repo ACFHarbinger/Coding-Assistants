@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Team Scorecard T2 oversight role (#342):** `agents.oversight_role`
+  (`implementer | reviewer | lead | observer | trial`) sits beside U21's
+  display `role`. Temporary swaps are hash-chained `oversight.exception`
+  rows (grant, revoke, deadline expiry, task-completion expiry). Trial
+  agents leave trial only through `oversight.trial_graduated`. Exception
+  authority defaults to the owner; a delegated lead is a separate setting
+  a lead cannot enable. Rows record that they grant no P5, vault, or
+  network rights and do not authorize self-review. Advisory only.
 - **Cloud-sync S13 Android download-only restore (#103):** Companion
   verifies CAS1 objects from an owner-copied hashed inbox and restores
   plaintext into app-private `sync/staging/restore/`. Invalid ciphertext

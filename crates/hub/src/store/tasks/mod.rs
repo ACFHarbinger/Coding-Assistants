@@ -343,6 +343,7 @@ impl HubStore {
                     &[],
                     &[],
                 )?;
+                self.sweep_oversight_exceptions()?;
                 return self
                     .get_task(id)?
                     .ok_or_else(|| HubError::NotFound(id.into()));

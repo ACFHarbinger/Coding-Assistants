@@ -368,6 +368,7 @@ impl HubStore {
             "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",
             "ALTER TABLE agents ADD COLUMN role TEXT",
+            "ALTER TABLE agents ADD COLUMN oversight_role TEXT",
             "ALTER TABLE agents ADD COLUMN custom_display_name INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN animated_avatar INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN vtuber_character TEXT",
