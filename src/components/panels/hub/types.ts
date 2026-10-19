@@ -139,6 +139,7 @@ export interface AgentScorecardRow {
   oversight_role?: string | null;
   open_security_events: ScorecardSecurityEvent[];
   oldest_pending_human_decision?: string | null;
+  tokens: ScorecardFigure;
   cost: ScorecardFigure;
   measured_cost_units?: number | null;
   estimated_cost_units?: number | null;

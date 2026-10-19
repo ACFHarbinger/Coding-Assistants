@@ -15,3 +15,4 @@ mod roster_memory;
 mod workflow_policy;
 mod workflows;
 mod scorecard;
+mod scorecard_regressions;

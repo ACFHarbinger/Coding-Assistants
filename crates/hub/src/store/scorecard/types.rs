@@ -99,6 +99,7 @@ pub struct AgentScorecardRow {
     pub oversight_role: Option<String>,
     pub open_security_events: Vec<ScorecardSecurityEvent>,
     pub oldest_pending_human_decision: Option<String>,
+    pub tokens: ScorecardFigure,
     pub cost: ScorecardFigure,
     pub measured_cost_units: Option<f64>,
     pub estimated_cost_units: Option<f64>,

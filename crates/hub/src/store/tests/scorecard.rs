@@ -109,7 +109,7 @@ fn scorecard_sorts_open_security_before_pending_decision_before_cost() {
         .conn
         .execute(
             "INSERT INTO pending_gate_approvals(id, subject, from_agent, to_agents_json, body, reason, status, created_at) \
-             VALUES ('gate-1', 'test', 'grok', '[]', 'body', 'reason', 'pending', '2026-10-19T10:00:00Z')",
+             VALUES ('gate-1', 'test', 'grok', '[\"human\"]', 'body', 'reason', 'pending', '2026-10-19T10:00:00Z')",
             [],
         )
         .unwrap();

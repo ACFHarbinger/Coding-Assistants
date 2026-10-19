@@ -188,13 +188,23 @@ export function ScorecardTab() {
                     )}
                   </div>
 
-                  {/* Cost & Budget info */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem" }}>
+                  {/* Tokens, Cost & Budget info */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem", gap: "0.5rem" }}>
+                    <div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Tokens</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <span style={{ fontWeight: 600 }}>
+                          {agent.tokens?.value != null ? agent.tokens.value.toLocaleString() : "—"}
+                        </span>
+                        {agent.tokens && renderProvenanceChip(agent.tokens.provenance)}
+                      </div>
+                    </div>
+
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Attributed Cost</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                         <span style={{ fontWeight: 600 }}>
-                          {agent.cost.value != null ? agent.cost.value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}
+                          {agent.cost.value != null ? (agent.cost.unit === "currency" ? `$${agent.cost.value.toFixed(4)}` : agent.cost.value.toLocaleString(undefined, { maximumFractionDigits: 4 })) : "—"}
                         </span>
                         {renderProvenanceChip(agent.cost.provenance)}
                       </div>

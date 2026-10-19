@@ -5,7 +5,7 @@
 //! (agent, harness, provider) with explicit figure provenance and visibility
 //! gating.
 
+mod helpers;
 mod query;
 mod types;
-
 pub use types::*;

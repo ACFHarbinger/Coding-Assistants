@@ -1,35 +1,10 @@
-//! Database projection queries for Team Scorecard (T3 / #343).
-
+use super::helpers::*;
 use super::types::*;
 use crate::settings::ScorecardVisibility;
 use crate::store::{HubError, HubStore};
 use chrono::Utc;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
-
-const KNOWN_HARNESSES: &[&str] = &[
-    "claude", "cursor", "gemini", "grok", "opencode", "deepseek", "vibe", "muse", "qwen", "kimi",
-    "hermes", "chat",
-];
-
-fn is_security_class_op(op: &str) -> bool {
-    op.starts_with("os_tool.")
-        || op.starts_with("vault.")
-        || op.starts_with("secret.")
-        || op == "tcp.auth_rejected"
-        || op == "budget.stopped"
-        || op == "budget.reserved"
-        || op.starts_with("oversight.")
-        || op.starts_with("mcp.invoke")
-}
-
-fn is_open_security_event(status: &str, op: &str) -> bool {
-    status == "pending"
-        || status == "quarantined"
-        || op == "os_tool.denied"
-        || op == "tcp.auth_rejected"
-        || op == "budget.stopped"
-}
 
 impl HubStore {
     /// Projects stamped audit rows, tasks, work sessions, budgets, and quota snapshots
@@ -52,7 +27,7 @@ impl HubStore {
             });
         }
 
-        // 1. Load agents
+        // 1. Load roster agents
         let has_oversight: bool = self
             .conn
             .prepare("SELECT oversight_role FROM agents LIMIT 1")
@@ -111,7 +86,7 @@ impl HubStore {
             }
         }
 
-        // 3. Load pending gate approvals for human decision clock
+        // 3. Load pending gate approvals where a human is an explicit decision target
         let mut oldest_decisions: HashMap<String, String> = HashMap::new();
         {
             let mut stmt = self.conn.prepare(
@@ -127,23 +102,27 @@ impl HubStore {
             })?;
             for r in rows {
                 let (from_a, to_json, created) = r?;
-                oldest_decisions.entry(from_a).or_insert_with(|| created.clone());
-                if let Ok(Value::Array(arr)) = serde_json::from_str(&to_json) {
-                    for item in arr {
-                        if let Some(target) = item.as_str() {
-                            oldest_decisions
-                                .entry(target.to_string())
-                                .or_insert_with(|| created.clone());
-                        }
-                    }
+                let is_human_target = match serde_json::from_str::<Value>(&to_json) {
+                    Ok(Value::Array(arr)) => arr.iter().any(|v| v.as_str() == Some("human")),
+                    _ => false,
+                };
+                if is_human_target {
+                    oldest_decisions
+                        .entry(from_a)
+                        .and_modify(|existing| {
+                            if created < *existing {
+                                *existing = created.clone();
+                            }
+                        })
+                        .or_insert(created);
                 }
             }
         }
 
         // 4. Process audit events for security-class rows and provider.usage
         let mut security_events: HashMap<String, Vec<ScorecardSecurityEvent>> = HashMap::new();
-        let mut agent_measured_cost: HashMap<String, f64> = HashMap::new();
-        let mut provider_metrics: BTreeMap<(String, Option<String>), (f64, f64, u64)> =
+        let mut agent_usage: HashMap<String, UsageAccumulator> = HashMap::new();
+        let mut provider_metrics: BTreeMap<(String, Option<String>), UsageAccumulator> =
             BTreeMap::new();
 
         {
@@ -164,10 +143,11 @@ impl HubStore {
                 let (id, operation, observed_at, process_raw, status) = r?;
                 let json_meta: Value = serde_json::from_str(&process_raw).unwrap_or(Value::Null);
 
-                let agent_id = json_meta
+                // Explicit actor identity only; do not fall back to attribution basis
+                let explicit_actor = json_meta
                     .get("actor_agent")
                     .or_else(|| json_meta.get("agent"))
-                    .or_else(|| json_meta.get("attribution"))
+                    .or_else(|| json_meta.get("actor"))
                     .and_then(Value::as_str)
                     .map(str::to_string);
 
@@ -193,29 +173,45 @@ impl HubStore {
                         .and_then(Value::as_str)
                         .map(str::to_string);
 
-                    let prompt = json_meta
-                        .get("prompt_tokens")
-                        .and_then(Value::as_u64)
-                        .unwrap_or(0);
-                    let completion = json_meta
-                        .get("completion_tokens")
-                        .and_then(Value::as_u64)
-                        .unwrap_or(0);
-                    let tokens = (prompt + completion) as f64;
+                    let prompt_opt = json_meta.get("prompt_tokens").and_then(Value::as_u64);
+                    let completion_opt =
+                        json_meta.get("completion_tokens").and_then(Value::as_u64);
+                    let has_tok = prompt_opt.is_some() || completion_opt.is_some();
 
-                    let cost = json_meta.get("cost").and_then(Value::as_f64).unwrap_or(0.0);
+                    let cost_opt = json_meta.get("cost").and_then(Value::as_f64);
+                    let currency_is_measured = json_meta.get("currency").and_then(Value::as_str)
+                        == Some("measured");
+                    let has_cost = cost_opt.is_some() || currency_is_measured;
+                    let cost_val = cost_opt.unwrap_or(0.0);
 
-                    let entry = provider_metrics
+                    let p_entry = provider_metrics
                         .entry((provider, via_gateway))
-                        .or_insert((0.0, 0.0, 0));
-                    entry.0 += tokens;
-                    entry.1 += cost;
-                    entry.2 += 1;
-
-                    if let Some(ref aid) = agent_id {
-                        let total = agent_measured_cost.entry(aid.clone()).or_insert(0.0);
-                        *total += if cost > 0.0 { cost } else { tokens };
+                        .or_default();
+                    if has_tok {
+                        p_entry.prompt_tokens += prompt_opt.unwrap_or(0);
+                        p_entry.completion_tokens += completion_opt.unwrap_or(0);
+                        p_entry.has_tokens = true;
                     }
+                    if has_cost {
+                        p_entry.cost += cost_val;
+                        p_entry.has_cost = true;
+                    }
+                    p_entry.request_count += 1;
+
+                    let agent_key = explicit_actor
+                        .clone()
+                        .unwrap_or_else(|| "unattributed".to_string());
+                    let a_entry = agent_usage.entry(agent_key).or_default();
+                    if has_tok {
+                        a_entry.prompt_tokens += prompt_opt.unwrap_or(0);
+                        a_entry.completion_tokens += completion_opt.unwrap_or(0);
+                        a_entry.has_tokens = true;
+                    }
+                    if has_cost {
+                        a_entry.cost += cost_val;
+                        a_entry.has_cost = true;
+                    }
+                    a_entry.request_count += 1;
                 }
 
                 if is_security_class_op(&operation) && is_open_security_event(&status, &operation) {
@@ -228,8 +224,17 @@ impl HubStore {
                         work_session_id: session_id,
                         provenance: FigureProvenance::Measured,
                     };
-                    let key = agent_id.unwrap_or_else(|| "unattributed".to_string());
+                    let key = explicit_actor
+                        .clone()
+                        .unwrap_or_else(|| "unattributed".to_string());
                     security_events.entry(key).or_default().push(event);
+                }
+
+                // Preserve non-roster explicit actors
+                if let Some(ref act) = explicit_actor {
+                    if !agents_map.contains_key(act) {
+                        agents_map.insert(act.clone(), (act.clone(), None));
+                    }
                 }
             }
         }
@@ -245,14 +250,23 @@ impl HubStore {
                 .map(|(l, s, p)| (Some(l), Some(s), p))
                 .unwrap_or((None, None, false));
 
-            let measured = agent_measured_cost.remove(&aid);
+            let usage = agent_usage.remove(&aid).unwrap_or_default();
+
+            let tokens_figure = if usage.has_tokens {
+                ScorecardFigure::measured(
+                    (usage.prompt_tokens + usage.completion_tokens) as f64,
+                    "tokens",
+                )
+            } else {
+                ScorecardFigure::unknown("tokens")
+            };
 
             let (cost_figure, prov_str, measured_cost_units, estimated_cost_units) =
-                if let Some(m) = measured {
+                if usage.has_cost {
                     (
-                        ScorecardFigure::measured(m, "cost"),
+                        ScorecardFigure::measured(usage.cost, "currency"),
                         "measured".to_string(),
-                        Some(m),
+                        Some(usage.cost),
                         None,
                     )
                 } else if let Some(spent) = budget_spent {
@@ -264,7 +278,7 @@ impl HubStore {
                     )
                 } else {
                     (
-                        ScorecardFigure::unknown("units"),
+                        ScorecardFigure::unknown("currency"),
                         "unknown".to_string(),
                         None,
                         None,
@@ -277,6 +291,7 @@ impl HubStore {
                 oversight_role: oversight,
                 open_security_events: open_sec,
                 oldest_pending_human_decision: oldest_pending,
+                tokens: tokens_figure,
                 cost: cost_figure,
                 measured_cost_units,
                 estimated_cost_units,
@@ -288,31 +303,54 @@ impl HubStore {
             });
         }
 
-        // Add unattributed agent row if there are unattributed open security events
-        if let Some(unattr_events) = security_events.remove("unattributed") {
-            if !unattr_events.is_empty() {
-                agent_rows.push(AgentScorecardRow {
-                    agent_id: "unattributed".to_string(),
-                    display_name: "Unattributed Operations".to_string(),
-                    oversight_role: None,
-                    open_security_events: unattr_events,
-                    oldest_pending_human_decision: None,
-                    cost: ScorecardFigure::unknown("units"),
-                    measured_cost_units: None,
-                    estimated_cost_units: None,
-                    budget_spent: None,
-                    budget_limit: None,
-                    budget_paused: false,
-                    provenance: "unknown".to_string(),
-                    task_count: ScorecardFigure::unknown("tasks"),
-                });
-            }
+        // Preserve unattributed open security events or usage
+        let unattr_events = security_events.remove("unattributed").unwrap_or_default();
+        let unattr_usage = agent_usage.remove("unattributed").unwrap_or_default();
+        if !unattr_events.is_empty() || unattr_usage.has_tokens || unattr_usage.has_cost {
+            let tokens_figure = if unattr_usage.has_tokens {
+                ScorecardFigure::measured(
+                    (unattr_usage.prompt_tokens + unattr_usage.completion_tokens) as f64,
+                    "tokens",
+                )
+            } else {
+                ScorecardFigure::unknown("tokens")
+            };
+            let (cost_figure, prov_str, measured_cost_units) = if unattr_usage.has_cost {
+                (
+                    ScorecardFigure::measured(unattr_usage.cost, "currency"),
+                    "measured".to_string(),
+                    Some(unattr_usage.cost),
+                )
+            } else {
+                (
+                    ScorecardFigure::unknown("currency"),
+                    "unknown".to_string(),
+                    None,
+                )
+            };
+
+            agent_rows.push(AgentScorecardRow {
+                agent_id: "unattributed".to_string(),
+                display_name: "Unattributed Operations".to_string(),
+                oversight_role: None,
+                open_security_events: unattr_events,
+                oldest_pending_human_decision: None,
+                tokens: tokens_figure,
+                cost: cost_figure,
+                measured_cost_units,
+                estimated_cost_units: None,
+                budget_spent: None,
+                budget_limit: None,
+                budget_paused: false,
+                provenance: prov_str,
+                task_count: ScorecardFigure::unknown("tasks"),
+            });
         }
 
         // Sort agent rows:
         // 1. open security-class rows first (descending by count)
         // 2. oldest pending human decision (ascending by timestamp, Some before None)
-        // 3. measured cost (descending)
+        // 3. measured cost ONLY (descending). Estimated budget units must NOT be compared here!
         // 4. alphabetical tie-breaker
         // NEVER a composite score.
         agent_rows.sort_by(|a, b| {
@@ -332,12 +370,13 @@ impl HubStore {
                 _ => {}
             }
 
-            let a_cost = a.cost.value.unwrap_or(0.0);
-            let b_cost = b.cost.value.unwrap_or(0.0);
-            if (a_cost - b_cost).abs() > f64::EPSILON {
-                return b_cost
-                    .partial_cmp(&a_cost)
-                    .unwrap_or(std::cmp::Ordering::Equal);
+            match (a.measured_cost_units, b.measured_cost_units) {
+                (Some(ca), Some(cb)) if (ca - cb).abs() > f64::EPSILON => {
+                    return cb.partial_cmp(&ca).unwrap_or(std::cmp::Ordering::Equal);
+                }
+                (Some(_), None) => return std::cmp::Ordering::Less,
+                (None, Some(_)) => return std::cmp::Ordering::Greater,
+                _ => {}
             }
 
             a.agent_id.cmp(&b.agent_id)
@@ -348,8 +387,8 @@ impl HubStore {
         let mut registered_workspaces = Vec::new();
         {
             let mut stmt = self.conn.prepare(
-                "SELECT harness, workspace, disk_session_id, mode, state FROM harness_session_registrations \
-                 ORDER BY harness, workspace",
+                "SELECT harness, workspace, disk_session_id, mode, state, writer_owner \
+                 FROM harness_session_registrations ORDER BY harness, workspace",
             )?;
             let rows = stmt.query_map([], |row| {
                 Ok((
@@ -358,11 +397,12 @@ impl HubStore {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
                 ))
             })?;
 
             for r in rows {
-                let (harness, workspace, session_id, mode, state) = r?;
+                let (harness, workspace, session_id, mode, state, writer_owner) = r?;
                 if !registered_workspaces.contains(&workspace) {
                     registered_workspaces.push(workspace.clone());
                 }
@@ -370,8 +410,10 @@ impl HubStore {
                     "managed" => HarnessCoverage::Managed,
                     _ => HarnessCoverage::Observed,
                 };
+                // Only set linked_agent_id when proven by explicit registration relationship
+                let linked_agent_id = writer_owner.filter(|w| !w.trim().is_empty());
                 harness_rows.push(HarnessScorecardRow {
-                    linked_agent_id: Some(harness.clone()),
+                    linked_agent_id,
                     harness,
                     workspace,
                     coverage,
@@ -382,7 +424,7 @@ impl HubStore {
             }
         }
 
-        // Add unregistered harnesses for registered workspaces
+        // Add unregistered harnesses for registered workspaces (linked_agent_id is None)
         let target_workspaces = if registered_workspaces.is_empty() {
             vec!["default".to_string()]
         } else {
@@ -399,7 +441,7 @@ impl HubStore {
                         harness: kh.to_string(),
                         workspace: ws.clone(),
                         coverage: HarnessCoverage::Unregistered,
-                        linked_agent_id: Some(kh.to_string()),
+                        linked_agent_id: None,
                         disk_session_id: None,
                         state: None,
                         session_count: ScorecardFigure::unknown("sessions"),
@@ -410,18 +452,26 @@ impl HubStore {
 
         // 7. Build Provider rows
         let mut provider_rows: Vec<ProviderScorecardRow> = Vec::new();
-        for ((provider, via_gateway), (tokens, cost, count)) in provider_metrics {
-            let cost_fig = if cost > 0.0 {
-                ScorecardFigure::measured(cost, "currency")
+        for ((provider, via_gateway), p) in provider_metrics {
+            let tokens_fig = if p.has_tokens {
+                ScorecardFigure::measured(
+                    (p.prompt_tokens + p.completion_tokens) as f64,
+                    "tokens",
+                )
+            } else {
+                ScorecardFigure::unknown("tokens")
+            };
+            let cost_fig = if p.has_cost {
+                ScorecardFigure::measured(p.cost, "currency")
             } else {
                 ScorecardFigure::unknown("currency")
             };
             provider_rows.push(ProviderScorecardRow {
                 provider,
                 via_gateway,
-                tokens: ScorecardFigure::measured(tokens, "tokens"),
+                tokens: tokens_fig,
                 cost: cost_fig,
-                request_count: ScorecardFigure::measured(count as f64, "requests"),
+                request_count: ScorecardFigure::measured(p.request_count as f64, "requests"),
             });
         }
 
