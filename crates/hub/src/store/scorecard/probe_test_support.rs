@@ -85,19 +85,23 @@ pub(crate) fn task_with_agents(store: &HubStore, id: &str, agents: &[&str]) {
 }
 
 pub(crate) fn session_with_members(store: &HubStore, id: &str, agents: &[&str]) {
+    session_with_members_at(store, id, agents, "2026-10-19T09:00:00Z");
+}
+
+pub(crate) fn session_with_members_at(store: &HubStore, id: &str, agents: &[&str], at: &str) {
     store
         .conn
         .execute(
-            "INSERT INTO work_sessions (id, name, created_at) VALUES (?1, 's', '2026-10-19T09:00:00Z')",
-            params![id],
+            "INSERT INTO work_sessions (id, name, created_at) VALUES (?1, 's', ?2)",
+            params![id, at],
         )
         .unwrap();
     for agent in agents {
         store
             .conn
             .execute(
-                "INSERT INTO work_session_members (session_id, agent_id, created_at) VALUES (?1, ?2, '2026-10-19T09:00:00Z')",
-                params![id, agent],
+                "INSERT INTO work_session_members (session_id, agent_id, created_at) VALUES (?1, ?2, ?3)",
+                params![id, agent, at],
             )
             .unwrap();
     }
@@ -118,14 +122,26 @@ pub(crate) fn disagreement_count(store: &HubStore) -> i64 {
         .unwrap()
 }
 
-/// Durable task handoff message: timestamped evidence that the Hub handed
-/// this agent the slice (assignment fact at the relevant time).
+/// Durable task handoff (`MessageKind::Handoff`): the dispatch assignment,
+/// timestamped so it can authorize work at or after `at`.
 pub(crate) fn task_message(store: &HubStore, id: &str, to: &str, task: &str, at: &str) {
     store
         .conn
         .execute(
             "INSERT INTO messages (id, from_agent, to_agent, task_id, kind, status, body, created_at) \
-             VALUES (?1, 'human', ?2, ?3, 'task', 'pending', 'work this slice', ?4)",
+             VALUES (?1, 'human', ?2, ?3, 'handoff', 'pending', 'work this slice', ?4)",
+            params![id, to, task, at],
+        )
+        .unwrap();
+}
+
+/// Ordinary task-tagged chat. Carries the task id and is not an assignment.
+pub(crate) fn chat_message(store: &HubStore, id: &str, to: &str, task: &str, at: &str) {
+    store
+        .conn
+        .execute(
+            "INSERT INTO messages (id, from_agent, to_agent, task_id, kind, status, body, created_at) \
+             VALUES (?1, 'human', ?2, ?3, 'message', 'pending', 'status note', ?4)",
             params![id, to, task, at],
         )
         .unwrap();

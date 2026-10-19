@@ -1,13 +1,12 @@
-//! `claimant_consistency` probe: unapproved action claims on a slice
-//! (Team Scorecard T7 / #347).
+//! `claimant_consistency` probe: action claims without time-valid authority
+//! (Team Scorecard T7 / #347). Missing authority is `unknown`.
 
 use super::probes::PROBE_CLAIMANT_CONSISTENCY;
 use super::types::{ProbeState, ScorecardProbe};
-use crate::store::models::WorkflowStep;
 use crate::store::{HubError, HubStore};
 use rusqlite::params;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 /// Which audit operations constitute an *action claim* on a slice.
 /// Communication (`tagged.send`), review findings, and wake/task routing
@@ -42,23 +41,26 @@ fn time_lte(evidence: &str, action: &str) -> bool {
 }
 
 impl HubStore {
-    /// Probe 4 — unapproved action claims on a slice. Multiple actors on
-    /// one task or work session is legitimate collaboration, so actor
-    /// plurality alone is NEVER a verdict. Approval has two independent
-    /// grounds, both assignment facts:
+    /// Probe 4 — action claims checked against authority that existed when
+    /// the work happened. Actor plurality is never a verdict, and the
+    /// current task or session roster is not one either: it has no
+    /// interval, so it cannot approve past work or prove someone was
+    /// excluded. A missing interval is `unknown`, not a disagreement.
     ///
-    /// - the *current* assignment record (task steps/open/pending agents,
-    ///   work-session members) — the agent is assigned now;
-    /// - *historical* handoff evidence at or before the agent's earliest
-    ///   claimed action on the slice — a durable message or wake carrying
-    ///   the task id, or session membership, timestamped before the work.
-    ///   This is what keeps a reassignment from falsely flagging earlier
-    ///   legitimate work: an agent handed the slice then, and since
-    ///   reassigned away, was approved *at the relevant time*.
+    /// Time-valid authority, per agent, at or before that agent's earliest
+    /// claimed action:
     ///
-    /// Only a claimant with NEITHER ground disagrees. A slice with no
-    /// assignment facts at all → `unknown`, not disagreement. Task and
-    /// work-session identifier namespaces stay separate.
+    /// - tasks: a `handoff` message for the task, or a wake whose linked
+    ///   message is that handoff. Ordinary messages and wakes attached to
+    ///   them are communication, not an assignment;
+    /// - sessions: a membership row whose `created_at` is at or before the
+    ///   action. Joining later does not cover the action. A removed member
+    ///   leaves no row, so their earlier work stays `unknown` rather than
+    ///   a disagreement.
+    ///
+    /// Every claimant authorized → `ok`. Anyone without that authority →
+    /// `unknown`, including a single claimant. Task and work-session
+    /// identifier namespaces stay separate.
     pub(crate) fn probe_claimant_consistency(&self) -> Result<Vec<ScorecardProbe>, HubError> {
         let mut by_slice: ClaimsBySlice = BTreeMap::new();
         let mut stmt = self.conn.prepare(
@@ -124,23 +126,12 @@ impl HubStore {
                 ids.extend(rows.iter().map(|(id, _)| id.clone()));
             }
             let subject = format!("{namespace}:{slice}");
-
-            let current = if namespace == "task" {
-                self.task_assignments(&slice)?
-            } else {
-                self.session_assignments(&slice)?
-            };
             let evidence = self.assignment_evidence(&namespace, &slice)?;
-            let facts_exist = current.is_some() || !evidence.is_empty();
-
-            let unapproved: Vec<String> = names
+            let unproven: Vec<String> = names
                 .iter()
                 .filter(|name| {
-                    if current.as_ref().is_some_and(|set| set.contains(*name)) {
-                        return false;
-                    }
-                    // Earliest claimed action: once handed the slice before
-                    // acting, later actions on it stay grounded.
+                    // Earliest claimed action: authority has to predate it.
+                    // A later handoff or enrolment does not reach backward.
                     let earliest = agents
                         .get(*name)
                         .map(|rows| {
@@ -158,7 +149,7 @@ impl HubStore {
                 .cloned()
                 .collect();
 
-            if unapproved.is_empty() {
+            if unproven.is_empty() {
                 out.push(ScorecardProbe {
                     probe: PROBE_CLAIMANT_CONSISTENCY.to_string(),
                     subject,
@@ -167,108 +158,30 @@ impl HubStore {
                     source_event_ids: ids,
                     linked_agents: names,
                 });
-            } else if !facts_exist {
+            } else {
                 out.push(ScorecardProbe {
                     probe: PROBE_CLAIMANT_CONSISTENCY.to_string(),
                     subject,
                     state: ProbeState::Unknown,
-                    reason: Some(
-                        "no assignment facts for this slice (no current assignment, no historical handoff) — actor plurality is not an ownership verdict"
-                            .to_string(),
-                    ),
-                    source_event_ids: ids,
-                    linked_agents: names,
-                });
-            } else {
-                let grounds: Vec<String> = current
-                    .as_ref()
-                    .map(|set| {
-                        let mut list: Vec<String> = set.iter().cloned().collect();
-                        list.sort();
-                        list
-                    })
-                    .unwrap_or_default();
-                out.push(ScorecardProbe {
-                    probe: PROBE_CLAIMANT_CONSISTENCY.to_string(),
-                    subject,
-                    state: ProbeState::Disagreement,
                     reason: Some(format!(
-                        "unapproved claimant(s) {} on slice with assignment facts ({})",
-                        unapproved.join(", "),
-                        if grounds.is_empty() {
-                            "historical handoffs only".to_string()
-                        } else {
-                            grounds.join(", ")
-                        }
+                        "no time-valid authorization for {} at the action — current assignment and ordinary messages are not historical authority; actor plurality is not an ownership verdict",
+                        unproven.join(", ")
                     )),
                     source_event_ids: ids,
-                    linked_agents: unapproved.clone(),
+                    linked_agents: unproven,
                 });
             }
         }
         Ok(out)
     }
 
-    /// Approved agent set for a Hub task: its workflow steps plus the
-    /// open/pending agent columns. `None` when the task is not a Hub task.
-    fn task_assignments(&self, task_id: &str) -> Result<Option<HashSet<String>>, HubError> {
-        let row: Option<(String, String, String)> = self
-            .conn
-            .query_row(
-                "SELECT steps_json, open_agents_json, pending_agents_json FROM tasks WHERE id = ?1",
-                params![task_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .ok();
-        let Some((steps, open, pending)) = row else {
-            return Ok(None);
-        };
-        let mut set = HashSet::new();
-        if let Ok(steps) = serde_json::from_str::<Vec<WorkflowStep>>(&steps) {
-            for step in steps {
-                let agent = step.agent.trim();
-                if !agent.is_empty() {
-                    set.insert(agent.to_string());
-                }
-            }
-        }
-        for column in [open, pending] {
-            if let Ok(agents) = serde_json::from_str::<Vec<String>>(&column) {
-                for agent in agents {
-                    let agent = agent.trim();
-                    if !agent.is_empty() {
-                        set.insert(agent.to_string());
-                    }
-                }
-            }
-        }
-        Ok(Some(set))
-    }
-
-    /// Approved agent set for a work session: its enrolled members. A
-    /// session with no member rows has no current assignment.
-    fn session_assignments(&self, session_id: &str) -> Result<Option<HashSet<String>>, HubError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT agent_id FROM work_session_members WHERE session_id = ?1")?;
-        let rows = stmt.query_map(params![session_id], |row| row.get::<_, String>(0))?;
-        let members: HashSet<String> = rows
-            .flatten()
-            .map(|member| member.trim().to_string())
-            .filter(|member| !member.is_empty())
-            .collect();
-        if members.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(members))
-        }
-    }
-
-    /// Historical handoff evidence per agent: the earliest time the Hub
-    /// handed them this slice. Tasks: durable messages carrying the task id,
-    /// and wakes whose message carries it. Sessions: membership join time.
-    /// These timestamped facts are what makes the check evaluate the
-    /// assignment *at the time of the work*, not at read time.
+    /// Earliest time-valid authorization instant per agent.
+    ///
+    /// Tasks accept only `kind = handoff` messages, plus wakes whose linked
+    /// message is that handoff (the dispatch path). Any other message or
+    /// wake that merely carries the task id is communication. Sessions
+    /// accept the membership join time. The current roster is intentionally
+    /// not read here.
     fn assignment_evidence(
         &self,
         namespace: &str,
@@ -283,7 +196,7 @@ impl HubStore {
             evidence
                 .entry(agent.to_string())
                 .and_modify(|existing| {
-                    if at < *existing {
+                    if time_lte(&at, existing) && &at != existing {
                         *existing = at.clone();
                     }
                 })
@@ -291,8 +204,9 @@ impl HubStore {
         };
         if namespace == "task" {
             let mut stmt = self.conn.prepare(
-                "SELECT to_agent, MIN(created_at) FROM messages \
-                 WHERE task_id = ?1 AND to_agent IS NOT NULL AND to_agent != '' GROUP BY to_agent",
+                "SELECT to_agent, created_at FROM messages \
+                 WHERE task_id = ?1 AND kind = 'handoff' \
+                   AND to_agent IS NOT NULL AND to_agent != ''",
             )?;
             let rows = stmt.query_map(params![slice], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -300,11 +214,13 @@ impl HubStore {
             for (agent, at) in rows.flatten() {
                 absorb(agent, at, &mut evidence);
             }
+            // Dispatch wakes authorize only when they hang off the handoff
+            // message. The instant is the handoff's, not a later wake retry.
             let mut stmt = self.conn.prepare(
-                "SELECT w.target_agent, MIN(w.created_at) FROM wake_requests w \
+                "SELECT w.target_agent, m.created_at FROM wake_requests w \
                  JOIN messages m ON m.id = w.message_id \
-                 WHERE m.task_id = ?1 AND w.target_agent IS NOT NULL AND w.target_agent != '' \
-                 GROUP BY w.target_agent",
+                 WHERE m.task_id = ?1 AND m.kind = 'handoff' \
+                   AND w.target_agent IS NOT NULL AND w.target_agent != ''",
             )?;
             let rows = stmt.query_map(params![slice], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -331,3 +247,7 @@ impl HubStore {
 #[cfg(test)]
 #[path = "probe_claimant_tests.rs"]
 mod probe_claimant_tests;
+
+#[cfg(test)]
+#[path = "probe_claimant_authority_tests.rs"]
+mod probe_claimant_authority_tests;

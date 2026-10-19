@@ -25,8 +25,16 @@ fn claimant_probe_evaluates_a_single_actor() {
         .iter()
         .find(|p| p.subject == "task:task-one")
         .unwrap();
-    assert_eq!(result.state, ProbeState::Disagreement);
+    // Still evaluated (a sole actor is not skipped). Current steps naming
+    // Cursor are not time-valid authority, and they do not prove Grok was
+    // excluded, so the verdict is unknown.
+    assert_eq!(result.state, ProbeState::Unknown);
     assert_eq!(result.linked_agents, vec!["grok"]);
+    assert!(result
+        .reason
+        .as_deref()
+        .unwrap_or("")
+        .contains("time-valid"));
 }
 
 #[test]
@@ -65,10 +73,48 @@ fn claimant_probe_unknown_without_assignment_record() {
 }
 
 #[test]
-fn claimant_probe_ok_when_collaboration_is_assigned() {
+fn claimant_probe_current_assignment_does_not_approve_past_work() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    // Both agents are on the current task record. That roster has no
+    // interval, so it cannot approve actions that already happened.
+    task_with_agents(&store, "task-x", &["cursor", "grok"]);
+    usage_row(
+        &store,
+        "openai",
+        0.01,
+        "2026-10-19T11:00:00Z",
+        Some("task-x"),
+    );
+    usage_full(
+        &store,
+        "openai",
+        0.01,
+        "2026-10-19T11:05:00Z",
+        Some("task-x"),
+        None,
+        "grok",
+    );
+
+    let probes = store.compute_probe_candidates().unwrap();
+    let claimant = probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY);
+    assert_eq!(claimant.len(), 1);
+    assert_eq!(claimant[0].state, ProbeState::Unknown);
+    let reason = claimant[0].reason.as_deref().unwrap_or("");
+    assert!(reason.contains("time-valid"), "{reason}");
+    assert!(
+        reason.contains("cursor") && reason.contains("grok"),
+        "{reason}"
+    );
+}
+
+#[test]
+fn claimant_probe_ok_when_handoffs_predate_the_actions() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
     task_with_agents(&store, "task-x", &["cursor", "grok"]);
+    task_message(&store, "msg-c", "cursor", "task-x", "2026-10-19T10:00:00Z");
+    task_message(&store, "msg-g", "grok", "task-x", "2026-10-19T10:30:00Z");
     usage_row(
         &store,
         "openai",
@@ -122,11 +168,12 @@ fn claimant_probe_flags_claimant_outside_assignment() {
     let probes = store.compute_probe_candidates().unwrap();
     let claimant = probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY);
     assert_eq!(claimant.len(), 1);
-    assert_eq!(claimant[0].state, ProbeState::Disagreement);
-    assert_eq!(claimant[0].linked_agents, vec!["grok"]);
-    let reason = claimant[0].reason.as_deref().unwrap_or("");
-    assert!(reason.contains("unapproved claimant"), "{reason}");
-    assert!(reason.contains("cursor"), "{reason}");
+    // Cursor is on the current record and Grok is not. Neither fact is an
+    // interval, so Grok is unproven rather than a disagreement, and Cursor's
+    // own action is unproven too.
+    assert_eq!(claimant[0].state, ProbeState::Unknown);
+    assert!(claimant[0].linked_agents.contains(&"grok".to_string()));
+    assert!(claimant[0].linked_agents.contains(&"cursor".to_string()));
 }
 
 #[test]
@@ -186,7 +233,7 @@ fn claimant_probe_ignores_communication_and_separates_namespaces() {
 }
 
 #[test]
-fn disagreement_badges_name_only_unapproved_claimants() {
+fn current_roster_mismatch_does_not_write_a_disagreement_badge() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
     store.upsert_agent("cursor", "Cursor").unwrap();
@@ -213,7 +260,7 @@ fn disagreement_badges_name_only_unapproved_claimants() {
         .get_scorecard(None, ScorecardVisibility::OwnerOnly)
         .unwrap();
     let grok_row = owner.agents.iter().find(|a| a.agent_id == "grok").unwrap();
-    assert_eq!(grok_row.unresolved_disagreements, 1);
+    assert_eq!(grok_row.unresolved_disagreements, 0);
     let cursor_row = owner
         .agents
         .iter()
@@ -232,7 +279,7 @@ fn disagreement_badges_name_only_unapproved_claimants() {
         .iter()
         .find(|a| a.agent_id == "grok")
         .unwrap();
-    assert_eq!(grok_card.unresolved_disagreements, 1);
+    assert_eq!(grok_card.unresolved_disagreements, 0);
 }
 
 #[test]
@@ -266,7 +313,7 @@ fn read_only_store_computes_without_persisting() {
     assert!(view
         .probes
         .iter()
-        .any(|p| p.probe == PROBE_CLAIMANT_CONSISTENCY && p.state == ProbeState::Disagreement));
+        .any(|p| { p.probe == PROBE_CLAIMANT_CONSISTENCY && p.state == ProbeState::Unknown }));
     assert_eq!(disagreement_count(&store), 0);
 }
 
@@ -275,9 +322,11 @@ fn claimant_probe_reassignment_keeps_historical_work_approved() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
     // Cursor was handed the task at 10:00 and worked it at 11:00. The task
-    // has since been reassigned: the current record names only Grok, whose
-    // work lands at 12:00. Neither claimant may be flagged.
+    // has since been reassigned: the current record names only Grok, who
+    // was handed the task at 11:30 and worked it at 12:00. The current
+    // roster is not what approves either of them.
     task_message(&store, "msg-1", "cursor", "task-x", "2026-10-19T10:00:00Z");
+    task_message(&store, "msg-2", "grok", "task-x", "2026-10-19T11:30:00Z");
     task_with_agents(&store, "task-x", &["grok"]);
     usage_full(
         &store,
@@ -313,9 +362,10 @@ fn claimant_probe_reassignment_keeps_historical_work_approved() {
 fn claimant_probe_handoff_after_action_does_not_approve() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
-    // Grok acted at 11:00 but was only handed the task at 12:00, and the
-    // current assignment names Cursor. The late handoff is not retroactive
-    // approval: Grok disagrees.
+    // Grok acted at 11:00 but was only handed the task at 12:00. The current
+    // record names Cursor. Neither the late handoff nor that roster
+    // establishes authority at 11:00, so the slice is unknown — not ok,
+    // and not a disagreement invented from the current roster.
     task_message(&store, "msg-1", "grok", "task-x", "2026-10-19T12:00:00Z");
     task_with_agents(&store, "task-x", &["cursor"]);
     usage_full(
@@ -331,7 +381,7 @@ fn claimant_probe_handoff_after_action_does_not_approve() {
     let probes = store.compute_probe_candidates().unwrap();
     let claimant = probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY);
     assert_eq!(claimant.len(), 1);
-    assert_eq!(claimant[0].state, ProbeState::Disagreement);
+    assert_eq!(claimant[0].state, ProbeState::Unknown);
     assert_eq!(claimant[0].linked_agents, vec!["grok"]);
 }
 
@@ -365,6 +415,10 @@ fn claimant_probe_handoff_evidence_is_per_agent() {
     let probes = store.compute_probe_candidates().unwrap();
     let claimant = probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY);
     assert_eq!(claimant.len(), 1);
-    assert_eq!(claimant[0].state, ProbeState::Disagreement);
-    assert_eq!(claimant[0].linked_agents, vec!["grok"]);
+    assert_eq!(claimant[0].state, ProbeState::Unknown);
+    assert_eq!(
+        claimant[0].linked_agents,
+        vec!["grok"],
+        "cursor's own handoff stays approved; it does not transfer"
+    );
 }
