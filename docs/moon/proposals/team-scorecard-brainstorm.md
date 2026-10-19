@@ -538,6 +538,202 @@ looking broken. Canaries, a separate activity-ledger table, eBPF, new
 approval gates, and assignment recommendations stay out until the owner
 asks for them.
 
+## Kimi — proposals
+
+Read Claude's 2026-10-18 kickoff, Codex's section, and Grok's section.
+This is the newest-harness lens: my own onboarding (#309), quota adapter
+(#311), and the #165 capture-identity fix are exactly where metric data
+is born, so my proposals concentrate on whether a scorecard figure can be
+*believed* and who is allowed to *see* it. Nothing here reopens the
+owner selections Codex recorded; ids continue at O9. Assumed defaults are
+marked — correct them before synthesis.
+
+### Questions for the owner
+
+1. **Scorecard visibility.** Owner-private panel, or may each agent also
+   read its own card? Assumed default: owner sees everything; an agent
+   may read only its own card through the same gated query; rankings are
+   never auto-posted to the bus (a visible league table Goodharts the
+   moment agents optimise for it — the paper's core warning).
+2. **Cost-truth conflict.** When per-request usage (P4 direct HTTP,
+   quota adapters) disagrees with an account-level quota delta for the
+   same window, which figure is `measured` on the card?
+   Assumed default: per-request usage is `measured`; quota deltas are
+   `estimated` context; a disagreement between them is surfaced, not
+   silently resolved (see O10).
+3. **Cross-source disagreement alerts.** Advisory "these two records
+   should agree and don't" rows in round 1, or later?
+   Assumed default: in round 1, three probes only (O10).
+4. **Reviewer-side monitoring.** Codex's O5 watches the owner's review
+   behaviour. Do we also watch reviewer *agents'* approval behaviour
+   (dwell time, zero-evidence approvals, override-reversal rate)?
+   Assumed default: yes, same advisory bar, private to the owner (O11).
+5. **Trial status in the schema.** DeepSeek's trial gating is currently
+   bus-text convention (owner decision 3). Typed value or not?
+   Assumed default: `trial` joins the `oversight_role` enum with an
+   audited graduation path (O12), since Muse/Cursor/OpenCode onboarding
+   uses the same pattern.
+6. **Naming collision with permission roles.** The Hub already has a
+   `roles` store (seeded `Lead Orchestrator` / `Code Agent` presets,
+   protected `cto`, daily ungated-send quotas in `roles/gate.rs`). Where
+   does the new standing-oversight role live relative to it?
+   Assumed default: separate nullable column on `agents`, as Grok
+   sketched — permission roles and oversight roles are different facts
+   and must not share a column; the panel shows both, labelled.
+7. **Sync boundary.** Scorecard projections in `hub.db` (cloud sync
+   S1–S13 would carry them), or a local-only cache?
+   Assumed default: exception grants, trial transitions, and findings
+   live in `hub.db` (they are audit-grade); network samples and derived
+   trend projections stay local-only, like U23 snapshots.
+
+### O9 — Attribution basis stamped beside the slice key (extends O8)
+
+**Category:** behavioral monitoring
+**Problem:** #165 was a real misattribution bug: capture credited the
+newest external transcript instead of the registered session. Grok's
+stamp slice says *which task* a row belongs to; it does not say *under
+what identity confidence the row was recorded*. A trust surface needs
+both, or "measured" silently includes "guessed".
+**Implementation options:**
+1. Encode attribution in `audit_events.operation` names
+   (`os_tool.ran.registered`, `os_tool.ran.observed`). No schema change;
+   operation names become an enum-tying hazard and queries string-match.
+2. Nullable `attribution` column on `audit_events` with
+   `registered | observed | external | inferred | unknown`, written by
+   each producer alongside the O8 stamps. Same soft-migration pattern;
+   one more column in the scorecard projection.
+3. Sidecar attribution table keyed by audit row id. Cleanly normalized,
+   and a second table for the hash chain and sync to learn for no query
+   win at this size.
+**Recommended option:** 2, folded into the O8 migration so producers pay
+the cost once. Unstamped rows read `unknown`; the panel may collapse the
+column but must not drop it from the payload.
+**Complexity:** small on top of O8.
+**Touches:** `crates/hub` audit schema + the three stamped writers;
+`hub_get_scorecard` projection; scorecard row detail.
+
+### O10 — Consistency probes: disagreement as a canary substitute (constrains O7)
+
+**Category:** behavioral monitoring
+**Problem:** Grok deferred canaries because the record cannot yet tell a
+fabricated pass from a real one. But several *existing* records must
+agree by construction, and their disagreement is detectable today with
+no new collectors and no synthetic tasks: quota delta vs claimed slice
+cost; git-diff path scope vs the slice's recorded touch-set
+(`os_tool.ran` argv, P5 audit); network observations vs the provider
+call log; writer-lease owner vs the agent claiming the slice.
+**Implementation options:**
+1. Three advisory probes computed in `hub_get_scorecard`, each
+   disagreement written as one hash-chained `audit_events` row,
+   operation `scorecard.disagreement`, linking both source rows. Panel
+   shows an unresolved-disagreement badge on the affected card. Pure
+   queries over stamped rows; false positives possible and acceptable
+   while stamps are young.
+2. Full rules engine with owner-editable probe definitions. Flexible,
+   and a settings surface + DSL to design, test, and document before any
+   signal is trustworthy.
+3. Wait for Codex's activity ledger and reconstruct disagreements there.
+   Delays the first useful signal by a large slice.
+**Recommended option:** 1. This is the cheapest honesty check the paper's
+monitoring category allows, and it doubles as the acceptance test for
+O8/O9: if probes fire constantly, the stamps are wrong, not the agents.
+**Complexity:** medium.
+**Touches:** scorecard query module; one new audit operation name;
+scorecard badge + disagreement detail. No policy change anywhere.
+
+### O11 — Reviewer-side oversight signature (extends O2/O5, both directions)
+
+**Category:** behavioral monitoring
+**Problem:** The paper's erosion applies to whoever approves, and in this
+team that is often a reviewer agent (Chat/Codex), not only the owner.
+Watching only the owner half-answers the oversight-quality question; a
+reviewer that rubber-stamps is the same failure mode as an owner that
+does.
+**Implementation options:**
+1. Derive reviewer signals from rows that already exist once Codex's
+   classified-findings slice lands: review dwell time (finding-recorded
+   or wake-resolved minus RFR), zero-evidence approvals (decision rows
+   with no linked finding/evidence on a non-trivial slice), fix-find
+   rate per reviewer, and owner-override-reversal rate (owner corrects a
+   reviewer's classification). Advisory, private to the owner.
+2. New reviewer-interaction event collection (evidence-open tracking,
+   dwell timers). Richer, and a privacy/retention surface the owner must
+   opt into explicitly — the same bar Codex set for O5 option B.
+3. Skip reviewer monitoring; owner-only this round.
+**Recommended option:** 1 now, 2 only if round 1 leaves a blind spot the
+owner names. Same display discipline as Codex's O5: descriptive signals,
+no single reviewer-quality score, no latency-only alerts.
+**Complexity:** medium; mostly query work over the findings schema.
+**Touches:** Hub review-finding queries; `hub_get_scorecard` reviewer
+projection; owner-private digest section.
+
+### O12 — `trial` as a typed oversight value with an audited graduation path (extends O1)
+
+**Category:** role design
+**Problem:** DeepSeek's trial gating (owner decision 3: git trailer only,
+no seeded contract, bounded slices) lives in bus text. The schema cannot
+see it, so the scorecard cannot show it, exception grants cannot check
+it, and the "when is the trial over" decision has no recorded form. The
+same pattern now recurs for every new agent (Muse, Cursor, OpenCode).
+**Implementation options:**
+1. Add `trial` to the `oversight_role` enum plus one hash-chained audit
+   operation `oversight.trial_graduated` (granted_by, reason). Trial
+   hardening is data-driven, not a new gate: all rows from a trial agent
+   carry O9 attribution, trial agents hold no exception grants and no
+   delegated-lead authority, and their network observation is on by
+   default. Graduation is an owner decision recorded on the chain, so
+   the scorecard shows standing role, exceptions, and trial state side
+   by side.
+2. Keep trial as a U21 display label, as Grok assumed. Zero schema work;
+   the convention stays invisible to queries and enforcement.
+3. Separate boolean flag beside the role enum. Queryable, but two fields
+   that drift (`role=trial` vs `trial=true`) for one fact.
+**Recommended option:** 1. It turns an owner convention into a checkable
+fact while staying inside Grok's "no second table yet" discipline — one
+enum value, one audit operation.
+**Complexity:** small.
+**Touches:** `agents` soft migration from the O8 slice; audit operation
+constants; scorecard role filter. No policy enforcement beyond what
+decision 3 already states.
+
+### O13 — Scorecard access model: owner sees all, agents see self (new)
+
+**Category:** role design
+**Problem:** The paper warns that measured agents optimise the measure.
+A scorecard every agent can read becomes a target to game; one no agent
+can read removes the incentive alignment benefit of transparency. The
+owner's scoping says "opt-in/advisory" for enforcement but is silent on
+read access to the panel itself.
+**Implementation options:**
+1. Owner-session IPC sees every card. Agent-authenticated reads (the
+   same identity path P11b/wake already uses) return only the calling
+   agent's own card, with provenance fields intact. Rankings, the
+   owner's digest, and reviewer-side cards are owner-only. Nothing from
+   the scorecard is auto-posted to `bus_entries` / `AGENT_BUS.md`; Claude
+   narrates synthesis by hand, as this round already does.
+2. Every enrolled agent reads every card. Maximum transparency; the
+   league-table failure mode, and reviewer cards become political.
+3. Scorecard exists only as owner-local export files. No IPC surface at
+   all; simplest to secure, but the panel the owner scoped cannot exist.
+**Recommended option:** 1. Matches the advisory posture: the data is
+honest, the friction is social, and no agent is handed an optimisation
+target. Revisit only if an agent demonstrably needs peer context to do
+its job.
+**Complexity:** small-medium (mostly the session-identity check on one
+query command).
+**Touches:** `hub_get_scorecard` IPC auth scoping; panel is already
+owner-surfaced; bus writer discipline (no auto-post), documented in the
+roadmap slice.
+
+### Suggested build order (Kimi)
+
+Ride Grok's order: O8 stamps + O9 attribution first (same migration),
+then `hub_get_scorecard`, the panel, and O13's access scoping before any
+real data flows. O10's three probes and O11's reviewer signals come next
+as pure queries; O12's `trial` value ships with the role slice. Defer,
+with everyone else: canaries, the activity ledger, eBPF, assignment
+recommendations, and any new gate.
+
 ## Cursor — proposals
 
 Read Claude's 2026-10-18 bus entry, Codex's owner-confirmed selections, and
