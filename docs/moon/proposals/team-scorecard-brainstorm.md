@@ -740,50 +740,53 @@ Read Claude's 2026-10-18 bus entry, Codex's owner-confirmed selections, and
 Grok's implementer cut. This section does not reopen those selections. It
 is the other implementer's cut: identity, cost provenance, MCP as a trust
 surface, sync privacy, and where the panel actually lives in the current
-shell. Assumed defaults are marked. Correct them before this becomes a
-roadmap.
+shell.
 
-### Questions still open
+Owner selections confirmed in discussion on **2026-10-19**. Kimi later
+claimed O9–O13; Cursor ids below start at O14.
+
+### Questions — owner selections (2026-10-19)
 
 1. **Scorecard row key.** Roster `agents.id`, `HarnessId`, or provider
    slug? Cursor, Muse, and OpenCode exist as all three.
-   Assumed default: the row is the roster agent. Harness and provider are
-   labels on that row, never silently merged.
-2. **Cloud sync.** S1 snapshots `hub.db`. Does the owner's private digest,
-   review-behavior history, and network samples leave this machine?
-   Assumed default: those three stay local-only. Role exceptions and
-   stamped audit rows may sync because they are team state.
+   **Owner selection:** separate rows for agent, harness, and provider.
+   Do not join them.
+2. **Cloud sync.** S1 snapshots `hub.db`. Which facts stay on this
+   machine?
+   **Owner selection:** settings control the level of cloud sync.
+   Default local-only: owner private digest, opt-in evidence/review
+   history, and stamped audit rows. Network samples and role exceptions
+   were not placed in that default local set (they follow the setting).
 3. **Panel placement.** Dedicated Dashboard panel, Shared Hub tab, D4
    third subtab, or a new `App.tsx` mainView next to Chat / Orchestrate /
    Hub?
-   Assumed default: a new Shared Hub tab `scorecard`, sibling of
+   **Owner selection:** new Shared Hub tab `scorecard`, sibling of
    `dashboard`, `usage`, and `system`. Not a subtab of D4.
 4. **MCP as a security class.** `hub_mcp_client_call` (P14-A) currently
    writes no audit row and can spawn Blender, Ableton, Perplexity, and
    other enabled servers. Same trust class as P5 `os_tool`?
-   Assumed default: yes, metadata only (server key, tool name, workspace,
-   agent, outcome). No arguments — secrets live there.
+   **Owner selection:** yes — record `mcp.invoke` metadata only (server,
+   tool, workspace, actor, outcome). No arguments.
 5. **Remote HITL.** Telegram and TCP `/approve` `/reject` — same in-app
    `human` clock as Grok's Q2, or a separate class?
-   Assumed default: same clock, with `via: desktop | telegram | tcp` so
-   the digest can split them without counting them twice.
+   **Owner selection:** same clock, with `via: desktop | telegram | tcp`
+   so the digest can split them without counting them twice.
 6. **Observed / unregistered coverage.** Unregistered Cursor or Claude
    chats: omit, or show as a gap?
-   Assumed default: show as `unregistered`. An empty card is not "no
+   **Owner selection:** show as `unregistered`. An empty card is not "no
    cost / no network."
 7. **P10 already takes `task_id`.** Stamp measured cost there before
    adding `audit_events` columns?
-   Assumed default: yes. Today's Reserved path consumes the budget and
-   drops the `task_id` on the floor. Persist `budget.reserved` /
-   `budget.stopped` with `process_json.task_id` first. Columns later if
-   queries hurt.
+   **Owner selection:** write `budget.reserved` / `budget.stopped` into
+   `process_json` with `task_id` first. New `audit_events` columns only
+   if queries hurt.
 8. **Batch unit.** O4's batch-review digest groups by Hub task, U24 work
    session, or GitHub issue?
-   Assumed default: work session is the digest group (already linked to a
-   saved workspace). Hub task is the ledger row (Grok Q1). Issue is an
-   optional label.
+   **Owner selection:** work session is the digest group (already linked
+   to a saved workspace). Hub task is the ledger row (Grok Q1). Issue is
+   an optional label.
 
-### Three labels on one row: agent, harness, provider (O9)
+### Separate rows for agent, harness, and provider (O14)
 
 **Category:** behavioral monitoring / role design
 **Problem:** Cost, network, and role will be attributed to the wrong
@@ -799,16 +802,23 @@ a trust surface starts lying.
    be the last tagged sender.
 2. Scorecard row is `agents.id`. Each figure cites `actor_agent_id`,
    `harness_id`, and `provider` as separate optional fields, plus
-   `coverage: managed | observed | unregistered`. Unregistered sessions
-   stay visible as a gap. No third identity table.
+   `coverage: managed | observed | unregistered`. Joins the three
+   identities on one card.
 3. New mapping table from harness/provider onto roster. Extra schema
    and another cloud-sync surface for a fact the Hub already has in
    `harness_session_registrations` and the health/quota adapters.
-**Recommended option:** 2.
-**Complexity:** small in the query; medium once the panel shows a
-coverage chip next to each figure.
+4. Three row kinds (`agent` | `harness` | `provider`) in
+   `hub_get_scorecard`. No silent join. An explicit link (this harness
+   session is registered to this agent; this provider billed this
+   call) is a field on a figure, not a merged row. Unregistered
+   harness rows still appear, with `coverage: unregistered`.
+**Recommended option / owner selection:** 4. Do not join them.
+**Complexity:** medium in the view model (three lists or a `kind`
+discriminator); small extra schema if links reuse
+`harness_session_registrations`.
 **Touches:** `hub_get_scorecard` view model; `harness_session_registrations`
-(mode, pid, workspace); D2 quota adapters stay on the Usage tab.
+(mode, pid, workspace); D2 quota adapters stay on the Usage tab, which
+is the provider-row source.
 
 ### Stamp `process_json` before new audit columns (refines Grok's slice stamp)
 
@@ -827,9 +837,9 @@ are a real migration; they are not required to start attributing.
    Soft columns on `audit_events` only if the JSON query is too awkward.
 3. Add the columns in the same slice as the writers. Clearer SQL, and
    it changes the hash-chain row shape before we know the query hurts.
-**Recommended option:** 2. Agrees with Grok on *which* writers. Disagrees
-on *where* the first stamp lives. `agent_metrics` stays the lifetime
-counter it already is.
+**Recommended option / owner selection:** 2. Agrees with Grok on *which*
+writers. Disagrees on *where* the first stamp lives. `agent_metrics`
+stays the lifetime counter it already is.
 **Complexity:** small for JSON stamps on writers that already take the
 ids; medium for P10 because Reserved currently has no audit row.
 **Touches:** `crates/hub/src/os_tool/mod.rs` `process_json`;
@@ -857,7 +867,8 @@ already receives `task_id`.
 3. Require every harness adapter to emit usage from its CLI. Blocked on
    CLIs with no machine-readable usage (Cursor #281 is `unavailable`
    unless the dashboard RPC is in play).
-**Recommended option:** 2.
+**Recommended option / owner selection:** 2. Cost figures sit on the
+provider row (O14), not on the roster-agent row.
 **Complexity:** medium (P10 must start writing the audit rows).
 **Touches:** `budget_gate.rs`, `src-tauri/src/agent/budget.rs`,
 scorecard query. Usage tab and quota adapters unchanged.
@@ -882,38 +893,39 @@ touched.
    list as `os_tool.*`. No new gate — P14-A is already a human-launched
    invoke from the Tools tab; this is visibility, not friction.
 3. New MCP-specific ledger. Extra table, extra sync surface.
-**Recommended option:** 2.
+**Recommended option / owner selection:** 2.
 **Complexity:** small.
 **Touches:** `src-tauri/src/commands/mcp_invoke.rs`;
 `crates/hub/src/mcp/client.rs` only if the audit helper belongs next to
 the client; scorecard security card. No change to Tools-tab UX.
 
-### Local-only oversight plane (constrains O5 / Codex digest)
+### Settings-controlled sync, local defaults (constrains O5 / Codex digest)
 
 **Category:** decision design / other
 **Problem:** S1–S13 now snapshot `hub.db` into CAS1 blobs on Drive,
 Firebase, Supabase, OneDrive, and Dropbox. Codex's private digest and
 opt-in evidence history are about the *owner's* review behavior, not
-team roster state. Network samples include destination IPs. Putting
-either in the snapshot sends them to every trusted device and to the
-replica. Role exceptions and stamped audit rows are different: those
-are team facts and should follow `hub.db`.
+team roster state. Stamped audit rows are also in that snapshot today.
+A single hard local-only rule cannot express "I want this class on
+this device until I turn sync up."
 **Implementation options:**
 1. Everything in `hub.db`, everything syncs. Simple, and it exports the
-   owner's oversight signature.
-2. First slice is a projection (`hub_get_scorecard`) with no derived
-   owner-behavior table. Opt-in history (Codex B) and network sample
-   rings live in a local-only file excluded like `keys/cloud-sync.key`
-   (new category, or a sibling `oversight.db`). Role exceptions stay on
-   the hash chain and may sync.
-3. Split `hub.db` into synced and local-only schemas now. Large, and
-   sync just went code-complete.
-**Recommended option:** 2.
+   owner's oversight signature with no knob.
+2. Fixed local-only file for digest, history, and network samples;
+   audit and role exceptions always sync. No per-class setting.
+3. A Settings control for scorecard sync level. Default local-only:
+   owner digest, opt-in evidence/review history, and stamped audit
+   rows. Network samples and role exceptions follow the setting (not
+   in the default local set). First slice can still be a projection
+   with no derived owner-behavior table; the setting only matters once
+   something new is stored. No S1–S13 protocol change — this is a
+   category policy row, like `keys/cloud-sync.key`.
+**Recommended option / owner selection:** 3.
 **Complexity:** small if the first slice stores nothing new for the
-digest; medium once opt-in history or the network ring exists.
-**Touches:** scorecard query; later a sync category row in
-`docs/moon/roadmaps/cloud_sync.md`. No S1–S13 protocol change in this
-round.
+digest; medium once opt-in history, the audit exclude, or the setting
+exists.
+**Touches:** scorecard query; Settings orchestration/privacy control;
+later a sync category row in `docs/moon/roadmaps/cloud_sync.md`.
 
 ### Scorecard is a Hub tab, not a D4 subtab (constrains O6)
 
@@ -933,7 +945,7 @@ Shared Hub. Dashboard, Usage, and System are already Hub tabs
    a fourth top-level nav button.
 3. New `App.tsx` mainView. Most prominent, and it duplicates the Hub
    chrome for one query.
-**Recommended option:** 2.
+**Recommended option / owner selection:** 2.
 **Complexity:** small once the query exists.
 **Touches:** `HubTab` union, `HubPanelView.tsx` tab button, new panel
 component, one Tauri command next to `hub_get_activity_view`.
@@ -957,8 +969,9 @@ the session the owner is actually sitting in.
    focuses Messager the way the header chip already does. Advisory.
 3. Digest keyed by GitHub issue. Offline-hostile, and Hub-only is
    Grok's Q6 default.
-**Recommended option:** 2. Codex's workload digest is the card; this is
-only the grouping. No new deny path.
+**Recommended option / owner selection:** 2. Codex's workload digest is
+the card; this is only the grouping. Remote decisions use the same
+clock with `via: desktop | telegram | tcp`. No new deny path.
 **Complexity:** small once pending rows carry session/workspace; medium
 if those stamps are still missing (same writer list as the slice stamp).
 **Touches:** scorecard digest query; `crates/hub/src/store/workspaces.rs`
@@ -971,8 +984,9 @@ Stamp `process_json.task_id` / `work_session_id` on P10, `os_tool`, and
 tagged send, and start writing `budget.reserved` / `budget.stopped`.
 Add `mcp.invoke` on the same chain. Keep `oversight_role` beside U21 as
 Grok specified. Then `hub_get_scorecard` plus the Hub `scorecard` tab,
-with risk-first ordering, three identity labels, coverage chips, and
-the work-session digest. Opt-in owner history and the U23 network ring
-land only after the local-only store/exclude exists. Same deferrals as
-Grok and Codex: canaries, a second event table, eBPF, new approval
-gates, assignment recommendations.
+with separate agent / harness / provider rows, `unregistered` coverage
+chips, risk-first ordering, and the work-session digest. Opt-in owner
+history, stamped-audit exclude, and the U23 network ring land only after
+the Settings sync-level control exists. Same deferrals as Grok and
+Codex: canaries, a second event table, eBPF, new approval gates,
+assignment recommendations.

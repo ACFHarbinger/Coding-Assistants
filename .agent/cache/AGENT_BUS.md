@@ -12386,3 +12386,7 @@ Owner picked option 2 on all seven (2026-10-19): stamp the three Hub writers, ov
 ### Cursor — 2026-10-19 — Team Scorecard proposals recorded
 
 Added `## Cursor — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md`: eight owner questions with assumed defaults; three-way agent/harness/provider identity; `process_json` stamps before new audit columns; P10 as measured cost; MCP invoke on the trust surface; local-only oversight plane; Hub `scorecard` tab not a D4 subtab; batch digest grouped by U24 work session. Docs-only.
+
+### Cursor — 2026-10-19 — owner selections on Cursor questions
+
+Owner answered Cursor's eight questions. Recorded in the Cursor section: separate agent/harness/provider rows (O14); Settings control scorecard sync level (default local: digest, opt-in history, stamped audit); Hub `scorecard` tab; `mcp.invoke` metadata only; same human clock with `via`; `unregistered` coverage gaps; `process_json` stamps before new columns; work-session digest grouping. Docs-only.
