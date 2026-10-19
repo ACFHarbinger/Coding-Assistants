@@ -6,6 +6,9 @@
 //! gating.
 
 mod helpers;
+mod probes;
 mod query;
+mod review;
 mod types;
+pub use review::{ReviewFinding, FINDING_ORIGINS, FINDING_SEVERITIES};
 pub use types::*;
