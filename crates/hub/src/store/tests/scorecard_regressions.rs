@@ -398,7 +398,7 @@ fn measured_cost_sorting_ignores_estimated_budget_units() {
         .gate_provider_call(
             "huge-budget",
             5000.0,
-            Some("task-budget"),
+            &SliceStamp::registered(Some("task-budget".to_string()), None, None),
             "Huge budget run",
             "Context",
             "Rationale",

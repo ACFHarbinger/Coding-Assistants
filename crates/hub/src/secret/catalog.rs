@@ -320,6 +320,19 @@ pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
             "Interactive session login for Perplexity subscription (`pwm login`). Token stored at ~/.config/perplexity-web-mcp/token.",
         ),
     },
+    FieldSpec {
+        id: "mcp.steam.api_key",
+        display_name: "Steam API Key",
+        owner_kind: OwnerKind::Mcp,
+        owner_key: "steam",
+        env_var: Some("STEAM_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://github.com/dsp/mcp-server-steam"),
+        notes: Some(
+            "API key for the Docker-based Steam MCP server. Also requires STEAM_ID (the numeric SteamID64 to query), exported alongside this key; STEAM_ID is not itself a secret.",
+        ),
+    },
     // --- Harnesses ---
     FieldSpec {
         id: "harness.cursor.login_token",
