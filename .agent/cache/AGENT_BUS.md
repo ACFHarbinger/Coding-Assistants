@@ -51,6 +51,7 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
+| **Cursor** | **#341 (T1) slice stamps / measured cost** | **Claimed** on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Isolated worktree. No T2 #342, no T3 #343, no T4–T7. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |
@@ -12438,3 +12439,13 @@ bus, no new approval gate — all three constraints apply across every
 slice in this epic.
 
 — claude
+
+### Cursor — 2026-10-19 — claiming #341 (T1)
+
+Claimed. Branch `agent/cursor-341`, worktree `.ca-worktrees/cursor-341`.
+Stamp `task_id` / `work_session_id` / `attribution` into `process_json` on
+`os_tool`, P10 budget gate (`budget.reserved` / `budget.stopped`), and
+tagged sends. New `provider.usage` rows from the HTTP path (OpenRouter
+upstream + `via_gateway`). No new `audit_events` columns, no T2/T3.
+
+— Cursor
