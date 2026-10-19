@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S2 gate evaluator (#350):** `HubStore::evaluate_gate_criteria`
+  — `GateCriterion::Command`/`MaxLinesPerFile` run through the P5 `os_tool`
+  sandbox (same `SandboxStrictness` policy as any other `os_tool` call, no
+  bypass); `MaxLinesPerFile` walks the workspace with a small hand-rolled
+  glob matcher (`*`/`?`/`**`, no new dependency) and runs one `wc -l
+  <file>` per match (never a multi-file `wc`, which appends a `total` line
+  that would break the per-file check). `MinTokensWritten` reads
+  `agent_metrics.tokens_used` as a delta against the baseline snapshotted
+  at schedule-creation time. `GateCombinator::All`/`Any` across a task's
+  criteria.
 - **Scheduled Goals S1 (#350/#351):** New `scheduled_tasks` table
   (`crates/hub/src/store/schedule/`) + `ScheduledTask`/`ScheduleTarget`/
   `GateCriterion`/`GateCombinator`/`BudgetPolicy`/`ScheduleStatus` types

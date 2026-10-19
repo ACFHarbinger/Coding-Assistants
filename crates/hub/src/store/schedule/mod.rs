@@ -8,4 +8,7 @@ mod types;
 pub use types::*;
 
 mod crud;
+mod gate;
+mod globset;
 mod schema;
+pub use gate::{CriterionOutcome, GateCheckResult};
