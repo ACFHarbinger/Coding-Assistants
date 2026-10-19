@@ -18,6 +18,36 @@ fn pending_gate_row(store: &HubStore, id: &str, session: Option<&str>, task: Opt
 }
 
 #[test]
+fn automatic_tool_runs_do_not_count_as_human_reviews_and_unicode_is_safe() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .record_audit_event(
+            dir.path(),
+            Path::new("tool"),
+            "os_tool.ran",
+            &json!({"agent":"grok", "proposed_id":null}).to_string(),
+            None,
+        )
+        .unwrap();
+    store
+        .record_audit_event(
+            dir.path(),
+            Path::new("tool"),
+            "os_tool.proposed",
+            &json!({"exe":"x", "cmdline":["x", "é".repeat(100)]}).to_string(),
+            None,
+        )
+        .unwrap();
+    let digest = store
+        .get_owner_digest(chrono::Utc::now(), DIGEST_WINDOW_DAYS)
+        .unwrap();
+    assert_eq!(digest.summary.resolved_window.total, 0);
+    let decision = &digest.groups[0].pending[0];
+    assert_eq!(decision.subject.chars().count(), 80);
+}
+
+#[test]
 fn digest_groups_pending_decisions_by_work_session() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

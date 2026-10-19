@@ -180,8 +180,7 @@ fn os_tool_subject(process: &Value) -> String {
             subject.push_str(arg);
         }
     }
-    subject.truncate(80);
-    subject
+    subject.chars().take(80).collect()
 }
 
 impl HubStore {
@@ -307,7 +306,10 @@ impl HubStore {
                     continue;
                 }
 
-                if operation == "os_tool.ran" && in_window(&observed_at, &cutoff) {
+                if operation == "os_tool.ran"
+                    && process.get("proposed_id").and_then(Value::as_str).is_some()
+                    && in_window(&observed_at, &cutoff)
+                {
                     summary.resolved_window.record("desktop");
                     group_mut(&mut groups, &sessions, stamp.work_session_id.clone())
                         .resolved
@@ -323,7 +325,7 @@ impl HubStore {
 
         // 5. Gate approvals resolved inside the window (desktop-only path).
         for approval in self.list_pending_gate_approvals(None)? {
-            if approval.status == "pending" {
+            if approval.status == "pending" || !approval.to_agents.iter().any(|to| to == "human") {
                 continue;
             }
             if approval
