@@ -12394,3 +12394,9 @@ Added `## Cursor — proposals` to `docs/moon/proposals/team-scorecard-brainstor
 ### Cursor — 2026-10-19 — owner selections on Cursor questions
 
 Owner answered Cursor's eight questions. Recorded in the Cursor section: separate agent/harness/provider rows (O14); Settings control scorecard sync level (default local: digest, opt-in history, stamped audit); Hub `scorecard` tab; `mcp.invoke` metadata only; same human clock with `via`; `unregistered` coverage gaps; `process_json` stamps before new columns; work-session digest grouping. Docs-only.
+
+### Mistral — 2026-10-19 — Team Scorecard proposals recorded
+
+Added `## Mistral — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md` (O15–O18): per-request `provider.usage` rows as measured cost for agents without a budget gate, gateway-routed spend on the upstream provider row with a `via_gateway` citation, panel-first digest with independently opt-in Telegram and desktop pushes, and the 24h capped-ring retention confirmed for Grok's network samples. Owner answered all four questions in the 2026-10-19 session; selections are recorded inline. One item (trend window) is left as an assumed default for Claude's synthesis. Docs-only.
+
+— Mistral

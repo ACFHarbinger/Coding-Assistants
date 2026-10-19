@@ -1009,3 +1009,162 @@ history, stamped-audit exclude, and the U23 network ring land only after
 the Settings sync-level control exists. Same deferrals as Grok and
 Codex: canaries, a second event table, eBPF, new approval gates,
 assignment recommendations.
+
+## Mistral — proposals
+
+Read Claude's 2026-10-18 kickoff, Codex's owner-confirmed selections, Grok's
+implementer cut, Kimi's O9–O13, and Cursor's O14. This section does not reopen
+any recorded selection. This is the Vibe-harness lens: the per-request `usage`
+the provider path already observes, where gateway-routed spend belongs, and
+how the private digest reaches the owner. The owner answered four questions in
+the 2026-10-19 session; selections are recorded inline. Ids start at O15.
+
+### Questions and owner answers (2026-10-19)
+
+1. **Measured cost without a budget gate.** P10 `budget.reserved` /
+   `budget.stopped` rows only exist when an agent has a budget configured,
+   so most of the roster would read `unmetered` and per-agent cost
+   accounting starts empty. What is the measured-cost source for
+   unbudgeted agents?
+   **Owner selection:** per-request usage rows (O15).
+2. **Gateway-routed spend.** OpenCode fronts deepseek and others; OpenRouter
+   (P13) bills upstream and reports `usage.cost`. O14 keeps rows separate —
+   where does gateway-fronted spend land?
+   **Owner selection:** the upstream provider row, cited by a `via_gateway`
+   field (O16).
+3. **Digest delivery.** Codex's private digest is a panel card; should it
+   also push?
+   **Owner selection:** panel is the source of truth; Telegram and desktop
+   pushes come later, each independently opt-in (O17).
+4. **Network-sample retention (Grok's Q4 assumption).** Confirmed?
+   **Owner selection:** yes — 24h capped ring (O18).
+
+### O15 — Per-request `provider.usage` rows: measured cost without a budget gate (extends Cursor's P10 card)
+
+**Category:** decision design
+**Problem:** The owner's first metrics purpose is per-agent cost accounting.
+P10 is the only Hub writer that decides spend per call, and it only fires
+when a budget exists — so today most of the roster has no measured-cost row
+at all. Meanwhile the provider path already observes real per-request
+consumption: P4 direct HTTP streams a `usage` event per response. That
+observation is discarded; the scorecard would either show `unmetered` for
+most agents or, worse, accept quota deltas as cost, which Cursor and Codex
+already rejected.
+**Implementation options:**
+1. One `provider.usage` audit operation per provider response: input,
+   output, and cache tokens, provider, actor agent, and the O8/O9
+   `task_id` / `work_session_id` / attribution stamps. The cost card reads
+   these rows as `measured`; missing rows stay `unknown`; no-budget agents
+   with usage rows lose the `unmetered` chip. Raw tokens are recorded now;
+   the currency figure is `unknown` until O16's ladder supplies it.
+2. P10-only: no new writer; unbudgeted agents stay `unmetered` until the
+   owner configures budgets for them.
+3. Token counts × a static price table: everyone covered at `estimated`
+   grade; a price source to maintain and a figure that looks harder than
+   it is.
+**Recommended option / owner selection:** 1 (2026-10-19). `agent_metrics`
+stays the lifetime counter; this row is the per-slice fact. O10's
+quota-delta probe gains a direct counterpart to compare against.
+**Complexity:** small-medium — one writer beside the existing usage event,
+no new table, same hash chain.
+**Touches:** the provider call path (`src-tauri/src/client/http/` and the
+budget-adjacent gate), audit operation constants, `hub_get_scorecard` cost
+projection.
+
+### O16 — Gateway-routed spend lands on the upstream provider row (extends O14)
+
+**Category:** behavioral monitoring
+**Problem:** O14 says never silently join agent, harness, and provider rows.
+Gateway-fronted calls break the naive version of that rule: an OpenCode
+request billed to deepseek, or an OpenRouter request billed upstream, would
+either collapse onto the gateway's row (hiding the real provider) or be
+merged (which O14 forbids). OpenRouter already reports `usage.cost` with
+routing information, so the upstream provider is observable, not guessed.
+**Implementation options:**
+1. The O15 usage row records the actual upstream provider as its provider,
+   plus a `via_gateway` field naming the gateway (`openrouter` /
+   `opencode`). The currency figure is `measured` when the adapter reports
+   cost (OpenRouter `usage.cost`), else tokens-only with currency
+   `unknown`; a later price table may add `estimated` currency without
+   changing the row shape.
+2. Gateway row only: all gateway-fronted spend sits on the gateway
+   provider row. Simple, and the card hides who was actually billed.
+3. Unknown when routed: gateway-fronted spend recorded as `unknown` on the
+   gateway row; never guess upstream. Honest, and opaque.
+**Recommended option / owner selection:** 1 (2026-10-19). The agent row and
+the gateway row each cite the same usage row; neither owns the figure.
+**Complexity:** small once O15 exists — one nullable field plus adapter
+routing info on two provider paths.
+**Touches:** P13 OpenRouter client, the OpenCode provider path, the O15 row
+shape, the scorecard provider-row projection.
+
+### O17 — Digest delivery: panel is the truth; Telegram and desktop pushes are separately opt-in (refines Codex digest / O5)
+
+**Category:** decision design
+**Problem:** Codex's digest is private, advisory, and lives on the panel —
+and Codex itself noted that an unopened view proves nothing. A backlog that
+only exists when the owner remembers to open the Hub does not shorten
+review latency, which is the point of the digest. But any push channel is
+an outbound surface carrying owner-private oversight data, so it must be
+opt-in, capped, and never carry approve/reject actions.
+**Implementation options:**
+1. Panel only. Nothing new to gate; visibility depends entirely on the
+   owner opening the tab.
+2. Opt-in daily Telegram digest over the existing U25 outbound long-poll:
+   pending decisions with age, unresolved `scorecard.disagreement` rows,
+   active trial states, pending wakes. Reuses the paired, allow-listed
+   channel; a new content class on a live path that must be gated and
+   tested.
+3. Threshold desktop notification: fires when pending decisions exceed an
+   owner-set age or count. No network surface; notification fatigue needs
+   a real threshold setting.
+**Recommended option / owner selection:** 1 now, 2 and 3 later, each an
+independent opt-in Settings toggle; the panel stays the source of truth and
+pushes are summaries only — no approve/reject, no agent-visibility change
+(O13's setting governs who can read what, pushes target the owner)
+(2026-10-19).
+**Complexity:** small for 3; medium for 2 (new content class on the
+Telegram client).
+**Touches:** scorecard digest query; the U25 Telegram client for 2; a
+Tauri notification path for 3; two Settings opt-in controls. Digest
+content stays owner-private per Codex.
+
+### O18 — Network-sample retention: 24h capped ring, confirmed (resolves Grok's Q4 assumption)
+
+**Category:** behavioral monitoring
+**Problem:** Grok's O3 slice assumed retention ("last 24 hours or a few
+hundred rows per session, whichever is smaller") and explicitly marked it
+for owner confirmation before this becomes a roadmap. An unbounded sample
+store grows on disk and drifts from the local-only sync split (Kimi Q7,
+Cursor's sync-level setting).
+**Implementation options:**
+1. Confirm Grok's default: ring of the last 24 hours or a few hundred rows
+   per session, whichever is smaller. Task-linked audit rows stay with the
+   task.
+2. Seven-day ring: longer history for slow-hatch pattern review, at
+   several times the rows on disk (still capped, still local-only).
+3. Settings-controlled retention (24h / 7d / off), same pattern as the
+   sync-level control.
+**Recommended option / owner selection:** 1 (2026-10-19). The ring is a
+fixed internal bound, not an owner setting; revisit only if pattern review
+asks for longer history.
+**Complexity:** none beyond Grok's sample slice — this is a constraint on
+it, not new work.
+**Touches:** the network-sample store in Grok's O3 slice only.
+
+### Still open (assumed default — correct before synthesis)
+
+- **Trend window** (Codex individual trends, Kimi O11): assumed default is
+  rolling 7-day and 30-day windows with per-task dots and observation
+  counts, not all-time rollups. Claude should confirm or replace at
+  synthesis.
+
+### Suggested build order (Mistral)
+
+Ride the existing order. O15's `provider.usage` writer belongs with the O8/O9
+stamp slice — it needs the same stamps and the cost card should never read an
+unstamped row. O16 is a field on the O15 row, added when the OpenRouter and
+OpenCode paths report routing. O17's pushes come after the digest query
+exists; O18 constrains Grok's sample slice with no extra work. Same deferrals
+as everyone else: canaries, a second event store, eBPF, new approval gates,
+assignment recommendations.
