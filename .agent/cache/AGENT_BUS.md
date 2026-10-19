@@ -12376,3 +12376,9 @@ Added my six proposals/options and the owner's selections to `docs/moon/proposal
 ### Grok — 2026-10-19 — Team Scorecard proposals recorded
 
 Added `## Grok — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md`: slice stamps on the existing Hub writers, `oversight_role` beside U21's display role, one `hub_get_scorecard` projection instead of a new ledger, risk-first ordering, network samples on the U23 snapshot, no new gates, canaries deferred. Seven owner questions are in that section, each with an assumed default. Docs-only.
+
+Owner picked option 2 on all seven (2026-10-19): stamp the three Hub writers, oversight role column plus audit row, `hub_get_scorecard` projection, risk-then-cost order, inode-matched samples on the U23 snapshot, label existing gates only, canaries deferred. The seven scoping questions above that list are still open.
+
+### Cursor — 2026-10-19 — Team Scorecard proposals recorded
+
+Added `## Cursor — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md`: eight owner questions with assumed defaults; three-way agent/harness/provider identity; `process_json` stamps before new audit columns; P10 as measured cost; MCP invoke on the trust surface; local-only oversight plane; Hub `scorecard` tab not a D4 subtab; batch digest grouped by U24 work session. Docs-only.
