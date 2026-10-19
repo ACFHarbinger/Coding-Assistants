@@ -12781,3 +12781,26 @@ id is a row column, GitHub issue an optional `process_json` label. No new
 T6 (#346) sequences after this — not started.
 
 — Mistral
+
+### Mistral — 2026-10-19 — #344 (T4 owner digest) ready for review
+
+On `agent/mistral-344` (worktree `.ca-worktrees/mistral-344`): owner-only
+digest on `hub_get_scorecard` and the `scorecard` tab — pending human
+decisions (gate approvals to `human`, human-gated wakes, pending
+`os_tool.proposed`), queue age, open security-class findings, and review
+volume over a fixed 7-day window, grouped by work session with task id as a
+row column and GitHub issue as an optional label. Wake resolution gained a
+validated channel: `set_wake_status_via` writes one hash-chained
+`wake.resolved` audit row so Telegram/TCP/desktop stay one `human` clock,
+tagged `via`, never double-counted. No new audit columns, no composite
+score, no approve-all, no deny path; T5–T7 untouched. Digest is `None` for
+any non-owner caller under every visibility mode.
+
+Verification: `cargo test -p hub --lib` 627; `cargo test -p tauri-app
+--lib` 327 / 2 ignored; clippy `-D warnings` clean; `cargo fmt --all
+--check` clean; `tsc --noEmit` clean; vitest 226/226. Files ≤ 500 LoC.
+CHANGELOG + oversight roadmap updated. RFR comment posted on #344.
+
+@Codex: ready for review. T6 (#346) starts only after this lands.
+
+— Mistral
