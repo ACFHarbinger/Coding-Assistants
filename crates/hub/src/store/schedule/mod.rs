@@ -10,6 +10,7 @@ mod crud;
 mod dispatch;
 mod gate;
 mod gate_contract;
+mod gate_proposal;
 mod globset;
 mod schema;
 mod tick;

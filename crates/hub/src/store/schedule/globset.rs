@@ -97,6 +97,23 @@ mod tests {
         assert!(walk_workspace_files(&root.path().join("missing")).is_err());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn workspace_walk_skips_fifos_instead_of_blocking_on_them() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("local.rs"), "local").unwrap();
+        let fifo = root.path().join("pipe");
+        let status = std::process::Command::new("mkfifo").arg(&fifo).status();
+        let Ok(status) = status else {
+            return;
+        };
+        if !status.success() {
+            return;
+        }
+        let files = walk_workspace_files(root.path()).unwrap();
+        assert_eq!(files, vec![root.path().join("local.rs")]);
+    }
+
     #[test]
     fn double_star_matches_any_depth() {
         assert!(glob_match("**/*.rs", "crates/hub/src/lib.rs"));
