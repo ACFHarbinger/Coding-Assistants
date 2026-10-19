@@ -2,8 +2,8 @@
 
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
-> Claude builds the core directly (not delegated across agents); this is
-> one coherent feature, not independent parallel slices.
+> Acting owner-directed handoff: Codex coordinates/integrates; Grok reviews.
+> Cursor and Muse repair the core; implementation assignments are #351–#358.
 
 **Goal:** a new **Schedule** tab in Orchestrate where a user creates a
 task/goal, targets one agent or the standing team roster, picks a
@@ -115,16 +115,16 @@ tick logic it drives (S3) is itself correct and tested.
 
 | # | Slice | Summary | Status |
 | --- | --- | --- | --- |
-| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🔧 In progress · Claude |
-| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. | ✅ Landed in `main` |
-| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. | ✅ Landed in `main` |
-| S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 Planned |
-| S5a | Linux OS-level trigger | systemd user timer (`~/.config/systemd/user/ca-schedule.timer` + `.service` invoking `ca schedule tick`), installed/managed from Settings. Built and tested on this dev machine. | 📋 Planned |
-| S5b | macOS/Windows OS-level trigger | launchd plist / Windows Task Scheduler (`schtasks`) equivalents. **Owner VM verify owed**, same pattern as prior Windows-only work (#288) — no macOS/Windows box available here. | 📋 Planned · owner verify |
-| S5c | Quota-probe bridge (follow-up) | Extract `src-tauri`'s session/weekly quota-probe logic into a shape `crates/cli` can also call, so headless `ca schedule tick` gets full budget fidelity, not just `credit_allowance`. Explicitly deferred out of S1–S5a. | 💤 Deferred |
-| S6 | In-app poller + budget bridge | `src-tauri`-side timer loop while the app is open: calls the same tick logic as S3/S4 but additionally checks live quota % before each re-prompt (the "Both" decision above) and pauses on exhaustion, same as `gate_provider_call`'s existing pause behavior. | 📋 Planned |
-| S7 | Tauri commands | `hub_schedule_create\|list\|cancel\|get\|tick`, registered in `invoke.rs`, thin wrappers over S1/S3. | ✅ Landed in `main` |
-| S8 | Frontend: Schedule tab | New Orchestrate sub-tab (`orchestrateSubView` gains `"schedule"`, alongside `"setup"`/`"terminals"` in `src/App.tsx` — that file is at 492/500 lines, so the new tab's content is its own component, `App.tsx` only gains the nav button + a thin mount point). Task/goal builder: instruction text, target picker (agent list + "Full team"), date/time picker, repeat-interval toggle (off = one-shot), gate-criteria builder (command / max-lines-per-file / min-tokens-written, combinator), budget picker (credit allowance amount, "stop on quota exhaustion" toggle). List view with status, next-fire time, attempt count, manual cancel. | 📋 Planned |
+| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🚧 Code on main; Cursor corrections #351 |
+| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. | 🚧 Code on main; Muse gate corrections #352 |
+| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. | 🚧 Code on main; Cursor corrections #351 |
+| S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 DeepSeek #354 · queued after #345 + core acceptance |
+| S5a | Linux OS-level trigger | systemd user timer (`~/.config/systemd/user/ca-schedule.timer` + `.service` invoking `ca schedule tick`), installed/managed from Settings. Built and tested on this dev machine. | 📋 OpenCode #356 · queued after CLI + in-app validation |
+| S5b | macOS/Windows OS-level trigger | launchd plist / Windows Task Scheduler (`schtasks`) equivalents. **Owner VM verify owed**, same pattern as prior Windows-only work (#288) — no macOS/Windows box available here. | 💤 Deferred #357 · unassigned / owner VM verify |
+| S5c | Quota-probe bridge (follow-up) | Extract `src-tauri`'s session/weekly quota-probe logic into a shape `crates/cli` can also call, so headless `ca schedule tick` gets full budget fidelity, not just `credit_allowance`. Explicitly deferred out of S1–S5a. | 💤 Deferred #358 · unassigned |
+| S6 | In-app poller + budget bridge | `src-tauri`-side timer loop while the app is open: calls the same tick logic as S3/S4 but additionally checks live quota % before each re-prompt (the "Both" decision above) and pauses on exhaustion, same as `gate_provider_call`'s existing pause behavior. | 📋 Cursor #355 · queued after core + S8 |
+| S7 | Tauri commands | `hub_schedule_create\|list\|cancel\|get\|tick`, registered in `invoke.rs`, thin wrappers over S1/S3. | 🚧 Code on main; corrected-core alignment #351 |
+| S8 | Frontend: Schedule tab | New Orchestrate sub-tab (`orchestrateSubView` gains `"schedule"`, alongside `"setup"`/`"terminals"` in `src/App.tsx` — that file is at 492/500 lines, so the new tab's content is its own component, `App.tsx` only gains the nav button + a thin mount point). Task/goal builder: instruction text, target picker (agent list + "Full team"), date/time picker, repeat-interval toggle (off = one-shot), gate-criteria builder (command / max-lines-per-file / min-tokens-written, combinator), budget picker (credit allowance amount, "stop on quota exhaustion" toggle). List view with status, next-fire time, attempt count, manual cancel. | 📋 Gemini #353 · scaffold ready; final integration after #351/#352 |
 
 ## Non-goals / explicitly deferred
 
@@ -144,5 +144,11 @@ tick logic it drives (S3) is itself correct and tested.
 ## GitHub issue plan
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
-Children: S1–S8 as listed above, S5b and S5c flagged `owner-verify`/
-`deferred` in the issue body rather than assigned for implementation now.
+Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, Muse),
+#353 (S8 UI, Gemini), #354 (S4 CLI, DeepSeek), #355 (S6 poller, Cursor),
+#356 (S5a Linux trigger, OpenCode), #357 (S5b deferred), #358 (S5c deferred).
+All are native sub-issues of #350. #351/#352 agree their shared gate-result
+API first; #353 may scaffold while final integration waits for core PASS.
+Code on main is not review acceptance: the six core findings remain tracked
+on the bus and correction issues. The dated owner handoff supersedes the
+original Claude-only delivery assignment while active.

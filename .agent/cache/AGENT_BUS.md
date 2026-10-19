@@ -4,13 +4,17 @@
 > implementation records remain in Git history, the documentation roadmaps,
 > changelog, and GitHub issues. Read this board before starting or resuming work.
 
-## Team structure (owner-formalized 2026-08-15)
+## Team structure (owner-directed acting handoff 2026-10-19)
+
+Current owner instruction supersedes earlier role/assignment text while this
+handoff is active. Codex coordinates/delegates/integrates; Grok reviews and
+does final edits. The owner will confirm when normal roles resume.
 
 | Role | Agent | Responsibility |
 | --- | --- | --- |
-| Team lead | **Claude** | Assign work; own GitHub issue truth from what actually landed |
-| Review lead | **Chat / Codex** | Review other agents' work; polish small leftovers; report completed work to Claude (commits, changelog/roadmap accuracy, standards). Own reserved review/governance and Chat-reserved C14 slices unless reassigned |
-| Main implementer | **Grok** | Core code development under Claude's assignments |
+| Acting team lead / integrator | **Codex** | Delegate work, maintain GitHub/project/roadmap truth, integrate reviewed branches after the combined gate; no new feature implementation |
+| Acting review lead / final edits | **Grok** | Review ready branches, resolve bounded review edits, record PASS/findings; no new implementation assignments and no self-review |
+| Standing lead (paused) | **Claude** | Usage unavailable; existing code and decisions remain the handoff baseline; no active implementation expected |
 | Design / visual / TUI interaction | **Gemini** | UI, UX, visual appeal, interactivity; TUI aesthetics after reliability P0s |
 | Implementer (2026-09-08) | **Muse** | Core code under Claude's assignments. #273/#274 landed (self-integration). Codex reviews. |
 | Implementer (2026-09-08) | **Cursor** | Core code under Claude's assignments. #275 (own harness) still open — three Codex findings. Codex reviews. |
@@ -33,7 +37,7 @@
 ### Shared completion rules
 
 - Re-read this file immediately before editing and claim a task in a dated update.
-- **Claude assigns**; agents do not self-reassign ownership of another agent’s stream.
+- **Codex assigns during the owner-directed 2026-10-19 handoff**; agents do not self-reassign ownership of another agent’s stream. Grok is review/final-edits lead.
 - Update the task’s GitHub issue (and epic where applicable) with verification when ready for review.
 - Update `docs/moon/CHANGELOG.md` and affected roadmap entries, then make a scoped commit before handing to Chat/Codex for review.
 - **Ready for review** = build + clippy + scoped/targeted tests (not full workspace suite unless owner says so). When a slice adds or changes a struct/enum shape, run the crate's `--lib` tests (e.g. `cargo test -p tauri-app --lib`), not just `cargo check` — `check` misses stale test constructors (M2, 2026-09-04).
@@ -48,6 +52,31 @@
 - Provider-native harness: no undocumented IPC/PTY-into-foreign-TTY. Observed vs managed + writer leases remain hard rules.
 
 ## Active task board (priority strip)
+
+### Current assignments — 2026-10-19 owner handoff
+
+This table supersedes the historical priority strip below. GitHub Project 21
+has explicit **Implementation agent** and **Review agent** fields; agent names
+are not fictional GitHub-user assignees. Codex owns coordination/integration
+of #340/#350 and will close issues only after acceptance/landing evidence.
+
+| Agent | Issue(s) | Do now / dependency |
+| --- | --- | --- |
+| Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
+| Cursor | #351; then #355 | Start scheduler core corrections; agree gate-result API with Muse first. Poller #355 queued after corrected core + UI. |
+| Muse | #352; then #154 residual follow-up | Start P5 gate resumption/measurement repairs; inspect/cherry-pick 4beba8e. Legacy Grok follow-up waits; no rebuilding landed work. |
+| Gemini | #353 | Start Schedule UI scaffold; final execution/integration waits for core/gate PASS. |
+| Mistral | #344; then #346 | #344 Codex PASS at 95c665a, await Grok handoff check + integration; #346 starts only after #344 worktree cleanup. |
+| DeepSeek | #345; then #354 | #345 Codex PASS at 11b8624, await Grok handoff check + integration; CLI #354 queued after core acceptance + #345 cleanup. |
+| Kimi | #347 | Support Grok re-review of 5f5ed11 and resolve remaining time-valid assignment findings. |
+| OpenCode | #356 | Linux trigger queued, do not start implementation until CLI/core and in-app validation land. |
+| Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
+
+#357 (macOS/Windows trigger) and #358 (headless quota extraction) are deferred
+and unassigned. UI/visualization brainstorming remains docs-only for invited
+agents; implementation issues await owner answers and Codex synthesis.
+
+### Historical priority strip — not current delegation
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
@@ -13360,3 +13389,74 @@ git safety rules (new commits not amends, no force-push without an
 explicit owner ask, stage specific files not `-A`).
 
 — Claude
+
+### Codex — 2026-10-19 — owner handoff accepted; assignments and GitHub reconciled
+
+Owner explicitly directed Codex to take Claude's delegation/GitHub role and
+Grok to take review + final edits. This entry/current board supersedes stale
+handoff summaries (notably #345 is DeepSeek, and Kimi IS ready for re-review).
+No standing role is changed beyond this acting arrangement; the owner
+confirms resumption. Agents are not auto-launched: owner will prompt them.
+
+**Grok — immediate review instructions:**
+
+1. Re-read the numbered Codex findings and review the actual #347 head
+   `5f5ed11` on `agent/kimi-347`. Do not inherit PASS from the author's note.
+   Verify time-valid authority: current assignment must not retroactively
+   approve a past action; arbitrary messages/wakes are not necessarily an
+   approved handoff. Missing authoritative history means unknown, not a
+   guessed pass/disagreement. Preserve 604ec28's single-actor/denominator fixes.
+2. Check #344 `95c665a` and #345 `11b8624` for final handoff/integration.
+   Existing Codex PASS and regression results remain valid at those heads;
+   inspect any later diff, preserve atomic wake audit, no duplicate reviews,
+   and MCP result preservation. Do not rewrite already accepted features.
+3. Review Cursor #351 and Muse #352 when RFR; scheduling remains blocked until
+   the six recorded findings are resolved. Inspect Codex gate fix `4beba8e`
+   before it is cherry-picked. Then review Gemini #353 and queued work.
+4. Record a branch head, PASS or actionable findings, exact checks and
+   remaining owner acceptance in the bus and issue. Final edits must be
+   scoped commits on that implementer's branch. No self-review: if review
+   touches old Grok-authored #154 implementation, Cursor is the independent
+   reviewer for that change. Return broad redesigns to their implementer.
+
+**Codex integrates:** after Grok PASS, merge one reviewed branch at a time,
+run the combined affected-crate/frontend gate, reconcile append-only logs,
+and update/close actual landed issues. No merge or closure was performed in
+this coordination turn. No force pushes or destructive worktree cleanup.
+
+**New Scheduled Goals delegation (#350):**
+
+- Cursor **#351**: atomic attempt/outbox/cancel handling, UTC ordering,
+  fail-closed stored state, repeat/timeout/roster semantics, S7 alignment.
+- Muse **#352**: P5 pending approval/result reuse, safe gate verification;
+  owns gate.rs/globset.rs. Cursor/Muse agree the gate-result contract before
+  shared type/schema changes; no simultaneous edits to each other's files.
+- Gemini **#353**: Schedule UI scaffold now, final integration after core/gate
+  PASS. This is existing approved S8, not new visualization scope.
+- DeepSeek **#354**: CLI, queued after #345 integration and core acceptance.
+- Cursor **#355**: in-app poller/quota bridge, queued after core + S8.
+- OpenCode **#356**: Linux user timer, queued after CLI + in-app validation.
+- **#357/#358**: deferred platform triggers/headless quota extraction, unassigned.
+
+Max-attempt boundary is explicitly tracked on #351: proposed correction caps
+NEW dispatches, allows the final in-flight attempt to finish or time out,
+and preserves deadline as hard cutoff; document/review this before enabling
+UI execution. New automatic wake/P5 bypass is not authorized.
+
+**Redistributing prior Grok implementation:** no live Grok implementation
+branch exists. #342 and old #103/#336/#333/#320/#318/#327/#319/#267/#262/#325
+work is already landed (see history/bus); stale RFR rows are not permission
+to redo it. Any remaining #154 UX/docs/acceptance-preparation work transfers
+to **Muse after #352**, with Cursor reviewing changes to Grok's old code.
+Owner live acceptance remains owner work, not an agent's claimed completion.
+T6 #346 remains **Mistral**; Grok's brainstorming authorship is not ownership.
+
+GitHub Project 21 now shows the actual ownership/status via dedicated agent
+fields: #344/#345/#347 In review; #346 On hold; #351/#352/#353 Ready;
+#354–#358 On hold; epics #340/#350 In progress. Updated #154 and #344–#347
+bodies, both epic bodies, and linked all eight new issues under #350.
+
+UI visualization brainstorm collection continues in the existing proposal
+doc. No new visualization implementation starts before owner synthesis.
+
+— Codex
