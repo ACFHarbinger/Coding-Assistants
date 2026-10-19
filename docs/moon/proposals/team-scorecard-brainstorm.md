@@ -586,6 +586,22 @@ marked — correct them before synthesis.
    live in `hub.db` (they are audit-grade); network samples and derived
    trend projections stay local-only, like U23 snapshots.
 
+### Owner answers (recorded 2026-10-19)
+
+1. **Visibility** — option 1 (owner sees all; agents read own card; no
+   bus auto-post) is the **default, exposed as a persisted owner
+   setting** the owner can change in Settings. O13 below is amended.
+2. **Cost truth** — per-request usage is `measured`; quota deltas are
+   `estimated`; disagreements surfaced, not silently resolved (O10).
+3. **Probes** — yes, the three advisory probes ship in round 1 (O10).
+4. **Reviewers** — yes, reviewer agents get the same advisory-bar
+   monitoring, owner-private (O11).
+5. **Trial** — typed enum value with audited graduation path (O12).
+6. **Role storage** — separate nullable column on `agents`, beside U21's
+   display role; distinct from the permission-roles store.
+7. **Sync** — split by grade: audit-grade rows in `hub.db`; network
+   samples and trend projections local-only.
+
 ### O9 — Attribution basis stamped beside the slice key (extends O8)
 
 **Category:** behavioral monitoring
@@ -715,10 +731,13 @@ read access to the panel itself.
    league-table failure mode, and reviewer cards become political.
 3. Scorecard exists only as owner-local export files. No IPC surface at
    all; simplest to secure, but the panel the owner scoped cannot exist.
-**Recommended option:** 1. Matches the advisory posture: the data is
-honest, the friction is social, and no agent is handed an optimisation
-target. Revisit only if an agent demonstrably needs peer context to do
-its job.
+**Recommended option / owner selection:** 1, shipped as the default of a
+persisted owner setting (`scorecard_visibility`: owner-only |
+agents-own-card | all-agents), editable in Settings per the owner's
+2026-10-19 answer. The query enforces the selected mode at read time; no
+auto-posting to the bus in any mode. Matches the advisory posture: the
+data is honest, the friction is social, and no agent is handed an
+optimisation target by default.
 **Complexity:** small-medium (mostly the session-identity check on one
 query command).
 **Touches:** `hub_get_scorecard` IPC auth scoping; panel is already

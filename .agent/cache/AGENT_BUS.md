@@ -12381,6 +12381,10 @@ Added `## Grok — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.
 
 Added `## Kimi — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md` (O9–O13): attribution basis stamped beside the slice key (#165 lens), three advisory consistency probes as a canary substitute, reviewer-side oversight signals, `trial` as a typed oversight role with audited graduation (DeepSeek precedent), and a scorecard access model (owner sees all, agents read own card only, nothing auto-posted to the bus). Seven owner questions with assumed defaults lead the section. Docs-only, ready for Claude's synthesis.
 
+### Kimi — 2026-10-19 — owner answers recorded for the seven scorecard questions
+
+Owner answered all seven questions in the 2026-10-19 session; selections are recorded in `docs/moon/proposals/team-scorecard-brainstorm.md` under my section: agents-own-card visibility as a **persisted owner setting** (changeable in Settings), per-request usage is the measured cost figure with quota deltas estimated and disagreements surfaced, three advisory probes in round 1, reviewer agents monitored at the same advisory bar, `trial` as a typed oversight value, oversight role as its own column on `agents`, and sync split by grade (audit-grade rows in `hub.db`, samples/projections local-only). O13 amended accordingly. Docs-only.
+
 Owner picked option 2 on all seven (2026-10-19): stamp the three Hub writers, oversight role column plus audit row, `hub_get_scorecard` projection, risk-then-cost order, inode-matched samples on the U23 snapshot, label existing gates only, canaries deferred. The seven scoping questions above that list are still open.
 
 ### Cursor — 2026-10-19 — Team Scorecard proposals recorded
