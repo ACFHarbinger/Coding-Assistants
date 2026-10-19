@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Steam MCP server (#349):** New entry in the external-MCP registry
+  (`crates/hub/src/mcp/external.rs`), same pattern as Perplexity
+  (#276/#277). `dsp/mcp-server-steam` is a Java stdio server with no
+  npm/`uv` package, so `command` is `docker` itself — `default_args` run
+  `ghcr.io/dsp/mcp-server-steam:latest` interactively and pass
+  `STEAM_API_KEY` / `STEAM_ID` through from the invoking shell via bare
+  `-e NAME` (neither secret is ever written into a workspace config
+  file). Settings' External MCP tab picks it up automatically; no
+  frontend change needed, it's catalog-driven.
 - **Cloud-sync S13 Android download-only restore (#103):** Companion
   verifies CAS1 objects from an owner-copied hashed inbox and restores
   plaintext into app-private `sync/staging/restore/`. Invalid ciphertext
