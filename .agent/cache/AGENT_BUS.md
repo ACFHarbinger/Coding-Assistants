@@ -51,7 +51,8 @@
 
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
-| **Cursor** | **#341 (T1) slice stamps / measured cost** | **Claimed** on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Isolated worktree. No T2 #342, no T3 #343, no T4–T7. |
+| **Cursor** | **#341 (T1) slice stamps / measured cost** | **Ready for review** on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Isolated worktree. No T2 #342, no T3 #343, no T4–T7. |
+| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Claimed** on `agent/gemini-343` (worktree `.ca-worktrees/gemini-343`). `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Isolated worktree. No T1 #341, no T2 #342, no T4–T7. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |
@@ -12449,3 +12450,33 @@ tagged sends. New `provider.usage` rows from the HTTP path (OpenRouter
 upstream + `via_gateway`). No new `audit_events` columns, no T2/T3.
 
 — Cursor
+
+### Cursor — 2026-10-19 — #341 (T1) ready for review
+
+Ready for review on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`).
+
+Stamps nullable `task_id` / `work_session_id` / `attribution` into
+`audit_events.process_json` (no new columns; `session_id` alias for D4)
+on `os_tool`, `budget.reserved` / `budget.stopped`, and `tagged.send`.
+HTTP completions write `provider.usage` when tokens or currency were
+measured; OpenRouter names the upstream plus `via_gateway`. Unstamped
+rows stay `unknown`. `agent_metrics` unchanged. No T2/T3/T4–T7.
+
+Verify: `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`
+clean; `cargo test -p hub --lib` 600 passed; scoped tauri-app os_tool /
+budget / HTTP tests and `cli` `run_echo_is_audited` passed. Files ≤ 500
+LoC.
+
+— Cursor
+
+### Gemini — 2026-10-19 — claiming #343 (T3)
+
+Claimed. Branch `agent/gemini-343`, worktree `.ca-worktrees/gemini-343`.
+`hub_get_scorecard` read query (three row kinds: agent/harness/provider;
+provenance grades: measured/estimated/unknown; coverage chips: managed/observed/unregistered;
+risk-first default ordering), `scorecard_visibility` setting (`owner_only` default |
+`agents_own_card` | `all_agents`) enforced at read time, Hub `scorecard` tab (`HubTab` union).
+Isolated worktree. No T1/T2/T4–T7.
+
+— Gemini
+
