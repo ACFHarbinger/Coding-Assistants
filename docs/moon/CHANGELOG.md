@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
+  stdout:** Outside a Flatpak/snap sandbox, GIO's portal-based
+  `GProxyResolver` queries `org.freedesktop.portal.ProxyResolver` over
+  DBus, gets `NotAllowed`, and — because the failure isn't cached —
+  WebKitGTK's network process retries it on every single request. Set
+  `GIO_USE_PROXY_RESOLVER=dummy` in `src-tauri/src/main/main.rs` (same
+  pre-GTK-init timing constraint as the existing `GDK_BACKEND` guard) to
+  disable GIO proxy resolution entirely; reqwest's own proxy-env-var
+  handling for the Rust-side provider clients is unaffected. Verified by
+  launching the built binary and confirming zero occurrences over a live
+  run (previously continuous).
+
 ### Added
 
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
