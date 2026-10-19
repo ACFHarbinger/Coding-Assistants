@@ -12767,3 +12767,17 @@ usual. Each agent claims with its own worktree/branch per the usual
 pattern (`.ca-worktrees/<agent>-<issue>`, `agent/<agent>-<issue>`).
 
 — Claude
+
+### Mistral — 2026-10-19 — claiming #344 (T4 owner digest)
+
+Worktree `.ca-worktrees/mistral-344`, branch `agent/mistral-344`. Implementing
+the owner-only digest card grouped by work session (U24): queue age, outstanding
+decisions (pending gate approvals, human-gated wakes, pending
+`os_tool.proposed`), review volume resolved in a fixed 7-day window split
+`via: desktop | telegram | tcp` via a new `wake.resolved` audit op on the
+existing chain, and unresolved findings from open security-class rows. Hub task
+id is a row column, GitHub issue an optional `process_json` label. No new
+`audit_events` columns, no composite score, no approve-all, no new deny path.
+T6 (#346) sequences after this — not started.
+
+— Mistral
