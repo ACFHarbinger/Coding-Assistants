@@ -48,7 +48,7 @@ impl ProviderUsage {
                 upstream.trim().to_string(),
                 Some(gateway.trim().to_string()),
             ),
-            _ => (gateway.trim().to_string(), None),
+            _ => ("unknown".to_string(), Some(gateway.trim().to_string())),
         }
     }
 }
@@ -109,9 +109,9 @@ mod tests {
         let (provider, via) = ProviderUsage::gateway_route("openrouter", "openai/gpt-4o-mini");
         assert_eq!(provider, "openai");
         assert_eq!(via.as_deref(), Some("openrouter"));
-        let (plain, none) = ProviderUsage::gateway_route("openrouter", "gpt-4o");
-        assert_eq!(plain, "openrouter");
-        assert!(none.is_none());
+        let (plain, via) = ProviderUsage::gateway_route("openrouter", "gpt-4o");
+        assert_eq!(plain, "unknown");
+        assert_eq!(via.as_deref(), Some("openrouter"));
     }
 
     #[test]
