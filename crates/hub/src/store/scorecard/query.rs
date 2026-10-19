@@ -1,3 +1,4 @@
+use super::digest::DIGEST_WINDOW_DAYS;
 use super::helpers::*;
 use super::types::*;
 use crate::settings::ScorecardVisibility;
@@ -22,10 +23,18 @@ impl HubStore {
                 agents: Vec::new(),
                 harnesses: Vec::new(),
                 providers: Vec::new(),
+                digest: None,
                 aggregation_version: 1,
                 generated_at: Utc::now().to_rfc3339(),
             });
         }
+
+        // The owner digest is owner-only under every visibility mode (T4 / #344).
+        let digest = if is_owner {
+            Some(self.get_owner_digest(Utc::now(), DIGEST_WINDOW_DAYS)?)
+        } else {
+            None
+        };
 
         // 1. Load roster agents
         let has_oversight: bool = self
@@ -422,6 +431,7 @@ impl HubStore {
             agents: agent_rows,
             harnesses: harness_rows,
             providers: provider_rows,
+            digest,
             aggregation_version: 1,
             generated_at: Utc::now().to_rfc3339(),
         })

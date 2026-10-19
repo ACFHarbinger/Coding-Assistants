@@ -384,7 +384,7 @@ async fn handle_request(request: ClientRequest, app_handle: &AppHandle) -> Serve
                     } else {
                         hub::WakeStatus::Cancelled
                     };
-                    match store.set_wake_status(&wake_id, status) {
+                    match store.set_wake_status_via(&wake_id, status, "tcp") {
                         Ok(_) => ServerResponse::WakeResolved { wake_id },
                         Err(e) => ServerResponse::Error {
                             message: e.to_string(),

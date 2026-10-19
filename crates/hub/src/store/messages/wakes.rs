@@ -109,7 +109,29 @@ impl HubStore {
         })
     }
 
+    /// Resolves a wake on the desktop channel (see [`Self::set_wake_status_via`]).
     pub fn set_wake_status(&self, id: &str, status: WakeStatus) -> Result<(), HubError> {
+        self.set_wake_status_via(id, status, "desktop")
+    }
+
+    /// Resolves a wake and records the channel that carried the human
+    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, and TCP all
+    /// resolve the same wake row — one `human` clock, never double-counted —
+    /// and a non-pending resolution writes one hash-chained `wake.resolved`
+    /// audit row carrying `via` so the owner digest can split review volume
+    /// by channel.
+    pub fn set_wake_status_via(
+        &self,
+        id: &str,
+        status: WakeStatus,
+        via: &str,
+    ) -> Result<(), HubError> {
+        let via = via.trim();
+        if !matches!(via, "desktop" | "telegram" | "tcp") {
+            return Err(HubError::Invalid(format!(
+                "unknown wake resolution channel: {via}"
+            )));
+        }
         let n = self.conn.execute(
             "UPDATE wake_requests SET status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
@@ -129,6 +151,24 @@ impl HubStore {
             if status != WakeStatus::Pending {
                 let _ = fs::remove_file(&path);
             }
+        }
+        if status != WakeStatus::Pending {
+            let target_agent: String = self.conn.query_row(
+                "SELECT target_agent FROM wake_requests WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )?;
+            let root = self.data_dir.clone();
+            let stamp = SliceStamp::default();
+            let process = serde_json::json!({
+                "kind": "wake.resolved",
+                "wake_id": id,
+                "target_agent": target_agent,
+                "status": status.as_str(),
+                "via": via,
+                "actor_agent": "human",
+            });
+            self.record_stamped_audit(&root, &root, "wake.resolved", process, &stamp)?;
         }
         Ok(())
     }

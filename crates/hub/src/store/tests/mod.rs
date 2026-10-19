@@ -14,6 +14,7 @@ mod roster;
 mod roster_audit;
 mod roster_memory;
 mod scorecard;
+mod scorecard_digest;
 mod scorecard_regressions;
 mod workflow_policy;
 mod workflows;
