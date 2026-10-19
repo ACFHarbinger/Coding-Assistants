@@ -17,9 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Decisions are grouped by work session (U24) with the Hub task id as a row
   column and GitHub issue as an optional `process_json` label; unstamped
   decisions land in an ungrouped bucket. Wake resolution gained a channel —
-  `set_wake_status_via` validates `desktop | telegram | tcp` and writes one
-  hash-chained `wake.resolved` audit row — so remote HITL stays on the same
-  `human` clock, tagged by channel, never double-counted. No new
+  `set_wake_status_via` validates `desktop | telegram | tcp` and commits the
+  status transition with at most one hash-chained `wake.resolved` audit row
+  per wake (human-gated resolutions only, idempotent across retries and
+  competing channels, refused while a sync lock is held) — so remote HITL
+  stays on the same `human` clock, tagged by channel, never double-counted.
+  Pending human-gated wakes are read with a complete query, not
+  `list_wakes`'s 100-row cap. No new
   `audit_events` columns, no composite score, no approve-all, no new deny
   path. The digest is `None` for any non-owner caller under every visibility
   mode.

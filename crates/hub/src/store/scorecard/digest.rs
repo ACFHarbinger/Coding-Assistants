@@ -233,23 +233,39 @@ impl HubStore {
             group_mut(&mut groups, &sessions, approval.session_id).push(decision);
         }
 
-        // 3. Pending human-gated wakes.
-        for wake in self.list_wakes(None, true)? {
-            if !wake.requires_human_gate {
-                continue;
+        // 3. Pending human-gated wakes. `list_wakes` caps at the latest 100
+        //    rows, which would silently drop older human decisions and let
+        //    automatic wakes displace them; read the complete pending
+        //    human-gated set directly so queue totals and oldest age stay
+        //    truthful.
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, target_agent, reason, created_at FROM wake_requests \
+                 WHERE status = 'pending' AND requires_human_gate = 1 \
+                 ORDER BY created_at ASC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?;
+            for r in rows {
+                let (id, target, reason, created_at) = r?;
+                let decision = DigestPendingDecision {
+                    id,
+                    kind: DigestDecisionKind::Wake,
+                    subject: reason.unwrap_or_else(|| "wake".to_string()),
+                    agent: Some(target),
+                    created_at: created_at.clone(),
+                    age_seconds: age_seconds(&created_at, &now),
+                    task_id: None,
+                    github_issue: None,
+                };
+                group_mut(&mut groups, &sessions, None).push(decision);
             }
-            let created_at = wake.created_at.clone();
-            let decision = DigestPendingDecision {
-                id: wake.id,
-                kind: DigestDecisionKind::Wake,
-                subject: wake.reason.unwrap_or_else(|| "wake".to_string()),
-                agent: Some(wake.target_agent),
-                created_at: created_at.clone(),
-                age_seconds: age_seconds(&created_at, &now),
-                task_id: None,
-                github_issue: None,
-            };
-            group_mut(&mut groups, &sessions, None).push(decision);
         }
 
         // 4. Audit rows: pending `os_tool.proposed` (decisions), resolutions

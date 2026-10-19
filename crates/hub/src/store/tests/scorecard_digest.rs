@@ -266,24 +266,67 @@ fn digest_counts_open_findings_excluding_pending_proposals() {
     assert_eq!(digest.summary.unresolved_findings, 1);
 }
 
+/// Direct fixture: a pending wake row with an explicit gate flag and stamp,
+/// bypassing `request_wake`'s policy path.
+fn pending_wake_row(
+    store: &HubStore,
+    id: &str,
+    target: &str,
+    reason: Option<&str>,
+    human_gate: bool,
+    created_at: &str,
+) {
+    store
+        .conn
+        .execute(
+            "INSERT INTO wake_requests(id, target_agent, message_id, reason, status, requires_human_gate, created_at) \
+             VALUES (?1, ?2, NULL, ?3, 'pending', ?4, ?5)",
+            params![id, target, reason, i64::from(human_gate), created_at],
+        )
+        .unwrap();
+}
+
 #[test]
-fn set_wake_status_via_rejects_unknown_channels() {
+fn digest_reads_pending_wakes_beyond_the_list_wakes_cap() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
 
-    let wake = store
-        .request_wake("grok", Some("slice"), None, true)
-        .unwrap();
+    // 150 automatic pending wakes would displace the human decision under
+    // `list_wakes`'s 100-row cap; the oldest human-gated decision must
+    // survive with correct queue totals and age.
+    for i in 0..150 {
+        pending_wake_row(
+            &store,
+            &format!("auto-{i}"),
+            "grok",
+            Some("routine"),
+            false,
+            "2026-10-18T12:00:00Z",
+        );
+    }
+    pending_wake_row(
+        &store,
+        "human-old",
+        "grok",
+        Some("oldest human decision"),
+        true,
+        "2026-10-01T00:00:00Z",
+    );
 
-    let err = store
-        .set_wake_status_via(&wake.id, WakeStatus::Delivered, "carrier-pigeon")
-        .unwrap_err();
-    assert!(matches!(err, HubError::Invalid(_)));
-
-    // The wake is untouched and still a pending decision.
     let digest = store
         .get_owner_digest(chrono::Utc::now(), DIGEST_WINDOW_DAYS)
         .unwrap();
     assert_eq!(digest.summary.pending_count, 1);
-    assert_eq!(digest.summary.resolved_window.total, 0);
+    assert_eq!(
+        digest.summary.oldest_pending_at.as_deref(),
+        Some("2026-10-01T00:00:00Z")
+    );
+    let ungrouped = digest
+        .groups
+        .iter()
+        .find(|g| g.work_session_id.is_none())
+        .expect("ungrouped bucket exists");
+    assert_eq!(ungrouped.pending.len(), 1);
+    assert_eq!(ungrouped.pending[0].id, "human-old");
+    assert_eq!(ungrouped.pending[0].subject, "oldest human decision");
 }

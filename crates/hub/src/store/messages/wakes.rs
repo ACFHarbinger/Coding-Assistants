@@ -1,4 +1,5 @@
 use super::super::*;
+use super::policies::insert_audit_event;
 impl HubStore {
     pub fn request_wake(
         &self,
@@ -116,10 +117,15 @@ impl HubStore {
 
     /// Resolves a wake and records the channel that carried the human
     /// decision (Team Scorecard T4 / #344). Desktop, Telegram, and TCP all
-    /// resolve the same wake row — one `human` clock, never double-counted —
-    /// and a non-pending resolution writes one hash-chained `wake.resolved`
-    /// audit row carrying `via` so the owner digest can split review volume
-    /// by channel.
+    /// resolve the same wake row — one `human` clock, never double-counted.
+    ///
+    /// Idempotent by construction: at most one `wake.resolved` audit row is
+    /// ever written per wake, only for a pending → terminal transition of a
+    /// human-gated wake. Retrying the same decision, re-resolving an already
+    /// resolved wake from another channel, and routine non-gated lifecycle
+    /// updates write nothing. The sync-lock check runs before any state
+    /// change, the status update and the audit row commit in one transaction,
+    /// and the side-channel file is reconciled only after that commit.
     pub fn set_wake_status_via(
         &self,
         id: &str,
@@ -132,14 +138,70 @@ impl HubStore {
                 "unknown wake resolution channel: {via}"
             )));
         }
-        let n = self.conn.execute(
+        // Refuse before any state change while a sync lock is held.
+        self.ensure_mutable()?;
+
+        let current: Option<(String, i64)> = self
+            .conn
+            .query_row(
+                "SELECT status, requires_human_gate FROM wake_requests WHERE id = ?1",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((previous_status, human_gate)) = current else {
+            return Err(HubError::NotFound(id.into()));
+        };
+        if previous_status == status.as_str() {
+            // Idempotent retry: nothing changed, no second audit row.
+            return Ok(());
+        }
+
+        let is_resolution =
+            previous_status == WakeStatus::Pending.as_str() && status != WakeStatus::Pending;
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "UPDATE wake_requests SET status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
-        if n == 0 {
-            return Err(HubError::NotFound(id.into()));
+        if is_resolution && human_gate != 0 {
+            // One human decision per wake, ever: a reset back to pending
+            // followed by a second resolution must not add another row.
+            let already_resolved: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM audit_events \
+                 WHERE operation = 'wake.resolved' \
+                   AND process_json LIKE '%\"wake_id\":\"' || ?1 || '\"%')",
+                params![id],
+                |row| row.get(0),
+            )?;
+            if !already_resolved {
+                let target_agent: String = tx.query_row(
+                    "SELECT target_agent FROM wake_requests WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )?;
+                let root = self.data_dir.to_string_lossy().into_owned();
+                let process = serde_json::json!({
+                    "kind": "wake.resolved",
+                    "wake_id": id,
+                    "target_agent": target_agent,
+                    "status": status.as_str(),
+                    "via": via,
+                    "actor_agent": "human",
+                });
+                insert_audit_event(
+                    &tx,
+                    &root,
+                    &root,
+                    "wake.resolved",
+                    &process.to_string(),
+                    None,
+                )?;
+            }
         }
-        // Keep side-channel file in sync when present.
+        tx.commit()?;
+
+        // Reconcile the side-channel file after the commit.
         let path = self.data_dir.join("wake").join(format!("{id}.json"));
         if path.exists() {
             if let Ok(text) = fs::read_to_string(&path) {
@@ -151,24 +213,6 @@ impl HubStore {
             if status != WakeStatus::Pending {
                 let _ = fs::remove_file(&path);
             }
-        }
-        if status != WakeStatus::Pending {
-            let target_agent: String = self.conn.query_row(
-                "SELECT target_agent FROM wake_requests WHERE id = ?1",
-                params![id],
-                |row| row.get(0),
-            )?;
-            let root = self.data_dir.clone();
-            let stamp = SliceStamp::default();
-            let process = serde_json::json!({
-                "kind": "wake.resolved",
-                "wake_id": id,
-                "target_agent": target_agent,
-                "status": status.as_str(),
-                "via": via,
-                "actor_agent": "human",
-            });
-            self.record_stamped_audit(&root, &root, "wake.resolved", process, &stamp)?;
         }
         Ok(())
     }
