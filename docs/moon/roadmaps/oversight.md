@@ -63,7 +63,7 @@ this epic:
 | T2 | Oversight role, trial, and exception authority | `oversight_role` (`implementer \| reviewer \| lead \| observer \| trial`) column beside `agents.role`; hash-chained `oversight.exception` audit op (agent, from/to, scope, granted_by, started_at, expires_at, reason); `oversight.trial_graduated` op. Authority setting: owner grants by default, a delegated lead is an explicit alternate setting a lead cannot self-enable. An exception grants no P5/vault/network rights and does not authorize self-review. Expiry: task completion or stated deadline, whichever first, plus explicit revocation. | ✅ Landed in `main` (#342, Grok). Advisory only. No `role_exceptions` table. |
 | T3 | `hub_get_scorecard` query, Hub `scorecard` tab, and visibility setting | One read-only Tauri command projecting stamped audit rows, tasks, work sessions, budgets, and quota snapshots into three row kinds (agent/harness/provider) with `measured`/`estimated`/`unknown` per figure, plus `coverage: managed \| observed \| unregistered`. New Hub tab (`HubTab` union) reusing the panel pattern beside `dashboard`/`usage`/`system`. `scorecard_visibility` setting enforced at read time. Default sort: open security-class rows, then oldest pending `human` decision, then measured cost — never a composite score. | ✅ Landed in `main` (#343, Gemini). PASS with fixes from Codex. |
 | T4 | Owner digest and work-session batch review | Private, owner-only digest card: queue age, outstanding decisions, review volume, unresolved findings — grouped by active/recent **work session** (U24), with Hub task id as a row column, GitHub issue as an optional label. Remote HITL (Telegram/TCP `/approve`/`/reject`) uses the same in-app `human` clock, tagged `via: desktop \| telegram \| tcp`, so it isn't double-counted. No new approve-all, no new deny path. | 🚧 Delegated · Mistral · #344 |
-| T5 | `mcp.invoke` on the audit chain | `hub_mcp_client_call` (P14-A) currently writes no audit row. Record `mcp.invoke` (server, tool, workspace, actor, outcome, duration) on the existing chain, same security-class list as `os_tool.*`. Never copies arguments or tool payloads. Visibility only — no change to Tools-tab UX or a new gate. | 🚧 Delegated · OpenCode · #345 |
+| T5 | `mcp.invoke` on the audit chain | `hub_mcp_client_call` (P14-A) currently writes no audit row. Record `mcp.invoke` (server, tool, workspace, actor, outcome, duration) on the existing chain, same security-class list as `os_tool.*`. Never copies arguments or tool payloads. Visibility only — no change to Tools-tab UX or a new gate. | 🚧 In progress · DeepSeek (took over from OpenCode) · #345 |
 | T6 | Network samples on the U23 cadence | On the existing `system_snapshot` timer, for managed harness PIDs and registered observed sessions whose PID start time still matches: walk `/proc/<pid>/fd`, match socket inodes against `/proc/<pid>/net/tcp[6]`, record destination IP/port/pid/start-time/session id and whether the fd table was fully readable (`fds_unreadable` is a field, not a silent empty list). Capped ring: last 24h or a few hundred rows per session, whichever is smaller — fixed internal bound, not a setting. No reverse DNS, no payloads, no byte counts. | 🚧 Delegated · Mistral · #346 |
 | T7 | Consistency probes and reviewer-side signature | Three advisory probes computed in `hub_get_scorecard` (quota delta vs. claimed slice cost; git-diff scope vs. recorded touch-set; network observations vs. provider call log; writer-lease owner vs. slice claimant) — a disagreement writes one `scorecard.disagreement` audit row linking both sources; shown as a card badge. Reviewer-side oversight signature (dwell time, zero-evidence approvals, fix-find rate, owner-override-reversal rate) derived from T1/classified-findings data, same descriptive-only, no-single-score discipline as the owner's own signal. | 🚧 Delegated · Kimi · #347 |
 
@@ -84,7 +84,7 @@ Parent epic [#340](https://github.com/ACFHarbinger/Coding-Assistants/issues/340)
 | T2 | [#342](https://github.com/ACFHarbinger/Coding-Assistants/issues/342) | Grok |
 | T3 | [#343](https://github.com/ACFHarbinger/Coding-Assistants/issues/343) | Gemini |
 | T4 | [#344](https://github.com/ACFHarbinger/Coding-Assistants/issues/344) | Mistral |
-| T5 | [#345](https://github.com/ACFHarbinger/Coding-Assistants/issues/345) | OpenCode |
+| T5 | [#345](https://github.com/ACFHarbinger/Coding-Assistants/issues/345) | DeepSeek (took over from OpenCode) |
 | T6 | [#346](https://github.com/ACFHarbinger/Coding-Assistants/issues/346) | Mistral |
 | T7 | [#347](https://github.com/ACFHarbinger/Coding-Assistants/issues/347) | Kimi |
 
@@ -93,8 +93,9 @@ T4–T7 unblocked now that T1/T3 are in and delegated: Mistral takes T4
 (owner digest) and T6 (network samples) — both extend proposals Mistral
 authored in the brainstorm (digest delivery channels, network-sample
 retention). Kimi takes T7 (consistency probes, reviewer-side signature),
-also matching Kimi's own brainstorm authorship. OpenCode takes T5
-(`mcp.invoke` audit row) as a self-contained first slice.
+also matching Kimi's own brainstorm authorship. DeepSeek takes over T5
+(`mcp.invoke` audit row) from OpenCode as a self-contained first slice
+(OpenCode had no branch/worktree started).
 
 ## Review notes
 
