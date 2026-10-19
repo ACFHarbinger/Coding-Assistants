@@ -63,6 +63,7 @@ roadmap must add acceptance criteria at least every few entries.
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
 | Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
 | Team Scorecard / HITL oversight | [`roadmaps/oversight.md`](roadmaps/oversight.md) | P1 · approved implementation plan |
+| Scheduled Goals / gate-driven prompting | [`roadmaps/schedule.md`](roadmaps/schedule.md) | P1 · approved implementation plan |
 | Multi-human, multi-team coordination | [`roadmaps/multi_human.md`](roadmaps/multi_human.md) | Research · not urgent as of 2026-08-14 |
 
 ## v1.0 Release Milestone
