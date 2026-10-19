@@ -117,3 +117,16 @@ pub(crate) fn disagreement_count(store: &HubStore) -> i64 {
         )
         .unwrap()
 }
+
+/// Durable task handoff message: timestamped evidence that the Hub handed
+/// this agent the slice (assignment fact at the relevant time).
+pub(crate) fn task_message(store: &HubStore, id: &str, to: &str, task: &str, at: &str) {
+    store
+        .conn
+        .execute(
+            "INSERT INTO messages (id, from_agent, to_agent, task_id, kind, status, body, created_at) \
+             VALUES (?1, 'human', ?2, ?3, 'task', 'pending', 'work this slice', ?4)",
+            params![id, to, task, at],
+        )
+        .unwrap();
+}

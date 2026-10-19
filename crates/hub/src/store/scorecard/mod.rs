@@ -5,6 +5,10 @@
 //! (agent, harness, provider) with explicit figure provenance and visibility
 //! gating.
 
+#[cfg(test)]
+#[path = "probe_test_support.rs"]
+pub(crate) mod probe_test_support;
+
 mod helpers;
 mod probe_claimant;
 mod probe_quota;

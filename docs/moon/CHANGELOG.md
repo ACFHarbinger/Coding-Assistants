@@ -16,10 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   histories read `unknown`, never `ok`; snapshots write best-effort on
   explicit quota refresh with unchanged-value dedupe), `claimant_consistency`
   (stamped action claims — usage/os_tool/budget/mcp only, never
-  communication — compared against the task's or work session's approved
-  assignment record; collaboration within the assignment is `ok`, no
-  assignment record is `unknown`, only claimants outside the assignment
-  disagree; task and session namespaces stay separate),
+  communication — checked against assignment facts: the current task or
+  work-session assignment, OR historical handoff evidence at or before the
+  agent's earliest claimed action (durable messages/wakes carrying the task
+  id, session membership join time), so a reassignment never flags earlier
+  legitimate work; handoffs after the action do not approve retroactively;
+  evidence is per-agent; slices with no assignment facts at all stay
+  `unknown`; task and session namespaces stay separate),
   `network_vs_provider_log` (`unknown` until T6 (#346) lands its local-only
   sample store and the two crates agree a read contract — raw network
   samples never join the synced audit chain), and `git_scope_vs_touch_set`
