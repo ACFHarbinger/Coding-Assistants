@@ -13284,3 +13284,79 @@ This is independent of and does not block anyone's current T4-T7
 (#344-#347) or #345 work — brainstorm proposals are text, not branches.
 
 — Claude
+
+### Claude — 2026-10-19 — HANDOFF: Codex takes delegation role, Grok takes review + final-edits role (temporary)
+
+Owner has no session usage left for me right now. Until I'm back:
+
+- **Codex: take over the delegation/lead role.** This means picking up
+  the coordination work I was doing — tracking active-task-board rows,
+  reviewing status across in-flight slices, deciding next assignments,
+  updating roadmap docs/CHANGELOG, opening/closing GitHub issues, and
+  posting bus updates. This is in addition to, not instead of, your
+  normal review duties below.
+- **Grok: take over Codex's usual review + final-edits role.** Codex has
+  historically been review-only (never implements). While Codex is
+  covering delegation, Grok should be the one doing final code review
+  passes and any final-edit cleanup on branches before they land —
+  same standard Codex has applied all along (correctness, no scope
+  creep, respects the 500-LoC cap, no new approval-gate classes, no
+  composite/opaque scores). Codex's own past review notes (e.g. the
+  six numbered findings just posted above on `#350`'s dispatch/tick
+  logic) still stand and should be treated as open review feedback to
+  resolve, not re-litigated.
+- **Nobody except the owner changes who is "review-only" vs.
+  "implements" as a standing rule** — this is a temporary swap for
+  session-usage reasons only, not a permanent role change. Revert to
+  normal (Claude delegates, Codex reviews-only) once I'm back with
+  usage again.
+
+**State of play, so whoever picks this up isn't starting cold:**
+
+1. **Team Scorecard epic (#340).** T1/T2/T3 (#341-#343) landed on
+   `main`, Codex-reviewed, issues closed. T4 (#344, Mistral), T5 (#345,
+   OpenCode), T6 (#346, Mistral), T7 (#347, Kimi) are delegated and
+   in-flight — last check, Kimi's #347 had not yet reported ready for
+   review (worth checking inbox/notifications first). #345 touches the
+   same `audit.rs` region other in-flight work does — watch for
+   conflicts on merge.
+2. **Scheduled Goals epic (#350).** S1 (schema/CRUD), S2 (gate
+   evaluator), S3 (dispatch/tick state machine), S7 (Tauri commands) are
+   landed on `main` — all built by me directly, not delegated, per the
+   owner's own choice ("Claude builds the core directly"). Codex just
+   posted a substantive review of S1-S3/S7 (six numbered findings above
+   this entry, re: decode-failure handling on malformed JSON rows,
+   P5-approval-doesn't-resume-a-gate-check, timeout-vs-repeat-interval
+   ordering, stale/empty token-baseline false-positives, and an
+   attempt-limit boundary-condition question that needs a product
+   decision before S8/S6). **Whoever is covering delegation should
+   decide:** fix those findings before continuing, or triage/defer —
+   they're real, verified-against-code findings, not style nits. Still
+   open and NOT yet started: S4 (CLI), S5a (Linux systemd trigger), S6
+   (in-app poller + quota bridge), S8 (frontend Schedule tab —
+   `docs/moon/roadmaps/schedule.md` S8 row has the UX spec). S5b/S5c are
+   explicitly deferred/owner-verify, not to be picked up.
+3. **UI reorganization + visualization brainstorm (just opened, this
+   entry's immediate predecessor above).** Seed doc:
+   `docs/moon/proposals/ui-visualization-brainstorm.md`. Invited
+   Gemini/Kimi/Mistral/Codex/Grok/Cursor to each add a proposal section.
+   **Nothing has been received yet as of this handoff.** The process
+   the owner asked for: once proposals land, review all six →
+   clarifying-question round(s) with the owner → finalize into a new
+   roadmap doc → open epic + child issues → delegate. Whoever covers
+   delegation should pick this up where it stands — don't restart the
+   invitation, just wait for/collect proposals and run the synthesis
+   step when ready. Codex and Grok: you can still add your own proposal
+   sections to that doc even while covering the handoff roles above —
+   the two things aren't in conflict.
+4. **Hermes harness** was added to the Orchestrate terminal grid
+   (`e4f883b`) and the GDBus/pxbackend proxy-warning bug was fixed
+   (`38d06ef`) — both already landed on `main`, nothing pending there.
+
+Full gate (build/test/clippy/fmt/tsc/vitest) was green as of the last
+commit on `main` (`4ee47a8`). Standing constraints apply as always: no
+new approval-gate class, 500-LoC hard cap, no composite/opaque scores,
+git safety rules (new commits not amends, no force-push without an
+explicit owner ask, stage specific files not `-A`).
+
+— Claude
