@@ -2,7 +2,7 @@
 
 use super::store::open_store;
 use hub::os_tool::{self, OsToolRequest, OsToolResult};
-use hub::{SandboxStrictness, SettingsStore};
+use hub::{SandboxStrictness, SettingsStore, SliceStamp};
 use std::path::PathBuf;
 
 fn require_absolute(path: &str, label: &str) -> Result<(), String> {
@@ -25,6 +25,7 @@ pub fn hub_run_os_tool(
     args: Vec<String>,
     cwd: String,
     workspace: Option<String>,
+    stamp: Option<SliceStamp>,
 ) -> Result<OsToolResult, String> {
     require_absolute(&cwd, "cwd")?;
     if let Some(workspace) = workspace.as_deref() {
@@ -42,6 +43,7 @@ pub fn hub_run_os_tool(
         request,
         strictness,
         os_tool::DEFAULT_TIMEOUT,
+        stamp.unwrap_or_default(),
     )
 }
 
@@ -53,7 +55,7 @@ pub fn hub_approve_os_tool(audit_id: String) -> Result<OsToolResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hub::HubStore;
+    use hub::{HubStore, SliceStamp};
     use tempfile::tempdir;
 
     #[test]
@@ -72,6 +74,7 @@ mod tests {
             request,
             SandboxStrictness::Standard,
             os_tool::DEFAULT_TIMEOUT,
+            SliceStamp::registered(Some("task-p5".into()), None, Some("cursor".into())),
         )
         .unwrap();
         assert_eq!(result.status, "ran");
@@ -81,6 +84,8 @@ mod tests {
         assert_eq!(events[0].operation, "os_tool.ran");
         assert_eq!(events[0].status, "approved");
         assert!(events[0].process_json.contains("p5-ok"));
+        assert!(events[0].process_json.contains("task-p5"));
+        assert!(events[0].process_json.contains("registered"));
     }
 
     #[test]
@@ -99,6 +104,7 @@ mod tests {
             request,
             SandboxStrictness::Permissive,
             os_tool::DEFAULT_TIMEOUT,
+            SliceStamp::default(),
         )
         .unwrap();
         assert_eq!(result.status, "denied");
@@ -123,6 +129,7 @@ mod tests {
             request,
             SandboxStrictness::Standard,
             os_tool::DEFAULT_TIMEOUT,
+            SliceStamp::registered(Some("task-git".into()), Some("sess-git".into()), None),
         )
         .unwrap();
         assert_eq!(proposed.status, "needs_approval");

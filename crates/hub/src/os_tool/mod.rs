@@ -10,8 +10,7 @@ pub use exec::{run, OsToolOutput, DEFAULT_TIMEOUT};
 pub use policy::{decide, program_basename, OsToolDecision, OsToolRequest};
 
 use crate::store::AuditEvent;
-use crate::HubStore;
-use crate::SandboxStrictness;
+use crate::{HubStore, SandboxStrictness, SliceStamp};
 use serde_json::json;
 use std::path::Path;
 use std::time::Duration;
@@ -38,8 +37,9 @@ fn process_json(
     decision: &str,
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
+    stamp: &SliceStamp,
 ) -> String {
-    json!({
+    let mut value = json!({
         "kind": "os_tool",
         "cmdline": std::iter::once(request.program.clone())
             .chain(request.args.iter().cloned())
@@ -53,8 +53,9 @@ fn process_json(
         "stdout_preview": output.map(|out| out.stdout.as_str()).unwrap_or(""),
         "stderr_preview": output.map(|out| out.stderr.as_str()).unwrap_or(""),
         "proposed_id": proposed_id,
-    })
-    .to_string()
+    });
+    stamp.apply(&mut value);
+    value.to_string()
 }
 
 fn record(
@@ -64,6 +65,7 @@ fn record(
     decision: &str,
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
+    stamp: &SliceStamp,
 ) -> Result<AuditEvent, String> {
     let root = request
         .workspace
@@ -75,7 +77,7 @@ fn record(
             Path::new(root),
             Path::new(&request.cwd),
             operation,
-            &process_json(request, decision, output, proposed_id),
+            &process_json(request, decision, output, proposed_id, stamp),
             None,
         )
         .map_err(|error| error.to_string())
@@ -100,16 +102,25 @@ fn outcome(
     }
 }
 
-/// Evaluate policy, maybe run, always audit.
+/// Evaluate policy, maybe run, always audit. `stamp` is T1 slice identity.
 pub fn submit(
     store: &HubStore,
     request: OsToolRequest,
     strictness: SandboxStrictness,
     timeout: Duration,
+    stamp: SliceStamp,
 ) -> Result<OsToolResult, String> {
     match decide(&request, strictness) {
         OsToolDecision::Deny { reason } => {
-            let audit = record(store, &request, "os_tool.denied", "deny", None, None)?;
+            let audit = record(
+                store,
+                &request,
+                "os_tool.denied",
+                "deny",
+                None,
+                None,
+                &stamp,
+            )?;
             let _ = store.set_audit_status(&audit.id, "quarantined");
             Ok(outcome("denied", &audit, "deny", Some(reason), None))
         }
@@ -121,6 +132,7 @@ pub fn submit(
                 "needs_approval",
                 None,
                 None,
+                &stamp,
             )?;
             Ok(outcome(
                 "needs_approval",
@@ -132,7 +144,15 @@ pub fn submit(
         }
         OsToolDecision::Allow => {
             let output = run(&request, timeout)?;
-            let audit = record(store, &request, "os_tool.ran", "allow", Some(&output), None)?;
+            let audit = record(
+                store,
+                &request,
+                "os_tool.ran",
+                "allow",
+                Some(&output),
+                None,
+                &stamp,
+            )?;
             let _ = store.set_audit_status(&audit.id, "approved");
             Ok(outcome("ran", &audit, "allow", None, Some(&output)))
         }
@@ -191,6 +211,7 @@ pub fn approve(
         return Err("os_tool proposal is hard-denied and cannot be approved".into());
     }
     let output = run(&request, timeout)?;
+    let stamp = SliceStamp::from_json_str(&event.process_json);
     let ran = record(
         store,
         &request,
@@ -198,6 +219,7 @@ pub fn approve(
         "approved",
         Some(&output),
         Some(audit_id),
+        &stamp,
     )?;
     let _ = store.set_audit_status(audit_id, "approved");
     let _ = store.set_audit_status(&ran.id, "approved");

@@ -1,5 +1,4 @@
 use super::*;
-
 mod queries;
 mod read_markers;
 mod wakes;
@@ -284,6 +283,14 @@ impl HubStore {
             )?);
         }
 
+        let _ = self.record_tagged_send_audit(
+            from_agent,
+            &subject,
+            workspace_path,
+            task_id,
+            session_id,
+            outcomes.len(),
+        );
         Ok(outcomes)
     }
 

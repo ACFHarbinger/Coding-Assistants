@@ -10,7 +10,11 @@ fn gate(store: &HubStore, agent: &str, amount: f64) -> ProviderCallGate {
         .gate_provider_call(
             agent,
             amount,
-            Some("task-p10"),
+            &SliceStamp::registered(
+                Some("task-p10".into()),
+                Some("sess-p10".into()),
+                Some(agent.to_string()),
+            ),
             "Finish the runtime budget gate.",
             "Store methods landed.",
             "Orchestrator wiring.",
@@ -172,7 +176,28 @@ fn p10_rejects_non_positive_gate_amount() {
     let store = HubStore::open(dir.path()).unwrap();
     store.set_agent_budget("claude", 5.0).unwrap();
     assert!(store
-        .gate_provider_call("claude", 0.0, None, "x", "y", "z", None)
+        .gate_provider_call("claude", 0.0, &SliceStamp::default(), "x", "y", "z", None)
         .is_err());
     assert!(!store.get_budget("claude").unwrap().unwrap().paused);
+}
+
+#[test]
+fn p10_reserved_writes_stamped_budget_audit() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_agent_budget("claude", 5.0).unwrap();
+    match gate(&store, "claude", 1.0) {
+        ProviderCallGate::Reserved { .. } => {}
+        other => panic!("expected reserved, got {other:?}"),
+    }
+    let events = store.list_audit_events(false).unwrap();
+    let reserved = events
+        .iter()
+        .find(|event| event.operation == "budget.reserved")
+        .expect("Reserved must write budget.reserved");
+    let json: serde_json::Value = serde_json::from_str(&reserved.process_json).unwrap();
+    assert_eq!(json["task_id"], "task-p10");
+    assert_eq!(json["session_id"], "sess-p10");
+    assert_eq!(json["attribution"], "registered");
+    assert_eq!(json["agent"], "claude");
 }

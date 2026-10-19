@@ -331,7 +331,7 @@ async fn direct_http_completion(
         },
     )
     .await?;
-    emit_http_result(bus, source, &result, false);
+    emit_http_result(bus, source, &result, false, &config.provider, None);
     Ok(result.text)
 }
 

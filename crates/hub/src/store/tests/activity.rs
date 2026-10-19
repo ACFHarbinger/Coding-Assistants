@@ -1,5 +1,6 @@
 use super::super::*;
 use std::fs;
+use std::path::Path;
 use tempfile::tempdir;
 
 #[test]
@@ -239,4 +240,53 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
     assert!(!items.iter().any(|item| item.id == prefixed.id));
     assert!(!items.iter().any(|item| item.id == unscoped.id));
     assert!(!items.iter().any(|item| item.id == session.id));
+}
+
+#[test]
+fn activity_view_matches_stamped_task_id_in_process_json() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let root = dir.path().join("workspace");
+    fs::create_dir_all(&root).unwrap();
+    let steps = vec![WorkflowStep {
+        agent: "cursor".into(),
+        role: Some("implementer".into()),
+        instruction: "Stamp T1".into(),
+        max_retries: 0,
+        parallel_group: None,
+        peer: None,
+    }];
+    let task = store
+        .create_task("T1 stamps", Some(&root.to_string_lossy()), &steps)
+        .unwrap();
+    store
+        .record_stamped_audit(
+            &root,
+            Path::new("src/lib.rs"),
+            "os_tool.ran",
+            serde_json::json!({
+                "cmdline": ["echo", "t1"],
+                "exe": "echo"
+            }),
+            &SliceStamp::registered(
+                Some(task.id.clone()),
+                Some("sess-t1".into()),
+                Some("cursor".into()),
+            ),
+        )
+        .unwrap();
+
+    let items = store.get_activity_view(&ActivityFilter::default()).unwrap();
+    let task_item = items
+        .iter()
+        .find(|item| item.id == task.id)
+        .expect("stamped task");
+    assert!(task_item
+        .commands
+        .iter()
+        .any(|command| command.raw.contains("echo t1")));
+    assert!(task_item
+        .commands
+        .iter()
+        .any(|command| command.attribution.as_deref() == Some("cursor")));
 }
