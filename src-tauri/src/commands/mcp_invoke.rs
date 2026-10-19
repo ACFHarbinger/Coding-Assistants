@@ -168,6 +168,18 @@ fn invoke_outcome(result: &Result<McpCallResult, String>) -> &'static str {
     }
 }
 
+fn finish_invoke(
+    result: Result<McpCallResult, String>,
+    audit: Result<(), String>,
+) -> Result<McpCallResult, String> {
+    if audit.is_err() {
+        // Do not expose tool results or audit error details in diagnostics.
+        // The tool already ran; changing its result could trigger a duplicate retry.
+        eprintln!("MCP invoke audit could not be recorded");
+    }
+    result
+}
+
 fn record_invoke(
     workspace: &Path,
     server: &str,
@@ -209,8 +221,8 @@ pub async fn hub_mcp_client_call(
         // Visibility only: the call already happened, so audit it even when
         // the server or transport failed. Arguments and payloads never enter
         // this row.
-        record_invoke(&path, &key, &tool, &result, duration)?;
-        result
+        let audit = record_invoke(&path, &key, &tool, &result, duration);
+        finish_invoke(result, audit)
     })
     .await
     .map_err(|e| format!("MCP tools/call worker panicked: {e}"))?
@@ -219,6 +231,23 @@ pub async fn hub_mcp_client_call(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audit_failure_preserves_the_completed_tool_result() {
+        let result = finish_invoke(
+            Ok(McpCallResult {
+                is_error: false,
+                text: "completed".into(),
+            }),
+            Err("unavailable".into()),
+        )
+        .unwrap();
+        assert_eq!(result.text, "completed");
+        assert!(!result.is_error);
+        let error =
+            finish_invoke(Err("tool failure".into()), Err("audit failure".into())).unwrap_err();
+        assert_eq!(error, "tool failure");
+    }
 
     #[test]
     fn require_absolute_rejects_relative() {
