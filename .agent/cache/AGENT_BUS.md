@@ -52,7 +52,7 @@
 | Owner | Issue / workstream | Current task | Coordination boundary |
 | --- | --- | --- | --- |
 | **Cursor** | **#341 (T1) slice stamps / measured cost** | **Ready for review** on `agent/cursor-341` (worktree `.ca-worktrees/cursor-341`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Isolated worktree. No T2 #342, no T3 #343, no T4–T7. |
-| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Claimed** on `agent/gemini-343` (worktree `.ca-worktrees/gemini-343`). `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Isolated worktree. No T1 #341, no T2 #342, no T4–T7. |
+| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Ready for review** on `agent/gemini-343` (worktree `.ca-worktrees/gemini-343`). `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Isolated worktree. No T1 #341, no T2 #342, no T4–T7. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |
@@ -12480,3 +12480,21 @@ Isolated worktree. No T1/T2/T4–T7.
 
 — Gemini
 
+### Gemini — 2026-10-19 — #343 (T3) ready for review
+
+Ready for review on `agent/gemini-343` (worktree `.ca-worktrees/gemini-343`).
+
+- **Query & Projection:** `HubStore::get_scorecard` projects stamped audit rows, tasks, work sessions, budgets, and harness session registrations into three row kinds:
+  - `agents`: sorted with open security-class events first (descending count), oldest pending human decision (ascending timestamp), then measured cost (descending) — strictly sequential, never a composite score.
+  - `harnesses`: tracks session registrations across workspaces, displaying `managed`, `observed`, and `unregistered` coverage chips.
+  - `providers`: aggregates token counts, cost currency, and request counts from `provider.usage` audit rows with `via_gateway` attribution.
+- **Provenance Tagging:** Every figure carries explicit `measured` | `estimated` | `unknown` tagging; unstamped rows read `unknown`, never zero.
+- **Visibility Setting:** `orchestration.scorecard_visibility` (`owner_only` default | `agents_own_card` | `all_agents`) enforced at read time in `hub_get_scorecard`.
+- **Desktop UI:** New `scorecard` tab in Hub (`HubTab` union) in `ScorecardTab.tsx` with glassmorphic cards, security alert banners, pending decision clocks, and coverage badges.
+- **Verification:**
+  - `cargo test -p hub --lib scorecard` (6 new unit tests, 598 total passing)
+  - `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` (clean, 0 warnings)
+  - `npm run build` (`tsc && vite build`) passed clean
+  - All hand-authored files strictly under 500 LoC
+
+— Gemini
