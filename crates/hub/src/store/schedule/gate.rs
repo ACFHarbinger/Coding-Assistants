@@ -23,6 +23,20 @@ pub struct GateCheckResult {
     pub outcomes: Vec<CriterionOutcome>,
 }
 
+fn command_passes(check: GateCheck, exit_code: Option<i32>, stdout: &str) -> bool {
+    if exit_code != Some(0) {
+        return false;
+    }
+    match check {
+        GateCheck::ExitCodeZero => true,
+        GateCheck::AtMost { max } => stdout
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse::<u64>().ok())
+            .is_some_and(|value| value <= max),
+    }
+}
+
 impl HubStore {
     pub fn evaluate_gate_criteria(
         &self,
@@ -119,15 +133,7 @@ impl HubStore {
                 ),
             });
         }
-        let passed = match check {
-            GateCheck::ExitCodeZero => result.exit_code == Some(0),
-            GateCheck::AtMost { max } => result
-                .stdout
-                .split_whitespace()
-                .next()
-                .and_then(|s| s.parse::<u64>().ok())
-                .is_some_and(|value| value <= max),
-        };
+        let passed = command_passes(check, result.exit_code, &result.stdout);
         Ok(CriterionOutcome {
             passed,
             detail: format!(
@@ -150,7 +156,7 @@ impl HubStore {
         let workspace = Path::new(&task.workspace);
         let mut offenders = Vec::new();
         let mut checked = 0u32;
-        for file in walk_workspace_files(workspace) {
+        for file in walk_workspace_files(workspace)? {
             let Ok(relative) = file.strip_prefix(workspace) else {
                 continue;
             };
@@ -211,5 +217,19 @@ impl HubStore {
                 format!("short of {min_tokens} tokens written: {}", short.join(", "))
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_or_timed_out_commands_cannot_pass_a_numeric_gate() {
+        let check = GateCheck::AtMost { max: 500 };
+        assert!(!command_passes(check, Some(1), "0"));
+        assert!(!command_passes(check, None, "0"));
+        assert!(command_passes(check, Some(0), "0"));
+        assert!(!command_passes(check, Some(0), "501"));
     }
 }
