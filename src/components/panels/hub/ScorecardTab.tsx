@@ -3,6 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScorecardView, AgentScorecardRow, HarnessScorecardRow, ProviderScorecardRow, FigureProvenance } from "./types";
 
 export function ScorecardTab() {
+  const renderCoverage = (coverage?: { measured_requests: number; total_requests: number } | null) =>
+    coverage && coverage.measured_requests < coverage.total_requests ? (
+      <small title="Subtotal of available measurements; other requests are missing complete measurements">
+        Partial: {coverage.measured_requests}/{coverage.total_requests} requests fully measured
+      </small>
+    ) : null;
   const [data, setData] = useState<ScorecardView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +203,7 @@ export function ScorecardTab() {
                           {agent.tokens?.value != null ? agent.tokens.value.toLocaleString() : "—"}
                         </span>
                         {agent.tokens && renderProvenanceChip(agent.tokens.provenance)}
+                        {renderCoverage(agent.tokens?.coverage)}
                       </div>
                     </div>
 
@@ -207,6 +214,7 @@ export function ScorecardTab() {
                           {agent.cost.value != null ? (agent.cost.unit === "currency" ? `$${agent.cost.value.toFixed(4)}` : agent.cost.value.toLocaleString(undefined, { maximumFractionDigits: 4 })) : "—"}
                         </span>
                         {renderProvenanceChip(agent.cost.provenance)}
+                        {renderCoverage(agent.cost.coverage)}
                       </div>
                     </div>
 
@@ -310,6 +318,7 @@ export function ScorecardTab() {
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
                     <span>{p.tokens.value != null ? p.tokens.value.toLocaleString() : "—"}</span>
                     {renderProvenanceChip(p.tokens.provenance)}
+                    {renderCoverage(p.tokens.coverage)}
                   </div>
                 </div>
 
@@ -318,6 +327,7 @@ export function ScorecardTab() {
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
                     <span>{p.cost.value != null ? `$${p.cost.value.toFixed(4)}` : "—"}</span>
                     {renderProvenanceChip(p.cost.provenance)}
+                    {renderCoverage(p.cost.coverage)}
                   </div>
                 </div>
 

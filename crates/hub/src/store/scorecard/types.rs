@@ -32,6 +32,14 @@ pub struct ScorecardFigure {
     pub value: Option<f64>,
     pub provenance: FigureProvenance,
     pub unit: String,
+    /// Requests with complete measurements / all observed usage requests.
+    pub coverage: Option<MeasurementCoverage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MeasurementCoverage {
+    pub measured_requests: u64,
+    pub total_requests: u64,
 }
 
 impl ScorecardFigure {
@@ -40,6 +48,7 @@ impl ScorecardFigure {
             value: Some(value),
             provenance: FigureProvenance::Measured,
             unit: unit.into(),
+            coverage: None,
         }
     }
 
@@ -48,6 +57,7 @@ impl ScorecardFigure {
             value: Some(value),
             provenance: FigureProvenance::Estimated,
             unit: unit.into(),
+            coverage: None,
         }
     }
 
@@ -56,6 +66,7 @@ impl ScorecardFigure {
             value: None,
             provenance: FigureProvenance::Unknown,
             unit: unit.into(),
+            coverage: None,
         }
     }
 }

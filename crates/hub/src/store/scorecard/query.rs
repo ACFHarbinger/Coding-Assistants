@@ -173,45 +173,14 @@ impl HubStore {
                         .and_then(Value::as_str)
                         .map(str::to_string);
 
-                    let prompt_opt = json_meta.get("prompt_tokens").and_then(Value::as_u64);
-                    let completion_opt =
-                        json_meta.get("completion_tokens").and_then(Value::as_u64);
-                    let has_tok = prompt_opt.is_some() || completion_opt.is_some();
-
-                    let cost_opt = json_meta.get("cost").and_then(Value::as_f64);
-                    let currency_is_measured = json_meta.get("currency").and_then(Value::as_str)
-                        == Some("measured");
-                    let has_cost = cost_opt.is_some() || currency_is_measured;
-                    let cost_val = cost_opt.unwrap_or(0.0);
-
-                    let p_entry = provider_metrics
-                        .entry((provider, via_gateway))
-                        .or_default();
-                    if has_tok {
-                        p_entry.prompt_tokens += prompt_opt.unwrap_or(0);
-                        p_entry.completion_tokens += completion_opt.unwrap_or(0);
-                        p_entry.has_tokens = true;
-                    }
-                    if has_cost {
-                        p_entry.cost += cost_val;
-                        p_entry.has_cost = true;
-                    }
-                    p_entry.request_count += 1;
+                    let p_entry = provider_metrics.entry((provider, via_gateway)).or_default();
+                    p_entry.observe(&json_meta);
 
                     let agent_key = explicit_actor
                         .clone()
                         .unwrap_or_else(|| "unattributed".to_string());
                     let a_entry = agent_usage.entry(agent_key).or_default();
-                    if has_tok {
-                        a_entry.prompt_tokens += prompt_opt.unwrap_or(0);
-                        a_entry.completion_tokens += completion_opt.unwrap_or(0);
-                        a_entry.has_tokens = true;
-                    }
-                    if has_cost {
-                        a_entry.cost += cost_val;
-                        a_entry.has_cost = true;
-                    }
-                    a_entry.request_count += 1;
+                    a_entry.observe(&json_meta);
                 }
 
                 if is_security_class_op(&operation) && is_open_security_event(&status, &operation) {
@@ -252,19 +221,12 @@ impl HubStore {
 
             let usage = agent_usage.remove(&aid).unwrap_or_default();
 
-            let tokens_figure = if usage.has_tokens {
-                ScorecardFigure::measured(
-                    (usage.prompt_tokens + usage.completion_tokens) as f64,
-                    "tokens",
-                )
-            } else {
-                ScorecardFigure::unknown("tokens")
-            };
+            let tokens_figure = usage.tokens_figure();
 
             let (cost_figure, prov_str, measured_cost_units, estimated_cost_units) =
                 if usage.has_cost {
                     (
-                        ScorecardFigure::measured(usage.cost, "currency"),
+                        usage.cost_figure(),
                         "measured".to_string(),
                         Some(usage.cost),
                         None,
@@ -277,12 +239,7 @@ impl HubStore {
                         Some(spent),
                     )
                 } else {
-                    (
-                        ScorecardFigure::unknown("currency"),
-                        "unknown".to_string(),
-                        None,
-                        None,
-                    )
+                    (usage.cost_figure(), "unknown".to_string(), None, None)
                 };
 
             agent_rows.push(AgentScorecardRow {
@@ -306,27 +263,16 @@ impl HubStore {
         // Preserve unattributed open security events or usage
         let unattr_events = security_events.remove("unattributed").unwrap_or_default();
         let unattr_usage = agent_usage.remove("unattributed").unwrap_or_default();
-        if !unattr_events.is_empty() || unattr_usage.has_tokens || unattr_usage.has_cost {
-            let tokens_figure = if unattr_usage.has_tokens {
-                ScorecardFigure::measured(
-                    (unattr_usage.prompt_tokens + unattr_usage.completion_tokens) as f64,
-                    "tokens",
-                )
-            } else {
-                ScorecardFigure::unknown("tokens")
-            };
+        if !unattr_events.is_empty() || unattr_usage.request_count > 0 {
+            let tokens_figure = unattr_usage.tokens_figure();
             let (cost_figure, prov_str, measured_cost_units) = if unattr_usage.has_cost {
                 (
-                    ScorecardFigure::measured(unattr_usage.cost, "currency"),
+                    unattr_usage.cost_figure(),
                     "measured".to_string(),
                     Some(unattr_usage.cost),
                 )
             } else {
-                (
-                    ScorecardFigure::unknown("currency"),
-                    "unknown".to_string(),
-                    None,
-                )
+                (unattr_usage.cost_figure(), "unknown".to_string(), None)
             };
 
             agent_rows.push(AgentScorecardRow {
@@ -387,7 +333,7 @@ impl HubStore {
         let mut registered_workspaces = Vec::new();
         {
             let mut stmt = self.conn.prepare(
-                "SELECT harness, workspace, disk_session_id, mode, state, writer_owner \
+                "SELECT harness, workspace, disk_session_id, mode, state \
                  FROM harness_session_registrations ORDER BY harness, workspace",
             )?;
             let rows = stmt.query_map([], |row| {
@@ -397,12 +343,11 @@ impl HubStore {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
                 ))
             })?;
 
             for r in rows {
-                let (harness, workspace, session_id, mode, state, writer_owner) = r?;
+                let (harness, workspace, session_id, mode, state) = r?;
                 if !registered_workspaces.contains(&workspace) {
                     registered_workspaces.push(workspace.clone());
                 }
@@ -410,8 +355,8 @@ impl HubStore {
                     "managed" => HarnessCoverage::Managed,
                     _ => HarnessCoverage::Observed,
                 };
-                // Only set linked_agent_id when proven by explicit registration relationship
-                let linked_agent_id = writer_owner.filter(|w| !w.trim().is_empty());
+                // writer_owner is a lease token, not a roster-agent relationship.
+                let linked_agent_id = None;
                 harness_rows.push(HarnessScorecardRow {
                     linked_agent_id,
                     harness,
@@ -453,19 +398,8 @@ impl HubStore {
         // 7. Build Provider rows
         let mut provider_rows: Vec<ProviderScorecardRow> = Vec::new();
         for ((provider, via_gateway), p) in provider_metrics {
-            let tokens_fig = if p.has_tokens {
-                ScorecardFigure::measured(
-                    (p.prompt_tokens + p.completion_tokens) as f64,
-                    "tokens",
-                )
-            } else {
-                ScorecardFigure::unknown("tokens")
-            };
-            let cost_fig = if p.has_cost {
-                ScorecardFigure::measured(p.cost, "currency")
-            } else {
-                ScorecardFigure::unknown("currency")
-            };
+            let tokens_fig = p.tokens_figure();
+            let cost_fig = p.cost_figure();
             provider_rows.push(ProviderScorecardRow {
                 provider,
                 via_gateway,

@@ -5,6 +5,37 @@ use std::path::Path;
 use tempfile::tempdir;
 
 #[test]
+fn measured_label_without_numeric_cost_is_unknown() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .record_audit_event(
+            dir.path(),
+            Path::new("usage"),
+            "provider.usage",
+            &json!({"provider":"test", "currency":"measured", "actor_agent":"claude"}).to_string(),
+            None,
+        )
+        .unwrap();
+    let view = store
+        .get_scorecard(None, ScorecardVisibility::OwnerOnly)
+        .unwrap();
+    let provider = view
+        .providers
+        .iter()
+        .find(|p| p.provider == "test")
+        .unwrap();
+    assert_eq!(provider.cost.value, None);
+    assert_eq!(provider.cost.provenance, FigureProvenance::Unknown);
+    assert_eq!(
+        provider.cost.coverage.as_ref().unwrap().measured_requests,
+        0
+    );
+    let agent = view.agents.iter().find(|a| a.agent_id == "claude").unwrap();
+    assert_eq!(agent.cost.value, None);
+}
+
+#[test]
 fn token_only_plus_priced_plus_measured_zero_usage() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
@@ -79,6 +110,17 @@ fn token_only_plus_priced_plus_measured_zero_usage() {
     assert_eq!(claude.cost.provenance, FigureProvenance::Measured);
     assert_eq!(claude.cost.value, Some(0.05));
     assert_eq!(claude.cost.unit, "currency");
+    let coverage = claude.cost.coverage.as_ref().unwrap();
+    assert_eq!(
+        (coverage.measured_requests, coverage.total_requests),
+        (1, 2)
+    );
+    let provider = view
+        .providers
+        .iter()
+        .find(|p| p.provider == "anthropic")
+        .unwrap();
+    assert_eq!(provider.cost.coverage.as_ref().unwrap(), coverage);
 
     // Gemini: tokens = 300 measured, cost = 0.0 measured. Zero stays measured!
     let gemini = view
@@ -212,12 +254,12 @@ fn harness_without_agent_link() {
         .conn
         .execute(
             "INSERT INTO harness_session_registrations(harness, workspace, disk_session_id, registered_at, mode, state, writer_owner) \
-             VALUES ('claude', '/workspace/a', 'sess-1', '2026-10-19T12:00:00Z', 'managed', 'ready', NULL)",
+             VALUES ('claude', '/workspace/a', 'sess-1', '2026-10-19T12:00:00Z', 'managed', 'ready', 'claude')",
             [],
         )
         .unwrap();
 
-    // Owner view: harness has linked_agent_id = None (not assumed to be 'claude')
+    // Even a lease token equal to an agent name does not establish identity.
     let owner_view = store
         .get_scorecard(None, ScorecardVisibility::OwnerOnly)
         .expect("owner scorecard succeeds");

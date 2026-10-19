@@ -133,14 +133,32 @@ fn scorecard_sorts_open_security_before_pending_decision_before_cost() {
         .get_scorecard(None, ScorecardVisibility::OwnerOnly)
         .unwrap();
 
-    let gemini_pos = view.agents.iter().position(|a| a.agent_id == "gemini").unwrap();
-    let grok_pos = view.agents.iter().position(|a| a.agent_id == "grok").unwrap();
-    let claude_pos = view.agents.iter().position(|a| a.agent_id == "claude").unwrap();
+    let gemini_pos = view
+        .agents
+        .iter()
+        .position(|a| a.agent_id == "gemini")
+        .unwrap();
+    let grok_pos = view
+        .agents
+        .iter()
+        .position(|a| a.agent_id == "grok")
+        .unwrap();
+    let claude_pos = view
+        .agents
+        .iter()
+        .position(|a| a.agent_id == "claude")
+        .unwrap();
 
     // Gemini (open security event) must come before Grok (pending decision)
-    assert!(gemini_pos < grok_pos, "gemini ({gemini_pos}) should be before grok ({grok_pos})");
+    assert!(
+        gemini_pos < grok_pos,
+        "gemini ({gemini_pos}) should be before grok ({grok_pos})"
+    );
     // Grok (pending decision) must come before Claude (only cost)
-    assert!(grok_pos < claude_pos, "grok ({grok_pos}) should be before claude ({claude_pos})");
+    assert!(
+        grok_pos < claude_pos,
+        "grok ({grok_pos}) should be before claude ({claude_pos})"
+    );
 
     // Verify provenance
     let claude_row = &view.agents[claude_pos];

@@ -118,6 +118,7 @@ export type FigureProvenance = "measured" | "estimated" | "unknown";
 export type HarnessCoverage = "managed" | "observed" | "unregistered";
 
 export interface ScorecardFigure {
+  coverage?: { measured_requests: number; total_requests: number } | null;
   value: number | null;
   provenance: FigureProvenance;
   unit: string;
