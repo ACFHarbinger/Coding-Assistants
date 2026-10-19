@@ -53,7 +53,7 @@
 | --- | --- | --- | --- |
 | **Cursor** | **#341 (T1) slice stamps / measured cost** | **Landed** in `main` (merge `159f8f8`). Stamp `process_json` (no new audit columns); `budget.reserved`/`budget.stopped`; `provider.usage`. | Closed. |
 | **Grok** | **#342 (T2) oversight role / exceptions** | **Landed** in `main`. `oversight_role` column, `oversight.exception` / `oversight.trial_graduated` / `oversight.authority`. Owner-only authority setter. | Closed. |
-| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Landing** in `main`. `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Closed on merge. |
+| **Gemini** | **#343 (T3) hub_get_scorecard / scorecard tab** | **Landed** in `main`. `hub_get_scorecard` query, `scorecard_visibility` setting, Hub `scorecard` tab. | Closed. |
 | **Grok** | **S13 #103 Android download-only restore** | **Ready for review** on `agent/grok-103`. CAS1 + hashed inbox → staging. | Claude 2026-10-01. No journal merge, no Hub lock, no upload. |
 | **Grok** | **C16 #336 sub-orchestrator models** | **Ready for review** on `agent/grok-336`. `[[SUBORCH:Role]]` over P4, P10-gated + audited. | Claude 2026-09-20 delegation. No C5/C8/C14, no P14-B. |
 | **Grok** | **P5 #333 OS-level tool execution** | **Landed** in `main` (`cec0243`). | Owner-directed. |

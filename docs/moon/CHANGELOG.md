@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   authority defaults to the owner; a delegated lead is a separate setting
   a lead cannot enable. Rows record that they grant no P5, vault, or
   network rights and do not authorize self-review. Advisory only.
+- **Team Scorecard T3 projection query, visibility setting, and Hub tab (#343):**
+  Added `hub_get_scorecard` Tauri command projecting stamped audit rows, tasks,
+  work sessions, budgets, and harness registrations into agent, harness, and
+  provider rows. Figures carry explicit `measured` | `estimated` | `unknown`
+  provenance, with `managed` | `observed` | `unregistered` harness coverage
+  chips. Setting `orchestration.scorecard_visibility` (`owner_only` |
+  `agents_own_card` | `all_agents`) enforced at read time. Added new `scorecard`
+  tab to Shared Hub. Agents sorted with open security-class rows first, then
+  oldest pending human decisions, then measured cost — never a composite score.
 - **Steam MCP server (#349):** New entry in the external-MCP registry
   (`crates/hub/src/mcp/external.rs`), same pattern as Perplexity
   (#276/#277). `dsp/mcp-server-steam` is a Java stdio server with no

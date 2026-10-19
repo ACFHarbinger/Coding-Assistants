@@ -416,6 +416,7 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             a2a_enabled: None,
             quota_auto_refresh_enabled: None,
             quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("disable export via Settings");
@@ -445,6 +446,7 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             a2a_enabled: None,
             quota_auto_refresh_enabled: None,
             quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("re-enable export via Settings");

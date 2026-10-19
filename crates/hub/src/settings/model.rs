@@ -134,6 +134,7 @@ pub enum SettingsField {
     LinkSuggestionMode,
     MemoryRecallEnabled,
     MemoryRecallLimit,
+    ScorecardVisibility,
 }
 
 /// Per-workspace overrides. Only fields present here differ from the global
@@ -240,6 +241,38 @@ impl LinkSuggestionMode {
             "off" => Some(Self::Off),
             "suggest" => Some(Self::Suggest),
             "auto" => Some(Self::Auto),
+            _ => None,
+        }
+    }
+}
+
+/// Enforced visibility for the team scorecard (T3 / #343).
+/// `OwnerOnly` (default) means only human/owner queries see scorecard data.
+/// `AgentsOwnCard` lets non-human callers see only their own row.
+/// `AllAgents` makes the full scorecard queryable by any agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ScorecardVisibility {
+    #[default]
+    OwnerOnly,
+    AgentsOwnCard,
+    AllAgents,
+}
+
+impl ScorecardVisibility {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OwnerOnly => "owner_only",
+            Self::AgentsOwnCard => "agents_own_card",
+            Self::AllAgents => "all_agents",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "owner_only" => Some(Self::OwnerOnly),
+            "agents_own_card" => Some(Self::AgentsOwnCard),
+            "all_agents" => Some(Self::AllAgents),
             _ => None,
         }
     }

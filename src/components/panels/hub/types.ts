@@ -112,7 +112,70 @@ export interface ProviderQuota {
   local_usage?: ProviderQuotaLocalUsage | null;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels" | "tools" | "board" | "branches" | "system";
+export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "scorecard" | "channels" | "tools" | "board" | "branches" | "system";
+
+export type FigureProvenance = "measured" | "estimated" | "unknown";
+export type HarnessCoverage = "managed" | "observed" | "unregistered";
+
+export interface ScorecardFigure {
+  coverage?: { measured_requests: number; total_requests: number } | null;
+  value: number | null;
+  provenance: FigureProvenance;
+  unit: string;
+}
+
+export interface ScorecardSecurityEvent {
+  id: string;
+  operation: string;
+  observed_at: string;
+  status: string;
+  task_id?: string | null;
+  work_session_id?: string | null;
+  provenance: FigureProvenance;
+}
+
+export interface AgentScorecardRow {
+  agent_id: string;
+  display_name: string;
+  oversight_role?: string | null;
+  open_security_events: ScorecardSecurityEvent[];
+  oldest_pending_human_decision?: string | null;
+  tokens: ScorecardFigure;
+  cost: ScorecardFigure;
+  measured_cost_units?: number | null;
+  estimated_cost_units?: number | null;
+  budget_spent?: number | null;
+  budget_limit?: number | null;
+  budget_paused: boolean;
+  provenance: string;
+  task_count: ScorecardFigure;
+}
+
+export interface HarnessScorecardRow {
+  harness: string;
+  workspace: string;
+  coverage: HarnessCoverage;
+  linked_agent_id?: string | null;
+  disk_session_id?: string | null;
+  state?: string | null;
+  session_count: ScorecardFigure;
+}
+
+export interface ProviderScorecardRow {
+  provider: string;
+  via_gateway?: string | null;
+  tokens: ScorecardFigure;
+  cost: ScorecardFigure;
+  request_count: ScorecardFigure;
+}
+
+export interface ScorecardView {
+  agents: AgentScorecardRow[];
+  harnesses: HarnessScorecardRow[];
+  providers: ProviderScorecardRow[];
+  aggregation_version: number;
+  generated_at: string;
+}
 
 // Mirrors `hub::ChannelWorkspace` (C14.3 / #150).
 export interface ChannelWorkspace {

@@ -69,6 +69,8 @@ pub(crate) mod quota_vibe_usage;
 pub mod quotas;
 #[path = "settings/roles.rs"]
 pub mod roles;
+#[path = "hub/scorecard.rs"]
+pub mod scorecard;
 #[path = "settings/settings.rs"]
 pub mod settings;
 #[path = "hub/store.rs"]

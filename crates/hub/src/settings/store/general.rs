@@ -238,6 +238,16 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// Global-only. Sets scorecard visibility (T3 / #343).
+    pub fn set_scorecard_visibility(
+        &mut self,
+        value: ScorecardVisibility,
+    ) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.scorecard_visibility = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
     pub fn set_memory_recall_limit(&mut self, limit: u8) -> Result<(), SettingsError> {
         let mut next = self.snapshot.orchestration.clone();
         next.memory_recall_limit = limit;
