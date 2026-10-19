@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hermes in the Orchestrate terminal grid:** Added `hermes` to
+  `ALL_HARNESSES`/`DISPLAY_NAMES` in
+  `src/components/panels/terminal/gridConstants.ts`, so the empty-grid
+  "Launch" buttons include Hermes alongside the other 8 harnesses. The
+  backend (`HarnessId::Hermes`, `hub_relaunch_harness_embedded`, C14.16
+  #322) already supported it; this was a frontend-only gap.
 - **Team Scorecard T1 slice stamps and measured cost (#341):** Nullable
   `task_id` / `work_session_id` / `attribution` are written into
   `audit_events.process_json` (no new columns) on `os_tool` rows, P10
