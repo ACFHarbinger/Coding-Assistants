@@ -11,4 +11,6 @@ mod crud;
 mod gate;
 mod globset;
 mod schema;
+mod tick;
 pub use gate::{CriterionOutcome, GateCheckResult};
+pub use tick::{TickOutcome, TickSummary};

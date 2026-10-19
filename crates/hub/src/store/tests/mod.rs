@@ -15,6 +15,7 @@ mod roster_audit;
 mod roster_memory;
 mod schedule;
 mod schedule_gate;
+mod schedule_tick;
 mod scorecard;
 mod scorecard_regressions;
 mod workflow_policy;

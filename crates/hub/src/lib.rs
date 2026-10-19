@@ -134,7 +134,7 @@ pub use store::{
     OversightExceptionScope, PendingGateApproval, ProviderCallGate, ProviderScorecardRow,
     ProviderUsage, ReadMarker, Role, RoleProviderDefault, ScheduleStatus, ScheduleTarget,
     ScheduledTask, ScorecardFigure, ScorecardSecurityEvent, ScorecardView, SendOutcome,
-    ShutdownOutcome, SliceStamp, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus,
-    WorkSessionRecord, WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS,
-    UNATTRIBUTED_AUTHOR,
+    ShutdownOutcome, SliceStamp, TaskRecord, TaskStatus, TickOutcome, TickSummary, WakePolicy,
+    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord,
+    DEFAULT_PROVIDER_CALL_UNITS, UNATTRIBUTED_AUTHOR,
 };

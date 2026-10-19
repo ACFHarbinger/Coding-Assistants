@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S3 dispatch/tick state machine (#350):**
+  `HubStore::tick_scheduled_tasks(now)` — a pure function of `now` plus
+  store state, fully testable without a real clock. Dispatch reuses
+  `send_message`/`send_message_to_team` + `request_wake` exactly the way
+  `tasks::dispatch_step` already does (same `WakePolicy`, no bypass).
+  "Responded" is a `messages` row from the target correlated by
+  `task_id = schedule.id`; Team quorum is **All** current roster members
+  excluding `system` and the seeded `human` member (which never sends a
+  correlated reply). `max_attempts`/`deadline` are checked before
+  anything else on every tick, ahead of the credit-budget check — the
+  only unconditional stop conditions (see S1's note on the usage-
+  accounting gap). A non-responding target re-prompts after
+  `response_timeout_secs`; a responding-but-gate-failing target re-prompts
+  after `repeat_interval_secs`' minimum spacing, with a generated note of
+  what's still unmet.
 - **Scheduled Goals S2 gate evaluator (#350):** `HubStore::evaluate_gate_criteria`
   — `GateCriterion::Command`/`MaxLinesPerFile` run through the P5 `os_tool`
   sandbox (same `SandboxStrictness` policy as any other `os_tool` call, no
