@@ -169,10 +169,51 @@ export interface ProviderScorecardRow {
   request_count: ScorecardFigure;
 }
 
+export interface DigestResolutionCounts {
+  desktop: number;
+  telegram: number;
+  tcp: number;
+  total: number;
+}
+
+export interface DigestPendingDecision {
+  id: string;
+  kind: "wake" | "gate_approval" | "os_tool";
+  subject: string;
+  agent?: string | null;
+  created_at: string;
+  age_seconds?: number | null;
+  task_id?: string | null;
+  github_issue?: string | null;
+}
+
+export interface DigestSessionGroup {
+  work_session_id?: string | null;
+  work_session_name?: string | null;
+  workspace_id?: string | null;
+  pending: DigestPendingDecision[];
+  unresolved_findings: number;
+  resolved_window: DigestResolutionCounts;
+}
+
+export interface DigestSummary {
+  pending_count: number;
+  oldest_pending_at?: string | null;
+  unresolved_findings: number;
+  resolved_window: DigestResolutionCounts;
+}
+
+export interface OwnerDigest {
+  groups: DigestSessionGroup[];
+  summary: DigestSummary;
+  window_days: number;
+}
+
 export interface ScorecardView {
   agents: AgentScorecardRow[];
   harnesses: HarnessScorecardRow[];
   providers: ProviderScorecardRow[];
+  digest?: OwnerDigest | null;
   aggregation_version: number;
   generated_at: string;
 }

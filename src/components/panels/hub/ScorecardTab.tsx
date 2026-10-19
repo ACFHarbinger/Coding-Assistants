@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ScorecardView, AgentScorecardRow, HarnessScorecardRow, ProviderScorecardRow, FigureProvenance } from "./types";
+import { ScorecardDigest } from "./ScorecardDigest";
 
 export function ScorecardTab() {
   const renderCoverage = (coverage?: { measured_requests: number; total_requests: number } | null) =>
@@ -122,6 +123,9 @@ export function ScorecardTab() {
           Failed to load scorecard: {error}
         </div>
       )}
+
+      {/* Section 0: Owner Review Digest (T4 / #344) — owner-only, advisory */}
+      <ScorecardDigest digest={data?.digest ?? null} />
 
       {/* Section 1: Agents */}
       <div>

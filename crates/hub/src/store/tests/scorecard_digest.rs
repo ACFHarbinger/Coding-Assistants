@@ -66,7 +66,10 @@ fn digest_groups_pending_decisions_by_work_session() {
         .iter()
         .find(|g| g.work_session_id.as_deref() == Some(session.id.as_str()))
         .expect("session group exists");
-    assert_eq!(session_group.work_session_name.as_deref(), Some("release-cut"));
+    assert_eq!(
+        session_group.work_session_name.as_deref(),
+        Some("release-cut")
+    );
     assert_eq!(session_group.pending.len(), 2);
 
     let os_tool = session_group
@@ -84,7 +87,10 @@ fn digest_groups_pending_decisions_by_work_session() {
         .iter()
         .find(|g| g.work_session_id.is_none())
         .expect("ungrouped bucket exists");
-    assert!(ungrouped.pending.iter().any(|d| d.kind == DigestDecisionKind::Wake));
+    assert!(ungrouped
+        .pending
+        .iter()
+        .any(|d| d.kind == DigestDecisionKind::Wake));
 
     // Oldest pending timestamp is surfaced for queue age.
     assert!(digest.summary.oldest_pending_at.is_some());
@@ -152,9 +158,7 @@ fn digest_is_owner_only_under_every_visibility_mode() {
         ScorecardVisibility::AgentsOwnCard,
         ScorecardVisibility::AllAgents,
     ] {
-        let view = store
-            .get_scorecard(Some("gemini"), visibility)
-            .unwrap();
+        let view = store.get_scorecard(Some("gemini"), visibility).unwrap();
         assert!(
             view.digest.is_none(),
             "agent callers never see the owner digest ({visibility:?})"
@@ -225,7 +229,10 @@ fn digest_counts_open_findings_excluding_pending_proposals() {
         .find(|g| g.work_session_id.as_deref() == Some(session.id.as_str()))
         .expect("session group exists");
     assert_eq!(session_group.pending.len(), 1, "the proposal is a decision");
-    assert_eq!(session_group.unresolved_findings, 1, "the denial is a finding");
+    assert_eq!(
+        session_group.unresolved_findings, 1,
+        "the denial is a finding"
+    );
     assert_eq!(digest.summary.unresolved_findings, 1);
 }
 

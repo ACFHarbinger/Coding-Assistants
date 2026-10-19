@@ -292,15 +292,13 @@ impl HubStore {
                         task_id: stamp.task_id.clone(),
                         github_issue: string_field(&process, "github_issue"),
                     };
-                    group_mut(&mut groups, &sessions, stamp.work_session_id.clone())
-                        .push(decision);
+                    group_mut(&mut groups, &sessions, stamp.work_session_id.clone()).push(decision);
                     continue;
                 }
 
                 if operation == "wake.resolved" {
                     if in_window(&observed_at, &cutoff) {
-                        let via =
-                            string_field(&process, "via").unwrap_or_else(|| "desktop".into());
+                        let via = string_field(&process, "via").unwrap_or_else(|| "desktop".into());
                         summary.resolved_window.record(&via);
                         group_mut(&mut groups, &sessions, None)
                             .resolved
@@ -317,8 +315,7 @@ impl HubStore {
                     continue;
                 }
 
-                if is_security_class_op(&operation) && is_open_security_event(&status, &operation)
-                {
+                if is_security_class_op(&operation) && is_open_security_event(&status, &operation) {
                     group_mut(&mut groups, &sessions, stamp.work_session_id.clone()).findings += 1;
                 }
             }
