@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Team Scorecard T3 projection query, visibility setting, and Hub tab (#343):**
+  Added `hub_get_scorecard` Tauri command projecting stamped audit rows, tasks,
+  work sessions, budgets, and harness registrations into agent, harness, and
+  provider rows. Figures carry explicit `measured` | `estimated` | `unknown`
+  provenance, with `managed` | `observed` | `unregistered` harness coverage
+  chips. Setting `orchestration.scorecard_visibility` (`owner_only` |
+  `agents_own_card` | `all_agents`) enforced at read time. Added new `scorecard`
+  tab to Shared Hub. Agents sorted with open security-class rows first, then
+  oldest pending human decisions, then measured cost — never a composite score.
 - **Cloud-sync S13 Android download-only restore (#103):** Companion
   verifies CAS1 objects from an owner-copied hashed inbox and restores
   plaintext into app-private `sync/staging/restore/`. Invalid ciphertext

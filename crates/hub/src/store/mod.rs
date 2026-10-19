@@ -54,6 +54,8 @@ mod tasks;
 mod tests;
 mod workspaces;
 pub use activity::*;
+pub mod scorecard;
+pub use scorecard::*;
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,

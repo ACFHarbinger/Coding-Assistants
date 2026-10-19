@@ -17,8 +17,8 @@ pub(crate) mod validation;
 
 pub use model::{
     EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
-    ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind, SettingsError,
-    SettingsField, SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SecretReference, SecretSourceKind,
+    SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
     DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use model_harness::{EffectiveHarnessSettings, HarnessSettings};

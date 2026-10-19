@@ -1,7 +1,7 @@
 use super::model::{
     EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
-    ProviderProfile, SandboxStrictness, SettingsError, SettingsField, SettingsSnapshot,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SettingsError, SettingsField,
+    SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
 };
 use super::model_harness::{EffectiveHarnessSettings, HarnessSettings};
 use super::orchestration::{

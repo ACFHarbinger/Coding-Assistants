@@ -116,10 +116,10 @@ pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
 pub use settings::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
     FieldStatus, HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride,
-    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference,
-    SecretSourceKind, SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
-    MIN_BACKUP_RETENTION,
+    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, ScorecardVisibility,
+    SecretReference, SecretSourceKind, SettingsError, SettingsField, SettingsLoad, SettingsSnapshot,
+    SettingsStore, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+    MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
     parse_memory_references, ActivityCommandRun, ActivityFileTouch, ActivityFilter, ActivityItem,
@@ -132,4 +132,6 @@ pub use store::{
     PendingGateApproval, ProviderCallGate, ReadMarker, Role, RoleProviderDefault, SendOutcome,
     ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord,
     WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS, UNATTRIBUTED_AUTHOR,
+    AgentScorecardRow, FigureProvenance, HarnessCoverage, HarnessScorecardRow,
+    ProviderScorecardRow, ScorecardFigure, ScorecardSecurityEvent, ScorecardView,
 };

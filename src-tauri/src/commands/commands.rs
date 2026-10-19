@@ -69,6 +69,8 @@ pub mod quotas;
 pub mod roles;
 #[path = "settings/settings.rs"]
 pub mod settings;
+#[path = "hub/scorecard.rs"]
+pub mod scorecard;
 #[path = "hub/store.rs"]
 pub mod store;
 #[path = "hub/sync.rs"]

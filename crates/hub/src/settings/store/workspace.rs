@@ -418,6 +418,7 @@ impl SettingsStore {
                     over.orchestration.memory_recall_enabled = None
                 }
                 SettingsField::MemoryRecallLimit => over.orchestration.memory_recall_limit = None,
+                SettingsField::ScorecardVisibility => {}
             }
             if over.is_empty() {
                 self.workspaces.remove(&workspace);

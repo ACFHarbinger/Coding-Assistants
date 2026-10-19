@@ -66,6 +66,8 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
         value(orch.quota_auto_refresh_enabled);
     document["orchestration"]["quota_auto_refresh_interval_secs"] =
         value(i64::from(orch.quota_auto_refresh_interval_secs));
+    document["orchestration"]["scorecard_visibility"] =
+        value(orch.scorecard_visibility.as_str());
     if let Some(days) = orch.retention_days {
         document["orchestration"]["retention_days"] = value(i64::from(days));
     } else if document

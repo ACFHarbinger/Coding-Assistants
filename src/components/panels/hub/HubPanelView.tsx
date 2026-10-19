@@ -8,6 +8,7 @@ import McpToolsPanel from "./McpToolsPanel";
 import BoardTab from "./BoardTab";
 import BranchesTab from "./BranchesTab";
 import SystemTab from "./SystemTab";
+import { ScorecardTab } from "./ScorecardTab";
 
 export default function HubPanelView(props: any) {
   const {
@@ -134,6 +135,7 @@ export default function HubPanelView(props: any) {
           {tabBtn("tools", "Tools")}
           {tabBtn("channels", "Channels")}
           {tabBtn("journal", "Journal", auditEvents.filter((e) => e.status === "pending").length)}
+          {tabBtn("scorecard", "Scorecard")}
         </div>
       </div>
 
@@ -446,6 +448,7 @@ export default function HubPanelView(props: any) {
       )}
 
       {hubTab === "tasks" && <TaskTab />}
+      {hubTab === "scorecard" && <ScorecardTab />}
     </div>
   );
 }

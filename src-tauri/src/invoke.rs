@@ -154,6 +154,7 @@ macro_rules! invoke_handler {
             commands::commands::workflow::hub_list_agent_metrics,
             commands::commands::workflow::hub_record_agent_metrics,
             commands::commands::activity::hub_get_activity_view,
+            commands::commands::scorecard::hub_get_scorecard,
             commands::commands::quotas::hub_get_provider_quotas,
             commands::commands::quotas::hub_refresh_provider_quota,
             commands::commands::health::hub_get_provider_health,

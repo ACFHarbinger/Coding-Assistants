@@ -95,6 +95,14 @@ pub(super) fn orchestration_policy_from_table(
         })?,
         None => defaults.link_suggestion_mode,
     };
+    let scorecard_visibility = match table.get("scorecard_visibility").and_then(Item::as_str) {
+        Some(raw) => ScorecardVisibility::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.scorecard_visibility {raw:?} is unknown"
+            ))
+        })?,
+        None => defaults.scorecard_visibility,
+    };
     Ok(OrchestrationPolicy {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -109,6 +117,7 @@ pub(super) fn orchestration_policy_from_table(
         a2a_enabled,
         quota_auto_refresh_enabled,
         quota_auto_refresh_interval_secs,
+        scorecard_visibility,
     })
 }
 
@@ -180,6 +189,7 @@ pub(super) fn effective_orchestration(
         a2a_enabled: global.a2a_enabled,
         quota_auto_refresh_enabled: global.quota_auto_refresh_enabled,
         quota_auto_refresh_interval_secs: global.quota_auto_refresh_interval_secs,
+        scorecard_visibility: global.scorecard_visibility,
     }
 }
 
