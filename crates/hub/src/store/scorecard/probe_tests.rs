@@ -12,6 +12,29 @@ mod support;
 use support::*;
 
 #[test]
+fn claimant_probe_evaluates_a_single_actor() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    task_with_agents(&store, "task-one", &["cursor"]);
+    usage_full(
+        &store,
+        "openai",
+        0.1,
+        "2026-10-19T10:00:00Z",
+        Some("task-one"),
+        None,
+        "grok",
+    );
+    let probes = store.compute_probe_candidates().unwrap();
+    let result = probes
+        .iter()
+        .find(|p| p.subject == "task:task-one")
+        .unwrap();
+    assert_eq!(result.state, ProbeState::Disagreement);
+    assert_eq!(result.linked_agents, vec!["grok"]);
+}
+
+#[test]
 fn quota_probe_unknown_until_snapshots_exist() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

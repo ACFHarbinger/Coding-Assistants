@@ -223,6 +223,7 @@ impl HubStore {
 
         let mut recorded: HashMap<String, u64> = HashMap::new();
         let mut tasks: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut task_findings: HashMap<String, u64> = HashMap::new();
         // finding id -> original reviewer (corrections resolve through this).
         let mut finding_owner: HashMap<String, String> = HashMap::new();
         {
@@ -249,6 +250,7 @@ impl HubStore {
                     .and_then(Value::as_str)
                     .filter(|t| !t.is_empty())
                 {
+                    *task_findings.entry(reviewer.clone()).or_default() += 1;
                     tasks
                         .entry(reviewer.clone())
                         .or_default()
@@ -304,7 +306,10 @@ impl HubStore {
             let corr = corrected.get(&id).map(|set| set.len() as u64).unwrap_or(0);
             let task_set = tasks.get(&id).cloned().unwrap_or_default();
             let findings_per_task = if !task_set.is_empty() {
-                ScorecardFigure::measured(rec as f64 / task_set.len() as f64, "findings/task")
+                ScorecardFigure::measured(
+                    task_findings.get(&id).copied().unwrap_or(0) as f64 / task_set.len() as f64,
+                    "findings/task",
+                )
             } else {
                 ScorecardFigure::unknown("findings/task")
             };

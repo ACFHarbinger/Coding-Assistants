@@ -8,6 +8,27 @@ use crate::store::{FigureProvenance, HubStore};
 use rusqlite::params;
 use tempfile::tempdir;
 
+#[test]
+fn findings_per_task_excludes_findings_without_a_task() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .record_review_finding(&finding(
+            "chat",
+            Some("task-a"),
+            "major",
+            "implementation_defect",
+        ))
+        .unwrap();
+    store
+        .record_review_finding(&finding("chat", None, "minor", "clarification"))
+        .unwrap();
+    let rows = store.reviewer_signature().unwrap();
+    let row = rows.iter().find(|r| r.reviewer_id == "chat").unwrap();
+    assert_eq!(row.findings_recorded.value, Some(2.0));
+    assert_eq!(row.findings_per_task.value, Some(1.0));
+}
+
 fn finding(reviewer: &str, task: Option<&str>, severity: &str, origin: &str) -> ReviewFinding {
     ReviewFinding {
         reviewer: reviewer.into(),

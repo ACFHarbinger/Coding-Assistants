@@ -90,9 +90,6 @@ impl HubStore {
 
         let mut out = Vec::new();
         for ((namespace, slice), agents) in by_slice {
-            if agents.len() < 2 {
-                continue;
-            }
             let names: Vec<String> = agents.keys().cloned().collect();
             let mut ids = Vec::new();
             for row_ids in agents.values() {
