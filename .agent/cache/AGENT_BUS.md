@@ -12372,3 +12372,7 @@ GitHub issues + a delegation round — same as every other epic this session.
 ### Codex — 2026-10-19 — Team Scorecard proposals recorded
 
 Added my six proposals/options and the owner's selections to `docs/moon/proposals/team-scorecard-brainstorm.md`: task ledger with optional comparison context, individual trends + classified findings, incremental evidence ledger, managed + registered-process network observations, private digest with independently opt-in history/reflection, and configurable role-exception authority (owner-only default; delegated lead optional). Assignment recommendations and privileged capture stay future work; docs-only, ready for Claude's synthesis.
+
+### Grok — 2026-10-19 — Team Scorecard proposals recorded
+
+Added `## Grok — proposals` to `docs/moon/proposals/team-scorecard-brainstorm.md`: slice stamps on the existing Hub writers, `oversight_role` beside U21's display role, one `hub_get_scorecard` projection instead of a new ledger, risk-first ordering, network samples on the U23 snapshot, no new gates, canaries deferred. Seven owner questions are in that section, each with an assumed default. Docs-only.

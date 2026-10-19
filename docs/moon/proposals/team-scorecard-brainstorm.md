@@ -305,3 +305,226 @@ observations and the owner digest. The dedicated Scorecard panel can grow
 with these slices. Keep assignment recommendations and privileged network
 capture explicitly deferred; this proposal does not approve automatic merges
 or new approval gates.
+
+## Grok — proposals
+
+Read Claude's 2026-10-18 bus entry and Codex's section above. This section
+does not reopen the selections Codex already recorded with the owner. It is
+the implementer's cut: which existing Hub writers and tables the scorecard
+should sit on, what not to build in the first slices, and the questions
+still open. Assumed defaults are marked. Correct them before this becomes
+a roadmap.
+
+### Questions still open
+
+1. **Slice key.** Hub task id, work session id, or GitHub issue number?
+   Assumed default: Hub task id is primary, work session id is a second
+   nullable stamp, GitHub issue is an optional label so the panel works
+   offline.
+2. **Whose clock is the oversight signal?** In-app decisions by `human`
+   only (audit approve/reject, wake resolve, `os_tool` approve), or also
+   GitHub review and merge outside CA?
+   Assumed default: in-app `human` decisions only for the first slice.
+3. **Who classifies a review finding?** Owner only, or the review lead
+   with the owner able to correct, both written to the audit chain?
+   Assumed default: review lead may record, owner may correct.
+4. **Retention.** How long do network samples and any new projection live?
+   Assumed default: network samples are a ring of the last 24 hours or a
+   few hundred rows per session, whichever is smaller. Task-linked audit
+   rows stay with the task. No prompt or tool-output bodies.
+5. **Oversight roles beyond the three.** Do design (Gemini) and trial
+   (DeepSeek) need enum values, or do they stay U21 display labels?
+   Assumed default: `implementer | reviewer | lead | observer` only.
+   Observer stays because U21 already has it. Design and trial stay labels.
+6. **Findings source.** Hub-only, or may the scorecard call `gh`?
+   Assumed default: Hub-only.
+7. **Scope.** `~/.coding-assistants` is one database for every workspace.
+   Assumed default: filter by `workspace_path`, default the current
+   workspace, with an all-workspaces toggle.
+
+### Slice stamp on the writers we already have (O8, precedes the task ledger)
+
+**Category:** behavioral monitoring
+**Problem:** Codex's task ledger and D4's `hub_get_activity_view` both need
+a task or session id. `agent_metrics` is one cumulative row per agent
+(`lines_written`, `tokens_used`, `provider_calls`, `output_chars`).
+`audit_events` stores path, operation, `process_json`, and a hash chain,
+and it has no task id. A ledger that guesses attribution will look precise
+and be wrong, which is the opposite of a trust surface.
+**Implementation options:**
+1. Infer the slice at read time from timestamps and `workspace_path`. No
+   schema change. Mis-attributes overlapping sessions. Cheap, and wrong
+   often enough to skip as the primary path.
+2. Add nullable `task_id` and `work_session_id` on the three Hub writers
+   that already exist: `os_tool` audit rows, the provider budget gate, and
+   tagged message sends. Leave harness transcript parsers alone in this
+   slice. Unstamped rows stay `unknown` on the scorecard and in D4.
+3. Require every harness adapter to emit a slice id. Broad coverage, and
+   blocked on CLIs that do not know the Hub task.
+**Recommended option:** 2. Matches the slice-key assumption above.
+**Complexity:** medium
+**Touches:** `crates/hub` os-tool audit, provider budget gate, tagged send
+path; nullable columns on `audit_events` (soft migration, not a new table);
+`hub_get_activity_view` so D4 reads the same stamps.
+
+### Standing oversight role beside U21's display role (refines O1)
+
+**Category:** role design
+**Problem:** U21 already stores free-text `agents.role` (presets: lead,
+reviewer, implementer, observer) and shows it as a badge in Messager and
+Settings. Putting a temporary implementer/reviewer swap in that column
+rewrites the badge for the duration of the swap. O1's typed role and the
+display label are different facts.
+**Implementation options:**
+1. Constrain `agents.role` to the enum and store the exception in the same
+   column. Breaks custom U21 labels. Hides the standing role during a swap.
+2. Add `oversight_role` (`implementer | reviewer | lead | observer`) next
+   to `agents.role`. A swap does not edit the badge. It appends one
+   hash-chained audit operation, `oversight.exception`, whose `process_json`
+   holds agent, from, to, scope, granted_by, started_at, expires_at, and
+   reason. The scorecard computes the effective role from the latest
+   unexpired row. No second table until those queries hurt.
+3. New `role_exceptions` table now, as O1 sketches. Clearer SQL, and
+   another table for the hash chain and for cloud sync to learn.
+**Recommended option:** 2 for the first slice. Promote to 3 only if the
+audit-json query is too awkward. Authority stays as Codex recorded: the
+owner grants by default, a delegated lead is an explicit setting, a lead
+cannot enable that setting through an agent-accessible path, and an
+exception does not grant P5, vault, or network rights. Enforcement stays
+advisory. Expiry is task completion or the stated deadline, whichever is
+first, plus explicit revocation. Design and trial stay U21 labels.
+**Complexity:** small for the column and the audit operation; medium once
+the panel shows standing role and effective role side by side.
+**Touches:** `crates/hub/src/store/agents/role.rs`, soft migration on
+`agents` (same pattern as U21), `audit_events` operation names. Exception
+grants are a scorecard action. The Settings badge editor keeps editing
+`agents.role` only.
+
+### One scorecard query, no third event store (disagrees with a new ledger as slice 1)
+
+**Category:** decision design
+**Problem:** Hash-chained `audit_events`, cumulative `agent_metrics`, D4's
+activity query, the P1 in-process bus, and the provider quota adapters
+already exist. A new `activity_ledger` (Codex's option B) is a reasonable
+later store and a large first slice. It will diverge from the chain as
+soon as one writer forgets it, and cloud sync (S1–S13, code-complete)
+would have to learn another table.
+**Implementation options:**
+1. New ledger table fed by every producer. Uniform aggregates. New
+   retention, new sync surface, easy to desync from `audit_events`.
+2. One read command, `hub_get_scorecard`, projecting stamped audit rows,
+   tasks, work sessions, budgets, and quota snapshots. Each figure is
+   `measured`, `estimated`, or `unknown`. The aggregation version is a
+   constant in the query module and comes back in the payload. New facts
+   are new `audit_events.operation` values on the chain we already have.
+   The command does not copy prompt or tool-output bodies.
+3. Reconstruct the cards in the React panel. Duplicates D4's logic in
+   TypeScript and will drift.
+**Recommended option:** 2 now. Revisit Codex's ledger after the stamp
+slice shows which producers are still `unknown`. `agent_metrics` stays the
+lifetime counter it already is. It is not the scorecard's source of truth.
+The panel is its own Shared Hub tab, as the owner scoped, and it does not
+add cards to the D1–D4 views.
+**Complexity:** medium
+**Touches:** a Hub query module next to the D4 activity query, one Tauri
+command, a new Dashboard/Shared Hub panel component under `src/components/panels/`.
+
+### Default order is unreviewed risk, not output volume (replaces the vanity half of O2)
+
+**Category:** decision design
+**Problem:** Lines written, lifetime tokens, and a single rework count are
+the numbers a tired reviewer will watch. The paper's failure mode is the
+overseer tracking the easy figure. The owner asked for three different
+things: cost, what the agent touched, and a signal about the owner's own
+review backlog. Those are separate cards. A composite agent score hides
+the gaps.
+**Implementation options:**
+1. Default sort by lines or tokens, matching today's Dashboard counters.
+   Trains the wrong glance.
+2. Default order: open security-class rows (`os_tool.proposed`,
+   `os_tool.denied`, vault operations, `tcp.auth_rejected`), then the
+   oldest pending `human` decision, then measured cost for the selected
+   task. Lines and lifetime token totals stay on the existing Dashboard
+   overview. They are not on this panel. No composite score. Individual
+   trends and classified findings stay as Codex specified, and they are
+   not the default sort.
+3. A weighted score with weights in settings. One number, inputs hidden.
+**Recommended option:** 2.
+**Complexity:** small once `hub_get_scorecard` exists.
+**Touches:** the scorecard view model only.
+
+### Network samples on the U23 snapshot (refines O3)
+
+**Category:** behavioral monitoring
+**Problem:** Provider-call logs miss sockets a harness opens itself.
+eBPF needs privileges the owner already set aside. Reading
+`/proc/<pid>/net/tcp` without matching socket inodes attributes every
+connection in the network namespace to every PID we poll.
+**Implementation options:**
+1. Poll `/proc/<pid>/net/tcp[6]` on a new timer and treat the table as
+   that process's connections. Mis-attributes. Skip.
+2. On the existing U23 `system_snapshot` cadence, for managed harness
+   PIDs and for registered observed sessions whose PID start time still
+   matches: walk `/proc/<pid>/fd`, match socket inodes to `tcp` and
+   `tcp6`, and store destination IP, port, pid, start time, session id,
+   and whether the fd table was fully readable. Cap the rows (ring per
+   session). No reverse DNS, no payloads, no byte counts. Another OS
+   returns `unavailable`, the same way U23 does when `nvidia-smi` is
+   missing. A coverage gap is a field on the card (`fds_unreadable`),
+   not an empty list that looks like "no network."
+3. Optional eBPF later. Out of this round, same as Codex's option C.
+**Recommended option:** 2. Agrees with Codex's managed plus registered
+scope and with inode matching. Puts the poll next to U23 instead of a
+second sampler.
+**Complexity:** medium
+**Touches:** `src-tauri/src/commands/system/` (or a sibling that snapshot
+already calls), harness session pid and start time, a capped sample store
+or a capped audit operation. No new privileged dependency.
+
+### No new gates (constrains O4)
+
+**Category:** decision design
+**Problem:** O4's "security-relevant paths are always gated" adds approval
+friction. The owner deprioritized strategic friction. P5 already proposes
+and waits. Vault and TCP auth already deny. The provider budget gate
+already pauses calls.
+**Implementation options:**
+1. A new path-pattern gate in scorecard settings. More prompts. That is
+   the failure mode in the paper.
+2. The scorecard only labels actions that already passed through those
+   gates, and groups pending `os_tool.proposed` rows and pending wakes
+   into the private digest Codex described. No new deny path. A hard
+   gate for a new action class is a separate owner decision, outside
+   this panel.
+**Recommended option:** 2.
+**Complexity:** small
+**Touches:** the scorecard query only. No change to `os_tool` policy in
+the first slices.
+
+### Defer canaries (O7)
+
+**Category:** other
+**Problem:** A known-answer task measures something only if the record can
+show an explicit decline separately from a successful run. We do not have
+that event yet. A canary the agent cannot tell from real work will be
+counted as another slice, including a fabricated success.
+**Implementation options:**
+1. Insert canary tasks now. Large, and the scorecard cannot tell a
+   fabricated pass from a real one until the stamp and decline events
+   exist.
+2. Wait until stamped audit rows can record `declined` or `blocked` as
+   distinct from `ran`. Design canaries after that.
+**Recommended option:** 2.
+**Complexity:** none in this round.
+**Touches:** none.
+
+### Suggested build order
+
+Stamp `task_id` / `work_session_id` on the three Hub writers, and add
+`oversight_role` plus `oversight.exception` audit rows. Then add
+`hub_get_scorecard` and the dedicated panel, with the risk ordering and
+the private digest reading those rows. Network samples on the U23 cadence
+come after the panel can show `unknown` and `fds_unreadable` without
+looking broken. Canaries, a separate activity-ledger table, eBPF, new
+approval gates, and assignment recommendations stay out until the owner
+asks for them.
