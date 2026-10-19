@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
+  (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
+  `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
+  registered in `invoke.rs`, thin wrappers over S1/S3. Same trust-boundary
+  note as `hub_get_scorecard`: `caller_agent_id` is trusted desktop-IPC
+  identity, defaults to `human` when absent.
 - **Scheduled Goals S3 dispatch/tick state machine (#350):**
   `HubStore::tick_scheduled_tasks(now)` — a pure function of `now` plus
   store state, fully testable without a real clock. Dispatch reuses
