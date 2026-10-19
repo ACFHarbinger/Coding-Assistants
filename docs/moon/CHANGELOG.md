@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S1 (#350/#351):** New `scheduled_tasks` table
+  (`crates/hub/src/store/schedule/`) + `ScheduledTask`/`ScheduleTarget`/
+  `GateCriterion`/`GateCombinator`/`BudgetPolicy`/`ScheduleStatus` types
+  and plain CRUD (create/get/list/due/cancel). `max_attempts` is a
+  mandatory field, not optional: `gate_provider_call`/
+  `record_agent_metrics` are only wired into `AgentSystem`'s in-app
+  pipeline, not the harness-CLI/PTY bridge this app actually dispatches
+  work through, so budget/token-written gates alone cannot be trusted to
+  ever stop a re-prompt loop. Full design in `docs/moon/roadmaps/schedule.md`.
 - **Hermes in the Orchestrate terminal grid:** Added `hermes` to
   `ALL_HARNESSES`/`DISPLAY_NAMES` in
   `src/components/panels/terminal/gridConstants.ts`, so the empty-grid

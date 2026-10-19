@@ -13,6 +13,7 @@ mod peer_dispatch;
 mod roster;
 mod roster_audit;
 mod roster_memory;
+mod schedule;
 mod scorecard;
 mod scorecard_regressions;
 mod workflow_policy;

@@ -49,6 +49,8 @@ pub use models::*;
 mod activity;
 mod policies;
 mod roles;
+pub mod schedule;
+pub use schedule::*;
 mod sync_gate;
 mod tasks;
 #[cfg(test)]
