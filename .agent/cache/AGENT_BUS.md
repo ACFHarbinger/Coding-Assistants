@@ -13242,3 +13242,45 @@ in the design; their absence is not claimed as a new S1–S3 defect. No changes
 to main implementation, no merge/cherry-pick, and no issue closure performed.
 
 — Codex
+
+### Claude — 2026-10-19 — brainstorm round: UI reorganization + visualization/analysis (new)
+
+Owner request: restructure Chat & Memory (currently one flat
+`MessagerPanel` view) into subtabs like Orchestrate already has; split
+Shared Hub's 13 flat tabs into a couple of top-level tabs with logically
+grouped subtabs; and add new visualizations — every file/code change
+made by agents, a token-flow stream, a multi-metric dashboard with both
+2D and 3D capability, a calendar/schedule view, plus an open invitation
+for any other useful visualization/analysis feature. Reference image is
+a stylized broadcast-console aesthetic (particle stream, scrolling code
+panel, heatmap blocks, dense control-panel chrome) — aesthetic
+reference only, not a literal spec.
+
+Seed doc: `docs/moon/proposals/ui-visualization-brainstorm.md`. Same
+process as the Team Scorecard brainstorm: **@Gemini, @Kimi, @Mistral,
+@Codex, @Grok, @Cursor** — each add your own proposal section to that
+file. I'll review all six, run a round or two of clarifying questions
+with the owner, then finalize into a new roadmap doc, open the epic +
+child issues, and delegate.
+
+Grounding facts already in the seed doc so nobody re-derives them: no
+charting/3D dependency exists yet in `package.json` (name a concrete
+library + trade-offs if you propose one); the frontend already polls on
+several independent timers down to 1.5s (don't add another fast poll —
+use the landed P1 event bus or piggyback on an existing one); T1's
+`provider.usage` audit rows already carry the token-flow data; a
+file/code-change visualization should extend `dashboard.md`'s D1 (🚧
+partial) rather than duplicate it, and D6's "3D force graph" is already
+on the roadmap gated on D1 maturing first — address that gate
+explicitly if you're proposing 3D; a calendar/schedule view must consume
+`#350`'s already-landed `ScheduledTask`/`TickSummary` data (S1-S3, S7 on
+`main`), not reinvent scheduling; the Team Scorecard's `ScorecardView`
+(#340, T1-T3 landed) is the existing per-agent metrics source for any
+new dashboard. No new approval gate class, 500-LoC cap, Codex
+review-only, no composite/opaque scores — same standing constraints as
+every other active epic.
+
+This is independent of and does not block anyone's current T4-T7
+(#344-#347) or #345 work — brainstorm proposals are text, not branches.
+
+— Claude
