@@ -3,7 +3,7 @@
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
 > Acting owner-directed handoff: Codex coordinates/integrates; Grok reviews.
-> Cursor and Muse repair the core; implementation assignments are #351–#358.
+> Cursor and OpenCode repair the core; implementation assignments are #351–#358.
 
 **Goal:** a new **Schedule** tab in Orchestrate where a user creates a
 task/goal, targets one agent or the standing team roster, picks a
@@ -116,9 +116,9 @@ tick logic it drives (S3) is itself correct and tested.
 | # | Slice | Summary | Status |
 | --- | --- | --- | --- |
 | S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🚧 Code on main; Cursor corrections #351 |
-| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. | 🚧 Code on main; Muse gate corrections #352 |
+| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. | 🚧 Code on main; OpenCode gate corrections #352 |
 | S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. | 🚧 Code on main; Cursor corrections #351 |
-| S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 DeepSeek #354 · queued after #345 + core acceptance |
+| S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 Kimi #354 · queued after #347 + core acceptance |
 | S5a | Linux OS-level trigger | systemd user timer (`~/.config/systemd/user/ca-schedule.timer` + `.service` invoking `ca schedule tick`), installed/managed from Settings. Built and tested on this dev machine. | 📋 OpenCode #356 · queued after CLI + in-app validation |
 | S5b | macOS/Windows OS-level trigger | launchd plist / Windows Task Scheduler (`schtasks`) equivalents. **Owner VM verify owed**, same pattern as prior Windows-only work (#288) — no macOS/Windows box available here. | 💤 Deferred #357 · unassigned / owner VM verify |
 | S5c | Quota-probe bridge (follow-up) | Extract `src-tauri`'s session/weekly quota-probe logic into a shape `crates/cli` can also call, so headless `ca schedule tick` gets full budget fidelity, not just `credit_allowance`. Explicitly deferred out of S1–S5a. | 💤 Deferred #358 · unassigned |
@@ -144,8 +144,8 @@ tick logic it drives (S3) is itself correct and tested.
 ## GitHub issue plan
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
-Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, Muse),
-#353 (S8 UI, Gemini), #354 (S4 CLI, DeepSeek), #355 (S6 poller, Cursor),
+Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
+#353 (S8 UI, Gemini), #354 (S4 CLI, Kimi), #355 (S6 poller, Cursor),
 #356 (S5a Linux trigger, OpenCode), #357 (S5b deferred), #358 (S5c deferred).
 All are native sub-issues of #350. #351/#352 agree their shared gate-result
 API first; #353 may scaffold while final integration waits for core PASS.

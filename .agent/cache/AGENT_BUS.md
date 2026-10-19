@@ -16,9 +16,9 @@ does final edits. The owner will confirm when normal roles resume.
 | Acting review lead / final edits | **Grok** | Review ready branches, resolve bounded review edits, record PASS/findings; no new implementation assignments and no self-review |
 | Standing lead (paused) | **Claude** | Usage unavailable; existing code and decisions remain the handoff baseline; no active implementation expected |
 | Design / visual / TUI interaction | **Gemini** | UI, UX, visual appeal, interactivity; TUI aesthetics after reliability P0s |
-| Implementer (2026-09-08) | **Muse** | Core code under Claude's assignments. #273/#274 landed (self-integration). Codex reviews. |
+| Unavailable | **Muse** | No current assignments; ownership transferred per 2026-10-20 owner correction |
 | Implementer (2026-09-08) | **Cursor** | Core code under Claude's assignments. #275 (own harness) still open — three Codex findings. Codex reviews. |
-| Trial implementer (re-activated 2026-09-08, owner-directed) | **DeepSeek** | Implements only under Claude's assignment; still trial-gated (owner decision 3 below — no seeded roster identity, no native CLI/session contract until the trial concludes; git trailer only). Back on the active roster for the credentials batch (#279): owner said "DeepSeek … now online". Assigned #287 (bounded platform slice). Codex reviews. |
+| Unavailable | **DeepSeek** | No current assignments; existing authored branches preserved for the successor |
 | Implementer (new, 2026-09-08, owner-directed) | **OpenCode** | Joins as an implementer for the credentials batch (#279): owner said "OpenCode … now online". Previously referenced only as a provider (`opencode run -m deepseek/<model>`). No seeded roster identity yet; git trailer + Claude-assigned work only, same footing as Muse/Cursor's onboarding. Assigned #285 (typed field catalog). Codex reviews. |
 
 ### Owner decisions (2026-08-15) — binding
@@ -63,13 +63,11 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | Agent | Issue(s) | Do now / dependency |
 | --- | --- | --- |
 | Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
-| Cursor | #351; then #355 | Start scheduler core corrections; agree gate-result API with Muse first. Poller #355 queued after corrected core + UI. |
-| Muse | #352; then #154 residual follow-up | Start P5 gate resumption/measurement repairs; inspect/cherry-pick 4beba8e. Legacy Grok follow-up waits; no rebuilding landed work. |
-| Gemini | #353 | Start Schedule UI scaffold; final execution/integration waits for core/gate PASS. |
+| Cursor | #351; then #355 | Start scheduler core corrections; agree gate-result API with OpenCode first. Poller #355 queued after corrected core + UI. |
+| Gemini | #353; then #154 residual follow-up | Start Schedule UI scaffold; final integration waits for core/gate PASS. Legacy Grok follow-up later, independently reviewed by Cursor. |
 | Mistral | #344; then #346 | #344 Codex PASS at 95c665a, await Grok handoff check + integration; #346 starts only after #344 worktree cleanup. |
-| DeepSeek | #345; then #354 | #345 Codex PASS at 11b8624, await Grok handoff check + integration; CLI #354 queued after core acceptance + #345 cleanup. |
-| Kimi | #347 | Support Grok re-review of 5f5ed11 and resolve remaining time-valid assignment findings. |
-| OpenCode | #356 | Linux trigger queued, do not start implementation until CLI/core and in-app validation land. |
+| Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
+| OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
 
 #357 (macOS/Windows trigger) and #358 (headless quota extraction) are deferred
@@ -13458,5 +13456,34 @@ bodies, both epic bodies, and linked all eight new issues under #350.
 
 UI visualization brainstorm collection continues in the existing proposal
 doc. No new visualization implementation starts before owner synthesis.
+
+— Codex
+
+### Codex — 2026-10-20 — owner availability correction: no Muse or DeepSeek
+
+Owner confirms Muse and DeepSeek are unavailable. Their assignments are
+superseded as follows; earlier ownership entries are historical:
+
+- **OpenCode → #352 now:** P5 gate repair, coordinating the gate-result
+  interface/file boundaries with Cursor #351. Also takes custody of **#345**
+  at `11b8624` for any Grok review corrections; preserve existing
+  `agent/deepseek-345`, authorship and Codex PASS, do not rebuild. Finish
+  custody/cleanup before starting a second feature worktree; gate design
+  preparation can proceed while the already-reviewed #345 awaits integration.
+- **Kimi → #354 queued:** Schedule CLI after #347 lands/cleans up and
+  #351/#352 core/gate acceptance. Kimi's immediate work remains #347.
+- **Gemini → #154 queued:** residual Grok leader-mode UX/docs/acceptance
+  preparation after #353. Cursor independently reviews changes to prior
+  Grok-authored implementation; live owner acceptance cannot be simulated.
+- **OpenCode #356** stays queued after CLI/core/in-app validation.
+
+Unchanged: Codex lead/integration; Grok review/final edits; Cursor #351 then
+#355; Gemini #353 first; Mistral #344 then #346; Kimi #347 first. Claude
+remains paused. #357/#358 remain deferred/unassigned. No implementation work
+or review is assigned to Muse/DeepSeek; historical author attribution stays.
+
+GitHub issues #154/#345/#351/#352/#354/#356 and epics #340/#350 updated;
+Project 21 Implementation agent fields, the current bus board, and both
+roadmaps now match this correction. No merge or issue closure performed.
 
 — Codex
