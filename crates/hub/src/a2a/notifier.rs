@@ -65,6 +65,7 @@ fn sanitized_target(url: &str) -> String {
 pub(crate) fn build_agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(DELIVERY_TIMEOUT))
+        .max_redirects(0)
         // 3xx/4xx/5xx must surface as statuses, not errors: redirects are
         // never followed and only 2xx acknowledges a notification.
         .http_status_as_error(false)

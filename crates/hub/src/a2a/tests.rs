@@ -10,7 +10,9 @@ use crate::{HubStore, WorkflowStep};
 use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::Arc;
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 
@@ -415,4 +417,53 @@ fn status_event_mirrors_tasks_get_shape() {
     assert_eq!(event["final"], false);
     assert_eq!(event["contextId"], json!(task.id));
     assert!(event["status"]["message"]["parts"][0]["text"].is_string());
+}
+
+#[test]
+fn deliver_refuses_redirects_and_never_follows_location() {
+    let agent = super::notifier::build_agent();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let dest_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let dest_url = format!("http://{}/destination", dest_listener.local_addr().unwrap());
+    let url = format!("http://{}/redirect", listener.local_addr().unwrap());
+    let dest_hit = Arc::new(AtomicBool::new(false));
+    let dest_hit_clone = dest_hit.clone();
+
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = [0u8; 4096];
+            let _ = stream.read(&mut buf);
+            let response =
+                format!("HTTP/1.1 302 Found\r\nLocation: {dest_url}\r\nContent-Length: 0\r\n\r\n");
+            let _ = stream.write_all(response.as_bytes());
+        }
+    });
+
+    std::thread::spawn(move || {
+        dest_listener.set_nonblocking(true).ok();
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_millis(500) {
+            if dest_listener.accept().is_ok() {
+                dest_hit_clone.store(true, Ordering::SeqCst);
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    });
+
+    let payload = json!({"status": "completed"});
+    let err = deliver(
+        &agent,
+        &url,
+        Some("secret-token"),
+        Some("Bearer secret-vault-token"),
+        &payload,
+    )
+    .expect_err("redirect must be treated as failure, never followed");
+
+    assert!(err.contains("302"), "error should report 302: {err}");
+    assert!(
+        !dest_hit.load(Ordering::SeqCst),
+        "redirect destination was contacted — token leak!"
+    );
 }
