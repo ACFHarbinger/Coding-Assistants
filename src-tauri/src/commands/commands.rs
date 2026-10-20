@@ -39,32 +39,9 @@ pub mod messaging;
 pub mod os_tool;
 #[path = "hub/oversight.rs"]
 pub mod oversight;
-#[path = "quota/claude.rs"]
-mod quota_claude;
-#[path = "quota/codex.rs"]
-mod quota_codex;
-#[path = "quota/cursor.rs"]
-pub(crate) mod quota_cursor;
-#[path = "quota/deepseek.rs"]
-mod quota_deepseek;
-#[path = "quota/gemini.rs"]
-mod quota_gemini;
-#[path = "quota/grok.rs"]
-mod quota_grok;
-#[path = "quota/hermes.rs"]
-mod quota_hermes;
-#[path = "quota/kimi_usage.rs"]
-pub(crate) mod quota_kimi_usage;
-#[path = "quota/mistral.rs"]
-mod quota_mistral;
-#[path = "quota/muse.rs"]
-mod quota_muse;
-#[path = "quota/opencode.rs"]
-mod quota_opencode;
-#[path = "quota/qwen.rs"]
-mod quota_qwen;
-#[path = "quota/vibe_usage.rs"]
-pub(crate) mod quota_vibe_usage;
+// The quota adapters and the schedule probe classifier moved to the shared
+// `quota` crate (S5c / #358) so `crates/cli` can probe with full fidelity;
+// only the desktop IPC wrappers remain, in `quota/quotas.rs`.
 #[path = "quota/quotas.rs"]
 pub mod quotas;
 #[path = "settings/roles.rs"]
@@ -73,8 +50,6 @@ pub mod roles;
 pub mod schedule;
 #[path = "hub/schedule_poller.rs"]
 pub mod schedule_poller;
-#[path = "quota/schedule_probe.rs"]
-pub(crate) mod schedule_probe;
 #[path = "settings/schedule_trigger.rs"]
 pub mod schedule_trigger;
 #[path = "hub/scorecard.rs"]
