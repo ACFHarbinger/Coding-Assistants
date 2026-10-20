@@ -23,6 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Roadmap: swarm/multi-agent framework survey (ADK, Microsoft Agent
+  Framework, CrewAI, LangGraph, A2A spec, Kimi Code CLI,
+  `roadmaps/platform.md`).** Kimi `/swarm`/`/goal` slash-command
+  capability add on the existing harness, extends P3
+  ([#363](https://github.com/ACFHarbinger/Coding-Assistants/issues/363));
+  A2A push-notification/webhook config and `INPUT_REQUIRED`/
+  `AUTH_REQUIRED` task state, both extend P11
+  ([#364](https://github.com/ACFHarbinger/Coding-Assistants/issues/364),
+  [#365](https://github.com/ACFHarbinger/Coding-Assistants/issues/365));
+  nested/composable sub-workflows (P19,
+  [#366](https://github.com/ACFHarbinger/Coding-Assistants/issues/366))
+  and conditional branching on `WorkflowStep` reusing Schedule's gate
+  evaluator (P20,
+  [#367](https://github.com/ACFHarbinger/Coding-Assistants/issues/367));
+  Group Chat orchestration (P21,
+  [#368](https://github.com/ACFHarbinger/Coding-Assistants/issues/368))
+  and hierarchical manager-delegates-at-runtime (P22,
+  [#369](https://github.com/ACFHarbinger/Coding-Assistants/issues/369)),
+  both tracked 💤 Research/Someday per owner decision. Planning only,
+  no code yet.
+
 - **Roadmap: `openai-agents-python`-inspired platform primitives
   (P16/P17/P18, `roadmaps/platform.md`).** Guardrails primitive
   ([#360](https://github.com/ACFHarbinger/Coding-Assistants/issues/360)
