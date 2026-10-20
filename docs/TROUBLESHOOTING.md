@@ -159,6 +159,22 @@ Common issues and their solutions when developing or running Coding Assistants.
    echo "test" | opencode run <model-name>
    ```
 
+### DeepSeek harness does not open
+
+**Symptom**: Launching DeepSeek does not embed a page, or a task never starts.
+
+DeepSeek is the official `dsh` web app, not an OpenCode model. The grid runs `dsh --profile web --no-open` and embeds the printed `dsh web:` URL. One-shot tasks use `dsh --profile headless`.
+
+**Solutions**:
+
+1. Install the CLI (`npm install -g @deepseek-ai/dsh`) or build the pinned checkout:
+   ```bash
+   git submodule update --init --depth 1 submodules/deepseek
+   cd submodules/deepseek && pnpm install && pnpm run build
+   ```
+2. Put `dsh` on `$PATH`, or leave the built `apps/cli/lib/bin.js` in the submodule so the app can start it with `node`.
+3. Set `DEEPSEEK_API_KEY` in Settings → Credentials. The web process receives that key; it is not passed on the command line.
+
 ### API key not recognized
 
 **Symptom**: Cloud providers (OpenAI, Google, Anthropic) return authentication errors.

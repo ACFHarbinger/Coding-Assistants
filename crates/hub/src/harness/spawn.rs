@@ -10,7 +10,6 @@ use std::process::{Child, Command, Stdio};
 use super::HarnessStartResult;
 
 pub const DEFAULT_OPENCODE_MODEL: &str = "opencode-go/glm-5.3";
-pub const DEFAULT_DEEPSEEK_MODEL: &str = "deepseek/deepseek-v4-flash";
 
 fn codex_config_string(key: &str, value: &str) -> Result<OsString, HubError> {
     if value.chars().any(char::is_control) {
@@ -181,7 +180,8 @@ pub fn gemini_managed_spawn_args(
     Ok(args)
 }
 
-/// Explicit argv for an OpenCode (including DeepSeek) wake spawn.
+/// Explicit argv for an OpenCode wake spawn. DeepSeek does not use this
+/// path; it launches the official `dsh` harness (see `deepseek_spawn`).
 pub fn opencode_spawn_args(
     workspace: &Path,
     prompt: &str,
@@ -305,13 +305,21 @@ pub(super) fn spawn_explicit_owned(
     workspace: &Path,
     args: &[OsString],
 ) -> Result<Child, std::io::Error> {
-    Command::new(program)
+    let mut command = Command::new(program);
+    command
         .current_dir(workspace)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    // A vault-only DeepSeek key is not in the parent environment. `dsh`
+    // reads `DEEPSEEK_API_KEY` itself and never receives the value over argv.
+    if program == super::deepseek_executable() {
+        if let Some(secret) = crate::secret::resolve("DEEPSEEK_API_KEY") {
+            command.env("DEEPSEEK_API_KEY", secret.expose());
+        }
+    }
+    command.spawn()
 }
 
 pub(super) fn spawn_explicit(
@@ -567,16 +575,12 @@ mod tests {
         assert_eq!(oc[4], "--dir");
         assert_eq!(oc[5], ws.as_os_str());
 
-        let ds =
-            opencode_spawn_args(&ws, "review", Some(DEFAULT_DEEPSEEK_MODEL), Some("high")).unwrap();
-        assert_eq!(ds[0], "run");
-        assert_eq!(ds[1], "review");
-        assert_eq!(ds[2], "--model");
-        assert_eq!(ds[3], "deepseek/deepseek-v4-flash");
-        assert_eq!(ds[4], "--variant");
-        assert_eq!(ds[5], "high");
-        assert_eq!(ds[6], "--dir");
-        assert_eq!(ds[7], ws.as_os_str());
+        let varied =
+            opencode_spawn_args(&ws, "review", Some("opencode-go/glm-4-plus"), Some("high"))
+                .unwrap();
+        assert_eq!(varied[3], "opencode-go/glm-4-plus");
+        assert_eq!(varied[4], "--variant");
+        assert_eq!(varied[5], "high");
 
         let vibe = crate::harness::vibe_spawn_args(&ws, "review", None, None).unwrap();
         assert_eq!(vibe[0], "-p");
@@ -599,7 +603,11 @@ mod tests {
         assert_eq!(resumed[1], "6d2776e5-fd91-a416-68df-ea585bacb872");
         assert_eq!(resumed[2], "-p");
         assert_eq!(HarnessId::OpenCode.executable(), "opencode");
-        assert_eq!(HarnessId::DeepSeek.executable(), "opencode");
+        assert_eq!(HarnessId::DeepSeek.executable(), "dsh");
+        assert_eq!(
+            HarnessId::DeepSeek.surface(),
+            crate::harness::HarnessSurface::WebApp
+        );
         assert_eq!(HarnessId::Vibe.executable(), "vibe");
         assert!(opencode_spawn_args(Path::new("relative"), "x", None, None).is_err());
         assert!(crate::harness::vibe_spawn_args(Path::new("relative"), "x", None, None).is_err());

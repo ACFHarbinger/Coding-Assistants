@@ -48,7 +48,7 @@ pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
         secret: false,
         scope: Scope::Global,
         docs_url: None,
-        notes: Some("Default DeepSeek model (default: deepseek/deepseek-v4-flash)."),
+        notes: Some("Catalog id for DeepSeek (default: deepseek-flash). The official dsh web app stores the live model choice itself."),
     },
     FieldSpec {
         id: "provider.muse.api_key",

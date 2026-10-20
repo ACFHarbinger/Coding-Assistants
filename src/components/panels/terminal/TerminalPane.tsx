@@ -9,6 +9,7 @@ export interface TerminalPaneProps {
   rect: Rect;
   bounds: Rect;
   sessionId?: string;
+  webUrl?: string | null;
   isBusy: boolean;
   isMaximized: boolean;
   isHidden: boolean;
@@ -27,6 +28,7 @@ export default function TerminalPane({
   rect,
   bounds,
   sessionId,
+  webUrl,
   isBusy,
   isMaximized,
   isHidden,
@@ -40,6 +42,9 @@ export default function TerminalPane({
   onError,
 }: TerminalPaneProps) {
   const title = DISPLAY_NAMES[node.harness] || node.harness;
+  const live = Boolean(sessionId || webUrl);
+  const titleAction = node.harness === "deepseek" || webUrl ? "Open" : "Connect";
+  const bodyAction = node.harness === "deepseek" || webUrl ? "Open" : "Connect CLI";
 
   return (
     <div
@@ -80,12 +85,12 @@ export default function TerminalPane({
               ⋮⋮
             </span>
           )}
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: sessionId ? "#22c55e" : "#64748b" }} />
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: live ? "#22c55e" : "#64748b" }} />
           <strong style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>{title}</strong>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          {!sessionId && (
+          {!live && (
             <button
               type="button"
               className="btn-secondary"
@@ -93,7 +98,7 @@ export default function TerminalPane({
               disabled={isBusy}
               onClick={onConnect}
             >
-              {isBusy ? "…" : "Connect"}
+              {isBusy ? "…" : titleAction}
             </button>
           )}
           <button
@@ -120,7 +125,13 @@ export default function TerminalPane({
       {/* Pane Body */}
       <div style={{ flex: 1, position: "relative", minHeight: 0, background: "#050811" }}>
         <TerminalPaneErrorBoundary>
-          {sessionId ? (
+          {webUrl ? (
+            <iframe
+              title={`${title} web harness`}
+              src={webUrl}
+              style={{ border: "none", width: "100%", height: "100%", background: "#050811" }}
+            />
+          ) : sessionId ? (
             <EmbeddedTerminal
               sessionId={sessionId}
               onExit={onExit}
@@ -131,7 +142,7 @@ export default function TerminalPane({
               <span>{isBusy ? `Starting ${title}…` : "Session idle"}</span>
               {!isBusy && (
                 <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.78rem" }} onClick={onConnect}>
-                  Connect CLI
+                  {bodyAction}
                 </button>
               )}
             </div>

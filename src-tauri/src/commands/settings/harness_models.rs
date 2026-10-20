@@ -43,11 +43,7 @@ pub fn fallback_models_for_harness(harness: &str) -> Vec<String> {
             "anthropic/claude-3-7-sonnet".into(),
             "openai/gpt-4o".into(),
         ],
-        "deepseek" => vec![
-            "deepseek/deepseek-v4-flash".into(),
-            "deepseek/deepseek-chat".into(),
-            "deepseek/deepseek-reasoner".into(),
-        ],
+        "deepseek" => vec!["deepseek-flash".into(), "deepseek-v4-pro".into()],
         "claude" => vec![
             "claude-3-7-sonnet-20250219".into(),
             "claude-3-5-sonnet-20241022".into(),
@@ -90,7 +86,7 @@ pub fn fallback_models_for_harness(harness: &str) -> Vec<String> {
 pub fn effort_options_for_harness(harness: &str) -> Vec<String> {
     match harness {
         "claude" => vec!["low".into(), "medium".into(), "high".into(), "max".into()],
-        "chat" | "codex" | "gemini" | "grok" | "opencode" | "deepseek" => {
+        "chat" | "codex" | "gemini" | "grok" | "opencode" => {
             vec!["low".into(), "medium".into(), "high".into()]
         }
         "vibe" => vec![],
@@ -108,22 +104,6 @@ async fn query_cli_models(harness: &str) -> Option<Vec<String>> {
                     let content = String::from_utf8_lossy(&output.stdout);
                     let list: Vec<String> =
                         crate::client::providers::parse_opencode_models(&content);
-                    if !list.is_empty() {
-                        return Some(list);
-                    }
-                }
-            }
-        }
-        "deepseek" => {
-            let fut = Command::new("opencode").arg("models").output();
-            if let Ok(Ok(output)) = timeout(timeout_dur, fut).await {
-                if output.status.success() {
-                    let content = String::from_utf8_lossy(&output.stdout);
-                    let list: Vec<String> =
-                        crate::client::providers::parse_opencode_models(&content)
-                            .into_iter()
-                            .filter(|m| m.starts_with("deepseek/"))
-                            .collect();
                     if !list.is_empty() {
                         return Some(list);
                     }

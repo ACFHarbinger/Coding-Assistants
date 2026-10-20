@@ -6,17 +6,16 @@ use std::process::Child;
 
 use super::spawn::{spawn_explicit, spawn_explicit_owned};
 use super::{
-    claude_spawn_args, codex_spawn_args, cursor_managed_spawn_args, gemini_managed_spawn_args,
-    grok_spawn_args, muse_managed_spawn_args, opencode_spawn_args, qwen_managed_spawn_args,
-    vibe_managed_spawn_args, HarnessId, HarnessStartRequest, HarnessStartResult,
-    DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
+    claude_spawn_args, codex_spawn_args, cursor_managed_spawn_args, deepseek_headless_spawn_args,
+    gemini_managed_spawn_args, grok_spawn_args, muse_managed_spawn_args, opencode_spawn_args,
+    qwen_managed_spawn_args, vibe_managed_spawn_args, HarnessId, HarnessStartRequest,
+    HarnessStartResult, DEFAULT_OPENCODE_MODEL,
 };
 
 fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubError> {
     let harness = HarnessId::parse(&request.harness)?;
     let model = request.model.as_deref().or(match harness {
         HarnessId::OpenCode => Some(DEFAULT_OPENCODE_MODEL),
-        HarnessId::DeepSeek => Some(DEFAULT_DEEPSEEK_MODEL),
         _ => None,
     });
     let effort = request.effort.as_deref();
@@ -34,11 +33,10 @@ fn harness_command(request: &HarnessStartRequest) -> Result<Vec<OsString>, HubEr
         HarnessId::OpenCode => {
             opencode_spawn_args(&request.workspace, &request.prompt, model, effort)?
         }
-        HarnessId::DeepSeek => opencode_spawn_args(
+        HarnessId::DeepSeek => deepseek_headless_spawn_args(
             &request.workspace,
             &request.prompt,
-            Some(model.unwrap_or(DEFAULT_DEEPSEEK_MODEL)),
-            effort,
+            request.session_id.as_deref(),
         )?,
         HarnessId::Vibe => vibe_managed_spawn_args(
             &request.workspace,

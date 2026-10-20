@@ -1,4 +1,5 @@
-//! OpenCode (DeepSeek) and Mistral Vibe argv, model listing, and availability.
+//! OpenCode and Mistral Vibe argv. DeepSeek's official `dsh` harness lives
+//! in [`super::deepseek`].
 //!
 //! These helpers never read secret files and never concatenate a shell string.
 //! Callers pass the returned argv to `Command::args`.
@@ -52,18 +53,6 @@ pub fn parse_opencode_models(output: &str) -> Vec<String> {
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .map(ToOwned::to_owned)
-        .collect()
-}
-
-#[cfg(test)]
-fn deepseek_models_from_opencode(output: &str) -> Vec<String> {
-    parse_opencode_models(output)
-        .into_iter()
-        .filter_map(|line| {
-            line.strip_prefix("deepseek/")
-                .map(str::to_string)
-                .filter(|model| !model.is_empty())
-        })
         .collect()
 }
 
@@ -130,12 +119,6 @@ pub fn vibe_unavailable_unsupported() -> String {
 
 pub fn vibe_unavailable_unauthenticated() -> String {
     "Mistral (vibe) unavailable: not authenticated. Run `vibe --setup` to configure an API key (no key is stored by Coding Assistants).".into()
-}
-
-pub fn deepseek_unavailable_opencode(error: impl std::fmt::Display) -> String {
-    format!(
-        "DeepSeek (OpenCode) unavailable: opencode CLI is not installed or failed to start ({error}). Install OpenCode, confirm `opencode models` lists deepseek/*, and retry."
-    )
 }
 
 /// Meta Muse Spark model provider (#274), served by the Meta Model API —
@@ -291,21 +274,6 @@ mod tests {
         assert_eq!(args[5], "/tmp/workspace");
         assert!(opencode_run_args("deepseek", "deepseek-chat", "x", Some("rel")).is_err());
         assert!(opencode_run_args("deepseek", "deepseek-chat", "  ", None).is_err());
-    }
-
-    #[test]
-    fn deepseek_models_come_from_opencode_listing_not_hardcoded_secrets() {
-        let listing = "\
-openai/gpt-4.1
-deepseek/deepseek-chat
-deepseek/deepseek-reasoner
-opencode/deepseek-v4-flash-free
-deepseek/deepseek-v4-flash
-";
-        assert_eq!(
-            deepseek_models_from_opencode(listing),
-            vec!["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash",]
-        );
     }
 
     #[test]

@@ -99,6 +99,12 @@ pub async fn hub_relaunch_harness_embedded(
             return Err("workspace must be an absolute path".into());
         }
         let parsed = HarnessId::parse(&harness).map_err(|e| e.to_string())?;
+        if parsed.is_web_app() {
+            return Err(format!(
+                "{} is a web-app harness, not a CLI or TUI. Open it from the harness grid; it serves a local page instead of a terminal.",
+                parsed.as_str()
+            ));
+        }
         let program = if parsed == HarnessId::Cursor {
             cursor_executable()
         } else if parsed == HarnessId::Kimi {

@@ -16,6 +16,19 @@ const defaultInvokeHandler = (cmd: string, args?: any) => {
       killedPid: null,
     });
   }
+  if (cmd === "web_harness_start") {
+    return Promise.resolve({
+      harness: args?.harness || "deepseek",
+      workspace: args?.workspace || "/test/workspace",
+      url: "http://127.0.0.1:3080/?token=test",
+      port: 3080,
+      pid: 42,
+      detail: "DeepSeek web app ready",
+    });
+  }
+  if (cmd === "web_harness_status" || cmd === "web_harness_stop") {
+    return Promise.resolve(cmd === "web_harness_status" ? null : undefined);
+  }
   if (cmd === "pty_session_status") {
     return Promise.resolve({
       found: true,
@@ -109,10 +122,10 @@ describe("HarnessTerminalGrid", () => {
     expect(parseCanvasSize(JSON.stringify({ width: -1, height: 600 }))).toBeNull();
   });
 
-  it("renders empty state with all 9 launch buttons when no terminals are open", () => {
+  it("renders empty state with a launch button for every harness, including DeepSeek", () => {
     render(<HarnessTerminalGrid workspace="/test/workspace" />);
 
-    expect(screen.getByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.getByText("No active harness panes")).toBeInTheDocument();
     expect(screen.getByText("Launch Grok")).toBeInTheDocument();
     expect(screen.getByText("Launch Codex")).toBeInTheDocument();
     expect(screen.getByText("Launch Claude")).toBeInTheDocument();
@@ -122,6 +135,7 @@ describe("HarnessTerminalGrid", () => {
     expect(screen.getByText("Launch Qwen")).toBeInTheDocument();
     expect(screen.getByText("Launch Kimi")).toBeInTheDocument();
     expect(screen.getByText("Launch Hermes")).toBeInTheDocument();
+    expect(screen.getByText("Launch DeepSeek")).toBeInTheDocument();
   });
 
   it("launches a harness when clicking add pane button", async () => {
@@ -143,6 +157,23 @@ describe("HarnessTerminalGrid", () => {
 
     // Palette button should now reflect active count: "+ Claude · 1"
     expect(screen.getByText("+ Claude · 1")).toBeInTheDocument();
+  });
+
+  it("embeds the official DeepSeek web app instead of a terminal", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("Launch DeepSeek"));
+
+    expect(await screen.findByTitle("DeepSeek web harness")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("web_harness_start", {
+      harness: "deepseek",
+      workspace: "/test/workspace",
+    });
+    expect(tauriCore.invoke).not.toHaveBeenCalledWith(
+      "hub_relaunch_harness_embedded",
+      expect.objectContaining({ harness: "deepseek" }),
+    );
   });
 
   it("connects a saved idle pane without adding a duplicate leaf", async () => {
@@ -196,7 +227,7 @@ describe("HarnessTerminalGrid", () => {
     expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: "sid-claude" });
 
     // Grid should return to empty state
-    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(await screen.findByText("No active harness panes")).toBeInTheDocument();
   });
 
   it("resets grid layout when clicking reset grid button", async () => {
@@ -212,7 +243,7 @@ describe("HarnessTerminalGrid", () => {
     fireEvent.click(resetBtn);
 
     expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: "sid-grok" });
-    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(await screen.findByText("No active harness panes")).toBeInTheDocument();
   });
 
   it("restores only persisted panes whose deterministic PTY session still exists", async () => {
@@ -431,11 +462,11 @@ describe("HarnessTerminalGrid", () => {
 
     // One Grok pane remains
     expect(screen.getAllByRole("button", { name: "Close grok pane" })).toHaveLength(1);
-    expect(screen.queryByText("No active harness terminals in grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("No active harness panes")).not.toBeInTheDocument();
 
     // Close second Grok pane
     fireEvent.click(screen.getByRole("button", { name: "Close grok pane" }));
-    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(await screen.findByText("No active harness panes")).toBeInTheDocument();
     expect(screen.getByText("+ Grok")).toBeInTheDocument();
   });
 });

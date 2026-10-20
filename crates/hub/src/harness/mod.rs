@@ -14,14 +14,20 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 mod cursor_spawn;
+mod deepseek_spawn;
 mod hermes_spawn;
 mod inject;
 mod kimi_spawn;
 mod qwen_spawn;
 mod spawn;
 mod start;
+mod surface;
 mod vibe_spawn;
 pub use cursor_spawn::{cursor_executable, cursor_managed_spawn_args, cursor_spawn_args};
+pub use deepseek_spawn::{
+    deepseek_executable, deepseek_headless_spawn_args, deepseek_web_spawn_args, parse_dsh_web_port,
+    parse_dsh_web_url, DEFAULT_DEEPSEEK_MODEL, DSH_WEB_HOST,
+};
 pub use hermes_spawn::{
     hermes_disk_session_id, hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir,
     hermes_usage_file, resolve_hermes_path,
@@ -36,10 +42,11 @@ pub use qwen_spawn::{
 pub use spawn::{
     claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
     grok_spawn_args, muse_disk_session_id, muse_managed_spawn_args, muse_spawn_args,
-    opencode_spawn_args, DEFAULT_DEEPSEEK_MODEL, DEFAULT_OPENCODE_MODEL,
+    opencode_spawn_args, DEFAULT_OPENCODE_MODEL,
 };
 pub use start::start_harness;
 pub(crate) use start::start_harness_owned;
+pub use surface::HarnessSurface;
 pub use vibe_spawn::{
     start_vibe_managed_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args,
 };
@@ -114,7 +121,8 @@ impl HarnessId {
             Self::Claude => "claude",
             // Gemini is provided locally by the Antigravity CLI.
             Self::Gemini => "agy",
-            Self::OpenCode | Self::DeepSeek => "opencode",
+            Self::OpenCode => "opencode",
+            Self::DeepSeek => deepseek_executable(),
             Self::Vibe => "vibe",
             // TODO(#273): confirm `muse` vs `muse-code` against the installed CLI.
             Self::Muse => "muse",

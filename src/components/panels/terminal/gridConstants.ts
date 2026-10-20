@@ -8,8 +8,31 @@ export const ALL_HARNESSES = [
   "qwen",
   "kimi",
   "hermes",
+  "deepseek",
 ] as const;
 export type HarnessName = (typeof ALL_HARNESSES)[number];
+
+/** CLI and TUI harnesses are processes. A web app is a local page. */
+export type HarnessSurface = "cli" | "tui" | "web_app";
+
+export const HARNESS_SURFACE: Record<string, HarnessSurface> = {
+  grok: "tui",
+  chat: "tui",
+  claude: "tui",
+  gemini: "tui",
+  muse: "tui",
+  cursor: "tui",
+  qwen: "tui",
+  kimi: "tui",
+  hermes: "tui",
+  vibe: "tui",
+  opencode: "cli",
+  deepseek: "web_app",
+};
+
+export function isWebHarness(harness: string): boolean {
+  return HARNESS_SURFACE[harness] === "web_app";
+}
 
 export const DISPLAY_NAMES: Record<string, string> = {
   grok: "Grok",
@@ -21,6 +44,7 @@ export const DISPLAY_NAMES: Record<string, string> = {
   qwen: "Qwen",
   kimi: "Kimi",
   hermes: "Hermes",
+  deepseek: "DeepSeek",
 };
 
 export function storageKey(workspace: string): string {

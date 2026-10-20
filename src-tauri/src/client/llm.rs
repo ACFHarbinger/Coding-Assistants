@@ -1,4 +1,5 @@
 use crate::agent::AgentEvent;
+use crate::client::deepseek::deepseek_completion;
 use crate::client::events::emit_http_result;
 use crate::client::grok_bot_turn::grok_bot_completion;
 use crate::client::http::{
@@ -9,11 +10,11 @@ use crate::client::http::{
 };
 use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
-    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
-    muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
-    parse_opencode_models, vibe_home_from_env, vibe_is_authenticated, vibe_programmatic_supported,
-    vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
-    vibe_unavailable_unsupported, MUSE_DEFAULT_MODEL, MUSE_FALLBACK_MODELS, VIBE_FALLBACK_MODELS,
+    canonical_rate_limit_key, is_muse_provider, muse_chat_request, muse_is_authenticated,
+    muse_unavailable_unauthenticated, opencode_run_args, parse_opencode_models, vibe_home_from_env,
+    vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
+    vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
+    MUSE_DEFAULT_MODEL, MUSE_FALLBACK_MODELS, VIBE_FALLBACK_MODELS,
 };
 use crate::client::stream::stream_cli_child;
 use governor::clock::{Clock, DefaultClock};
@@ -196,6 +197,10 @@ impl LLMClient {
 
         if is_muse_provider(&config.provider) {
             return muse_completion(config, prompt, work_dir, bus, source, token).await;
+        }
+
+        if config.provider == "deepseek" {
+            return deepseek_completion(config, prompt, work_dir, bus, source, token).await;
         }
 
         if is_openai_provider(&config.provider) {
@@ -471,17 +476,8 @@ async fn opencode_completion(
         }
     }
 
-    let child = command.spawn().map_err(|error| {
-        if config.provider == "deepseek" {
-            deepseek_unavailable_opencode(error)
-        } else {
-            format!("Failed to spawn opencode: {error}")
-        }
-    })?;
-    let label = if config.provider == "deepseek" {
-        "DeepSeek (OpenCode)"
-    } else {
-        "Opencode"
-    };
-    stream_cli_child(child, bus.clone(), source, token, label).await
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Failed to spawn opencode: {error}"))?;
+    stream_cli_child(child, bus.clone(), source, token, "Opencode").await
 }

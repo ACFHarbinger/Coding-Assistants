@@ -26,6 +26,7 @@ fn classify_command(command: &str) -> Option<(&'static str, &'static str)> {
         "agy" | "gemini" => Some(("Gemini", "google")),
         "grok" | "supergrok" => Some(("Grok", "xai")),
         "opencode" => Some(("OpenCode", "opencode")),
+        "dsh" => Some(("DeepSeek", "deepseek")),
         "vibe" => Some(("Mistral", "mistral")),
         "qwen" | "qwen-code" => Some(("Qwen", "alibaba")),
         _ => None,
@@ -86,6 +87,14 @@ mod tests {
         assert_eq!(
             classify_command("/home/user/.opencode/bin/opencode run -m deepseek/deepseek-chat"),
             Some(("OpenCode", "opencode"))
+        );
+        assert_eq!(
+            classify_command("dsh --profile web --no-open --port 3080"),
+            Some(("DeepSeek", "deepseek"))
+        );
+        assert_eq!(
+            classify_command("/usr/local/bin/dsh --profile headless review"),
+            Some(("DeepSeek", "deepseek"))
         );
         assert_eq!(
             classify_command("vibe -p review --trust --output text"),

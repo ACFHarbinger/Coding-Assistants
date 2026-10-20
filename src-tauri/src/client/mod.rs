@@ -1,5 +1,6 @@
 //! Clients for external model-provider services.
 
+mod deepseek;
 mod events;
 mod grok_bot_turn;
 pub mod http;

@@ -33,8 +33,9 @@ pub struct ProviderHealth {
     pub provider: String,
     /// Human-readable harness/provider title for the UI.
     pub harness_title: String,
-    /// The CLI this provider needs resolves on `PATH`. `true` for pure-HTTP
-    /// providers that need no local binary (e.g. DeepSeek).
+    /// The CLI this provider needs resolves on `PATH`. Web-app harnesses
+    /// (`dsh` for DeepSeek) count as installed when that binary, or the
+    /// vendored submodule entry, is present.
     pub installed: bool,
     /// `Some(true)`  — a credential is present and (where cheaply checkable)
     ///                 unexpired.

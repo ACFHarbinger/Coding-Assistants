@@ -22,10 +22,16 @@ fn unknown_agent_id_degrades_cleanly() {
 }
 
 #[test]
-fn deepseek_needs_no_binary_but_tracks_key_presence() {
+fn deepseek_health_tracks_dsh_and_key_presence() {
     let h = deepseek_health();
-    assert!(h.installed, "HTTP-only provider is always 'installed'");
+    assert_eq!(h.agent_id, "deepseek");
     assert!(h.authenticated.is_some(), "key presence is always knowable");
+    if h.installed {
+        assert!(h.detail.contains("dsh is installed"));
+    } else {
+        assert!(h.detail.contains("dsh is not installed"));
+        assert!(!h.detail.contains("OpenCode"));
+    }
 }
 
 #[test]

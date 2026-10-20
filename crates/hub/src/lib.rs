@@ -84,8 +84,9 @@ pub use bridge::qwen::{
     latest_qwen_session_id, qwen_projects_dir, qwen_session_log_path,
 };
 pub use bridge::relaunch::{
-    apply_grok_embedded_scroll_flags, interactive_resume_args, relaunch_harness_in_terminal,
-    resolve_interactive_relaunch, start_managed_harness, RelaunchOutcome, ResolvedRelaunch,
+    apply_grok_embedded_scroll_flags, interactive_resume_args, is_pid_running,
+    relaunch_harness_in_terminal, resolve_interactive_relaunch, start_managed_harness,
+    RelaunchOutcome, ResolvedRelaunch,
 };
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
@@ -101,14 +102,16 @@ pub use github::{
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
-    cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
-    hermes_disk_session_id, hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir,
-    hermes_usage_file, inject_harness, inject_harness_with_store, kimi_disk_session_id,
-    kimi_executable, kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id,
-    muse_managed_spawn_args, muse_spawn_args, opencode_spawn_args, qwen_disk_session_id,
-    qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args, resolve_hermes_path,
-    start_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args, HarnessId,
-    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+    cursor_spawn_args, deepseek_headless_spawn_args, deepseek_web_spawn_args,
+    gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args, hermes_disk_session_id,
+    hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir, hermes_usage_file,
+    inject_harness, inject_harness_with_store, kimi_disk_session_id, kimi_executable,
+    kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id, muse_managed_spawn_args,
+    muse_spawn_args, opencode_spawn_args, parse_dsh_web_port, parse_dsh_web_url,
+    qwen_disk_session_id, qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args,
+    resolve_hermes_path, start_harness, vibe_disk_session_id, vibe_managed_spawn_args,
+    vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
+    HarnessStartResult, HarnessSurface, DSH_WEB_HOST,
 };
 pub use os_tool::{
     approve as approve_os_tool, submit as submit_os_tool, OsToolRequest, OsToolResult,
