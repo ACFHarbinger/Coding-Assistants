@@ -116,8 +116,9 @@ impl HubStore {
     }
 
     /// Resolves a wake and records the channel that carried the human
-    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, and TCP all
-    /// resolve the same wake row — one `human` clock, never double-counted.
+    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, Discord, and
+    /// TCP all resolve the same wake row — one `human` clock, never
+    /// double-counted.
     ///
     /// Idempotent by construction: at most one `wake.resolved` audit row is
     /// ever written per wake, only for a pending → terminal transition of a
@@ -133,7 +134,7 @@ impl HubStore {
         via: &str,
     ) -> Result<(), HubError> {
         let via = via.trim();
-        if !matches!(via, "desktop" | "telegram" | "tcp") {
+        if !matches!(via, "desktop" | "telegram" | "discord" | "tcp") {
             return Err(HubError::Invalid(format!(
                 "unknown wake resolution channel: {via}"
             )));

@@ -39,6 +39,8 @@ impl DigestDecisionKind {
 pub struct DigestResolutionCounts {
     pub desktop: u32,
     pub telegram: u32,
+    #[serde(default)]
+    pub discord: u32,
     pub tcp: u32,
     pub total: u32,
 }
@@ -47,6 +49,7 @@ impl DigestResolutionCounts {
     pub fn record(&mut self, via: &str) {
         match via.trim() {
             "telegram" => self.telegram += 1,
+            "discord" => self.discord += 1,
             "tcp" => self.tcp += 1,
             _ => self.desktop += 1,
         }
