@@ -81,17 +81,18 @@ pub fn hub_schedule_cancel(id: String) -> Result<ScheduledTask, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Manual "run now" and the S6 in-app poller's shared entry. Goes through
-/// the live-quota bridge (pause on exhausted session/weekly %) then the
-/// hub tick. Headless `ca schedule tick` does not use this path.
+/// Manual "run now" entry. Goes through the shared live-quota bridge
+/// (pause on exhausted session/weekly %) then the hub tick — the same
+/// `quota::tick_with_quota_guard` engine the in-app poller and headless
+/// `ca schedule tick` (S5c) use.
 #[tauri::command]
 pub async fn hub_schedule_tick() -> Result<TickSummary, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let store = open_store()?;
-        super::schedule_poller::tick_in_app(
+        quota::tick_with_quota_guard(
             &store,
             &chrono::Utc::now().to_rfc3339(),
-            super::quotas::probe_agent_quota,
+            quota::probe_agent_quota,
         )
     })
     .await
