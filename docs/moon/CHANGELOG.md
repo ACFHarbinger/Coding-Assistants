@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20
+
+- Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.
+
 ### Fixed
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on

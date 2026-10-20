@@ -73,11 +73,5 @@ export interface ScheduleCreateArgs {
 }
 
 export interface TickSummary {
-  evaluated_at: string;
-  tasks_checked: number;
-  dispatched: number;
-  completed: number;
-  re_prompted: number;
-  paused: number;
-  failed: number;
+  outcomes: { id: string; action: string; detail: string }[];
 }

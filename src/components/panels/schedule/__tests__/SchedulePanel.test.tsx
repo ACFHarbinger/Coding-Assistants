@@ -156,13 +156,10 @@ describe("SchedulePanel", () => {
 
   it("triggers manual tick and displays summary toast", async () => {
     const summary: TickSummary = {
-      evaluated_at: "2026-10-20T01:00:00Z",
-      tasks_checked: 2,
-      dispatched: 1,
-      completed: 1,
-      re_prompted: 0,
-      paused: 0,
-      failed: 0,
+      outcomes: [
+        { id: "task-1", action: "dispatched", detail: "first fire" },
+        { id: "task-2", action: "completed", detail: "gate passed" },
+      ],
     };
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {

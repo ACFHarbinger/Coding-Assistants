@@ -170,7 +170,7 @@ export function SchedulePanel({
           }}
         >
           <span>
-            ⚡ <strong>Evaluated at {new Date(lastTickSummary.evaluated_at).toLocaleTimeString()}:</strong> Checked {lastTickSummary.tasks_checked} tasks — {lastTickSummary.dispatched} dispatched, {lastTickSummary.re_prompted} re-prompted, {lastTickSummary.completed} completed, {lastTickSummary.paused} paused, {lastTickSummary.failed} failed.
+            ⚡ Checked {new Set(lastTickSummary.outcomes.map((outcome) => outcome.id)).size} tasks — {lastTickSummary.outcomes.filter((outcome) => outcome.action === "dispatched").length} dispatched, {lastTickSummary.outcomes.filter((outcome) => outcome.action === "completed").length} completed, {lastTickSummary.outcomes.filter((outcome) => outcome.action === "paused").length} paused, {lastTickSummary.outcomes.filter((outcome) => outcome.action === "failed").length} failed.
           </span>
           <button
             type="button"
