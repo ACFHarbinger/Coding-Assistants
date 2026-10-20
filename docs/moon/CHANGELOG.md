@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20 (P16/P20)
+
+- **#367 branch-approval correlation includes stage identity.** P5 proposal reuse for a `WorkflowStep` branch is keyed by task + criterion + attempt + stage, so an approved stage-0 command cannot satisfy stage 1 on the same attempt.
+- **#360 output guardrails cover parallel watermarks and remote results.** `complete_parallel_member` no longer moves `last_message_id` when waking a queued member (earlier replies stay visible to later screens). An embedded remote result is screened as output *before* the handoff is stored.
+- **#360 unscoped tasks inherit only hub-wide rules.** `effective_guardrails(None)` no longer applies other workspaces' restrictions. `ca guardrail list` still inventories every rule.
+- **#360 `ca guardrail enable --on false` actually disables.** `--on` takes a bool value (`ArgAction::Set`) instead of a flag that rejected `false`.
+- **#360 parallel-stage input preflight.** All members of a parallel stage are screened before any dispatch, and each successful send is persisted so a later failure cannot orphan a message+wake.
+
 ### Codex review corrections — 2026-10-20
 
 - Codex corrected wake-time backdating and lexical/invalid timestamp authority checks (#347). The later-wake regression failed before the correction and passes afterwards; scorecard tests 46/46 and Hub lib tests 656/656 pass.

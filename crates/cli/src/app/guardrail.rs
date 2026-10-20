@@ -1,6 +1,6 @@
 //! `ca guardrail` payload (Guardrails primitive P16 / #360).
 
-use clap::Subcommand;
+use clap::{ArgAction, Subcommand};
 
 #[derive(Subcommand)]
 pub(crate) enum GuardrailCommand {
@@ -33,7 +33,8 @@ pub(crate) enum GuardrailCommand {
     /// Enable or disable a rule without deleting it.
     Enable {
         id: String,
-        #[arg(long, default_value = "true")]
+        /// `true` (default) enables; `--on false` disables.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
         on: bool,
     },
     /// Delete a rule.

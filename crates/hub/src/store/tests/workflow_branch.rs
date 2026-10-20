@@ -230,3 +230,66 @@ fn parallel_stage_branch_uses_the_whole_stage_as_its_subject() {
     assert_eq!(done.status, "done");
     assert!(store.poll_messages("reviewer", true).unwrap().is_empty());
 }
+
+#[test]
+fn branch_approval_is_keyed_by_stage_not_just_task_and_attempt() {
+    let (store, ws, _guard) = open();
+    let mut first = step("planner", "plan");
+    first.branch = Some(StepBranch {
+        criteria: vec![GateCriterion::Command {
+            program: "cargo".into(),
+            args: vec!["--version".into()],
+            check: GateCheck::ExitCodeZero,
+        }],
+        combinator: GateCombinator::All,
+        on_pass: BranchTarget::Next,
+        on_fail: BranchTarget::Fail,
+    });
+    let mut second = step("tester", "test");
+    second.branch = Some(StepBranch {
+        criteria: vec![GateCriterion::Command {
+            program: "cargo".into(),
+            args: vec!["definitely-not-a-cargo-command".into()],
+            check: GateCheck::ExitCodeZero,
+        }],
+        combinator: GateCombinator::All,
+        on_pass: BranchTarget::Done,
+        on_fail: BranchTarget::Fail,
+    });
+    let task = store
+        .create_task("keyed", Some(&ws), &[first, second])
+        .unwrap();
+    store.advance_task(&task.id, None, None).unwrap();
+
+    let pending = store
+        .advance_task(&task.id, Some("planner"), None)
+        .unwrap_err()
+        .to_string();
+    assert!(pending.contains("awaiting human approval"), "{pending}");
+    let events = store.list_audit_events(false).unwrap();
+    let proposal = events
+        .iter()
+        .rev()
+        .find(|event| event.operation == "os_tool.proposed")
+        .unwrap();
+    crate::os_tool::approve(&store, &proposal.id, crate::os_tool::DEFAULT_TIMEOUT).unwrap();
+
+    let routed = store.advance_task(&task.id, Some("planner"), None).unwrap();
+    assert_eq!(routed.step_index, 1);
+
+    let stage1 = store
+        .advance_task(&task.id, Some("tester"), None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        stage1.contains("awaiting human approval"),
+        "stage 1 must not reuse stage 0's approved run: {stage1}"
+    );
+    let proposals: Vec<_> = store
+        .list_audit_events(false)
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.operation == "os_tool.proposed")
+        .collect();
+    assert_eq!(proposals.len(), 2, "each stage needs its own proposal");
+}

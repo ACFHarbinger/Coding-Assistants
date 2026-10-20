@@ -172,11 +172,7 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
-        } else {
-            step.instruction.clone()
-        };
+        let body = Self::step_dispatch_body(step, note);
         // P16 (#360): input guardrails run before anything is sent — a
         // tripwire leaves no message, no wake, and no stage activation.
         self.enforce_guardrails(
@@ -221,6 +217,14 @@ impl HubStore {
         Ok(msg.id)
     }
 
+    pub(super) fn step_dispatch_body(step: &WorkflowStep, note: Option<&str>) -> String {
+        if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        }
+    }
+
     /// Remote variant of [`Self::dispatch_step`] (P11a / #334): the step runs
     /// on the TCP peer instead of a local agent. The result is recorded as
     /// the step's Handoff message with identical subject/task linkage; no
@@ -247,6 +251,15 @@ impl HubStore {
         };
         let result = crate::peer::delegate_remote_step(peer, &step.agent, body, &token)
             .map_err(HubError::Invalid)?;
+        // P16 (#360): the remote result is embedded in this handoff, not a
+        // later agent reply — screen it before accepting it into messages.
+        self.enforce_guardrails(
+            crate::guardrails::GuardrailStage::Output,
+            task.workspace_path.as_deref(),
+            "task",
+            task_id,
+            &result,
+        )?;
         let subject = Some(format!("[{}] {}", stage_label, task.title));
         let transcript = format!(
             "{body}\n\n---\nRemote result ({}@{peer}):\n{result}",

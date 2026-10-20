@@ -282,9 +282,7 @@ impl HubStore {
         audit_events: &[AuditEvent],
     ) -> Result<CriterionOutcome, HubError> {
         let label = format!("{program} {}", args.join(" "));
-        if let Some(proposal) =
-            proposals::proposal(audit_events, subject.id, criterion_key, subject.attempt)
-        {
+        if let Some(proposal) = proposals::proposal_for(audit_events, subject, criterion_key) {
             if let Some(run) = proposals::approved_run(audit_events, &proposal.id) {
                 return Ok(approved_outcome(program, args, check, run));
             }
@@ -307,7 +305,7 @@ impl HubStore {
             cwd: subject.workspace.to_string(),
             workspace: Some(subject.workspace.to_string()),
         };
-        let metadata = proposals::metadata(subject.id, index, criterion_key, subject.attempt);
+        let metadata = proposals::metadata_for(subject, index, criterion_key);
         let result = os_tool::submit_with_metadata(
             self,
             request,

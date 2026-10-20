@@ -23,10 +23,16 @@ impl HubStore {
             let msg_id = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
             last_msg = Some(msg_id);
         } else {
+            // Screen every member before sending any, so a later input
+            // trip cannot orphan an earlier message+wake.
+            self.preflight_stage_inputs(id, task, idxs, note)?;
             let mut agents_to_run: Vec<usize> = idxs.clone();
             let cap = task.max_parallel as usize;
             let take = cap.min(agents_to_run.len());
             let wake_now: Vec<usize> = agents_to_run.drain(..take).collect();
+            for si in agents_to_run {
+                pending.push(task.steps[si].agent.clone());
+            }
             for si in &wake_now {
                 let step = &task.steps[*si];
                 let msg_id = self.dispatch_step(
@@ -39,9 +45,17 @@ impl HubStore {
                 )?;
                 last_msg = Some(msg_id);
                 open.push(step.agent.clone());
-            }
-            for si in agents_to_run {
-                pending.push(task.steps[si].agent.clone());
+                // Persist after each send so a later remote-output trip
+                // still records the members that already dispatched.
+                self.persist_task_runtime(
+                    id,
+                    TaskStatus::Running.as_str(),
+                    stage_index,
+                    last_msg.as_deref(),
+                    &attempts,
+                    &open,
+                    &pending,
+                )?;
             }
         }
 
@@ -91,7 +105,10 @@ impl HubStore {
             .cloned()
             .collect();
         let mut pending = task.pending_agents.clone();
-        let mut last_msg = task.last_message_id.clone();
+        // Keep the stage-activation watermark. Moving last_message_id to a
+        // queued member's dispatch would hide earlier members' replies
+        // (and the embedded remote result) from later output screening.
+        let last_msg = task.last_message_id.clone();
         let stage_index = task.step_index;
         let max_parallel = task.max_parallel;
         let attempts = task.attempts.clone();
@@ -107,7 +124,7 @@ impl HubStore {
                 .ok_or_else(|| {
                     HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
                 })?;
-            let msg_id = self.dispatch_step(
+            self.dispatch_step(
                 id,
                 &task,
                 step,
@@ -115,7 +132,6 @@ impl HubStore {
                 note,
                 &format!("{}/{}", stage_index + 1, next_agent),
             )?;
-            last_msg = Some(msg_id);
             open.push(next_agent);
         }
 
@@ -130,6 +146,26 @@ impl HubStore {
         )?;
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    fn preflight_stage_inputs(
+        &self,
+        task_id: &str,
+        task: &TaskRecord,
+        idxs: &[usize],
+        note: Option<&str>,
+    ) -> Result<(), HubError> {
+        for si in idxs {
+            let body = Self::step_dispatch_body(&task.steps[*si], note);
+            self.enforce_guardrails(
+                crate::guardrails::GuardrailStage::Input,
+                task.workspace_path.as_deref(),
+                "task",
+                task_id,
+                &body,
+            )?;
+        }
+        Ok(())
     }
 
     /// Re-dispatch the current stage (honours max_retries on the stage).

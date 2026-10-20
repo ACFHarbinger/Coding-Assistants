@@ -118,3 +118,51 @@ fn remote_step_without_pairing_token_fails_closed() {
         "unexpected: {error}"
     );
 }
+
+#[test]
+fn remote_result_is_screened_as_output_before_the_handoff_is_stored() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap();
+    std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
+    let peer = stub_peer_once("test-pairing-token", "peer-done with a secret");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .add_guardrail(
+            "no-secret",
+            None,
+            crate::guardrails::GuardrailStage::Output,
+            crate::guardrails::GuardrailMode::Blocking,
+            crate::guardrails::GuardrailSpec::DenyPhrases {
+                phrases: vec!["secret".into()],
+                case_insensitive: true,
+            },
+        )
+        .unwrap();
+    let task = store
+        .create_task(
+            "remote delegation",
+            None,
+            &[WorkflowStep {
+                agent: "dev".into(),
+                role: None,
+                instruction: "do it remotely".into(),
+                max_retries: 0,
+                parallel_group: None,
+                peer: Some(peer),
+                branch: None,
+            }],
+        )
+        .unwrap();
+    let error = store
+        .advance_task(&task.id, Some("lead"), None)
+        .expect_err("output trip must reject the remote result");
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    assert!(
+        error.to_string().contains("no-secret"),
+        "unexpected: {error}"
+    );
+    let after = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(after.status, "pending");
+    assert!(after.last_message_id.is_none());
+    assert!(store.poll_messages("dev", false).unwrap().is_empty());
+}

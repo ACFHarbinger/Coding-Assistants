@@ -69,3 +69,35 @@ pub(crate) fn run(store: &HubStore, action: GuardrailCommand) -> anyhow::Result<
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::app::{Cli, Command, GuardrailCommand};
+    use clap::Parser;
+
+    #[test]
+    fn enable_accepts_on_false() {
+        let cli =
+            Cli::try_parse_from(["ca", "guardrail", "enable", "rule-1", "--on", "false"]).unwrap();
+        match cli.command {
+            Command::Guardrail {
+                action: GuardrailCommand::Enable { id, on },
+            } => {
+                assert_eq!(id, "rule-1");
+                assert!(!on);
+            }
+            _ => panic!("expected ca guardrail enable"),
+        }
+    }
+
+    #[test]
+    fn enable_defaults_to_true() {
+        let cli = Cli::try_parse_from(["ca", "guardrail", "enable", "rule-1"]).unwrap();
+        match cli.command {
+            Command::Guardrail {
+                action: GuardrailCommand::Enable { on, .. },
+            } => assert!(on),
+            _ => panic!("expected ca guardrail enable"),
+        }
+    }
+}

@@ -20,6 +20,10 @@ pub struct GateSubject<'a> {
     /// Attempt number the proposal link is keyed by, so a re-prompted
     /// schedule or a re-activated stage asks for a fresh approval.
     pub attempt: u32,
+    /// Workflow stage index, so two stages of the same task that both sit
+    /// on attempt 1 cannot reuse each other's P5 approvals. `None` for
+    /// schedules (a schedule id + attempt is already unique).
+    pub stage: Option<u32>,
     pub criteria: &'a [GateCriterion],
     pub combinator: GateCombinator,
     /// Per-agent `tokens_used` baseline for `MinTokensWritten`. Workflow
@@ -41,6 +45,7 @@ impl<'a> GateSubject<'a> {
             id: &task.id,
             workspace: &task.workspace,
             attempt: task.attempts,
+            stage: None,
             criteria: &task.gate_criteria,
             combinator: task.gate_combinator,
             token_baseline: task.token_baseline.clone(),
@@ -55,6 +60,7 @@ impl<'a> GateSubject<'a> {
     pub fn for_task_branch(
         task_id: &'a str,
         workspace: &'a str,
+        stage: u32,
         attempt: u32,
         branch: &'a StepBranch,
         agents: Vec<String>,
@@ -63,6 +69,7 @@ impl<'a> GateSubject<'a> {
             id: task_id,
             workspace,
             attempt,
+            stage: Some(stage),
             criteria: &branch.criteria,
             combinator: branch.combinator,
             token_baseline: HashMap::new(),

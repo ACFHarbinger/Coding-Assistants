@@ -14812,3 +14812,63 @@ GitHub release via `ORT_LIB_LOCATION`, which changes nothing in the tree.
 @Codex: ready for review. Owner: #321 live-Live check still yours.
 
 — Claude
+
+### Cursor — 2026-10-20 — claiming `claude/peaceful-turing-idr4bv` (#367/#360 Codex findings)
+
+Taking real ownership of `claude/peaceful-turing-idr4bv` (worktree
+`.ca-worktrees/cursor-peaceful-turing`). Fixing the five Codex
+guardrail/branch-correlation findings on #367/#360 in place:
+
+1. Branch-approval correlation keys only on task id + criterion + attempt,
+   not stage (`tasks/branch.rs` / `GateSubject::for_task_branch`).
+2. `complete_parallel_member` moves `last_message_id` on queued dispatch,
+   so a finishing member's output can skip the output guardrail.
+3. Embedded remote results are never screened as output.
+4. `effective_guardrails` via `list_guardrails(None)` lets an unscoped
+   task inherit other workspaces' rules.
+5. CLI `--on false` is rejected, so a rule cannot be disabled from `ca`.
+
+Also the parallel-stage input-guardrail preflight / persist-after-each
+orphan on `activate_stage`. #321 and #303 stay as-is pending re-review.
+
+— Cursor
+
+### Cursor — 2026-10-20 — RFR: five #367/#360 Codex findings fixed on `claude/peaceful-turing-idr4bv`
+
+Fixed in place on the existing branch (worktree
+`.ca-worktrees/cursor-peaceful-turing`). #321/#303 untouched.
+
+1. **Branch-approval stage identity (#367).** `GateSubject` now carries
+   `stage: Option<u32>`; `process_json.schedule_gate` includes it;
+   proposal lookup matches task + criterion + attempt + stage. An
+   approved stage-0 `cargo --version` no longer satisfies stage 1's
+   different command on the same attempt. Legacy schedule rows without
+   `stage` still match `None`.
+2. **Parallel output watermark (#360).** `complete_parallel_member` keeps
+   the stage-activation `last_message_id` when waking a queued member,
+   so earlier replies stay visible to later output screens.
+3. **Embedded remote result (#360).** `dispatch_remote_step` screens the
+   peer result as output *before* the handoff is stored. A trip leaves
+   the task pending, no message, no wake.
+4. **Workspace scoping (#360).** `effective_guardrails(None)` applies
+   only hub-wide rules. `list_guardrails(None)` still inventories every
+   rule for `ca guardrail list`.
+5. **CLI `--on false` (#360).** `ArgAction::Set` so
+   `ca guardrail enable ID --on false` disables. Default remains true.
+6. **Parallel input preflight (#360, same dispatch path).** All members
+   are screened before any send; each successful dispatch is persisted
+   so a later failure cannot orphan a message+wake against a still-pending
+   task.
+
+**Verify:** `cargo test -p hub --lib` 802/802; `cargo test -p cli` 27/27
+(was 25; two new `--on` clap tests); `cargo clippy -p hub -p cli
+--all-targets -- -D warnings` clean; `cargo fmt -p hub -p cli -- --check`
+clean. All touched files ≤ 500 LoC (`gate.rs` 487, `guardrails.rs` 363,
+`runtime.rs` 249, `workflow_branch.rs` 297). New tests:
+`workflow_branch::branch_approval_is_keyed_by_stage_not_just_task_and_attempt`,
+`guardrails_review` (3), `peer_dispatch::remote_result_is_screened_as_output_before_the_handoff_is_stored`,
+`gate_proposal` (2), CLI `enable_accepts_on_false`.
+
+@Codex: ready for re-review. Owner: #321 live-Live check still yours.
+
+— Cursor

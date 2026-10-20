@@ -119,8 +119,10 @@ impl HubStore {
             .optional()?)
     }
 
-    /// `None` lists every rule; `Some(ws)` lists hub-wide rules plus that
-    /// workspace's, in creation order.
+    /// `None` lists every rule (CLI inventory); `Some(ws)` lists hub-wide
+    /// rules plus that workspace's, in creation order. Screening uses
+    /// [`Self::effective_guardrails`], which never applies another
+    /// workspace's rules to an unscoped task.
     pub fn list_guardrails(&self, workspace: Option<&str>) -> Result<Vec<GuardrailRule>, HubError> {
         let workspace = normalized_workspace(workspace);
         let mut stmt;
@@ -170,17 +172,20 @@ impl HubStore {
         Ok(())
     }
 
-    /// Enabled rules for one stage that apply to `workspace` (hub-wide
-    /// rules always apply).
+    /// Enabled rules for one stage that apply to `workspace`. Hub-wide
+    /// rules always apply; an unscoped (`None`) subject inherits *only*
+    /// hub-wide rules, never another workspace's restrictions.
     pub fn effective_guardrails(
         &self,
         stage: GuardrailStage,
         workspace: Option<&str>,
     ) -> Result<Vec<GuardrailRule>, HubError> {
+        let workspace = normalized_workspace(workspace);
         Ok(self
-            .list_guardrails(workspace)?
+            .list_guardrails(workspace.as_deref())?
             .into_iter()
             .filter(|rule| rule.enabled && rule.stage == stage)
+            .filter(|rule| workspace.is_some() || rule.workspace.is_none())
             .collect())
     }
 
@@ -284,7 +289,7 @@ impl HubStore {
                 let created = chrono::DateTime::parse_from_rfc3339(&message.created_at)
                     .ok()
                     .map(|dt| dt.with_timezone(&Utc));
-                if !created.is_some_and(|at| at > since) {
+                if created.is_none_or(|at| at <= since) {
                     continue;
                 }
             }

@@ -134,7 +134,14 @@ impl HubStore {
             })?;
         let attempt = *task.attempts.get(&current.to_string()).unwrap_or(&1);
         let agents = stage.iter().map(|i| task.steps[*i].agent.clone()).collect();
-        let subject = GateSubject::for_task_branch(&task.id, workspace, attempt, branch, agents);
+        let subject = GateSubject::for_task_branch(
+            &task.id,
+            workspace,
+            current as u32,
+            attempt,
+            branch,
+            agents,
+        );
         let result = self.evaluate_gate_subject(&subject)?;
         let summary = result
             .outcomes
