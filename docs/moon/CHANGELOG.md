@@ -23,6 +23,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Team Scorecard T6 network samples on the U23 cadence (#346):** The
+  existing `system_snapshot` poll (no new timer) now also samples sockets
+  for registered harness sessions. Managed pids are guarded against PID
+  reuse by comparing `/proc/<pid>/stat` start times against the last
+  recorded scan (`pid_reused` is a visible coverage status); registered
+  observed sessions — which have no stored pid — are attributed per scan
+  by harness executable plus working directory matching the registered
+  workspace. Socket inodes from `/proc/<pid>/fd` are matched against
+  `/proc/<pid>/net/tcp[6]` (established sockets only), recording
+  destination IP/port, pid, pid start time, session id, and whether the fd
+  table was fully readable (`fds_unreadable` is a field on the record, not
+  a silently empty list). No reverse DNS, no payloads, no byte counts.
+  Samples live in a local-only capped ring at
+  `<hub home>/cache/network-samples.json` (sync `Exclude` category; never
+  in `hub.db`): last 24 hours or 300 rows per session, whichever is
+  smaller — a fixed internal bound, not a setting. `hub::net_samples`
+  exposes the versioned read contract (`NetworkSamplesView`) for #347's
+  consistency probe; non-Linux hosts report `unavailable` in the view
+  (U23's missing-`nvidia-smi` honesty rule).
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
