@@ -74,7 +74,7 @@ fn draw_empty_harness_view(frame: &mut Frame, area: Rect, app: &AppState) {
         Line::from(vec![
             Span::styled("Supported harnesses: ", Style::default().fg(theme.muted)),
             Span::styled(
-                "claude, grok, gemini, opencode, cursor, muse, qwen, kimi, vibe, chat",
+                "claude, grok, gemini, opencode, cursor, muse, qwen, kimi, vibe, chat; deepseek is a web app",
                 Style::default().fg(theme.accent),
             ),
         ]),

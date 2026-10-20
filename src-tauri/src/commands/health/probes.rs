@@ -248,20 +248,34 @@ pub(crate) const DEEPSEEK: Ids = Ids {
     title: "DeepSeek",
 };
 
-/// Pure HTTP provider — no binary. `authenticated` follows whether
-/// `DEEPSEEK_API_KEY` resolves through the vault or the environment. The key
-/// value is never touched here, only its presence.
+/// Official `dsh` binary plus `DEEPSEEK_API_KEY`. The key value is never
+/// read here, only its presence. A source checkout under
+/// `submodules/deepseek` still needs `dsh` on `PATH` (or a built
+/// `apps/cli/lib/bin.js`, which the web launcher can run via node).
 pub(crate) fn deepseek_health() -> ProviderHealth {
+    let installed = resolve_binary("dsh").is_some()
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../submodules/deepseek/apps/cli/lib/bin.js")
+            .is_file();
     let has_key = hub::secret::resolve("DEEPSEEK_API_KEY").is_some();
+    if !installed {
+        return health(
+            &DEEPSEEK,
+            false,
+            Some(has_key),
+            None,
+            "dsh is not installed. Install @deepseek-ai/dsh or build submodules/deepseek.",
+        );
+    }
     health(
         &DEEPSEEK,
         true,
         Some(has_key),
         None,
         if has_key {
-            "DEEPSEEK_API_KEY is configured"
+            "dsh is installed and DEEPSEEK_API_KEY is configured"
         } else {
-            "DEEPSEEK_API_KEY is not set; add it in Settings → Credentials or export it"
+            "dsh is installed but DEEPSEEK_API_KEY is not set; add it in Settings → Credentials"
         },
     )
 }

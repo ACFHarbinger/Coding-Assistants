@@ -131,7 +131,6 @@ fn inject_harness_inner(
 
     let model = request.model.as_deref().or(match harness {
         HarnessId::OpenCode => Some(crate::harness::DEFAULT_OPENCODE_MODEL),
-        HarnessId::DeepSeek => Some(crate::harness::DEFAULT_DEEPSEEK_MODEL),
         _ => None,
     });
     let effort = request.effort.as_deref();
@@ -142,11 +141,10 @@ fn inject_harness_inner(
         HarnessId::Claude => claude_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::Gemini => gemini_spawn_args(&request.workspace, &prompt, model, effort)?,
         HarnessId::OpenCode => opencode_spawn_args(&request.workspace, &prompt, model, effort)?,
-        HarnessId::DeepSeek => opencode_spawn_args(
+        HarnessId::DeepSeek => crate::harness::deepseek_headless_spawn_args(
             &request.workspace,
             &prompt,
-            Some(model.unwrap_or(crate::harness::DEFAULT_DEEPSEEK_MODEL)),
-            effort,
+            request.session_id.as_deref(),
         )?,
         HarnessId::Vibe => vibe_managed_spawn_args(
             &request.workspace,

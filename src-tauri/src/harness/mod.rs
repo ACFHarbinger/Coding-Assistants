@@ -17,6 +17,7 @@ pub mod presence;
 pub mod qwen;
 pub mod stop;
 pub mod vibe;
+pub mod web_app;
 
 use hub::HubStore;
 use std::path::Path;

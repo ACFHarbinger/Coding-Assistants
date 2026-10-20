@@ -15,12 +15,22 @@ import {
 import {
   canvasSizeKey,
   DISPLAY_NAMES,
+  isWebHarness,
   maxKey,
   storageKey,
   terminalSessionId,
   type CanvasSize,
 } from "./gridConstants";
 import type { DragTargetZone } from "./useTerminalGridDrag";
+
+export interface WebHarnessSession {
+  harness: string;
+  workspace: string;
+  url: string;
+  port: number;
+  pid: number | null;
+  detail: string;
+}
 
 export interface UseTerminalGridSessionsOptions {
   workspace: string;
@@ -54,6 +64,7 @@ export function useTerminalGridSessions({
   });
 
   const [terminals, setTerminals] = useState<Record<string, string>>({});
+  const [webUrls, setWebUrls] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [statusMsg, setStatusMsg] = useState<string>("");
@@ -71,6 +82,7 @@ export function useTerminalGridSessions({
         if (!disposed) {
           setLayout(null);
           setTerminals({});
+          setWebUrls({});
           setMaximizedId(null);
         }
         return;
@@ -88,6 +100,20 @@ export function useTerminalGridSessions({
         leaves.map(async (leaf) => {
           const instanceSid = terminalSessionId(leaf.harness, workspace, leaf.id);
           const legacySid = terminalSessionId(leaf.harness, workspace);
+          if (isWebHarness(leaf.harness)) {
+            try {
+              const session = await invoke<WebHarnessSession | null>("web_harness_status", {
+                harness: leaf.harness,
+                workspace,
+              });
+              if (session?.url) {
+                return { leafId: leaf.id, harness: leaf.harness, sessionId: null, url: session.url };
+              }
+            } catch {
+              /* probe errors drop the pane */
+            }
+            return null;
+          }
           let foundSid: string | null = null;
           try {
             const st1 = await invoke<PtySessionStatus>("pty_session_status", { sessionId: instanceSid });
@@ -102,7 +128,7 @@ export function useTerminalGridSessions({
           } catch {
             // ignore probe errors
           }
-          return foundSid ? { leafId: leaf.id, harness: leaf.harness, sessionId: foundSid } : null;
+          return foundSid ? { leafId: leaf.id, harness: leaf.harness, sessionId: foundSid, url: null } : null;
         }),
       );
 
@@ -115,7 +141,14 @@ export function useTerminalGridSessions({
       );
 
       setLayout(pruned);
-      setTerminals(Object.fromEntries(live.map(({ leafId, sessionId }) => [leafId, sessionId])));
+      setTerminals(
+        Object.fromEntries(
+          live.flatMap(({ leafId, sessionId }) => (sessionId ? [[leafId, sessionId] as const] : [])),
+        ),
+      );
+      setWebUrls(
+        Object.fromEntries(live.flatMap(({ leafId, url }) => (url ? [[leafId, url] as const] : []))),
+      );
 
       if (restoredMaximized) {
         // Layouts saved before #301 stored the harness name. Convert that
@@ -139,6 +172,24 @@ export function useTerminalGridSessions({
     if (!requestedHarness) return;
     let disposed = false;
     const attachRequestedHarness = async () => {
+      if (isWebHarness(requestedHarness)) {
+        try {
+          const session = await invoke<WebHarnessSession | null>("web_harness_status", {
+            harness: requestedHarness,
+            workspace,
+          });
+          if (!disposed && session?.url) {
+            setLayout((prev) => {
+              const { tree, leafId } = insertLeaf(prev, requestedHarness);
+              setWebUrls((urls) => ({ ...urls, [leafId]: session.url }));
+              return tree;
+            });
+          }
+        } finally {
+          if (!disposed) onHarnessRequestHandled?.();
+        }
+        return;
+      }
       const sessionId = terminalSessionId(requestedHarness, workspace);
       try {
         const status = await invoke<PtySessionStatus>("pty_session_status", { sessionId });
@@ -194,8 +245,19 @@ export function useTerminalGridSessions({
       const leafId = existingLeafId ?? generateNodeId(`leaf-${harness}`);
       setBusyId(leafId);
       setError("");
-      setStatusMsg(`Starting ${DISPLAY_NAMES[harness] || harness} terminal…`);
+      const web = isWebHarness(harness);
+      setStatusMsg(`Starting ${DISPLAY_NAMES[harness] || harness} ${web ? "web app" : "terminal"}…`);
       try {
+        if (web) {
+          const session = await invoke<WebHarnessSession>("web_harness_start", { harness, workspace });
+          if (!session?.url) throw new Error("DeepSeek web harness did not return a URL.");
+          setWebUrls((prev) => ({ ...prev, [leafId]: session.url }));
+          if (!existingLeafId) {
+            setLayout((prev) => insertLeaf(prev, harness, undefined, undefined, leafId).tree);
+          }
+          setStatusMsg(session.detail || `${DISPLAY_NAMES[harness] || harness} web app ready.`);
+          return;
+        }
         let existingPid: number | null = null;
         try {
           const sessions = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
@@ -241,21 +303,45 @@ export function useTerminalGridSessions({
           return next;
         });
       }
+      const closing = collectLeaves(layout).find((leaf) => leaf.id === leafId);
+      setWebUrls((prev) => {
+        if (!prev[leafId]) return prev;
+        const next = { ...prev };
+        delete next[leafId];
+        return next;
+      });
+      if (closing && isWebHarness(closing.harness)) {
+        const stillOpen = collectLeaves(layout).some(
+          (leaf) => leaf.id !== leafId && leaf.harness === closing.harness,
+        );
+        if (!stillOpen) {
+          try {
+            await invoke("web_harness_stop", { harness: closing.harness, workspace });
+          } catch {
+            /* ignore */
+          }
+        }
+      }
       setLayout((prev) => removeLeaf(prev, leafId));
       setMaximizedId((prev) => (prev === leafId ? null : prev));
     },
-    [terminals],
+    [terminals, layout, workspace],
   );
 
   const resetGrid = useCallback(async () => {
-    await Promise.allSettled(
-      Object.values(terminals).map((sessionId) => invoke("pty_kill", { sessionId })),
+    const webHarnesses = new Set(
+      collectLeaves(layout).filter((leaf) => isWebHarness(leaf.harness)).map((leaf) => leaf.harness),
     );
+    await Promise.allSettled([
+      ...Object.values(terminals).map((sessionId) => invoke("pty_kill", { sessionId })),
+      ...[...webHarnesses].map((harness) => invoke("web_harness_stop", { harness, workspace })),
+    ]);
     setTerminals({});
+    setWebUrls({});
     setLayout(null);
     setMaximizedId(null);
-    setStatusMsg("All harness terminal panes closed.");
-  }, [terminals]);
+    setStatusMsg("All harness panes closed.");
+  }, [terminals, layout, workspace]);
 
   const handleLoadLayout = useCallback(
     (loadedLayout: LayoutNode, loadedCanvas: CanvasSize | null) => {
@@ -293,6 +379,7 @@ export function useTerminalGridSessions({
     layout,
     setLayout,
     terminals,
+    webUrls,
     maximizedId,
     setMaximizedId,
     busyId,

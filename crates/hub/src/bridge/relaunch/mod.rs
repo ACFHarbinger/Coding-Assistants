@@ -123,9 +123,10 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         // (verified #322: `--resume SESSION`, workspace-scoped disk ids).
         (HarnessId::Hermes, Some(id)) => vec!["--resume".into(), id.into()],
         (HarnessId::Hermes, None) => vec![],
-        // OpenCode resume flags are not wired for interactive relaunch yet.
-        (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
-        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
+        // OpenCode's interactive TUI is not wired. DeepSeek is a web app
+        // (`dsh --profile web`) and must not be resumed as a terminal.
+        (HarnessId::OpenCode, Some(_)) | (HarnessId::OpenCode, None) => vec![],
+        (HarnessId::DeepSeek, _) => vec![],
     }
 }
 
@@ -180,6 +181,12 @@ pub fn resolve_interactive_relaunch(
     existing_pid: Option<u32>,
 ) -> Result<ResolvedRelaunch, String> {
     let harness = HarnessId::parse(harness_id).map_err(|error| error.to_string())?;
+    if harness.is_web_app() {
+        return Err(format!(
+            "{} is a web-app harness, not a CLI or TUI. Open it from the harness grid; it serves a local page instead of a terminal.",
+            harness.as_str()
+        ));
+    }
     if !workspace.is_absolute() {
         return Err("workspace must be an absolute path".into());
     }
@@ -359,6 +366,19 @@ mod tests {
             vec!["--session", "abc"]
         );
         assert!(interactive_resume_args(HarnessId::Kimi, None).is_empty());
+        assert!(interactive_resume_args(HarnessId::DeepSeek, Some("abc")).is_empty());
+        assert!(interactive_resume_args(HarnessId::OpenCode, None).is_empty());
+    }
+
+    #[test]
+    fn web_app_harness_is_not_relaunched_into_a_terminal() {
+        match resolve_interactive_relaunch("deepseek", Path::new("/tmp/ws"), None) {
+            Ok(_) => panic!("deepseek must not relaunch into a terminal"),
+            Err(err) => {
+                assert!(err.contains("web-app"), "{err}");
+                assert!(!err.to_ascii_lowercase().contains("opencode"), "{err}");
+            }
+        }
     }
 
     #[test]

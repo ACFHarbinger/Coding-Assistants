@@ -84,7 +84,8 @@ These external tools must be available on `$PATH` for full functionality:
 | `rustc`    | Rust compiler                              | Yes      |
 | `cargo`    | Rust package manager and build tool        | Yes      |
 | `ollama`   | Local LLM inference (Ollama provider)      | Optional |
-| `opencode` | OpenCode CLI (OpenCode / DeepSeek)         | Optional |
+| `opencode` | OpenCode CLI                               | Optional |
+| `dsh`      | Official DeepSeek Harness web app (`submodules/deepseek`) | Optional |
 | `vibe`     | Mistral Vibe CLI (Mistral provider)        | Optional |
 
 ---
