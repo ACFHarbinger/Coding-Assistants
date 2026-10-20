@@ -7,8 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
+  stdout:** Outside a Flatpak/snap sandbox, GIO's portal-based
+  `GProxyResolver` queries `org.freedesktop.portal.ProxyResolver` over
+  DBus, gets `NotAllowed`, and — because the failure isn't cached —
+  WebKitGTK's network process retries it on every single request. Set
+  `GIO_USE_PROXY_RESOLVER=dummy` in `src-tauri/src/main/main.rs` (same
+  pre-GTK-init timing constraint as the existing `GDK_BACKEND` guard) to
+  disable GIO proxy resolution entirely; reqwest's own proxy-env-var
+  handling for the Rust-side provider clients is unaffected. Verified by
+  launching the built binary and confirming zero occurrences over a live
+  run (previously continuous).
+
 ### Added
 
+- **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
+  (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
+  `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
+  registered in `invoke.rs`, thin wrappers over S1/S3. Same trust-boundary
+  note as `hub_get_scorecard`: `caller_agent_id` is trusted desktop-IPC
+  identity, defaults to `human` when absent.
+- **Scheduled Goals S3 dispatch/tick state machine (#350):**
+  `HubStore::tick_scheduled_tasks(now)` — a pure function of `now` plus
+  store state, fully testable without a real clock. Dispatch reuses
+  `send_message`/`send_message_to_team` + `request_wake` exactly the way
+  `tasks::dispatch_step` already does (same `WakePolicy`, no bypass).
+  "Responded" is a `messages` row from the target correlated by
+  `task_id = schedule.id`; Team quorum is **All** current roster members
+  excluding `system` and the seeded `human` member (which never sends a
+  correlated reply). `max_attempts`/`deadline` are checked before
+  anything else on every tick, ahead of the credit-budget check — the
+  only unconditional stop conditions (see S1's note on the usage-
+  accounting gap). A non-responding target re-prompts after
+  `response_timeout_secs`; a responding-but-gate-failing target re-prompts
+  after `repeat_interval_secs`' minimum spacing, with a generated note of
+  what's still unmet.
+- **Scheduled Goals S2 gate evaluator (#350):** `HubStore::evaluate_gate_criteria`
+  — `GateCriterion::Command`/`MaxLinesPerFile` run through the P5 `os_tool`
+  sandbox (same `SandboxStrictness` policy as any other `os_tool` call, no
+  bypass); `MaxLinesPerFile` walks the workspace with a small hand-rolled
+  glob matcher (`*`/`?`/`**`, no new dependency) and runs one `wc -l
+  <file>` per match (never a multi-file `wc`, which appends a `total` line
+  that would break the per-file check). `MinTokensWritten` reads
+  `agent_metrics.tokens_used` as a delta against the baseline snapshotted
+  at schedule-creation time. `GateCombinator::All`/`Any` across a task's
+  criteria.
+- **Scheduled Goals S1 (#350/#351):** New `scheduled_tasks` table
+  (`crates/hub/src/store/schedule/`) + `ScheduledTask`/`ScheduleTarget`/
+  `GateCriterion`/`GateCombinator`/`BudgetPolicy`/`ScheduleStatus` types
+  and plain CRUD (create/get/list/due/cancel). `max_attempts` is a
+  mandatory field, not optional: `gate_provider_call`/
+  `record_agent_metrics` are only wired into `AgentSystem`'s in-app
+  pipeline, not the harness-CLI/PTY bridge this app actually dispatches
+  work through, so budget/token-written gates alone cannot be trusted to
+  ever stop a re-prompt loop. Full design in `docs/moon/roadmaps/schedule.md`.
+- **Hermes in the Orchestrate terminal grid:** Added `hermes` to
+  `ALL_HARNESSES`/`DISPLAY_NAMES` in
+  `src/components/panels/terminal/gridConstants.ts`, so the empty-grid
+  "Launch" buttons include Hermes alongside the other 8 harnesses. The
+  backend (`HarnessId::Hermes`, `hub_relaunch_harness_embedded`, C14.16
+  #322) already supported it; this was a frontend-only gap.
 - **Team Scorecard T4 owner digest (#344):** Owner-only digest attached to
   `hub_get_scorecard` and rendered as a card above the agent cards on the
   `scorecard` Hub tab: pending human decisions (gate approvals addressed to

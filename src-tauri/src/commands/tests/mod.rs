@@ -9,6 +9,7 @@ use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
 mod quota;
+mod schedule;
 mod vector_memory;
 
 #[test]

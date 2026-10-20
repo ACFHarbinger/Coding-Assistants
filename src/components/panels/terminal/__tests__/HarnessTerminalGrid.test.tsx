@@ -109,7 +109,7 @@ describe("HarnessTerminalGrid", () => {
     expect(parseCanvasSize(JSON.stringify({ width: -1, height: 600 }))).toBeNull();
   });
 
-  it("renders empty state with 6 launch buttons when no terminals are open", () => {
+  it("renders empty state with all 9 launch buttons when no terminals are open", () => {
     render(<HarnessTerminalGrid workspace="/test/workspace" />);
 
     expect(screen.getByText("No active harness terminals in grid")).toBeInTheDocument();
@@ -119,6 +119,9 @@ describe("HarnessTerminalGrid", () => {
     expect(screen.getByText("Launch Gemini")).toBeInTheDocument();
     expect(screen.getByText("Launch Muse")).toBeInTheDocument();
     expect(screen.getByText("Launch Cursor")).toBeInTheDocument();
+    expect(screen.getByText("Launch Qwen")).toBeInTheDocument();
+    expect(screen.getByText("Launch Kimi")).toBeInTheDocument();
+    expect(screen.getByText("Launch Hermes")).toBeInTheDocument();
   });
 
   it("launches a harness when clicking add pane button", async () => {
