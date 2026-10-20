@@ -1,5 +1,11 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Codex Cursor re-review (2026-10-20): core/poller slices PASS with wake-error,
+serialized replay and delivery-gated one-shot completion fixes. Full Hub
+lib 677/677 per branch; desktop schedule tests and clippy/fmt pass. Prior
+crash-gap findings below are cleared at the reviewed heads; integration
+still needs #352 pending-gate reconciliation and the combined gate.
+
 Codex follow-up (2026-10-20): #351/#355 original recovery/pause findings addressed; attempt-aware completion corrected by Codex. Two crash-recovery gaps remain (wake replay and one-shot finalization); integration stays blocked.
 
 > **Status:** Approved design (owner answered the four open questions

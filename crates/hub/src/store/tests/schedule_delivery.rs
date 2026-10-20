@@ -181,6 +181,60 @@ fn recovery_recreates_wake_after_message_committed_before_crash() {
 }
 
 #[test]
+fn failed_wake_remains_pending_and_retries_after_io_recovers() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = due_agent(&store, &workspace(&dir));
+    let wake_dir = store.data_dir().join("wake");
+    fs::remove_dir(&wake_dir).unwrap();
+    fs::write(&wake_dir, "blocked").unwrap();
+    assert!(store.tick_scheduled_tasks("2020-01-01T00:00:01Z").is_err());
+    let delivered: Option<String> = store
+        .conn
+        .query_row(
+            "SELECT delivered_at FROM scheduled_dispatch_outbox WHERE schedule_id=?1",
+            rusqlite::params![task.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(delivered.is_none());
+    assert!(store.list_wakes(None, false).unwrap().is_empty());
+    fs::remove_file(&wake_dir).unwrap();
+    fs::create_dir(&wake_dir).unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:02Z").unwrap();
+    let wakes = store.list_wakes(None, false).unwrap();
+    assert_eq!(wakes.len(), 1);
+    assert!(wakes[0].requires_human_gate);
+    assert_eq!(sent_to(&store, &task.id).len(), 1);
+}
+
+#[test]
+fn claimed_one_shot_cannot_complete_before_delivery_finishes() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = due_agent(&store, &workspace(&dir));
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET repeat_interval_secs=NULL WHERE id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    let task = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    store
+        .claim_schedule_dispatch(&task, "2020-01-01T00:00:01Z", &task.instruction)
+        .unwrap();
+    assert!(store
+        .complete_recovered_one_shot(&task.id)
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        store.get_scheduled_task(&task.id).unwrap().unwrap().status,
+        ScheduleStatus::Active
+    );
+}
+
+#[test]
 fn recovery_completes_one_shot_after_outbox_finalization_crash() {
     let (home, dir) = home();
     let store = HubStore::open(&home).unwrap();

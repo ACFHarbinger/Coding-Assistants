@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex Cursor re-review — 2026-10-20
+
+- Scheduler wake replay now propagates errors and serializes check/create;
+  failed wake side-channel writes roll back and remain retryable. One-shot
+  completion requires finalized outbox delivery; an active pending sender
+  is never completed or re-prompted by a stale tick (#351/#355).
+
 ### Codex follow-up review — 2026-10-20
 
 - Scheduler review: stale attempt results cannot complete a newer attempt; use attempt-aware CAS for finish and the refreshed snapshot for first one-shot completion (#351). Remaining wake/completion crash gaps are recorded on the issue; not accepted for integration.
