@@ -144,6 +144,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `agents_own_card` | `all_agents`) enforced at read time. Added new `scorecard`
   tab to Shared Hub. Agents sorted with open security-class rows first, then
   oldest pending human decisions, then measured cost — never a composite score.
+- **Team Scorecard T5 `mcp.invoke` audit row (#345):** `hub_mcp_client_call`
+  (P14-A) now writes one hash-chained `mcp.invoke` row after the MCP server
+  lookup, including server key, tool name, workspace, actor (`human` — the
+  Tools-tab invoke is human-launched), outcome (`ok | tool_error | error`),
+  and duration. Transport and tool-level failures are still recorded as
+  approved observations so the action is visible without creating a new
+  gate; the row never copies `arguments` or the tool payload. The existing
+  T3 security-class predicate already covers `mcp.invoke`. No Tools-tab UX
+  change.
 - **Steam MCP server (#349):** New entry in the external-MCP registry
   (`crates/hub/src/mcp/external.rs`), same pattern as Perplexity
   (#276/#277). `dsp/mcp-server-steam` is a Java stdio server with no
