@@ -146,3 +146,77 @@ fn corrupt_target_json_is_quarantined_and_never_dispatched() {
         .count();
     assert_eq!(sent, 0);
 }
+
+#[test]
+fn recovered_outbox_obeys_deadline_before_sending() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = create_due(&store, &dir.path().to_string_lossy());
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET attempts=1, status='active',
+             deadline='2020-01-01T00:00:02Z', last_fired_at='2020-01-01T00:00:01Z'
+             WHERE id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store
+        .insert_undelivered_schedule_outbox(&task, 1, &task.instruction)
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:03Z").unwrap();
+    assert!(store
+        .list_messages(None, None)
+        .unwrap()
+        .iter()
+        .all(|m| m.task_id.as_deref() != Some(&task.id)));
+    let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Failed);
+}
+
+#[test]
+fn recovered_outbox_does_not_send_a_paused_schedule() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = create_due(&store, &dir.path().to_string_lossy());
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET attempts=1, status='paused', next_fire_at=NULL WHERE id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store
+        .insert_undelivered_schedule_outbox(&task, 1, &task.instruction)
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:03Z").unwrap();
+    assert!(store
+        .list_messages(None, None)
+        .unwrap()
+        .iter()
+        .all(|m| m.task_id.as_deref() != Some(&task.id)));
+}
+
+#[test]
+fn recovered_one_shot_completes_without_a_response() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = create_due(&store, &dir.path().to_string_lossy());
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET attempts=1, status='active',
+             repeat_interval_secs=NULL, last_fired_at='2020-01-01T00:00:01Z'
+             WHERE id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store
+        .insert_undelivered_schedule_outbox(&task, 1, &task.instruction)
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:03Z").unwrap();
+    assert_eq!(
+        store.get_scheduled_task(&task.id).unwrap().unwrap().status,
+        ScheduleStatus::Completed
+    );
+}

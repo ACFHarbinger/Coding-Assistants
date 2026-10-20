@@ -317,7 +317,13 @@ impl HubStore {
         if task.status.is_terminal() {
             return Ok(task);
         }
-        if !self.transition_scheduled_task(id, ScheduleStatus::Cancelled, None)? {
+        // Paused may be cancelled; ordinary tick transitions must not.
+        let n = self.conn.execute(
+            "UPDATE scheduled_tasks SET status = ?1, next_fire_at = NULL, updated_at = ?2
+             WHERE id = ?3 AND status IN ('scheduled', 'active', 'paused')",
+            params![ScheduleStatus::Cancelled.as_str(), now_utc_rfc3339(), id],
+        )?;
+        if n == 0 {
             return self
                 .get_scheduled_task(id)?
                 .ok_or_else(|| HubError::NotFound(id.into()));
@@ -339,12 +345,38 @@ impl HubStore {
         status: ScheduleStatus,
         next_fire_at: Option<&str>,
     ) -> Result<bool, HubError> {
+        self.transition_live_schedule(id, status, next_fire_at, None)
+    }
+
+    /// Tick/pause CAS: never matches `paused`, so a stale active snapshot
+    /// cannot resurrect a quota-paused row. Optional `expected_attempts`
+    /// rejects a snapshot that already lost a later claim.
+    pub(crate) fn transition_live_schedule(
+        &self,
+        id: &str,
+        status: ScheduleStatus,
+        next_fire_at: Option<&str>,
+        expected_attempts: Option<u32>,
+    ) -> Result<bool, HubError> {
         self.ensure_mutable()?;
-        let n = self.conn.execute(
-            "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
-             WHERE id = ?4 AND status IN ('scheduled', 'active', 'paused')",
-            params![status.as_str(), next_fire_at, now_utc_rfc3339(), id],
-        )?;
+        let n = match expected_attempts {
+            Some(attempts) => self.conn.execute(
+                "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
+                 WHERE id = ?4 AND status IN ('scheduled', 'active') AND attempts = ?5",
+                params![
+                    status.as_str(),
+                    next_fire_at,
+                    now_utc_rfc3339(),
+                    id,
+                    attempts as i64
+                ],
+            )?,
+            None => self.conn.execute(
+                "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
+                 WHERE id = ?4 AND status IN ('scheduled', 'active')",
+                params![status.as_str(), next_fire_at, now_utc_rfc3339(), id],
+            )?,
+        };
         Ok(n > 0)
     }
 

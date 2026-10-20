@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pending_gate_json` and `PendingGateEntry` are the agreed contract.
   S7 IPC is unchanged (thin wrappers over the corrected store).
 
+- **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
+  Outbox drain re-checks deadline, pause, and terminal status before
+  sending, and recovered one-shots complete without waiting for a
+  response. Each recipient is claimed with `INSERT OR IGNORE` in the
+  same transaction as the message insert, so concurrent drainers and
+  partial team fan-out cannot duplicate or skip a recipient. Tick CAS
+  matches only `scheduled`/`active` (optional expected `attempts`);
+  cancel is the only transition from `paused`. A stale tick cannot
+  resurrect a quota-paused row, and pending outbox is not sent after
+  pause.
+
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
   stdout:** Outside a Flatpak/snap sandbox, GIO's portal-based
   `GProxyResolver` queries `org.freedesktop.portal.ProxyResolver` over

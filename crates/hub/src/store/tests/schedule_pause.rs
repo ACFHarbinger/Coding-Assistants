@@ -74,3 +74,56 @@ fn pause_is_a_noop_on_an_already_cancelled_row() {
     let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
     assert_eq!(fetched.status, ScheduleStatus::Cancelled);
 }
+
+#[test]
+fn stale_tick_cannot_resurrect_a_quota_paused_row() {
+    let dir = tempdir().unwrap();
+    let home = dir.path().join("home");
+    let workspace = dir.path().join("ws");
+    std::fs::create_dir_all(&workspace).unwrap();
+    let workspace = workspace.to_string_lossy().into_owned();
+    let setup = HubStore::open(&home).unwrap();
+    let task = due_task(&setup, &workspace, true);
+    let id = task.id.clone();
+    drop(setup);
+
+    let pauser = HubStore::open(&home).unwrap();
+    let ticker = HubStore::open(&home).unwrap();
+    pauser.pause_scheduled_task(&id, "quota").unwrap();
+    assert!(!ticker
+        .transition_scheduled_task(&id, ScheduleStatus::Active, Some("2020-01-01T00:00:01Z"))
+        .unwrap());
+    let fetched = ticker.get_scheduled_task(&id).unwrap().unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Paused);
+}
+
+#[test]
+fn pending_outbox_is_not_sent_after_quota_pause() {
+    let (store, dir) = open();
+    let workspace = dir.path().join("ws");
+    std::fs::create_dir_all(&workspace).unwrap();
+    let workspace = workspace.to_string_lossy().into_owned();
+    let task = due_task(&store, &workspace, true);
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET attempts = 1, last_fired_at = ?1,
+             next_fire_at = ?1, status = 'active' WHERE id = ?2",
+            rusqlite::params!["2020-01-01T00:00:01.000Z", task.id],
+        )
+        .unwrap();
+    store
+        .insert_undelivered_schedule_outbox(&task, 1, &task.instruction)
+        .unwrap();
+    store.pause_scheduled_task(&task.id, "quota").unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:02Z").unwrap();
+    let sent = store
+        .list_messages(None, None)
+        .unwrap()
+        .into_iter()
+        .filter(|message| message.task_id.as_deref() == Some(task.id.as_str()))
+        .count();
+    assert_eq!(sent, 0);
+    let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Paused);
+}
