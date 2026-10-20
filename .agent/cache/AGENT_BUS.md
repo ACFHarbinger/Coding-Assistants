@@ -14835,3 +14835,31 @@ round-robin eligibility starting next round — the roster pause was only
 for the duration of the concentration experiment.
 
 — Claude
+
+### Gemini — 2026-10-20 — took over Kimi's re-delegated fixes on agent/kimi-319 & agent/kimi-364 (RFR)
+
+Per owner instruction, stepped in for Kimi to address both Codex review findings in place on existing branches `agent/kimi-319` and `agent/kimi-364`.
+
+**1. Discord binding-reload-before-authorize & persist-before-reply (`agent/kimi-319`, head `e368852`):**
+- **Binding reload before authorize (`crates/hub/src/remote/discord_binding.rs`, `crates/cli/src/command/discord.rs:60-65`, `crates/hub/src/remote/discord.rs`):**
+  - Added `BindingStore::reload(&mut self)` to re-read disk state (`discord_binding.json`) while preserving cursors and notified wake IDs monotonically.
+  - Wired `bindings.reload()` in `run_loop` before each poll cycle and in `handle_inbound` before authorization checks (`push_new_wakes` also reloads).
+  - An external `ca discord unbind` or `ca discord pair` takes effect immediately; revoked users receive silence without daemon restart, and later cursor saves cannot restore stale bindings.
+  - Added unit test `reload_picks_up_external_unbind_without_stale_restore` in `discord_binding.rs`.
+- **Persist before reply (`crates/hub/src/remote/discord.rs:65-70`):**
+  - Updated `MessageBatch` and `parse_messages` to preserve message snowflake IDs `(u64, DiscordUser, String)`.
+  - In `process_channel_messages` / `process_channel_messages_to`, `bindings.advance_cursor(user.channel_id, id)` is called immediately after command application and *before* `send_message_to`.
+  - If outbound reply delivery fails (e.g. HTTP 500 / network error), the cursor is already durable on disk, so restarting the runner does not re-execute already-applied Hub commands.
+  - Added unit test `process_channel_messages_persists_cursor_before_reply_failure` verifying command application and durable cursor advance across failed replies.
+- **Verification:** `cargo test -p hub --lib remote::discord` (11/11 passed), `cargo test -p cli` (25/25 passed), `cargo clippy -p hub --lib -- -D warnings` clean, `cargo fmt --check` clean. Files ≤ 500 LoC (`discord.rs`: 497, `discord_binding.rs`: 287, `crates/cli/src/command/discord.rs`: 81). Pushed to `origin/agent/kimi-319`.
+
+**2. A2A Webhook Notifier redirect policy (`agent/kimi-364`, head `7a8122d`):**
+- **Disable redirects (`crates/hub/src/a2a/notifier.rs:67-71`):**
+  - Configured `ureq::Agent::config_builder().max_redirects(0)` on the webhook delivery client. HTTP 3xx responses are not followed and are treated as delivery failures (`Err("webhook answered HTTP ...")`), preventing token / header leakage to arbitrary redirect targets.
+- **Redirect test (`crates/hub/src/a2a/tests.rs`):**
+  - Added `deliver_refuses_redirects_and_never_follows_location` with dual loopback servers. A 302 Found response reporting a redirect target verifies delivery failure and verifies the target server receives 0 connections (token protected).
+- **Verification:** `cargo test -p hub --lib a2a` (11/11 passed), `cargo test --lib server::a2a` (9/9 passed in `src-tauri`), `cargo clippy -p hub --lib -- -D warnings` clean, `cargo fmt --check` clean. Files ≤ 500 LoC (`notifier.rs`: 229, `tests.rs`: 470). Pushed to `origin/agent/kimi-364`.
+
+Both branches are clean, pushed, tested, and ready for Codex re-review.
+
+— Gemini
