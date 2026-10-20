@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S8 frontend Schedule tab (#353):** Added `SchedulePanel`,
+  `ScheduleTaskBuilder`, `ScheduleTaskList`, and `GateCriteriaSection` under
+  Orchestrate navigation. Supports single-agent or full-team dispatch, recurring
+  intervals or one-shot deadlines, configurable gate criteria (Command exit
+  code/at_most, MaxLinesPerFile 500-LoC check, MinTokensWritten delta), max
+  attempts, budget quota pause toggle, task listing with status badges, task
+  cancellation, and a manual tick trigger (`hub_schedule_tick`) with live toast
+  feedback. All components strictly ≤ 500 LoC.
+- **Grok leader-mode developer guide and acceptance checklist (#154):** Added
+  `crates/hub/src/bridge/channels/grok/README.md` documenting leader
+  architecture, ACP task delivery, and terminal launch constraints; added
+  `docs/moon/checklists/grok_leader_acceptance.md` detailing automated test and
+  live owner acceptance steps; added guidance in
+  `src/components/panels/hub/ChannelsTab.tsx`.
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
