@@ -320,6 +320,11 @@ pub fn effective_harnesses(
         for key in over.default_efforts.keys() {
             ids.insert(key.clone(), ());
         }
+        // #363: a kimi_mode override alone must still materialize the kimi
+        // row even when no harness settings/profile/model selects it.
+        if over.kimi_mode.is_some() {
+            ids.insert("kimi".to_string(), ());
+        }
     }
     ids.into_keys()
         .filter_map(|harness| {
@@ -354,6 +359,14 @@ pub fn effective_harnesses(
                 None => (settings.default_effort.clone(), FieldStatus::Inherited),
             };
 
+            // Kimi-only (#363): the workspace override applies solely to
+            // the kimi row; every other harness reports off/inherited.
+            let (selected_kimi_mode, selected_kimi_mode_status) =
+                match workspace_override.and_then(|over| over.kimi_mode) {
+                    Some(mode) if harness == "kimi" => (Some(mode), FieldStatus::Override),
+                    _ => (None, FieldStatus::Inherited),
+                };
+
             Some(EffectiveHarnessSettings {
                 harness: settings.harness,
                 executable: settings.executable,
@@ -367,6 +380,8 @@ pub fn effective_harnesses(
                 selected_model_status,
                 selected_effort,
                 selected_effort_status,
+                selected_kimi_mode,
+                selected_kimi_mode_status,
             })
         })
         .collect()
