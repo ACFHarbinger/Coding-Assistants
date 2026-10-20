@@ -16,6 +16,7 @@ mod paths;
 pub mod peer;
 pub mod proc;
 pub mod remote;
+pub mod schedule_trigger;
 pub mod secret;
 mod settings;
 mod store;

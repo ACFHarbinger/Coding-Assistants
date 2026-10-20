@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.
 - Provide editable command program/argv/check, globs, and numeric thresholds for gate criteria; prevent attaching gates to one-shot tasks and clarify engine bypass (#353).
 - Clarify that ca schedule tick --now changes the real execution clock and is not a dry run (#354).
+- Reject control characters/non-UTF8 trigger paths, run Settings systemctl operations off the UI thread, retain units if timer disabling fails, and drain `systemctl` stdout/stderr while the child runs (bounded capture) so large environment output cannot stall (#356).
 
 ### Fixed
 
@@ -268,6 +269,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from the terminal. 14 new CLI tests with temp stores (clap wiring,
   validation, create/get/list/cancel round trip, status filter,
   one-shot tick completion, tick-result JSON reuse, `--now` override).
+- **Scheduled Goals S5a Linux systemd user trigger (#356):** Opt-in
+  Settings section installs/updates/removes a user-owned
+  `~/.config/systemd/user/ca-schedule.{service,timer}` pair that runs only
+  `ca schedule tick` with explicit argv (`--home`/`CA_HOME` pinned to the
+  Hub data dir, `WorkingDirectory` set to the current workspace). No
+  privileged unit, no arbitrary action scheduler, and no P5 bypass. The
+  timer is `OnBootSec=1min` + `OnUnitActiveSec=<n>min`; install is
+  idempotent, writes are atomic, removal is safe when absent, and a
+  missing/unreachable user manager returns actionable diagnostics.
+  Headless ticks still enforce only the in-hub credit allowance (live
+  provider-quota pauses stay an in-app S6 capability). Unit rendering,
+  quoting, paths, and the install/status/remove lifecycle are covered by
+  injected-runner tests that never touch the real timer.
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,

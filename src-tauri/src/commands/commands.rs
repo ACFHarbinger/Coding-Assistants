@@ -75,6 +75,8 @@ pub mod schedule;
 pub mod schedule_poller;
 #[path = "quota/schedule_probe.rs"]
 pub(crate) mod schedule_probe;
+#[path = "settings/schedule_trigger.rs"]
+pub mod schedule_trigger;
 #[path = "hub/scorecard.rs"]
 pub mod scorecard;
 #[path = "settings/settings.rs"]
