@@ -1,14 +1,13 @@
 //! M6 acceptance gate (#82): a durable memory record written by one
 //! caller must be retrievable through this Tauri command layer, not
 //! just through the `ca` CLI that shares the same `HubStore`.
-use super::quota_codex::now_unix;
 use super::settings::*;
 use super::{memory::*, messaging::*, store::open_store};
 use hub::{HarnessSettings, ProviderProfile, SecretReference};
 use hub::{MemoryScope, MemoryTier, MessageKind};
+use quota::now_unix;
 use std::sync::Mutex;
 
-mod quota;
 mod schedule;
 mod schedule_poller;
 mod vector_memory;
