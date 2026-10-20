@@ -106,7 +106,11 @@ fn capped_budget_yields_a_monthly_spend_window() {
     assert!(balance.contains("2026-09-01 → 2026-09-30"), "{balance}");
     let info = budget.balance_info.expect("currency figure");
     assert_eq!(info.currency, "USD");
-    assert!((info.total - 16.25).abs() < 1e-9);
+    assert!((info.total - 100.0).abs() < 1e-9, "total is the cap");
+    assert!(
+        (info.spent.unwrap() - 16.25).abs() < 1e-9,
+        "spent is the period spend"
+    );
     assert_eq!(info.kind.as_deref(), Some("spend"));
     assert_eq!(info.paid, None);
 }
@@ -132,6 +136,8 @@ fn uncapped_limit_reports_spend_only_with_uncapped_note() {
     );
     let info = budget.balance_info.expect("currency figure");
     assert_eq!(info.kind.as_deref(), Some("spend"));
+    assert_eq!(info.total, 0.0, "no cap means no budget to chart");
+    assert!((info.spent.unwrap() - 16.25).abs() < 1e-9);
 }
 
 #[test]

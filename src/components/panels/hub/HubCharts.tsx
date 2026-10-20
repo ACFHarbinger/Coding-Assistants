@@ -57,6 +57,12 @@ export function formatCurrency(amount: number, currency = "USD"): string {
 
 /**
  * Stacked horizontal breakdown bar showing spent vs budget vs free/bonus tokens.
+ *
+ * Spend-kind contract (`#303`): `total` is the period budget/cap, `spent`
+ * what was consumed against it, `gift`/`granted` provider-absorbed bonus.
+ * A provider that reports spend with no readable cap sends `total: 0`;
+ * the bar then draws spend only and says so, instead of inventing a
+ * budget equal to the spend.
  */
 export function BalanceBreakdownBar({
   balance,
@@ -69,8 +75,10 @@ export function BalanceBreakdownBar({
   const spent = balance.spent ?? 0;
   const budget = balance.total;
   const free = balance.gift ?? balance.granted ?? 0;
+  const hasBudget = budget > 0;
+  const isSpend = balance.kind === "spend";
   const remaining_budget = Math.max(0, budget - spent);
-  const isOverBudget = budget > 0 && spent > budget;
+  const isOverBudget = hasBudget && spent > budget;
 
   const totalCapacity = Math.max(budget, spent) + free;
   const spentPercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (spent / totalCapacity) * 100)) : 0;
@@ -89,19 +97,26 @@ export function BalanceBreakdownBar({
 
   const displayBalance =
     balanceText ||
-    formatCurrency(remaining_budget + free, currency);
+    (isSpend && !hasBudget
+      ? formatCurrency(spent, currency)
+      : formatCurrency(remaining_budget + free, currency));
+  const headline = isSpend ? "Period spend" : "Account balance";
+  const headlineColor = isOverBudget ? "#ef4444" : isSpend ? "#38bdf8" : "#22c55e";
+  const ariaLabel = hasBudget
+    ? `${headline}: ${formatCurrency(spent, currency)} spent of ${formatCurrency(budget, currency)} budget`
+    : `${headline}: ${formatCurrency(spent, currency)} spent, no spend cap`;
 
   return (
     <div style={{ display: "grid", gap: "0.35rem" }} data-testid="balance-breakdown-bar">
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem", flexWrap: "wrap" }}>
-        <span>Account balance</span>
-        <strong style={{ color: isOverBudget ? "#ef4444" : "#22c55e" }}>
+        <span>{headline}</span>
+        <strong style={{ color: headlineColor }}>
           {displayBalance}
         </strong>
       </div>
       <div
         role="progressbar"
-        aria-label="Balance breakdown"
+        aria-label={ariaLabel}
         style={{
           height: 12,
           background: "#334155",
@@ -155,12 +170,18 @@ export function BalanceBreakdownBar({
             Spent {formatCurrency(spent, currency)}
           </span>
         )}
-        {budget > 0 && (
+        {hasBudget ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: budgetColor, display: "inline-block" }} />
             Budget {formatCurrency(remaining_budget, currency)}
+            {isSpend ? ` of ${formatCurrency(budget, currency)}` : ""}
           </span>
-        )}
+        ) : isSpend ? (
+          <span data-testid="breakdown-no-cap" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+            <i style={{ width: 8, height: 8, borderRadius: 2, background: "#334155", display: "inline-block" }} />
+            No spend cap
+          </span>
+        ) : null}
         {free > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: "#34d399", display: "inline-block" }} />
