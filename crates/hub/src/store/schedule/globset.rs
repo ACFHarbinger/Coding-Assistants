@@ -16,27 +16,31 @@ const EXCLUDED_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
-pub(crate) fn walk_workspace_files(workspace: &Path) -> Vec<PathBuf> {
+pub(crate) fn walk_workspace_files(workspace: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     let mut stack = vec![workspace.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
+        let entries = std::fs::read_dir(&dir)?;
+        for entry in entries {
+            let entry = entry?;
+            // Never follow a workspace symlink into another tree or a cycle.
+            let kind = entry.file_type()?;
+            if kind.is_symlink() {
+                continue;
+            }
             let path = entry.path();
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if path.is_dir() {
+            if kind.is_dir() {
                 if !EXCLUDED_DIRS.contains(&name.as_ref()) {
                     stack.push(path);
                 }
-            } else {
+            } else if kind.is_file() {
                 out.push(path);
             }
         }
     }
-    out
+    Ok(out)
 }
 
 pub(crate) fn glob_match(pattern: &str, relative_path: &str) -> bool {
@@ -73,6 +77,42 @@ fn match_segment(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_walk_does_not_follow_symlink_cycles_or_external_files() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("local.rs"), "local").unwrap();
+        std::fs::write(outside.path().join("external.rs"), "outside").unwrap();
+        std::os::unix::fs::symlink(root.path(), root.path().join("cycle")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("outside")).unwrap();
+        let files = walk_workspace_files(root.path()).unwrap();
+        assert_eq!(files, vec![root.path().join("local.rs")]);
+    }
+
+    #[test]
+    fn missing_workspace_is_an_error_instead_of_an_empty_success() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(walk_workspace_files(&root.path().join("missing")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_walk_skips_fifos_instead_of_blocking_on_them() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("local.rs"), "local").unwrap();
+        let fifo = root.path().join("pipe");
+        let status = std::process::Command::new("mkfifo").arg(&fifo).status();
+        let Ok(status) = status else {
+            return;
+        };
+        if !status.success() {
+            return;
+        }
+        let files = walk_workspace_files(root.path()).unwrap();
+        assert_eq!(files, vec![root.path().join("local.rs")]);
+    }
 
     #[test]
     fn double_star_matches_any_depth() {

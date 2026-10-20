@@ -1,46 +1,103 @@
 //! Plain CRUD for `ScheduledTask` (S1). Dispatch/gate/tick logic is S2/S3.
 
 use super::super::*;
+use super::time::{instant_le, normalize_rfc3339, now_utc_rfc3339};
 use super::types::{
-    BudgetPolicy, GateCombinator, GateCriterion, ScheduleStatus, ScheduleTarget, ScheduledTask,
+    is_schedule_eligible_agent, BudgetPolicy, GateCombinator, GateCriterion, ScheduleStatus,
+    ScheduleTarget, ScheduledTask,
 };
 
-fn parse_rfc3339(label: &str, value: &str) -> Result<(), HubError> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .map(|_| ())
-        .map_err(|_| HubError::Invalid(format!("{label} must be an RFC3339 timestamp")))
+struct ScheduleRow {
+    id: String,
+    name: String,
+    instruction: String,
+    target_json: String,
+    workspace: String,
+    fire_at: String,
+    repeat_interval_secs: Option<i64>,
+    response_timeout_secs: i64,
+    gate_criteria_json: String,
+    gate_combinator: String,
+    budget_json: String,
+    max_attempts: u32,
+    deadline: Option<String>,
+    status: String,
+    created_by: String,
+    created_at: String,
+    updated_at: String,
+    last_fired_at: Option<String>,
+    next_fire_at: Option<String>,
+    token_baseline_json: String,
+    attempts: u32,
 }
 
-fn map_row(r: &rusqlite::Row<'_>) -> Result<ScheduledTask, rusqlite::Error> {
-    let target_json: String = r.get(3)?;
-    let gate_criteria_json: String = r.get(8)?;
-    let gate_combinator: String = r.get(9)?;
-    let budget_json: String = r.get(10)?;
-    let token_baseline_json: String = r.get(19)?;
-    Ok(ScheduledTask {
+fn map_raw(r: &rusqlite::Row<'_>) -> Result<ScheduleRow, rusqlite::Error> {
+    Ok(ScheduleRow {
         id: r.get(0)?,
         name: r.get(1)?,
         instruction: r.get(2)?,
-        target: serde_json::from_str::<ScheduleTarget>(&target_json)
-            .unwrap_or(ScheduleTarget::Team),
+        target_json: r.get(3)?,
         workspace: r.get(4)?,
         fire_at: r.get(5)?,
         repeat_interval_secs: r.get(6)?,
         response_timeout_secs: r.get::<_, i64>(7).unwrap_or(3600),
-        gate_criteria: serde_json::from_str::<Vec<GateCriterion>>(&gate_criteria_json)
-            .unwrap_or_default(),
-        gate_combinator: GateCombinator::parse(&gate_combinator),
-        budget: serde_json::from_str::<BudgetPolicy>(&budget_json).unwrap_or_default(),
+        gate_criteria_json: r.get(8)?,
+        gate_combinator: r.get(9)?,
+        budget_json: r.get(10)?,
         max_attempts: r.get::<_, i64>(11)? as u32,
         deadline: r.get(12)?,
-        status: ScheduleStatus::parse(&r.get::<_, String>(13)?).unwrap_or(ScheduleStatus::Failed),
+        status: r.get(13)?,
         created_by: r.get(14)?,
         created_at: r.get(15)?,
         updated_at: r.get(16)?,
         last_fired_at: r.get(17)?,
         next_fire_at: r.get(18)?,
+        token_baseline_json: r.get(19)?,
         attempts: r.get::<_, i64>(20)? as u32,
-        token_baseline: serde_json::from_str(&token_baseline_json).unwrap_or_default(),
+    })
+}
+
+fn decode_json<T: serde::de::DeserializeOwned>(label: &str, raw: &str) -> Result<T, HubError> {
+    serde_json::from_str(raw)
+        .map_err(|error| HubError::Invalid(format!("scheduled task {label} is corrupt: {error}")))
+}
+
+fn encode_json<T: serde::Serialize>(label: &str, value: &T) -> Result<String, HubError> {
+    serde_json::to_string(value)
+        .map_err(|error| HubError::Invalid(format!("schedule {label} encode: {error}")))
+}
+
+fn decode_schedule(row: &ScheduleRow) -> Result<ScheduledTask, HubError> {
+    let status = ScheduleStatus::parse(&row.status).ok_or_else(|| {
+        HubError::Invalid(format!("scheduled task status is corrupt: {}", row.status))
+    })?;
+    Ok(ScheduledTask {
+        id: row.id.clone(),
+        name: row.name.clone(),
+        instruction: row.instruction.clone(),
+        target: decode_json("target", &row.target_json)?,
+        workspace: row.workspace.clone(),
+        fire_at: row.fire_at.clone(),
+        repeat_interval_secs: row.repeat_interval_secs,
+        response_timeout_secs: row.response_timeout_secs,
+        gate_criteria: decode_json("gate_criteria", &row.gate_criteria_json)?,
+        gate_combinator: GateCombinator::parse_strict(&row.gate_combinator).ok_or_else(|| {
+            HubError::Invalid(format!(
+                "scheduled task gate_combinator is corrupt: {}",
+                row.gate_combinator
+            ))
+        })?,
+        budget: decode_json("budget", &row.budget_json)?,
+        max_attempts: row.max_attempts,
+        deadline: row.deadline.clone(),
+        status,
+        created_by: row.created_by.clone(),
+        created_at: row.created_at.clone(),
+        updated_at: row.updated_at.clone(),
+        last_fired_at: row.last_fired_at.clone(),
+        next_fire_at: row.next_fire_at.clone(),
+        attempts: row.attempts,
+        token_baseline: decode_json("token_baseline", &row.token_baseline_json)?,
     })
 }
 
@@ -50,8 +107,8 @@ const SELECT_COLUMNS: &str = "id, name, instruction, target_json, workspace, fir
     last_fired_at, next_fire_at, token_baseline_json, attempts";
 
 impl HubStore {
-    /// Create a new scheduled task. `fire_at`/`deadline` are RFC3339.
-    /// `max_attempts` is mandatory (see module docs on why) — must be >= 1.
+    /// Create a new scheduled task. `fire_at`/`deadline` are RFC3339 and
+    /// stored as UTC. `max_attempts` is mandatory and must be >= 1.
     #[allow(clippy::too_many_arguments)]
     pub fn create_scheduled_task(
         &self,
@@ -90,10 +147,10 @@ impl HubStore {
                 ));
             }
         }
-        parse_rfc3339("fire_at", fire_at)?;
-        if let Some(d) = deadline {
-            parse_rfc3339("deadline", d)?;
-        }
+        let fire_at = normalize_rfc3339("fire_at", fire_at)?;
+        let deadline = deadline
+            .map(|value| normalize_rfc3339("deadline", value))
+            .transpose()?;
         if max_attempts == 0 {
             return Err(HubError::Invalid(
                 "max_attempts must be at least 1 — it is a mandatory stop condition, \
@@ -105,6 +162,13 @@ impl HubStore {
             return Err(HubError::Invalid(
                 "response_timeout_secs must be positive".into(),
             ));
+        }
+        if let Some(interval) = repeat_interval_secs {
+            if interval <= 0 {
+                return Err(HubError::Invalid(
+                    "repeat_interval_secs must be positive when set".into(),
+                ));
+            }
         }
         for criterion in &gate_criteria {
             if let GateCriterion::Command { program, .. } = criterion {
@@ -118,7 +182,7 @@ impl HubStore {
 
         let token_baseline = self.schedule_token_baseline(&target)?;
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
+        let now = now_utc_rfc3339();
         self.conn.execute(
             "INSERT INTO scheduled_tasks(
                 id, name, instruction, target_json, workspace, fire_at,
@@ -131,14 +195,14 @@ impl HubStore {
                 id,
                 name,
                 instruction,
-                serde_json::to_string(&target).unwrap_or_default(),
+                encode_json("target", &target)?,
                 workspace,
                 fire_at,
                 repeat_interval_secs,
                 response_timeout_secs,
-                serde_json::to_string(&gate_criteria).unwrap_or_else(|_| "[]".into()),
+                encode_json("gate_criteria", &gate_criteria)?,
                 gate_combinator.as_str(),
-                serde_json::to_string(&budget).unwrap_or_else(|_| "{}".into()),
+                encode_json("budget", &budget)?,
                 max_attempts,
                 deadline,
                 ScheduleStatus::Scheduled.as_str(),
@@ -146,7 +210,7 @@ impl HubStore {
                 now,
                 now,
                 fire_at,
-                serde_json::to_string(&token_baseline).unwrap_or_else(|_| "{}".into()),
+                encode_json("token_baseline", &token_baseline)?,
             ],
         )?;
         let task = self
@@ -165,64 +229,84 @@ impl HubStore {
         Ok(task)
     }
 
-    /// Snapshot each in-scope agent's current `agent_metrics.tokens_used`
-    /// so `MinTokensWritten` measures a delta from schedule-creation time.
+    /// Snapshot measured `tokens_used` for eligible identities only.
+    /// Missing metrics are omitted (unknown), never recorded as zero.
     fn schedule_token_baseline(
         &self,
         target: &ScheduleTarget,
     ) -> Result<std::collections::HashMap<String, i64>, HubError> {
         let metrics = self.list_agent_metrics()?;
-        let agents: Vec<String> = match target {
+        let mut baseline = std::collections::HashMap::new();
+        for agent_id in self.schedule_target_agent_ids(target)? {
+            if let Some(tokens) = metrics
+                .iter()
+                .find(|metric| metric.agent_id == agent_id)
+                .map(|metric| metric.tokens_used)
+            {
+                baseline.insert(agent_id, tokens);
+            }
+        }
+        Ok(baseline)
+    }
+
+    pub fn schedule_target_agent_ids(
+        &self,
+        target: &ScheduleTarget,
+    ) -> Result<Vec<String>, HubError> {
+        Ok(match target {
             ScheduleTarget::Agent { agent_id } => vec![agent_id.clone()],
             ScheduleTarget::Team => self
                 .list_team_members()?
                 .into_iter()
-                .map(|a| a.id)
+                .map(|agent| agent.id)
+                .filter(|id| is_schedule_eligible_agent(id))
                 .collect(),
-        };
-        Ok(agents
-            .into_iter()
-            .map(|agent_id| {
-                let tokens = metrics
-                    .iter()
-                    .find(|m| m.agent_id == agent_id)
-                    .map(|m| m.tokens_used)
-                    .unwrap_or(0);
-                (agent_id, tokens)
-            })
-            .collect())
+        })
     }
 
     pub fn get_scheduled_task(&self, id: &str) -> Result<Option<ScheduledTask>, HubError> {
-        self.conn
+        let raw = self
+            .conn
             .query_row(
                 &format!("SELECT {SELECT_COLUMNS} FROM scheduled_tasks WHERE id = ?1"),
                 params![id],
-                map_row,
+                map_raw,
             )
-            .optional()
-            .map_err(HubError::from)
+            .optional()?;
+        match raw {
+            None => Ok(None),
+            Some(row) => match decode_schedule(&row) {
+                Ok(task) => Ok(Some(task)),
+                Err(error) => {
+                    self.quarantine_scheduled_task(&row, &error.to_string());
+                    Err(error)
+                }
+            },
+        }
     }
 
     pub fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, HubError> {
-        let mut stmt = self.conn.prepare(&format!(
+        self.load_scheduled_rows(&format!(
             "SELECT {SELECT_COLUMNS} FROM scheduled_tasks ORDER BY created_at DESC"
-        ))?;
-        let rows = stmt.query_map([], map_row)?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(HubError::from)
+        ))
     }
 
-    /// Tasks due to fire/re-fire now, in due-first order. Used by the S3
-    /// tick and S4's `ca schedule tick`.
+    /// Tasks due to fire/re-fire now, in due-first order. Instant compare,
+    /// not lexical text — offsets and fractional precision are normalized.
     pub fn due_scheduled_tasks(&self, now: &str) -> Result<Vec<ScheduledTask>, HubError> {
-        let mut stmt = self.conn.prepare(&format!(
+        let now = normalize_rfc3339("now", now)?;
+        let mut due = self.load_scheduled_rows(&format!(
             "SELECT {SELECT_COLUMNS} FROM scheduled_tasks
-             WHERE status IN ('scheduled', 'active') AND next_fire_at IS NOT NULL
-               AND next_fire_at <= ?1
-             ORDER BY next_fire_at ASC"
+             WHERE status IN ('scheduled', 'active') AND next_fire_at IS NOT NULL"
         ))?;
-        let rows = stmt.query_map(params![now], map_row)?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(HubError::from)
+        due.retain(|task| {
+            task.next_fire_at
+                .as_deref()
+                .and_then(|fire| instant_le(fire, &now).ok())
+                .unwrap_or(false)
+        });
+        due.sort_by(|a, b| a.next_fire_at.cmp(&b.next_fire_at));
+        Ok(due)
     }
 
     pub fn cancel_scheduled_task(&self, id: &str) -> Result<ScheduledTask, HubError> {
@@ -233,7 +317,17 @@ impl HubStore {
         if task.status.is_terminal() {
             return Ok(task);
         }
-        self.set_scheduled_task_status(id, ScheduleStatus::Cancelled, None)?;
+        // Paused may be cancelled; ordinary tick transitions must not.
+        let n = self.conn.execute(
+            "UPDATE scheduled_tasks SET status = ?1, next_fire_at = NULL, updated_at = ?2
+             WHERE id = ?3 AND status IN ('scheduled', 'active', 'paused')",
+            params![ScheduleStatus::Cancelled.as_str(), now_utc_rfc3339(), id],
+        )?;
+        if n == 0 {
+            return self
+                .get_scheduled_task(id)?
+                .ok_or_else(|| HubError::NotFound(id.into()));
+        }
         let _ = self.record_audit_event(
             Path::new(&task.workspace),
             Path::new(&task.workspace),
@@ -245,18 +339,76 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
-    pub(crate) fn set_scheduled_task_status(
+    // Compatibility for #352's pending-gate stack and existing tests;
+    // completion paths use the attempt-aware transition directly.
+    #[allow(dead_code)]
+    pub(crate) fn transition_scheduled_task(
         &self,
         id: &str,
         status: ScheduleStatus,
         next_fire_at: Option<&str>,
-    ) -> Result<(), HubError> {
+    ) -> Result<bool, HubError> {
+        self.transition_live_schedule(id, status, next_fire_at, None)
+    }
+
+    /// Tick/pause CAS: never matches `paused`, so a stale active snapshot
+    /// cannot resurrect a quota-paused row. Optional `expected_attempts`
+    /// rejects a snapshot that already lost a later claim.
+    pub(crate) fn transition_live_schedule(
+        &self,
+        id: &str,
+        status: ScheduleStatus,
+        next_fire_at: Option<&str>,
+        expected_attempts: Option<u32>,
+    ) -> Result<bool, HubError> {
         self.ensure_mutable()?;
-        self.conn.execute(
-            "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
-             WHERE id = ?4",
-            params![status.as_str(), next_fire_at, Utc::now().to_rfc3339(), id],
-        )?;
-        Ok(())
+        let n = match expected_attempts {
+            Some(attempts) => self.conn.execute(
+                "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
+                 WHERE id = ?4 AND status IN ('scheduled', 'active') AND attempts = ?5",
+                params![
+                    status.as_str(),
+                    next_fire_at,
+                    now_utc_rfc3339(),
+                    id,
+                    attempts as i64
+                ],
+            )?,
+            None => self.conn.execute(
+                "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
+                 WHERE id = ?4 AND status IN ('scheduled', 'active')",
+                params![status.as_str(), next_fire_at, now_utc_rfc3339(), id],
+            )?,
+        };
+        Ok(n > 0)
+    }
+
+    fn load_scheduled_rows(&self, sql: &str) -> Result<Vec<ScheduledTask>, HubError> {
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map([], map_raw)?;
+        let mut out = Vec::new();
+        for row in rows {
+            let raw = row?;
+            match decode_schedule(&raw) {
+                Ok(task) => out.push(task),
+                Err(error) => self.quarantine_scheduled_task(&raw, &error.to_string()),
+            }
+        }
+        Ok(out)
+    }
+
+    fn quarantine_scheduled_task(&self, row: &ScheduleRow, reason: &str) {
+        let _ = self.conn.execute(
+            "UPDATE scheduled_tasks SET status = 'failed', next_fire_at = NULL, updated_at = ?1
+             WHERE id = ?2 AND status IN ('scheduled', 'active')",
+            params![now_utc_rfc3339(), row.id],
+        );
+        let _ = self.record_audit_event(
+            Path::new(&row.workspace),
+            Path::new(&row.workspace),
+            "schedule.quarantined",
+            &serde_json::json!({ "schedule_id": row.id, "reason": reason }).to_string(),
+            None,
+        );
     }
 }

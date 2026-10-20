@@ -11,7 +11,7 @@ pub use policy::{decide, program_basename, OsToolDecision, OsToolRequest};
 
 use crate::store::AuditEvent;
 use crate::{HubStore, SandboxStrictness, SliceStamp};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::path::Path;
 use std::time::Duration;
 
@@ -38,6 +38,7 @@ fn process_json(
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
     stamp: &SliceStamp,
+    metadata: Option<&Value>,
 ) -> String {
     let mut value = json!({
         "kind": "os_tool",
@@ -54,10 +55,18 @@ fn process_json(
         "stderr_preview": output.map(|out| out.stderr.as_str()).unwrap_or(""),
         "proposed_id": proposed_id,
     });
+    if let (Some(object), Some(extra)) =
+        (value.as_object_mut(), metadata.and_then(Value::as_object))
+    {
+        for (key, item) in extra {
+            object.entry(key.clone()).or_insert_with(|| item.clone());
+        }
+    }
     stamp.apply(&mut value);
     value.to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn record(
     store: &HubStore,
     request: &OsToolRequest,
@@ -66,6 +75,7 @@ fn record(
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
     stamp: &SliceStamp,
+    metadata: Option<&Value>,
 ) -> Result<AuditEvent, String> {
     let root = request
         .workspace
@@ -77,7 +87,7 @@ fn record(
             Path::new(root),
             Path::new(&request.cwd),
             operation,
-            &process_json(request, decision, output, proposed_id, stamp),
+            &process_json(request, decision, output, proposed_id, stamp, metadata),
             None,
         )
         .map_err(|error| error.to_string())
@@ -110,6 +120,22 @@ pub fn submit(
     timeout: Duration,
     stamp: SliceStamp,
 ) -> Result<OsToolResult, String> {
+    submit_with_metadata(store, request, strictness, timeout, stamp, None)
+}
+
+/// Same as [`submit`], with extra caller metadata merged into the audit
+/// `process_json`. Existing reserved keys cannot be overwritten. Scheduled
+/// gates use this to link a proposal to its task/criterion without a schema
+/// change.
+pub fn submit_with_metadata(
+    store: &HubStore,
+    request: OsToolRequest,
+    strictness: SandboxStrictness,
+    timeout: Duration,
+    stamp: SliceStamp,
+    metadata: Option<Value>,
+) -> Result<OsToolResult, String> {
+    let metadata = metadata.as_ref();
     match decide(&request, strictness) {
         OsToolDecision::Deny { reason } => {
             let audit = record(
@@ -120,6 +146,7 @@ pub fn submit(
                 None,
                 None,
                 &stamp,
+                metadata,
             )?;
             let _ = store.set_audit_status(&audit.id, "quarantined");
             Ok(outcome("denied", &audit, "deny", Some(reason), None))
@@ -133,6 +160,7 @@ pub fn submit(
                 None,
                 None,
                 &stamp,
+                metadata,
             )?;
             Ok(outcome(
                 "needs_approval",
@@ -152,6 +180,7 @@ pub fn submit(
                 Some(&output),
                 None,
                 &stamp,
+                metadata,
             )?;
             let _ = store.set_audit_status(&audit.id, "approved");
             Ok(outcome("ran", &audit, "allow", None, Some(&output)))
@@ -212,6 +241,10 @@ pub fn approve(
     }
     let output = run(&request, timeout)?;
     let stamp = SliceStamp::from_json_str(&event.process_json);
+    let proposal: Value = serde_json::from_str(&event.process_json).unwrap_or(Value::Null);
+    let metadata = proposal
+        .get("schedule_gate")
+        .map(|gate| json!({ "schedule_gate": gate }));
     let ran = record(
         store,
         &request,
@@ -220,6 +253,7 @@ pub fn approve(
         Some(&output),
         Some(audit_id),
         &stamp,
+        metadata.as_ref(),
     )?;
     let _ = store.set_audit_status(audit_id, "approved");
     let _ = store.set_audit_status(&ran.id, "approved");

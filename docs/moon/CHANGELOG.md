@@ -51,8 +51,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Codex review corrections — 2026-10-20
 
 - Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346, `f30c0fc`). Repeated-scan regression reproduced then passed. Follow-up round (Mistral) resolves the two remaining P2 findings: 24h retention now applies to scan records and the read view (idle polls prune too), trusted `(pid, start_time)` identities are kept separately from coverage so the PID-reuse guard survives the coverage expiry (retiring only after a week without a refresh), and ring writes use unique `create_new` temp files so concurrent writers cannot truncate each other — a reader always sees a complete file. Regressions: idle/expired-scan pruning, view expiry without an append, identity precedence/expiry, rejected-identity non-refresh, and a 4-writer/reader concurrency test. Awaiting Codex re-review; no final T6 PASS yet.
+### Codex reconciliation review — 2026-10-20
+
+- Strengthened the P5 approval-resume regression to use max_attempts=1:
+  final-attempt approval waits without resubmitting or consuming another
+  attempt and completes on approval. Corrected stale gate-contract docs:
+  audit links are authoritative; pending_gate_json is retained legacy data.
+
+### Codex Cursor re-review — 2026-10-20
+
+- Scheduler wake replay now propagates errors and serializes check/create;
+  failed wake side-channel writes roll back and remain retryable. One-shot
+  completion requires finalized outbox delivery; an active pending sender
+  is never completed or re-prompted by a stale tick (#351/#355).
+
+### Codex follow-up review — 2026-10-20
+
+- Scheduler review: stale attempt results cannot complete a newer attempt; use attempt-aware CAS for finish and the refreshed snapshot for first one-shot completion (#351). Remaining wake/completion crash gaps are recorded on the issue; not accepted for integration.
+
+### Codex review corrections — 2026-10-20
+
+- Fix scheduler token gates to check every eligible identity, including missing creation baselines (#352); regression reproduced before correction.
 
 ### Fixed
+
+- **Scheduled Goals #351/#352 reconciliation (`agent/grok-352`):**
+  OpenCode's gate fail-closed, P5 proposal resume, pending-wait, and
+  partial token-baseline fixes are rebased onto Cursor's corrected core
+  `971f999`. A pending gate keeps the task active through the same
+  attempt CAS as other live waits, so approval does not burn
+  `max_attempts` or lose a pause race. Wake replay and one-shot
+  completion remain that one hub implementation; the poller stack's
+  matching patch is not copied again. `max_attempts: 1` still lets its
+  in-flight attempt complete or time out before the task is failed.
+
+- **Scheduled Goals wake replay and one-shot finalization (#351):**
+  Recovery replays a human-gated wake for a committed recipient
+  message unless a wake already exists (pending or finished), so a
+  crash between message insert and `request_wake` cannot strand the
+  durable handoff. Active one-shots with a claimed attempt complete on
+  the next tick even if `delivered_at` landed before completion; a
+  finished wake is not minted again.
+
+- **Scheduled Goals S1/S3/S7 core corrections (#351):** Dispatch now
+  claims an attempt and persists the outbox row before delivery, so
+  concurrent app/CLI ticks and cancel races cannot duplicate a prompt or
+  un-cancel a row. Stored timestamps are UTC instants (not lexical
+  RFC3339); invalid tick `now` and nonpositive repeat intervals fail
+  closed. Corrupt target/gates/budget JSON quarantines the row instead of
+  broadening it to Team or dropping constraints. Timeout and repeat
+  interval both apply before a re-prompt. `max_attempts` caps new
+  dispatches; the final in-flight attempt may still succeed, time out, or
+  miss its gate. Team token baselines omit `human`/`system` and missing
+  metrics (unknown, never zero). S7 IPC is unchanged (thin wrappers over
+  the corrected store).
+
+- **Scheduled Goals S2 gate corrections (#352):** Gate criteria now link
+  each `os_tool.proposed` approval to its schedule/criterion/attempt in
+  the hash-chained audit row, report pending approval as a distinct
+  `pending` outcome, reuse one proposal across ticks, and consume the
+  matching approved `os_tool.ran` result instead of resubmitting. Tick
+  waits without consuming an attempt while approval is outstanding.
+  Numeric gates require exit 0 (a failing command cannot pass by printing
+  `0`); workspace walks skip symlinks/devices/FIFOs and propagate read
+  errors; missing/unreadable workspaces fail verification. Empty token
+  baselines and missing `agent_metrics` rows fail closed. Gate details and
+  audit metadata are bounded. `pending_gate_json`/`PendingGateEntry` were
+  not needed: the audit row is the persisted link. No new approval class.
+
+- **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
+  Outbox drain re-checks deadline, pause, and terminal status before
+  sending, and recovered one-shots complete without waiting for a
+  response. Each recipient is claimed with `INSERT OR IGNORE` in the
+  same transaction as the message insert, so concurrent drainers and
+  partial team fan-out cannot duplicate or skip a recipient. Tick CAS
+  matches only `scheduled`/`active` (optional expected `attempts`);
+  cancel is the only transition from `paused`. A stale tick cannot
+  resurrect a quota-paused row, and pending outbox is not sent after
+  pause.
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
   stdout:** Outside a Flatpak/snap sandbox, GIO's portal-based

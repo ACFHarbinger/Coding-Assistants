@@ -5,6 +5,10 @@
 //! nor `record_agent_metrics` are wired into the harness-CLI/PTY bridge
 //! path this app actually dispatches work through, so budget/token-written
 //! gates alone cannot be trusted to ever stop a loop for that target kind.
+//!
+//! Attempt boundary (#351): `max_attempts` caps **new** dispatches. The
+//! final in-flight attempt may still collect a response, evaluate gates,
+//! or time out. `deadline` remains a hard cutoff even mid-attempt.
 
 use serde::{Deserialize, Serialize};
 
@@ -75,9 +79,14 @@ impl GateCombinator {
     }
 
     pub fn parse(s: &str) -> Self {
+        Self::parse_strict(s).unwrap_or(Self::All)
+    }
+
+    pub fn parse_strict(s: &str) -> Option<Self> {
         match s {
-            "any" => Self::Any,
-            _ => Self::All,
+            "all" => Some(Self::All),
+            "any" => Some(Self::Any),
+            _ => None,
         }
     }
 }
@@ -136,6 +145,12 @@ impl ScheduleStatus {
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Completed | Self::Cancelled | Self::Failed)
     }
+}
+
+/// Standing-roster identities that can respond to a scheduled dispatch.
+/// `system` never replies; seeded `human` is the owner, not a harness.
+pub(crate) fn is_schedule_eligible_agent(id: &str) -> bool {
+    id != "system" && id != "human"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

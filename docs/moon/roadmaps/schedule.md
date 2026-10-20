@@ -1,5 +1,18 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Codex review (2026-10-20): Grok's #351/#352 core rebase and pending-wait CAS
+accepted with final-attempt approval regression/documentation edits. This
+branch does not include #355 poller, #353 UI or #354 CLI implementation;
+its baseline checks are not full assembled-stack acceptance. Claude owns
+remaining integration/conflict resolution and the combined acceptance gate.
+
+Grok reconciliation (2026-10-20): #352 is rebased onto #351 `971f999` on
+`agent/grok-352`. Wake replay and delivery-gated one-shot completion stay
+the single hub implementation from that head; #355 `0e747fc` is the same
+hub patch and is not a second copy. Pending gate waits use the attempt
+CAS. `max_attempts: 1` completes or times out in flight. Combined gate
+recorded on the bus. Not merged.
+
 Codex Cursor re-review (2026-10-20): #351 PASS with fixes `971f999`; #355
 PASS with equivalent fixes `0e747fc`. Wake replay errors/serialization and
 delivery-gated one-shot completion corrected; Hub lib 677/677 per branch,
@@ -129,9 +142,9 @@ tick logic it drives (S3) is itself correct and tested.
 
 | # | Slice | Summary | Status |
 | --- | --- | --- | --- |
-| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🚧 Code on main; Cursor corrections #351 |
-| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. | 🚧 Code on main; OpenCode gate corrections #352 |
-| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. | 🚧 Code on main; Cursor corrections #351 |
+| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🔍 Ready for review · Cursor · `agent/cursor-351` |
+| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. P5 approval is a distinct `pending` outcome: the proposal is linked in the audit row, reused across ticks, and its approved `os_tool.ran` result is consumed. Missing workspaces and unavailable token measurements fail closed. | 🔍 Rebased onto corrected core · `agent/grok-352` |
+| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. **Attempt boundary:** `max_attempts` caps new dispatches; the final in-flight attempt may complete, miss its gate, or time out; `deadline` is a hard cutoff even mid-attempt. Pending gate waits use the same attempt CAS as other live transitions. | 🔍 Rebased onto corrected core · `agent/grok-352` |
 | S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 Kimi #354 · queued after #347 + core acceptance |
 | S5a | Linux OS-level trigger | systemd user timer (`~/.config/systemd/user/ca-schedule.timer` + `.service` invoking `ca schedule tick`), installed/managed from Settings. Built and tested on this dev machine. | 📋 OpenCode #356 · queued after CLI + in-app validation |
 | S5b | macOS/Windows OS-level trigger | launchd plist / Windows Task Scheduler (`schtasks`) equivalents. **Owner VM verify owed**, same pattern as prior Windows-only work (#288) — no macOS/Windows box available here. | 💤 Deferred #357 · unassigned / owner VM verify |
@@ -167,6 +180,8 @@ conditionally, not merged: scheduler enablement/integration remains blocked
 on the shared engine. Exact findings and verification are recorded in the
 agent bus and issue comments. Older queued/RFR rows below are historical
 where they conflict with this dated checkpoint.
+
+Schedule review 2026-10-20: Codex corrected partial-team token-baseline false passes; gate tests and Hub lib suite pass. Those gate commits are rebased onto `971f999` on `agent/grok-352`.
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
