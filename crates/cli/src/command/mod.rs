@@ -8,6 +8,7 @@ mod memory;
 mod msg;
 mod preflight;
 mod review;
+mod schedule;
 mod shutdown;
 mod sync;
 mod telegram;
@@ -329,6 +330,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Telegram { action } => telegram::run(&store, action)?,
         Command::Sync { action } => sync::run(&store, action)?,
         Command::Tool { action } => tool::run(&store, &home, action)?,
+        Command::Schedule { action } => schedule::run(&store, action)?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

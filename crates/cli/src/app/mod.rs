@@ -11,6 +11,7 @@ mod commands;
 mod harness;
 mod journal;
 mod review;
+mod schedule;
 mod sync;
 mod telegram;
 mod tool;
@@ -22,6 +23,7 @@ pub(crate) use commands::{
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
 pub(crate) use review::ReviewCommand;
+pub(crate) use schedule::{ScheduleCommand, ScheduleCreateArgs};
 pub(crate) use sync::SyncCommand;
 pub(crate) use telegram::TelegramCommand;
 pub(crate) use tool::ToolCommand;
@@ -153,6 +155,13 @@ pub(crate) enum Command {
     Tool {
         #[command(subcommand)]
         action: ToolCommand,
+    },
+    /// Scheduled Goals: list/create/get/cancel plus the headless tick OS
+    /// triggers invoke (S4 / #354). Thin wrapper over the shared Hub API —
+    /// dispatch, gates, budget, and wake policy all live in `hub`.
+    Schedule {
+        #[command(subcommand)]
+        action: ScheduleCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {
