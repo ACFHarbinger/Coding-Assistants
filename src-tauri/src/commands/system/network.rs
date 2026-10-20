@@ -34,17 +34,18 @@ pub fn sample_network_connections(now: i64) {
     {
         let home = hub::default_hub_home();
         if let Some(targets) = registered_targets() {
-            let baseline: std::collections::BTreeMap<String, (u32, u64)> =
-                hub::net_samples::read_samples(&home)
-                    .scans
-                    .into_iter()
-                    .map(|scan| (scan.session_key(), (scan.pid, scan.pid_start_time)))
-                    .collect();
+            // The PID-reuse baseline: trusted identities first, then scan
+            // records still inside the coverage window.
+            let baseline = hub::net_samples::trusted_identity_baseline(
+                &hub::net_samples::read_samples(&home),
+                now,
+            );
             let (samples, scans) =
                 scan_targets(std::path::Path::new("/proc"), &targets, &baseline, now);
-            if !samples.is_empty() || !scans.is_empty() {
-                let _ = hub::net_samples::append_samples(&home, samples, scans, now);
-            }
+            // Always merge and prune, even when this poll produced nothing:
+            // retention must run on idle scans too, and identities refresh
+            // from the (possibly zero-socket) scan records.
+            let _ = hub::net_samples::append_samples(&home, samples, scans, now);
         }
     }
     #[cfg(not(target_os = "linux"))]

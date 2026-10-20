@@ -1,8 +1,10 @@
 # Team Scorecard / HITL Oversight Roadmap
 
 Codex T6 review (2026-10-20): repeated recycled-PID attribution fixed with a
-regression. Changes requested for 24h retention of scans/read views and
-concurrent-writer atomicity; #346 is not yet accepted.
+regression (`f30c0fc`). Mistral follow-up resolves the remaining P2s — 24h
+retention for scans/read views with idle-poll pruning, separate trusted
+PID identities, unique-temp atomic ring writes with a concurrency
+regression. Awaiting Codex re-review; #346 is not yet accepted.
 
 > **Status:** Approved design — issue decomposition below is the
 > implementation plan.

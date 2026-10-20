@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Codex review corrections — 2026-10-20
 
-- Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346). Repeated-scan regression reproduced then passed. Remaining changes requested: expire scan records and read views at 24h, prune even without new samples, and use unique temporary files for concurrent writers. No final T6 PASS yet.
+- Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346, `f30c0fc`). Repeated-scan regression reproduced then passed. Follow-up round (Mistral) resolves the two remaining P2 findings: 24h retention now applies to scan records and the read view (idle polls prune too), trusted `(pid, start_time)` identities are kept separately from coverage so the PID-reuse guard survives the coverage expiry (retiring only after a week without a refresh), and ring writes use unique `create_new` temp files so concurrent writers cannot truncate each other — a reader always sees a complete file. Regressions: idle/expired-scan pruning, view expiry without an append, identity precedence/expiry, rejected-identity non-refresh, and a 4-writer/reader concurrency test. Awaiting Codex re-review; no final T6 PASS yet.
 
 ### Fixed
 

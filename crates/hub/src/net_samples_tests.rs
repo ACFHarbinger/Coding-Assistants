@@ -210,3 +210,174 @@ fn non_linux_views_report_unavailable() {
     assert!(view.unavailable.is_some());
     assert!(view.sessions.is_empty());
 }
+
+#[test]
+fn an_idle_append_prunes_expired_scans_and_samples() {
+    let home = home();
+    let at = 100;
+    append_samples(
+        &home,
+        vec![sample("claude", "s1", at)],
+        vec![scan("claude", "s1", at, false)],
+        at,
+    )
+    .unwrap();
+    // A poll that produces no rows must still run retention.
+    let day_later = at + RETENTION_SECS + 1;
+    append_samples(&home, vec![], vec![], day_later).unwrap();
+    let file = read_samples(&home);
+    assert!(file.samples.is_empty(), "expired samples must be pruned");
+    assert!(file.scans.is_empty(), "expired scan records must be pruned");
+    // Trusted identity outlives the coverage window.
+    assert_eq!(file.identities.len(), 1);
+    assert_eq!(
+        trusted_identity_baseline(&file, day_later).get("claude\u{1}/tmp/ws\u{1}s1"),
+        Some(&(42, 100))
+    );
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
+fn trusted_identities_expire_after_a_week_without_a_refresh() {
+    let home = home();
+    let at = 100;
+    append_samples(&home, vec![], vec![scan("claude", "s1", at, false)], at).unwrap();
+    let just_under = at + IDENTITY_RETENTION_SECS;
+    append_samples(&home, vec![], vec![], just_under).unwrap();
+    assert_eq!(read_samples(&home).identities.len(), 1);
+    let week_later = at + IDENTITY_RETENTION_SECS + 1;
+    append_samples(&home, vec![], vec![], week_later).unwrap();
+    assert!(
+        read_samples(&home).identities.is_empty(),
+        "an unrefreshed identity must retire rather than trust a possibly recycled pid forever"
+    );
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
+fn the_read_view_expires_stale_rows_without_an_append() {
+    let home = home();
+    let at = 100;
+    append_samples(
+        &home,
+        vec![sample("claude", "s1", at)],
+        vec![scan("claude", "s1", at, false)],
+        at,
+    )
+    .unwrap();
+    // A CLI probe reading days later must not see expired rows as current.
+    let view = network_samples_view(&home, at + RETENTION_SECS + 1);
+    assert!(view.sessions.is_empty());
+    // Inside the window the same rows are visible.
+    let fresh = network_samples_view(&home, at + RETENTION_SECS - 1);
+    assert_eq!(fresh.sessions.len(), 1);
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
+fn pid_reused_scans_refresh_the_trusted_identity_not_the_rejected_one() {
+    let home = home();
+    // Baseline: pid 42 started at 100.
+    append_samples(&home, vec![], vec![scan("claude", "s1", 100, false)], 100).unwrap();
+    // The pid was recycled: the scan records the trusted start time, not the
+    // rejected one (see f30c0fc).
+    let mut reused = scan("claude", "s1", 200, true);
+    reused.status = NetworkScanStatus::PidReused;
+    reused.pid_start_time = 100; // trusted identity, preserved by the sampler
+    append_samples(&home, vec![], vec![reused], 200).unwrap();
+    let file = read_samples(&home);
+    assert_eq!(file.identities.len(), 1);
+    assert_eq!(
+        trusted_identity_baseline(&file, 200).get("claude\u{1}/tmp/ws\u{1}s1"),
+        Some(&(42, 100)),
+        "a rejected recycled start time must never become the trusted baseline"
+    );
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
+fn the_baseline_prefers_identities_over_scan_records() {
+    let home = home();
+    let at = 100;
+    append_samples(&home, vec![], vec![scan("claude", "s1", at, false)], at).unwrap();
+    let mut file = read_samples(&home);
+    // A newer scan with a different identity loses to the trusted identity.
+    let mut diverged = scan("grok", "s2", at, false);
+    diverged.pid = 99;
+    diverged.pid_start_time = 999;
+    file.scans.push(diverged);
+    let baseline = trusted_identity_baseline(&file, at);
+    assert_eq!(
+        baseline.get("claude\u{1}/tmp/ws\u{1}s1"),
+        Some(&(42, 100)),
+        "the identity entry wins over any scan record"
+    );
+    assert_eq!(
+        baseline.get("grok\u{1}/tmp/ws\u{1}s2"),
+        Some(&(99, 999)),
+        "a fresh scan fills a session with no identity entry"
+    );
+    // Stale scans (outside the coverage window) are never trusted.
+    let mut stale = scan("kimi", "s3", at, false);
+    stale.scanned_at = at - RETENTION_SECS - 1;
+    file.scans.push(stale);
+    assert!(!trusted_identity_baseline(&file, at).contains_key("kimi\u{1}/tmp/ws\u{1}s3"));
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
+fn concurrent_writers_never_expose_a_partial_file() {
+    let home = home();
+    let at = 100;
+    let path = samples_path(&home);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+
+    // A reader keeps parsing the raw file; with unique per-writer temps and
+    // an atomic rename it must always see a complete JSON document.
+    let reader = std::thread::spawn({
+        let path = path.clone();
+        move || {
+            for _ in 0..400 {
+                if let Ok(text) = std::fs::read_to_string(&path) {
+                    serde_json::from_str::<NetworkSamplesFile>(&text)
+                        .expect("reader saw a partial or corrupt ring file");
+                }
+            }
+        }
+    });
+    let writers: Vec<_> = (0..4)
+        .map(|_| {
+            let home = home.clone();
+            std::thread::spawn(move || {
+                for round in 0..25 {
+                    append_samples(
+                        &home,
+                        vec![sample("claude", "s1", at + round)],
+                        vec![scan("claude", "s1", at + round, false)],
+                        at + round,
+                    )
+                    .expect("concurrent append must succeed");
+                }
+            })
+        })
+        .collect();
+    for writer in writers {
+        writer.join().unwrap();
+    }
+    reader.join().unwrap();
+
+    // Every read stays valid and no writer temp files are left behind.
+    let file = read_samples(&home);
+    assert!(!file.samples.is_empty());
+    assert_eq!(file.identities.len(), 1);
+    let leftovers: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "writer temps must be renamed or removed"
+    );
+    std::fs::remove_dir_all(&home).ok();
+}
