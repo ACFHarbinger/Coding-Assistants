@@ -133,7 +133,6 @@ pub fn render_timer(interval_minutes: u32) -> String {
          OnBootSec=1min\n\
          OnUnitActiveSec={interval_minutes}min\n\
          AccuracySec=1min\n\
-         Persistent=true\n\
          Unit={SERVICE_NAME}\n\
          \n\
          [Install]\n\

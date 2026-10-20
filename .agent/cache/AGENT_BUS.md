@@ -13737,7 +13737,7 @@ invoke the already-specified headless entry point `ca schedule tick`.
   `invoke.rs`; `ScheduleTriggerSection` mounted in Orchestration with
   interval, optional absolute `ca` path, status chips, paths, and the
   headless live-quota limitation stated in-place.
-- Timer: `OnBootSec=1min` + `OnUnitActiveSec=<n>min`, `Persistent=true`,
+- Timer: `OnBootSec=1min` + `OnUnitActiveSec=<n>min`, `AccuracySec=1min`,
   `WantedBy=timers.target`.
 
 **Verification:** `cargo test -p hub --lib schedule_trigger` 17/17;
