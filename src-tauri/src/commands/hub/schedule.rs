@@ -81,13 +81,19 @@ pub fn hub_schedule_cancel(id: String) -> Result<ScheduledTask, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Manual "run now" entry point — also what the S6 in-app poller calls on
-/// its timer once it lands. `now` defaults to the real current time; a
-/// caller-supplied value exists only for owner-triggered diagnostics, not
-/// for tests (those call `HubStore::tick_scheduled_tasks` directly).
+/// Manual "run now" and the S6 in-app poller's shared entry. Goes through
+/// the live-quota bridge (pause on exhausted session/weekly %) then the
+/// hub tick. Headless `ca schedule tick` does not use this path.
 #[tauri::command]
-pub fn hub_schedule_tick() -> Result<TickSummary, String> {
-    open_store()?
-        .tick_scheduled_tasks(&chrono::Utc::now().to_rfc3339())
-        .map_err(|e| e.to_string())
+pub async fn hub_schedule_tick() -> Result<TickSummary, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let store = open_store()?;
+        super::schedule_poller::tick_in_app(
+            &store,
+            &chrono::Utc::now().to_rfc3339(),
+            super::quotas::probe_agent_quota,
+        )
+    })
+    .await
+    .map_err(|e| format!("schedule tick worker panic: {e}"))?
 }

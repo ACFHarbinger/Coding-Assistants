@@ -249,7 +249,7 @@ impl HubStore {
         Ok(baseline)
     }
 
-    pub(crate) fn schedule_target_agent_ids(
+    pub fn schedule_target_agent_ids(
         &self,
         target: &ScheduleTarget,
     ) -> Result<Vec<String>, HubError> {
@@ -342,7 +342,7 @@ impl HubStore {
         self.ensure_mutable()?;
         let n = self.conn.execute(
             "UPDATE scheduled_tasks SET status = ?1, next_fire_at = ?2, updated_at = ?3
-             WHERE id = ?4 AND status IN ('scheduled', 'active')",
+             WHERE id = ?4 AND status IN ('scheduled', 'active', 'paused')",
             params![status.as_str(), next_fire_at, now_utc_rfc3339(), id],
         )?;
         Ok(n > 0)

@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S6 in-app poller + live-quota bridge (#355):** A
+  `src-tauri` timer (15s, slower than the 1.5s capture poll and
+  independent of Settings quota-strip refresh) pauses due
+  `stop_on_quota_exhausted` tasks when a measurable session/weekly
+  percent window is at 0% remaining, then calls the shared
+  `tick_scheduled_tasks` engine. Unavailable / empty-window / balance-only
+  probes do not invent a stop. Headless `ca schedule tick` is unchanged
+  (credit-allowance only; S5c / #358). Manual `hub_schedule_tick` uses
+  the same bridge. Overlapping ticks are skipped; poller cancel stops the
+  loop. Wake policy and P5 approval are not bypassed.
+
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,

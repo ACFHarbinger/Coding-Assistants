@@ -15,6 +15,7 @@ mod roster_audit;
 mod roster_memory;
 mod schedule;
 mod schedule_gate;
+mod schedule_pause;
 mod schedule_tick;
 mod schedule_tick_races;
 mod scorecard;

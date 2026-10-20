@@ -33,6 +33,23 @@ impl HubStore {
         Ok(TickSummary { outcomes })
     }
 
+    /// Pause a live schedule because live provider quota is exhausted.
+    /// Same `schedule.paused_budget` audit as credit-allowance exhaustion.
+    /// No-op if the row is already terminal/paused or lost a race to cancel.
+    pub fn pause_scheduled_task(&self, id: &str, reason: &str) -> Result<TickOutcome, HubError> {
+        let Some(task) = self.get_scheduled_task(id)? else {
+            return Err(HubError::NotFound(id.into()));
+        };
+        if task.status.is_terminal() || task.status == ScheduleStatus::Paused {
+            return Ok(TickOutcome {
+                id: task.id,
+                action: "noop".into(),
+                detail: format!("status is {}", task.status.as_str()),
+            });
+        }
+        self.finish(&task, ScheduleStatus::Paused, reason)
+    }
+
     fn tick_one(&self, task: &ScheduledTask, now: &str) -> Result<TickOutcome, HubError> {
         if let Some(deadline) = task.deadline.as_deref() {
             if instant_le(deadline, now)? {
