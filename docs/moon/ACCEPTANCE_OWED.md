@@ -193,9 +193,13 @@
 - **Issue to Close:** [#321](https://github.com/ACFHarbinger/Coding-Assistants/issues/321)
 - **Prerequisites:** Python 3. Optional: Ableton Live 11/12 installed.
 - **Verification Steps:**
-  1. Run the offline dummy-LOM smoke test:
+  1. Run the offline smoke test (drives every op against stand-in objects that
+     expose **only** documented Live Object Model attributes; this is what
+     caught the `Song.name` bug — Live's `Song` has no `name`, so the first
+     port's `get_song_summary` would have failed on every real set):
      ```bash
      python3 plugins/ableton/smoke.py
+     cargo test -p mcp-ableton   # tool list == Remote Script _OPS table
      ```
   2. Start the MCP server in standalone mode:
      ```bash
@@ -206,7 +210,12 @@
      `~/Music/Ableton/User Library/Remote Scripts/CodingAssistants/`
      Select **CodingAssistants** under Preferences -> Link/Tempo/MIDI -> Control Surface.
 - **Expected Result:**
-  - `smoke.py` prints `SMOKE OK` verifying line-JSON protocol over TCP.
+  - `smoke.py` prints `SMOKE OK` (ops against the LOM-shaped stand-ins, and the
+    `song` accessor works on both `_Framework` and `ableton.v2` bases).
+  - In Live: `printf '{"op":"get_song_summary","args":{}}\n' | nc 127.0.0.1 9770`
+    returns `{"ok": true, "result": {"name": "<set file stem>", ...}}`. **This
+    step is the one nothing offline can replace** — the bridge has still never
+    been run against a real Live instance (2026-10-20 audit, Claude).
   - `coding-assistants-mcp ableton` starts cleanly and speaks standard stdio MCP.
   - When `--allow-run-lom` is omitted, arbitrary code execution tool `run_lom` is disabled.
 

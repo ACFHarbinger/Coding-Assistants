@@ -13,6 +13,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Conditional branching on `WorkflowStep` (P20, #367, `platform.md`):**
+  `WorkflowStep.branch: Option<StepBranch>` — `{criteria: [GateCriterion],
+  combinator, on_pass, on_fail}` with targets `next | stage{index} | done |
+  fail`. When a stage completes, `advance_task` evaluates the branch with
+  Schedule's own gate evaluator, now generalised over a `GateSubject`
+  (`evaluate_gate_criteria` is the schedule wrapper around the shared
+  `evaluate_gate_subject`): same P5 `os_tool` sandbox and proposal reuse,
+  same fail-closed rules, audit rows `task.branch_checked` and
+  `task.branch_routed`. A back-edge spends the target stage's `max_retries`
+  budget (the `retry_task` rule) so loops stay bounded; a pending P5 approval
+  is an `advance_task` error ("approve, then advance again"), never a silent
+  route. At most one branch per stage; targets validated at creation; the
+  task needs a `workspace_path`. JSON is additive (`branch` omitted when
+  unset) and the CLI `--steps` payload accepts it. Hub tests
+  `workflow_branch` 7/7.
+- **Guardrails primitive (P16, #360, `platform.md`):** `hub::guardrails` —
+  `Guardrail` trait (`check(content) -> GuardrailResult {passed,
+  tripwire_triggered, detail}`), built-in predicate implementors
+  (`deny_phrases`, `require_phrases`, `max_chars`, `no_secrets` — the last
+  reports only the credential *shape*, never the token), `blocking`
+  (sequential, first tripwire halts) and `parallel` (concurrent with each
+  other after blocking passes; every trip reported) modes. Rules persist as
+  hub-wide or per-workspace `guardrail_rules` rows (`ca guardrail
+  add|list|enable|remove|check`). Wired as **input** guardrails before
+  `dispatch_step` sends anything (no message, no wake, no stage activation
+  on a trip) and before `dispatch_prompt` claims a schedule attempt (the
+  schedule fails with zero attempts burned); as **output** guardrails on a
+  stage's replies plus hand-back note in `advance_task` /
+  `complete_parallel_member`, and on each schedule reply before any
+  `GateCriterion` runs (a trip is an unmet attempt: re-prompt, or fail on
+  the final one). Not a new approval-gate class: sits before P5 and
+  Schedule gates. Honest limit: harness-CLI replies are already `messages`
+  rows, so an output guardrail halts *acceptance*, it cannot un-write the
+  row. One `guardrail.tripped` audit row per trip (security-class; never
+  the screened content). Hub tests `guardrails` 15/15.
+
+### Fixed
+
+- **Ableton MCP bridge would have failed on every real Live set (#321):**
+  `plugins/ableton/__init__.py` read `Song.name`, which the Live Object
+  Model does not define — `get_song_summary` raised `AttributeError` inside
+  Live while the offline smoke passed because its fake `Song` had a `name`.
+  The set name is now derived from `Song.file_path` ("Untitled" when
+  unsaved). Also: the `song` accessor works whether the base
+  `ControlSurface` exposes `song` as a method (`_Framework`) or a property
+  (`ableton.v2`, the Live 12 fallback import), `create_midi_track` resolves
+  the new track by index when Live returns `None`, and socket-thread
+  diagnostics are relayed to `log_message` on the Live thread. `smoke.py`'s
+  stand-ins are now pinned to a documented-LOM attribute allowlist so a
+  non-LOM attribute cannot pass offline again, and `cargo test -p
+  mcp-ableton` checks the MCP tool list against the script's `_OPS` table.
+  Still never run against a live Ableton instance — owner acceptance stays
+  owed (`ACCEPTANCE_OWED.md` §2.5).
+- **Usage tab: Mistral spend was the last per-currency text line (#303):**
+  `mistral.rs` now fills the spend-kind contract (`total` = monthly cap,
+  `spent` = period spend; `total: 0` when no cap is readable) so the Usage
+  tab draws the same stacked spent / remaining-budget / free bar Cursor
+  gets. `BalanceBreakdownBar` labels spend-kind rows "Period spend", shows
+  "Budget X of Y", and renders a spend-only bar with an explicit "No spend
+  cap" legend instead of inventing a budget equal to the spend; ARIA label
+  carries the figures. Providers that hand us only a free-form string (no
+  structured figures) keep the text fallback — a chart there would be
+  fabricated. Vitest 252/252, `tsc` clean.
 - **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
   `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
   (measured `provider.usage` spend vs `quota.snapshot` balance movement with

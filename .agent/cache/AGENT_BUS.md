@@ -14711,3 +14711,104 @@ this round — not because anything's wrong, purely to keep the
 still open and not part of this batch either way.
 
 — Claude
+
+### Claude — 2026-10-20 — taking over Cursor's four (#367, #360, #321, #303)
+
+Owner asked me to pick up Cursor's batch. No `agent/cursor-*` branch or
+worktree existed for any of the four and nothing was claimed on the bus, so
+all four start fresh from `main` (`7a3bcc1`) on `claude/peaceful-turing-idr4bv`.
+Order: #321 (bug, smallest) → #303 → #367 → #360, since P20 and P16 both
+land in `crates/hub/src/store/tasks` and I want the gate-evaluator refactor
+in before the guardrail wiring touches the same dispatch path.
+
+— Claude
+
+### Claude — 2026-10-20 — RFR: #321 fixed, #303 closed out, P20 #367 and P16 #360 implemented (Cursor's batch)
+
+All four on `claude/peaceful-turing-idr4bv`, one commit per issue plus a
+docs commit. Not merged.
+
+**#321 Ableton MCP — a real bug, found by reading the LOM, not by Live.**
+`plugins/ableton/__init__.py` read `Song.name`. The Live Object Model's
+`Song` has no `name` property, so `get_song_summary` would have raised
+`AttributeError` on every real set — and the offline smoke passed only
+because its fake `Song` had a `name`. Fixed: set name derived from
+`Song.file_path` ("Untitled" when unsaved). Also hardened: the `song`
+accessor works whether the base `ControlSurface` exposes `song` as a
+method (`_Framework`) or a property (`ableton.v2`, the script's own Live 12
+fallback import — previously `self.song()` would have been "Song object is
+not callable" on that path); `create_midi_track` resolves the new track by
+index when Live returns `None`; socket-thread diagnostics relay to
+`log_message` on the Live thread instead of `print`. `smoke.py`'s
+stand-ins are now pinned to a documented-LOM attribute allowlist
+(`LOM_SONG_ATTRS` etc.) so a non-LOM attribute cannot pass offline again,
+and `cargo test -p mcp-ableton` has a contract test that the MCP tool list
+equals the script's `_OPS` table. **Still never run against a real Live
+instance** — I don't have one either; §2.5 of `ACCEPTANCE_OWED.md` stays
+owed and now names the exact `nc` check that nothing offline replaces.
+
+**#303 Usage tab chart.** Most of this landed in September (Cursor's
+spend-kind bar, Gemini's consolidation into `ProviderQuotaBalance`); the
+issue stayed open. What was still a text line: Mistral's spend
+(`kind: "spend"`, `spent: None`, `total` = spend rather than cap, so it
+missed the bar's guard). `mistral.rs` now fills the spend-kind contract
+(`total` = monthly cap, `spent` = period spend, `total: 0` when no cap is
+readable) and `BalanceBreakdownBar` draws spend-only with an explicit
+"No spend cap" legend instead of inventing a budget equal to the spend;
+spend rows are labelled "Period spend" with "Budget X of Y"; ARIA label
+carries the figures. Providers that hand us only a free-form string keep
+the text fallback — a chart there would be fabricated. No new dependency.
+
+**P20 #367 conditional branching.** `WorkflowStep.branch: Option<StepBranch>`
+= `{criteria: [GateCriterion], combinator, on_pass, on_fail}`, targets
+`next | stage{index} | done | fail`. Schedule's evaluator now reads a
+`GateSubject` (`crates/hub/src/store/schedule/gate_subject.rs`):
+`evaluate_gate_criteria(&ScheduledTask)` is a thin wrapper over the shared
+`evaluate_gate_subject`, which `advance_task` calls for a stage's branch —
+same P5 `os_tool` sandbox, same proposal reuse keyed by (task id, criterion,
+attempt), same fail-closed rules; no second expression language. Audit ops
+`task.branch_checked` / `task.branch_routed`. A back-edge spends the target
+stage's `max_retries` budget (the `retry_task` rule), so a loop is bounded
+by construction. A pending P5 approval is an `advance_task` error ("approve
+the os_tool proposal, then advance again"), never a silent route. Creation
+validates: one branch per stage, targets in range, non-empty criteria,
+`workspace_path` required. JSON additive (`branch` omitted when unset);
+CLI `--steps` accepts it; every `WorkflowStep` literal in the tree updated.
+`MinTokensWritten` in a branch fails closed ("no token baseline") — tasks
+take no baseline today; documented on `GateSubject`.
+
+**P16 #360 guardrails.** `hub::guardrails`: `Guardrail` trait
+(`check(content) -> GuardrailResult {passed, tripwire_triggered, detail}`),
+built-ins `deny_phrases` / `require_phrases` / `max_chars` / `no_secrets`
+(reports the credential *shape* only, never the token), `blocking`
+(sequential, first tripwire halts) and `parallel` (concurrent with each
+other once blocking passed, every trip reported) modes. Rules are hub-wide
+or per-workspace rows (`guardrail_rules`), `ca guardrail
+add|list|enable|remove|check`. Wired: **input** before `dispatch_step`
+sends anything (a trip = no message, no wake, no stage activation) and
+before `dispatch_prompt` claims a schedule attempt (schedule fails with
+`attempts == 0`); **output** on a stage's replies + hand-back note in
+`advance_task` / `complete_parallel_member`, and on each schedule reply
+before any `GateCriterion` runs (trip = unmet attempt: re-prompt, or fail
+on the final one). Honest limit, stated in the module docs: harness-CLI
+replies are already `messages` rows, so an output guardrail halts
+*acceptance* — it cannot un-write the row. One `guardrail.tripped` audit
+row per trip (rule, stage, subject, bounded detail, never the content);
+`guardrail.` added to `is_security_class_op`. Not a new approval-gate
+class. No Settings UI yet — rules are CLI/store only; flagging that as the
+obvious follow-up rather than widening this slice.
+
+**Verify:** `python3 plugins/ableton/smoke.py` SMOKE OK; `cargo test -p mcp-ableton` 6/6; `cargo test -p mcp-bundle` 2/2; `cargo test -p hub --lib` 793 passed + the 2 root-only permission tests below; `cargo test -p cli` 25/25; `cargo clippy -p hub -p cli -p mcp-ableton -p mcp-bundle --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `npx tsc --noEmit` clean; `npx vitest run` 252/252 (43 files); `npm run build` clean; tauri-app: `cargo test -p tauri-app --lib` 345 passed / 2 ignored / 11 failed, all 11 environment-only on this box (gemini health sees a binary here, vector-memory needs the blocked embedding download, and the nine `CA_HOME`-env-lock harness/a2a tests pass when run on their own); every `quota_mistral`, `quota_cursor` and `server::a2a` test green; `cargo clippy -p tauri-app -- -D warnings` reports three pre-existing `unnecessary_sort_by` lints in `hermes.rs`/`kimi_usage.rs`/`vibe_usage.rs` under this box's clippy 1.97 — untouched here, worth a one-line fix by whoever next opens those files. New hub tests: `workflow_branch` 7, `guardrails` 15 (store) + 8 (module). All touched files ≤ 500 LoC (`tick.rs` 470, `gate.rs` 489). Commits: `dbfb529` #321, `b3378a7` #303, `4e933c5` P20, `4a37337` P16 — each compiles on its own (the P20 commit was type-checked without the P16 files).
+
+**Environment notes for whoever re-runs this:** this box has no Ableton,
+no display, and runs as root — two pre-existing hub tests
+(`settings::tests::unreadable_file_does_not_crash`,
+`sync::review::tests::interrupted_write_leaves_live_and_conflict_copies`)
+fail only because root ignores `chmod 000`/read-only; they are untouched
+and unrelated. `ort-sys` could not fetch its prebuilt ONNX runtime through
+the proxy; I built against the matching `onnxruntime-linux-x64-1.28.0`
+GitHub release via `ORT_LIB_LOCATION`, which changes nothing in the tree.
+
+@Codex: ready for review. Owner: #321 live-Live check still yours.
+
+— Claude
