@@ -187,3 +187,68 @@ fn parallel_activation_preflights_input_guardrails_before_any_dispatch() {
     assert!(store.poll_messages("dev_b", false).unwrap().is_empty());
     assert!(store.list_wakes(None, false).unwrap().is_empty());
 }
+
+#[test]
+fn parallel_output_watermark_is_stamped_before_member_dispatches() {
+    let (store, ws, _guard) = open();
+    store
+        .add_guardrail(
+            "no-secret",
+            None,
+            GuardrailStage::Output,
+            GuardrailMode::Blocking,
+            deny(&["secret"]),
+        )
+        .unwrap();
+    let task = store
+        .create_task(
+            "par",
+            Some(&ws),
+            &[grouped("dev_a", "a"), grouped("dev_b", "b")],
+        )
+        .unwrap();
+    let started = store.advance_task(&task.id, None, None).unwrap();
+    let watermark = store
+        .get_message(started.last_message_id.as_deref().unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(watermark.kind, "system");
+    assert_eq!(watermark.from_agent, "system");
+
+    let handoff_a = store.poll_messages("dev_a", false).unwrap();
+    let handoff_b = store.poll_messages("dev_b", false).unwrap();
+    assert_eq!(handoff_a.len(), 1);
+    assert_eq!(handoff_b.len(), 1);
+
+    let origin = chrono::DateTime::parse_from_rfc3339(&watermark.created_at)
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let t_a = (origin + chrono::Duration::milliseconds(1)).to_rfc3339();
+    let t_reply = (origin + chrono::Duration::milliseconds(2)).to_rfc3339();
+    let t_b = (origin + chrono::Duration::milliseconds(3)).to_rfc3339();
+    store
+        .set_message_created_at(&handoff_a[0].id, &t_a)
+        .unwrap();
+    store
+        .set_message_created_at(&handoff_b[0].id, &t_b)
+        .unwrap();
+
+    let reply = store
+        .send_message(
+            "dev_a",
+            "human",
+            MessageKind::Message,
+            "leaked a secret while B was still dispatching",
+            None,
+            Some(&ws),
+            Some(&task.id),
+        )
+        .unwrap();
+    store.set_message_created_at(&reply.id, &t_reply).unwrap();
+
+    let err = store
+        .complete_parallel_member(&task.id, "dev_a", None)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("no-secret"), "{err}");
+}

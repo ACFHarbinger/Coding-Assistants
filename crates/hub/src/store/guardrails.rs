@@ -299,7 +299,8 @@ impl HubStore {
     }
 
     /// Output guardrails for a workflow stage: the finishing agents'
-    /// replies since the stage was dispatched, plus the hand-back note.
+    /// replies after the stage watermark (`last_message_id`, stamped
+    /// before parallel members can respond), plus the hand-back note.
     pub(crate) fn enforce_stage_output_guardrails(
         &self,
         task: &TaskRecord,

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20 (P16/P20 follow-up)
+
+- **#360 parallel output watermark is stamped before any member can reply.** A system-kind stage stamp is written first; later (including remote) dispatches no longer move `last_message_id`, so a reply that arrives while another member is still dispatching is still screened.
+- **#360 failed `wake_now` members stay pending.** Parallel activation records every not-yet-dispatched member as pending until that member's own dispatch succeeds, so a later failure in the initial window cannot drop that member (or anyone after it) off the stage.
+
 ### Codex review corrections — 2026-10-20 (P16/P20)
 
 - **#367 branch-approval correlation includes stage identity.** P5 proposal reuse for a `WorkflowStep` branch is keyed by task + criterion + attempt + stage, so an approved stage-0 command cannot satisfy stage 1 on the same attempt.

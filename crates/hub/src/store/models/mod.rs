@@ -85,7 +85,8 @@ pub struct TaskRecord {
     pub steps: Vec<WorkflowStep>,
     pub created_at: String,
     pub updated_at: String,
-    /// Last handoff message id produced by advance/retry, if any.
+    /// Output-screening watermark: the sequential handoff, or a
+    /// pre-dispatch system stamp for a parallel stage.
     pub last_message_id: Option<String>,
     /// Per-stage attempt counts (`"0" → 1` after first dispatch).
     pub attempts: std::collections::HashMap<String, u32>,

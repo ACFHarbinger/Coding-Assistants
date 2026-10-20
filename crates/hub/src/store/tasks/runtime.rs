@@ -14,7 +14,7 @@ impl HubStore {
         let mut attempts = task.attempts.clone();
         *attempts.entry(stage_index.to_string()).or_insert(0) += 1;
 
-        let mut last_msg: Option<String> = None;
+        let last_msg: Option<String>;
         let mut open: Vec<String> = Vec::new();
         let mut pending: Vec<String> = Vec::new();
 
@@ -26,16 +26,21 @@ impl HubStore {
             // Screen every member before sending any, so a later input
             // trip cannot orphan an earlier message+wake.
             self.preflight_stage_inputs(id, task, idxs, note)?;
-            let mut agents_to_run: Vec<usize> = idxs.clone();
+            // Stamp the output watermark before any member can reply, so a
+            // later (e.g. remote) dispatch cannot hide an earlier reply.
+            last_msg = Some(self.stamp_stage_watermark(
+                id,
+                task.workspace_path.as_deref(),
+                &stage_label,
+            )?);
+            // Every member starts pending; leave it there until its own
+            // dispatch succeeds, including those inside the first window.
+            pending = idxs.iter().map(|i| task.steps[*i].agent.clone()).collect();
             let cap = task.max_parallel as usize;
-            let take = cap.min(agents_to_run.len());
-            let wake_now: Vec<usize> = agents_to_run.drain(..take).collect();
-            for si in agents_to_run {
-                pending.push(task.steps[si].agent.clone());
-            }
+            let wake_now: Vec<usize> = idxs.iter().copied().take(cap.min(idxs.len())).collect();
             for si in &wake_now {
                 let step = &task.steps[*si];
-                let msg_id = self.dispatch_step(
+                self.dispatch_step(
                     id,
                     task,
                     step,
@@ -43,10 +48,8 @@ impl HubStore {
                     note,
                     &format!("{stage_label}/{}", step.agent),
                 )?;
-                last_msg = Some(msg_id);
+                pending.retain(|agent| agent != &step.agent);
                 open.push(step.agent.clone());
-                // Persist after each send so a later remote-output trip
-                // still records the members that already dispatched.
                 self.persist_task_runtime(
                     id,
                     TaskStatus::Running.as_str(),
@@ -114,7 +117,7 @@ impl HubStore {
         let attempts = task.attempts.clone();
 
         while open.len() < max_parallel as usize && !pending.is_empty() {
-            let next_agent = pending.remove(0);
+            let next_agent = pending[0].clone();
             let stages = Self::workflow_stages(&task.steps);
             let idxs = &stages[stage_index as usize];
             let step = idxs
@@ -132,6 +135,7 @@ impl HubStore {
                 note,
                 &format!("{}/{}", stage_index + 1, next_agent),
             )?;
+            pending.remove(0);
             open.push(next_agent);
         }
 
@@ -146,6 +150,24 @@ impl HubStore {
         )?;
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    fn stamp_stage_watermark(
+        &self,
+        task_id: &str,
+        workspace: Option<&str>,
+        stage_label: &str,
+    ) -> Result<String, HubError> {
+        let msg = self.send_message(
+            "system",
+            "system",
+            MessageKind::System,
+            &format!("stage {stage_label} output watermark"),
+            Some(&format!("[{stage_label}]")),
+            workspace,
+            Some(task_id),
+        )?;
+        Ok(msg.id)
     }
 
     fn preflight_stage_inputs(

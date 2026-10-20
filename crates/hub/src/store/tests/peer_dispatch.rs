@@ -166,3 +166,51 @@ fn remote_result_is_screened_as_output_before_the_handoff_is_stored() {
     assert!(after.last_message_id.is_none());
     assert!(store.poll_messages("dev", false).unwrap().is_empty());
 }
+
+#[test]
+fn failed_wake_now_member_stays_pending_with_later_window_members() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap();
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
+        agent: agent.into(),
+        role: None,
+        instruction: format!("work {agent}"),
+        max_retries: 0,
+        parallel_group: Some("g".into()),
+        peer,
+        branch: None,
+    };
+    let task = store
+        .create_task_with_parallel(
+            "par",
+            None,
+            &[
+                grouped("dev_a", None),
+                grouped("dev_b", Some("127.0.0.1:1".into())),
+                grouped("dev_c", None),
+            ],
+            2,
+            true,
+        )
+        .unwrap();
+    let error = store
+        .advance_task(&task.id, Some("lead"), None)
+        .expect_err("second wake_now member has no pairing token");
+    assert!(
+        error.to_string().contains("pairing token"),
+        "unexpected: {error}"
+    );
+    let after = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(after.status, "running");
+    assert_eq!(after.open_agents, vec!["dev_a".to_string()]);
+    assert_eq!(
+        after.pending_agents,
+        vec!["dev_b".to_string(), "dev_c".to_string()],
+        "the failed window member and everyone after it must remain pending"
+    );
+    assert!(store.poll_messages("dev_a", false).unwrap().len() == 1);
+    assert!(store.poll_messages("dev_b", false).unwrap().is_empty());
+    assert!(store.poll_messages("dev_c", false).unwrap().is_empty());
+}
