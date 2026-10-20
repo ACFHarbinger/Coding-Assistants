@@ -274,7 +274,7 @@ pub(crate) const MISTRAL: Ids = Ids {
 
 pub(crate) fn mistral_health_with(
     installed: bool,
-    facts: super::super::quota_vibe_usage::VibeWhoamiFacts,
+    facts: quota::VibeWhoamiFacts,
 ) -> ProviderHealth {
     health(
         &MISTRAL,
@@ -289,7 +289,7 @@ pub(crate) fn mistral_health_with(
 /// `whoami_cache.json`. Roster id is `mistral`; harness key remains `vibe`.
 pub(crate) fn mistral_health() -> ProviderHealth {
     let installed = resolve_binary("vibe").is_some();
-    let facts = super::super::quota_vibe_usage::vibe_whoami_facts();
+    let facts = quota::vibe_whoami_facts();
     mistral_health_with(installed, facts)
 }
 
@@ -357,7 +357,7 @@ pub(crate) const CURSOR: Ids = Ids {
 
 pub(crate) fn cursor_health_with(
     installed: bool,
-    auth: super::super::quota_cursor::CursorAuthDetails,
+    auth: quota::CursorAuthDetails,
 ) -> ProviderHealth {
     let authenticated = if auth.token_present {
         Some(!auth.is_expired)
@@ -379,7 +379,7 @@ pub(crate) fn cursor_health_with(
 /// including JWT / on-disk auth expiry.
 pub(crate) fn cursor_health() -> ProviderHealth {
     let installed = resolve_binary("agent").is_some() || resolve_binary("cursor-agent").is_some();
-    let auth = super::super::quota_cursor::cursor_auth_details();
+    let auth = quota::cursor_auth_details();
     cursor_health_with(installed, auth)
 }
 
