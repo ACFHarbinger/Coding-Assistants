@@ -1,5 +1,12 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Codex follow-up review (2026-10-20): #353 PASS with fixes `0ea5419`, #356
+PASS `397bd97`, #355 poller-specific PASS `9e399c9` conditional on engine.
+#351 remains changes requested after completion-CAS fix `42a2678`: durable
+wake replay and one-shot finalization crash regressions still fail on
+review-only `685aa3a`. No scheduler enablement/integration yet; reconcile
+#352 pending gates and #355 with the corrected core. Details in agent bus.
+
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
 > Acting owner-directed handoff: Codex coordinates/integrates; Grok reviews.
