@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex follow-up review — 2026-10-20
+
+- Scheduler review: stale attempt results cannot complete a newer attempt; use attempt-aware CAS for finish and the refreshed snapshot for first one-shot completion (#351). Remaining wake/completion crash gaps are recorded on the issue; not accepted for integration.
+
 ### Fixed
 
 - **Scheduled Goals S1/S3/S7 core corrections (#351):** Dispatch now

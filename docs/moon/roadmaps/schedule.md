@@ -1,5 +1,7 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Codex follow-up (2026-10-20): #351/#355 original recovery/pause findings addressed; attempt-aware completion corrected by Codex. Two crash-recovery gaps remain (wake replay and one-shot finalization); integration stays blocked.
+
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
 > Acting owner-directed handoff: Codex coordinates/integrates; Grok reviews.
