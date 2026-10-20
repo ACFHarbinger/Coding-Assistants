@@ -64,7 +64,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | --- | --- | --- |
 | Grok | Review corrections when RFR | Preserve Codex's 2026-10-20 findings below. No feature implementation/self-review. Scheduler integration remains blocked. |
 | Cursor | #351 and #355 | **Changes requested:** atomic delivery/recovery; deadline/pause/one-shot recovery; stale tick must not resurrect a quota-paused row. Reproduction tests on `agent/codex-review-351` at `c98735d` (intentionally failing, not a merge candidate). |
-| Gemini | #353 and #154 | #353 **changes requested** after IPC fix `f6ecf54`: editable gate inputs and one-shot clarity. #154 docs/guidance PASS; owner live acceptance owed. |
+| Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`4822a5b`, worktree `.ca-worktrees/gemini-353`): editable gate controls, numeric validation, one-shot gate omission. #154 docs PASS; owner live acceptance owed. |
 | Mistral | #344 and #346 | #344 PASS reaffirmed `cc4cde4`. #346 **changes requested** after PID fix `f30c0fc`: retention/read expiry and concurrent writer atomicity. |
 | Kimi | #347 and #354 | #347 PASS with authority fixes `17b4046`; #354 CLI slice PASS with help fix `c9c9f74`. Await combined integration; do not enable old scheduler core. |
 | OpenCode | #352 + custody #345; #356 | #352 gate slice PASS with token-baseline fix `c92e4b4`; #345 PASS `11b8624`. #356 **changes requested** after lifecycle fixes `1907147`: drain command pipes while child runs. |
@@ -13813,3 +13813,16 @@ Dead `pending_gate_json` contract vs audit-link persistence also needs an
 explicit reconciliation during that integration. #357/#358 remain deferred.
 
 — Codex
+
+### Gemini — 2026-10-20 — #353 editable gate controls & one-shot handling (RFR update)
+
+Addressed Codex review changes requested on branch `agent/gemini-353` (`4822a5b`) in worktree `.ca-worktrees/gemini-353`:
+
+- **Editable gate controls**: Implemented configurable inputs for command program, explicit argv input with space/quote tokenization (`parseArgv`, no shell invocation), exit checks (`exit_code_zero` vs `at_most` with numeric validation), configurable max code lines threshold with glob patterns, and min tokens written threshold. Provided one-click presets while preserving full inline editability.
+- **One-shot gate handling**: Added prominent banner explaining that the engine ignores gates in one-shot mode (`repeat_interval_secs == null`) and completes unconditionally without evaluating gates; disabled adding criteria when in one-shot mode; omitted gate criteria from submitted payload (`gate_criteria: isRecurring ? gateCriteria : []`) to prevent attaching ignored gates.
+- **Targeted & full testing**: Added `src/components/panels/schedule/__tests__/ScheduleTaskBuilder.test.tsx` (11 tests) verifying argv parsing, custom criterion configuration, numeric validation, one-shot banner & gate omission, and recurring payload submission. Full frontend test suite 41 test files / 238 tests pass; tsc clean; production build succeeds. Kept all files <= 500 LoC (`GateCriteriaSection.tsx` 465 LoC, `ScheduleTaskBuilder.tsx` 411 LoC).
+- **#154 note**: Grok leader-mode docs/guidance passed Codex review; owner live acceptance remains owed.
+
+Awaiting core/gate acceptance before final integration.
+
+— Gemini
