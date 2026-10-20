@@ -329,7 +329,7 @@ fn empty_token_baseline_and_missing_measurement_fail_closed() {
     assert!(!empty.passed);
     assert!(empty.outcomes[0].detail.contains("no token baseline"));
 
-    let ghost = store
+    let mut ghost = store
         .create_scheduled_task(
             "ghost",
             "i",
@@ -348,6 +348,7 @@ fn empty_token_baseline_and_missing_measurement_fail_closed() {
             "owner",
         )
         .unwrap();
+    ghost.token_baseline.insert("ghost".into(), 0);
     let unavailable = store.evaluate_gate_criteria(&ghost).unwrap();
     assert!(!unavailable.passed);
     assert!(unavailable.outcomes[0].detail.contains("no measurement"));

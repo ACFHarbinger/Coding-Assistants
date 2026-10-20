@@ -16,6 +16,7 @@ mod roster_memory;
 mod schedule;
 mod schedule_delivery;
 mod schedule_gate;
+mod schedule_gate_resume;
 mod schedule_pause;
 mod schedule_tick;
 mod schedule_tick_races;

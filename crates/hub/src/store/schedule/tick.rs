@@ -252,6 +252,27 @@ impl HubStore {
             if gate.passed {
                 return self.finish(task, ScheduleStatus::Completed, &summary);
             }
+            if gate.pending {
+                // Same attempt CAS as the other wait paths. Pending approval
+                // must not burn the in-flight attempt or lose a pause race.
+                if !self.transition_live_schedule(
+                    &task.id,
+                    ScheduleStatus::Active,
+                    Some(now),
+                    Some(task.attempts),
+                )? {
+                    return Ok(TickOutcome {
+                        id: task.id.clone(),
+                        action: "noop".into(),
+                        detail: "lost race to pause or cancel".into(),
+                    });
+                }
+                return Ok(TickOutcome {
+                    id: task.id.clone(),
+                    action: "waiting".into(),
+                    detail: format!("gate awaiting approval: {summary}"),
+                });
+            }
             if self.final_attempt_exhausted(task) {
                 return self.finish(task, ScheduleStatus::Failed, "max_attempts reached");
             }

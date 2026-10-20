@@ -38,9 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interval both apply before a re-prompt. `max_attempts` caps new
   dispatches; the final in-flight attempt may still succeed, time out, or
   miss its gate. Team token baselines omit `human`/`system` and missing
-  metrics (unknown, never zero). P5 gate-resume remains OpenCode #352;
-  `pending_gate_json` and `PendingGateEntry` are the agreed contract.
-  S7 IPC is unchanged (thin wrappers over the corrected store).
+  metrics (unknown, never zero). S7 IPC is unchanged (thin wrappers over
+  the corrected store).
+
+- **Scheduled Goals S2 gate corrections (#352):** Gate criteria now link
+  each `os_tool.proposed` approval to its schedule/criterion/attempt in
+  the hash-chained audit row, report pending approval as a distinct
+  `pending` outcome, reuse one proposal across ticks, and consume the
+  matching approved `os_tool.ran` result instead of resubmitting. Tick
+  waits without consuming an attempt while approval is outstanding.
+  Numeric gates require exit 0 (a failing command cannot pass by printing
+  `0`); workspace walks skip symlinks/devices/FIFOs and propagate read
+  errors; missing/unreadable workspaces fail verification. Empty token
+  baselines and missing `agent_metrics` rows fail closed. Gate details and
+  audit metadata are bounded. `pending_gate_json`/`PendingGateEntry` were
+  not needed: the audit row is the persisted link. No new approval class.
 
 - **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
   Outbox drain re-checks deadline, pause, and terminal status before
