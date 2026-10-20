@@ -1,5 +1,9 @@
 # Team Scorecard / HITL Oversight Roadmap
 
+Codex T7 re-review (2026-10-20): fixed wake backdating, mismatched handoff
+recipients, invalid timestamp fallback and lexical action ordering. Current
+assignment still cannot approve past work; missing history remains unknown.
+
 > **Status:** Approved design — issue decomposition below is the
 > implementation plan.
 >

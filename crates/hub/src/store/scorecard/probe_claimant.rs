@@ -28,15 +28,15 @@ type ClaimsByAgent = BTreeMap<String, Vec<ClaimRow>>;
 type ClaimsBySlice = BTreeMap<(String, String), ClaimsByAgent>;
 
 /// Evidence counts only when it predates the action: being handed a slice
-/// after acting on it is not an assignment. Parsed as RFC 3339; falls back
-/// to lexicographic order only if a timestamp fails to parse.
+/// after acting on it is not an assignment. Invalid timestamps cannot
+/// prove authority.
 fn time_lte(evidence: &str, action: &str) -> bool {
     match (
         chrono::DateTime::parse_from_rfc3339(evidence),
         chrono::DateTime::parse_from_rfc3339(action),
     ) {
         (Ok(evidence), Ok(action)) => evidence <= action,
-        _ => evidence <= action,
+        _ => false,
     }
 }
 
@@ -130,21 +130,13 @@ impl HubStore {
             let unproven: Vec<String> = names
                 .iter()
                 .filter(|name| {
-                    // Earliest claimed action: authority has to predate it.
-                    // A later handoff or enrolment does not reach backward.
-                    let earliest = agents
-                        .get(*name)
-                        .map(|rows| {
-                            rows.iter()
-                                .map(|(_, at)| at.as_str())
-                                .min()
-                                .unwrap_or("")
-                                .to_string()
-                        })
-                        .unwrap_or_default();
-                    !evidence
-                        .get(*name)
-                        .is_some_and(|handoff| time_lte(handoff, &earliest))
+                    // Check real instants for every action, not the lexical
+                    // minimum of differently offset RFC3339 strings.
+                    !evidence.get(*name).is_some_and(|handoff| {
+                        agents
+                            .get(*name)
+                            .is_some_and(|rows| rows.iter().all(|(_, at)| time_lte(handoff, at)))
+                    })
                 })
                 .cloned()
                 .collect();
@@ -214,19 +206,26 @@ impl HubStore {
             for (agent, at) in rows.flatten() {
                 absorb(agent, at, &mut evidence);
             }
-            // Dispatch wakes authorize only when they hang off the handoff
-            // message. The instant is the handoff's, not a later wake retry.
+            // A wake naming a different target cannot backdate that target's
+            // authority to the older message's creation time.
             let mut stmt = self.conn.prepare(
-                "SELECT w.target_agent, m.created_at FROM wake_requests w \
+                "SELECT w.target_agent, w.created_at, m.created_at FROM wake_requests w \
                  JOIN messages m ON m.id = w.message_id \
                  WHERE m.task_id = ?1 AND m.kind = 'handoff' \
+                   AND m.to_agent = w.target_agent \
                    AND w.target_agent IS NOT NULL AND w.target_agent != ''",
             )?;
             let rows = stmt.query_map(params![slice], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
             })?;
-            for (agent, at) in rows.flatten() {
-                absorb(agent, at, &mut evidence);
+            for (agent, at, handoff_at) in rows.flatten() {
+                if time_lte(&handoff_at, &at) {
+                    absorb(agent, at, &mut evidence);
+                }
             }
         } else {
             let mut stmt = self.conn.prepare(

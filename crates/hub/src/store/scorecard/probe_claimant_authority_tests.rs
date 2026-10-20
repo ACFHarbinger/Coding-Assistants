@@ -68,11 +68,11 @@ fn ordinary_message_and_chat_wake_do_not_authorize() {
 }
 
 #[test]
-fn wake_linked_to_a_handoff_authorizes_its_target() {
+fn wake_linked_to_another_agents_handoff_does_not_authorize() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
     // The handoff row names Cursor; the dispatch wake names Grok. Grok's
-    // work after that handoff is authorized. A chat wake would not be.
+    // work has no handoff to Grok. A wake is not a reassignment record.
     task_message(&store, "msg-1", "cursor", "task-x", "2026-10-19T10:00:00Z");
     store
         .conn
@@ -95,7 +95,7 @@ fn wake_linked_to_a_handoff_authorizes_its_target() {
     let claimant = probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY);
     assert_eq!(
         claimant[0].state,
-        ProbeState::Ok,
+        ProbeState::Unknown,
         "{:?}",
         claimant[0].reason
     );
@@ -120,4 +120,29 @@ fn session_enrolment_after_the_action_does_not_approve() {
     assert_eq!(claimant[0].subject, "session:sess-1");
     assert_eq!(claimant[0].state, ProbeState::Unknown);
     assert_eq!(claimant[0].linked_agents, vec!["cursor"]);
+}
+
+#[test]
+fn later_wake_cannot_backdate_authority_for_a_different_target() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    task_message(&store, "msg-1", "cursor", "task-x", "2026-10-19T10:00:00Z");
+    store.conn.execute(
+        "INSERT INTO wake_requests (id, target_agent, message_id, reason, status, requires_human_gate, created_at) VALUES ('wake-1', 'grok', 'msg-1', 'task task-x', 'pending', 1, '2026-10-19T12:00:00Z')",
+        [],
+    ).unwrap();
+    usage_full(
+        &store,
+        "openai",
+        0.01,
+        "2026-10-19T11:00:00Z",
+        Some("task-x"),
+        None,
+        "grok",
+    );
+    let probes = store.compute_probe_candidates().unwrap();
+    assert_eq!(
+        probes_for(&probes, PROBE_CLAIMANT_CONSISTENCY)[0].state,
+        ProbeState::Unknown
+    );
 }
