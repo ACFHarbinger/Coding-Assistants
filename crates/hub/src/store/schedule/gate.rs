@@ -408,7 +408,15 @@ impl HubStore {
         }
         let metrics = self.list_agent_metrics()?;
         let mut short: Vec<String> = Vec::new();
-        for (agent_id, baseline) in &task.token_baseline {
+        let agents = self.schedule_target_agent_ids(&task.target)?;
+        if agents.is_empty() {
+            return Ok(CriterionOutcome::failed("no eligible token targets"));
+        }
+        for agent_id in &agents {
+            let Some(baseline) = task.token_baseline.get(agent_id) else {
+                short.push(format!("{agent_id}: no token baseline"));
+                continue;
+            };
             let Some(metric) = metrics.iter().find(|metric| &metric.agent_id == agent_id) else {
                 short.push(format!("{agent_id}: no measurement"));
                 continue;

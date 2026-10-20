@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Scheduler review: stale attempt results cannot complete a newer attempt; use attempt-aware CAS for finish and the refreshed snapshot for first one-shot completion (#351). Remaining wake/completion crash gaps are recorded on the issue; not accepted for integration.
 
+### Codex review corrections — 2026-10-20
+
+- Fix scheduler token gates to check every eligible identity, including missing creation baselines (#352); regression reproduced before correction.
+
 ### Fixed
 
 - **Scheduled Goals wake replay and one-shot finalization (#351):**

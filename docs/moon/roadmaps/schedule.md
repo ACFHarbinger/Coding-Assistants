@@ -168,6 +168,8 @@ on the shared engine. Exact findings and verification are recorded in the
 agent bus and issue comments. Older queued/RFR rows below are historical
 where they conflict with this dated checkpoint.
 
+Schedule review 2026-10-20: Codex corrected partial-team token-baseline false passes; gate tests and Hub lib suite pass. Those gate commits are rebased onto `971f999` on `agent/grok-352`.
+
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
 #353 (S8 UI, Gemini), #354 (S4 CLI, Kimi), #355 (S6 poller, Cursor),

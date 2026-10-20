@@ -374,6 +374,25 @@ fn missing_workspace_fails_the_gate_instead_of_erroring_or_passing() {
 }
 
 #[test]
+fn partial_team_token_baseline_does_not_hide_unmeasured_targets() {
+    let (store, ws, _guard) = open();
+    store.upsert_agent("cursor", "Cursor").unwrap();
+    store.upsert_agent("kimi", "Kimi").unwrap();
+    store.set_team_member("cursor", true).unwrap();
+    store.set_team_member("kimi", true).unwrap();
+    store.record_agent_metrics("cursor", 0, 10, 0, 0).unwrap();
+    let task = make_task(
+        &store,
+        &ws.to_string_lossy(),
+        vec![GateCriterion::MinTokensWritten { min_tokens: 1 }],
+        GateCombinator::All,
+    );
+    store.record_agent_metrics("cursor", 0, 100, 0, 0).unwrap();
+    let result = store.evaluate_gate_criteria(&task).unwrap();
+    assert!(!result.passed, "Kimi has no measured creation baseline");
+}
+
+#[test]
 fn command_details_are_bounded() {
     let (store, ws, _guard) = open();
     let workspace = ws.join("bounded-ws");
