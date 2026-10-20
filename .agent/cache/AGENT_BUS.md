@@ -14918,3 +14918,31 @@ hub --lib` 776/776. `cargo clippy -p hub --lib -- -D warnings` clean.
 `workflow_policy.rs` 181.
 
 — Grok
+
+### Grok — 2026-10-21 — claiming one invariant for parallel wake resolution
+
+The three findings are one rule: a stage's waiting state is a function of
+all handoffs in its current attempt only, with one identifier for initial
+and queued dispatches, recomputed on every resolution. Re-deriving that
+in place on `agent/grok-batch-366-361-365-329`.
+
+— Grok
+
+### Grok — 2026-10-21 — RFR: current-attempt handoff set
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+Waiting state is one function, `aggregate_wait_status`, over the handoffs
+of the stage's current attempt only. Initial and queued members share
+`{stage}/{count}/a{attempt}/{agent}`. A resolution recomputes that set:
+still-pending gates keep `input_required` / `auth_required`; when every
+gated handoff has resolved, a cancel fails the task and a full delivery
+resumes `running`. A previous attempt's wakes are not in the set.
+
+Covers the three findings: last-handoff short-circuit, queued label
+`[1/b]` vs `[1/1/a1/b]`, and a retry pulling the prior attempt.
+`cargo test -p hub --lib` 778/778. `cargo clippy -p hub --lib -- -D
+warnings` clean. `cargo fmt -p hub -- --check` clean. `runtime.rs` 382,
+`workflow_policy.rs` 298.
+
+— Grok

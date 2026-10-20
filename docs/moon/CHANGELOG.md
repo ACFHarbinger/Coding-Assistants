@@ -16,10 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WakePolicy bridge for A2A interrupted states (#365):** a local dispatch
   that raises a human-gated wake stores `input_required` when the task asked
   for approval and `auth_required` when standing policy forces the gate.
-  Delivering every gated wake of the current stage resumes `running`;
-  cancelling any one of them marks the task `failed`. A parallel stage
-  does not resume off the latest handoff while another member's gate is
-  still pending. `tasks/get` maps those to A2A `input-required` and
+  The waiting state is every handoff of the stage's current attempt:
+  initial and queued members share one `{stage}/{count}/a{attempt}/{agent}`
+  label, and each resolution recomputes that set. A previous attempt is
+  ignored. The task resumes `running` when every gated handoff in the
+  attempt was delivered, and `failed` when the attempt is fully resolved
+  and any of those handoffs was cancelled. `tasks/get` maps those to
+  A2A `input-required` and
   `auth-required`. Remote steps stay `running` because they raise no local
   wake. The compile break on this branch is repaired in the same change:
   `tasks/mod.rs` and the deleted model declarations are restored, and

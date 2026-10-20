@@ -10,20 +10,24 @@ impl HubStore {
     ) -> Result<TaskRecord, HubError> {
         let stages = Self::workflow_stages(&task.steps);
         let idxs = &stages[stage_index as usize];
-        let stage_label = format!("{}/{}", stage_index + 1, stages.len());
         let mut attempts = task.attempts.clone();
         *attempts.entry(stage_index.to_string()).or_insert(0) += 1;
 
         let mut last_msg: Option<String> = None;
         let mut open: Vec<String> = Vec::new();
         let mut pending: Vec<String> = Vec::new();
-        let mut gated = false;
+        let attempt = *attempts.get(&stage_index.to_string()).unwrap_or(&1);
 
         if idxs.len() == 1 {
             let step = &task.steps[idxs[0]];
-            let dispatched = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
-            last_msg = Some(dispatched.message_id);
-            gated = dispatched.requires_human_gate;
+            last_msg = Some(self.dispatch_step(
+                id,
+                task,
+                step,
+                from_agent,
+                note,
+                &Self::handoff_label(stage_index, stages.len(), attempt, &step.agent),
+            )?);
         } else {
             let mut agents_to_run: Vec<usize> = idxs.clone();
             let cap = task.max_parallel as usize;
@@ -31,16 +35,14 @@ impl HubStore {
             let wake_now: Vec<usize> = agents_to_run.drain(..take).collect();
             for si in &wake_now {
                 let step = &task.steps[*si];
-                let dispatched = self.dispatch_step(
+                last_msg = Some(self.dispatch_step(
                     id,
                     task,
                     step,
                     from_agent,
                     note,
-                    &format!("{stage_label}/{}", step.agent),
-                )?;
-                last_msg = Some(dispatched.message_id);
-                gated |= dispatched.requires_human_gate;
+                    &Self::handoff_label(stage_index, stages.len(), attempt, &step.agent),
+                )?);
                 open.push(step.agent.clone());
             }
             for si in agents_to_run {
@@ -48,7 +50,7 @@ impl HubStore {
             }
         }
 
-        let status = TaskStatus::after_local_dispatch(task.require_human_approval, gated);
+        let status = self.aggregate_wait_status(task, stage_index, attempt)?;
         self.persist_task_runtime(
             id,
             status.as_str(),
@@ -100,12 +102,11 @@ impl HubStore {
         let stage_index = task.step_index;
         let max_parallel = task.max_parallel;
         let attempts = task.attempts.clone();
-        let mut dispatched_any = false;
-        let mut gated = false;
+        let stages = Self::workflow_stages(&task.steps);
+        let attempt = attempts.get(&stage_index.to_string()).copied().unwrap_or(1);
 
         while open.len() < max_parallel as usize && !pending.is_empty() {
             let next_agent = pending.remove(0);
-            let stages = Self::workflow_stages(&task.steps);
             let idxs = &stages[stage_index as usize];
             let step = idxs
                 .iter()
@@ -114,25 +115,22 @@ impl HubStore {
                 .ok_or_else(|| {
                     HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
                 })?;
-            let dispatched = self.dispatch_step(
+            last_msg = Some(self.dispatch_step(
                 id,
                 &task,
                 step,
                 agent,
                 note,
-                &format!("{}/{}", stage_index + 1, next_agent),
-            )?;
-            last_msg = Some(dispatched.message_id);
-            gated = dispatched.requires_human_gate;
-            dispatched_any = true;
+                &Self::handoff_label(stage_index, stages.len(), attempt, &next_agent),
+            )?);
             open.push(next_agent);
         }
 
-        let status = if dispatched_any {
-            TaskStatus::after_local_dispatch(task.require_human_approval, gated)
-        } else {
-            TaskStatus::parse(&task.status).unwrap_or(TaskStatus::Running)
-        };
+        let status = self.aggregate_wait_status(&task, stage_index, attempt)?;
+        if status == TaskStatus::Failed {
+            open.clear();
+            pending.clear();
+        }
         self.persist_task_runtime(
             id,
             status.as_str(),
@@ -228,13 +226,12 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
-    /// Recompute a waiting task from every gated wake on the current stage.
+    /// Recompute a waiting task from the current attempt's handoffs only.
     ///
-    /// A parallel stage dispatches several handoffs and only `last_message_id`
-    /// remembers the latest. Any gated cancel on this stage fails the task.
-    /// A delivery resumes `running` only when no gated wake for the stage is
-    /// still pending. Wakes from other stages, and tasks that are not waiting,
-    /// stay put.
+    /// A previous attempt of the same stage is a different set, even when
+    /// the stage index repeats. One member resolving does not unblock the
+    /// stage while another handoff in this attempt is still pending, and a
+    /// cancel counts only once every handoff in the attempt has resolved.
     pub(crate) fn apply_wake_resolution_to_task(
         &self,
         message_id: Option<&str>,
@@ -267,16 +264,43 @@ impl HubStore {
             return Ok(());
         }
         let stages = Self::workflow_stages(&task.steps);
-        let Some(stage_label) = stages
-            .get(task.step_index as usize)
-            .map(|_| format!("{}/{}", task.step_index + 1, stages.len()))
-        else {
+        if stages.get(task.step_index as usize).is_none() {
             return Ok(());
-        };
-        let handoffs = self.stage_handoff_ids(&task.id, &stage_label)?;
+        }
+        let attempt = task
+            .attempts
+            .get(&task.step_index.to_string())
+            .copied()
+            .unwrap_or(1);
+        let handoffs =
+            self.attempt_handoff_ids(&task.id, task.step_index, stages.len(), attempt)?;
         if !handoffs.iter().any(|id| id == message_id) {
             return Ok(());
         }
+        let next = self.aggregate_wait_status(&task, task.step_index, attempt)?;
+        self.persist_wait_status(&task.id, &task.status, next)
+    }
+
+    /// `{stage}/{count}/a{attempt}/{agent}` — initial and queued members share it.
+    fn handoff_label(stage_index: i64, stage_count: usize, attempt: u32, agent: &str) -> String {
+        format!(
+            "{}/{}/a{attempt}/{agent}",
+            stage_index + 1,
+            stage_count.max(1)
+        )
+    }
+
+    /// Waiting state of one attempt. Pending gates keep the task interrupted.
+    /// When every gated handoff has resolved, a cancel fails the task and a
+    /// full delivery resumes `running`. Handoffs with no gate do not wait.
+    fn aggregate_wait_status(
+        &self,
+        task: &TaskRecord,
+        stage_index: i64,
+        attempt: u32,
+    ) -> Result<TaskStatus, HubError> {
+        let stage_count = Self::workflow_stages(&task.steps).len();
+        let handoffs = self.attempt_handoff_ids(&task.id, stage_index, stage_count, attempt)?;
         let mut any_cancelled = false;
         let mut any_pending_gate = false;
         for id in &handoffs {
@@ -292,32 +316,32 @@ impl HubStore {
                 any_pending_gate = true;
             }
         }
-        let now = Utc::now().to_rfc3339();
-        if any_cancelled {
-            self.conn.execute(
-                "UPDATE tasks SET status = ?1, updated_at = ?2, \
-                 open_agents_json = '[]', pending_agents_json = '[]' \
-                 WHERE id = ?3 AND status = ?4",
-                params![TaskStatus::Failed.as_str(), now, task.id, task.status],
-            )?;
-        } else if !any_pending_gate {
-            self.conn.execute(
-                "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3 AND status = ?4",
-                params![TaskStatus::Running.as_str(), now, task.id, task.status],
-            )?;
+        if any_pending_gate {
+            return Ok(TaskStatus::after_local_dispatch(
+                task.require_human_approval,
+                true,
+            ));
         }
-        Ok(())
+        if any_cancelled {
+            Ok(TaskStatus::Failed)
+        } else {
+            Ok(TaskStatus::Running)
+        }
     }
 
-    fn stage_handoff_ids(&self, task_id: &str, stage_label: &str) -> Result<Vec<String>, HubError> {
-        let sequential = format!("[{stage_label}]%");
-        let parallel = format!("[{stage_label}/%");
+    fn attempt_handoff_ids(
+        &self,
+        task_id: &str,
+        stage_index: i64,
+        stage_count: usize,
+        attempt: u32,
+    ) -> Result<Vec<String>, HubError> {
+        let like = format!("[{}/{}/a{attempt}/%", stage_index + 1, stage_count.max(1));
         let mut stmt = self.conn.prepare(
             "SELECT id FROM messages \
-             WHERE task_id = ?1 AND kind = 'handoff' \
-               AND (subject LIKE ?2 OR subject LIKE ?3)",
+             WHERE task_id = ?1 AND kind = 'handoff' AND subject LIKE ?2",
         )?;
-        let rows = stmt.query_map(params![task_id, sequential, parallel], |row| row.get(0))?;
+        let rows = stmt.query_map(params![task_id, like], |row| row.get(0))?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -331,5 +355,28 @@ impl HubStore {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?)
+    }
+
+    fn persist_wait_status(
+        &self,
+        task_id: &str,
+        previous: &str,
+        next: TaskStatus,
+    ) -> Result<(), HubError> {
+        let now = Utc::now().to_rfc3339();
+        if next == TaskStatus::Failed {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1, updated_at = ?2, \
+                 open_agents_json = '[]', pending_agents_json = '[]' \
+                 WHERE id = ?3 AND status = ?4",
+                params![next.as_str(), now, task_id, previous],
+            )?;
+        } else if next.as_str() != previous {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3 AND status = ?4",
+                params![next.as_str(), now, task_id, previous],
+            )?;
+        }
+        Ok(())
     }
 }

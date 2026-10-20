@@ -2,13 +2,6 @@ use super::*;
 
 mod runtime;
 
-/// Local or remote dispatch of one workflow step.
-pub(super) struct StepDispatch {
-    pub message_id: String,
-    /// True when the local wake is held for a human. Remote steps never gate.
-    pub requires_human_gate: bool,
-}
-
 impl HubStore {
     pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
         let mut stages: Vec<Vec<usize>> = Vec::new();
@@ -176,14 +169,14 @@ impl HubStore {
         from_agent: &str,
         note: Option<&str>,
         stage_label: &str,
-    ) -> Result<StepDispatch, HubError> {
+    ) -> Result<String, HubError> {
         if let Some(peer) = step
             .peer
             .as_deref()
             .map(str::trim)
             .filter(|peer| !peer.is_empty())
         {
-            let message_id = self.dispatch_remote_step(
+            return self.dispatch_remote_step(
                 task_id,
                 task,
                 step,
@@ -191,11 +184,7 @@ impl HubStore {
                 from_agent,
                 note,
                 stage_label,
-            )?;
-            return Ok(StepDispatch {
-                message_id,
-                requires_human_gate: false,
-            });
+            );
         }
         let body = if let Some(n) = note {
             format!("{}\n\n---\nPrior note: {}", step.instruction, n)
@@ -212,16 +201,13 @@ impl HubStore {
             task.workspace_path.as_deref(),
             Some(task_id),
         )?;
-        let wake = self.request_wake(
+        self.request_wake(
             &step.agent,
             Some(&format!("task {task_id} {stage_label}")),
             Some(&msg.id),
             task.require_human_approval,
         )?;
-        Ok(StepDispatch {
-            message_id: msg.id,
-            requires_human_gate: wake.requires_human_gate,
-        })
+        Ok(msg.id)
     }
 
     /// Remote variant of [`Self::dispatch_step`] (P11a / #334): the step runs
