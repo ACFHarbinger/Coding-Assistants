@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 mod agent;
 mod commands;
+mod discord;
 mod harness;
 mod journal;
 mod review;
@@ -20,6 +21,7 @@ pub(crate) use agent::AgentCommand;
 pub(crate) use commands::{
     AuditCommand, BudgetCommand, InboxCommand, MemoryCommand, MsgCommand, TaskCommand, WakeCommand,
 };
+pub(crate) use discord::DiscordCommand;
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
 pub(crate) use review::ReviewCommand;
@@ -145,6 +147,11 @@ pub(crate) enum Command {
     Telegram {
         #[command(subcommand)]
         action: TelegramCommand,
+    },
+    /// Discord remote-control bot (U25). Opt-in; outbound channel poll only.
+    Discord {
+        #[command(subcommand)]
+        action: DiscordCommand,
     },
     /// Cloud Drive sync (S4). Owner-started only; preview never transfers.
     Sync {
