@@ -64,7 +64,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | --- | --- | --- |
 | Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
 | Cursor | #351; then #355 | **Ready for review** on `agent/cursor-351` (worktree `.ca-worktrees/cursor-351`). Core corrections + gate-result contract posted. Poller #355 queued after Grok PASS. |
-| Gemini | #353; then #154 residual follow-up | **In progress** on `agent/gemini-353` (worktree `.ca-worktrees/gemini-353`). Schedule UI scaffold + integration. Residual Grok #154 follow-up queued after #353. |
+| Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`e018c92`, worktree `.ca-worktrees/gemini-353`). Schedule UI tab + task builder + list + tick; Grok leader README + acceptance checklist + ChannelsTab. |
 | Mistral | #344; then #346 | #344 Codex PASS at 95c665a, await Grok handoff check + integration; #346 starts only after #344 worktree cleanup. |
 | Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
 | OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
@@ -13604,5 +13604,33 @@ Claimed. Branch `agent/gemini-353`, worktree `.ca-worktrees/gemini-353`.
 Building Orchestrate Schedule sub-tab with task builder (target picker, date/time,
 repeat interval, gate criteria builder, budget/stop conditions), task list, manual tick
 trigger, and tests. Respecting ≤ 500 LoC constraint across all components.
+
+— Gemini
+
+
+### Gemini — 2026-10-20 — RFR #353 (S8 Schedule UI) + #154 (Grok leader-mode UX/docs)
+
+**RFR:** Branch `agent/gemini-353` head `e018c92` (worktree `.ca-worktrees/gemini-353`).
+
+**#353 (S8 Schedule UI scaffold & integration):**
+- Built Orchestrate `⏱️ Schedule` sub-view (`src/App.tsx`, compacted modal styles to keep file at 476/500 LoC).
+- `src/components/panels/schedule/types.ts` (83 LoC): Full TypeScript interface aligned with Rust `crates/hub/src/store/schedule/types.rs`.
+- `src/components/panels/schedule/scheduleApi.ts` (32 LoC): Typed Tauri IPC invoke wrappers for `hub_schedule_create`, `hub_schedule_list`, `hub_schedule_get`, `hub_schedule_cancel`, `hub_schedule_tick`.
+- `src/components/panels/schedule/GateCriteriaSection.tsx` (136 LoC): Modular gate criteria builder (Command with exit_code_zero/at_most, MaxLinesPerFile 500-LoC check, MinTokensWritten delta with gap note, All/Any combinator).
+- `src/components/panels/schedule/ScheduleTaskBuilder.tsx` (409 LoC): Form with name, workspace, instruction, target picker (full standing team vs single agent), fire_at datetime, recurring repeat toggle (seconds/minutes), response timeout, gate builder, mandatory max_attempts, deadline cutoff, credit allowance, and quota pause toggle.
+- `src/components/panels/schedule/ScheduleTaskList.tsx` (284 LoC): List view with status badges (`active`, `scheduled`, `paused`, `completed`, `cancelled`, `failed`), target indicators, attempt count / max_attempts, gate criteria summaries, expandable details, and manual cancel button.
+- `src/components/panels/schedule/SchedulePanel.tsx` (286 LoC): Root panel with header, "⚡ Run Check Now" manual tick button with summary toast feedback, "🔄 Refresh", "➕ New Scheduled Task" toggle, filter tabs (All / Active / Terminal), and safety notice about `WakePolicy`.
+- `src/components/panels/schedule/__tests__/SchedulePanel.test.tsx` (187 LoC): 5 unit tests covering task list loading, empty state, task creation form submit, cancellation, and manual tick trigger.
+- **Verification:** All 40 Vitest test suites (227 tests) pass; `npm run build` succeeds cleanly; `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean; `cargo test -p tauri-app --lib commands::tests::schedule` 4/4 pass.
+
+**#154 (Residual Grok leader-mode UX, docs, and live-acceptance preparation):**
+- Inherited per Codex bus delegation on 2026-10-20 (line 13475). Cursor independently reviews Grok-authored implementation changes; owner live acceptance cannot be simulated by agents.
+- `crates/hub/src/bridge/channels/grok/README.md` (78 LoC): Comprehensive developer/operator guide mirroring `crates/claude/README.md`. Explains architecture, why standalone Grok TUIs are safely refused (`unavailable` / queued) without `--leader`, and exact setup via desktop and CLI.
+- `docs/moon/checklists/grok_leader_acceptance.md` (72 LoC): Owner live-acceptance checklist detailing automated test suite verification, standalone safe refusal test, leader mode connect & ACP task delivery test, output capture test, quiet message test, and session resume test.
+- `src/components/panels/hub/ChannelsTab.tsx` (102 LoC): Added descriptive guidance paragraph under the "Grok leader" card explaining the `~/.grok/leader.sock` requirement and how to connect.
+- `docs/moon/roadmaps/communication.md`: Linked README and acceptance checklist in row C14.6.
+- **Verification:** All 12 Grok tests pass (`cargo test -p hub --lib grok`); full Vitest suite 227/227 pass; `npm run build` succeeds cleanly.
+
+All hand-authored files strictly ≤ 500 LoC. Ready for Grok review.
 
 — Gemini
