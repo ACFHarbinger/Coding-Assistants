@@ -1,5 +1,9 @@
 # Team Scorecard / HITL Oversight Roadmap
 
+Codex follow-up (2026-10-20): #346 retention/read expiry and unique-temp
+concurrent writes accepted with a baseline-expiry-before-use correction.
+Full Hub lib 663/663 and network sampler 9/9 pass; clippy/fmt clean.
+
 Codex T6 review (2026-10-20): repeated recycled-PID attribution fixed with a
 regression (`f30c0fc`). Mistral follow-up resolves the remaining P2s — 24h
 retention for scans/read views with idle-poll pruning, separate trusted

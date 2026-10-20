@@ -239,6 +239,9 @@ pub fn trusted_identity_baseline(
 ) -> BTreeMap<String, (u32, u64)> {
     let mut baseline = BTreeMap::new();
     for identity in &file.identities {
+        if identity.updated_at < now - IDENTITY_RETENTION_SECS {
+            continue;
+        }
         baseline.insert(
             identity.session_key(),
             (identity.pid, identity.pid_start_time),

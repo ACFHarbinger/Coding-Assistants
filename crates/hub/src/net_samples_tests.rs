@@ -255,6 +255,15 @@ fn trusted_identities_expire_after_a_week_without_a_refresh() {
 }
 
 #[test]
+fn expired_identities_are_not_used_before_the_next_pruning_write() {
+    let home = home();
+    append_samples(&home, vec![], vec![scan("claude", "s1", 100, false)], 100).unwrap();
+    let file = read_samples(&home);
+    assert!(trusted_identity_baseline(&file, 101 + IDENTITY_RETENTION_SECS).is_empty());
+    std::fs::remove_dir_all(&home).ok();
+}
+
+#[test]
 fn the_read_view_expires_stale_rows_without_an_append() {
     let home = home();
     let at = 100;
