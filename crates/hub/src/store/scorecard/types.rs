@@ -5,6 +5,7 @@
 //! (`measured` | `estimated` | `unknown`) and harness coverage chips
 //! (`managed` | `observed` | `unregistered`).
 
+use super::digest::OwnerDigest;
 use serde::{Deserialize, Serialize};
 
 /// Provenance tag attached to each scorecard figure (T3 / #343).
@@ -149,6 +150,9 @@ pub struct ScorecardView {
     pub agents: Vec<AgentScorecardRow>,
     pub harnesses: Vec<HarnessScorecardRow>,
     pub providers: Vec<ProviderScorecardRow>,
+    /// Owner-only review digest (T4 / #344). `None` for any non-owner caller.
+    #[serde(default)]
+    pub digest: Option<OwnerDigest>,
     pub aggregation_version: u32,
     pub generated_at: String,
 }

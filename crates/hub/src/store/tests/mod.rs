@@ -17,6 +17,8 @@ mod schedule;
 mod schedule_gate;
 mod schedule_tick;
 mod scorecard;
+mod scorecard_digest;
 mod scorecard_regressions;
+mod wake_resolution_audit;
 mod workflow_policy;
 mod workflows;

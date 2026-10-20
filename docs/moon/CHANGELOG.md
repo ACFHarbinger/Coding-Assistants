@@ -102,6 +102,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Launch" buttons include Hermes alongside the other 8 harnesses. The
   backend (`HarnessId::Hermes`, `hub_relaunch_harness_embedded`, C14.16
   #322) already supported it; this was a frontend-only gap.
+- **Team Scorecard T4 owner digest (#344):** Owner-only digest attached to
+  `hub_get_scorecard` and rendered as a card above the agent cards on the
+  `scorecard` Hub tab: pending human decisions (gate approvals addressed to
+  `human`, human-gated wakes, pending `os_tool.proposed` rows), queue age,
+  open security-class findings, and review volume over a fixed 7-day window.
+  Decisions are grouped by work session (U24) with the Hub task id as a row
+  column and GitHub issue as an optional `process_json` label; unstamped
+  decisions land in an ungrouped bucket. Wake resolution gained a channel —
+  `set_wake_status_via` validates `desktop | telegram | tcp` and commits the
+  status transition with at most one hash-chained `wake.resolved` audit row
+  per wake (human-gated resolutions only, idempotent across retries and
+  competing channels, refused while a sync lock is held) — so remote HITL
+  stays on the same `human` clock, tagged by channel, never double-counted.
+  Pending human-gated wakes are read with a complete query, not
+  `list_wakes`'s 100-row cap. No new
+  `audit_events` columns, no composite score, no approve-all, no new deny
+  path. The digest is `None` for any non-owner caller under every visibility
+  mode.
 - **Team Scorecard T1 slice stamps and measured cost (#341):** Nullable
   `task_id` / `work_session_id` / `attribution` are written into
   `audit_events.process_json` (no new columns) on `os_tool` rows, P10

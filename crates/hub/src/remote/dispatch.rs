@@ -58,7 +58,7 @@ fn redeem(bindings: &mut BindingStore, from: &ChatUser, code: Option<&str>) -> R
 }
 
 fn resolve_wake(hub: &HubStore, wake_id: &str, status: WakeStatus) -> Reply {
-    match hub.set_wake_status(wake_id, status) {
+    match hub.set_wake_status_via(wake_id, status, "telegram") {
         Ok(()) => Reply::Text(format!("{wake_id} → {}", status.as_str())),
         Err(error) => Reply::Text(error.to_string()),
     }
