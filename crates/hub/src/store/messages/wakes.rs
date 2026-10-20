@@ -141,15 +141,15 @@ impl HubStore {
         // Refuse before any state change while a sync lock is held.
         self.ensure_mutable()?;
 
-        let current: Option<(String, i64)> = self
+        let current: Option<(String, i64, Option<String>)> = self
             .conn
             .query_row(
-                "SELECT status, requires_human_gate FROM wake_requests WHERE id = ?1",
+                "SELECT status, requires_human_gate, message_id FROM wake_requests WHERE id = ?1",
                 params![id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let Some((previous_status, human_gate)) = current else {
+        let Some((previous_status, human_gate, message_id)) = current else {
             return Err(HubError::NotFound(id.into()));
         };
         if previous_status == status.as_str() {
@@ -213,6 +213,9 @@ impl HubStore {
             if status != WakeStatus::Pending {
                 let _ = fs::remove_file(&path);
             }
+        }
+        if is_resolution {
+            self.apply_wake_resolution_to_task(message_id.as_deref(), status)?;
         }
         Ok(())
     }

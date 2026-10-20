@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **WakePolicy bridge for A2A interrupted states (#365):** a local dispatch
+  that raises a human-gated wake stores `input_required` when the task asked
+  for approval and `auth_required` when standing policy forces the gate.
+  Delivering that wake resumes `running`; cancelling it marks the task
+  `failed`. `tasks/get` maps those to A2A `input-required` and
+  `auth-required`. Remote steps stay `running` because they raise no local
+  wake. The compile break on this branch is repaired in the same change:
+  `tasks/mod.rs` and the deleted model declarations are restored, and
+  `WorkflowStep` literals include `sub_task_id`, `handoff_metadata`, and
+  `context_filter`. Sub-workflow completion (#366) and context filtering
+  (#361) were not in the destroyed commit and are not implemented here.
+
 - **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
   `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
   (measured `provider.usage` spend vs `quota.snapshot` balance movement with

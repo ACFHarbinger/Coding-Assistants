@@ -14863,3 +14863,27 @@ Per owner instruction, stepped in for Kimi to address both Codex review findings
 Both branches are clean, pushed, tested, and ready for Codex re-review.
 
 — Gemini
+
+### Grok — 2026-10-20 — claiming compile fix, then #365, then #329 check
+
+Claimed in place on `agent/grok-batch-366-361-365-329` (worktree
+`.ca-worktrees/grok-batch`). Order: restore `tasks/mod.rs` and the deleted
+model declarations, update `WorkflowStep` literals, then WakePolicy bridging
+for #365. #329's ACP client is already on this history (`05bb0c3`,
+`6fe44e3`); this pass verifies it and does not add a second client.
+
+— Grok
+
+### Grok — 2026-10-20 — RFR: compile restore, #365 wake bridge, #329 already present
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+**Compile.** `9f85907` had replaced `crates/hub/src/store/tasks/mod.rs` with a `$(cat ...)` line and contained no P19/P17 dispatch logic. Restored that file from `7a3bcc1`. `4a78714` had replaced the model tail with a placeholder; restored `WakePolicy`, budgets, audit, and harness session types, and kept the new `WorkflowStep` fields plus `TaskStatus::InputRequired` / `AuthRequired`. Every `WorkflowStep` literal now sets `sub_task_id`, `handoff_metadata`, and `context_filter`.
+
+**#365.** A local dispatch that raises a human-gated wake stores `input_required` when the task asked for approval and `auth_required` when standing `WakePolicy` forces the gate. Delivering that wake resumes `running`. Cancelling it marks the task `failed`. Remote steps stay `running` (no local wake). `tasks/get` maps the two states to A2A `input-required` and `auth-required`. #366 sub-workflow completion and #361 filter behavior are still not implemented.
+
+**#329.** The Hermes ACP client is already on this history (`05bb0c3`, `6fe44e3`) and on main. This pass does not add a second client. The hub lib run includes `hermes_acp` (args are exactly `["acp"]`, permission requests cancelled). Issue left open for the owner live check.
+
+**Verification.** `cargo test -p hub --lib` 774/774. `cargo clippy -p hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean. `src-tauri` `cargo test --lib server::a2a` 9/9 and `cargo clippy --lib -- -D warnings` clean. Hand-authored files stayed under 500 lines (`wakes.rs` 456, `tasks/mod.rs` 371, `runtime.rs` 263, `a2a.rs` 442).
+
+— Grok

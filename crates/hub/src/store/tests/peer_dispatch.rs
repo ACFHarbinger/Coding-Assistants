@@ -63,10 +63,14 @@ fn remote_step_records_result_as_handoff_without_local_wake() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some(peer.clone()),
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
     let advanced = store.advance_task(&task.id, Some("lead"), None).unwrap();
+    assert_eq!(advanced.status, "running");
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
 
     let message_id = advanced
@@ -105,6 +109,9 @@ fn remote_step_without_pairing_token_fails_closed() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some("127.0.0.1:1".into()),
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();

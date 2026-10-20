@@ -85,6 +85,29 @@ impl TaskStatus {
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Done | Self::Cancelled | Self::Failed)
     }
+
+    /// Running, or paused on the existing wake gate (not a second gate).
+    pub fn is_in_progress(self) -> bool {
+        matches!(
+            self,
+            Self::Running | Self::InputRequired | Self::AuthRequired
+        )
+    }
+
+    /// Status stored after a local dispatch.
+    ///
+    /// `wake_requires_gate` is `WakePolicy`'s flag on the wake `request_wake`
+    /// just wrote. The task's own approval request is input; a policy-forced
+    /// gate when the task did not ask is auth. No gate stays running.
+    pub fn after_local_dispatch(task_requires_approval: bool, wake_requires_gate: bool) -> Self {
+        if !wake_requires_gate {
+            Self::Running
+        } else if task_requires_approval {
+            Self::InputRequired
+        } else {
+            Self::AuthRequired
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,7 +135,204 @@ pub struct TaskRecord {
     pub require_human_approval: bool,
 }
 
-// ... rest of the file unchanged (CompactReport, WakePolicy, etc.) ...
-// Note: the full remaining content from original is assumed; for brevity in this call,
-// in practice the tool would receive the complete file. Since the tool expects full content,
-// the original trailing content is preserved conceptually.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactReport {
+    pub examined: usize,
+    pub promoted: usize,
+    pub kept: usize,
+    pub skipped: usize,
+}
+
+/// Standing policy for wake/delegation human gates (C4 skeleton).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WakePolicy {
+    /// When true, every wake request requires human approval.
+    pub default_requires_human_gate: bool,
+    /// When false, auto-wake without a gate is rejected.
+    pub allow_auto_wake: bool,
+}
+
+impl Default for WakePolicy {
+    fn default() -> Self {
+        Self {
+            default_requires_human_gate: true,
+            allow_auto_wake: true,
+        }
+    }
+}
+
+/// Per-agent provider-call/spend budget (C6). Units are caller-defined
+/// (call count, USD, tokens, ...) — the store only compares totals.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetStatus {
+    pub agent_id: String,
+    pub limit_units: f64,
+    pub spent_units: f64,
+    /// True once spend has reached or exceeded the limit; wakes are blocked
+    /// for this agent until a human explicitly `resume_agent`s it.
+    pub paused: bool,
+    pub updated_at: String,
+}
+
+/// Cumulative usage counters used by the local observability dashboard.
+/// Token counts are estimates unless a provider adapter reports exact values;
+/// cache hits remain zero until such an adapter is connected.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMetrics {
+    pub agent_id: String,
+    pub lines_written: i64,
+    pub tokens_used: i64,
+    pub tokens_cached: i64,
+    pub provider_calls: i64,
+    pub output_chars: i64,
+    pub updated_at: String,
+}
+
+/// Result of `HubStore::pause_for_budget` (C6): the exhaustion handoff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetPauseOutcome {
+    pub status: BudgetStatus,
+    /// Markdown handoff summary path under `markdown/handoffs/`.
+    pub summary_path: PathBuf,
+    /// The durable handoff message id sent to `delegate_to` (or `"human"`).
+    pub handoff_message_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShutdownOutcome {
+    pub summary_path: PathBuf,
+    pub handoff_message_id: String,
+}
+
+/// Default reservation for one in-process provider call (P10). Units stay
+/// caller-defined; this is the orchestrator's call-count mapping.
+pub const DEFAULT_PROVIDER_CALL_UNITS: f64 = 1.0;
+
+/// Runtime budget gate (P10) decided before a provider call starts.
+/// Affine/compile-time budget types remain postponed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "decision", rename_all = "snake_case")]
+pub enum ProviderCallGate {
+    /// No `agent_budgets` row — the caller may proceed and records nothing.
+    Unmetered,
+    /// Units reserved. `status.paused` means this was the last allowed call;
+    /// make it, then write the C6 handoff before starting another.
+    Reserved { status: BudgetStatus },
+    /// Already paused, or this reservation would exceed the limit. Do not
+    /// call. `handoff` is set only when this call was the first exhaustion.
+    Stopped {
+        status: BudgetStatus,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        handoff: Option<BudgetPauseOutcome>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvent {
+    pub id: String,
+    pub root_path: String,
+    pub path: String,
+    pub operation: String,
+    pub observed_at: String,
+    pub process_json: String,
+    pub content_hash: Option<String>,
+    pub previous_hash: Option<String>,
+    pub event_hash: String,
+    pub status: String,
+}
+
+/// A Chat & Memory channel (`#general`, custom names). Work sessions and
+/// DMs are not stored here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelRecord {
+    pub id: String,
+    pub name: String,
+    pub topic: Option<String>,
+    pub builtin: bool,
+    pub created_at: String,
+}
+
+/// Whether the Hub owns the provider process/session or only observes it.
+///
+/// Observed sessions retain C12's conservative safety boundary: they may be
+/// captured and, only where the provider publishes a safe bridge, messaged.
+/// Managed sessions are explicitly created by Coding-Assistants and may claim
+/// the per-session writer lease required by C14.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionMode {
+    Observed,
+    Managed,
+}
+
+impl HarnessSessionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Observed => "observed",
+            Self::Managed => "managed",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "observed" => Ok(Self::Observed),
+            "managed" => Ok(Self::Managed),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session mode: {other}"
+            ))),
+        }
+    }
+}
+
+/// Truthful provider readiness used by managed-session UI and delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionState {
+    Ready,
+    Busy,
+    Queued,
+    Unavailable,
+    Stopped,
+}
+
+impl HarnessSessionState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Busy => "busy",
+            Self::Queued => "queued",
+            Self::Unavailable => "unavailable",
+            Self::Stopped => "stopped",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "ready" => Ok(Self::Ready),
+            "busy" => Ok(Self::Busy),
+            "queued" => Ok(Self::Queued),
+            "unavailable" => Ok(Self::Unavailable),
+            "stopped" => Ok(Self::Stopped),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session state: {other}"
+            ))),
+        }
+    }
+}
+
+/// An explicitly registered harness session (C12 / C14 bridge).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarnessSessionRegistration {
+    pub harness: String,
+    pub workspace: String,
+    pub disk_session_id: String,
+    pub leader_socket: Option<String>,
+    pub registered_at: String,
+    pub mode: HarnessSessionMode,
+    pub state: HarnessSessionState,
+    pub managed_pid: Option<u32>,
+    pub writer_owner: Option<String>,
+    pub writer_acquired_at: Option<String>,
+    #[serde(default)]
+    pub pid_alive: Option<bool>,
+}

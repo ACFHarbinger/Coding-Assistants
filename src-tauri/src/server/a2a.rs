@@ -99,6 +99,8 @@ pub fn a2a_task_state(status: &str) -> &'static str {
         "done" => "completed",
         "cancelled" => "canceled",
         "failed" => "failed",
+        "input_required" | "input-required" => "input-required",
+        "auth_required" | "auth-required" => "auth-required",
         _ => "failed",
     }
 }
@@ -179,6 +181,9 @@ pub fn handle_rpc(store: &HubStore, method: &str, params: &Value, id: &Value) ->
                 max_retries: 0,
                 parallel_group: None,
                 peer: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }];
             let task = match store
                 .create_task(&title, None, &steps)

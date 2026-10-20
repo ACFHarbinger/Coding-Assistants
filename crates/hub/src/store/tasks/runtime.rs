@@ -17,11 +17,13 @@ impl HubStore {
         let mut last_msg: Option<String> = None;
         let mut open: Vec<String> = Vec::new();
         let mut pending: Vec<String> = Vec::new();
+        let mut gated = false;
 
         if idxs.len() == 1 {
             let step = &task.steps[idxs[0]];
-            let msg_id = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
-            last_msg = Some(msg_id);
+            let dispatched = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
+            last_msg = Some(dispatched.message_id);
+            gated = dispatched.requires_human_gate;
         } else {
             let mut agents_to_run: Vec<usize> = idxs.clone();
             let cap = task.max_parallel as usize;
@@ -29,7 +31,7 @@ impl HubStore {
             let wake_now: Vec<usize> = agents_to_run.drain(..take).collect();
             for si in &wake_now {
                 let step = &task.steps[*si];
-                let msg_id = self.dispatch_step(
+                let dispatched = self.dispatch_step(
                     id,
                     task,
                     step,
@@ -37,7 +39,8 @@ impl HubStore {
                     note,
                     &format!("{stage_label}/{}", step.agent),
                 )?;
-                last_msg = Some(msg_id);
+                last_msg = Some(dispatched.message_id);
+                gated |= dispatched.requires_human_gate;
                 open.push(step.agent.clone());
             }
             for si in agents_to_run {
@@ -45,9 +48,10 @@ impl HubStore {
             }
         }
 
+        let status = TaskStatus::after_local_dispatch(task.require_human_approval, gated);
         self.persist_task_runtime(
             id,
-            TaskStatus::Running.as_str(),
+            status.as_str(),
             stage_index,
             last_msg.as_deref(),
             &attempts,
@@ -68,7 +72,10 @@ impl HubStore {
         let task = self
             .get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))?;
-        if task.status != TaskStatus::Running.as_str() {
+        if !TaskStatus::parse(&task.status)
+            .map(|status| status.is_in_progress())
+            .unwrap_or(false)
+        {
             return Err(HubError::Invalid("task is not running".into()));
         }
         if task.open_agents.is_empty() && task.pending_agents.is_empty() {
@@ -93,6 +100,8 @@ impl HubStore {
         let stage_index = task.step_index;
         let max_parallel = task.max_parallel;
         let attempts = task.attempts.clone();
+        let mut dispatched_any = false;
+        let mut gated = false;
 
         while open.len() < max_parallel as usize && !pending.is_empty() {
             let next_agent = pending.remove(0);
@@ -105,7 +114,7 @@ impl HubStore {
                 .ok_or_else(|| {
                     HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
                 })?;
-            let msg_id = self.dispatch_step(
+            let dispatched = self.dispatch_step(
                 id,
                 &task,
                 step,
@@ -113,13 +122,20 @@ impl HubStore {
                 note,
                 &format!("{}/{}", stage_index + 1, next_agent),
             )?;
-            last_msg = Some(msg_id);
+            last_msg = Some(dispatched.message_id);
+            gated = dispatched.requires_human_gate;
+            dispatched_any = true;
             open.push(next_agent);
         }
 
+        let status = if dispatched_any {
+            TaskStatus::after_local_dispatch(task.require_human_approval, gated)
+        } else {
+            TaskStatus::parse(&task.status).unwrap_or(TaskStatus::Running)
+        };
         self.persist_task_runtime(
             id,
-            TaskStatus::Running.as_str(),
+            status.as_str(),
             stage_index,
             last_msg.as_deref(),
             &attempts,
@@ -140,7 +156,10 @@ impl HubStore {
         let task = self
             .get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))?;
-        if task.status != TaskStatus::Running.as_str() {
+        if !TaskStatus::parse(&task.status)
+            .map(|status| status.is_in_progress())
+            .unwrap_or(false)
+        {
             return Err(HubError::Invalid("can only retry a running task".into()));
         }
         let stages = Self::workflow_stages(&task.steps);
@@ -207,5 +226,38 @@ impl HubStore {
         }
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    /// When a human resolves the wake that parked a task, move that task.
+    /// Delivered resumes `running`. Cancelled marks `failed`. Wakes that are
+    /// not the task's latest handoff, and tasks that are not waiting, stay put.
+    pub(crate) fn apply_wake_resolution_to_task(
+        &self,
+        message_id: Option<&str>,
+        status: WakeStatus,
+    ) -> Result<(), HubError> {
+        let Some(message_id) = message_id.map(str::trim).filter(|id| !id.is_empty()) else {
+            return Ok(());
+        };
+        let (next, clear_open) = match status {
+            WakeStatus::Delivered => (TaskStatus::Running.as_str(), false),
+            WakeStatus::Cancelled => (TaskStatus::Failed.as_str(), true),
+            WakeStatus::Pending => return Ok(()),
+        };
+        if clear_open {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1, updated_at = ?2, \
+                 open_agents_json = '[]', pending_agents_json = '[]' \
+                 WHERE last_message_id = ?3 AND status IN ('input_required', 'auth_required')",
+                params![next, Utc::now().to_rfc3339(), message_id],
+            )?;
+        } else {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1, updated_at = ?2 \
+                 WHERE last_message_id = ?3 AND status IN ('input_required', 'auth_required')",
+                params![next, Utc::now().to_rfc3339(), message_id],
+            )?;
+        }
+        Ok(())
     }
 }

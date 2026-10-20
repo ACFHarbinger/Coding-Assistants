@@ -261,6 +261,9 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "claude".into(),
@@ -269,6 +272,9 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -277,6 +283,9 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
     let task = store
@@ -286,7 +295,7 @@ fn c5_sequential_task_advance_plan_code_review() {
     assert_eq!(task.step_index, 0);
 
     let t1 = store.advance_task(&task.id, None, None).unwrap();
-    assert_eq!(t1.status, "running");
+    assert_eq!(t1.status, "input_required");
     assert_eq!(t1.step_index, 0);
     assert!(t1.last_message_id.is_some());
     let inbox = store.poll_messages("grok", true).unwrap();
@@ -323,6 +332,9 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_a".into(),
@@ -331,6 +343,9 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_b".into(),
@@ -339,6 +354,9 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_c".into(),
@@ -347,6 +365,9 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "reviewer".into(),
@@ -355,6 +376,9 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
     // max_parallel=2 → wake two of three implementers first
