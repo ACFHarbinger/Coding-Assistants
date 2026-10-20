@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { GateCheck, GateCombinator, GateCriterion } from "./types";
+import { gateInteger, parseArgv } from "./gateInput";
+export { parseArgv } from "./gateInput";
 
 interface GateCriteriaSectionProps {
   gateCriteria: GateCriterion[];
@@ -8,24 +10,6 @@ interface GateCriteriaSectionProps {
   onChangeCombinator: (combinator: GateCombinator) => void;
   onAddCriterion: (criterion: GateCriterion) => void;
   onRemoveCriterion: (index: number) => void;
-}
-
-export function parseArgv(input: string): string[] {
-  const trimmed = input.trim();
-  if (!trimmed) return [];
-  const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
-  const matches: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(trimmed)) !== null) {
-    if (match[1] !== undefined) {
-      matches.push(match[1]);
-    } else if (match[2] !== undefined) {
-      matches.push(match[2]);
-    } else {
-      matches.push(match[0]);
-    }
-  }
-  return matches;
 }
 
 export function GateCriteriaSection({
@@ -68,14 +52,20 @@ export function GateCriteriaSection({
       }
       let check: GateCheck = "exit_code_zero";
       if (cmdCheckType === "at_most") {
-        const maxVal = parseInt(String(cmdCheckMax), 10);
-        if (isNaN(maxVal) || maxVal < 0) {
-          setCriterionError("Max exit code must be a non-negative integer (≥ 0).");
+        const maxVal = gateInteger(cmdCheckMax, 0);
+        if (maxVal === null) {
+          setCriterionError("Stdout maximum must be a non-negative safe integer (≥ 0).");
           return;
         }
         check = { at_most: { max: maxVal } };
       }
-      const parsedArgs = parseArgv(cmdArgs);
+      let parsedArgs: string[];
+      try {
+        parsedArgs = parseArgv(cmdArgs);
+      } catch (error) {
+        setCriterionError(String(error));
+        return;
+      }
       onAddCriterion({
         kind: "command",
         program: prog,
@@ -83,8 +73,8 @@ export function GateCriteriaSection({
         check,
       });
     } else if (newCriterionType === "max_lines") {
-      const parsedLines = parseInt(String(maxLines), 10);
-      if (isNaN(parsedLines) || parsedLines < 1) {
+      const parsedLines = gateInteger(maxLines, 1);
+      if (parsedLines === null) {
         setCriterionError("Max lines must be a positive integer (≥ 1).");
         return;
       }
@@ -102,8 +92,8 @@ export function GateCriteriaSection({
         globs: parsedGlobs,
       });
     } else {
-      const parsedTokens = parseInt(String(minTokens), 10);
-      if (isNaN(parsedTokens) || parsedTokens < 1) {
+      const parsedTokens = gateInteger(minTokens, 1);
+      if (parsedTokens === null) {
         setCriterionError("Min tokens written must be a positive integer (≥ 1).");
         return;
       }
@@ -176,7 +166,7 @@ export function GateCriteriaSection({
                     🖥️ Command: <code>{crit.program} {crit.args.join(" ")}</code> (
                     {crit.check === "exit_code_zero"
                       ? "exit 0"
-                      : `exit ≤ ${crit.check.at_most.max}`}
+                      : `exit 0 and stdout ≤ ${crit.check.at_most.max}`}
                     )
                   </span>
                 )}
@@ -340,7 +330,7 @@ export function GateCriteriaSection({
             </div>
             <div>
               <label style={{ display: "block", fontSize: "0.7rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.2rem" }}>
-                Exit Check
+                Result Check
               </label>
               <div style={{ display: "flex", gap: "0.3rem" }}>
                 <select
@@ -353,7 +343,7 @@ export function GateCriteriaSection({
                   style={{ flex: 1, padding: "0.35rem 0.4rem", borderRadius: "4px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: "0.75rem" }}
                 >
                   <option value="exit_code_zero">Exit 0 (pass)</option>
-                  <option value="at_most">Exit ≤ N</option>
+                  <option value="at_most">Exit 0 and stdout ≤ N</option>
                 </select>
                 {cmdCheckType === "at_most" && (
                   <input
@@ -365,7 +355,7 @@ export function GateCriteriaSection({
                       setCriterionError(null);
                     }}
                     placeholder="Max"
-                    aria-label="Max Exit Code"
+                    aria-label="Maximum Stdout Value"
                     style={{ width: "55px", padding: "0.35rem 0.4rem", borderRadius: "4px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: "0.75rem" }}
                   />
                 )}

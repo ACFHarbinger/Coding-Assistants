@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex follow-up review — 2026-10-20
+
+- Schedule gate editor review: fixed quoted-argument tokenization and malformed-input rejection; numeric thresholds no longer truncate fractions or accept unsafe integers. Numeric command checks are correctly labeled as exit-zero plus stdout maximum, not exit-code ceilings (#353).
+
 ### Codex review corrections — 2026-10-20
 
 - Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.

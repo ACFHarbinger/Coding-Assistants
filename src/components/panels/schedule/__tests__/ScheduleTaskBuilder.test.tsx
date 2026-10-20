@@ -5,6 +5,10 @@ import { ScheduleTaskBuilder } from "../ScheduleTaskBuilder";
 import type { GateCriterion, ScheduleCreateArgs } from "../types";
 
 describe("parseArgv", () => {
+  it("preserves adjacent quoted fragments and rejects unfinished quotes", () => {
+    expect(parseArgv('--message="hello world" ""')).toEqual(['--message=hello world', '']);
+    expect(() => parseArgv('"unfinished')).toThrow();
+  });
   it("parses empty string to empty array", () => {
     expect(parseArgv("")).toEqual([]);
     expect(parseArgv("   ")).toEqual([]);
@@ -26,6 +30,15 @@ describe("parseArgv", () => {
 });
 
 describe("GateCriteriaSection", () => {
+  it("rejects fractional thresholds instead of silently truncating them", () => {
+    const onAdd = vi.fn();
+    render(<GateCriteriaSection gateCriteria={[]} gateCombinator="all" isRecurring={true}
+      onChangeCombinator={vi.fn()} onAddCriterion={onAdd} onRemoveCriterion={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Command Check Type"), { target: { value: "at_most" } });
+    fireEvent.change(screen.getByLabelText("Maximum Stdout Value"), { target: { value: "2.5" } });
+    fireEvent.click(screen.getByText("+ Add Criterion"));
+    expect(onAdd).not.toHaveBeenCalled();
+  });
   it("renders one-shot banner and disables adding gates when isRecurring is false", () => {
     const onAdd = vi.fn();
     render(
@@ -75,7 +88,7 @@ describe("GateCriteriaSection", () => {
     const checkSelect = screen.getByLabelText("Command Check Type");
     fireEvent.change(checkSelect, { target: { value: "at_most" } });
 
-    const maxInput = screen.getByLabelText("Max Exit Code");
+    const maxInput = screen.getByLabelText("Maximum Stdout Value");
     fireEvent.change(maxInput, { target: { value: "2" } });
 
     // Click Add
