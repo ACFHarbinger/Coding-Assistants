@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ScorecardView, AgentScorecardRow, HarnessScorecardRow, ProviderScorecardRow, FigureProvenance } from "./types";
 import { ScorecardDigest } from "./ScorecardDigest";
+import { ScorecardOversight } from "./ScorecardOversight";
 
 export function ScorecardTab() {
   const renderCoverage = (coverage?: { measured_requests: number; total_requests: number } | null) =>
@@ -164,6 +165,14 @@ export function ScorecardTab() {
                         {agent.oversight_role}
                       </span>
                     )}
+                    {(agent.unresolved_disagreements ?? 0) > 0 && (
+                      <span
+                        title="Unresolved scorecard.disagreement rows naming this agent — inspect, not a score"
+                        style={{ padding: "0.15rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", background: "rgba(245, 158, 11, 0.2)", color: "#fbbf24", border: "1px solid rgba(245, 158, 11, 0.4)" }}
+                      >
+                        ⚡ {agent.unresolved_disagreements} disagreement{agent.unresolved_disagreements! > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
 
                   {/* Security events banner */}
@@ -240,6 +249,9 @@ export function ScorecardTab() {
           <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>No agent rows available.</div>
         )}
       </div>
+
+      {/* Section: Oversight (T7) — probes + reviewer signature */}
+      <ScorecardOversight probes={data?.probes} reviewers={data?.reviewers} />
 
       {/* Section 2: Harness Coverage */}
       <div>

@@ -3,11 +3,13 @@ use super::*;
 mod audit;
 mod budget_gate;
 mod provider_usage;
+mod quota_snapshot;
 mod seeding;
 mod settings_audit;
 mod slice_stamp;
 
 pub use provider_usage::ProviderUsage;
+pub use quota_snapshot::QuotaSnapshot;
 pub use slice_stamp::{Attribution, SliceStamp};
 
 // Re-exported for the S6 danger purges (`store::danger`, message/memory

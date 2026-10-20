@@ -120,6 +120,10 @@ pub struct AgentScorecardRow {
     pub budget_paused: bool,
     pub provenance: String,
     pub task_count: ScorecardFigure,
+    /// Unresolved `scorecard.disagreement` rows naming this agent (T7 / #347).
+    /// A count, never a score — the badge only says "inspect me".
+    #[serde(default)]
+    pub unresolved_disagreements: u64,
 }
 
 /// One harness's coverage and session status row.
@@ -155,4 +159,89 @@ pub struct ScorecardView {
     pub digest: Option<OwnerDigest>,
     pub aggregation_version: u32,
     pub generated_at: String,
+    /// Advisory consistency-probe results (T7 / #347). Owner-only: non-owner
+    /// callers always receive an empty vec, even under `all_agents`.
+    #[serde(default)]
+    pub probes: Vec<ScorecardProbe>,
+    /// Reviewer-side oversight signature (T7 / #347). Owner-private; empty
+    /// for every non-owner caller.
+    #[serde(default)]
+    pub reviewers: Vec<ReviewerSignatureRow>,
+}
+
+/// Outcome of one advisory consistency probe (T7 / #347).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProbeState {
+    /// Both sources exist and agree within the probe's coarse tolerance.
+    Ok,
+    /// Both sources exist and contradict; a `scorecard.disagreement` row
+    /// links them on the audit chain.
+    Disagreement,
+    /// A required source is absent; `reason` says which. Unknown is the
+    /// honest state — never report "ok" for an unchecked comparison.
+    Unknown,
+}
+
+impl ProbeState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Disagreement => "disagreement",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// One probe/subject pair with its state. Probes are descriptive and
+/// advisory; there is deliberately no per-agent roll-up.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScorecardProbe {
+    /// Stable probe id: `quota_vs_cost`, `git_scope_vs_touch_set`,
+    /// `network_vs_provider_log`, or `claimant_consistency`.
+    pub probe: String,
+    /// What the probe ran against: a provider id, task id, or `global`.
+    pub subject: String,
+    pub state: ProbeState,
+    /// Why the state is what it is — especially required for `unknown`.
+    pub reason: Option<String>,
+    /// The audit rows the verdict rests on, so the owner can inspect both
+    /// sides of a disagreement from the card.
+    pub source_event_ids: Vec<String>,
+    /// Roster agents implicated in the result (drives the card badge and the
+    /// disagreement row's `agents` field). Empty for global/unknown rows.
+    #[serde(default)]
+    pub linked_agents: Vec<String>,
+}
+
+/// One reviewer agent's descriptive oversight signature (T7 / #347).
+/// Every figure is independently provenanced; the row is never collapsed
+/// into a reviewer-quality score, and there are no latency-only alerts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReviewerSignatureRow {
+    pub reviewer_id: String,
+    pub display_name: String,
+    /// `review.finding` rows recorded by this reviewer (identical
+    /// re-submissions dedupe at write time, so retries never inflate this).
+    pub findings_recorded: ScorecardFigure,
+    /// Distinct findings later corrected by the owner
+    /// (`review.finding_corrected`) — repeated corrections of one finding
+    /// count once, so the reversal rate cannot exceed 100%.
+    pub findings_corrected_by_owner: ScorecardFigure,
+    /// Findings per task that has at least one documented finding. This is
+    /// NOT a rate across all reviewed tasks — that needs a review record
+    /// the Hub does not yet have. `unknown` until a documented task exists.
+    pub findings_per_task: ScorecardFigure,
+    /// Distinct owner-corrected findings ÷ recorded findings. `unknown`
+    /// while no findings exist.
+    pub owner_override_reversal_rate: ScorecardFigure,
+    /// Always `unknown` for now: gate decisions record no reviewer identity,
+    /// a tagged send is not proof evidence was inspected, and JSON substring
+    /// matching misses equivalent formatting. Reports as a real figure only
+    /// once decision actors and evidence signals exist.
+    pub zero_evidence_approvals: ScorecardFigure,
+    /// Reviewer decision timestamps do not exist in the Hub yet (review
+    /// happens outside the decision rows), so dwell stays `unknown` rather
+    /// than being approximated from an unrelated clock.
+    pub review_dwell: ScorecardFigure,
 }

@@ -26,6 +26,8 @@ impl HubStore {
                 digest: None,
                 aggregation_version: 1,
                 generated_at: Utc::now().to_rfc3339(),
+                probes: Vec::new(),
+                reviewers: Vec::new(),
             });
         }
 
@@ -35,6 +37,13 @@ impl HubStore {
         } else {
             None
         };
+
+        // T7 (#347): advisory probes. Computed for every caller (cheap, and
+        // the caller's own card carries the disagreement badge), but the
+        // probe list and reviewer signature are owner-only payloads.
+        let probes = self.compute_probe_candidates()?;
+        self.persist_probe_disagreements(&probes)?;
+        let disagreement_badges = self.unresolved_disagreement_counts()?;
 
         // 1. Load roster agents
         let has_oversight: bool = self
@@ -252,7 +261,7 @@ impl HubStore {
                 };
 
             agent_rows.push(AgentScorecardRow {
-                agent_id: aid,
+                agent_id: aid.clone(),
                 display_name: name,
                 oversight_role: oversight,
                 open_security_events: open_sec,
@@ -266,6 +275,7 @@ impl HubStore {
                 budget_paused: paused,
                 provenance: prov_str,
                 task_count: ScorecardFigure::unknown("tasks"),
+                unresolved_disagreements: disagreement_badges.get(&aid).copied().unwrap_or(0),
             });
         }
 
@@ -299,6 +309,10 @@ impl HubStore {
                 budget_paused: false,
                 provenance: prov_str,
                 task_count: ScorecardFigure::unknown("tasks"),
+                unresolved_disagreements: disagreement_badges
+                    .get("unattributed")
+                    .copied()
+                    .unwrap_or(0),
             });
         }
 
@@ -427,6 +441,14 @@ impl HubStore {
             }
         }
 
+        // Owner-only payloads (T7): the full probe list and the reviewer
+        // signature. Non-owner callers already got their own badge counts.
+        let (probes, reviewers) = if is_owner {
+            (probes, self.reviewer_signature()?)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+
         Ok(ScorecardView {
             agents: agent_rows,
             harnesses: harness_rows,
@@ -434,6 +456,8 @@ impl HubStore {
             digest,
             aggregation_version: 1,
             generated_at: Utc::now().to_rfc3339(),
+            probes,
+            reviewers,
         })
     }
 }

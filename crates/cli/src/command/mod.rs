@@ -7,6 +7,7 @@ mod harness;
 mod memory;
 mod msg;
 mod preflight;
+mod review;
 mod shutdown;
 mod sync;
 mod telegram;
@@ -51,6 +52,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Memory { action } => memory::run(&store, action)?,
         Command::Msg { action } => msg::run(&store, action)?,
+        Command::Review { action } => review::run(&store, action)?,
         Command::Wake { action } => match action {
             WakeCommand::Request {
                 target,

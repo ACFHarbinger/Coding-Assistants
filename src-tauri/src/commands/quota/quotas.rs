@@ -192,6 +192,29 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
     .map_err(|error| format!("provider quota fetch task panicked: {error}"))
 }
 
+/// Best-effort `quota.snapshot` audit row (Team Scorecard T7 / #347) so the
+/// scorecard's quota-vs-cost probe has a balance side. Runs on explicit
+/// refreshes only — never the 60-second poll, which would grow the hash
+/// chain with duplicate information (the Hub-side writer dedupes unchanged
+/// values too). A snapshot failure never blocks the refresh itself.
+fn record_snapshot_best_effort(quota: &ProviderQuota) {
+    let balance = quota.balance_info.as_ref().map(|info| info.total);
+    let (used_percent, window_label) = quota
+        .windows
+        .first()
+        .map(|window| (Some(window.used_percent), Some(window.label.clone())))
+        .unwrap_or((None, None));
+    let snapshot = hub::QuotaSnapshot {
+        provider: quota.provider.clone(),
+        balance,
+        used_percent,
+        window_label,
+    };
+    if let Ok(store) = crate::commands::commands::store::open_store() {
+        let _ = store.record_quota_snapshot(&snapshot);
+    }
+}
+
 /// `chat` (Codex) and `grok` fetch a live process/API on every call with no
 /// staleness risk, so the frontend keeps their "live quota" label and skips
 /// the refresh button. Every other provider gets a "last refreshed" label and
@@ -200,22 +223,26 @@ pub async fn hub_get_provider_quotas() -> Result<Vec<ProviderQuota>, String> {
 /// updated by an explicit refresh).
 #[tauri::command]
 pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuota, String> {
-    tauri::async_runtime::spawn_blocking(move || match agent_id.as_str() {
-        "claude" => claude_quota(),
-        "grok" => grok_quota(),
-        "chat" | "codex" => codex_quota(),
-        "cursor" => cursor_quota(),
-        "gemini" => gemini_quota(metered_quota_probes_allowed()),
-        "opencode" => opencode_quota(metered_quota_probes_allowed()),
-        "deepseek" => deepseek_quota(),
-        "muse" => muse_quota(metered_quota_probes_allowed()),
-        "mistral" | "vibe" => mistral_quota(),
-        "qwen" => qwen_quota(),
-        "kimi" => kimi_quota(),
-        "hermes" | "hermes-agent" => hermes_quota(),
-        "llamacpp" => llamacpp_quota(),
-        "ollama" => ollama_quota(),
-        other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
+    tauri::async_runtime::spawn_blocking(move || {
+        let quota = match agent_id.as_str() {
+            "claude" => claude_quota(),
+            "grok" => grok_quota(),
+            "chat" | "codex" => codex_quota(),
+            "cursor" => cursor_quota(),
+            "gemini" => gemini_quota(metered_quota_probes_allowed()),
+            "opencode" => opencode_quota(metered_quota_probes_allowed()),
+            "deepseek" => deepseek_quota(),
+            "muse" => muse_quota(metered_quota_probes_allowed()),
+            "mistral" | "vibe" => mistral_quota(),
+            "qwen" => qwen_quota(),
+            "kimi" => kimi_quota(),
+            "hermes" | "hermes-agent" => hermes_quota(),
+            "llamacpp" => llamacpp_quota(),
+            "ollama" => ollama_quota(),
+            other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
+        };
+        record_snapshot_best_effort(&quota);
+        quota
     })
     .await
     .map_err(|error| format!("provider quota refresh task panicked: {error}"))

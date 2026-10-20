@@ -149,6 +149,8 @@ export interface AgentScorecardRow {
   budget_paused: boolean;
   provenance: string;
   task_count: ScorecardFigure;
+  /** Unresolved `scorecard.disagreement` rows naming this agent (T7 / #347). */
+  unresolved_disagreements?: number;
 }
 
 export interface HarnessScorecardRow {
@@ -216,6 +218,34 @@ export interface ScorecardView {
   digest?: OwnerDigest | null;
   aggregation_version: number;
   generated_at: string;
+  /** Advisory consistency probes (T7 / #347). Owner-only payload. */
+  probes?: ScorecardProbe[];
+  /** Reviewer-side oversight signature (T7 / #347). Owner-private. */
+  reviewers?: ReviewerSignatureRow[];
+}
+
+export type ProbeState = "ok" | "disagreement" | "unknown";
+
+export interface ScorecardProbe {
+  probe: string;
+  subject: string;
+  state: ProbeState;
+  reason?: string | null;
+  source_event_ids: string[];
+  linked_agents?: string[];
+}
+
+export interface ReviewerSignatureRow {
+  reviewer_id: string;
+  display_name: string;
+  findings_recorded: ScorecardFigure;
+  findings_corrected_by_owner: ScorecardFigure;
+  /** Findings per task WITH a documented finding — not a rate across all reviewed tasks. */
+  findings_per_task: ScorecardFigure;
+  owner_override_reversal_rate: ScorecardFigure;
+  /** Always `unknown` until gate decisions record reviewer identity and evidence signals exist. */
+  zero_evidence_approvals: ScorecardFigure;
+  review_dwell: ScorecardFigure;
 }
 
 // Mirrors `hub::ChannelWorkspace` (C14.3 / #150).

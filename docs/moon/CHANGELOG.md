@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20
+
+- Codex corrected wake-time backdating and lexical/invalid timestamp authority checks (#347). The later-wake regression failed before the correction and passes afterwards; scorecard tests 46/46 and Hub lib tests 656/656 pass.
+
+### Added
+
+- **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
+  `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
+  (measured `provider.usage` spend vs `quota.snapshot` balance movement with
+  symmetric >2x divergence inside the declared coverage model; top-up-only
+  histories read `unknown`, never `ok`; snapshots write best-effort on
+  explicit quota refresh with unchanged-value dedupe), `claimant_consistency`
+  (stamped action claims — usage/os_tool/budget/mcp only, never
+  communication — approved only by time-valid authority at or before the
+  agent's earliest claimed action: a `handoff` message or a wake linked to
+  that handoff, or a session membership join time. The current task/session
+  roster has no interval and cannot approve past work or prove exclusion.
+  Ordinary messages and wakes are not assignments. A missing interval stays
+  `unknown`, including after reassignment when the earlier handoff is gone
+  from the current roster; task and session namespaces stay separate),
+  `network_vs_provider_log` (`unknown` until T6 (#346) lands its local-only
+  sample store and the two crates agree a read contract — raw network
+  samples never join the synced audit chain), and `git_scope_vs_touch_set`
+  (`unknown` until a git source exists). Every probe reports
+  `ok | disagreement | unknown` per subject; a disagreement writes one
+  deduped hash-chained `scorecard.disagreement` row linking both sources —
+  candidates are merged per (probe, subject) and the check-and-insert runs
+  in one transaction — and agent cards carry an unresolved-disagreement
+  badge (a count, never a score). Reviewer-side signature: `review.finding` /
+  `review.finding_corrected` audit rows (severity + origin in `process_json`,
+  no new columns) feed findings-per-documented-task and a reversal rate that
+  counts distinct owner-corrected findings and can never exceed 100%;
+  findings dedupe identical re-submissions at write time and attribute only
+  to enrolled roster agents; corrections require owner authority.
+  Zero-evidence approvals and review dwell stay honestly `unknown` — gate
+  decisions record no reviewer identity and a send is not proof of evidence
+  inspection. New `ca review finding|correct` CLI entry path.
 ### Codex follow-up review — 2026-10-20
 
 - Network sampler review: apply trusted-identity expiry before using the baseline, not only on the later pruning write. Added a stale-file regression; retention and unique concurrent-writer temp-file fixes accepted (#346).

@@ -10,6 +10,7 @@ mod agent;
 mod commands;
 mod harness;
 mod journal;
+mod review;
 mod sync;
 mod telegram;
 mod tool;
@@ -20,6 +21,7 @@ pub(crate) use commands::{
 };
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
+pub(crate) use review::ReviewCommand;
 pub(crate) use sync::SyncCommand;
 pub(crate) use telegram::TelegramCommand;
 pub(crate) use tool::ToolCommand;
@@ -93,6 +95,11 @@ pub(crate) enum Command {
     Audit {
         #[command(subcommand)]
         action: AuditCommand,
+    },
+    /// Classified review findings and owner corrections (Team Scorecard T7).
+    Review {
+        #[command(subcommand)]
+        action: ReviewCommand,
     },
     /// Run a long-lived adapter-facing inbox consumer.
     Inbox {

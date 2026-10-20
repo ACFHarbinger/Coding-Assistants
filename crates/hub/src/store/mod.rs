@@ -57,7 +57,7 @@ mod tasks;
 mod tests;
 mod workspaces;
 pub use activity::*;
-pub use policies::{Attribution, ProviderUsage, SliceStamp};
+pub use policies::{Attribution, ProviderUsage, QuotaSnapshot, SliceStamp};
 pub mod scorecard;
 pub use scorecard::*;
 pub struct HubStore {

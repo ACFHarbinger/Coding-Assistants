@@ -6,8 +6,17 @@
 //! gating.
 
 mod digest;
+#[cfg(test)]
+#[path = "probe_test_support.rs"]
+pub(crate) mod probe_test_support;
+
 mod helpers;
+mod probe_claimant;
+mod probe_quota;
+mod probes;
 mod query;
+mod review;
 mod types;
 pub use digest::*;
+pub use review::{ReviewFinding, FINDING_ORIGINS, FINDING_SEVERITIES};
 pub use types::*;
