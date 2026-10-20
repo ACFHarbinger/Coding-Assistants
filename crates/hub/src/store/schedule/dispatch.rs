@@ -141,13 +141,12 @@ impl HubStore {
             return Ok(Some(stopped));
         }
         let sent = self.deliver_live_outbox(&task, row, now)?;
+        self.mark_outbox_delivered(&row.id, now)?;
         if complete_one_shot {
             if let Some(completed) = self.complete_recovered_one_shot(&task.id)? {
-                self.mark_outbox_delivered(&row.id, now)?;
                 return Ok(Some(completed));
             }
         }
-        self.mark_outbox_delivered(&row.id, now)?;
         if sent {
             Ok(Some(TickOutcome {
                 id: task.id,
@@ -199,20 +198,34 @@ impl HubStore {
     /// already exists (pending or finished). Does not mint a second
     /// approval after the first wake completed.
     fn replay_schedule_wake(&self, message: &MessageRecord, task_id: &str) -> Result<(), HubError> {
-        let exists: bool = self.conn.query_row(
+        // Acquire a writer lock before the existence check, so concurrent
+        // drainers cannot create two approvals for the same message.
+        let tx = self.conn.unchecked_transaction()?;
+        let live = tx.execute(
+            "UPDATE scheduled_tasks SET updated_at=updated_at
+             WHERE id=?1 AND status IN ('scheduled', 'active')",
+            params![task_id],
+        )?;
+        if live == 0 {
+            tx.commit()?;
+            return Ok(());
+        }
+        let exists: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM wake_requests WHERE message_id = ?1)",
             params![message.id],
             |row| row.get(0),
         )?;
         if exists {
+            tx.commit()?;
             return Ok(());
         }
-        let _ = self.request_wake(
+        self.request_wake(
             &message.to_agent,
             Some(&format!("schedule {task_id}")),
             Some(&message.id),
             true,
-        );
+        )?;
+        tx.commit()?;
         Ok(())
     }
 

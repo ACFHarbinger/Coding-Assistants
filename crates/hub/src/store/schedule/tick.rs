@@ -58,6 +58,13 @@ impl HubStore {
             if let Some(completed) = self.complete_recovered_one_shot(&task.id)? {
                 return Ok(completed);
             }
+            // The sender/recovery owns this attempt. Never re-prompt a
+            // one-shot merely because delivery is still pending.
+            return Ok(TickOutcome {
+                id: task.id.clone(),
+                action: "waiting".into(),
+                detail: "one-shot delivery pending".into(),
+            });
         }
         match task.status {
             ScheduleStatus::Scheduled => {
@@ -149,6 +156,17 @@ impl HubStore {
             || task.status != ScheduleStatus::Active
             || task.attempts == 0
         {
+            return Ok(None);
+        }
+        // A claim is not delivery: another tick can observe an active
+        // one-shot while its sender is still working through recipients.
+        let delivered: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM scheduled_dispatch_outbox
+             WHERE schedule_id=?1 AND attempt=?2 AND delivered_at IS NOT NULL)",
+            params![task.id, task.attempts],
+            |row| row.get(0),
+        )?;
+        if !delivered {
             return Ok(None);
         }
         Ok(Some(self.finish(
@@ -325,6 +343,45 @@ impl HubStore {
 #[cfg(test)]
 mod finish_race_tests {
     use super::*;
+
+    #[test]
+    fn stale_tick_waits_for_one_shot_delivery_even_after_response_timeout() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let task = store
+            .create_scheduled_task(
+                "race",
+                "work",
+                ScheduleTarget::Agent {
+                    agent_id: "cursor".into(),
+                },
+                &dir.path().to_string_lossy(),
+                "2020-01-01T00:00:00Z",
+                None,
+                1,
+                vec![],
+                GateCombinator::All,
+                BudgetPolicy::default(),
+                3,
+                None,
+                "human",
+            )
+            .unwrap();
+        store
+            .claim_schedule_dispatch(&task, "2020-01-01T00:00:01Z", "work")
+            .unwrap();
+        let active = store.get_scheduled_task(&task.id).unwrap().unwrap();
+        assert_eq!(
+            store
+                .tick_one(&active, "2020-01-01T00:00:03Z")
+                .unwrap()
+                .action,
+            "waiting"
+        );
+        let current = store.get_scheduled_task(&task.id).unwrap().unwrap();
+        assert_eq!(current.attempts, 1);
+        assert_eq!(current.status, ScheduleStatus::Active);
+    }
 
     #[test]
     fn stale_finish_does_not_complete_a_newer_attempt() {
