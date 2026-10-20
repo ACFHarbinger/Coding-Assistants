@@ -143,6 +143,8 @@ tick logic it drives (S3) is itself correct and tested.
 
 ## GitHub issue plan
 
+Schedule review 2026-10-20: Codex reviewed CLI wrapper and clarified --now help; 25 CLI tests pass. Slice accepted conditionally on corrected #351/#352 integration; no claim that the old scheduler core is safe.
+
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
 #353 (S8 UI, Gemini), #354 (S4 CLI, Kimi), #355 (S6 poller, Cursor),

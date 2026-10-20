@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20
+
+- Clarify that ca schedule tick --now changes the real execution clock and is not a dry run (#354).
+
 ### Fixed
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on

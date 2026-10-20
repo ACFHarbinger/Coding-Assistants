@@ -24,7 +24,8 @@ pub(crate) enum ScheduleCommand {
     /// allowance only — live provider quota is app-side and out of reach
     /// here (see roadmap S5c).
     Tick {
-        /// Override "now" (RFC3339) for diagnostics/dry-runs. Defaults to
+        /// Override the execution clock (RFC3339) for diagnostics. This
+        /// still dispatches real work; it is NOT a dry run. Defaults to
         /// the real current time.
         #[arg(long)]
         now: Option<String>,
