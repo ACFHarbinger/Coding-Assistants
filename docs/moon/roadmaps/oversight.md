@@ -1,5 +1,16 @@
 # Team Scorecard / HITL Oversight Roadmap
 
+Codex follow-up (2026-10-20): #346 PASS with expiry-before-use correction
+`42684c8`. Retention/read expiry and unique-temp concurrent writes accepted;
+Hub lib 663/663, sampler 9/9, clippy/fmt clean. Earlier dated findings below
+are superseded for #346. #344/#345/#347 PASS unchanged; not merged.
+
+Codex review checkpoint (2026-10-20): #344 PASS reaffirmed `cc4cde4`, #345
+PASS reaffirmed `11b8624`, #347 PASS with authority fixes `17b4046`. #346
+changes requested after recycled-PID fix `f30c0fc`: coverage/read retention
+and unique concurrent-writer temp files remain. Not merged; exact checks
+and findings are in the agent bus and GitHub issues.
+
 > **Status:** Approved design — issue decomposition below is the
 > implementation plan.
 >
