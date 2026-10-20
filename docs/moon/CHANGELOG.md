@@ -23,6 +23,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheduled Goals S4 `ca schedule` CLI (#354):** `ca schedule
+  list|create|get|cancel|tick` — the headless entry point OS triggers
+  (cron/systemd, S5a) invoke. Thin wrapper over the shared Hub API from
+  S1/S3: no dispatch, gate, budget, or wake logic is re-implemented in
+  the CLI, and gate criteria still run through the P5 `os_tool` sandbox
+  with its existing approval flow. Input validation happens before the
+  store is touched (RFC3339 `--fire-at`/`--deadline`/`tick --now`,
+  positive `--repeat-interval-secs`/`--response-timeout-secs`,
+  non-negative finite `--credit-allowance`, `--max-attempts >= 1`,
+  absolute `--workspace`, `--gate-criteria` parsed as the stored
+  `GateCriterion` JSON shape, strict `all|any` `--gate-combinator`).
+  `list` supports the six schedule statuses as a `--status` filter;
+  `create` defaults `--created-by` to `human`; output is the same pretty
+  JSON as the rest of the CLI, with the hub's `TickSummary` reused
+  verbatim as the tick result. Headless quota fidelity is stated, not
+  hidden: `tick` enforces only the in-hub `credit_allowance` — the live
+  provider-quota probe is `src-tauri`-side and unreachable here (S5c) —
+  so `--stop-on-quota-exhausted` tasks carry an explicit stderr note on
+  create and tick, and pending `os_tool.proposed` gate approvals are
+  pointed at `ca tool pending`/`approve` so an unmet gate is actionable
+  from the terminal. 14 new CLI tests with temp stores (clap wiring,
+  validation, create/get/list/cancel round trip, status filter,
+  one-shot tick completion, tick-result JSON reuse, `--now` override).
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
