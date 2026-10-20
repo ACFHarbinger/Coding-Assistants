@@ -27,22 +27,23 @@ Gate criteria are enforced two ways: a sandboxed command/tool call (P5
 | **Scheduling reliability** | **OS-level integration** so a fire time is honored even if the app is closed. The `ca` CLI (`crates/cli`) already opens the same `hub.db` the GUI does and has a command-dispatch surface (`ca tool run\|approve\|pending` is the P5 precedent) — `ca schedule tick` is the natural headless entry point for cron/systemd/launchd/Task Scheduler to invoke. |
 | **Delivery approach** | Mini-epic: this roadmap + GitHub issues, Claude implements the core directly. |
 
-## Known cross-layer limitation (stated up front, not hidden in a footnote)
+## Cross-layer quota access (limitation resolved by S5c / #358)
 
 `crates/hub` cannot see `src-tauri`'s quota adapters (`ProviderQuota`,
 session/weekly %) — `hub` is the lower layer; `src-tauri` depends on it,
-not the reverse. That means:
+not the reverse. This was a documented gap for S1–S5a and is now closed:
+the quota adapters, the probe classifier, and the pause-then-tick bridge
+live in a new shared workspace crate, **`crates/quota`**, which depends on
+`hub` and is depended on by both `src-tauri` and `crates/cli` (never the
+reverse, so the layer rule holds). That means:
 
 - **When the app is open**, the in-process scheduler poller (owned by
-  `src-tauri`, which already imports both `hub` and the quota adapters)
-  can check live session/weekly % before each re-prompt and pause on
-  exhaustion. Full fidelity.
-- **When the app is closed**, `ca schedule tick` (pure `hub` + `cli`, no
-  quota-adapter access) can only enforce the in-hub `credit_allowance`
-  budget, not the live provider quota window. This is a known, documented
-  gap for S1, not a silent one — extracting the quota-probe logic into a
-  shared crate so `cli` can call it too is explicitly out of scope here
-  and tracked as a follow-up (S5b).
+  `src-tauri`) checks live session/weekly % before each re-prompt and
+  pauses on exhaustion. Full fidelity.
+- **When the app is closed**, `ca schedule tick` calls the same
+  `quota::tick_with_quota_guard` engine with the same per-agent probes,
+  so it enforces live session/weekly windows with identical pause
+  semantics — plus the in-hub `credit_allowance` budget as before.
 
 ## Known gap: usage accounting does not cover harness-CLI agents (verified, not hidden)
 
@@ -165,7 +166,7 @@ Schedule review 2026-10-20: Codex reviewed CLI wrapper and clarified --now help;
 
 Schedule review 2026-10-20: Codex fixed path directive injection, synchronous Settings blocking, and swallowed removal failure/reload ordering. OpenCode then fixed runner pipe draining: stdout/stderr are consumed on reader threads while the child runs (16 KiB bounded capture, excess drained and discarded), with the 15s timeout preserved and a 2s post-exit collection grace.
 
-**All of the above is historical review commentary; S1-S8 are now landed in `main` (2026-10-20) — see the roadmap table. S5b/S5c remain deferred (#357/#358).**
+**All of the above is historical review commentary; S1-S8 are now landed in `main` (2026-10-20) — see the roadmap table. S5c landed via #358 (`crates/quota`); only S5b remains deferred (#357).**
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
