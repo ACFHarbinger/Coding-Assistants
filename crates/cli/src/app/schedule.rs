@@ -21,8 +21,11 @@ pub(crate) enum ScheduleCommand {
     /// Run the dispatch/response/gate state machine for every due task and
     /// print a per-task outcome summary. This is the headless entry point
     /// OS triggers (cron/systemd) invoke. Enforces the in-hub credit
-    /// allowance only — live provider quota is app-side and out of reach
-    /// here (see roadmap S5c).
+    /// allowance AND live provider-quota windows (S5c): tasks created with
+    /// --stop-on-quota-exhausted are paused when a targeted agent's
+    /// session/weekly window reads 0% remaining, exactly like the in-app
+    /// poller. Probes can take tens of seconds for subprocess-backed
+    /// providers.
     Tick {
         /// Override the execution clock (RFC3339) for diagnostics. This
         /// still dispatches real work; it is NOT a dry run. Defaults to
@@ -65,9 +68,10 @@ pub(crate) struct ScheduleCreateArgs {
     /// In-hub credit ceiling for this task. Enforced by headless tick.
     #[arg(long)]
     pub credit_allowance: Option<f64>,
-    /// Also pause when a live provider-quota window is exhausted. Only
-    /// the in-app poller (S6) can honor this; headless `ca schedule
-    /// tick` never sees live quota (S5c bridges that gap).
+    /// Also pause when a live provider-quota window is exhausted. Honored
+    /// by both the in-app poller (S6) and headless `ca schedule tick`
+    /// (S5c); only a measurable session/weekly window at 0% remaining is
+    /// a stop — unknown/unavailable quota never pauses.
     #[arg(long, default_value_t = false)]
     pub stop_on_quota_exhausted: bool,
     /// Mandatory stop condition: attempts cap, >= 1.
