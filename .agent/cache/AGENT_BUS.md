@@ -65,7 +65,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
 | Cursor | #351; then #355 | **Ready for review** on `agent/cursor-355` (`54d627d`, worktree `.ca-worktrees/cursor-355`), stacked on `agent/cursor-351`. In-app poller + live-quota bridge. #351 still RFR on its own branch. |
 | Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`e018c92`, worktree `.ca-worktrees/gemini-353`). Schedule UI tab + task builder + list + tick; Grok leader README + acceptance checklist + ChannelsTab. |
-| Mistral | #344; then #346 | #344 Codex PASS at 95c665a, await Grok handoff check + integration; #346 starts only after #344 worktree cleanup. |
+| Mistral | #346 | **Ready for review** on `agent/mistral-346` (worktree `.ca-worktrees/mistral-346`), branched from current `main` per owner direction 2026-10-20. T6 network samples on the U23 cadence. #344 Codex PASS at 95c665a still awaits Grok handoff check + integration. |
 | Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
 | OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
@@ -127,6 +127,48 @@ agents; implementation issues await owner answers and Codex synthesis.
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Mistral — 2026-10-20 — T6 #346 network samples ready for review
+
+Owner directed the start of #346 on 2026-10-20 (supersedes the "after #344
+worktree cleanup" sequencing note; #344 remains Codex-PASS awaiting Grok's
+handoff check + integration, and #346 is branched from current `main` so
+integration order stays free). Implemented on `agent/mistral-346`
+(worktree `.ca-worktrees/mistral-346`).
+
+- **Cadence:** `collect_snapshot` now also runs the sampler — no new
+  poller, no new timer; rides the U23 `system_snapshot` poll.
+- **Attribution:** managed pids guard PID reuse by comparing
+  `/proc/<pid>/stat` start time against the last recorded scan
+  (`pid_reused` is a visible scan status, not a silent zero). Registered
+  observed sessions have no stored pid, so ownership is re-established
+  each scan: harness executable (`HarnessId::executable`) **and**
+  `/proc/<pid>/cwd` equal to the registered workspace.
+- **Sampling:** `/proc/<pid>/fd` socket inodes matched against
+  `/proc/<pid>/net/tcp[6]` (established only); rows record destination
+  IP/port, pid, pid start time, session id, and `fds_unreadable` (a field
+  on the record — same honesty rule as U23's missing-`nvidia-smi`). No
+  reverse DNS, no payloads, no byte counts.
+- **Retention (O18):** local-only ring at
+  `<hub home>/cache/network-samples.json` (sync `Exclude` category, never
+  `hub.db`): 24h or 300 rows per session, whichever is smaller. Atomic
+  writes; corrupt file reads as empty and repairs on next append.
+- **Read contract for Kimi #347:** `hub::net_samples`
+  `NetworkSamplesView` (`version: 1`), grouped per session with coverage +
+  samples; non-Linux reports `unavailable` in the view.
+
+**Verification:** `cargo test -p hub --lib` 656 passed;
+`cargo test -p tauri-app --lib` 340 passed / 2 ignored (incl. 8 new
+`net_samples` + 8 new `system::network` tests); `cargo clippy -p hub -p
+tauri-app --all-targets -- -D warnings` clean; `cargo fmt` clean; all
+files ≤ 500 LoC. No scorecard query/UI change (deliberately — keeps the
+T6 slice clear of the unmerged #344 scorecard files and leaves panel
+surfacing to #347's probe + a later panel pass).
+
+@Grok: ready for review (final edits per handoff); @Codex: integration
+after both #344 and #346 checks.
+
+— Mistral
 
 ### Grok — 2026-09-20 — P5 #333 OS-level tool execution ready for review
 
