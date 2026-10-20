@@ -10,7 +10,7 @@ mod digest;
 #[path = "probe_test_support.rs"]
 pub(crate) mod probe_test_support;
 
-mod helpers;
+pub(crate) mod helpers;
 mod probe_claimant;
 mod probe_quota;
 mod probes;

@@ -8,6 +8,7 @@
 mod bridge;
 pub mod bus;
 pub mod github;
+pub mod guardrails;
 mod harness;
 pub mod mcp;
 pub mod net_samples;
@@ -98,6 +99,10 @@ pub use github::{
     empty_project_board, list_issue_branches, list_project_board, list_workspace_branches,
     parse_agent_issue_branch, set_project_item_status, BoardCard, BoardColumn, BranchList,
     GitBranch, ProjectBoard, DEFAULT_BOARD_COLUMNS,
+};
+pub use guardrails::{
+    Guardrail, GuardrailMode, GuardrailResult, GuardrailRule, GuardrailSpec, GuardrailStage,
+    GuardrailTrip, GuardrailVerdict,
 };
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,

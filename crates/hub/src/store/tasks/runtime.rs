@@ -81,6 +81,8 @@ impl HubStore {
                 "agent '{agent}' is not in the open parallel set"
             )));
         }
+        // P16 (#360): screen this member's replies before accepting them.
+        self.enforce_stage_output_guardrails(&task, &[agent.to_string()], note)?;
 
         let mut open: Vec<String> = task
             .open_agents

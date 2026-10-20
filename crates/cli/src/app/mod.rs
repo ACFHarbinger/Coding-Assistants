@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 mod agent;
 mod commands;
+mod guardrail;
 mod harness;
 mod journal;
 mod review;
@@ -20,6 +21,7 @@ pub(crate) use agent::AgentCommand;
 pub(crate) use commands::{
     AuditCommand, BudgetCommand, InboxCommand, MemoryCommand, MsgCommand, TaskCommand, WakeCommand,
 };
+pub(crate) use guardrail::GuardrailCommand;
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
 pub(crate) use review::ReviewCommand;
@@ -162,6 +164,13 @@ pub(crate) enum Command {
     Schedule {
         #[command(subcommand)]
         action: ScheduleCommand,
+    },
+    /// Guardrails (P16 / #360): content tripwires screened before a task
+    /// step or scheduled prompt is dispatched, and before a reply is
+    /// accepted. Not an approval gate — sits before P5 and Schedule gates.
+    Guardrail {
+        #[command(subcommand)]
+        action: GuardrailCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {

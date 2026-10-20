@@ -5,6 +5,7 @@ mod consolidation;
 mod core;
 mod danger_purge;
 mod embeddings;
+mod guardrails;
 mod integration;
 mod memory_recall;
 mod memory_tool_scope;

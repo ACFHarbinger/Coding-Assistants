@@ -362,6 +362,7 @@ impl HubStore {
         self.ensure_workspaces_table()?;
         self.ensure_bus_entries_table()?;
         self.ensure_schedule_tables()?;
+        self.ensure_guardrail_table()?;
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [

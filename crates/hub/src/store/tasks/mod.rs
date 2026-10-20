@@ -177,6 +177,15 @@ impl HubStore {
         } else {
             step.instruction.clone()
         };
+        // P16 (#360): input guardrails run before anything is sent — a
+        // tripwire leaves no message, no wake, and no stage activation.
+        self.enforce_guardrails(
+            crate::guardrails::GuardrailStage::Input,
+            task.workspace_path.as_deref(),
+            "task",
+            task_id,
+            &body,
+        )?;
         if let Some(peer) = step
             .peer
             .as_deref()
@@ -325,6 +334,15 @@ impl HubStore {
         let stages = Self::workflow_stages(&task.steps);
         if stages.is_empty() {
             return Err(HubError::Invalid("task has no steps".into()));
+        }
+        if status != TaskStatus::Pending {
+            // P16 (#360): output guardrails screen the stage's replies and
+            // the hand-back note before the workflow acts on them.
+            let agents: Vec<String> = stages
+                .get(task.step_index.max(0) as usize)
+                .map(|stage| stage.iter().map(|i| task.steps[*i].agent.clone()).collect())
+                .unwrap_or_default();
+            self.enforce_stage_output_guardrails(&task, &agents, note)?;
         }
 
         let next_stage = if status == TaskStatus::Pending {
