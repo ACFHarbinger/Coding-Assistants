@@ -60,14 +60,38 @@ pub struct BindingStore {
 impl BindingStore {
     pub fn open(data_dir: &Path) -> Result<Self, HubError> {
         let path = data_dir.join(BINDING_FILE);
-        let data = if path.exists() {
-            let raw = fs::read_to_string(&path)?;
+        let mut store = Self {
+            path,
+            data: BindingFile::default(),
+        };
+        store.reload()?;
+        Ok(store)
+    }
+
+    /// Reload disk state into memory so an external `ca discord unbind` or `pair`
+    /// takes effect immediately without restarting the daemon. In-memory cursors
+    /// and notified wake ids are preserved monotonically.
+    pub fn reload(&mut self) -> Result<(), HubError> {
+        let mut disk_data = if self.path.exists() {
+            let raw = fs::read_to_string(&self.path)?;
             serde_json::from_str(&raw)
                 .map_err(|error| HubError::Invalid(format!("discord binding: {error}")))?
         } else {
             BindingFile::default()
         };
-        Ok(Self { path, data })
+        for (channel_id, mem_cursor) in &self.data.channel_cursors {
+            let disk_cursor = disk_data.channel_cursors.entry(*channel_id).or_insert(0);
+            if *mem_cursor > *disk_cursor {
+                *disk_cursor = *mem_cursor;
+            }
+        }
+        for wake_id in &self.data.notified_wake_ids {
+            if !disk_data.notified_wake_ids.contains(wake_id) {
+                disk_data.notified_wake_ids.push(wake_id.clone());
+            }
+        }
+        self.data = disk_data;
+        Ok(())
     }
 
     pub fn issue_pairing(&mut self, channel_id: u64) -> Result<String, HubError> {
@@ -238,5 +262,26 @@ mod tests {
         let code = store.issue_pairing(300).unwrap();
         store.redeem(7, 100, None, &code).unwrap();
         assert_eq!(store.poll_channels(), vec![100]);
+    }
+
+    #[test]
+    fn reload_picks_up_external_unbind_without_stale_restore() {
+        let dir = tempdir().unwrap();
+        let mut daemon_store = BindingStore::open(dir.path()).unwrap();
+        let code = daemon_store.issue_pairing(100).unwrap();
+        daemon_store.redeem(7, 100, None, &code).unwrap();
+        assert!(daemon_store.is_bound(7));
+
+        let mut cli_store = BindingStore::open(dir.path()).unwrap();
+        assert_eq!(cli_store.unbind(Some(7)).unwrap(), 1);
+        assert!(!cli_store.is_bound(7));
+
+        daemon_store.reload().unwrap();
+        assert!(!daemon_store.is_bound(7));
+
+        daemon_store.advance_cursor(100, 50).unwrap();
+        let reopened = BindingStore::open(dir.path()).unwrap();
+        assert!(!reopened.is_bound(7));
+        assert_eq!(reopened.cursor(100), Some(50));
     }
 }

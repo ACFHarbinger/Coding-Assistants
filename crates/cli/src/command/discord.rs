@@ -58,6 +58,7 @@ fn run_loop(
     }
     let interval = Duration::from_secs(interval_secs);
     loop {
+        bindings.reload().map_err(|error| anyhow::anyhow!(error))?;
         for channel in bindings.poll_channels() {
             let after = bindings.cursor(channel);
             match discord::fetch_messages(token, channel, after) {

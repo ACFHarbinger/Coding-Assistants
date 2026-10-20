@@ -1,14 +1,6 @@
-//! Discord Bot REST transport. Outbound channel-history polling only — no
-//! gateway/websocket, no listen port (U25 / #319). Mirrors the Telegram v1
-//! remote-control contract: pairing allow-list, `/approve` `/reject`
-//! `/send` `/wakes`, unknown senders silent, HubStore writes as `human`.
-//!
-//! Owner setup (once): create a bot in the Discord Developer Portal, enable
-//! the **Message Content** intent, invite it to the guild with `View
-//! Channel` + `Send Messages` + `Read Message History` on the bound
-//! channel, and set `DISCORD_BOT_TOKEN` (P12 `tool.discord.bot_token`).
-//! Commands are plain channel messages (`/start <code>`, `/wakes`, ...),
-//! not registered Discord slash commands.
+//! Discord Bot REST transport (U25 / #319): outbound channel-history polling,
+//! pairing allow-list, `/approve` `/reject` `/send` `/wakes`, unknown senders silent.
+//! Commands are plain channel messages, not registered Discord slash commands.
 
 use super::command::{parse_inbound, Inbound};
 use super::dispatch::{self, Reply};
@@ -90,9 +82,9 @@ where
     }
 }
 
-/// One polled batch: inbound `(sender, text)` pairs (oldest first) plus the
+/// One polled batch: inbound `(message_id, sender, text)` tuples (oldest first) plus the
 /// newest snowflake seen, for advancing the channel cursor.
-pub type MessageBatch = (Vec<(DiscordUser, String)>, Option<u64>);
+pub type MessageBatch = (Vec<(u64, DiscordUser, String)>, Option<u64>);
 
 /// Inbound channel texts (oldest first) plus the newest snowflake seen.
 /// Bot authors (including this bot's own replies) are skipped.
@@ -121,12 +113,7 @@ pub fn parse_messages(body: &str, channel_id: u64) -> Result<MessageBatch, Strin
         .collect();
     // Discord returns newest-first; process oldest-first like getUpdates.
     rows.sort_by_key(|(id, _, _)| *id);
-    Ok((
-        rows.into_iter()
-            .map(|(_, user, text)| (user, text))
-            .collect(),
-        max_seen,
-    ))
+    Ok((rows, max_seen))
 }
 
 fn agent(timeout: Duration) -> ureq::Agent {
@@ -139,10 +126,7 @@ fn agent(timeout: Duration) -> ureq::Agent {
 
 /// Extract Discord's `retry_after` (seconds, float) from a 429 body.
 fn retry_after(response: &mut ureq::http::Response<ureq::Body>) -> Duration {
-    let body = response
-        .body_mut()
-        .read_to_string()
-        .unwrap_or_else(|_| String::new());
+    let body = response.body_mut().read_to_string().unwrap_or_default();
     serde_json::from_str::<serde_json::Value>(&body)
         .ok()
         .and_then(|value| value.get("retry_after")?.as_f64())
@@ -166,10 +150,8 @@ fn fetch_messages_from(
     channel_id: u64,
     after: Option<u64>,
 ) -> Result<MessageBatch, ApiError> {
-    let mut url = format!("{api_base}/channels/{channel_id}/messages?limit=100");
-    if let Some(after) = after {
-        url.push_str(&format!("&after={after}"));
-    }
+    let suffix = after.map(|a| format!("&after={a}")).unwrap_or_default();
+    let url = format!("{api_base}/channels/{channel_id}/messages?limit=100{suffix}");
     let mut response = agent(Duration::from_secs(20))
         .get(&url)
         .header("Authorization", format!("Bot {token}"))
@@ -240,12 +222,15 @@ fn truncate(text: &str) -> String {
 }
 
 /// Handle one inbound line. Unbound senders get silence except `/start`.
+/// Reloads durable bindings first so external unbind/pair CLI invocations
+/// take effect before authorization.
 pub fn handle_inbound(
     hub: &HubStore,
     bindings: &mut BindingStore,
     from: &DiscordUser,
     text: &str,
 ) -> Reply {
+    let _ = bindings.reload();
     match parse_inbound(text) {
         Inbound::Start { code } => redeem(bindings, from, code.as_deref()),
         _ if !bindings.is_bound(from.user_id) => Reply::Silent,
@@ -263,19 +248,32 @@ fn redeem(bindings: &mut BindingStore, from: &DiscordUser, code: Option<&str>) -
     }
 }
 
-/// Apply one channel batch (already oldest-first) and reply where needed.
+/// Apply one channel batch (already oldest-first), persisting the cursor
+/// before each reply so a failed outbound delivery cannot re-execute on restart.
 pub fn process_channel_messages(
     hub: &HubStore,
     bindings: &mut BindingStore,
     token: &str,
-    inbound: Vec<(DiscordUser, String)>,
+    inbound: Vec<(u64, DiscordUser, String)>,
 ) -> Result<(), String> {
-    for (user, text) in inbound {
-        match handle_inbound(hub, bindings, &user, &text) {
-            Reply::Silent => {}
-            Reply::Text(reply) => {
-                send_message(token, user.channel_id, &reply).map_err(|error| error.to_string())?
-            }
+    process_channel_messages_to(API, hub, bindings, token, inbound)
+}
+
+pub(crate) fn process_channel_messages_to(
+    api: &str,
+    hub: &HubStore,
+    bindings: &mut BindingStore,
+    token: &str,
+    inbound: Vec<(u64, DiscordUser, String)>,
+) -> Result<(), String> {
+    for (id, user, text) in inbound {
+        let reply = handle_inbound(hub, bindings, &user, &text);
+        bindings
+            .advance_cursor(user.channel_id, id)
+            .map_err(|error| error.to_string())?;
+        if let Reply::Text(reply) = reply {
+            send_message_to(api, token, user.channel_id, &reply)
+                .map_err(|error| error.to_string())?;
         }
     }
     Ok(())
@@ -287,6 +285,7 @@ pub fn push_new_wakes(
     bindings: &mut BindingStore,
     token: &str,
 ) -> Result<(), String> {
+    let _ = bindings.reload();
     if bindings.bound_users().is_empty() {
         return Ok(());
     }
@@ -320,45 +319,32 @@ mod tests {
     use std::thread;
     use tempfile::tempdir;
 
-    const FIXTURE: &str = r#"[
-        {"id": "902", "channel_id": "100", "type": 0,
-         "author": {"id": "7", "username": "pk", "bot": false}, "content": "/wakes"},
-        {"id": "901", "channel_id": "100", "type": 0,
-         "author": {"id": "9", "username": "ca-bot", "bot": true}, "content": "paired."},
-        {"id": "900", "channel_id": "100", "type": 0,
-         "author": {"id": "7", "username": "pk", "bot": false}, "content": "  "},
-        {"id": "899", "channel_id": "100", "type": 0,
-         "author": {"id": "8", "username": "rk", "bot": false}, "content": "/start ABC123"}
-    ]"#;
+    const FIXTURE: &str = r#"[{"id":"902","channel_id":"100","type":0,"author":{"id":"7","username":"pk","bot":false},"content":"/wakes"},{"id":"901","channel_id":"100","type":0,"author":{"id":"9","username":"ca-bot","bot":true},"content":"paired."},{"id":"900","channel_id":"100","type":0,"author":{"id":"7","username":"pk","bot":false},"content":"  "},{"id":"899","channel_id":"100","type":0,"author":{"id":"8","username":"rk","bot":false},"content":"/start ABC123"}]"#;
 
     #[test]
     fn parse_messages_skips_bots_blank_texts_and_orders_oldest_first() {
         let (inbound, max_seen) = parse_messages(FIXTURE, 100).unwrap();
         assert_eq!(max_seen, Some(902));
         assert_eq!(inbound.len(), 2);
-        assert_eq!(inbound[0].0.user_id, 8);
-        assert_eq!(inbound[0].1, "/start ABC123");
-        assert_eq!(inbound[1].0.user_id, 7);
-        assert_eq!(inbound[1].0.channel_id, 100);
-        assert_eq!(inbound[1].0.username.as_deref(), Some("pk"));
-        assert_eq!(inbound[1].1, "/wakes");
+        assert_eq!(inbound[0].0, 899);
+        assert_eq!(inbound[0].2, "/start ABC123");
+        assert_eq!(inbound[1].0, 902);
+        assert_eq!(inbound[1].1, user(7));
+        assert_eq!(inbound[1].2, "/wakes");
     }
 
     #[test]
     fn snowflake_accepts_a_bare_number() {
-        let body = r#"[{"id": 42, "author": {"id": 7}, "content": "hi"}]"#;
-        let (inbound, max_seen) = parse_messages(body, 100).unwrap();
-        assert_eq!(max_seen, Some(42));
-        assert_eq!(inbound[0].1, "hi");
+        let (inbound, max) =
+            parse_messages(r#"[{"id":42,"author":{"id":7},"content":"hi"}]"#, 100).unwrap();
+        assert_eq!((max, inbound[0].0, &inbound[0].2[..]), (Some(42), 42, "hi"));
     }
 
     #[test]
     fn truncate_caps_at_discord_limit() {
-        let long = "x".repeat(3000);
-        let cut = truncate(&long);
+        let cut = truncate(&"x".repeat(3000));
         assert_eq!(cut.chars().count(), MAX_MESSAGE_CHARS);
-        assert!(cut.ends_with('…'));
-        assert_eq!(truncate("short"), "short");
+        assert!(cut.ends_with('…') && truncate("short") == "short");
     }
 
     fn user(id: u64) -> DiscordUser {
@@ -396,6 +382,32 @@ mod tests {
         assert!(hub.list_wakes(None, true).unwrap().is_empty());
     }
 
+    #[test]
+    fn process_channel_messages_persists_cursor_before_reply_failure() {
+        let dir = tempdir().unwrap();
+        let hub = HubStore::open(dir.path()).unwrap();
+        let mut bindings = BindingStore::open(dir.path()).unwrap();
+        let code = bindings.issue_pairing(100).unwrap();
+        bindings.redeem(7, 100, Some("pk".into()), &code).unwrap();
+
+        let wake = hub
+            .request_wake("worker", Some("need you"), None, true)
+            .unwrap();
+        let (base, _handle) = serve_once(500, r#"{"message":"error"}"#);
+        let inbound = vec![(999u64, user(7), format!("/approve {}", wake.id))];
+
+        let result = process_channel_messages_to(&base, &hub, &mut bindings, "token", inbound);
+        assert!(result.is_err(), "must report send_message failure");
+        assert!(
+            hub.list_wakes(None, true).unwrap().is_empty(),
+            "wake was approved"
+        );
+        assert_eq!(bindings.cursor(100), Some(999), "cursor advanced in memory");
+
+        let reopened = BindingStore::open(dir.path()).unwrap();
+        assert_eq!(reopened.cursor(100), Some(999), "cursor persisted to disk");
+    }
+
     // --- Loopback mock-server tests (no real Discord traffic) ---
 
     fn serve_once(status: u16, body: &str) -> (String, thread::JoinHandle<String>) {
@@ -409,8 +421,7 @@ mod tests {
                 .unwrap();
             let mut raw = Vec::new();
             let mut chunk = [0u8; 2048];
-            loop {
-                let n = stream.read(&mut chunk).unwrap();
+            while let Ok(n) = stream.read(&mut chunk) {
                 if n == 0 {
                     break;
                 }
@@ -423,7 +434,7 @@ mod tests {
                 "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
-            stream.write_all(reply.as_bytes()).unwrap();
+            let _ = stream.write_all(reply.as_bytes());
             String::from_utf8_lossy(&raw).to_string()
         });
         (base, handle)
@@ -436,9 +447,9 @@ mod tests {
         };
         let wanted = head
             .lines()
-            .find_map(|line| line.split_once(':'))
-            .filter(|(name, _)| name.eq_ignore_ascii_case("content-length"))
-            .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+            .filter_map(|l| l.split_once(':'))
+            .find(|(n, _)| n.trim().eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, v)| v.trim().parse::<usize>().ok())
             .unwrap_or(0);
         body.len() >= wanted
     }
@@ -458,7 +469,7 @@ mod tests {
         let request = post.join().unwrap();
         assert!(request.starts_with("POST /channels/100/messages "));
         assert!(request.contains("\r\nauthorization: Bot secret\r\n"));
-        assert!(request.contains("hello"), "request: {request}");
+        assert!(request.contains("hello"));
     }
 
     #[test]
@@ -472,8 +483,7 @@ mod tests {
             ] {
                 let (mut stream, _) = listener.accept().unwrap();
                 let mut raw = [0u8; 4096];
-                let n = stream.read(&mut raw).unwrap();
-                assert!(n > 0);
+                assert!(stream.read(&mut raw).unwrap() > 0);
                 let reply = format!(
                     "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
