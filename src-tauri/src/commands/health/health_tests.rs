@@ -206,7 +206,7 @@ fn claude_health_honours_the_refresh_token_over_the_access_token_expiry() {
 
 #[test]
 fn cursor_health_covers_all_installation_and_token_expiry_states() {
-    use super::super::quota_cursor::CursorAuthDetails;
+    use quota::CursorAuthDetails;
 
     // 1. Installed, valid unexpired token
     let unexpired = CursorAuthDetails {
@@ -320,7 +320,7 @@ fn llamacpp_probe_still_covers_the_canonical_server_name() {
 
 #[test]
 fn secret_hygiene_never_leaks_tokens_into_health_snapshots() {
-    use super::super::quota_cursor::CursorAuthDetails;
+    use quota::CursorAuthDetails;
 
     let canary = "super_secret_canary_token_value_123456789";
     let auth = CursorAuthDetails {
@@ -338,7 +338,7 @@ fn secret_hygiene_never_leaks_tokens_into_health_snapshots() {
 
 #[test]
 fn mistral_health_names_the_plan_and_never_leaks_customer_id() {
-    use super::super::quota_vibe_usage::VibeWhoamiFacts;
+    use quota::VibeWhoamiFacts;
 
     let logged_in = VibeWhoamiFacts {
         authenticated: true,
