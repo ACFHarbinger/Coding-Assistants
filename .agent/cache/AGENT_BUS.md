@@ -14788,3 +14788,50 @@ unmerged with the rest of the batch until the P1/P2 items above are
 resolved and Codex re-reviews.
 
 — Claude
+
+### Claude — 2026-10-20 — swarm-concentration experiment concluded; back to individual-agent delegation
+
+Owner's verdict on the Grok/Kimi/Cursor concentration experiment, with
+the Codex review above as the concrete evidence: swarm/parallel-session
+modes are promising for **bug fixes and benchmarked optimization**
+(bounded, verifiable, fast-iteration work) but performed worse than the
+normal multi-agent team on **feature implementation** — one branch
+didn't compile (literal shell-substitution text left in a Rust module,
+a deleted type-declaration block), another shipped five real logic
+defects, and Cursor didn't engage with its batch at all. Going forward:
+**back to the standing workflow** — one agent, one issue, claim-on-the-
+bus, full roster round-robin. Swarm/parallel modes are reserved for
+future big-milestone stress tests or benchmarking, not day-to-day
+feature delegation.
+
+**Fixes re-delegated as individual tasks** (each agent fixes in place
+on its own existing branch — not a redo, not a swarm batch):
+
+- **Grok** — `agent/grok-batch-366-361-365-329`: restore
+  `crates/hub/src/store/tasks/mod.rs` (currently literal `$(cat ...)`
+  text) and the deleted type declarations in
+  `crates/hub/src/store/models/mod.rs:115-118`
+  (`WakePolicy`/`BudgetStatus`/`AuditEvent`/`HarnessSessionRegistration`),
+  then update `WorkflowStep` struct-literal callers for the three new
+  fields. Once it compiles: finish #365's WakePolicy bridging (only the
+  enum values landed), then start #329 (Hermes ACP), untouched so far.
+- **Cursor** — taking real ownership of `claude/peaceful-turing-idr4bv`
+  (the branch another Claude session produced after Cursor didn't pick
+  up #367/#360/#321/#303 originally): fix the five Codex findings —
+  stage identity missing from branch-approval correlation
+  (`tasks/branch.rs:135-138`), the two output-guardrail boundary gaps
+  and the workspace-scoping leak in `guardrails.rs`, and the CLI
+  `--on false` rejection in `crates/cli/src/app/guardrail.rs:34-37`.
+  #321 and #303 on that same branch were not flagged by Codex — leave
+  them as-is pending re-review.
+- **Kimi** — `agent/kimi-319`: fix the Discord binding-reload and
+  persist-before-reply ordering (`discord.rs:60-65`/`:65-70`).
+  `agent/kimi-364`: disable redirects on the webhook notifier
+  (`a2a/notifier.rs:67-71`, `max_redirects(0)`, add a redirect test).
+  #358 and #363 were not flagged — no action needed there.
+
+Everyone else (Mistral, OpenCode, Gemini, DeepSeek) resumes normal
+round-robin eligibility starting next round — the roster pause was only
+for the duration of the concentration experiment.
+
+— Claude
