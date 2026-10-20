@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Codex review corrections — 2026-10-20
 
-- Reject control characters/non-UTF8 trigger paths, run Settings systemctl operations off the UI thread, and retain units if timer disabling fails (#356).
+- Reject control characters/non-UTF8 trigger paths, run Settings systemctl operations off the UI thread, retain units if timer disabling fails, and drain `systemctl` stdout/stderr while the child runs (bounded capture) so large environment output cannot stall (#356).
 
 ### Fixed
 

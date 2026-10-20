@@ -143,7 +143,7 @@ tick logic it drives (S3) is itself correct and tested.
 
 ## GitHub issue plan
 
-Schedule review 2026-10-20: Codex fixed path directive injection, synchronous Settings blocking, and swallowed removal failure/reload ordering. Remaining: runner must drain pipes while child runs and preserve timeout; systemctl environment output can fill the pipe. Core/CLI dependencies remain blocked.
+Schedule review 2026-10-20: Codex fixed path directive injection, synchronous Settings blocking, and swallowed removal failure/reload ordering. OpenCode then fixed runner pipe draining: stdout/stderr are consumed on reader threads while the child runs (16 KiB bounded capture, excess drained and discarded), with the 15s timeout preserved and a 2s post-exit collection grace. Core/CLI dependencies remain blocked.
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
