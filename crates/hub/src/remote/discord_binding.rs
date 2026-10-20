@@ -71,13 +71,24 @@ impl BindingStore {
     /// Reload disk state into memory so an external `ca discord unbind` or `pair`
     /// takes effect immediately without restarting the daemon. In-memory cursors
     /// and notified wake ids are preserved monotonically.
+    ///
+    /// Fails closed: if reading or parsing the file fails, existing authorizations
+    /// in memory are cleared so stale permissions cannot be exploited.
     pub fn reload(&mut self) -> Result<(), HubError> {
-        let mut disk_data = if self.path.exists() {
-            let raw = fs::read_to_string(&self.path)?;
-            serde_json::from_str(&raw)
-                .map_err(|error| HubError::Invalid(format!("discord binding: {error}")))?
-        } else {
-            BindingFile::default()
+        let raw = match fs::read_to_string(&self.path) {
+            Ok(content) => Some(content),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => {
+                self.data.bound.clear();
+                return Err(HubError::from(error));
+            }
+        };
+        let mut disk_data = match raw {
+            Some(raw) => serde_json::from_str(&raw).map_err(|error| {
+                self.data.bound.clear();
+                HubError::Invalid(format!("discord binding: {error}"))
+            })?,
+            None => BindingFile::default(),
         };
         for (channel_id, mem_cursor) in &self.data.channel_cursors {
             let disk_cursor = disk_data.channel_cursors.entry(*channel_id).or_insert(0);
@@ -202,13 +213,27 @@ impl BindingStore {
     }
 
     fn save(&self) -> Result<(), HubError> {
-        if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent)?;
         let encoded = serde_json::to_string_pretty(&self.data)
             .map_err(|error| HubError::Invalid(format!("discord binding: {error}")))?;
-        let mut file = fs::File::create(&self.path)?;
-        file.write_all(encoded.as_bytes())?;
+        let file_name = self
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(BINDING_FILE);
+        let tmp_path = parent.join(format!(".{file_name}.tmp-{}", Uuid::new_v4().simple()));
+        let write_res = (|| -> Result<(), std::io::Error> {
+            let mut file = fs::File::create(&tmp_path)?;
+            file.write_all(encoded.as_bytes())?;
+            file.sync_all()?;
+            fs::rename(&tmp_path, &self.path)?;
+            Ok(())
+        })();
+        if let Err(error) = write_res {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(HubError::from(error));
+        }
         Ok(())
     }
 }
@@ -283,5 +308,37 @@ mod tests {
         let reopened = BindingStore::open(dir.path()).unwrap();
         assert!(!reopened.is_bound(7));
         assert_eq!(reopened.cursor(100), Some(50));
+    }
+
+    #[test]
+    fn reload_corrupted_file_fails_closed_and_clears_stale_bound_users() {
+        let dir = tempdir().unwrap();
+        let mut store = BindingStore::open(dir.path()).unwrap();
+        let code = store.issue_pairing(100).unwrap();
+        store.redeem(7, 100, None, &code).unwrap();
+        assert!(store.is_bound(7));
+
+        let path = dir.path().join(BINDING_FILE);
+        fs::write(&path, b"not valid json").unwrap();
+
+        assert!(store.reload().is_err());
+        assert!(!store.is_bound(7));
+        assert!(store.bound_users().is_empty());
+    }
+
+    #[test]
+    fn save_writes_atomically_without_leaving_temporary_files() {
+        let dir = tempdir().unwrap();
+        let mut store = BindingStore::open(dir.path()).unwrap();
+        store.advance_cursor(100, 1).unwrap();
+
+        let path = dir.path().join(BINDING_FILE);
+        assert!(path.exists());
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
+            .collect();
+        assert!(entries.is_empty());
     }
 }
