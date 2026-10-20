@@ -50,3 +50,6 @@ local.properties
 
 # Release files
 release/
+
+# Per-agent git worktrees (ephemeral, never committed)
+.ca-worktrees/
