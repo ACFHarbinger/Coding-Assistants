@@ -1,5 +1,9 @@
 # Team Scorecard / HITL Oversight Roadmap
 
+Codex T6 review (2026-10-20): repeated recycled-PID attribution fixed with a
+regression. Changes requested for 24h retention of scans/read views and
+concurrent-writer atomicity; #346 is not yet accepted.
+
 > **Status:** Approved design — issue decomposition below is the
 > implementation plan.
 >

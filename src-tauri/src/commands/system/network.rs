@@ -119,15 +119,17 @@ fn scan_targets(
                 let Some(start_time) = read_pid_start_time(proc_root, pid) else {
                     continue; // process is gone: nothing to sample or record
                 };
-                if let Some((_, recorded_start)) = baseline.get(&key) {
-                    if *recorded_start != start_time {
+                if let Some((recorded_pid, recorded_start)) = baseline.get(&key) {
+                    if *recorded_pid == pid && *recorded_start != start_time {
                         scans.push(NetworkScan {
                             harness: target.harness.clone(),
                             workspace: target.workspace.clone(),
                             session_id: target.session_id.clone(),
                             mode: target.mode.clone(),
                             pid,
-                            pid_start_time: start_time,
+                            // Preserve the trusted identity. Recording the
+                            // rejected start time would authorize it next scan.
+                            pid_start_time: *recorded_start,
                             scanned_at: now,
                             fds_unreadable: true,
                             socket_count: 0,

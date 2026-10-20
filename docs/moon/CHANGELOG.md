@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20
+
+- Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346). Repeated-scan regression reproduced then passed. Remaining changes requested: expire scan records and read views at 24h, prune even without new samples, and use unique temporary files for concurrent writers. No final T6 PASS yet.
+
 ### Fixed
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on

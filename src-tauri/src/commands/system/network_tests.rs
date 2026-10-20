@@ -189,6 +189,21 @@ fn a_recycled_managed_pid_is_a_visible_pid_reused_gap() {
     assert_eq!(scans[0].status, NetworkScanStatus::PidReused);
     assert_eq!(scans[0].socket_count, 0);
     assert!(scans[0].fds_unreadable);
+    let next_baseline = scans
+        .iter()
+        .map(|scan| (scan.session_key(), (scan.pid, scan.pid_start_time)))
+        .collect();
+    let (next_samples, next_scans) = scan_targets(
+        &proc.root,
+        &[managed_target(Some(42))],
+        &next_baseline,
+        1_001,
+    );
+    assert!(
+        next_samples.is_empty(),
+        "a rejected PID must stay rejected on the next scan"
+    );
+    assert_eq!(next_scans[0].status, NetworkScanStatus::PidReused);
     std::fs::remove_dir_all(&base).ok();
 }
 
