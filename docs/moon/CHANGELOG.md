@@ -85,6 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching patch is not copied again. `max_attempts: 1` still lets its
   in-flight attempt complete or time out before the task is failed.
 
+- Scheduler poller stack review: carry the attempt-aware completion CAS correction from #351; quota-pause regression checks pass. Shared engine still has wake/completion crash gaps and is not accepted for integration (#355).
+
+### Fixed
+
 - **Scheduled Goals wake replay and one-shot finalization (#351):**
   Recovery replays a human-gated wake for a committed recipient
   message unless a wake already exists (pending or finished), so a
@@ -118,6 +122,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   baselines and missing `agent_metrics` rows fail closed. Gate details and
   audit metadata are bounded. `pending_gate_json`/`PendingGateEntry` were
   not needed: the audit row is the persisted link. No new approval class.
+
+- **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
+  Outbox drain re-checks deadline, pause, and terminal status before
+  sending, and recovered one-shots complete without waiting for a
+  response. Each recipient is claimed with `INSERT OR IGNORE` in the
+  same transaction as the message insert, so concurrent drainers and
+  partial team fan-out cannot duplicate or skip a recipient. Tick CAS
+  matches only `scheduled`/`active` (optional expected `attempts`);
+  cancel is the only transition from `paused`. A stale tick cannot
+  resurrect a quota-paused row, and pending outbox is not sent after
+  pause.
 
 - **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
   Outbox drain re-checks deadline, pause, and terminal status before
@@ -196,6 +211,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   API-driven pipeline, does not port onto the harness-CLI/PTY bridge
   ([#362](https://github.com/ACFHarbinger/Coding-Assistants/issues/362)).
   Planning only, no code yet.
+- **Scheduled Goals S6 in-app poller + live-quota bridge (#355):** A
+  `src-tauri` timer (15s, slower than the 1.5s capture poll and
+  independent of Settings quota-strip refresh) pauses due
+  `stop_on_quota_exhausted` tasks when a measurable session/weekly
+  percent window is at 0% remaining, then calls the shared
+  `tick_scheduled_tasks` engine. Unavailable / empty-window / balance-only
+  probes do not invent a stop. Headless `ca schedule tick` is unchanged
+  (credit-allowance only; S5c / #358). Manual `hub_schedule_tick` uses
+  the same bridge. Overlapping ticks are skipped; poller cancel stops the
+  loop. Wake policy and P5 approval are not bypassed.
 
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /

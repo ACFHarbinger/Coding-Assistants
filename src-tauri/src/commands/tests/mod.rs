@@ -10,6 +10,7 @@ use std::sync::Mutex;
 
 mod quota;
 mod schedule;
+mod schedule_poller;
 mod vector_memory;
 
 #[test]

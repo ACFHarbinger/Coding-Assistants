@@ -1,31 +1,7 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
-Codex review (2026-10-20): Grok's #351/#352 core rebase and pending-wait CAS
-accepted with final-attempt approval regression/documentation edits. This
-branch does not include #355 poller, #353 UI or #354 CLI implementation;
-its baseline checks are not full assembled-stack acceptance. Claude owns
-remaining integration/conflict resolution and the combined acceptance gate.
+**S1-S3, S7 (core) integrated into `main` (2026-10-20)** as the reconciled `agent/grok-352` head (Codex-reviewed engine correction + pending-gate resume), followed by **S6 (#355)** on top. S4/S5a next.
 
-Grok reconciliation (2026-10-20): #352 is rebased onto #351 `971f999` on
-`agent/grok-352`. Wake replay and delivery-gated one-shot completion stay
-the single hub implementation from that head; #355 `0e747fc` is the same
-hub patch and is not a second copy. Pending gate waits use the attempt
-CAS. `max_attempts: 1` completes or times out in flight. Combined gate
-recorded on the bus. Not merged.
-
-Codex Cursor re-review (2026-10-20): #351 PASS with fixes `971f999`; #355
-PASS with equivalent fixes `0e747fc`. Wake replay errors/serialization and
-delivery-gated one-shot completion corrected; Hub lib 677/677 per branch,
-desktop schedule tests and clippy/fmt clean. Prior crash findings below are
-cleared at these heads. #352 pending-gate reconciliation and combined
-verification remain required before integration/enablement; not merged.
-
-Codex follow-up review (2026-10-20): #353 PASS with fixes `0ea5419`, #356
-PASS `397bd97`, #355 poller-specific PASS `9e399c9` conditional on engine.
-#351 remains changes requested after completion-CAS fix `42a2678`: durable
-wake replay and one-shot finalization crash regressions still fail on
-review-only `685aa3a`. No scheduler enablement/integration yet; reconcile
-#352 pending gates and #355 with the corrected core. Details in agent bus.
 
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
@@ -142,15 +118,15 @@ tick logic it drives (S3) is itself correct and tested.
 
 | # | Slice | Summary | Status |
 | --- | --- | --- | --- |
-| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | 🔍 Ready for review · Cursor · `agent/cursor-351` |
-| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. P5 approval is a distinct `pending` outcome: the proposal is linked in the audit row, reused across ticks, and its approved `os_tool.ran` result is consumed. Missing workspaces and unavailable token measurements fail closed. | 🔍 Rebased onto corrected core · `agent/grok-352` |
-| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. **Attempt boundary:** `max_attempts` caps new dispatches; the final in-flight attempt may complete, miss its gate, or time out; `deadline` is a hard cutoff even mid-attempt. Pending gate waits use the same attempt CAS as other live transitions. | 🔍 Rebased onto corrected core · `agent/grok-352` |
+| S1 | Schema, types, and CRUD | `scheduled_tasks` table (new `crates/hub/src/store/schedule/` module, mirrors `scorecard/`'s split-file pattern to respect the 500-LoC cap) + `ScheduledTask`, `ScheduleTarget`, `GateCriterion`, `GateCombinator`, `BudgetPolicy`, `ScheduleStatus` types, **plus mandatory `max_attempts: u32` and optional `deadline`** (see gap note below — these are the only stop conditions guaranteed to work for harness-CLI targets). Plain CRUD: create/get/list/cancel. | ✅ Landed in `main` |
+| S2 | Gate evaluator | `GateCriterion::Command` (arbitrary program+args via P5 `os_tool`, pass = exit 0) is the general mechanism; `GateCriterion::MaxLinesPerFile` (glob-matched files, one `wc -l <file>` per match through the same `os_tool` sandbox, no shell/no `awk`/no multi-file `wc` total-line footgun) and `GateCriterion::MinTokensWritten` (reads `agent_metrics.tokens_used` deltas against a baseline snapshotted at schedule-creation time — see the usage-accounting gap note) are built on top of it. `GateCombinator::All\|Any` across a task's criteria list. P5 approval is a distinct `pending` outcome: the proposal is linked in the audit row, reused across ticks, and its approved `os_tool.ran` result is consumed. Missing workspaces and unavailable token measurements fail closed. | ✅ Landed in `main` |
+| S3 | Dispatch/tick state machine | `HubStore::tick_scheduled_tasks(now)`: for each due task, dispatch (send to agent or `send_message_to_team`, plus `request_wake` — see wake-policy note) → wait for a response or response-timeout (quorum: All for `Team`, excluding `system`/`human`) → evaluate gates → Completed \| re-prompt (with a generated note of what's still unmet) \| Paused on budget \| Failed on `max_attempts`/`deadline`. One-shot tasks (`repeat_interval_secs: None`) fire once and complete, no gate loop. **Attempt boundary:** `max_attempts` caps new dispatches; the final in-flight attempt may complete, miss its gate, or time out; `deadline` is a hard cutoff even mid-attempt. Pending gate waits use the same attempt CAS as other live transitions. Outbox recovery re-checks those stops before send; each recipient is claimed atomically; recovered one-shots complete on drain or on the next tick if `delivered_at` landed first. Wake obligations replay idempotently for committed messages without repeating a finished wake. Tick CAS never matches `paused`. | ✅ Landed in `main` |
 | S4 | `ca schedule` CLI + headless tick | `ca schedule list\|create\|cancel\|tick`. `tick` is what an OS trigger invokes. Credit-allowance budget only (see cross-layer limitation above). | 📋 Kimi #354 · queued after #347 + core acceptance |
 | S5a | Linux OS-level trigger | systemd user timer (`~/.config/systemd/user/ca-schedule.timer` + `.service` invoking `ca schedule tick`), installed/managed from Settings. Built and tested on this dev machine. | 📋 OpenCode #356 · queued after CLI + in-app validation |
 | S5b | macOS/Windows OS-level trigger | launchd plist / Windows Task Scheduler (`schtasks`) equivalents. **Owner VM verify owed**, same pattern as prior Windows-only work (#288) — no macOS/Windows box available here. | 💤 Deferred #357 · unassigned / owner VM verify |
 | S5c | Quota-probe bridge (follow-up) | Extract `src-tauri`'s session/weekly quota-probe logic into a shape `crates/cli` can also call, so headless `ca schedule tick` gets full budget fidelity, not just `credit_allowance`. Explicitly deferred out of S1–S5a. | 💤 Deferred #358 · unassigned |
-| S6 | In-app poller + budget bridge | `src-tauri`-side timer loop while the app is open: calls the same tick logic as S3/S4 but additionally checks live quota % before each re-prompt (the "Both" decision above) and pauses on exhaustion, same as `gate_provider_call`'s existing pause behavior. | 📋 Cursor #355 · queued after core + S8 |
-| S7 | Tauri commands | `hub_schedule_create\|list\|cancel\|get\|tick`, registered in `invoke.rs`, thin wrappers over S1/S3. | 🚧 Code on main; corrected-core alignment #351 |
+| S6 | In-app poller + budget bridge | `src-tauri`-side timer loop while the app is open: calls the same tick logic as S3/S4 but additionally checks live quota % before each re-prompt (the "Both" decision above) and pauses on exhaustion, same as `gate_provider_call`'s existing pause behavior. **Policy:** pause only on a measurable session/weekly `remaining_percent <= 0`; `unavailable` / empty windows / balance-only / local-usage-only do not invent a stop. Interval 15s; overlapping ticks skipped. Headless tick stays credit-only (S5c). Generic tick transitions do not match `paused`, so a stale active snapshot cannot resurrect a quota-paused row; pending outbox is not sent after pause. | ✅ Landed in `main` (#355, Cursor). |
+| S7 | Tauri commands | `hub_schedule_create\|list\|cancel\|get\|tick`, registered in `invoke.rs`, thin wrappers over S1/S3. | ✅ Landed in `main` |
 | S8 | Frontend: Schedule tab | New Orchestrate sub-tab (`orchestrateSubView` gains `"schedule"`, alongside `"setup"`/`"terminals"` in `src/App.tsx` — that file is at 492/500 lines, so the new tab's content is its own component, `App.tsx` only gains the nav button + a thin mount point). Task/goal builder: instruction text, target picker (agent list + "Full team"), date/time picker, repeat-interval toggle (off = one-shot), gate-criteria builder (command / max-lines-per-file / min-tokens-written, combinator), budget picker (credit allowance amount, "stop on quota exhaustion" toggle). List view with status, next-fire time, attempt count, manual cancel. | 📋 Gemini #353 · scaffold ready; final integration after #351/#352 |
 
 ## Non-goals / explicitly deferred

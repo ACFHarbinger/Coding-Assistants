@@ -71,6 +71,10 @@ pub mod quotas;
 pub mod roles;
 #[path = "hub/schedule.rs"]
 pub mod schedule;
+#[path = "hub/schedule_poller.rs"]
+pub mod schedule_poller;
+#[path = "quota/schedule_probe.rs"]
+pub(crate) mod schedule_probe;
 #[path = "hub/scorecard.rs"]
 pub mod scorecard;
 #[path = "settings/settings.rs"]

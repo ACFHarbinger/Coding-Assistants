@@ -221,26 +221,33 @@ fn record_snapshot_best_effort(quota: &ProviderQuota) {
 /// a manual refresh control (some, like Claude Code and Antigravity CLI,
 /// expose no official usage-budget command, so their snapshot can only be
 /// updated by an explicit refresh).
+/// Sync per-agent probe used by the S6 poller. Unknown ids stay
+/// `unavailable` rather than inventing a percent remaining.
+pub(crate) fn probe_agent_quota(agent_id: &str) -> ProviderQuota {
+    let allow_metered = metered_quota_probes_allowed();
+    match agent_id {
+        "claude" => claude_quota(),
+        "grok" => grok_quota(),
+        "chat" | "codex" => codex_quota(),
+        "cursor" => cursor_quota(),
+        "gemini" => gemini_quota(allow_metered),
+        "opencode" => opencode_quota(allow_metered),
+        "deepseek" => deepseek_quota(),
+        "muse" => muse_quota(allow_metered),
+        "mistral" | "vibe" => mistral_quota(),
+        "qwen" => qwen_quota(),
+        "kimi" => kimi_quota(),
+        "hermes" | "hermes-agent" => hermes_quota(),
+        "llamacpp" => llamacpp_quota(),
+        "ollama" => ollama_quota(),
+        other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
+    }
+}
+
 #[tauri::command]
 pub async fn hub_refresh_provider_quota(agent_id: String) -> Result<ProviderQuota, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let quota = match agent_id.as_str() {
-            "claude" => claude_quota(),
-            "grok" => grok_quota(),
-            "chat" | "codex" => codex_quota(),
-            "cursor" => cursor_quota(),
-            "gemini" => gemini_quota(metered_quota_probes_allowed()),
-            "opencode" => opencode_quota(metered_quota_probes_allowed()),
-            "deepseek" => deepseek_quota(),
-            "muse" => muse_quota(metered_quota_probes_allowed()),
-            "mistral" | "vibe" => mistral_quota(),
-            "qwen" => qwen_quota(),
-            "kimi" => kimi_quota(),
-            "hermes" | "hermes-agent" => hermes_quota(),
-            "llamacpp" => llamacpp_quota(),
-            "ollama" => ollama_quota(),
-            other => unavailable_quota(other, "unknown", other, "Unknown provider agent id"),
-        };
+        let quota = probe_agent_quota(&agent_id);
         record_snapshot_best_effort(&quota);
         quota
     })
