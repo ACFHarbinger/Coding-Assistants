@@ -4,8 +4,9 @@
 //! `.service`/`.timer` pair whose only job is to run `ca schedule tick` with
 //! explicit argv. It never installs a privileged (system) unit, never
 //! bypasses the P5 approval path, and is not a general-purpose action
-//! scheduler. The headless tick still enforces only the in-hub credit
-//! allowance; live provider-quota pauses remain an in-app (S6) capability.
+//! scheduler. The headless tick enforces both the in-hub credit allowance
+//! and live provider-quota pauses (S5c / #358) via the shared `quota`
+//! crate — the same engine the in-app poller (S6) uses.
 //!
 //! Rendering is pure and the lifecycle accepts an injected unit directory
 //! plus [`CommandRunner`], so tests exercise generated units and the full
