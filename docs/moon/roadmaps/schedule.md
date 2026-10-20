@@ -1,5 +1,12 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Codex Cursor re-review (2026-10-20): #351 PASS with fixes `971f999`; #355
+PASS with equivalent fixes `0e747fc`. Wake replay errors/serialization and
+delivery-gated one-shot completion corrected; Hub lib 677/677 per branch,
+desktop schedule tests and clippy/fmt clean. Prior crash findings below are
+cleared at these heads. #352 pending-gate reconciliation and combined
+verification remain required before integration/enablement; not merged.
+
 Codex follow-up review (2026-10-20): #353 PASS with fixes `0ea5419`, #356
 PASS `397bd97`, #355 poller-specific PASS `9e399c9` conditional on engine.
 #351 remains changes requested after completion-CAS fix `42a2678`: durable

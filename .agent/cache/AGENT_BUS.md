@@ -63,7 +63,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | Agent | Issue(s) | Do now / dependency |
 | --- | --- | --- |
 | Grok | Review corrections when RFR | Preserve Codex's 2026-10-20 findings below. No feature implementation/self-review. Scheduler integration remains blocked. |
-| Cursor | #351 and #355 | #351 **changes requested** at `42a2678`: wake replay and one-shot finalization crash gaps. #355 poller-specific PASS at `9e399c9`, conditional on engine. Regressions on review-only `685aa3a` (0/2 pass; not for integration). |
+| Cursor | #351 and #355 | **PASS with fixes:** core `971f999`, poller `0e747fc`; wake retry/serialization and delivery-gated one-shot completion verified. Await #352 reconciliation and combined integration gate. |
 | Gemini | #353 and #154 | #353 PASS with argv/numeric/result-label fixes `0ea5419`; wait for corrected core. #154 docs PASS; owner live acceptance owed. |
 | Mistral | #344 and #346 | #344 PASS `cc4cde4`; #346 PASS with expiry-before-use fix `42684c8`. Await combined integration. |
 | Kimi | #347 and #354 | #347 PASS with authority fixes `17b4046`; #354 CLI slice PASS with help fix `c9c9f74`. Await combined integration; do not enable old scheduler core. |
@@ -13906,5 +13906,58 @@ branches, so reconcile once rather than blindly duplicating them.
 
 GitHub child issues/epics and Project 21 updated: #346/#353/#355/#356 In
 review; #351 In progress. Scoped code/docs commits are on author branches.
+
+— Codex
+
+### Codex — 2026-10-20 — Cursor wake/finalization re-review claimed
+
+Reviewing 8bda67c and ee283c4 against the two recorded crash gaps.
+Preserve the existing uncommitted Cursor handoff; direct code/regression
+review fallback (dedicated Bugbot unavailable). No merge or push here.
+
+— Codex
+
+### Codex — 2026-10-20 — Cursor #351/#355 re-review PASS with fixes
+
+Reviewed Cursor engine `8bda67c` and poller `ee283c4`. PASS with scoped
+corrections committed to **`971f999` (#351)** and **`0e747fc` (#355)**.
+This direct review clears the previously recorded crash findings at these
+slice heads; it is not a combined-stack or owner-live acceptance claim.
+
+Cursor's wake replay and delivered-one-shot crash recovery handle the
+earlier regressions, and completed wakes are not recreated. Two additional
+regressions reproduced before correction:
+
+- **P1 wake failure:** request_wake errors were still discarded, allowing
+  the outbox to finalize without its wake. Replay now serializes the
+  existence/create check under a DB writer transaction, propagates errors,
+  rolls back a failed side-channel write, and leaves delivery retryable.
+  A blocked wake directory test now recovers with exactly one human-gated
+  wake and one message after I/O is restored. Concurrent replay cannot
+  create duplicate approvals; finished wakes are still respected.
+- **P1 premature one-shot completion:** an active claimed attempt could be
+  completed by a second tick before its sender finished delivery. Completion
+  now requires finalized outbox evidence for the current attempt. A pending
+  one-shot waits, never re-prompts after response timeout. The crash window
+  after delivered_at but before completion remains recoverable on next tick.
+  Added direct pre-delivery and stale-tick timeout regressions.
+
+Verification on **each branch**: full `cargo test -p hub --lib` **677/677**;
+desktop schedule tests **4/4** on engine, schedule/probe **17/17** on poller;
+`cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean;
+`cargo fmt -p hub -p tauri-app -- --check` clean. Original recovered_,
+recovery_, completed-wake, cancel/pause and attempt-CAS tests remain green.
+Modified logic/test files are <=500 LoC.
+
+GitHub #351/#355/#350 updated; Project 21 #351 now In review. Earlier PASS
+for other slices unchanged. Next integration obligation: reconcile #352's
+pending gate/audit-link contract with the corrected core and poller, retain
+the pending-wait behavior, and run the combined affected-crate/frontend
+gate before integration/enablement. Equivalent core/poller corrections
+must be reconciled once, not blindly duplicated. Review-only failing-test
+branches remain historical reproduction artifacts, not merge candidates.
+
+No merge, push, issue closure, owner live test or scheduler enablement.
+Existing uncommitted Cursor bus handoffs preserved.
 
 — Codex
