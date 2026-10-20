@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-20
+
+- Reject control characters/non-UTF8 trigger paths, run Settings systemctl operations off the UI thread, and retain units if timer disabling fails (#356).
+
 ### Fixed
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on

@@ -7,15 +7,17 @@
 use hub::schedule_trigger::{self, TriggerConfig, TriggerStatus};
 
 #[tauri::command]
-pub fn settings_schedule_trigger_status() -> Result<TriggerStatus, String> {
-    Ok(schedule_trigger::status())
+pub async fn settings_schedule_trigger_status() -> Result<TriggerStatus, String> {
+    tauri::async_runtime::spawn_blocking(schedule_trigger::status)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Install or refresh the user timer. `workspace` is the Settings window's
 /// current workspace; it becomes the service's `WorkingDirectory` and is
 /// kept separate from the Hub home that `--home`/`CA_HOME` pin.
 #[tauri::command]
-pub fn settings_schedule_trigger_install(
+pub async fn settings_schedule_trigger_install(
     ca_bin: Option<String>,
     interval_minutes: u32,
     workspace: String,
@@ -30,10 +32,14 @@ pub fn settings_schedule_trigger_install(
         workspace: std::path::PathBuf::from(workspace),
         interval_minutes,
     };
-    schedule_trigger::install(&config)
+    tauri::async_runtime::spawn_blocking(move || schedule_trigger::install(&config))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn settings_schedule_trigger_remove() -> Result<TriggerStatus, String> {
-    schedule_trigger::remove()
+pub async fn settings_schedule_trigger_remove() -> Result<TriggerStatus, String> {
+    tauri::async_runtime::spawn_blocking(schedule_trigger::remove)
+        .await
+        .map_err(|error| error.to_string())?
 }

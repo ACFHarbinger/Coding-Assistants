@@ -14,6 +14,7 @@ struct FakeRunner {
     enabled: RefCell<bool>,
     active: RefCell<bool>,
     fail_enable: bool,
+    fail_disable: bool,
     calls: RefCell<Vec<String>>,
 }
 
@@ -78,6 +79,9 @@ impl CommandRunner for FakeRunner {
                 }
             }
             (Some("--user"), Some("disable")) => {
+                if self.fail_disable {
+                    return Ok(fail("cannot stop timer"));
+                }
                 *self.enabled.borrow_mut() = false;
                 *self.active.borrow_mut() = false;
                 Ok(ok(""))
@@ -128,6 +132,29 @@ fn service_unit_quotes_paths_and_pins_home_and_workspace() {
     assert!(unit.contains("WorkingDirectory=\"/tmp/work space\""));
     assert!(unit.contains("Type=oneshot"));
     assert!(!unit.contains("sh -c"));
+}
+
+#[test]
+fn install_rejects_unit_directive_injection_in_paths() {
+    let mut fixture = fixture();
+    fixture.config.workspace = PathBuf::from("/tmp/work\nExecStart=/tmp/unintended");
+    let runner = FakeRunner::available();
+    assert!(install_at(&fixture.unit_dir, &fixture.config, &runner).is_err());
+    assert!(!fixture.unit_dir.exists());
+    assert!(runner.calls().is_empty());
+}
+
+#[test]
+fn failed_disable_retains_units_and_reports_failure() {
+    let fixture = fixture();
+    install_at(&fixture.unit_dir, &fixture.config, &FakeRunner::available()).unwrap();
+    let runner = FakeRunner {
+        fail_disable: true,
+        ..FakeRunner::available()
+    };
+    assert!(remove_at(&fixture.unit_dir, &runner).is_err());
+    assert!(fixture.unit_dir.join(SERVICE_NAME).exists());
+    assert!(fixture.unit_dir.join(TIMER_NAME).exists());
 }
 
 #[test]

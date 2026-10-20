@@ -104,6 +104,14 @@ pub fn status_at(unit_dir: &Path, runner: &dyn CommandRunner) -> TriggerStatus {
 }
 
 fn validate(config: &TriggerConfig) -> Result<(), String> {
+    for path in [&config.ca_bin, &config.ca_home, &config.workspace] {
+        let Some(path) = path.to_str() else {
+            return Err("trigger paths must be valid UTF-8".into());
+        };
+        if path.chars().any(char::is_control) {
+            return Err("trigger paths must not contain control characters".into());
+        }
+    }
     if config.interval_minutes == 0 {
         return Err("interval_minutes must be at least 1".to_string());
     }
@@ -203,16 +211,22 @@ pub fn remove_at(unit_dir: &Path, runner: &dyn CommandRunner) -> Result<TriggerS
     let timer_path = unit_dir.join(TIMER_NAME);
     let installed = service_path.exists() || timer_path.exists();
     if installed {
-        let _ = runner.run(
-            "systemctl",
-            &argv(&["--user", "disable", "--now", TIMER_NAME]),
-        );
-        let _ = runner.run("systemctl", &argv(&["--user", "daemon-reload"]));
+        let (available, _) = probe(runner);
+        if available {
+            run_checked(
+                runner,
+                &["systemctl", "--user", "disable", "--now", TIMER_NAME],
+            )
+            .map_err(|error| format!("could not stop timer; unit files retained: {error}"))?;
+        }
         for path in [&timer_path, &service_path] {
             if path.exists() {
                 fs::remove_file(path)
                     .map_err(|error| format!("could not remove `{}`: {error}", path.display()))?;
             }
+        }
+        if available {
+            run_checked(runner, &["systemctl", "--user", "daemon-reload"])?;
         }
     }
     Ok(status_at(unit_dir, runner))
