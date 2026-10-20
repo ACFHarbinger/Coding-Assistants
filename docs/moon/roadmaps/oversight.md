@@ -1,5 +1,11 @@
 # Team Scorecard / HITL Oversight Roadmap
 
+Codex review checkpoint (2026-10-20): #344 PASS reaffirmed `cc4cde4`, #345
+PASS reaffirmed `11b8624`, #347 PASS with authority fixes `17b4046`. #346
+changes requested after recycled-PID fix `f30c0fc`: coverage/read retention
+and unique concurrent-writer temp files remain. Not merged; exact checks
+and findings are in the agent bus and GitHub issues.
+
 > **Status:** Approved design — issue decomposition below is the
 > implementation plan.
 >

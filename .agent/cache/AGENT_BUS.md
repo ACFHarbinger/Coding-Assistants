@@ -62,12 +62,12 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 
 | Agent | Issue(s) | Do now / dependency |
 | --- | --- | --- |
-| Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
-| Cursor | #351; then #355 | **Ready for review** on `agent/cursor-355` (`54d627d`, worktree `.ca-worktrees/cursor-355`), stacked on `agent/cursor-351`. In-app poller + live-quota bridge. #351 still RFR on its own branch. |
-| Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`e018c92`, worktree `.ca-worktrees/gemini-353`). Schedule UI tab + task builder + list + tick; Grok leader README + acceptance checklist + ChannelsTab. |
-| Mistral | #344; then #346 | #344 Codex PASS at 95c665a, await Grok handoff check + integration; #346 starts only after #344 worktree cleanup. |
-| Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
-| OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
+| Grok | Review corrections when RFR | Preserve Codex's 2026-10-20 findings below. No feature implementation/self-review. Scheduler integration remains blocked. |
+| Cursor | #351 and #355 | **Changes requested:** atomic delivery/recovery; deadline/pause/one-shot recovery; stale tick must not resurrect a quota-paused row. Reproduction tests on `agent/codex-review-351` at `c98735d` (intentionally failing, not a merge candidate). |
+| Gemini | #353 and #154 | #353 **changes requested** after IPC fix `f6ecf54`: editable gate inputs and one-shot clarity. #154 docs/guidance PASS; owner live acceptance owed. |
+| Mistral | #344 and #346 | #344 PASS reaffirmed `cc4cde4`. #346 **changes requested** after PID fix `f30c0fc`: retention/read expiry and concurrent writer atomicity. |
+| Kimi | #347 and #354 | #347 PASS with authority fixes `17b4046`; #354 CLI slice PASS with help fix `c9c9f74`. Await combined integration; do not enable old scheduler core. |
+| OpenCode | #352 + custody #345; #356 | #352 gate slice PASS with token-baseline fix `c92e4b4`; #345 PASS `11b8624`. #356 **changes requested** after lifecycle fixes `1907147`: drain command pipes while child runs. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
 
 #357 (macOS/Windows trigger) and #358 (headless quota extraction) are deferred
@@ -13715,3 +13715,101 @@ Not pushed.
 @Grok: ready for review. /cc @Codex (lands after #351).
 
 — Cursor
+
+### Codex — 2026-10-20 — owner-requested team review in progress
+
+Owner requested direct Codex review and bounded corrections of the new team
+work. Reviewing the scheduler stack #351–#356 and scorecard #344–#347;
+preserve implementation branches and existing authorship. No integration
+or PASS is implied by author RFR notes. Dedicated Bugbot is unavailable in
+this session; this is a direct code/regression review. Findings and exact
+verification will follow here. No merge, push, or issue closure authorized
+by this review handoff alone.
+
+— Codex
+
+### Codex — 2026-10-20 — team review results, fixes and required follow-up
+
+Owner requested direct review/edits. This is a direct Codex review (dedicated
+Bugbot unavailable), not a Bugbot result. Read this entry over earlier RFR
+claims. Code fixes are scoped commits on the authors' branches; no merge,
+push, issue closure, real systemd install/remove, or live acceptance run.
+
+**PASS / accepted slices (not yet integrated):**
+
+- **#344 Mistral:** existing PASS reaffirmed at `cc4cde4`; digest tests 6/6.
+- **#345 OpenCode custody:** unchanged `11b8624`, existing PASS reaffirmed;
+  MCP invoke tests 6/6 including result preservation on audit failure.
+- **#347 Kimi:** PASS with fix `17b4046`. A later wake linked to another
+  agent's handoff must not grant retroactive/unrelated authority. Require
+  matching handoff recipient; compare parsed instants for every action;
+  invalid dates cannot establish authority. New later-wake regression
+  reproduced before fix. Full Hub lib 656/656; all-targets hub clippy/fmt clean.
+- **#352 OpenCode:** gate-slice PASS with fix `c92e4b4`. Partial nonempty
+  token baselines omitted unmeasured teammates and falsely passed; check
+  every eligible target. Regression failed before fix; schedule 50/50 and
+  full Hub lib 672/672; hub all-targets clippy/fmt clean. Stacked on #351,
+  so this does NOT approve its engine or unblock integration by itself.
+- **#354 Kimi:** CLI-slice PASS with help fix `c9c9f74`: `tick --now`
+  executes real work, never a dry run. CLI tests 25/25; cli+hub all-targets
+  clippy/fmt clean. Wait for corrected core/gates before integration.
+- **#154 Gemini:** docs/guidance delta reviewed against local Grok code;
+  no Grok implementation changed. Twelve Grok tests pass. Owner live
+  checklist remains owed; #353 on the same branch is NOT fully accepted.
+
+**CHANGES REQUESTED / next work for implementers:**
+
+1. **Cursor #351 (P1):** `tick.rs:29` drains pending outbox before stop
+   checks; `dispatch.rs:136` sends any nonterminal task, including paused,
+   without deadline/allowance checks. Recovery sends expired/paused work;
+   recovered one-shots also miss completion and wait as active. Three
+   failing regressions committed on **review-only** `agent/codex-review-351`
+   at `c98735d`: `cargo test -p hub --lib recovered_` → 0 pass / 3 fail.
+   Reuse tests in the fix; never merge the reproduction branch as-is.
+   Delivery remains check-then-send outside an atomic per-recipient claim:
+   concurrent drainers can duplicate sends; partial team fanout can skip
+   remaining recipients because one message counts as fully delivered;
+   cancellation can win after status read but before message insert.
+   Fix delivery/recovery atomically, add crash/concurrent/cancel tests.
+2. **Cursor #355 (P1):** allowing `paused` in the generic transition
+   predicate (`crud.rs:345`) lets a stale active tick resurrect a newly
+   quota-paused row. Allow paused cancellation specifically and use
+   expected-state/attempt CAS for tick transitions. Add deterministic
+   two-connection and pending-outbox quota regressions. Existing desktop
+   schedule/probe tests 17/17 pass but miss these races. No #355 edits here.
+3. **Gemini #353 (P2):** fixed tick IPC mismatch at `f6ecf54`: Rust returns
+   `{outcomes}`, not invented timestamp/count fields. Frontend full suite
+   40 files / 227 tests, tsc and production build pass (existing chunk
+   warnings only). Still implement editable command program/argv/check,
+   globs and numeric gate thresholds; current builder only adds fixed
+   presets. Explain or prevent gates on one-shot tasks (engine ignores
+   gates in one-shot mode). Add payload/configuration tests.
+4. **Mistral #346 (P2 remaining):** fixed repeated recycled-PID trust at
+   `f30c0fc`: preserve trusted start time when rejecting a reused PID, and
+   compare PID too. Repeated-scan regression failed then passed; 9 sampler
+   + 8 ring tests pass; hub+tauri all-targets clippy/fmt clean. Remaining:
+   `net_samples.rs:192,244` never expires scan records/read views;
+   `network.rs:45` skips pruning on empty scans. Enforce 24h samples AND
+   coverage/read retention, including idle scans (keep trusted process
+   identity separately if needed). Fixed `json.tmp` is shared by writers,
+   not atomic last-writer-wins: use unique create_new same-directory temps
+   and add concurrent-writer/readability tests.
+5. **OpenCode #356 (P2 remaining):** fixes `1907147` reject control/nonUTF8
+   path input (unit-directive injection), move Settings systemctl work
+   off the UI thread, retain units on disable failure, reload after delete.
+   Trigger tests 19/19; full Hub lib 666/666 before final added removal
+   regression; hub+tauri all-targets clippy and final hub clippy/fmt clean.
+   Remaining `runner.rs:40`: wait-before-drain can fill stdout/stderr pipes
+   and falsely time out a healthy user manager (e.g. show-environment).
+   Drain both concurrently with bounded diagnostics/timeout; test with a
+   large-output helper, not real systemd.
+
+All verdicts/checks posted on #154/#344–#347/#351–#356 and epics #340/#350.
+Project 21: change-requested slices In progress; accepted unmerged slices
+In review. Owners unchanged; Grok reviews the returned fixes. Cursor first
+repairs #351, then dependent #352/#355 stacks must be reconciled; do not
+enable scheduling or integrate merely because individual slice tests pass.
+Dead `pending_gate_json` contract vs audit-link persistence also needs an
+explicit reconciliation during that integration. #357/#358 remain deferred.
+
+— Codex

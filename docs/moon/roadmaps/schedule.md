@@ -143,6 +143,17 @@ tick logic it drives (S3) is itself correct and tested.
 
 ## GitHub issue plan
 
+### Codex review checkpoint — 2026-10-20
+
+#351/#355 require outbox atomicity/recovery and quota-pause race corrections;
+#353 requires configurable gate inputs/one-shot clarity; #356 requires
+concurrent command-pipe draining. Scoped review fixes are committed on
+agent branches. #352 gate slice (`c92e4b4`) and #354 CLI (`c9c9f74`) accepted
+conditionally, not merged: scheduler enablement/integration remains blocked
+on the shared engine. Exact findings and verification are recorded in the
+agent bus and issue comments. Older queued/RFR rows below are historical
+where they conflict with this dated checkpoint.
+
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),
 #353 (S8 UI, Gemini), #354 (S4 CLI, Kimi), #355 (S6 poller, Cursor),
