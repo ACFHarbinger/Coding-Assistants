@@ -33,16 +33,26 @@ impl HubStore {
         Ok(TickSummary { outcomes })
     }
 
-    fn tick_one(&self, task: &ScheduledTask, now: &str) -> Result<TickOutcome, HubError> {
-        if let Some(deadline) = task.deadline.as_deref() {
-            if instant_le(deadline, now)? {
-                return self.finish(task, ScheduleStatus::Failed, "deadline reached");
-            }
+    /// Pause a live schedule because live provider quota is exhausted.
+    /// Same `schedule.paused_budget` audit as credit-allowance exhaustion.
+    /// No-op if the row is already terminal/paused or lost a race to cancel.
+    pub fn pause_scheduled_task(&self, id: &str, reason: &str) -> Result<TickOutcome, HubError> {
+        let Some(task) = self.get_scheduled_task(id)? else {
+            return Err(HubError::NotFound(id.into()));
+        };
+        if task.status.is_terminal() || task.status == ScheduleStatus::Paused {
+            return Ok(TickOutcome {
+                id: task.id,
+                action: "noop".into(),
+                detail: format!("status is {}", task.status.as_str()),
+            });
         }
-        if let Some(allowance) = task.budget.credit_allowance {
-            if task.budget.credit_spent >= allowance {
-                return self.finish(task, ScheduleStatus::Paused, "credit allowance exhausted");
-            }
+        self.finish(&task, ScheduleStatus::Paused, reason)
+    }
+
+    fn tick_one(&self, task: &ScheduledTask, now: &str) -> Result<TickOutcome, HubError> {
+        if let Some(stopped) = self.apply_schedule_stops(task, now)? {
+            return Ok(stopped);
         }
         match task.status {
             ScheduleStatus::Scheduled => {
@@ -88,6 +98,58 @@ impl HubStore {
         })
     }
 
+    /// Stop checks used by both `tick_one` and outbox recovery. Paused and
+    /// terminal rows never send. Deadline/allowance finish the row first.
+    pub(crate) fn apply_schedule_stops(
+        &self,
+        task: &ScheduledTask,
+        now: &str,
+    ) -> Result<Option<TickOutcome>, HubError> {
+        if task.status == ScheduleStatus::Paused || task.status.is_terminal() {
+            return Ok(Some(TickOutcome {
+                id: task.id.clone(),
+                action: "noop".into(),
+                detail: format!("status is {}", task.status.as_str()),
+            }));
+        }
+        if let Some(deadline) = task.deadline.as_deref() {
+            if instant_le(deadline, now)? {
+                return Ok(Some(self.finish(
+                    task,
+                    ScheduleStatus::Failed,
+                    "deadline reached",
+                )?));
+            }
+        }
+        if let Some(allowance) = task.budget.credit_allowance {
+            if task.budget.credit_spent >= allowance {
+                return Ok(Some(self.finish(
+                    task,
+                    ScheduleStatus::Paused,
+                    "credit allowance exhausted",
+                )?));
+            }
+        }
+        Ok(None)
+    }
+
+    pub(crate) fn complete_recovered_one_shot(
+        &self,
+        id: &str,
+    ) -> Result<Option<TickOutcome>, HubError> {
+        let Some(task) = self.get_scheduled_task(id)? else {
+            return Ok(None);
+        };
+        if task.repeat_interval_secs.is_some() || task.status != ScheduleStatus::Active {
+            return Ok(None);
+        }
+        Ok(Some(self.finish(
+            &task,
+            ScheduleStatus::Completed,
+            "one-shot dispatched",
+        )?))
+    }
+
     fn dispatch_prompt(
         &self,
         task: &ScheduledTask,
@@ -110,11 +172,11 @@ impl HubStore {
                 detail: "schedule disappeared after claim".into(),
             });
         };
-        if latest.status.is_terminal() {
+        if latest.status.is_terminal() || latest.status == ScheduleStatus::Paused {
             return Ok(TickOutcome {
                 id: task.id.clone(),
                 action: "noop".into(),
-                detail: "cancelled before delivery".into(),
+                detail: "stopped before delivery".into(),
             });
         }
         if latest.repeat_interval_secs.is_none() {
@@ -134,7 +196,18 @@ impl HubStore {
         let timed_out = elapsed >= task.response_timeout_secs;
 
         if !responded && !timed_out {
-            let _ = self.transition_scheduled_task(&task.id, ScheduleStatus::Active, Some(now))?;
+            if !self.transition_live_schedule(
+                &task.id,
+                ScheduleStatus::Active,
+                Some(now),
+                Some(task.attempts),
+            )? {
+                return Ok(TickOutcome {
+                    id: task.id.clone(),
+                    action: "noop".into(),
+                    detail: "lost race to pause or cancel".into(),
+                });
+            }
             return Ok(TickOutcome {
                 id: task.id.clone(),
                 action: "waiting".into(),
@@ -183,11 +256,18 @@ impl HubStore {
         if let Some(interval) = task.repeat_interval_secs {
             let next_allowed = add_seconds(last_fired, interval)?;
             if parse_utc("now", now)? < parse_utc("next_allowed", &next_allowed)? {
-                let _ = self.transition_scheduled_task(
+                if !self.transition_live_schedule(
                     &task.id,
                     ScheduleStatus::Active,
                     Some(&next_allowed),
-                )?;
+                    Some(task.attempts),
+                )? {
+                    return Ok(TickOutcome {
+                        id: task.id.clone(),
+                        action: "noop".into(),
+                        detail: "lost race to pause or cancel".into(),
+                    });
+                }
                 return Ok(TickOutcome {
                     id: task.id.clone(),
                     action: "waiting".into(),

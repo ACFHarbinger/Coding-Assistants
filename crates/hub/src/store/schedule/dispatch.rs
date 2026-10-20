@@ -1,8 +1,9 @@
 //! Atomic claim + outbox delivery for scheduled dispatch (#351).
 //!
-//! Persist the attempt and outbox row first, then send. Delivery is
-//! idempotent on `(schedule_id, attempt)` so a crash between send and
-//! `delivered_at` cannot consume a second attempt.
+//! Persist the attempt and outbox row first, then send. Each recipient is
+//! claimed with `INSERT OR IGNORE` in the same transaction as the message
+//! insert, so concurrent drainers and partial team fan-out cannot duplicate
+//! or skip a recipient. Recovery re-checks deadline/pause before send.
 
 use super::super::*;
 use super::TickOutcome;
@@ -79,18 +80,13 @@ impl HubStore {
                 delivered_at: row.get(4)?,
             })
         })?;
+        let pending = rows.collect::<Result<Vec<_>, _>>()?;
+        drop(stmt);
         let mut outcomes = Vec::new();
-        for row in rows {
-            let item = row?;
-            if item.delivered_at.is_some() {
-                continue;
+        for item in pending {
+            if let Some(outcome) = self.deliver_outbox_row(&item, now, true)? {
+                outcomes.push(outcome);
             }
-            self.deliver_outbox_row(&item, now)?;
-            outcomes.push(TickOutcome {
-                id: item.schedule_id,
-                action: "dispatched".into(),
-                detail: format!("outbox attempt {}", item.attempt),
-            });
         }
         Ok(outcomes)
     }
@@ -120,26 +116,145 @@ impl HubStore {
             )
             .optional()?;
         if let Some(row) = row {
-            self.deliver_outbox_row(&row, now)?;
+            let _ = self.deliver_outbox_row(&row, now, false)?;
         }
         Ok(())
     }
 
-    fn deliver_outbox_row(&self, row: &OutboxRow, now: &str) -> Result<(), HubError> {
+    /// `complete_one_shot` is true for crash-recovery drains so a recovered
+    /// one-shot takes the same completion path as `dispatch_prompt`.
+    fn deliver_outbox_row(
+        &self,
+        row: &OutboxRow,
+        now: &str,
+        complete_one_shot: bool,
+    ) -> Result<Option<TickOutcome>, HubError> {
         if row.delivered_at.is_some() {
-            return Ok(());
+            return Ok(None);
         }
         let Some(task) = self.get_scheduled_task(&row.schedule_id)? else {
             self.mark_outbox_delivered(&row.id, now)?;
-            return Ok(());
+            return Ok(None);
         };
-        if !task.status.is_terminal() {
-            let subject = schedule_attempt_subject(&task.name, row.attempt);
-            if !self.schedule_attempt_already_sent(&task.id, &subject)? {
-                self.send_schedule_prompt(&task, &row.body, &subject)?;
+        if let Some(stopped) = self.apply_schedule_stops(&task, now)? {
+            self.mark_outbox_delivered(&row.id, now)?;
+            return Ok(Some(stopped));
+        }
+        let sent = self.deliver_live_outbox(&task, row, now)?;
+        self.mark_outbox_delivered(&row.id, now)?;
+        if complete_one_shot {
+            if let Some(completed) = self.complete_recovered_one_shot(&task.id)? {
+                return Ok(Some(completed));
             }
         }
-        self.mark_outbox_delivered(&row.id, now)
+        if sent {
+            Ok(Some(TickOutcome {
+                id: task.id,
+                action: "dispatched".into(),
+                detail: format!("outbox attempt {}", row.attempt),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn deliver_live_outbox(
+        &self,
+        task: &ScheduledTask,
+        row: &OutboxRow,
+        now: &str,
+    ) -> Result<bool, HubError> {
+        let recipients = self.schedule_target_agent_ids(&task.target)?;
+        let subject = schedule_attempt_subject(&task.name, row.attempt);
+        let mut sent = Vec::new();
+        for agent_id in &recipients {
+            if let Some(message) =
+                self.claim_and_insert_recipient(task, row, agent_id, &subject, now)?
+            {
+                sent.push(message);
+            }
+        }
+        for message in &sent {
+            let _ = self.request_wake(
+                &message.to_agent,
+                Some(&format!("schedule {}", task.id)),
+                Some(&message.id),
+                true,
+            );
+        }
+        if !sent.is_empty() {
+            let _ = self.record_audit_event(
+                Path::new(&task.workspace),
+                Path::new(&task.workspace),
+                "schedule.fired",
+                &serde_json::json!({
+                    "schedule_id": task.id,
+                    "recipients": sent.iter().map(|m| &m.to_agent).collect::<Vec<_>>(),
+                })
+                .to_string(),
+                None,
+            );
+        }
+        Ok(!sent.is_empty())
+    }
+
+    /// Claim one recipient and insert its message in the same transaction.
+    /// `None` means another drainer already claimed it, or the row is no
+    /// longer scheduled/active (cancel/pause won).
+    fn claim_and_insert_recipient(
+        &self,
+        task: &ScheduledTask,
+        row: &OutboxRow,
+        agent_id: &str,
+        subject: &str,
+        now: &str,
+    ) -> Result<Option<MessageRecord>, HubError> {
+        self.ensure_mutable()?;
+        self.upsert_agent("system", "system")?;
+        self.upsert_agent(agent_id, agent_id)?;
+        let message_id = Uuid::new_v4().to_string();
+        let tx = self.conn.unchecked_transaction()?;
+        let live = tx.execute(
+            "UPDATE scheduled_tasks SET updated_at = updated_at
+             WHERE id = ?1 AND status IN ('scheduled', 'active')",
+            params![task.id],
+        )?;
+        if live == 0 {
+            tx.commit()?;
+            return Ok(None);
+        }
+        let claimed = tx.execute(
+            "INSERT OR IGNORE INTO scheduled_dispatch_recipients(
+                schedule_id, attempt, to_agent, claimed_at, message_id
+             ) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![task.id, row.attempt as i64, agent_id, now, message_id],
+        )?;
+        if claimed == 0 {
+            tx.commit()?;
+            return Ok(None);
+        }
+        tx.execute(
+            "INSERT INTO messages(
+                id, from_agent, to_agent, workspace_path, task_id,
+                kind, status, subject, body, created_at, acked_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL)",
+            params![
+                message_id,
+                "system",
+                agent_id,
+                task.workspace,
+                task.id,
+                MessageKind::Handoff.as_str(),
+                MessageStatus::Pending.as_str(),
+                subject,
+                row.body,
+                now
+            ],
+        )?;
+        tx.commit()?;
+        self.get_message(&message_id)?
+            .map(Some)
+            .ok_or_else(|| HubError::NotFound(message_id))
     }
 
     fn mark_outbox_delivered(&self, id: &str, now: &str) -> Result<(), HubError> {
@@ -148,69 +263,6 @@ impl HubStore {
              WHERE id = ?2 AND delivered_at IS NULL",
             params![now, id],
         )?;
-        Ok(())
-    }
-
-    fn schedule_attempt_already_sent(
-        &self,
-        schedule_id: &str,
-        subject: &str,
-    ) -> Result<bool, HubError> {
-        let exists: bool = self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM messages WHERE task_id = ?1 AND subject = ?2)",
-            params![schedule_id, subject],
-            |row| row.get(0),
-        )?;
-        Ok(exists)
-    }
-
-    fn send_schedule_prompt(
-        &self,
-        task: &ScheduledTask,
-        body: &str,
-        subject: &str,
-    ) -> Result<(), HubError> {
-        let messages = match &task.target {
-            ScheduleTarget::Agent { agent_id } => vec![self.send_message(
-                "system",
-                agent_id,
-                MessageKind::Handoff,
-                body,
-                Some(subject),
-                Some(&task.workspace),
-                Some(&task.id),
-            )?],
-            ScheduleTarget::Team => self.send_message_to_team(
-                "system",
-                MessageKind::Handoff,
-                body,
-                Some(subject),
-                Some(&task.workspace),
-                Some(&task.id),
-            )?,
-        };
-        for msg in &messages {
-            if msg.to_agent == "team" {
-                continue;
-            }
-            let _ = self.request_wake(
-                &msg.to_agent,
-                Some(&format!("schedule {}", task.id)),
-                Some(&msg.id),
-                true,
-            );
-        }
-        let _ = self.record_audit_event(
-            Path::new(&task.workspace),
-            Path::new(&task.workspace),
-            "schedule.fired",
-            &serde_json::json!({
-                "schedule_id": task.id,
-                "recipients": messages.iter().map(|m| &m.to_agent).collect::<Vec<_>>(),
-            })
-            .to_string(),
-            None,
-        );
         Ok(())
     }
 

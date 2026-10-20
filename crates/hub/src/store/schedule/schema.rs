@@ -48,6 +48,14 @@ impl HubStore {
             );
             CREATE INDEX IF NOT EXISTS idx_scheduled_outbox_pending
                 ON scheduled_dispatch_outbox(schedule_id, attempt);
+            CREATE TABLE IF NOT EXISTS scheduled_dispatch_recipients (
+                schedule_id TEXT NOT NULL,
+                attempt INTEGER NOT NULL,
+                to_agent TEXT NOT NULL,
+                message_id TEXT,
+                claimed_at TEXT NOT NULL,
+                PRIMARY KEY (schedule_id, attempt, to_agent)
+            );
             "#,
         )?;
         // #352 resume link. Duplicate-column errors on already-migrated DBs
