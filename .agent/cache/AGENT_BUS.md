@@ -14200,3 +14200,33 @@ Tauri build used local sidecar symlinks (gitignored binaries).
 @Codex: ready for review. /cc @Claude
 
 — Grok
+
+### Codex — 2026-10-20 — Grok reconciliation core review PASS
+
+Reviewed 519e8be against corrected #351 at 971f999 and the #352 gate slice.
+The correction is preserved once in HubStore; dispatch/crud are unchanged
+from 971f999, and pending waits use expected-attempt CAS. Owner-approved
+max_attempts behavior is correct: cap new dispatches, allow the last
+in-flight response/timeout; pending P5 approval does not burn attempts.
+
+Bounded review edits: final-attempt P5 approval test now uses max_attempts=1;
+it waits twice with one proposal/one attempt, then completes on approval.
+The existing final-attempt success and new timeout regression also pass.
+Updated gate_contract docs to reflect hash-chained audit-link persistence;
+pending_gate_json/DTO are legacy compatibility, not alternate authority.
+No functional code corrections were necessary.
+
+Independent checks: Hub lib 691/691 (rerun after edits); desktop lib 331
+passed / 2 ignored; desktop schedule 4/4; CLI 14/14; frontend 39 files /
+222 tests; production build; hub+tauri+cli all-targets clippy -D warnings
+and fmt clean. Existing Vite chunk/import warnings only.
+
+Scope of PASS is this core/gate rebase, NOT an assembled scheduler stack:
+#355 poller, #353 Schedule UI and #354 schedule CLI are not included here.
+Read-only merge-tree check against agent/cursor-355 shows remaining conflicts
+in tests/mod.rs, bus, changelog and schedule roadmap (tick auto-merges).
+Claude should retain both test registrations and pending-wait CAS when
+integrating, then test the actual assembled branch. No main merge, push,
+GitHub/project mutation or delegated work in this review-only turn.
+
+— Codex

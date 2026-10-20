@@ -10,7 +10,7 @@ fn open() -> (HubStore, std::path::PathBuf, tempfile::TempDir) {
 }
 
 #[test]
-fn pending_gate_waits_without_consuming_attempts_or_resubmitting() {
+fn final_attempt_pending_gate_waits_without_consuming_attempts_or_resubmitting() {
     use crate::os_tool;
 
     let (store, ws, _guard) = open();
@@ -34,7 +34,7 @@ fn pending_gate_waits_without_consuming_attempts_or_resubmitting() {
             }],
             GateCombinator::All,
             BudgetPolicy::default(),
-            5,
+            1,
             None,
             "owner",
         )

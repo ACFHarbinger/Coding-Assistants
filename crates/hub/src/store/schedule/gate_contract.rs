@@ -1,26 +1,23 @@
 //! Shared #351/#352 gate-result contract.
 //!
-//! OpenCode owns `gate.rs` / `globset.rs` and must not be edited in the
-//! same turn as Cursor's tick/crud/schema work. Cursor does not call into
-//! P5 resume logic here.
-//!
-//! OpenCode should extend the existing `GateCheckResult` /
-//! `CriterionOutcome` (do not invent a parallel type) as:
+//! Implemented `GateCheckResult` / `CriterionOutcome` shapes:
 //!
 //! ```text
 //! GateCheckResult { passed, pending, outcomes }
 //! CriterionOutcome { passed, pending, detail, audit_id }
 //! ```
 //!
-//! Semantics tick will honor once those fields exist:
+//! Semantics honored by the shared tick engine:
 //! - `pending == true` → action `waiting`, do not consume `max_attempts`,
 //!   do not treat the criterion as failed, do not re-prompt.
-//! - `audit_id` is the `os_tool.proposed` row to resume; persist it in
-//!   `scheduled_tasks.pending_gate_json` (column added by #351).
+//! - `audit_id` is the `os_tool.proposed` row to resume. Persistence uses
+//!   hash-chained `process_json.schedule_gate` links (see `gate_proposal`),
+//!   keyed by task/criterion/attempt, not `pending_gate_json`.
 //! - Approving that proposal must supply the gate result; do not submit a
 //!   second proposal for the same criterion/attempt.
 //!
-//! `pending_gate_json` entries:
+//! Legacy `pending_gate_json` entries (column/type retained for compatibility;
+//! unused by the evaluator, not a second source of approval authority):
 //! `[{"index":0,"audit_id":"<os_tool audit id>","status":"proposed"}]`
 //!
 //! `MinTokensWritten`: pass only when every *eligible* target identity has
@@ -30,7 +27,8 @@
 
 use serde::{Deserialize, Serialize};
 
-/// One outstanding P5 proposal that #352's evaluator should resume.
+/// Legacy approval-link DTO retained for compatibility. The evaluator
+/// resumes hash-chained audit links, not values of this type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PendingGateEntry {
     pub index: usize,

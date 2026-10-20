@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex reconciliation review — 2026-10-20
+
+- Strengthened the P5 approval-resume regression to use max_attempts=1:
+  final-attempt approval waits without resubmitting or consuming another
+  attempt and completes on approval. Corrected stale gate-contract docs:
+  audit links are authoritative; pending_gate_json is retained legacy data.
+
 ### Codex Cursor re-review — 2026-10-20
 
 - Scheduler wake replay now propagates errors and serializes check/create;
