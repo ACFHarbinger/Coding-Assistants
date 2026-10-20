@@ -357,6 +357,26 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// Set (or clear, `None`) the workspace's Kimi slash-command mode
+    /// (#363). Does not save; call [`Self::save`] to persist.
+    pub fn set_workspace_kimi_mode(
+        &mut self,
+        workspace: &str,
+        mode: Option<crate::KimiTaskMode>,
+    ) -> Result<(), SettingsError> {
+        let workspace = normalize_workspace(workspace)?;
+        let mut over = self.workspaces.get(&workspace).cloned().unwrap_or_default();
+        over.kimi_mode = mode;
+        over.validate()?;
+        if over.is_empty() {
+            self.workspaces.remove(&workspace);
+        } else {
+            self.workspaces.insert(workspace, over);
+        }
+        write_workspace_fields(&mut self.document, &self.workspaces);
+        Ok(())
+    }
+
     pub fn effective_harness(
         &self,
         workspace: Option<&str>,
@@ -385,6 +405,8 @@ impl SettingsStore {
                 selected_model_status: FieldStatus::Inherited,
                 selected_effort: settings.default_effort,
                 selected_effort_status: FieldStatus::Inherited,
+                selected_kimi_mode: None,
+                selected_kimi_mode_status: FieldStatus::Inherited,
             }
         }))
     }
