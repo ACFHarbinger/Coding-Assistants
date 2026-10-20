@@ -63,6 +63,7 @@ fn remote_step_records_result_as_handoff_without_local_wake() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some(peer.clone()),
+                branch: None,
             }],
         )
         .unwrap();
@@ -105,6 +106,7 @@ fn remote_step_without_pairing_token_fails_closed() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some("127.0.0.1:1".into()),
+                branch: None,
             }],
         )
         .unwrap();

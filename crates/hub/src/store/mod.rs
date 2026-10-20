@@ -53,6 +53,7 @@ pub mod schedule;
 pub use schedule::*;
 mod sync_gate;
 mod tasks;
+pub use tasks::{BranchTarget, StepBranch};
 #[cfg(test)]
 mod tests;
 mod workspaces;

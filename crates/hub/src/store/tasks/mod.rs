@@ -1,6 +1,8 @@
 use super::*;
 
+mod branch;
 mod runtime;
+pub use branch::{BranchTarget, StepBranch};
 impl HubStore {
     pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
         let mut stages: Vec<Vec<usize>> = Vec::new();
@@ -95,6 +97,7 @@ impl HubStore {
             }
             self.upsert_agent(&s.agent, &s.agent)?;
         }
+        Self::validate_branches(steps, workspace_path)?;
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let steps_json = serde_json::to_string(steps)
@@ -169,6 +172,11 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
+        let body = if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        };
         if let Some(peer) = step
             .peer
             .as_deref()
@@ -181,15 +189,10 @@ impl HubStore {
                 step,
                 peer,
                 from_agent,
-                note,
+                &body,
                 stage_label,
             );
         }
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
-        } else {
-            step.instruction.clone()
-        };
         let subject = Some(format!("[{}] {}", stage_label, task.title));
         let msg = self.send_message(
             from_agent,
@@ -222,7 +225,7 @@ impl HubStore {
         step: &WorkflowStep,
         peer: &str,
         from_agent: &str,
-        note: Option<&str>,
+        body: &str,
         stage_label: &str,
     ) -> Result<String, HubError> {
         let token = crate::secret::resolve(crate::peer::PEER_AUTH_KEY)
@@ -233,12 +236,7 @@ impl HubStore {
                 "remote delegation needs a pairing token (CA_TCP_AUTH_TOKEN)".into(),
             ));
         };
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
-        } else {
-            step.instruction.clone()
-        };
-        let result = crate::peer::delegate_remote_step(peer, &step.agent, &body, &token)
+        let result = crate::peer::delegate_remote_step(peer, &step.agent, body, &token)
             .map_err(HubError::Invalid)?;
         let subject = Some(format!("[{}] {}", stage_label, task.title));
         let transcript = format!(
@@ -332,25 +330,39 @@ impl HubStore {
         let next_stage = if status == TaskStatus::Pending {
             0i64
         } else {
-            let ni = task.step_index + 1;
-            if ni >= stages.len() as i64 {
-                self.persist_task_runtime(
-                    id,
-                    TaskStatus::Done.as_str(),
-                    task.step_index,
-                    task.last_message_id.as_deref(),
-                    &task.attempts,
-                    &[],
-                    &[],
-                )?;
-                self.sweep_oversight_exceptions()?;
-                return self
-                    .get_task(id)?
-                    .ok_or_else(|| HubError::NotFound(id.into()));
+            // P20 (#367): a stage with a branch picks its successor by
+            // Schedule's gate evaluator; otherwise linear advance.
+            match self.decide_next_stage(&task, &stages)? {
+                branch::StageDecision::Activate(index) => index,
+                branch::StageDecision::Complete => {
+                    return self.finish_task(id, &task, TaskStatus::Done);
+                }
+                branch::StageDecision::Fail(_reason) => {
+                    return self.finish_task(id, &task, TaskStatus::Failed);
+                }
             }
-            ni
         };
 
         self.activate_stage(id, &task, next_stage, from_agent.unwrap_or("human"), note)
+    }
+
+    fn finish_task(
+        &self,
+        id: &str,
+        task: &TaskRecord,
+        status: TaskStatus,
+    ) -> Result<TaskRecord, HubError> {
+        self.persist_task_runtime(
+            id,
+            status.as_str(),
+            task.step_index,
+            task.last_message_id.as_deref(),
+            &task.attempts,
+            &[],
+            &[],
+        )?;
+        self.sweep_oversight_exceptions()?;
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
     }
 }

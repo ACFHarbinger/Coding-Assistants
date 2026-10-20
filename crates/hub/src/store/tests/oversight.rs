@@ -283,6 +283,7 @@ fn revoke_deadline_and_task_completion_end_the_latest_exception() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: None,
+                branch: None,
             }],
         )
         .unwrap();

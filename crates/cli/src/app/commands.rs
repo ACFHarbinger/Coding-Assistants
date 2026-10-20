@@ -96,8 +96,11 @@ pub(crate) enum BudgetCommand {
 #[derive(Subcommand)]
 pub(crate) enum TaskCommand {
     /// Create a workflow. --steps is JSON array of
-    /// {agent, instruction, role?, max_retries?, parallel_group?} objects.
-    /// Consecutive steps sharing parallel_group form a bounded parallel stage.
+    /// {agent, instruction, role?, max_retries?, parallel_group?, peer?, branch?}
+    /// objects. Consecutive steps sharing parallel_group form a bounded parallel
+    /// stage. branch = {criteria: [GateCriterion], combinator?: all|any,
+    /// on_pass: {kind: next|stage|done|fail, index?}, on_fail?: same} picks the
+    /// next stage with Schedule's gate evaluator (needs --workspace).
     Create {
         #[arg(long)]
         title: String,

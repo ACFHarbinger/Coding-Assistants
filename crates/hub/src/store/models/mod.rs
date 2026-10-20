@@ -29,6 +29,12 @@ pub struct WorkflowStep {
     /// locally as before. Old JSON without this key still parses.
     #[serde(default)]
     pub peer: Option<String>,
+    /// P20 (#367): optional next-stage selector evaluated when this step's
+    /// stage completes, with Schedule's gate evaluator. `None` keeps the
+    /// linear advance. Omitted from JSON when unset so older readers see
+    /// the same payload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<StepBranch>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

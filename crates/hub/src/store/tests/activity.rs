@@ -18,6 +18,7 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -26,6 +27,7 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
         },
     ];
 
@@ -124,6 +126,7 @@ fn activity_view_filters_by_agent() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
     }];
     let steps_grok = vec![WorkflowStep {
         agent: "grok".into(),
@@ -132,6 +135,7 @@ fn activity_view_filters_by_agent() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
     }];
 
     store
@@ -175,6 +179,7 @@ fn activity_view_filters_by_time_range_and_limit() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
     }];
 
     let task1 = store.create_task("Old Task", None, &steps).unwrap();
@@ -214,6 +219,7 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
     }];
 
     let matching = store
@@ -255,6 +261,7 @@ fn activity_view_matches_stamped_task_id_in_process_json() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
     }];
     let task = store
         .create_task("T1 stamps", Some(&root.to_string_lossy()), &steps)

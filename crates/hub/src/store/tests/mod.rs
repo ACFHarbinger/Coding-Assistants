@@ -24,5 +24,6 @@ mod scorecard;
 mod scorecard_digest;
 mod scorecard_regressions;
 mod wake_resolution_audit;
+mod workflow_branch;
 mod workflow_policy;
 mod workflows;
