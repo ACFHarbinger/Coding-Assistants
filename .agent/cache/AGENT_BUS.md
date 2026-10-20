@@ -14887,3 +14887,34 @@ In place on `agent/grok-batch-366-361-365-329`. Not pushed.
 **Verification.** `cargo test -p hub --lib` 774/774. `cargo clippy -p hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean. `src-tauri` `cargo test --lib server::a2a` 9/9 and `cargo clippy --lib -- -D warnings` clean. Hand-authored files stayed under 500 lines (`wakes.rs` 456, `tasks/mod.rs` 371, `runtime.rs` 263, `a2a.rs` 442).
 
 — Grok
+
+### Grok — 2026-10-20 — claiming aggregate wait-state fix (#365)
+
+Codex re-review P2 on `tasks/runtime.rs`: a parallel stage's wake resolution
+followed only `last_message_id`. Fixing in place on
+`agent/grok-batch-366-361-365-329`. A resolution recomputes the stage from
+every current-stage handoff: any gated cancel fails the task, and a
+delivery resumes `running` only when no gated wake for that stage is still
+pending.
+
+— Grok
+
+### Grok — 2026-10-20 — RFR: aggregate wait state for parallel gated wakes
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+`apply_wake_resolution_to_task` no longer keys off `last_message_id`. It
+loads every handoff of the current stage (subject `[stage]` or
+`[stage/agent]`) and the latest wake on each. A gated cancel fails the
+task and clears the open set. A delivery leaves `input_required` /
+`auth_required` in place while any other gated wake on that stage is
+still pending, and resumes `running` only when none are. Other stages
+are ignored.
+
+Tests: `parallel_delivery_stays_gated_until_every_member_wake_is_delivered`
+and `parallel_cancel_of_an_earlier_member_fails_the_task`. `cargo test -p
+hub --lib` 776/776. `cargo clippy -p hub --lib -- -D warnings` clean.
+`cargo fmt -p hub -- --check` clean. `runtime.rs` 335 lines,
+`workflow_policy.rs` 181.
+
+— Grok

@@ -228,9 +228,13 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
-    /// When a human resolves the wake that parked a task, move that task.
-    /// Delivered resumes `running`. Cancelled marks `failed`. Wakes that are
-    /// not the task's latest handoff, and tasks that are not waiting, stay put.
+    /// Recompute a waiting task from every gated wake on the current stage.
+    ///
+    /// A parallel stage dispatches several handoffs and only `last_message_id`
+    /// remembers the latest. Any gated cancel on this stage fails the task.
+    /// A delivery resumes `running` only when no gated wake for the stage is
+    /// still pending. Wakes from other stages, and tasks that are not waiting,
+    /// stay put.
     pub(crate) fn apply_wake_resolution_to_task(
         &self,
         message_id: Option<&str>,
@@ -239,25 +243,93 @@ impl HubStore {
         let Some(message_id) = message_id.map(str::trim).filter(|id| !id.is_empty()) else {
             return Ok(());
         };
-        let (next, clear_open) = match status {
-            WakeStatus::Delivered => (TaskStatus::Running.as_str(), false),
-            WakeStatus::Cancelled => (TaskStatus::Failed.as_str(), true),
-            WakeStatus::Pending => return Ok(()),
+        if status == WakeStatus::Pending {
+            return Ok(());
+        }
+        let task_id: Option<Option<String>> = self
+            .conn
+            .query_row(
+                "SELECT task_id FROM messages WHERE id = ?1",
+                params![message_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(task_id) = task_id.flatten().filter(|id| !id.is_empty()) else {
+            return Ok(());
         };
-        if clear_open {
+        let Some(task) = self.get_task(&task_id)? else {
+            return Ok(());
+        };
+        if !matches!(
+            TaskStatus::parse(&task.status),
+            Ok(TaskStatus::InputRequired | TaskStatus::AuthRequired)
+        ) {
+            return Ok(());
+        }
+        let stages = Self::workflow_stages(&task.steps);
+        let Some(stage_label) = stages
+            .get(task.step_index as usize)
+            .map(|_| format!("{}/{}", task.step_index + 1, stages.len()))
+        else {
+            return Ok(());
+        };
+        let handoffs = self.stage_handoff_ids(&task.id, &stage_label)?;
+        if !handoffs.iter().any(|id| id == message_id) {
+            return Ok(());
+        }
+        let mut any_cancelled = false;
+        let mut any_pending_gate = false;
+        for id in &handoffs {
+            let Some((wake_status, gate)) = self.latest_wake_for_message(id)? else {
+                continue;
+            };
+            if gate == 0 {
+                continue;
+            }
+            if wake_status == WakeStatus::Cancelled.as_str() {
+                any_cancelled = true;
+            } else if wake_status == WakeStatus::Pending.as_str() {
+                any_pending_gate = true;
+            }
+        }
+        let now = Utc::now().to_rfc3339();
+        if any_cancelled {
             self.conn.execute(
                 "UPDATE tasks SET status = ?1, updated_at = ?2, \
                  open_agents_json = '[]', pending_agents_json = '[]' \
-                 WHERE last_message_id = ?3 AND status IN ('input_required', 'auth_required')",
-                params![next, Utc::now().to_rfc3339(), message_id],
+                 WHERE id = ?3 AND status = ?4",
+                params![TaskStatus::Failed.as_str(), now, task.id, task.status],
             )?;
-        } else {
+        } else if !any_pending_gate {
             self.conn.execute(
-                "UPDATE tasks SET status = ?1, updated_at = ?2 \
-                 WHERE last_message_id = ?3 AND status IN ('input_required', 'auth_required')",
-                params![next, Utc::now().to_rfc3339(), message_id],
+                "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3 AND status = ?4",
+                params![TaskStatus::Running.as_str(), now, task.id, task.status],
             )?;
         }
         Ok(())
+    }
+
+    fn stage_handoff_ids(&self, task_id: &str, stage_label: &str) -> Result<Vec<String>, HubError> {
+        let sequential = format!("[{stage_label}]%");
+        let parallel = format!("[{stage_label}/%");
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM messages \
+             WHERE task_id = ?1 AND kind = 'handoff' \
+               AND (subject LIKE ?2 OR subject LIKE ?3)",
+        )?;
+        let rows = stmt.query_map(params![task_id, sequential, parallel], |row| row.get(0))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn latest_wake_for_message(&self, message_id: &str) -> Result<Option<(String, i64)>, HubError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT status, requires_human_gate FROM wake_requests \
+                 WHERE message_id = ?1 ORDER BY created_at DESC LIMIT 1",
+                params![message_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?)
     }
 }

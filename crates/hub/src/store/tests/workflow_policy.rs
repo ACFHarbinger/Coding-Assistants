@@ -91,6 +91,79 @@ fn policy_forced_gate_is_auth_required_and_cancel_fails_the_task() {
     assert_eq!(failed.status, "failed");
 }
 
+fn parallel_impl_steps() -> Vec<WorkflowStep> {
+    ["dev_a", "dev_b"]
+        .into_iter()
+        .map(|agent| WorkflowStep {
+            agent: agent.into(),
+            role: None,
+            instruction: format!("implement {agent}"),
+            max_retries: 0,
+            parallel_group: Some("impl".into()),
+            peer: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
+        })
+        .collect()
+}
+
+#[test]
+fn parallel_delivery_stays_gated_until_every_member_wake_is_delivered() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let task = store
+        .create_task_with_parallel("parallel gate", None, &parallel_impl_steps(), 2, true)
+        .unwrap();
+    let advanced = store.advance_task(&task.id, Some("human"), None).unwrap();
+    assert_eq!(advanced.status, "input_required");
+    let last = advanced.last_message_id.expect("last handoff");
+    let wakes = store.list_wakes(None, true).unwrap();
+    assert_eq!(wakes.len(), 2);
+    let latest = wakes
+        .iter()
+        .find(|wake| wake.message_id.as_deref() == Some(last.as_str()))
+        .expect("wake for the last handoff");
+    let earlier = wakes
+        .iter()
+        .find(|wake| wake.message_id.as_deref() != Some(last.as_str()))
+        .expect("wake for the earlier handoff");
+    store
+        .set_wake_status(&latest.id, WakeStatus::Delivered)
+        .unwrap();
+    assert_eq!(
+        store.get_task(&task.id).unwrap().unwrap().status,
+        "input_required"
+    );
+    store
+        .set_wake_status(&earlier.id, WakeStatus::Delivered)
+        .unwrap();
+    assert_eq!(store.get_task(&task.id).unwrap().unwrap().status, "running");
+}
+
+#[test]
+fn parallel_cancel_of_an_earlier_member_fails_the_task() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let task = store
+        .create_task_with_parallel("parallel cancel", None, &parallel_impl_steps(), 2, true)
+        .unwrap();
+    let advanced = store.advance_task(&task.id, Some("human"), None).unwrap();
+    let last = advanced.last_message_id.expect("last handoff");
+    let earlier = store
+        .list_wakes(None, true)
+        .unwrap()
+        .into_iter()
+        .find(|wake| wake.message_id.as_deref() != Some(last.as_str()))
+        .expect("earlier member wake");
+    store
+        .set_wake_status(&earlier.id, WakeStatus::Cancelled)
+        .unwrap();
+    let failed = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(failed.status, "failed");
+    assert!(failed.open_agents.is_empty());
+}
+
 #[test]
 fn list_agent_budgets_returns_every_configured_agent() {
     let dir = tempdir().unwrap();
