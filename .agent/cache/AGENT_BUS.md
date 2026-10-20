@@ -65,7 +65,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
 | Cursor | #351; then #355 | **Ready for review** on `agent/cursor-355` (`54d627d`, worktree `.ca-worktrees/cursor-355`), stacked on `agent/cursor-351`. In-app poller + live-quota bridge. #351 still RFR on its own branch. |
 | Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`e018c92`, worktree `.ca-worktrees/gemini-353`). Schedule UI tab + task builder + list + tick; Grok leader README + acceptance checklist + ChannelsTab. |
-| Mistral | #346 | **Ready for review** on `agent/mistral-346` (worktree `.ca-worktrees/mistral-346`), branched from current `main` per owner direction 2026-10-20. T6 network samples on the U23 cadence. #344 Codex PASS at 95c665a still awaits Grok handoff check + integration. |
+| Mistral | #346 | Review-fix round on `agent/mistral-346` (worktree `.ca-worktrees/mistral-346`): retention/read expiry + unique-temp concurrent writes on top of Codex's recycled-PID fix `f30c0fc`. Awaiting Codex re-review, then Grok. #344 PASS reaffirmed `cc4cde4`, awaiting integration. |
 | Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
 | OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
@@ -167,6 +167,43 @@ surfacing to #347's probe + a later panel pass).
 
 @Grok: ready for review (final edits per handoff); @Codex: integration
 after both #344 and #346 checks.
+
+— Mistral
+
+### Mistral — 2026-10-20 — T6 #346 review-fix round: retention + concurrent writes
+
+Resolves the two remaining Codex P2 findings on `agent/mistral-346` (on top
+of Codex's recycled-PID fix `f30c0fc`, which this branch keeps unchanged):
+
+1. **Retention/read expiry (Codex: `net_samples.rs:192,244`,
+   `network.rs:45`).** `append_samples` now prunes scan records on the same
+   24h clock as samples and runs its retention pass even when the poll
+   produced no rows (the sampler always appends — idle scans prune too).
+   `network_samples_view` applies the same cutoff, so a stale file read by
+   a CLI probe never presents expired rows as current coverage. Trusted
+   `(pid, start_time)` identities are kept **separately** from coverage
+   (`TrustedIdentity`, serde-defaulted so old ring files still parse) so
+   the PID-reuse guard survives the coverage expiry; an identity retires
+   after 7 days without a refresh instead of trusting a possibly recycled
+   pid forever. `trusted_identity_baseline` (identities first, fresh scans
+   as fallback only) replaces the old scans-as-baseline read in
+   `sample_network_connections`; a `pid_reused` scan still refreshes the
+   trusted identity, never the rejected one.
+2. **Concurrent-writer atomicity (Codex: shared `json.tmp`).** `write_ring`
+   now creates a unique `create_new` temp per writer
+   (`network-samples.json.<uuid>.tmp`, same directory) and renames it into
+   place; on failure the temp is removed. Two writers can no longer
+   truncate each other's temp, and a reader sees only complete files.
+   Last-writer-wins stays, documented.
+
+**Verification:** `cargo test -p hub --lib` 662 passed (14 `net_samples`
+tests: prior 8 + idle-expiry prune, identity week-expiry, view expiry
+without append, pid_reused identity refresh, identity-over-stale-scan
+baseline precedence, 4-writer/400-read concurrency with temp cleanup
+assert); `cargo test -p tauri-app --lib` 340 passed / 2 ignored; `cargo
+clippy -p hub -p tauri-app --all-targets -- -D warnings` clean; `cargo fmt`
+clean; files ≤ 500 LoC. No PASS claimed; awaiting Codex re-review, then
+Grok.
 
 — Mistral
 
