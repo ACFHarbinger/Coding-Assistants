@@ -14662,3 +14662,52 @@ Roadmaps updated: `platform.md` P16/P17/P19/P20 rows and `schedule.md`
 S5c row now show 🚧 Delegated with owner.
 
 — Claude
+
+### Claude — 2026-10-20 — concentration experiment: all new work onto Grok/Kimi/Cursor only; backlog audit
+
+Owner wants to test whether concentrating work onto 3 agents with real or
+claimed "swarm" capability outperforms the usual round-robin across the
+full roster. **Verified before acting, not assumed:** only **Kimi**'s
+swarm capability is actually reachable from this app — `/swarm <task>` /
+`/goal <objective>` are documented slash commands through the exact
+`kimi` CLI binary `bridge/kimi.rs` drives. **Grok**'s "Heavy" ensemble
+mode is a `grok.com`/SuperGrok **web-subscription-tier** feature with no
+entry in the `grok` CLI's own command reference (`login/logout/inspect/
+models/mcp/plugin/sessions`) — not reachable here. **Cursor**'s parallel
+subagents are real in the editor/Cloud Agents UI, but multiple Cursor
+forum reports (v2.5.17-2.5.20) say they don't actually parallelize in the
+CLI surface (`cursor-agent`) this app drives, and slash-command
+subagent invocation is reported broken there too.
+
+Owner's call, given that: **proceed anyway with Grok/Kimi/Cursor.** This
+is honestly "3 heavily-loaded agents vs. the usual spread," not a
+strict swarm-vs-swarm test — only Kimi gets to use a literal swarm
+mechanism. Framing this plainly so nobody overclaims what Grok/Cursor
+are doing differently.
+
+**Backlog audit first** (found while sourcing work for this batch — the
+open-issue list had real hygiene debt): closed 18 issues that were
+landed per the roadmap docs but never closed on GitHub — #304-306, #309,
+#312-316, #324 (just found), plus #325-328/#330-336 (found during the
+scheduler/scorecard integration earlier today). None of these represent
+new work; closing them is pure bookkeeping. #317/#318/#320/#322 stay
+open on purpose — those explicitly say "owner live verify owed," a
+different, legitimate reason to stay open.
+
+**Reassigned (withdrawn from original owner, no work lost):**
+- **#360 P16 Guardrails**: OpenCode → **Cursor**.
+- **#361 P17 handoff/context filtering**: Mistral → **Grok**.
+
+**Full batch, 4 issues each:**
+
+- **Grok**: [#366](https://github.com/ACFHarbinger/Coding-Assistants/issues/366) P19 nested sub-workflows (unchanged) · [#361](https://github.com/ACFHarbinger/Coding-Assistants/issues/361) P17 handoff filtering (reassigned) · [#365](https://github.com/ACFHarbinger/Coding-Assistants/issues/365) A2A INPUT_REQUIRED/AUTH_REQUIRED state · [#329](https://github.com/ACFHarbinger/Coding-Assistants/issues/329) Hermes ACP stdio delivery transport.
+- **Kimi**: [#358](https://github.com/ACFHarbinger/Coding-Assistants/issues/358) S5c quota-probe bridge (unchanged) · [#363](https://github.com/ACFHarbinger/Coding-Assistants/issues/363) your own `/swarm`+`/goal` toggle, **with an empirical verify of the stream-json-under-swarm-mode risk required before shipping it** · [#364](https://github.com/ACFHarbinger/Coding-Assistants/issues/364) A2A push-notification config · [#319](https://github.com/ACFHarbinger/Coding-Assistants/issues/319) Discord/Slack extension of the Telegram bot (U25).
+- **Cursor**: [#367](https://github.com/ACFHarbinger/Coding-Assistants/issues/367) P20 conditional branching (unchanged) · [#360](https://github.com/ACFHarbinger/Coding-Assistants/issues/360) P16 Guardrails (reassigned) · [#321](https://github.com/ACFHarbinger/Coding-Assistants/issues/321) Ableton MCP bug — roadmap claims done, never compiler-verified against real Live · [#303](https://github.com/ACFHarbinger/Coding-Assistants/issues/303) Usage tab chart (reuse `HubCharts.tsx`'s hand-rolled SVG convention, no new chart dependency).
+
+Codex reviews all twelve as usual, no self-review. Everyone else
+(Mistral, OpenCode, Gemini, DeepSeek) stays idle on new assignments for
+this round — not because anything's wrong, purely to keep the
+3-vs-many comparison clean. The UI-visualization brainstorm doc is
+still open and not part of this batch either way.
+
+— Claude
