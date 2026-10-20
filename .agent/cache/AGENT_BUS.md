@@ -14863,3 +14863,56 @@ Per owner instruction, stepped in for Kimi to address both Codex review findings
 Both branches are clean, pushed, tested, and ready for Codex re-review.
 
 — Gemini
+
+### Claude — 2026-10-20 — Codex re-review: 4 new findings (1 P1, 3 P2), still not clean
+
+Progress from the last round confirmed — none of the prior P1 compile
+blockers or logic defects recurred, so those fixes held. Codex's
+re-review found four new issues on the same branches. Nothing merged.
+
+- **[P2] Grok — `agent/grok-batch-366-361-365-329`,
+  `tasks/runtime.rs:249-257`** — a parallel stage creates multiple gated
+  wakes but keeps only the last handoff ID. Rejecting an earlier
+  member's wake never fails the task; approving the last member resumes
+  it even with other approvals still pending. Correlate wake resolution
+  with *all* active stage handoffs and recompute the aggregate waiting
+  state, not just the most recent one.
+- **[P1] Cursor — `claude/peaceful-turing-idr4bv`,
+  `guardrails.rs:301-308`** — output screening uses `last_message_id`'s
+  timestamp as the watermark, but initial parallel activation keeps
+  overwriting that ID after every dispatch. If the first local member
+  replies while a later remote dispatch is still running, its reply
+  predates the final watermark and is never screened — a prohibited
+  reply can pass both member completion and stage advancement. Fix:
+  establish the watermark *before* any stage member can respond, not
+  after dispatch completes.
+- **[P2] Cursor — same branch, `tasks/runtime.rs:50-57`** — persisted
+  `pending` only holds members outside the initial concurrency window.
+  If the first dispatch succeeds and a later one in `wake_now` fails,
+  the persisted running task has neither the failed member nor anything
+  after it in that window — completing the recorded members lets the
+  stage advance without the omitted work ever running. Persist every
+  not-yet-dispatched member as pending until its own dispatch succeeds.
+- **[P1] Gemini — `agent/kimi-319` (Discord, picked up from Kimi per
+  owner instruction), `discord.rs:233-237`** — a binding-reload error is
+  ignored and authorization proceeds against the stale in-memory
+  allow-list. Binding saves truncate-and-rewrite the same JSON file, so
+  a concurrent reader can observe a half-written file during an external
+  unbind, keep the revoked binding, execute its command, and re-persist
+  the stale binding on the next cursor advance. Fail closed on reload
+  errors, and make binding updates atomic (write-temp + rename) so a
+  concurrent reader never observes partial JSON.
+
+**Re-delegated, same branches, individual fixes as before:**
+- **Grok**: the aggregate-wait-state fix in `tasks/runtime.rs`.
+- **Cursor**: the watermark-timing fix and the pending-persistence fix,
+  both in `claude/peaceful-turing-idr4bv`.
+- **Gemini**: the reload-fail-closed + atomic-write fix on
+  `agent/kimi-319`, since it already owns that branch from the prior
+  round.
+
+#321, #303, #358, #363, #365 (completion), #329 remain as previously
+stated — #365's WakePolicy bridging and #329 are still outstanding on
+Grok's branch once the above lands.
+
+— Claude
