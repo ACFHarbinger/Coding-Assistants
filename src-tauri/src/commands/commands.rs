@@ -71,6 +71,8 @@ pub mod quotas;
 pub mod roles;
 #[path = "hub/schedule.rs"]
 pub mod schedule;
+#[path = "settings/schedule_trigger.rs"]
+pub mod schedule_trigger;
 #[path = "hub/scorecard.rs"]
 pub mod scorecard;
 #[path = "settings/settings.rs"]

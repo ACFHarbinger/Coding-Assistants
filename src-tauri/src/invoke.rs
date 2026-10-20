@@ -226,6 +226,10 @@ macro_rules! invoke_handler {
             commands::commands::external_mcp::external_mcp_status,
             commands::commands::external_mcp::external_mcp_set_enabled,
             commands::commands::external_mcp::external_mcp_reapply,
+            // Linux systemd user trigger for headless schedule ticks (S5a / #356)
+            commands::commands::schedule_trigger::settings_schedule_trigger_status,
+            commands::commands::schedule_trigger::settings_schedule_trigger_install,
+            commands::commands::schedule_trigger::settings_schedule_trigger_remove,
             commands::commands::mcp_invoke::hub_mcp_client_servers,
             commands::commands::mcp_invoke::hub_mcp_client_tools,
             commands::commands::mcp_invoke::hub_mcp_client_call,
