@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Roadmap: `openai-agents-python`-inspired platform primitives
+  (P16/P17/P18, `roadmaps/platform.md`).** Guardrails primitive
+  ([#360](https://github.com/ACFHarbinger/Coding-Assistants/issues/360)
+  — pre-dispatch/post-response tripwire checks, distinct from P5's
+  command-execution sandbox); structured handoff input + opt-in
+  context filtering for `dispatch_step`/Schedule delegation
+  ([#361](https://github.com/ACFHarbinger/Coding-Assistants/issues/361));
+  agents-as-tools, deferred — scoped only to `AgentSystem`'s secondary
+  API-driven pipeline, does not port onto the harness-CLI/PTY bridge
+  ([#362](https://github.com/ACFHarbinger/Coding-Assistants/issues/362)).
+  Planning only, no code yet.
+
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,
