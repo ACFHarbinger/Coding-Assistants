@@ -14711,3 +14711,80 @@ this round — not because anything's wrong, purely to keep the
 still open and not part of this batch either way.
 
 — Claude
+
+### Claude — 2026-10-20 — Codex review of the Grok/Kimi/Cursor batch: CHANGES REQUESTED on all three branches, nothing merged
+
+Codex ran three subagents (Grok, Cursor/Claude, Kimi) against the batch
+from the swarm-concentration entry above. Verdict: compilation blockers
+and real correctness defects on every branch. No tracked files edited by
+the review itself. Nothing merged, nothing pushed to `main`.
+
+**Grok — `agent/grok-batch-366-361-365-329` — P1, does not compile:**
+- `crates/hub/src/store/tasks/mod.rs` contains literal `$(cat ...)` shell-
+  substitution text instead of Rust — `rustfmt --check` fails on `expected
+  item, found '$'`; the crate cannot build.
+- `crates/hub/src/store/models/mod.rs:115-118` replaced real declarations
+  (`WakePolicy`, `BudgetStatus`, `AuditEvent`, `HarnessSessionRegistration`)
+  with a placeholder comment; existing policy/audit/session code still
+  references these types.
+- `WorkflowStep` struct-literal callers (e.g. the A2A server) were not
+  updated for the three new fields — `#[serde(default)]` only covers
+  deserialization, not construction.
+- Also still incomplete regardless of the above: **#329 (Hermes ACP
+  stdio delivery) was never started** on this branch, and #365 only got
+  the `InputRequired`/`AuthRequired` enum additions, not the WakePolicy
+  bridging the issue actually asks for.
+
+**Cursor's issues, done instead by another Claude session on
+`claude/peaceful-turing-idr4bv` (Cursor did not pick up any of its four
+issues) — P1/P2, real logic defects:**
+- `tasks/branch.rs:135-138` — branch approval correlation keys only on
+  task id + criterion + attempt, not stage; two stages sharing attempt 1
+  let an approved stage-0 result satisfy stage 1 with a different command.
+- `guardrails.rs:311-316` / `:315-319` — `complete_parallel_member` moves
+  `last_message_id` when it dispatches a queued member, creating a gap
+  where a finishing member's output, or an embedded remote result, is
+  never screened by an enabled output guardrail.
+- `guardrails.rs:180-184` — `list_guardrails(None)` returns every
+  workspace's rules; an unscoped task inherits unrelated workspaces'
+  restrictions instead of only hub-wide rules.
+- `crates/cli/src/app/guardrail.rs:34-37` — `--on` is `ArgAction::SetTrue`
+  with default `true`; `--on false` is rejected, so the rule can never
+  actually be disabled from the CLI.
+- `tasks/mod.rs:182-188` — parallel-stage activation dispatches members
+  sequentially and only persists state after all succeed; a later
+  member's guardrail trip leaves an earlier member's dispatch orphaned
+  (message + wake sent, task state never recorded), and retry re-dispatches
+  it again.
+
+**Kimi:**
+- `agent/kimi-319` (Discord), `crates/cli/src/command/discord.rs:60-65` —
+  the daemon keeps bindings loaded at startup; `ca discord unbind` updates
+  disk but the running daemon keeps authorizing the revoked user, and a
+  later cursor save can restore the stale binding. `:65-70` — commands are
+  applied before the reply is sent and persisted only after; a failed
+  reply causes a restart to re-execute already-applied commands.
+- `agent/kimi-364` (A2A push notifications), `a2a/notifier.rs:67-71` —
+  `http_status_as_error(false)` does not disable redirects (ureq follows
+  up to 10 by default); a redirect can carry the notification-token
+  header to an unintended destination and still count as delivered.
+
+**Re-delegated, fix-in-place on the same branches, not a redo:**
+- **Grok**: fix the three P1 compile blockers first (this is the
+  priority — nothing else on this branch can even build), then finish
+  #365's WakePolicy bridging and start #329, which was never touched.
+- **Claude session on `claude/peaceful-turing-idr4bv`** (standing in for
+  Cursor, which did not engage with any of #367/#360/#321/#303): fix the
+  branch-approval correlation, the two guardrail output-boundary gaps,
+  the workspace-scoping bug, the CLI `--on false` case, and the parallel-
+  dispatch preflight ordering.
+- **Kimi**: fix Discord binding-reload-before-authorize and persist-
+  before-reply on `agent/kimi-319`; fix the redirect policy on
+  `agent/kimi-364`.
+
+#321 and #303 (Ableton fix, Usage-tab chart) were not named in Codex's
+findings — no action needed there pending a fuller pass, but they stay
+unmerged with the rest of the batch until the P1/P2 items above are
+resolved and Codex re-reviews.
+
+— Claude
