@@ -1,7 +1,9 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
-**S1-S3, S7 (core) integrated into `main` (2026-10-20)** as the reconciled `agent/grok-352` head (Codex-reviewed engine correction + pending-gate resume), followed by **S6 (#355)** on top. S4/S5a next.
-
+**S1-S3, S6, S7, S8 integrated into `main` (2026-10-20)**: the reconciled
+`agent/grok-352` core (Codex-reviewed engine correction + pending-gate
+resume), **S6** in-app poller (#355), and **S8** the Orchestrate Schedule
+tab (#353, Codex-reviewed gate-editor fixes). S4/S5a next.
 
 > **Status:** Approved design (owner answered the four open questions
 > 2026-10-19) — issue decomposition below is the implementation plan.
@@ -127,7 +129,7 @@ tick logic it drives (S3) is itself correct and tested.
 | S5c | Quota-probe bridge (follow-up) | Extract `src-tauri`'s session/weekly quota-probe logic into a shape `crates/cli` can also call, so headless `ca schedule tick` gets full budget fidelity, not just `credit_allowance`. Explicitly deferred out of S1–S5a. | 💤 Deferred #358 · unassigned |
 | S6 | In-app poller + budget bridge | `src-tauri`-side timer loop while the app is open: calls the same tick logic as S3/S4 but additionally checks live quota % before each re-prompt (the "Both" decision above) and pauses on exhaustion, same as `gate_provider_call`'s existing pause behavior. **Policy:** pause only on a measurable session/weekly `remaining_percent <= 0`; `unavailable` / empty windows / balance-only / local-usage-only do not invent a stop. Interval 15s; overlapping ticks skipped. Headless tick stays credit-only (S5c). Generic tick transitions do not match `paused`, so a stale active snapshot cannot resurrect a quota-paused row; pending outbox is not sent after pause. | ✅ Landed in `main` (#355, Cursor). |
 | S7 | Tauri commands | `hub_schedule_create\|list\|cancel\|get\|tick`, registered in `invoke.rs`, thin wrappers over S1/S3. | ✅ Landed in `main` |
-| S8 | Frontend: Schedule tab | New Orchestrate sub-tab (`orchestrateSubView` gains `"schedule"`, alongside `"setup"`/`"terminals"` in `src/App.tsx` — that file is at 492/500 lines, so the new tab's content is its own component, `App.tsx` only gains the nav button + a thin mount point). Task/goal builder: instruction text, target picker (agent list + "Full team"), date/time picker, repeat-interval toggle (off = one-shot), gate-criteria builder (command / max-lines-per-file / min-tokens-written, combinator), budget picker (credit allowance amount, "stop on quota exhaustion" toggle). List view with status, next-fire time, attempt count, manual cancel. | 📋 Gemini #353 · scaffold ready; final integration after #351/#352 |
+| S8 | Frontend: Schedule tab | New Orchestrate sub-tab (`orchestrateSubView` gains `"schedule"`, alongside `"setup"`/`"terminals"` in `src/App.tsx` — that file is at 492/500 lines, so the new tab's content is its own component, `App.tsx` only gains the nav button + a thin mount point). Task/goal builder: instruction text, target picker (agent list + "Full team"), date/time picker, repeat-interval toggle (off = one-shot), gate-criteria builder (command / max-lines-per-file / min-tokens-written, combinator), budget picker (credit allowance amount, "stop on quota exhaustion" toggle). List view with status, next-fire time, attempt count, manual cancel. | ✅ Landed in `main` (#353, Gemini). |
 
 ## Non-goals / explicitly deferred
 
@@ -158,6 +160,7 @@ agent bus and issue comments. Older queued/RFR rows below are historical
 where they conflict with this dated checkpoint.
 
 Schedule review 2026-10-20: Codex corrected partial-team token-baseline false passes; gate tests and Hub lib suite pass. Those gate commits are rebased onto `971f999` on `agent/grok-352`.
+Schedule review 2026-10-20: tick-summary IPC mismatch fixed by Codex. Changes still requested: editable command argv/check, globs and numeric gate thresholds; current builder only inserts hard-coded presets. Do not mark S8 accepted yet.
 
 Epic: [#350](https://github.com/ACFHarbinger/Coding-Assistants/issues/350).
 Children: #351 (S1/S3/S7 corrections, Cursor), #352 (S2 gates, OpenCode),

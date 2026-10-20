@@ -72,6 +72,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Codex review corrections — 2026-10-20
 
 - Fix scheduler token gates to check every eligible identity, including missing creation baselines (#352); regression reproduced before correction.
+### Codex follow-up review — 2026-10-20
+
+- Schedule gate editor review: fixed quoted-argument tokenization and malformed-input rejection; numeric thresholds no longer truncate fractions or accept unsafe integers. Numeric command checks are correctly labeled as exit-zero plus stdout maximum, not exit-code ceilings (#353).
+
+### Codex review corrections — 2026-10-20
+
+- Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.
+- Provide editable command program/argv/check, globs, and numeric thresholds for gate criteria; prevent attaching gates to one-shot tasks and clarify engine bypass (#353).
 
 ### Fixed
 
@@ -222,6 +230,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same bridge. Overlapping ticks are skipped; poller cancel stops the
   loop. Wake policy and P5 approval are not bypassed.
 
+- **Scheduled Goals S8 frontend Schedule tab (#353):** Added `SchedulePanel`,
+  `ScheduleTaskBuilder`, `ScheduleTaskList`, and `GateCriteriaSection` under
+  Orchestrate navigation. Supports single-agent or full-team dispatch, recurring
+  intervals or one-shot deadlines, configurable gate criteria (Command exit
+  code/at_most, MaxLinesPerFile 500-LoC check, MinTokensWritten delta), max
+  attempts, budget quota pause toggle, task listing with status badges, task
+  cancellation, and a manual tick trigger (`hub_schedule_tick`) with live toast
+  feedback. All components strictly ≤ 500 LoC.
+- **Grok leader-mode developer guide and acceptance checklist (#154):** Added
+  `crates/hub/src/bridge/channels/grok/README.md` documenting leader
+  architecture, ACP task delivery, and terminal launch constraints; added
+  `docs/moon/checklists/grok_leader_acceptance.md` detailing automated test and
+  live owner acceptance steps; added guidance in
+  `src/components/panels/hub/ChannelsTab.tsx`.
 - **Scheduled Goals S7 Tauri commands (#350):** `hub_schedule_create`
   (single-struct `ScheduleCreateArgs` payload) / `hub_schedule_list` /
   `hub_schedule_get` / `hub_schedule_cancel` / `hub_schedule_tick`,

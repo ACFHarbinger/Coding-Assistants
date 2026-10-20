@@ -31,6 +31,10 @@ export default function ChannelsTab(props: {
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <div style={{ ...cardStyle, display: "grid", gap: "0.85rem" }}>
         <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-main)" }}>Grok leader</h3>
+        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
+          Grok Build uses a documented leader daemon and ACP socket (<code style={{ background: "rgba(0,0,0,0.3)", padding: "0.1rem 0.4rem", borderRadius: "4px" }}>~/.grok/leader.sock</code>) for Hub task injection (C14.6 / #154).
+          Standalone terminals are capture-only; click Connect below or start Grok with <code style={{ background: "rgba(0,0,0,0.3)", padding: "0.1rem 0.4rem", borderRadius: "4px" }}>grok --leader</code> to enable two-way task delivery.
+        </p>
         <GrokLeaderCard workspace={grokWorkspace} />
       </div>
 
