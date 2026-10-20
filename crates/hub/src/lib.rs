@@ -10,6 +10,7 @@ pub mod bus;
 pub mod github;
 mod harness;
 pub mod mcp;
+pub mod net_samples;
 pub mod os_tool;
 mod paths;
 pub mod peer;

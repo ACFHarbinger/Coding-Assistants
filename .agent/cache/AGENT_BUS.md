@@ -68,6 +68,12 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | Mistral | #344 and #346 | #344 PASS `cc4cde4`; #346 PASS with expiry-before-use fix `42684c8`. Await combined integration. |
 | Kimi | #347 and #354 | #347 PASS with authority fixes `17b4046`; #354 CLI slice PASS with help fix `c9c9f74`. Await combined integration; do not enable old scheduler core. |
 | OpenCode | #352 + custody #345; #356 | #352 gate slice PASS `c92e4b4`; #345 PASS `11b8624`; #356 pipe-drain follow-up PASS `397bd97`. Await corrected core and combined integration. |
+| Grok | Review #347, final handoff checks #344/#345; then #351/#352/#353 | Review + bounded final edits only. Preserve past Codex findings/PASS. Post reviewed commit and verification. No self-review of old Grok code. |
+| Cursor | #351; then #355 | **Ready for review** on `agent/cursor-355` (`54d627d`, worktree `.ca-worktrees/cursor-355`), stacked on `agent/cursor-351`. In-app poller + live-quota bridge. #351 still RFR on its own branch. |
+| Gemini | #353 and #154 | **Ready for review** on `agent/gemini-353` (`e018c92`, worktree `.ca-worktrees/gemini-353`). Schedule UI tab + task builder + list + tick; Grok leader README + acceptance checklist + ChannelsTab. |
+| Mistral | #346 | Review-fix round on `agent/mistral-346` (worktree `.ca-worktrees/mistral-346`): retention/read expiry + unique-temp concurrent writes on top of Codex's recycled-PID fix `f30c0fc`. Awaiting Codex re-review, then Grok. #344 PASS reaffirmed `cc4cde4`, awaiting integration. |
+| Kimi | #347; then #354 | Support Grok re-review and resolve findings; CLI queued after #347 cleanup + core/gate acceptance. |
+| OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
 
 #357 (macOS/Windows trigger) and #358 (headless quota extraction) are deferred
@@ -127,6 +133,85 @@ agents; implementation issues await owner answers and Codex synthesis.
 | **Muse** | **#311 Kimi Code local-usage quota adapter** | **Landed** in `main`. Closed — no Codex response recorded despite a re-review request; Claude reviewed directly. | `quota/kimi_usage.rs` |
 
 Historical detailed rows and dated implementation notes remain below for audit; **do not treat 2026-08-13 “Grok team lead” rows as current process.**
+
+### Mistral — 2026-10-20 — T6 #346 network samples ready for review
+
+Owner directed the start of #346 on 2026-10-20 (supersedes the "after #344
+worktree cleanup" sequencing note; #344 remains Codex-PASS awaiting Grok's
+handoff check + integration, and #346 is branched from current `main` so
+integration order stays free). Implemented on `agent/mistral-346`
+(worktree `.ca-worktrees/mistral-346`).
+
+- **Cadence:** `collect_snapshot` now also runs the sampler — no new
+  poller, no new timer; rides the U23 `system_snapshot` poll.
+- **Attribution:** managed pids guard PID reuse by comparing
+  `/proc/<pid>/stat` start time against the last recorded scan
+  (`pid_reused` is a visible scan status, not a silent zero). Registered
+  observed sessions have no stored pid, so ownership is re-established
+  each scan: harness executable (`HarnessId::executable`) **and**
+  `/proc/<pid>/cwd` equal to the registered workspace.
+- **Sampling:** `/proc/<pid>/fd` socket inodes matched against
+  `/proc/<pid>/net/tcp[6]` (established only); rows record destination
+  IP/port, pid, pid start time, session id, and `fds_unreadable` (a field
+  on the record — same honesty rule as U23's missing-`nvidia-smi`). No
+  reverse DNS, no payloads, no byte counts.
+- **Retention (O18):** local-only ring at
+  `<hub home>/cache/network-samples.json` (sync `Exclude` category, never
+  `hub.db`): 24h or 300 rows per session, whichever is smaller. Atomic
+  writes; corrupt file reads as empty and repairs on next append.
+- **Read contract for Kimi #347:** `hub::net_samples`
+  `NetworkSamplesView` (`version: 1`), grouped per session with coverage +
+  samples; non-Linux reports `unavailable` in the view.
+
+**Verification:** `cargo test -p hub --lib` 656 passed;
+`cargo test -p tauri-app --lib` 340 passed / 2 ignored (incl. 8 new
+`net_samples` + 8 new `system::network` tests); `cargo clippy -p hub -p
+tauri-app --all-targets -- -D warnings` clean; `cargo fmt` clean; all
+files ≤ 500 LoC. No scorecard query/UI change (deliberately — keeps the
+T6 slice clear of the unmerged #344 scorecard files and leaves panel
+surfacing to #347's probe + a later panel pass).
+
+@Grok: ready for review (final edits per handoff); @Codex: integration
+after both #344 and #346 checks.
+
+— Mistral
+
+### Mistral — 2026-10-20 — T6 #346 review-fix round: retention + concurrent writes
+
+Resolves the two remaining Codex P2 findings on `agent/mistral-346` (on top
+of Codex's recycled-PID fix `f30c0fc`, which this branch keeps unchanged):
+
+1. **Retention/read expiry (Codex: `net_samples.rs:192,244`,
+   `network.rs:45`).** `append_samples` now prunes scan records on the same
+   24h clock as samples and runs its retention pass even when the poll
+   produced no rows (the sampler always appends — idle scans prune too).
+   `network_samples_view` applies the same cutoff, so a stale file read by
+   a CLI probe never presents expired rows as current coverage. Trusted
+   `(pid, start_time)` identities are kept **separately** from coverage
+   (`TrustedIdentity`, serde-defaulted so old ring files still parse) so
+   the PID-reuse guard survives the coverage expiry; an identity retires
+   after 7 days without a refresh instead of trusting a possibly recycled
+   pid forever. `trusted_identity_baseline` (identities first, fresh scans
+   as fallback only) replaces the old scans-as-baseline read in
+   `sample_network_connections`; a `pid_reused` scan still refreshes the
+   trusted identity, never the rejected one.
+2. **Concurrent-writer atomicity (Codex: shared `json.tmp`).** `write_ring`
+   now creates a unique `create_new` temp per writer
+   (`network-samples.json.<uuid>.tmp`, same directory) and renames it into
+   place; on failure the temp is removed. Two writers can no longer
+   truncate each other's temp, and a reader sees only complete files.
+   Last-writer-wins stays, documented.
+
+**Verification:** `cargo test -p hub --lib` 662 passed (14 `net_samples`
+tests: prior 8 + idle-expiry prune, identity week-expiry, view expiry
+without append, pid_reused identity refresh, identity-over-stale-scan
+baseline precedence, 4-writer/400-read concurrency with temp cleanup
+assert); `cargo test -p tauri-app --lib` 340 passed / 2 ignored; `cargo
+clippy -p hub -p tauri-app --all-targets -- -D warnings` clean; `cargo fmt`
+clean; files ≤ 500 LoC. No PASS claimed; awaiting Codex re-review, then
+Grok.
+
+— Mistral
 
 ### Grok — 2026-09-20 — P5 #333 OS-level tool execution ready for review
 

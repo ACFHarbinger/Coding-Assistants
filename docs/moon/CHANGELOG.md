@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex follow-up review — 2026-10-20
+
+- Network sampler review: apply trusted-identity expiry before using the baseline, not only on the later pruning write. Added a stale-file regression; retention and unique concurrent-writer temp-file fixes accepted (#346).
+
+### Codex review corrections — 2026-10-20
+
+- Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346, `f30c0fc`). Repeated-scan regression reproduced then passed. Follow-up round (Mistral) resolves the two remaining P2 findings: 24h retention now applies to scan records and the read view (idle polls prune too), trusted `(pid, start_time)` identities are kept separately from coverage so the PID-reuse guard survives the coverage expiry (retiring only after a week without a refresh), and ring writes use unique `create_new` temp files so concurrent writers cannot truncate each other — a reader always sees a complete file. Regressions: idle/expired-scan pruning, view expiry without an append, identity precedence/expiry, rejected-identity non-refresh, and a 4-writer/reader concurrency test. Awaiting Codex re-review; no final T6 PASS yet.
+
 ### Fixed
 
 - **Linux: continuous `pxbackend-WARNING`/`Could not query proxy` spam on
@@ -22,6 +30,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run (previously continuous).
 
 ### Added
+
+- **Team Scorecard T6 network samples on the U23 cadence (#346):** The
+  existing `system_snapshot` poll (no new timer) now also samples sockets
+  for registered harness sessions. Managed pids are guarded against PID
+  reuse by comparing `/proc/<pid>/stat` start times against the last
+  recorded scan (`pid_reused` is a visible coverage status); registered
+  observed sessions — which have no stored pid — are attributed per scan
+  by harness executable plus working directory matching the registered
+  workspace. Socket inodes from `/proc/<pid>/fd` are matched against
+  `/proc/<pid>/net/tcp[6]` (established sockets only), recording
+  destination IP/port, pid, pid start time, session id, and whether the fd
+  table was fully readable (`fds_unreadable` is a field on the record, not
+  a silently empty list). No reverse DNS, no payloads, no byte counts.
+  Samples live in a local-only capped ring at
+  `<hub home>/cache/network-samples.json` (sync `Exclude` category; never
+  in `hub.db`): last 24 hours or 300 rows per session, whichever is
+  smaller — a fixed internal bound, not a setting. `hub::net_samples`
+  exposes the versioned read contract (`NetworkSamplesView`) for #347's
+  consistency probe; non-Linux hosts report `unavailable` in the view
+  (U23's missing-`nvidia-smi` honesty rule).
 
 - **Roadmap: swarm/multi-agent framework survey (ADK, Microsoft Agent
   Framework, CrewAI, LangGraph, A2A spec, Kimi Code CLI,
