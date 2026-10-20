@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Codex review corrections — 2026-10-20
 
 - Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.
+- Provide editable command program/argv/check, globs, and numeric thresholds for gate criteria; prevent attaching gates to one-shot tasks and clarify engine bypass (#353).
 
 ### Fixed
 

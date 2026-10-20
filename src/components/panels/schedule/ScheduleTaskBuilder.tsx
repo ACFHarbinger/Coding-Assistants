@@ -122,7 +122,7 @@ export function ScheduleTaskBuilder({
       fire_at: fireAtIso,
       repeat_interval_secs: isRecurring ? repeatIntervalSecs : null,
       response_timeout_secs: isRecurring ? responseTimeoutSecs : 3600,
-      gate_criteria: gateCriteria,
+      gate_criteria: isRecurring ? gateCriteria : [],
       gate_combinator: gateCombinator,
       budget: {
         credit_allowance: parsedCredit,
@@ -273,6 +273,7 @@ export function ScheduleTaskBuilder({
             type="checkbox"
             checked={isRecurring}
             onChange={(e) => setIsRecurring(e.target.checked)}
+            aria-label="Repeat Task (Continuous Loop)"
           />
           <span>Continuous Loop (re-prompts until gate criteria are met or stop conditions trip)</span>
         </label>
@@ -316,6 +317,7 @@ export function ScheduleTaskBuilder({
       <GateCriteriaSection
         gateCriteria={gateCriteria}
         gateCombinator={gateCombinator}
+        isRecurring={isRecurring}
         onChangeCombinator={setGateCombinator}
         onAddCriterion={handleAddCriterion}
         onRemoveCriterion={handleRemoveCriterion}
