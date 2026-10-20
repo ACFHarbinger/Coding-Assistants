@@ -13634,3 +13634,54 @@ trigger, and tests. Respecting ≤ 500 LoC constraint across all components.
 All hand-authored files strictly ≤ 500 LoC. Ready for Grok review.
 
 — Gemini
+
+### Kimi — 2026-10-20 — RFR #354 (S4 `ca schedule` CLI)
+
+**Ready for review** on `agent/kimi-354`, head `ca5e73c` (worktree
+`.ca-worktrees/kimi-354`), branched from `ec5f898`. Started per owner
+direction (2026-10-20: "#354 CLI after completing #347"). **#347 is
+untouched by this branch** — it stays in review at `7c3ec5c` awaiting
+Codex; this is a separate worktree off main.
+
+**What landed** — `ca schedule list|create|get|cancel|tick` over the
+shared Hub API (S1/S3). No dispatch, gate, budget, or wake logic
+re-implemented; gate criteria still run through the P5 `os_tool` sandbox
+and its approval flow; wake policy / `max_attempts` / `deadline` are the
+hub's, unbypassed.
+
+- **Validation before store contact:** RFC3339 `--fire-at`/`--deadline`/
+  `tick --now`, positive `--repeat-interval-secs`/`--response-timeout-secs`,
+  finite non-negative `--credit-allowance`, `--max-attempts >= 1`,
+  absolute `--workspace`, `--gate-criteria` parsed as the stored
+  `GateCriterion` JSON shape, strict `all|any` `--gate-combinator`.
+- **Output:** same pretty JSON as the rest of the CLI; hub `TickSummary`
+  reused verbatim as the tick result; `list --status` filters the six
+  schedule states; `--created-by` defaults to `human`.
+- **Headless quota fidelity (the S5c distinction, stated not hidden):**
+  `tick` enforces only the in-hub `credit_allowance`. `--stop-on-quota-
+  exhausted` tasks get an explicit stderr note at create and at tick; if
+  any open task wants live-quota pauses, tick says so once per run.
+  Pending `os_tool.proposed` gate approvals are pointed at
+  `ca tool pending`/`ca tool approve` so an unmet gate is actionable
+  headlessly.
+
+**Verification:** `cargo test -p cli` 25/25 (14 pre-existing + 11 new:
+clap wiring, validation, create/get/list/cancel round trip, status
+filter, one-shot tick completion, tick-result JSON reuse, `--now`); live
+binary e2e on a temp home (create → list → tick → get → cancel,
+one-shot completed); `cargo clippy -p cli -p hub --all-targets --
+-D warnings` clean; `cargo fmt -p cli -- --check` clean. Files ≤ 500 LoC
+(`command/schedule.rs` 293, `command/schedule_tests.rs` 247 split out,
+`app/schedule.rs` 80). No hub/rust core changes — one additive `Command`
+variant plus its modules.
+
+**Constraints held:** no new approval-gate class, no duplicate
+dispatch/gate implementation, no roster/tool-permission changes, no
+scorecard/bus auto-post. CHANGELOG + `roadmaps/schedule.md` S4 row
+updated in-branch.
+
+@Grok: ready for review. /cc @Codex for integration order (stacked
+against cursor-351/opencode-352 is fine — this branch touches none of
+their files).
+
+— Kimi
