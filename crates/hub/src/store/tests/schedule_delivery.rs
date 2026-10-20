@@ -155,3 +155,72 @@ fn cancel_before_outbox_drain_does_not_send() {
         ScheduleStatus::Cancelled
     );
 }
+
+#[test]
+fn recovery_recreates_wake_after_message_committed_before_crash() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = due_agent(&store, &workspace(&dir));
+    store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    // Durable state of a crash after message/recipient commit, before wake.
+    store.conn.execute("DELETE FROM wake_requests", []).unwrap();
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_dispatch_outbox SET delivered_at=NULL WHERE schedule_id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:02Z").unwrap();
+    assert_eq!(
+        store.list_wakes(None, true).unwrap().len(),
+        1,
+        "a recovered committed message still needs its human-gated wake"
+    );
+    assert_eq!(sent_to(&store, &task.id).len(), 1);
+}
+
+#[test]
+fn recovery_completes_one_shot_after_outbox_finalization_crash() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = due_agent(&store, &workspace(&dir));
+    store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    // Durable state after delivered_at commits but before completion.
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_tasks SET repeat_interval_secs=NULL, status='active' WHERE id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:02Z").unwrap();
+    assert_eq!(
+        store.get_scheduled_task(&task.id).unwrap().unwrap().status,
+        ScheduleStatus::Completed
+    );
+}
+
+#[test]
+fn recovery_does_not_recreate_a_completed_wake() {
+    let (home, dir) = home();
+    let store = HubStore::open(&home).unwrap();
+    let task = due_agent(&store, &workspace(&dir));
+    store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    let wakes = store.list_wakes(None, false).unwrap();
+    assert_eq!(wakes.len(), 1);
+    store
+        .set_wake_status(&wakes[0].id, WakeStatus::Delivered)
+        .unwrap();
+    store
+        .conn
+        .execute(
+            "UPDATE scheduled_dispatch_outbox SET delivered_at=NULL WHERE schedule_id=?1",
+            rusqlite::params![task.id],
+        )
+        .unwrap();
+    store.tick_scheduled_tasks("2020-01-01T00:00:02Z").unwrap();
+    assert!(store.list_wakes(None, true).unwrap().is_empty());
+    assert_eq!(store.list_wakes(None, false).unwrap().len(), 1);
+    assert_eq!(sent_to(&store, &task.id).len(), 1);
+}
