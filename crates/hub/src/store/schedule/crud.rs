@@ -339,6 +339,9 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))
     }
 
+    // Compatibility for #352's pending-gate stack and existing tests;
+    // completion paths use the attempt-aware transition directly.
+    #[allow(dead_code)]
     pub(crate) fn transition_scheduled_task(
         &self,
         id: &str,

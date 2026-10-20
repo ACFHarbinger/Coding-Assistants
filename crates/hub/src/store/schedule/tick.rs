@@ -73,7 +73,7 @@ impl HubStore {
         status: ScheduleStatus,
         reason: &str,
     ) -> Result<TickOutcome, HubError> {
-        if !self.transition_scheduled_task(&task.id, status, None)? {
+        if !self.transition_live_schedule(&task.id, status, None, Some(task.attempts))? {
             return Ok(TickOutcome {
                 id: task.id.clone(),
                 action: "noop".into(),
@@ -180,7 +180,7 @@ impl HubStore {
             });
         }
         if latest.repeat_interval_secs.is_none() {
-            return self.finish(task, ScheduleStatus::Completed, "one-shot dispatched");
+            return self.finish(&latest, ScheduleStatus::Completed, "one-shot dispatched");
         }
         Ok(TickOutcome {
             id: task.id.clone(),
@@ -311,5 +311,46 @@ impl HubStore {
             }
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod finish_race_tests {
+    use super::*;
+
+    #[test]
+    fn stale_finish_does_not_complete_a_newer_attempt() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let task = store
+            .create_scheduled_task(
+                "race",
+                "work",
+                ScheduleTarget::Agent {
+                    agent_id: "cursor".into(),
+                },
+                &dir.path().to_string_lossy(),
+                "2020-01-01T00:00:00Z",
+                Some(60),
+                3600,
+                vec![],
+                GateCombinator::All,
+                BudgetPolicy::default(),
+                3,
+                None,
+                "human",
+            )
+            .unwrap();
+        store
+            .claim_schedule_dispatch(&task, "2020-01-01T00:00:01Z", "work")
+            .unwrap();
+        let outcome = store
+            .finish(&task, ScheduleStatus::Completed, "old gate result")
+            .unwrap();
+        assert_eq!(outcome.action, "noop");
+        assert_eq!(
+            store.get_scheduled_task(&task.id).unwrap().unwrap().status,
+            ScheduleStatus::Active
+        );
     }
 }

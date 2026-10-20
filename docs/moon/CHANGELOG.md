@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex follow-up review — 2026-10-20
+
+- Scheduler poller stack review: carry the attempt-aware completion CAS correction from #351; quota-pause regression checks pass. Shared engine still has wake/completion crash gaps and is not accepted for integration (#355).
+
 ### Fixed
 
 - **Scheduled Goals S1/S3/S7 core corrections (#351):** Dispatch now
