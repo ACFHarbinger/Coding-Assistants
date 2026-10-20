@@ -1,13 +1,14 @@
-//! `ca schedule` runner (Scheduled Goals S4 / #354).
+//! `ca schedule` runner (Scheduled Goals S4 / #354; live-quota bridge S5c
+//! / #358).
 //!
 //! Thin wrapper over the shared Hub API: dispatch, gate evaluation, budget,
 //! and wake policy all live in `hub` (S1-S3) and are reused, never
-//! re-implemented here. Headless `tick` can only enforce the in-hub
-//! `credit_allowance` — the live provider-quota probe is `src-tauri`-side
-//! and unreachable from the CLI (roadmap S5c bridges that gap; the
-//! distinction is surfaced in command help, `--stop-on-quota-exhausted`
-//! notes, and post-tick stderr so a headless operator is never told quota
-//! was checked when it was not).
+//! re-implemented here. Headless `tick` enforces the in-hub
+//! `credit_allowance` AND live provider quota: it runs the same
+//! `quota::tick_with_quota_guard` engine as the S6 in-app poller, pausing
+//! `stop_on_quota_exhausted` tasks whose targeted agents read 0% remaining
+//! on a measurable session/weekly window. Unknown/unavailable probes never
+//! pause a task — same policy, same code, both surfaces.
 
 use anyhow::{bail, Context};
 use chrono::DateTime;
@@ -15,6 +16,7 @@ use hub::{
     BudgetPolicy, GateCombinator, GateCriterion, HubStore, ScheduleStatus, ScheduleTarget,
     ScheduledTask, TickSummary,
 };
+use quota::ProviderQuota;
 
 use crate::app::ScheduleCommand;
 
@@ -61,13 +63,6 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
                     created_by: &created_by,
                 },
             )?;
-            if stop_on_quota_exhausted {
-                eprintln!(
-                    "note: --stop-on-quota-exhausted needs the in-app poller (S6); headless \
-                     `ca schedule tick` only enforces the in-hub credit allowance, never live \
-                     provider quota (S5c bridges that gap)"
-                );
-            }
             println!("{}", serde_json::to_string_pretty(&task)?);
         }
         ScheduleCommand::Get { id } => {
@@ -81,13 +76,6 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
         ScheduleCommand::Tick { now } => {
             let summary = tick(store, now.as_deref())?;
             println!("{}", serde_json::to_string_pretty(&summary)?);
-            if quota_aware_open_task_exists(store)? {
-                eprintln!(
-                    "note: live provider-quota windows are NOT checked by headless tick — only \
-                     the in-hub credit allowance is enforced here (S5c bridges that gap); \
-                     quota-based pauses require the in-app poller (S6)"
-                );
-            }
             let pending = pending_proposal_count(store)?;
             if pending > 0 {
                 eprintln!(
@@ -256,8 +244,12 @@ pub(crate) fn cancel_task(store: &HubStore, id: &str) -> anyhow::Result<Schedule
 }
 
 /// Headless tick: defaults `now` to the real clock, validates an explicit
-/// override, and reuses the hub's `TickSummary` verbatim as the printed
-/// result — the CLI adds no dispatch, gate, or budget logic of its own.
+/// override, and reuses the shared quota-guarded tick engine verbatim as
+/// the printed result — the CLI adds no dispatch, gate, or budget logic of
+/// its own. The live probe reads the metered-probe setting from the same
+/// hub home the store was opened against, so a `--home` override applies
+/// to both. Blocking probes run inline, which is correct for a headless
+/// one-shot process.
 pub(crate) fn tick(store: &HubStore, now: Option<&str>) -> anyhow::Result<TickSummary> {
     let now = match now {
         Some(value) => {
@@ -266,16 +258,19 @@ pub(crate) fn tick(store: &HubStore, now: Option<&str>) -> anyhow::Result<TickSu
         }
         None => chrono::Utc::now().to_rfc3339(),
     };
-    store.tick_scheduled_tasks(&now).map_err(Into::into)
+    tick_with_probe(store, &now, |agent_id| {
+        quota::probe_agent_quota_at(store.data_dir(), agent_id)
+    })
 }
 
-/// Whether any non-terminal task asked for live-quota pauses — headless
-/// tick cannot honor those, so the caller surfaces the S5c distinction.
-fn quota_aware_open_task_exists(store: &HubStore) -> anyhow::Result<bool> {
-    Ok(store
-        .list_scheduled_tasks()?
-        .into_iter()
-        .any(|t| !t.status.is_terminal() && t.budget.stop_on_quota_exhausted))
+/// The tick engine with an injectable probe, so tests can drive quota
+/// states without subprocesses, files, or network.
+fn tick_with_probe(
+    store: &HubStore,
+    now: &str,
+    probe: impl FnMut(&str) -> ProviderQuota,
+) -> anyhow::Result<TickSummary> {
+    quota::tick_with_quota_guard(store, now, probe).map_err(anyhow::Error::msg)
 }
 
 /// Pending `os_tool.proposed` audit rows: unmet gate criteria depending on
