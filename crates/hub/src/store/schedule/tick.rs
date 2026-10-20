@@ -54,6 +54,11 @@ impl HubStore {
         if let Some(stopped) = self.apply_schedule_stops(task, now)? {
             return Ok(stopped);
         }
+        if task.repeat_interval_secs.is_none() && task.status == ScheduleStatus::Active {
+            if let Some(completed) = self.complete_recovered_one_shot(&task.id)? {
+                return Ok(completed);
+            }
+        }
         match task.status {
             ScheduleStatus::Scheduled => {
                 self.dispatch_prompt(task, now, &task.instruction, "first fire")
@@ -140,7 +145,10 @@ impl HubStore {
         let Some(task) = self.get_scheduled_task(id)? else {
             return Ok(None);
         };
-        if task.repeat_interval_secs.is_some() || task.status != ScheduleStatus::Active {
+        if task.repeat_interval_secs.is_some()
+            || task.status != ScheduleStatus::Active
+            || task.attempts == 0
+        {
             return Ok(None);
         }
         Ok(Some(self.finish(

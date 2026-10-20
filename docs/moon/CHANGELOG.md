@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scheduled Goals wake replay and one-shot finalization (#351):**
+  Recovery replays a human-gated wake for a committed recipient
+  message unless a wake already exists (pending or finished), so a
+  crash between message insert and `request_wake` cannot strand the
+  durable handoff. Active one-shots with a claimed attempt complete on
+  the next tick even if `delivered_at` landed before completion; a
+  finished wake is not minted again.
+
 - **Scheduled Goals S1/S3/S7 core corrections (#351):** Dispatch now
   claims an attempt and persists the outbox row before delivery, so
   concurrent app/CLI ticks and cancel races cannot duplicate a prompt or

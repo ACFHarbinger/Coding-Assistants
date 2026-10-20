@@ -141,12 +141,13 @@ impl HubStore {
             return Ok(Some(stopped));
         }
         let sent = self.deliver_live_outbox(&task, row, now)?;
-        self.mark_outbox_delivered(&row.id, now)?;
         if complete_one_shot {
             if let Some(completed) = self.complete_recovered_one_shot(&task.id)? {
+                self.mark_outbox_delivered(&row.id, now)?;
                 return Ok(Some(completed));
             }
         }
+        self.mark_outbox_delivered(&row.id, now)?;
         if sent {
             Ok(Some(TickOutcome {
                 id: task.id,
@@ -166,41 +167,59 @@ impl HubStore {
     ) -> Result<bool, HubError> {
         let recipients = self.schedule_target_agent_ids(&task.target)?;
         let subject = schedule_attempt_subject(&task.name, row.attempt);
-        let mut sent = Vec::new();
+        let mut newly = Vec::new();
         for agent_id in &recipients {
-            if let Some(message) =
+            let Some((message, inserted)) =
                 self.claim_and_insert_recipient(task, row, agent_id, &subject, now)?
-            {
-                sent.push(message);
+            else {
+                continue;
+            };
+            self.replay_schedule_wake(&message, &task.id)?;
+            if inserted {
+                newly.push(message);
             }
         }
-        for message in &sent {
-            let _ = self.request_wake(
-                &message.to_agent,
-                Some(&format!("schedule {}", task.id)),
-                Some(&message.id),
-                true,
-            );
-        }
-        if !sent.is_empty() {
+        if !newly.is_empty() {
             let _ = self.record_audit_event(
                 Path::new(&task.workspace),
                 Path::new(&task.workspace),
                 "schedule.fired",
                 &serde_json::json!({
                     "schedule_id": task.id,
-                    "recipients": sent.iter().map(|m| &m.to_agent).collect::<Vec<_>>(),
+                    "recipients": newly.iter().map(|m| &m.to_agent).collect::<Vec<_>>(),
                 })
                 .to_string(),
                 None,
             );
         }
-        Ok(!sent.is_empty())
+        Ok(!newly.is_empty())
+    }
+
+    /// Recreate a human-gated wake for a committed message unless one
+    /// already exists (pending or finished). Does not mint a second
+    /// approval after the first wake completed.
+    fn replay_schedule_wake(&self, message: &MessageRecord, task_id: &str) -> Result<(), HubError> {
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM wake_requests WHERE message_id = ?1)",
+            params![message.id],
+            |row| row.get(0),
+        )?;
+        if exists {
+            return Ok(());
+        }
+        let _ = self.request_wake(
+            &message.to_agent,
+            Some(&format!("schedule {task_id}")),
+            Some(&message.id),
+            true,
+        );
+        Ok(())
     }
 
     /// Claim one recipient and insert its message in the same transaction.
-    /// `None` means another drainer already claimed it, or the row is no
-    /// longer scheduled/active (cancel/pause won).
+    /// `None` means the row is no longer scheduled/active (cancel/pause won).
+    /// Existing claims return the committed message so recovery can replay
+    /// its wake; `inserted` is false in that case.
     fn claim_and_insert_recipient(
         &self,
         task: &ScheduledTask,
@@ -208,7 +227,7 @@ impl HubStore {
         agent_id: &str,
         subject: &str,
         now: &str,
-    ) -> Result<Option<MessageRecord>, HubError> {
+    ) -> Result<Option<(MessageRecord, bool)>, HubError> {
         self.ensure_mutable()?;
         self.upsert_agent("system", "system")?;
         self.upsert_agent(agent_id, agent_id)?;
@@ -230,8 +249,19 @@ impl HubStore {
             params![task.id, row.attempt as i64, agent_id, now, message_id],
         )?;
         if claimed == 0 {
+            let existing = tx
+                .query_row(
+                    "SELECT message_id FROM scheduled_dispatch_recipients
+                     WHERE schedule_id = ?1 AND attempt = ?2 AND to_agent = ?3",
+                    params![task.id, row.attempt as i64, agent_id],
+                    |r| r.get::<_, Option<String>>(0),
+                )
+                .optional()?;
             tx.commit()?;
-            return Ok(None);
+            return match existing.flatten() {
+                Some(id) => Ok(self.get_message(&id)?.map(|message| (message, false))),
+                None => Ok(None),
+            };
         }
         tx.execute(
             "INSERT INTO messages(
@@ -253,7 +283,7 @@ impl HubStore {
         )?;
         tx.commit()?;
         self.get_message(&message_id)?
-            .map(Some)
+            .map(|message| Some((message, true)))
             .ok_or_else(|| HubError::NotFound(message_id))
     }
 
