@@ -357,9 +357,20 @@ pub fn deliver_kimi_task_with(
         )));
     }
 
+    // #363: an explicit per-task `/swarm`/`/goal` mode prefixes a
+    // plain-language body; explicit slash commands pass through unchanged
+    // (see `kimi_mode::apply_kimi_task_mode`).
+    let prompt = crate::bridge::kimi_mode::apply_kimi_task_mode(request.kimi_mode, &request.body);
+    let mode_note = match request.kimi_mode {
+        Some(mode) if prompt != request.body => {
+            format!(" ({} prefix applied)", mode.slash_command())
+        }
+        _ => String::new(),
+    };
+
     let run_res = runner(
         &workspace,
-        &request.body,
+        &prompt,
         Some(&disk_session),
         request.model.as_deref(),
         request.effort.as_deref(),
@@ -377,7 +388,7 @@ pub fn deliver_kimi_task_with(
                     pid,
                     status: "delivered".into(),
                     detail: format!(
-                        "forwarded to managed Kimi session {disk_session}; the run's transcript is captured on the next poll"
+                        "forwarded to managed Kimi session {disk_session}{mode_note}; the run's transcript is captured on the next poll"
                     ),
                 },
             )
@@ -396,6 +407,10 @@ pub fn deliver_kimi_task_with(
     let _ = store.release_harness_writer("kimi", &workspace_str, &writer_owner, next_state);
     Ok(result)
 }
+
+#[cfg(test)]
+#[path = "kimi_swarm_mock_tests.rs"]
+mod swarm_mock_tests;
 
 #[cfg(test)]
 mod tests {

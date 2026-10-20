@@ -323,6 +323,13 @@ pub(crate) enum MsgCommand {
         /// --workspace; rejected targets are never dispatched.
         #[arg(long, requires = "workspace", default_value_t = false)]
         dispatch: bool,
+        /// Kimi-only (#363): prefix a plain-language task body with
+        /// `/swarm ` or `/goal ` for this dispatch. Wins over the
+        /// workspace's `kimi_mode` settings.toml override; a body that
+        /// already starts with `/` (e.g. `/goal status`) passes through
+        /// unchanged.
+        #[arg(long, value_parser = ["swarm", "goal"])]
+        kimi_mode: Option<String>,
         body: String,
     },
     Poll {
