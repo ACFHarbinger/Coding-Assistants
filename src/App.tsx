@@ -11,6 +11,7 @@ import MessagerPanel from "./components/panels/MessagerPanel";
 import { openSettingsWindow } from "./lib/settingsWindow";
 import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
 import HarnessTerminalGrid from "./components/panels/terminal/HarnessTerminalGrid";
+import { SchedulePanel } from "./components/panels/schedule/SchedulePanel";
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>(() => {
@@ -29,7 +30,7 @@ function App() {
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
   const [mainView, setMainView] = useState<"orchestrate" | "hub" | "messager">("messager");
-  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals">("setup");
+  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals" | "schedule">("setup");
   const [requestedTerminalHarness, setRequestedTerminalHarness] = useState<string | null>(null);
   const [hubVisited, setHubVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
@@ -393,6 +394,17 @@ function App() {
             <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("terminals")}>
               🖥️ Terminal Grid
             </button>
+            <button type="button" className={orchestrateSubView === "schedule" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("schedule")}>
+              ⏱️ Schedule
+            </button>
+          </div>
+
+          <div style={{ display: orchestrateSubView === "schedule" ? "block" : "none" }}>
+            <SchedulePanel
+              workspace={config.work_dir}
+              teamMemberIds={teamMemberIds}
+              availableAgents={resources?.prompts || []}
+            />
           </div>
 
           <div style={{ display: orchestrateSubView === "terminals" ? "block" : "none" }}>
@@ -438,28 +450,10 @@ function App() {
         </div>
 
         {preview && (
-          <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(2,6,23,0.92)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000
-          }} onClick={() => setPreview(null)}>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2,6,23,0.92)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }} onClick={() => setPreview(null)}>
             <div
               className="fade-in"
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '16px',
-                padding: '2.5rem',
-                maxWidth: '850px',
-                width: '90%',
-                maxHeight: '85vh',
-                overflow: 'auto',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-              }}
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '2.5rem', maxWidth: '850px', width: '90%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -468,17 +462,7 @@ function App() {
                 </h2>
                 <button onClick={() => setPreview(null)} className="btn-secondary" style={{ padding: '0.5rem 1rem' }}>Close</button>
               </div>
-              <pre style={{
-                whiteSpace: 'pre-wrap',
-                background: 'rgba(0,0,0,0.4)',
-                padding: '1.5rem',
-                borderRadius: '12px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.9rem',
-                color: 'var(--text-main)',
-                border: '1px solid var(--border-color)',
-                lineHeight: 1.5
-              }}>
+              <pre style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.4)', padding: '1.5rem', borderRadius: '12px', fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)', border: '1px solid var(--border-color)', lineHeight: 1.5 }}>
                 {preview.content}
               </pre>
             </div>
