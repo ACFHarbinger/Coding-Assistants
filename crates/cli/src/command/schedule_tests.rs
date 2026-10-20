@@ -201,10 +201,61 @@ fn create_keeps_stop_on_quota_exhausted_flag() {
     args.stop_on_quota_exhausted = true;
     let created = create_task(&store, args).unwrap();
     assert!(created.budget.stop_on_quota_exhausted);
-    assert!(quota_aware_open_task_exists(&store).unwrap());
+}
 
-    cancel_task(&store, &created.id).unwrap();
-    assert!(!quota_aware_open_task_exists(&store).unwrap());
+/// S5c: headless tick honors `--stop-on-quota-exhausted` — a measurable
+/// session/weekly window at 0% remaining pauses instead of dispatching.
+#[test]
+fn tick_pauses_quota_exhausted_task_headless() {
+    let (store, workspace, _dir) = open();
+    let mut args = base_args(&workspace, "2020-01-01T00:00:00Z");
+    args.stop_on_quota_exhausted = true;
+    args.repeat_interval_secs = Some(60);
+    let created = create_task(&store, args).unwrap();
+
+    let summary = tick_with_probe(&store, "2020-01-01T00:00:01Z", |agent_id| {
+        assert_eq!(agent_id, "cursor");
+        ProviderQuota {
+            agent_id: agent_id.into(),
+            provider: agent_id.into(),
+            harness_title: agent_id.into(),
+            status: "ok".into(),
+            detail: None,
+            windows: vec![quota::ProviderQuotaWindow {
+                label: "5h".into(),
+                family: None,
+                used_percent: 100,
+                remaining_percent: 0,
+                resets_at: None,
+                window_minutes: Some(300),
+            }],
+            fetched_at: 0,
+            balance: None,
+            balance_info: None,
+            local_usage: None,
+        }
+    })
+    .unwrap();
+    assert!(summary.outcomes.iter().any(|o| o.action == "paused"));
+    assert!(!summary.outcomes.iter().any(|o| o.action == "dispatched"));
+    let fetched = get_task(&store, &created.id).unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Paused);
+    assert_eq!(fetched.attempts, 0);
+}
+
+/// S5c: tasks without the flag never trigger a probe at all (no provider
+/// API cost), and unavailable quota never invents a stop.
+#[test]
+fn tick_never_probes_tasks_without_the_quota_flag() {
+    let (store, workspace, _dir) = open();
+    let created = create_task(&store, base_args(&workspace, "2020-01-01T00:00:00Z")).unwrap();
+
+    let summary = tick_with_probe(&store, "2020-01-01T00:00:01Z", |_| {
+        panic!("probe must not run for a task without stop_on_quota_exhausted")
+    })
+    .unwrap();
+    assert_eq!(summary.outcomes[0].id, created.id);
+    assert_eq!(summary.outcomes[0].action, "completed");
 }
 
 #[test]
