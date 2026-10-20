@@ -1,5 +1,12 @@
 # Scheduled Goals / Gate-Driven Prompting Roadmap
 
+Grok reconciliation (2026-10-20): #352 is rebased onto #351 `971f999` on
+`agent/grok-352`. Wake replay and delivery-gated one-shot completion stay
+the single hub implementation from that head; #355 `0e747fc` is the same
+hub patch and is not a second copy. Pending gate waits use the attempt
+CAS. `max_attempts: 1` completes or times out in flight. Combined gate
+recorded on the bus. Not merged.
+
 Codex Cursor re-review (2026-10-20): #351 PASS with fixes `971f999`; #355
 PASS with equivalent fixes `0e747fc`. Wake replay errors/serialization and
 delivery-gated one-shot completion corrected; Hub lib 677/677 per branch,

@@ -62,7 +62,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 
 | Agent | Issue(s) | Do now / dependency |
 | --- | --- | --- |
-| Grok | #351/#352 reconciliation | **Claimed 2026-10-20** on `agent/grok-352` (worktree `.ca-worktrees/grok-352`). Rebase #352 onto `971f999`, keep one wake-replay/completion implementation, apply the approved max-attempts boundary. Codex reviews. |
+| Grok | #351/#352 reconciliation | **Ready for review** on `agent/grok-352` (worktree `.ca-worktrees/grok-352`). #352 rebased onto `971f999`; one wake-replay/completion implementation; max-attempts boundary regression. Codex reviews. |
 | Cursor | #351 and #355 | **PASS with fixes:** core `971f999`, poller `0e747fc`; wake retry/serialization and delivery-gated one-shot completion verified. Await #352 reconciliation and combined integration gate. |
 | Gemini | #353 and #154 | #353 PASS with argv/numeric/result-label fixes `0ea5419`; wait for corrected core. #154 docs PASS; owner live acceptance owed. |
 | Mistral | #344 and #346 | #344 PASS `cc4cde4`; #346 PASS with expiry-before-use fix `42684c8`. Await combined integration. |
@@ -14165,5 +14165,38 @@ Claimed on `agent/grok-352` from `agent/cursor-351` @ `971f999` (worktree
 3. Add the owner-approved max-attempts boundary regression: `max_attempts`
    = 1 waits out the in-flight attempt, then completes or times out, and
    does not fail before that response window.
+
+— Grok
+
+### Grok — 2026-10-20 — #351/#352 reconciliation ready for review
+
+**RFR** on `agent/grok-352` (worktree `.ca-worktrees/grok-352`). Did not
+rewrite `agent/opencode-352`, `agent/cursor-351`, or `agent/cursor-355`.
+Not pushed. Not merged.
+
+- Cherry-picked #352 `b232617..c92e4b4` (fail-closed scans, P5 proposal
+  resume, pending wait, partial token baselines) onto `971f999`.
+- Wake replay / completion-CAS stays the one hub implementation from
+  `971f999` (`replay_schedule_wake`, `complete_recovered_one_shot`).
+  `0e747fc`'s hub patch-id matches that commit, so #355 is not a second
+  copy. The poller calls `HubStore::tick_scheduled_tasks`; do not merge
+  the duplicate engine commits from `agent/cursor-355`.
+- Pending approval uses `transition_live_schedule` with the expected
+  attempt, same CAS as the other live waits.
+- Owner-approved boundary: `max_attempts` still caps new dispatches.
+  `max_attempts_one_waits_then_times_out_without_another_dispatch` covers
+  the in-flight timeout. The existing success test still covers completion.
+
+**Verify:** `cargo test -p hub --lib` 691/691;
+`cargo test -p hub --lib schedule` 69/69;
+`cargo test -p tauri-app --lib` 331 passed / 2 ignored;
+`cargo test -p tauri-app --lib commands::tests::schedule` 4/4;
+`cargo test -p cli` 14/14;
+`cargo clippy -p hub -p tauri-app -p cli --all-targets -- -D warnings` clean;
+`cargo fmt -p hub -p tauri-app -p cli -- --check` clean;
+`npm test` 222/222. Files ≤ 500 LoC.
+Tauri build used local sidecar symlinks (gitignored binaries).
+
+@Codex: ready for review. /cc @Claude
 
 — Grok

@@ -391,6 +391,42 @@ fn final_in_flight_attempt_can_succeed_when_max_attempts_is_one() {
 }
 
 #[test]
+fn max_attempts_one_waits_then_times_out_without_another_dispatch() {
+    let (store, ws, _guard) = open();
+    let workspace = ws.join("ws");
+    fs::create_dir_all(&workspace).unwrap();
+    let task = make(
+        &store,
+        &workspace.to_string_lossy(),
+        ScheduleTarget::Agent {
+            agent_id: "cursor".into(),
+        },
+        "2020-01-01T00:00:00Z",
+        Some(60),
+        30,
+        vec![],
+        1,
+        None,
+    );
+    let first = store.tick_scheduled_tasks("2020-01-01T00:00:01Z").unwrap();
+    assert_eq!(first.outcomes[0].action, "dispatched");
+
+    // Still inside the response window: do not fail just because the cap is full.
+    let early = store.tick_scheduled_tasks("2020-01-01T00:00:20Z").unwrap();
+    assert_eq!(early.outcomes[0].action, "waiting");
+    let mid = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(mid.status, ScheduleStatus::Active);
+    assert_eq!(mid.attempts, 1);
+
+    let timed_out = store.tick_scheduled_tasks("2020-01-01T00:00:40Z").unwrap();
+    assert_eq!(timed_out.outcomes[0].action, "failed");
+    assert!(timed_out.outcomes[0].detail.contains("max_attempts"));
+    let fetched = store.get_scheduled_task(&task.id).unwrap().unwrap();
+    assert_eq!(fetched.status, ScheduleStatus::Failed);
+    assert_eq!(fetched.attempts, 1);
+}
+
+#[test]
 fn timeout_shorter_than_repeat_interval_does_not_dispatch_early() {
     let (store, ws, _guard) = open();
     let workspace = ws.join("ws");

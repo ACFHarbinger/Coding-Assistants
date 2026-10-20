@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scheduled Goals #351/#352 reconciliation (`agent/grok-352`):**
+  OpenCode's gate fail-closed, P5 proposal resume, pending-wait, and
+  partial token-baseline fixes are rebased onto Cursor's corrected core
+  `971f999`. A pending gate keeps the task active through the same
+  attempt CAS as other live waits, so approval does not burn
+  `max_attempts` or lose a pause race. Wake replay and one-shot
+  completion remain that one hub implementation; the poller stack's
+  matching patch is not copied again. `max_attempts: 1` still lets its
+  in-flight attempt complete or time out before the task is failed.
+
 - **Scheduled Goals wake replay and one-shot finalization (#351):**
   Recovery replays a human-gated wake for a committed recipient
   message unless a wake already exists (pending or finished), so a
