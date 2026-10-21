@@ -85,9 +85,13 @@ pub struct TaskRecord {
     pub steps: Vec<WorkflowStep>,
     pub created_at: String,
     pub updated_at: String,
-    /// Output-screening watermark: the sequential handoff, or a
-    /// pre-dispatch system stamp for a parallel stage.
+    /// Last real handoff of the current stage — the externally-visible
+    /// result pointer (A2A `task_result`, UI). Never the screening stamp.
     pub last_message_id: Option<String>,
+    /// Internal output-screening cursor. Set once before any parallel
+    /// member can respond; never overwritten mid-stage; never a result.
+    #[serde(default)]
+    pub output_watermark_id: Option<String>,
     /// Per-stage attempt counts (`"0" → 1` after first dispatch).
     pub attempts: std::collections::HashMap<String, u32>,
     /// Agents still outstanding in the current parallel stage (empty when sequential).

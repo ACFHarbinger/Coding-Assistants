@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-21 (P16 parallel invariant)
+
+- **#360 screening watermark is not the result pointer.** Parallel stages store an internal `output_watermark_id` (set once, before any member can reply) and keep `last_message_id` as the last real handoff. A2A `task_result` reads only the handoff. Every dispatch — initial or refill — is persisted in the same operation that sends it, so a later slot failure cannot leave a successful send unrecorded.
+
 ### Codex review corrections — 2026-10-20 (P16/P20 follow-up)
 
 - **#360 parallel output watermark is stamped before any member can reply.** A system-kind stage stamp is written first; later (including remote) dispatches no longer move `last_message_id`, so a reply that arrives while another member is still dispatching is still screened.

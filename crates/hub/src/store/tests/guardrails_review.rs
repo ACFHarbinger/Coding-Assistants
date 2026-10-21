@@ -141,8 +141,12 @@ fn queued_parallel_dispatch_does_not_hide_earlier_member_output() {
         .unwrap();
     assert!(after_a.open_agents.iter().any(|a| a == "dev_c"));
     assert_eq!(
-        after_a.last_message_id, started.last_message_id,
-        "queued dispatch must not move the stage output watermark"
+        after_a.output_watermark_id, started.output_watermark_id,
+        "refill must not move the internal screening watermark"
+    );
+    assert_ne!(
+        after_a.last_message_id, started.output_watermark_id,
+        "result pointer stays a real handoff, not the watermark"
     );
 
     let err = store
@@ -209,11 +213,20 @@ fn parallel_output_watermark_is_stamped_before_member_dispatches() {
         .unwrap();
     let started = store.advance_task(&task.id, None, None).unwrap();
     let watermark = store
-        .get_message(started.last_message_id.as_deref().unwrap())
+        .get_message(started.output_watermark_id.as_deref().unwrap())
         .unwrap()
         .unwrap();
     assert_eq!(watermark.kind, "system");
     assert_eq!(watermark.from_agent, "system");
+    let result = store
+        .get_message(started.last_message_id.as_deref().unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.kind, "handoff");
+    assert_ne!(
+        started.last_message_id, started.output_watermark_id,
+        "A2A/result readers must not see the internal watermark"
+    );
 
     let handoff_a = store.poll_messages("dev_a", false).unwrap();
     let handoff_b = store.poll_messages("dev_b", false).unwrap();

@@ -53,6 +53,7 @@ impl HubStore {
             created_at: r.get(6)?,
             updated_at: r.get(7)?,
             last_message_id: r.get(8)?,
+            output_watermark_id: r.get(14).unwrap_or(None),
             attempts: serde_json::from_str(&attempts_json).unwrap_or_default(),
             open_agents: serde_json::from_str(&open_json).unwrap_or_default(),
             pending_agents: serde_json::from_str(&pending_json).unwrap_or_default(),
@@ -106,10 +107,10 @@ impl HubStore {
             r#"
             INSERT INTO tasks(
                 id, title, workspace_path, status, step_index, steps_json,
-                created_at, updated_at, last_message_id,
+                created_at, updated_at, last_message_id, output_watermark_id,
                 attempts_json, open_agents_json, pending_agents_json, max_parallel,
                 require_human_approval
-            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, '{}', '[]', '[]', ?8, ?9)
+            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, NULL, '{}', '[]', '[]', ?8, ?9)
             "#,
             params![
                 id,
@@ -132,7 +133,7 @@ impl HubStore {
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
                    attempts_json, open_agents_json, pending_agents_json, max_parallel,
-                   require_human_approval
+                   require_human_approval, output_watermark_id
             FROM tasks WHERE id = ?1
             "#,
         )?;
@@ -146,7 +147,7 @@ impl HubStore {
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
                    attempts_json, open_agents_json, pending_agents_json, max_parallel,
-                   require_human_approval
+                   require_human_approval, output_watermark_id
             FROM tasks WHERE 1=1
             "#,
         );
@@ -284,6 +285,7 @@ impl HubStore {
         status: &str,
         stage_index: i64,
         last_message_id: Option<&str>,
+        output_watermark_id: Option<&str>,
         attempts: &std::collections::HashMap<String, u32>,
         open_agents: &[String],
         pending_agents: &[String],
@@ -296,14 +298,16 @@ impl HubStore {
             r#"
             UPDATE tasks
             SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4,
-                attempts_json = ?5, open_agents_json = ?6, pending_agents_json = ?7
-            WHERE id = ?8
+                output_watermark_id = ?5, attempts_json = ?6, open_agents_json = ?7,
+                pending_agents_json = ?8
+            WHERE id = ?9
             "#,
             params![
                 status,
                 stage_index,
                 now,
                 last_message_id,
+                output_watermark_id,
                 attempts_json,
                 open_json,
                 pending_json,
@@ -388,6 +392,7 @@ impl HubStore {
             status.as_str(),
             task.step_index,
             task.last_message_id.as_deref(),
+            task.output_watermark_id.as_deref(),
             &task.attempts,
             &[],
             &[],

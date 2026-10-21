@@ -1,3 +1,16 @@
+//! Parallel-stage dispatch and output screening (#360).
+//!
+//! One invariant, three previously separate findings:
+//! - `output_watermark_id` is set exactly once, before any member of a
+//!   parallel stage can respond, and is never overwritten by a later
+//!   dispatch, refill, or completion of that same stage.
+//! - The watermark is an internal screening cursor. External result
+//!   readers (`last_message_id`, A2A `task_result`) see the actual
+//!   handoff — a different field.
+//! - A dispatch (initial or refill) is persisted as part of the same
+//!   operation that sends it. "Succeeded but not yet saved" is not a
+//!   representable state.
+
 use super::super::*;
 impl HubStore {
     pub(super) fn activate_stage(
@@ -15,51 +28,44 @@ impl HubStore {
         *attempts.entry(stage_index.to_string()).or_insert(0) += 1;
 
         let last_msg: Option<String>;
+        let watermark: Option<String>;
         let mut open: Vec<String> = Vec::new();
         let mut pending: Vec<String> = Vec::new();
 
         if idxs.len() == 1 {
             let step = &task.steps[idxs[0]];
             let msg_id = self.dispatch_step(id, task, step, from_agent, note, &stage_label)?;
-            last_msg = Some(msg_id);
+            last_msg = Some(msg_id.clone());
+            watermark = Some(msg_id);
         } else {
-            // Screen every member before sending any, so a later input
-            // trip cannot orphan an earlier message+wake.
             self.preflight_stage_inputs(id, task, idxs, note)?;
-            // Stamp the output watermark before any member can reply, so a
-            // later (e.g. remote) dispatch cannot hide an earlier reply.
-            last_msg = Some(self.stamp_stage_watermark(
+            watermark = Some(self.stamp_stage_watermark(
                 id,
                 task.workspace_path.as_deref(),
                 &stage_label,
             )?);
-            // Every member starts pending; leave it there until its own
-            // dispatch succeeds, including those inside the first window.
             pending = idxs.iter().map(|i| task.steps[*i].agent.clone()).collect();
+            let mut last_handoff: Option<String> = None;
             let cap = task.max_parallel as usize;
             let wake_now: Vec<usize> = idxs.iter().copied().take(cap.min(idxs.len())).collect();
             for si in &wake_now {
                 let step = &task.steps[*si];
-                self.dispatch_step(
+                self.dispatch_and_persist(
                     id,
                     task,
                     step,
                     from_agent,
                     note,
                     &format!("{stage_label}/{}", step.agent),
-                )?;
-                pending.retain(|agent| agent != &step.agent);
-                open.push(step.agent.clone());
-                self.persist_task_runtime(
-                    id,
-                    TaskStatus::Running.as_str(),
                     stage_index,
-                    last_msg.as_deref(),
+                    &mut last_handoff,
+                    watermark.as_deref(),
                     &attempts,
-                    &open,
-                    &pending,
+                    &mut open,
+                    &mut pending,
                 )?;
             }
+            last_msg = last_handoff;
         }
 
         self.persist_task_runtime(
@@ -67,6 +73,7 @@ impl HubStore {
             TaskStatus::Running.as_str(),
             stage_index,
             last_msg.as_deref(),
+            watermark.as_deref(),
             &attempts,
             &open,
             &pending,
@@ -98,7 +105,6 @@ impl HubStore {
                 "agent '{agent}' is not in the open parallel set"
             )));
         }
-        // P16 (#360): screen this member's replies before accepting them.
         self.enforce_stage_output_guardrails(&task, &[agent.to_string()], note)?;
 
         let mut open: Vec<String> = task
@@ -108,13 +114,22 @@ impl HubStore {
             .cloned()
             .collect();
         let mut pending = task.pending_agents.clone();
-        // Keep the stage-activation watermark. Moving last_message_id to a
-        // queued member's dispatch would hide earlier members' replies
-        // (and the embedded remote result) from later output screening.
-        let last_msg = task.last_message_id.clone();
+        let mut last_handoff = task.last_message_id.clone();
+        let watermark = task.output_watermark_id.clone();
         let stage_index = task.step_index;
         let max_parallel = task.max_parallel;
         let attempts = task.attempts.clone();
+
+        self.persist_task_runtime(
+            id,
+            TaskStatus::Running.as_str(),
+            stage_index,
+            last_handoff.as_deref(),
+            watermark.as_deref(),
+            &attempts,
+            &open,
+            &pending,
+        )?;
 
         while open.len() < max_parallel as usize && !pending.is_empty() {
             let next_agent = pending[0].clone();
@@ -127,29 +142,61 @@ impl HubStore {
                 .ok_or_else(|| {
                     HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
                 })?;
-            self.dispatch_step(
+            self.dispatch_and_persist(
                 id,
                 &task,
                 step,
                 agent,
                 note,
                 &format!("{}/{}", stage_index + 1, next_agent),
+                stage_index,
+                &mut last_handoff,
+                watermark.as_deref(),
+                &attempts,
+                &mut open,
+                &mut pending,
             )?;
-            pending.remove(0);
-            open.push(next_agent);
         }
 
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    /// Send one member and persist that send in the same operation.
+    /// Updates `last_message_id` to this handoff; the watermark is only
+    /// written through, never replaced.
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_and_persist(
+        &self,
+        id: &str,
+        task: &TaskRecord,
+        step: &WorkflowStep,
+        from_agent: &str,
+        note: Option<&str>,
+        stage_label: &str,
+        stage_index: i64,
+        last_handoff: &mut Option<String>,
+        watermark: Option<&str>,
+        attempts: &std::collections::HashMap<String, u32>,
+        open: &mut Vec<String>,
+        pending: &mut Vec<String>,
+    ) -> Result<(), HubError> {
+        let msg_id = self.dispatch_step(id, task, step, from_agent, note, stage_label)?;
+        *last_handoff = Some(msg_id);
+        pending.retain(|name| name != &step.agent);
+        if !open.iter().any(|name| name == &step.agent) {
+            open.push(step.agent.clone());
+        }
         self.persist_task_runtime(
             id,
             TaskStatus::Running.as_str(),
             stage_index,
-            last_msg.as_deref(),
-            &attempts,
-            &open,
-            &pending,
-        )?;
-        self.get_task(id)?
-            .ok_or_else(|| HubError::NotFound(id.into()))
+            last_handoff.as_deref(),
+            watermark,
+            attempts,
+            open,
+            pending,
+        )
     }
 
     fn stamp_stage_watermark(
@@ -223,6 +270,7 @@ impl HubStore {
                 TaskStatus::Failed.as_str(),
                 task.step_index,
                 task.last_message_id.as_deref(),
+                task.output_watermark_id.as_deref(),
                 &task.attempts,
                 &[],
                 &[],
@@ -237,6 +285,7 @@ impl HubStore {
             TaskStatus::Running.as_str(),
             task.step_index,
             task.last_message_id.as_deref(),
+            task.output_watermark_id.as_deref(),
             &task.attempts,
             &[],
             &[],

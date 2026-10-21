@@ -299,8 +299,8 @@ impl HubStore {
     }
 
     /// Output guardrails for a workflow stage: the finishing agents'
-    /// replies after the stage watermark (`last_message_id`, stamped
-    /// before parallel members can respond), plus the hand-back note.
+    /// replies after the internal screening watermark, plus the hand-back
+    /// note. Never reads `last_message_id` (that field is the result).
     pub(crate) fn enforce_stage_output_guardrails(
         &self,
         task: &TaskRecord,
@@ -314,7 +314,11 @@ impl HubStore {
         {
             return Ok(());
         }
-        let since = match task.last_message_id.as_deref() {
+        let since = match task
+            .output_watermark_id
+            .as_deref()
+            .or(task.last_message_id.as_deref())
+        {
             Some(id) => self.get_message(id)?.map(|m| m.created_at),
             None => None,
         };
