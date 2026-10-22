@@ -122,7 +122,10 @@ project's GitHub Releases page.
   ignored. The task resumes `running` when every gated handoff in the
   attempt was delivered, and `failed` when the attempt is fully resolved
   and any of those handoffs was cancelled. Completion and advancement are
-  rejected while the task is `input_required` or `auth_required`. `tasks/get` maps those to
+  rejected while the task is `input_required` or `auth_required`. Each
+  successful parallel dispatch persists that aggregate immediately, so a
+  later member's failure or a queued `retry_task` recovery cannot leave a
+  gated handoff stored as `running`. `tasks/get` maps those to
   A2A `input-required` and
   `auth-required`. Remote steps stay `running` because they raise no local
   wake. The compile break on this branch is repaired in the same change:

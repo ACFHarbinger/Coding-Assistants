@@ -249,7 +249,9 @@ impl HubStore {
 
     /// Send one member and persist that send in the same operation.
     /// Updates `last_message_id` to this handoff; the watermark is only
-    /// written through, never replaced.
+    /// written through, never replaced. The stored status is the attempt's
+    /// aggregate waiting state, so a later member's failure cannot leave a
+    /// gated handoff looking like `running`.
     #[allow(clippy::too_many_arguments)]
     fn dispatch_and_persist(
         &self,
@@ -272,9 +274,15 @@ impl HubStore {
         if !open.iter().any(|name| name == &step.agent) {
             open.push(step.agent.clone());
         }
+        let attempt = attempts.get(&stage_index.to_string()).copied().unwrap_or(1);
+        let status = self.aggregate_wait_status(task, stage_index, attempt)?;
+        if status == TaskStatus::Failed {
+            open.clear();
+            pending.clear();
+        }
         self.persist_task_runtime(
             id,
-            TaskStatus::Running.as_str(),
+            status.as_str(),
             stage_index,
             last_handoff.as_deref(),
             watermark,
@@ -386,6 +394,26 @@ impl HubStore {
                     task.output_watermark_id.as_deref(),
                     &mut open,
                     &mut pending,
+                )?;
+                let attempt = task
+                    .attempts
+                    .get(&task.step_index.to_string())
+                    .copied()
+                    .unwrap_or(1);
+                let status = self.aggregate_wait_status(&task, task.step_index, attempt)?;
+                if status == TaskStatus::Failed {
+                    open.clear();
+                    pending.clear();
+                }
+                self.persist_task_runtime(
+                    id,
+                    status.as_str(),
+                    task.step_index,
+                    last_handoff.as_deref(),
+                    task.output_watermark_id.as_deref(),
+                    &task.attempts,
+                    &open,
+                    &pending,
                 )?;
                 return self
                     .get_task(id)?

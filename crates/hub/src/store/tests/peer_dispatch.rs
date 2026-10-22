@@ -216,7 +216,10 @@ fn failed_wake_now_member_stays_pending_with_later_window_members() {
         "unexpected: {error}"
     );
     let after = store.get_task(&task.id).unwrap().unwrap();
-    assert_eq!(after.status, "running");
+    assert_eq!(
+        after.status, "input_required",
+        "the local member's gate must survive the later dispatch failure"
+    );
     assert_eq!(after.open_agents, vec!["dev_a".to_string()]);
     assert_eq!(
         after.pending_agents,
@@ -232,6 +235,91 @@ fn failed_wake_now_member_stays_pending_with_later_window_members() {
         .unwrap();
     assert_eq!(result.kind, "handoff");
     assert_ne!(after.last_message_id, after.output_watermark_id);
+    let blocked = store
+        .complete_parallel_member(&task.id, "dev_a", None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        blocked.contains("approval gates are still unresolved"),
+        "{blocked}"
+    );
+    let wake = store
+        .list_wakes(Some("dev_a"), true)
+        .unwrap()
+        .into_iter()
+        .next()
+        .expect("pending gate");
+    store
+        .set_wake_status(&wake.id, WakeStatus::Cancelled)
+        .unwrap();
+    let failed = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(failed.status, "failed");
+    assert!(failed.open_agents.is_empty());
+}
+
+#[test]
+fn queued_retry_persists_a_gated_member_dispatched_after_a_failure() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    let peer = stub_peer_once("test-pairing-token", "peer-done");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
+        agent: agent.into(),
+        role: None,
+        instruction: format!("work {agent}"),
+        max_retries: 0,
+        parallel_group: Some("g".into()),
+        peer,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
+    };
+    let task = store
+        .create_task_with_parallel(
+            "par",
+            None,
+            &[
+                grouped("dev_a", None),
+                grouped("dev_b", Some(peer)),
+                grouped("dev_c", None),
+            ],
+            3,
+            true,
+        )
+        .unwrap();
+    store
+        .advance_task(&task.id, Some("lead"), None)
+        .expect_err("remote member has no pairing token");
+    for wake in store.list_wakes(Some("dev_a"), true).unwrap() {
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+    }
+    assert_eq!(store.get_task(&task.id).unwrap().unwrap().status, "running");
+
+    std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
+    let recovered = store.retry_task(&task.id, Some("lead"), None).unwrap();
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    assert_eq!(recovered.status, "input_required");
+    assert_eq!(
+        recovered.open_agents,
+        vec![
+            "dev_a".to_string(),
+            "dev_b".to_string(),
+            "dev_c".to_string()
+        ]
+    );
+    assert!(recovered.pending_agents.is_empty());
+    let blocked = store
+        .complete_parallel_member(&task.id, "dev_c", None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        blocked.contains("approval gates are still unresolved"),
+        "{blocked}"
+    );
 }
 
 #[test]
