@@ -8,8 +8,8 @@
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -266,9 +266,23 @@ struct LockRecord {
     created_at_ms: i64,
 }
 
+/// Cross-process mutex for binding mutations.
+///
+/// Ownership is the kernel lock on `file`, held until this guard drops.
+/// `LOCK_TIMEOUT_SECS` bounds how long a waiter polls for that lock. It is
+/// not a lease: a live owner is never expired because a `sync_all` ran long,
+/// and nothing in this path unlinks the lock file, so a second reclaimer
+/// cannot remove a replacement owner's lock.
 struct BindingLockGuard {
-    lock_path: PathBuf,
-    nonce: String,
+    file: File,
+}
+
+impl std::fmt::Debug for BindingLockGuard {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BindingLockGuard")
+            .finish_non_exhaustive()
+    }
 }
 
 impl BindingLockGuard {
@@ -280,125 +294,46 @@ impl BindingLockGuard {
         lock_path: &Path,
         timeout: std::time::Duration,
     ) -> Result<Self, HubError> {
-        let start = std::time::Instant::now();
-        let pid = std::process::id();
-        let nonce = Uuid::new_v4().to_string();
-
         if let Some(parent) = lock_path.parent() {
-            let _ = fs::create_dir_all(parent);
+            fs::create_dir_all(parent)?;
         }
-
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)?;
+        let start = std::time::Instant::now();
         loop {
-            match Self::try_create_lock(lock_path, pid, &nonce) {
-                Ok(()) => {
-                    return Ok(Self {
-                        lock_path: lock_path.to_path_buf(),
-                        nonce,
-                    });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    if Self::is_stale(lock_path) {
-                        let _ = fs::remove_file(lock_path);
-                        continue;
-                    }
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
                     if start.elapsed() >= timeout {
                         return Err(HubError::Invalid("discord binding lock timeout".into()));
                     }
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
-                Err(error) => {
-                    if start.elapsed() >= timeout {
-                        return Err(HubError::from(error));
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(10));
-                }
+                Err(std::fs::TryLockError::Error(error)) => return Err(HubError::from(error)),
             }
         }
-    }
-
-    fn try_create_lock(lock_path: &Path, pid: u32, nonce: &str) -> Result<(), std::io::Error> {
         let record = LockRecord {
-            pid,
-            nonce: nonce.to_string(),
+            pid: std::process::id(),
+            nonce: Uuid::new_v4().to_string(),
             created_at_ms: Utc::now().timestamp_millis(),
         };
-        let encoded = serde_json::to_vec(&record).map_err(std::io::Error::other)?;
-        let parent = lock_path.parent().unwrap_or_else(|| Path::new("."));
-        let tmp_path = parent.join(format!(
-            ".discord_binding.lock.tmp-{}",
-            Uuid::new_v4().simple()
-        ));
-        let write_res = (|| -> Result<(), std::io::Error> {
-            let mut file = fs::File::create(&tmp_path)?;
-            file.write_all(&encoded)?;
-            file.sync_all()
-        })();
-        if let Err(error) = write_res {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(error);
-        }
-        let link_res = fs::hard_link(&tmp_path, lock_path);
-        let _ = fs::remove_file(&tmp_path);
-        match link_res {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(error),
-            Err(_) => {
-                let mut file = fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(lock_path)?;
-                if let Err(error) = file.write_all(&encoded).and_then(|()| file.sync_all()) {
-                    let _ = fs::remove_file(lock_path);
-                    return Err(error);
-                }
-                Ok(())
-            }
-        }
-    }
-
-    fn is_stale(lock_path: &Path) -> bool {
-        let raw = match fs::read_to_string(lock_path) {
-            Ok(content) => content,
-            Err(_) => return false,
-        };
-        let Ok(record) = serde_json::from_str::<LockRecord>(&raw) else {
-            return fs::metadata(lock_path)
-                .and_then(|meta| meta.modified())
-                .ok()
-                .and_then(|modified| modified.elapsed().ok())
-                .is_some_and(|elapsed| elapsed > std::time::Duration::from_secs(2));
-        };
-        if !pid_alive(record.pid) {
-            return true;
-        }
-        let now_ms = Utc::now().timestamp_millis();
-        now_ms.saturating_sub(record.created_at_ms) > (LOCK_TIMEOUT_SECS as i64) * 1_000
+        let encoded = serde_json::to_vec(&record)
+            .map_err(|error| HubError::Invalid(format!("discord binding lock: {error}")))?;
+        file.set_len(0)?;
+        file.seek(SeekFrom::Start(0))?;
+        file.write_all(&encoded)?;
+        file.sync_all()?;
+        Ok(Self { file })
     }
 }
 
 impl Drop for BindingLockGuard {
     fn drop(&mut self) {
-        if let Ok(raw) = fs::read_to_string(&self.lock_path) {
-            if let Ok(record) = serde_json::from_str::<LockRecord>(&raw) {
-                if record.nonce == self.nonce {
-                    let _ = fs::remove_file(&self.lock_path);
-                }
-            }
-        }
-    }
-}
-
-fn pid_alive(pid: u32) -> bool {
-    if pid == 0 {
-        return false;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        Path::new(&format!("/proc/{pid}")).exists()
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        true
+        let _ = self.file.unlock();
     }
 }
 

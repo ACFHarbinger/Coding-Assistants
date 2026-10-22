@@ -21,7 +21,9 @@ project's GitHub Releases page.
   command tree (`pair --channel <id>` / `status` / `unbind [--user-id]` /
   `run [--interval-secs]`) mirroring the Telegram remote-control contract —
   one-time 10-minute pairing codes, a persistent allow-list
-  (`discord_binding.json` next to `hub.db`), the same `/start` `/approve`
+  (`discord_binding.json` next to `hub.db`; mutations hold an OS file lock
+  until release, so a slow save does not expire a live owner and reclaiming
+  an abandoned lock cannot unlink a replacement owner's lock), the same `/start` `/approve`
   `/reject` `/send` `/wakes` command set, silence for unknown senders, and
   wake-resolution audit rows written as `human` with `via = "discord"` (the
   scorecard digest counts them separately). Transport is outbound REST only:

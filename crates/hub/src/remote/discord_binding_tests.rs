@@ -1,4 +1,7 @@
 use super::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -165,6 +168,69 @@ fn stale_lock_with_dead_pid_is_recovered() {
 
     let guard =
         BindingLockGuard::acquire_with_timeout(&lock_path, Duration::from_millis(100)).unwrap();
+    let record: LockRecord = serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
+    assert_eq!(record.pid, std::process::id());
+    assert_ne!(record.nonce, "dead");
     drop(guard);
-    assert!(!lock_path.exists());
+
+    let again =
+        BindingLockGuard::acquire_with_timeout(&lock_path, Duration::from_millis(100)).unwrap();
+    drop(again);
+}
+
+#[test]
+fn live_owner_is_not_expired_by_the_acquisition_timeout() {
+    let dir = tempdir().unwrap();
+    let lock_path = dir.path().join(".discord_binding.lock");
+    let guard = BindingLockGuard::acquire_with_timeout(&lock_path, Duration::from_secs(1)).unwrap();
+    let mut record: LockRecord = serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
+    record.created_at_ms -= 60_000;
+    fs::write(&lock_path, serde_json::to_vec(&record).unwrap()).unwrap();
+
+    let err = match BindingLockGuard::acquire_with_timeout(&lock_path, Duration::from_millis(80)) {
+        Err(error) => error,
+        Ok(_guard) => panic!("age stole a held lock"),
+    };
+    assert!(err.to_string().contains("discord binding lock timeout"));
+    let still: LockRecord = serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
+    assert_eq!(still.nonce, record.nonce);
+    drop(guard);
+
+    let next =
+        BindingLockGuard::acquire_with_timeout(&lock_path, Duration::from_millis(200)).unwrap();
+    drop(next);
+}
+
+#[test]
+fn abandoned_lock_reclamation_is_exclusive() {
+    let dir = tempdir().unwrap();
+    let lock_path = dir.path().join(".discord_binding.lock");
+    let dead = LockRecord {
+        pid: 9_999_999,
+        nonce: "dead".into(),
+        created_at_ms: Utc::now().timestamp_millis() - 60_000,
+    };
+    fs::write(&lock_path, serde_json::to_vec(&dead).unwrap()).unwrap();
+
+    let overlap = Arc::new(AtomicUsize::new(0));
+    let max_overlap = Arc::new(AtomicUsize::new(0));
+    let mut handles = Vec::new();
+    for _ in 0..2 {
+        let path = lock_path.clone();
+        let overlap = Arc::clone(&overlap);
+        let max_overlap = Arc::clone(&max_overlap);
+        handles.push(thread::spawn(move || {
+            let guard =
+                BindingLockGuard::acquire_with_timeout(&path, Duration::from_secs(2)).unwrap();
+            let now = overlap.fetch_add(1, Ordering::SeqCst) + 1;
+            max_overlap.fetch_max(now, Ordering::SeqCst);
+            thread::sleep(Duration::from_millis(40));
+            overlap.fetch_sub(1, Ordering::SeqCst);
+            drop(guard);
+        }));
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    assert_eq!(max_overlap.load(Ordering::SeqCst), 1);
 }
