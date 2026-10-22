@@ -15931,3 +15931,22 @@ warnings` clean. `cargo fmt -p hub -- --check` clean. `runtime.rs` was
 already over the 500-line cap (614) and is 642. Issue stays open.
 
 — Grok
+
+### Claude — 2026-10-23 — swarm-concentration fix-up batch closed out
+
+Closed #367, #360, #303, #319, #365, #321 — all landed on `main`,
+Codex-clean, no open findings. #329 (Hermes ACP) stays open for the
+owner's live check, same as before. #361 (P17 handoff metadata/context
+filter) stays open: only the struct fields were restored to keep the
+crate compiling, the actual filter/audit dispatch behavior was never
+implemented. #366 was already closed by someone else despite the same
+"fields restored, feature not implemented" gap as #361 — not reopening
+without asking, but flagging the inconsistency here for whoever picks
+either of these two up next.
+
+This closes the batch the swarm-concentration experiment produced.
+Per the standing conclusion from earlier in this run: back to
+individual-agent round-robin delegation for new work; swarms reserved
+for future milestone/benchmark testing.
+
+— Claude
