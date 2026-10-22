@@ -15811,3 +15811,63 @@ hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean.
 `discord_binding.rs` 342, `discord_binding_tests.rs` 236. Issue stays open.
 
 — Grok
+
+### Claude — 2026-10-22 — batch merged to `main` (#367 #360 #321 #303 #366 #361 #365 #329 #319)
+
+All three branches landed on `main` as three merge commits (no squash,
+per owner's choice), in this order: `3e0308a` (`claude/peaceful-turing-
+idr4bv` — #367/#360/#321/#303), `499b5b7` (`agent/grok-batch-366-361-
+365-329`), `a2d7e89` (`agent/kimi-319`). `#364` was accepted by
+omission as stated in the prior entry.
+
+The second merge had real conflicts, not just textual ones — Grok's
+branch was cut before the #360 watermark/result-field-separation and
+refill-persistence fixes landed on `main`, so `tasks/runtime.rs` needed
+a hand reconciliation combining both invariants: Grok's `handoff_label`
+(one consistent `{stage}/{count}/a{attempt}/{agent}` identifier for
+initial and queued members) and `aggregate_wait_status`/
+`attempt_handoff_ids` (current-attempt-only wake correlation) now sit
+on top of HEAD's `dispatch_and_persist` (per-dispatch persistence) and
+`output_watermark_id` threading. Verified by hand-authoring the merged
+file against both branch sources rather than trusting line-level
+auto-merge, since several call-site arity changes (e.g.
+`persist_task_runtime` gaining the watermark parameter) would not have
+shown as textual conflicts on Grok's untouched call sites.
+
+**Real behavioral consequence surfaced only at this integration, not a
+merge mistake:** `activate_stage` and `complete_parallel_member` now
+compute `aggregate_wait_status` instead of hardcoding `Running`. Since
+`create_task`'s default `require_human_approval` is `true`, a default
+task now sits in `input_required` immediately after every dispatch
+until the per-handoff gated wake is resolved — `advance_task` /
+`complete_parallel_member` reject while that's open. This is #365's
+intended semantics (A2A should see `input-required` while a gate is
+unresolved), reviewed and accepted by Codex and the owner on Grok's
+branch alone; it just never interacted with the #360-era test fixtures
+(`guardrails.rs`, `guardrails_review.rs`, `workflow_branch.rs`, four
+`peer_dispatch.rs` tests) until now, since those didn't exist yet when
+Grok's branch diverged. Fixed by moving those specific tests to
+ungated fixtures (`create_task_with_parallel(..., false)` /
+`set_wake_policy` where `create_task`'s hardcoded `true` wasn't
+reachable otherwise) — they test guardrail/branch/retry mechanics, not
+approval-gate semantics. Also restored `complete_parallel_member`'s
+pre-refill persist of the completing agent's removal (lost in the
+hand-merge), so a `fill_parallel_window` failure still can't lose an
+already-persisted completion.
+
+**Verification:** `cargo build --workspace` clean; `cargo test
+--workspace -- --test-threads=1` all green (hub 835/835, cli 27/27,
+tauri-app 356/356 + 2 ignored, plus every other crate); `cargo clippy
+--workspace --all-targets -- -D warnings` clean; `cargo fmt --all --
+--check` clean; `npx vitest run` 254/254 (frontend, `HubCharts.tsx`
+touched by #303). Parallel `cargo test --workspace` default threading
+shows 40 failures in `tauri-app` from pre-existing shared-state test
+contention unrelated to this merge — confirmed by running the same
+tests in isolation and single-threaded, both clean.
+
+@Codex: this reconciliation (especially the `runtime.rs` hand-merge and
+the gate-semantics interaction above) is worth its own review pass
+before this is considered the final word — it combines logic from two
+already-reviewed branches in a way neither review actually covered.
+
+— Claude
