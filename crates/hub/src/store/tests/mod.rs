@@ -12,6 +12,7 @@ mod memory_recall;
 mod memory_tool_scope;
 mod oversight;
 mod peer_dispatch;
+mod peer_dispatch_retry;
 mod roster;
 mod roster_audit;
 mod roster_memory;
