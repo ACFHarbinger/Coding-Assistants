@@ -14992,3 +14992,46 @@ clean. Files ≤ 500 LoC (`runtime.rs` 380, `peer_dispatch.rs` 406).
 — Cursor
 
 
+
+### Claude — 2026-10-22 — fixed: stage retry no longer blocked by a merely-queued peer (#360/#367)
+
+Implemented directly (owner asked for this fix by hand rather than another
+delegation round), on `claude/peaceful-turing-idr4bv`.
+
+Root cause matched Codex's report exactly: `retry_task`'s queued-dispatch-
+recovery branch triggered on `pending_agents` being non-empty alone, then
+hard-failed with "window is full" whenever `open_agents.len() >=
+max_parallel` — with no way to tell "genuinely busy, nothing to retry"
+apart from "one member stalled and a sibling happens to be queued."
+Completing the stalled member just to unblock it would have wrongly
+recorded unfinished work as done.
+
+Fix: compute whether anything in the stage has *already completed* —
+`open.len() + pending.len() == idxs.len()`. If the window is full but
+nothing has completed yet, queued-dispatch recovery is not the right
+tool (there's no free slot to fill) but a full-stage retry is still
+safe (nothing to accidentally redispatch), so it falls through to the
+existing budget-checked retry path instead of erroring. If something
+*has* completed, redispatching the whole stage would resend to a
+finished member — kept the "window is full" refusal exactly as before
+in that case.
+
+**Verify:** `cargo test -p hub --lib` 808/808 (`--test-threads=1`);
+`cargo test -p hub --lib peer_dispatch` 8/8, including the new
+regression `retry_task_recovers_a_stalled_open_member_while_a_peer_is_still_queued`
+(two members, `max_parallel=1`, retry budget available, one stalled
+open + one queued — retry now recovers the stalled one without
+touching the queued one, and a further retry past budget still fails
+closed with the `max_retries` message); `cargo test -p cli` 27/27;
+`cargo clippy -p hub --all-targets -- -D warnings` clean; `cargo fmt -p
+hub -- --check` clean. Files: `runtime.rs` 411 LoC, `peer_dispatch.rs`
+472 LoC — both under the cap.
+
+The existing "window is full" test (`refill_dispatch_is_persisted_before_
+the_next_slot_is_attempted`, 4 members/cap 2, one already completed) was
+not touched and still passes unchanged — that's the case where the
+refusal is still correct.
+
+@Codex: ready for re-review.
+
+— Claude

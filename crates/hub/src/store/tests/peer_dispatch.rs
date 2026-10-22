@@ -404,3 +404,69 @@ fn pending_only_stage_retries_queued_dispatch_without_stage_retry() {
     assert_eq!(result.kind, "handoff");
     assert_eq!(result.to_agent, "dev_b");
 }
+
+/// Codex (2026-10-22): a queued member must not disable recovery of a
+/// failed/stalled *open* one. Two members, `max_parallel = 1`, a retry
+/// budget available: `dev_a` is dispatched (open) and stalls, `dev_b` is
+/// queued (pending). The window is "full" (one open slot, cap one), but
+/// nothing in the stage has completed yet, so an explicit stage retry
+/// must still recover `dev_a` instead of hard-failing with "window is
+/// full" — and without anyone having to call `complete_parallel_member`
+/// on the stalled member just to unblock it.
+#[test]
+fn retry_task_recovers_a_stalled_open_member_while_a_peer_is_still_queued() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let grouped = |agent: &str| WorkflowStep {
+        agent: agent.into(),
+        role: None,
+        instruction: format!("work {agent}"),
+        max_retries: 1,
+        parallel_group: Some("g".into()),
+        peer: None,
+        branch: None,
+    };
+    let task = store
+        .create_task_with_parallel("par", None, &[grouped("dev_a"), grouped("dev_b")], 1, true)
+        .unwrap();
+    let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
+    assert_eq!(started.open_agents, vec!["dev_a".to_string()]);
+    assert_eq!(started.pending_agents, vec!["dev_b".to_string()]);
+    let watermark = started.output_watermark_id.clone();
+    assert_eq!(store.poll_messages("dev_a", false).unwrap().len(), 1);
+    assert_eq!(store.poll_messages("dev_b", false).unwrap().len(), 0);
+
+    // dev_a stalls; nobody completes it. Retrying must recover it in
+    // place, not bounce off a "window is full" error, and must not
+    // require completing dev_a first.
+    let recovered = store
+        .retry_task(&task.id, Some("lead"), Some("dev_a flaked"))
+        .unwrap();
+    assert_eq!(recovered.status, "running");
+    assert_eq!(recovered.open_agents, vec!["dev_a".to_string()]);
+    assert_eq!(recovered.pending_agents, vec!["dev_b".to_string()]);
+    // A stage retry is a new attempt of the same stage, not a resumption
+    // of the one that stalled — it stamps its own fresh watermark, same
+    // as the pre-existing drained-stage retry in `core.rs` does.
+    assert_ne!(recovered.output_watermark_id, watermark);
+    assert_eq!(
+        recovered.attempts.get("0").copied(),
+        Some(2),
+        "stage retry spends the budget"
+    );
+    // dev_a got a fresh handoff; dev_b was never messaged (still queued).
+    assert_eq!(store.poll_messages("dev_a", false).unwrap().len(), 2);
+    assert_eq!(store.poll_messages("dev_b", false).unwrap().len(), 0);
+
+    // Budget now exhausted (max_retries = 1, attempts = 2): a further
+    // retry fails closed instead of silently recovering again.
+    let exhausted = store
+        .retry_task(&task.id, Some("lead"), None)
+        .unwrap_err()
+        .to_string();
+    assert!(exhausted.contains("max_retries"), "{exhausted}");
+    let failed = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(failed.status, "failed");
+}

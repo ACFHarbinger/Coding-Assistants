@@ -14,6 +14,13 @@
 //!   the queued send fails. `retry_task` then dispatches those queued
 //!   members only — it does not redispatch completed work or consume a
 //!   stage retry.
+//! - A full window with queued members still waiting is not, by itself,
+//!   a reason to refuse `retry_task`: if nothing in the stage has
+//!   completed yet, a stalled *open* member can still be recovered via
+//!   an explicit stage retry. Queued-dispatch recovery only short-
+//!   circuits that retry once something has actually finished, since
+//!   re-activating the stage at that point would redispatch completed
+//!   work.
 
 use super::super::*;
 impl HubStore {
@@ -273,8 +280,17 @@ impl HubStore {
     ///
     /// Queued members (`pending_agents`) with a free window slot are
     /// dispatched in place: completed work is left alone and the stage
-    /// attempt counter is not incremented. A full-stage retry (empty
-    /// pending queue) still honours `max_retries`.
+    /// attempt counter is not incremented. That queued-dispatch recovery
+    /// is distinct from an explicit stage retry: ordinary queued members
+    /// waiting for a slot must never disable recovery of a failed or
+    /// stalled *open* member just because the window happens to be full.
+    /// A full-stage retry is only safe when nothing in the stage has
+    /// completed yet (`open.len() + pending.len() == idxs.len()`) — once
+    /// any member has finished, re-activating the stage would redispatch
+    /// already-completed work, so a genuinely full window with no free
+    /// slot and no completion still reports "window is full" rather than
+    /// risk resending to a done member. Either way a full-stage retry
+    /// honours `max_retries`.
     pub fn retry_task(
         &self,
         id: &str,
@@ -287,35 +303,50 @@ impl HubStore {
         if task.status != TaskStatus::Running.as_str() {
             return Err(HubError::Invalid("can only retry a running task".into()));
         }
-        if !task.pending_agents.is_empty() {
-            if task.open_agents.len() >= task.max_parallel as usize {
-                return Err(HubError::Invalid(
-                    "parallel window is full; complete an open member to wake queued agents".into(),
-                ));
-            }
-            let mut open = task.open_agents.clone();
-            let mut pending = task.pending_agents.clone();
-            let mut last_handoff = task.last_message_id.clone();
-            self.fill_parallel_window(
-                id,
-                &task,
-                from_agent.unwrap_or("human"),
-                note,
-                &mut last_handoff,
-                task.output_watermark_id.as_deref(),
-                &mut open,
-                &mut pending,
-            )?;
-            return self
-                .get_task(id)?
-                .ok_or_else(|| HubError::NotFound(id.into()));
-        }
         let stages = Self::workflow_stages(&task.steps);
         let stage_index = task.step_index as usize;
         if stage_index >= stages.len() {
             return Err(HubError::Invalid("invalid stage index".into()));
         }
         let idxs = &stages[stage_index];
+        if !task.pending_agents.is_empty() {
+            let window_full = task.open_agents.len() >= task.max_parallel as usize;
+            let nothing_completed_yet =
+                task.open_agents.len() + task.pending_agents.len() == idxs.len();
+            if !window_full || !nothing_completed_yet {
+                if window_full {
+                    // Window full and something in the stage has already
+                    // completed: a stage retry would redispatch that
+                    // completed member's work, which is unsafe. Queued
+                    // members alone don't justify that risk — surface the
+                    // same "nothing to do yet" error as before.
+                    return Err(HubError::Invalid(
+                        "parallel window is full; complete an open member to wake queued agents"
+                            .into(),
+                    ));
+                }
+                let mut open = task.open_agents.clone();
+                let mut pending = task.pending_agents.clone();
+                let mut last_handoff = task.last_message_id.clone();
+                self.fill_parallel_window(
+                    id,
+                    &task,
+                    from_agent.unwrap_or("human"),
+                    note,
+                    &mut last_handoff,
+                    task.output_watermark_id.as_deref(),
+                    &mut open,
+                    &mut pending,
+                )?;
+                return self
+                    .get_task(id)?
+                    .ok_or_else(|| HubError::NotFound(id.into()));
+            }
+            // Window full, but nothing in the stage has completed yet: an
+            // explicit stage retry below is safe and is exactly the
+            // "recover a stalled open member" case queued-dispatch
+            // recovery cannot handle — fall through.
+        }
         let max_retries = idxs
             .iter()
             .map(|i| task.steps[*i].max_retries)
