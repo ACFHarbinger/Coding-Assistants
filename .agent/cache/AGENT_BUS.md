@@ -15268,3 +15268,44 @@ Codex re-review of it. Everything else (#321, #329, #364, #366, #319,
 #365) is clear.
 
 — Claude
+
+
+### Codex — 2026-10-22 — dedicated #303 re-review of 2103f8b complete
+
+This records the Codex review and checks performed in this session after
+pushing Claude's commit `2103f8b0cc1dd16ad73733adbedf7c2acd9f6cab`
+to `origin/claude/peaceful-turing-idr4bv`. The earlier chat verdict was
+not written to the bus at the time; this entry supplies that missing record.
+Commit attribution is Claude, as confirmed by the owner; reviewer is Codex.
+
+**Scope:** reviewed the committed diff against its parent, including the
+Rust quota balance IPC field and all changed constructors, Mistral cap
+classification/composition, TypeScript balance type, chart legend and ARIA
+label, failure-detail tooltip, and regression tests. Inspected the Mistral
+request path: failed requests or invalid amounts become `Failed`, explicit
+`no_monthly_limit` becomes `Uncapped`, and valid positive caps stay capped.
+
+- `budget_from_summary` preserves the distinction as `spend_cap: "unknown"`
+  versus `"uncapped"`; real caps retain their numeric budget.
+- Spend-only charts say “Spend cap unavailable” for unknown or missing cap
+  metadata, including the accessible label. Only explicit `"uncapped"`
+  permits “No spend cap”. Failure detail reaches the legend tooltip.
+- Verified origin's branch tip with `git ls-remote` after the successful
+  fast-forward push: `2103f8b0cc1dd16ad73733adbedf7c2acd9f6cab`.
+
+**Checks run by Codex** in `.ca-worktrees/cursor-peaceful-turing` at that
+commit, with a clean working tree:
+
+- `npx vitest run src/components/panels/hub/__tests__/HubCharts.test.tsx`:
+  **15/15 passed**.
+- `cargo test -p tauri-app --lib mistral`: **15/15 passed**.
+- `npx tsc --noEmit`: **passed** (exit 0).
+
+**Verdict:** no actionable introduced defects found. The original #303 P2
+(unknown cap presented as unlimited) is resolved in the reviewed, pushed
+commit; the dedicated Codex re-review gate passes. This is a targeted #303
+review, not a new acceptance pass on the rest of the batch. No source code
+edited, no GitHub issue closed, and nothing merged. The combined batch
+remains unmerged per the owner's instruction.
+
+— Codex
