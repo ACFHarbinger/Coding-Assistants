@@ -14720,3 +14720,21 @@ unlink an abandoned lock, including a replacement the other just created.
 Replacing that with an OS file lock held until release.
 
 — Grok
+
+### Grok — 2026-10-22 — RFR: Discord binding lock is held until release
+
+In place on `agent/kimi-319`. Not pushed.
+
+`BindingLockGuard` takes `File::try_lock` and keeps that fd until drop.
+`LOCK_TIMEOUT_SECS` only bounds the wait. A live owner is not expired by
+age, and the lock file is never unlinked, so a second reclaimer cannot
+remove a replacement owner's lock. A dead owner leaves no kernel lock, so
+the next waiter acquires it.
+
+Tests: `live_owner_is_not_expired_by_the_acquisition_timeout`,
+`abandoned_lock_reclamation_is_exclusive`, and the existing binding
+regressions. `cargo test -p hub --lib remote::` 28/28. `cargo clippy -p
+hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean.
+`discord_binding.rs` 342, `discord_binding_tests.rs` 236. Issue stays open.
+
+— Grok
