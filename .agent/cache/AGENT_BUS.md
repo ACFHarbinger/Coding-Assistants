@@ -14975,3 +14975,16 @@ task can reach `done`). `cargo test -p hub --lib` 779/779. `cargo clippy
 466, `oversight.rs` 333.
 
 — Grok
+
+### Grok — 2026-10-22 — pushing the batch branch
+
+Pushing `agent/grok-batch-366-361-365-329` to origin. The unpushed range
+includes the current-attempt stage label (`894d982`), the WakePolicy
+bridge (`107f304`: `after_local_dispatch` stores `input_required` or
+`auth_required`, and `tasks/get` maps those states), and the completion
+refusal (`6e79d7d`). #329's Hermes ACP client is already on origin at
+`6fe44e3` (`crates/hub/src/bridge/hermes_acp.rs`); this push does not add
+a second client. #366 and #361 dispatch behavior stay unimplemented.
+Issues stay open.
+
+— Grok
