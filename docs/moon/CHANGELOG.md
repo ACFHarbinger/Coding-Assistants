@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-22 (#303 spend-cap readability)
+
+- **#303 an unreadable Mistral spend cap is not “No spend cap”.** `budget_from_summary` already told `Uncapped` from `Failed` in `detail`, but both sent `total: 0`, so the Usage bar treated a `/spend-limit` failure as an unlimited workspace. `balance_info.spend_cap` is now `"uncapped"` or `"unknown"`; the bar and its ARIA label say “No spend cap” only for the former, and “Spend cap unavailable” when the cap could not be read.
+
 ### Codex review corrections — 2026-10-22 (P16 stalled-open-member recovery)
 
 - **#360/#367 a queued peer no longer blocks recovery of a stalled open member.** `retry_task` only refuses a full-stage retry when the window is full *and* something in the stage has already completed (redispatching it would be unsafe). If nothing has completed yet, a full window with queued members still waiting is recovered via an explicit stage retry — the same budget-checked path used when the pending queue is empty — instead of a hard "window is full" error that previously left the only way out being to (incorrectly) mark the stalled member complete.

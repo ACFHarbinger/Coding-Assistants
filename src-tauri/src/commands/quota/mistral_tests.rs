@@ -113,6 +113,7 @@ fn capped_budget_yields_a_monthly_spend_window() {
     );
     assert_eq!(info.kind.as_deref(), Some("spend"));
     assert_eq!(info.paid, None);
+    assert!(info.spend_cap.is_none());
 }
 
 #[test]
@@ -137,6 +138,7 @@ fn uncapped_limit_reports_spend_only_with_uncapped_note() {
     let info = budget.balance_info.expect("currency figure");
     assert_eq!(info.kind.as_deref(), Some("spend"));
     assert_eq!(info.total, 0.0, "no cap means no budget to chart");
+    assert_eq!(info.spend_cap.as_deref(), Some("uncapped"));
     assert!((info.spent.unwrap() - 16.25).abs() < 1e-9);
 }
 
@@ -161,6 +163,13 @@ fn failed_limit_request_reports_failure_reason_not_uncapped() {
     assert!(
         !detail.contains("No monthly spend cap is set"),
         "must not claim uncapped on failed request: {detail}"
+    );
+    let info = budget.balance_info.expect("currency figure");
+    assert_eq!(info.total, 0.0);
+    assert_eq!(
+        info.spend_cap.as_deref(),
+        Some("unknown"),
+        "unreadable cap must not look like an explicit unlimited budget"
     );
 }
 

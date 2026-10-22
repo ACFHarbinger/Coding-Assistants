@@ -105,6 +105,7 @@ describe("BalanceBreakdownBar", () => {
       total: 0,
       kind: "spend",
       spent: 16.25,
+      spend_cap: "uncapped",
     };
     render(<BalanceBreakdownBar balance={uncapped} />);
 
@@ -113,11 +114,56 @@ describe("BalanceBreakdownBar", () => {
     expect(screen.getByTestId("breakdown-spent")).toHaveStyle({ width: "100%" });
     expect(screen.queryByTestId("breakdown-budget")).not.toBeInTheDocument();
     expect(screen.getByTestId("breakdown-no-cap")).toBeInTheDocument();
+    expect(screen.queryByTestId("breakdown-cap-unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText(/^Budget/)).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute(
       "aria-label",
       "Period spend: €16.25 spent, no spend cap"
     );
+  });
+
+  it("does not claim 'no spend cap' when the cap could not be read", () => {
+    const unread: ProviderQuotaBalance = {
+      currency: "EUR",
+      total: 0,
+      kind: "spend",
+      spent: 16.25,
+      spend_cap: "unknown",
+    };
+    render(
+      <BalanceBreakdownBar
+        balance={unread}
+        capNote="Monthly spend cap could not be read from Mistral Admin API (HTTP 500) — reporting spend only."
+      />
+    );
+
+    expect(screen.getByTestId("breakdown-spent")).toHaveStyle({ width: "100%" });
+    expect(screen.queryByTestId("breakdown-budget")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("breakdown-no-cap")).not.toBeInTheDocument();
+    const legend = screen.getByTestId("breakdown-cap-unavailable");
+    expect(legend).toHaveTextContent("Spend cap unavailable");
+    expect(legend).toHaveAttribute(
+      "title",
+      expect.stringContaining("could not be read")
+    );
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-label",
+      "Period spend: €16.25 spent, spend cap unavailable"
+    );
+  });
+
+  it("uses neutral wording when a zero total has no spend_cap field", () => {
+    const unread: ProviderQuotaBalance = {
+      currency: "EUR",
+      total: 0,
+      kind: "spend",
+      spent: 16.25,
+    };
+    render(<BalanceBreakdownBar balance={unread} />);
+    expect(screen.getByTestId("breakdown-cap-unavailable")).toHaveTextContent(
+      "Spend cap unavailable"
+    );
+    expect(screen.queryByTestId("breakdown-no-cap")).not.toBeInTheDocument();
   });
 
   it("handles over-budget spend with warning styling", () => {

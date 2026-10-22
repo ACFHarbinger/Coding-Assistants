@@ -187,12 +187,15 @@ pub(crate) enum SpendLimitResult {
 /// Pure composition of the two endpoint bodies into a budget.
 fn budget_from_summary(summary: &UsageSummary, limit: SpendLimitResult) -> MistralAdminBudget {
     // Spend-kind contract shared with Cursor (#303): `total` is the period
-    // budget/cap, `spent` what was consumed against it. With no readable
-    // cap there is no budget to chart, so `total` is 0 and the Usage tab
-    // draws spend only — never a fabricated 100%-of-spend "budget".
-    let cap = match &limit {
-        SpendLimitResult::Capped(cap) => *cap,
-        _ => 0.0,
+    // budget/cap, `spent` what was consumed against it. `total: 0` is not
+    // enough — `spend_cap` says whether that is an explicit unlimited
+    // budget (`uncapped`) or a cap that could not be read (`unknown`).
+    // Either way the Usage tab draws spend only, never a fabricated
+    // 100%-of-spend "budget".
+    let (cap, spend_cap) = match &limit {
+        SpendLimitResult::Capped(cap) => (*cap, None),
+        SpendLimitResult::Uncapped => (0.0, Some("uncapped".into())),
+        SpendLimitResult::Failed(_) => (0.0, Some("unknown".into())),
     };
     let balance_info = ProviderQuotaBalance {
         currency: summary.currency.clone(),
@@ -203,6 +206,7 @@ fn budget_from_summary(summary: &UsageSummary, limit: SpendLimitResult) -> Mistr
         topped_up: None,
         paid: None,
         gift: None,
+        spend_cap,
     };
     match limit {
         SpendLimitResult::Capped(cap) => {

@@ -60,16 +60,20 @@ export function formatCurrency(amount: number, currency = "USD"): string {
  *
  * Spend-kind contract (`#303`): `total` is the period budget/cap, `spent`
  * what was consumed against it, `gift`/`granted` provider-absorbed bonus.
- * A provider that reports spend with no readable cap sends `total: 0`;
- * the bar then draws spend only and says so, instead of inventing a
- * budget equal to the spend.
+ * A provider that reports spend with no cap sends `total: 0` and
+ * `spend_cap`: `"uncapped"` when the workspace has none, `"unknown"`
+ * when the cap could not be read. The bar draws spend only in both
+ * cases — never a fabricated budget equal to the spend — but the
+ * legend must not call an unreadable cap “No spend cap”.
  */
 export function BalanceBreakdownBar({
   balance,
   balanceText,
+  capNote,
 }: {
   balance: ProviderQuotaBalance;
   balanceText?: string | null;
+  capNote?: string | null;
 }) {
   const currency = balance.currency || "USD";
   const spent = balance.spent ?? 0;
@@ -77,6 +81,7 @@ export function BalanceBreakdownBar({
   const free = balance.gift ?? balance.granted ?? 0;
   const hasBudget = budget > 0;
   const isSpend = balance.kind === "spend";
+  const capUnavailable = isSpend && !hasBudget && balance.spend_cap !== "uncapped";
   const remaining_budget = Math.max(0, budget - spent);
   const isOverBudget = hasBudget && spent > budget;
 
@@ -102,9 +107,10 @@ export function BalanceBreakdownBar({
       : formatCurrency(remaining_budget + free, currency));
   const headline = isSpend ? "Period spend" : "Account balance";
   const headlineColor = isOverBudget ? "#ef4444" : isSpend ? "#38bdf8" : "#22c55e";
+  const capLegend = capUnavailable ? "spend cap unavailable" : "no spend cap";
   const ariaLabel = hasBudget
     ? `${headline}: ${formatCurrency(spent, currency)} spent of ${formatCurrency(budget, currency)} budget`
-    : `${headline}: ${formatCurrency(spent, currency)} spent, no spend cap`;
+    : `${headline}: ${formatCurrency(spent, currency)} spent, ${capLegend}`;
 
   return (
     <div style={{ display: "grid", gap: "0.35rem" }} data-testid="balance-breakdown-bar">
@@ -177,9 +183,13 @@ export function BalanceBreakdownBar({
             {isSpend ? ` of ${formatCurrency(budget, currency)}` : ""}
           </span>
         ) : isSpend ? (
-          <span data-testid="breakdown-no-cap" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+          <span
+            data-testid={capUnavailable ? "breakdown-cap-unavailable" : "breakdown-no-cap"}
+            title={capNote || undefined}
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+          >
             <i style={{ width: 8, height: 8, borderRadius: 2, background: "#334155", display: "inline-block" }} />
-            No spend cap
+            {capUnavailable ? "Spend cap unavailable" : "No spend cap"}
           </span>
         ) : null}
         {free > 0 && (
@@ -340,7 +350,11 @@ export function QuotaChart({
                 </div>
               </div>
               {quota.balance_info?.kind === "spend" && quota.balance_info.spent != null ? (
-                <BalanceBreakdownBar balance={quota.balance_info} balanceText={quota.balance} />
+                <BalanceBreakdownBar
+                  balance={quota.balance_info}
+                  balanceText={quota.balance}
+                  capNote={quota.detail}
+                />
               ) : quota.balance && (quota.windows.length > 0 || quota.balance_info?.kind === "spend" || quota.balance.toLowerCase().startsWith("spent")) ? (
                 <div style={{ display: "grid", gap: "0.25rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
