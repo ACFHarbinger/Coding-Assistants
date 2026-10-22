@@ -15139,26 +15139,27 @@ No merge to `main` until all of the above comes back clean.
 Addressed Codex round-3 P1 finding on `agent/kimi-319` (`discord_binding.rs:225-230`):
 
 - **Cross-process lock & read-modify-write (`crates/hub/src/remote/discord_binding.rs`)**:
-  - Implemented `BindingLockGuard` managing a lockfile (`.discord_binding.lock`) with atomic `create_new(true)`, lock ownership records (`pid`, `nonce`, `created_at_ms`), and stale lock recovery (dead pid detection + timeout). On drop, the guard verifies matching nonce before deleting to eliminate ABA lock deletion.
-  - Wrapped all mutating operations (`issue_pairing`, `advance_cursor`, `redeem`, `unbind`, `mark_wake_notified`) inside `with_mutation`, which acquires the cross-process lock, reloads latest state from disk inside the lock (clearing or updating allow-lists before applying mutations), runs the modification, and atomically saves before releasing the lock.
-  - Eliminates the lost update race where a daemon wake-notification save overwrote concurrent `ca discord unbind` revoking a user.
+  - Implemented `BindingLockGuard` managing `.discord_binding.lock` via write-and-sync to a unique temp file followed by atomic `hard_link` into `.discord_binding.lock` (with `create_new(true)` fallback), lock ownership records (`pid`, `nonce`, `created_at_ms`), and stale lock recovery (dead PID detection + timeout, with age check before treating unparseable lockfiles as stale so concurrent writers are never clobbered mid-creation). On drop, the guard verifies a matching `nonce` before deleting to eliminate ABA lock deletion.
+  - Wrapped all mutating operations (`issue_pairing`, `advance_cursor`, `redeem`, `unbind`, `mark_wake_notified`) inside `with_mutation`, which acquires the cross-process lock, reloads authoritative state directly from disk inside the lock (without resurrecting stale in-memory wake IDs or allow-lists), runs the modification, and atomically saves (`write-temp + sync_all + rename`) before releasing the lock.
+  - Eliminates the lost update race where a daemon wake-notification save overwrote a concurrent `ca discord unbind` revoking a user.
 - **File limits & tests (`crates/hub/src/remote/discord_binding_tests.rs`)**:
   - Extracted binding tests to `discord_binding_tests.rs` (`#[path = "discord_binding_tests.rs"] mod tests;`), keeping all files strictly under the 500-LoC limit:
     - `crates/hub/src/remote/discord.rs`: 328 LoC
-    - `crates/hub/src/remote/discord_binding.rs`: 398 LoC
-    - `crates/hub/src/remote/discord_binding_tests.rs`: 163 LoC
+    - `crates/hub/src/remote/discord_binding.rs`: 407 LoC
+    - `crates/hub/src/remote/discord_binding_tests.rs`: 170 LoC
     - `crates/hub/src/remote/discord_tests.rs`: 241 LoC
-  - Added new regression tests:
+  - Added and tightened regression tests:
     - `cross_process_lock_prevents_lost_update_when_daemon_marks_wake_notified_after_cli_unbind`
     - `cross_process_lock_blocks_concurrent_writers`
     - `stale_lock_with_dead_pid_is_recovered`
+    - `pairing_redeems_once_and_rejects_a_wrong_or_expired_code` (persists expired pairing to disk before `redeem` and verifies on-disk cleanup)
 - **Verification**:
   - `cargo fmt --package hub --package cli -- --check` clean.
-  - `cargo clippy -p hub --all-targets -- -D warnings` clean (0 warnings).
+  - `cargo clippy -p hub -p cli --all-targets -- -D warnings` clean (0 warnings).
   - `cargo test -p hub --lib remote::discord` (18/18 passed).
   - `cargo test -p hub --lib` (790/790 passed).
   - `cargo test -p cli` (25/25 passed).
-- Pushed commit `c4a0464` to `origin/agent/kimi-319`.
+- Pushed commits `c4a0464` and `e399838` to `origin/agent/kimi-319`.
 
 Ready for Codex re-review.
 
