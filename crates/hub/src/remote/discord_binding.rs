@@ -17,6 +17,7 @@ use crate::store::HubError;
 
 const BINDING_FILE: &str = "discord_binding.json";
 const PAIRING_MINUTES: i64 = 10;
+const LOCK_TIMEOUT_SECS: u64 = 5;
 
 /// Discord user allowed to command this Hub.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,13 +108,15 @@ impl BindingStore {
 
     pub fn issue_pairing(&mut self, channel_id: u64) -> Result<String, HubError> {
         let code = Uuid::new_v4().simple().to_string()[..6].to_uppercase();
-        self.data.pairing = Some(Pairing {
-            code: code.clone(),
-            expires_at: (Utc::now() + Duration::minutes(PAIRING_MINUTES)).to_rfc3339(),
-            channel_id,
-        });
-        self.save()?;
-        Ok(code)
+        let expires_at = (Utc::now() + Duration::minutes(PAIRING_MINUTES)).to_rfc3339();
+        self.with_mutation(|store| {
+            store.data.pairing = Some(Pairing {
+                code: code.clone(),
+                expires_at: expires_at.clone(),
+                channel_id,
+            });
+            Ok(code.clone())
+        })
     }
 
     pub fn is_bound(&self, user_id: u64) -> bool {
@@ -142,12 +145,13 @@ impl BindingStore {
 
     /// Advances the durable per-channel cursor after a batch was handled.
     pub fn advance_cursor(&mut self, channel_id: u64, message_id: u64) -> Result<(), HubError> {
-        let cursor = self.data.channel_cursors.entry(channel_id).or_insert(0);
-        if message_id > *cursor {
-            *cursor = message_id;
-            self.save()?;
-        }
-        Ok(())
+        self.with_mutation(|store| {
+            let cursor = store.data.channel_cursors.entry(channel_id).or_insert(0);
+            if message_id > *cursor {
+                *cursor = message_id;
+            }
+            Ok(())
+        })
     }
 
     pub fn redeem(
@@ -157,59 +161,88 @@ impl BindingStore {
         username: Option<String>,
         code: &str,
     ) -> Result<(), HubError> {
-        let pairing = self
-            .data
-            .pairing
-            .as_ref()
-            .ok_or_else(|| HubError::Invalid("no pairing code is active".into()))?;
-        if pairing.code != code.trim().to_ascii_uppercase() {
-            return Err(HubError::Invalid("pairing code does not match".into()));
-        }
-        let expires = chrono::DateTime::parse_from_rfc3339(&pairing.expires_at)
-            .map_err(|error| HubError::Invalid(format!("pairing expiry: {error}")))?;
-        if expires < Utc::now() {
-            self.data.pairing = None;
-            self.save()?;
-            return Err(HubError::Invalid("pairing code expired".into()));
-        }
-        if !self.is_bound(user_id) {
-            self.data.bound.push(BoundUser {
-                user_id,
-                channel_id,
-                username,
-                bound_at: Utc::now().to_rfc3339(),
-            });
-        }
-        self.data.pairing = None;
-        self.save()
+        self.with_mutation(|store| {
+            let pairing = store
+                .data
+                .pairing
+                .as_ref()
+                .ok_or_else(|| HubError::Invalid("no pairing code is active".into()))?;
+            if pairing.code != code.trim().to_ascii_uppercase() {
+                return Err(HubError::Invalid("pairing code does not match".into()));
+            }
+            let expires = chrono::DateTime::parse_from_rfc3339(&pairing.expires_at)
+                .map_err(|error| HubError::Invalid(format!("pairing expiry: {error}")))?;
+            if expires < Utc::now() {
+                store.data.pairing = None;
+                let _ = store.save();
+                return Err(HubError::Invalid("pairing code expired".into()));
+            }
+            if !store.is_bound(user_id) {
+                store.data.bound.push(BoundUser {
+                    user_id,
+                    channel_id,
+                    username,
+                    bound_at: Utc::now().to_rfc3339(),
+                });
+            }
+            store.data.pairing = None;
+            Ok(())
+        })
     }
 
     pub fn unbind(&mut self, user_id: Option<u64>) -> Result<usize, HubError> {
-        let before = self.data.bound.len();
-        if let Some(user_id) = user_id {
-            self.data.bound.retain(|user| user.user_id != user_id);
-        } else {
-            self.data.bound.clear();
-        }
-        self.save()?;
-        Ok(before - self.data.bound.len())
+        self.with_mutation(|store| {
+            let before = store.data.bound.len();
+            if let Some(user_id) = user_id {
+                store.data.bound.retain(|user| user.user_id != user_id);
+            } else {
+                store.data.bound.clear();
+            }
+            Ok(before - store.data.bound.len())
+        })
     }
 
     pub fn mark_wake_notified(&mut self, wake_id: &str) -> Result<bool, HubError> {
         if self.was_wake_notified(wake_id) {
             return Ok(false);
         }
-        self.data.notified_wake_ids.push(wake_id.to_string());
-        if self.data.notified_wake_ids.len() > 64 {
-            let extra = self.data.notified_wake_ids.len() - 64;
-            self.data.notified_wake_ids.drain(..extra);
-        }
-        self.save()?;
-        Ok(true)
+        self.with_mutation(|store| {
+            if store.was_wake_notified(wake_id) {
+                return Ok(false);
+            }
+            store.data.notified_wake_ids.push(wake_id.to_string());
+            if store.data.notified_wake_ids.len() > 64 {
+                let extra = store.data.notified_wake_ids.len() - 64;
+                store.data.notified_wake_ids.drain(..extra);
+            }
+            Ok(true)
+        })
     }
 
     pub fn was_wake_notified(&self, wake_id: &str) -> bool {
         self.data.notified_wake_ids.iter().any(|id| id == wake_id)
+    }
+
+    fn lock_path(&self) -> PathBuf {
+        let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let file_name = self
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(BINDING_FILE);
+        parent.join(format!(".{file_name}.lock"))
+    }
+
+    fn with_mutation<T, F>(&mut self, f: F) -> Result<T, HubError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, HubError>,
+    {
+        let lock_path = self.lock_path();
+        let _guard = BindingLockGuard::acquire(&lock_path)?;
+        self.reload()?;
+        let res = f(self)?;
+        self.save()?;
+        Ok(res)
     }
 
     fn save(&self) -> Result<(), HubError> {
@@ -238,107 +271,128 @@ impl BindingStore {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct LockRecord {
+    pid: u32,
+    nonce: String,
+    created_at_ms: i64,
+}
 
-    #[test]
-    fn pairing_redeems_once_and_rejects_a_wrong_or_expired_code() {
-        let dir = tempdir().unwrap();
-        let mut store = BindingStore::open(dir.path()).unwrap();
-        let code = store.issue_pairing(100).unwrap();
-        store.redeem(7, 100, Some("pk".into()), &code).unwrap();
-        assert!(store.is_bound(7));
-        assert_eq!(store.bound_users()[0].channel_id, 100);
-        assert!(store.issue_pairing(100).is_ok());
-        assert!(store.redeem(8, 100, None, "NOPE").is_err());
-        store.data.pairing = Some(Pairing {
-            code: "DEAD00".into(),
-            expires_at: (Utc::now() - Duration::minutes(1)).to_rfc3339(),
-            channel_id: 100,
-        });
-        assert!(store.redeem(8, 100, None, "DEAD00").is_err());
-        assert!(!store.is_bound(8));
+struct BindingLockGuard {
+    lock_path: PathBuf,
+    nonce: String,
+}
+
+impl BindingLockGuard {
+    fn acquire(lock_path: &Path) -> Result<Self, HubError> {
+        Self::acquire_with_timeout(lock_path, std::time::Duration::from_secs(LOCK_TIMEOUT_SECS))
     }
 
-    #[test]
-    fn cursors_are_per_channel_monotonic_and_durable() {
-        let dir = tempdir().unwrap();
-        let mut store = BindingStore::open(dir.path()).unwrap();
-        store.advance_cursor(100, 42).unwrap();
-        store.advance_cursor(100, 12).unwrap();
-        store.advance_cursor(200, 7).unwrap();
-        assert_eq!(store.cursor(100), Some(42));
-        assert_eq!(store.cursor(200), Some(7));
+    fn acquire_with_timeout(
+        lock_path: &Path,
+        timeout: std::time::Duration,
+    ) -> Result<Self, HubError> {
+        let start = std::time::Instant::now();
+        let pid = std::process::id();
+        let nonce = Uuid::new_v4().to_string();
 
-        let reopened = BindingStore::open(dir.path()).unwrap();
-        assert_eq!(reopened.cursor(100), Some(42));
-        assert_eq!(reopened.cursor(200), Some(7));
+        if let Some(parent) = lock_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+
+        loop {
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(lock_path)
+            {
+                Ok(mut file) => {
+                    let record = LockRecord {
+                        pid,
+                        nonce: nonce.clone(),
+                        created_at_ms: Utc::now().timestamp_millis(),
+                    };
+                    if let Ok(encoded) = serde_json::to_vec(&record) {
+                        let _ = file.write_all(&encoded);
+                        let _ = file.sync_all();
+                    }
+                    return Ok(Self {
+                        lock_path: lock_path.to_path_buf(),
+                        nonce,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if Self::is_stale(lock_path) {
+                        let _ = fs::remove_file(lock_path);
+                        continue;
+                    }
+                    if start.elapsed() >= timeout {
+                        return Err(HubError::Invalid("discord binding lock timeout".into()));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(error) => {
+                    if start.elapsed() >= timeout {
+                        return Err(HubError::from(error));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+        }
     }
 
-    #[test]
-    fn poll_channels_unions_bound_and_pairing_channels() {
-        let dir = tempdir().unwrap();
-        let mut store = BindingStore::open(dir.path()).unwrap();
-        assert!(store.poll_channels().is_empty());
-        store.issue_pairing(300).unwrap();
-        assert_eq!(store.poll_channels(), vec![300]);
-        let code = store.issue_pairing(300).unwrap();
-        store.redeem(7, 100, None, &code).unwrap();
-        assert_eq!(store.poll_channels(), vec![100]);
-    }
-
-    #[test]
-    fn reload_picks_up_external_unbind_without_stale_restore() {
-        let dir = tempdir().unwrap();
-        let mut daemon_store = BindingStore::open(dir.path()).unwrap();
-        let code = daemon_store.issue_pairing(100).unwrap();
-        daemon_store.redeem(7, 100, None, &code).unwrap();
-        assert!(daemon_store.is_bound(7));
-
-        let mut cli_store = BindingStore::open(dir.path()).unwrap();
-        assert_eq!(cli_store.unbind(Some(7)).unwrap(), 1);
-        assert!(!cli_store.is_bound(7));
-
-        daemon_store.reload().unwrap();
-        assert!(!daemon_store.is_bound(7));
-
-        daemon_store.advance_cursor(100, 50).unwrap();
-        let reopened = BindingStore::open(dir.path()).unwrap();
-        assert!(!reopened.is_bound(7));
-        assert_eq!(reopened.cursor(100), Some(50));
-    }
-
-    #[test]
-    fn reload_corrupted_file_fails_closed_and_clears_stale_bound_users() {
-        let dir = tempdir().unwrap();
-        let mut store = BindingStore::open(dir.path()).unwrap();
-        let code = store.issue_pairing(100).unwrap();
-        store.redeem(7, 100, None, &code).unwrap();
-        assert!(store.is_bound(7));
-
-        let path = dir.path().join(BINDING_FILE);
-        fs::write(&path, b"not valid json").unwrap();
-
-        assert!(store.reload().is_err());
-        assert!(!store.is_bound(7));
-        assert!(store.bound_users().is_empty());
-    }
-
-    #[test]
-    fn save_writes_atomically_without_leaving_temporary_files() {
-        let dir = tempdir().unwrap();
-        let mut store = BindingStore::open(dir.path()).unwrap();
-        store.advance_cursor(100, 1).unwrap();
-
-        let path = dir.path().join(BINDING_FILE);
-        assert!(path.exists());
-        let entries: Vec<_> = fs::read_dir(dir.path())
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
-            .collect();
-        assert!(entries.is_empty());
+    fn is_stale(lock_path: &Path) -> bool {
+        let raw = match fs::read_to_string(lock_path) {
+            Ok(content) => content,
+            Err(_) => return false,
+        };
+        if raw.trim().is_empty() {
+            if let Ok(meta) = fs::metadata(lock_path) {
+                if let Ok(modified) = meta.modified() {
+                    if let Ok(elapsed) = modified.elapsed() {
+                        return elapsed > std::time::Duration::from_secs(2);
+                    }
+                }
+            }
+            return false;
+        }
+        let Ok(record) = serde_json::from_str::<LockRecord>(&raw) else {
+            return true;
+        };
+        if !pid_alive(record.pid) {
+            return true;
+        }
+        let now_ms = Utc::now().timestamp_millis();
+        now_ms.saturating_sub(record.created_at_ms) > 5_000
     }
 }
+
+impl Drop for BindingLockGuard {
+    fn drop(&mut self) {
+        if let Ok(raw) = fs::read_to_string(&self.lock_path) {
+            if let Ok(record) = serde_json::from_str::<LockRecord>(&raw) {
+                if record.nonce == self.nonce {
+                    let _ = fs::remove_file(&self.lock_path);
+                }
+            }
+        }
+    }
+}
+
+fn pid_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Path::new(&format!("/proc/{pid}")).exists()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
+#[cfg(test)]
+#[path = "discord_binding_tests.rs"]
+mod tests;
