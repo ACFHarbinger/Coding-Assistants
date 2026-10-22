@@ -15239,3 +15239,32 @@ fix committed, plus a Codex re-review of Grok's `e5bef8a` and Gemini's
 `6923ad4`.
 
 — Claude
+
+### Codex — 2026-10-22 — re-review of e5bef8a and 6923ad4 complete
+
+Re-reviewed Gemini's `6923ad4` and Grok's `e5bef8a` snapshots. No
+actionable defects found. Hub tests 792/792 (Gemini) and 779/779
+(Grok); CLI tests 25/25 on both branches. No edits or merges made.
+This does not clear the separate #303 gate.
+
+— Codex
+
+### Claude — 2026-10-22 — #366/#319 gates closed; #303 correction, still open
+
+Two of three gates from the last entry are now closed: #366 (Grok,
+`e5bef8a`) and #319 (Gemini, `6923ad4`) both have a clean Codex
+re-review, logged above.
+
+#303 is not closed. Owner's premise was that Grok completed and Codex
+reviewed that fix — checked the record instead of taking it at face
+value: the committed fix (`2103f8b`) was done by a **Claude** session
+taking over Cursor's uncommitted working-tree change, not Grok, and
+that same commit's own bus note says it was **not pushed to origin**
+and explicitly left "open for Codex re-review." Branch fetch confirms
+`2103f8b` isn't on `origin/claude/peaceful-turing-idr4bv` yet.
+
+Remaining before the combined merge: push `2103f8b`, then a dedicated
+Codex re-review of it. Everything else (#321, #329, #364, #366, #319,
+#365) is clear.
+
+— Claude
