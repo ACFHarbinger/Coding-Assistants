@@ -70,8 +70,7 @@ impl BindingStore {
     }
 
     /// Reload disk state into memory so an external `ca discord unbind` or `pair`
-    /// takes effect immediately without restarting the daemon. In-memory cursors
-    /// and notified wake ids are preserved monotonically.
+    /// takes effect immediately without restarting the daemon.
     ///
     /// Fails closed: if reading or parsing the file fails, existing authorizations
     /// in memory are cleared so stale permissions cannot be exploited.
@@ -84,24 +83,13 @@ impl BindingStore {
                 return Err(HubError::from(error));
             }
         };
-        let mut disk_data = match raw {
+        let disk_data = match raw {
             Some(raw) => serde_json::from_str(&raw).map_err(|error| {
                 self.data.bound.clear();
                 HubError::Invalid(format!("discord binding: {error}"))
             })?,
             None => BindingFile::default(),
         };
-        for (channel_id, mem_cursor) in &self.data.channel_cursors {
-            let disk_cursor = disk_data.channel_cursors.entry(*channel_id).or_insert(0);
-            if *mem_cursor > *disk_cursor {
-                *disk_cursor = *mem_cursor;
-            }
-        }
-        for wake_id in &self.data.notified_wake_ids {
-            if !disk_data.notified_wake_ids.contains(wake_id) {
-                disk_data.notified_wake_ids.push(wake_id.clone());
-            }
-        }
         self.data = disk_data;
         Ok(())
     }
@@ -301,21 +289,8 @@ impl BindingLockGuard {
         }
 
         loop {
-            match fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(lock_path)
-            {
-                Ok(mut file) => {
-                    let record = LockRecord {
-                        pid,
-                        nonce: nonce.clone(),
-                        created_at_ms: Utc::now().timestamp_millis(),
-                    };
-                    if let Ok(encoded) = serde_json::to_vec(&record) {
-                        let _ = file.write_all(&encoded);
-                        let _ = file.sync_all();
-                    }
+            match Self::try_create_lock(lock_path, pid, &nonce) {
+                Ok(()) => {
                     return Ok(Self {
                         lock_path: lock_path.to_path_buf(),
                         nonce,
@@ -341,29 +316,63 @@ impl BindingLockGuard {
         }
     }
 
+    fn try_create_lock(lock_path: &Path, pid: u32, nonce: &str) -> Result<(), std::io::Error> {
+        let record = LockRecord {
+            pid,
+            nonce: nonce.to_string(),
+            created_at_ms: Utc::now().timestamp_millis(),
+        };
+        let encoded = serde_json::to_vec(&record).map_err(std::io::Error::other)?;
+        let parent = lock_path.parent().unwrap_or_else(|| Path::new("."));
+        let tmp_path = parent.join(format!(
+            ".discord_binding.lock.tmp-{}",
+            Uuid::new_v4().simple()
+        ));
+        let write_res = (|| -> Result<(), std::io::Error> {
+            let mut file = fs::File::create(&tmp_path)?;
+            file.write_all(&encoded)?;
+            file.sync_all()
+        })();
+        if let Err(error) = write_res {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(error);
+        }
+        let link_res = fs::hard_link(&tmp_path, lock_path);
+        let _ = fs::remove_file(&tmp_path);
+        match link_res {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(error),
+            Err(_) => {
+                let mut file = fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(lock_path)?;
+                if let Err(error) = file.write_all(&encoded).and_then(|()| file.sync_all()) {
+                    let _ = fs::remove_file(lock_path);
+                    return Err(error);
+                }
+                Ok(())
+            }
+        }
+    }
+
     fn is_stale(lock_path: &Path) -> bool {
         let raw = match fs::read_to_string(lock_path) {
             Ok(content) => content,
             Err(_) => return false,
         };
-        if raw.trim().is_empty() {
-            if let Ok(meta) = fs::metadata(lock_path) {
-                if let Ok(modified) = meta.modified() {
-                    if let Ok(elapsed) = modified.elapsed() {
-                        return elapsed > std::time::Duration::from_secs(2);
-                    }
-                }
-            }
-            return false;
-        }
         let Ok(record) = serde_json::from_str::<LockRecord>(&raw) else {
-            return true;
+            return fs::metadata(lock_path)
+                .and_then(|meta| meta.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .is_some_and(|elapsed| elapsed > std::time::Duration::from_secs(2));
         };
         if !pid_alive(record.pid) {
             return true;
         }
         let now_ms = Utc::now().timestamp_millis();
-        now_ms.saturating_sub(record.created_at_ms) > 5_000
+        now_ms.saturating_sub(record.created_at_ms) > (LOCK_TIMEOUT_SECS as i64) * 1_000
     }
 }
 

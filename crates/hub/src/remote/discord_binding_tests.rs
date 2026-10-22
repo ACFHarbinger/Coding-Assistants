@@ -17,8 +17,15 @@ fn pairing_redeems_once_and_rejects_a_wrong_or_expired_code() {
         expires_at: (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339(),
         channel_id: 100,
     });
-    assert!(store.redeem(8, 100, None, "DEAD00").is_err());
+    store.save().unwrap();
+    let expired_err = store.redeem(8, 100, None, "DEAD00").unwrap_err();
+    assert!(expired_err.to_string().contains("expired"));
     assert!(!store.is_bound(8));
+    assert!(BindingStore::open(dir.path())
+        .unwrap()
+        .data
+        .pairing
+        .is_none());
 }
 
 #[test]
