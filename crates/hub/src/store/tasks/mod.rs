@@ -3,6 +3,7 @@ use super::*;
 mod branch;
 mod runtime;
 pub use branch::{BranchTarget, StepBranch};
+
 impl HubStore {
     pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
         let mut stages: Vec<Vec<usize>> = Vec::new();
@@ -209,7 +210,7 @@ impl HubStore {
             task.workspace_path.as_deref(),
             Some(task_id),
         )?;
-        let _wake = self.request_wake(
+        self.request_wake(
             &step.agent,
             Some(&format!("task {task_id} {stage_label}")),
             Some(&msg.id),
@@ -334,6 +335,11 @@ impl HubStore {
                 "task is already {}",
                 task.status
             )));
+        }
+        if matches!(status, TaskStatus::InputRequired | TaskStatus::AuthRequired) {
+            return Err(HubError::Invalid(
+                "approval gates are still unresolved".into(),
+            ));
         }
         if !task.open_agents.is_empty() {
             return Err(HubError::Invalid(format!(

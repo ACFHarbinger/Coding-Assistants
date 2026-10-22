@@ -105,6 +105,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carries the figures. Providers that hand us only a free-form string (no
   structured figures) keep the text fallback — a chart there would be
   fabricated. Vitest 252/252, `tsc` clean.
+- **WakePolicy bridge for A2A interrupted states (#365):** a local dispatch
+  that raises a human-gated wake stores `input_required` when the task asked
+  for approval and `auth_required` when standing policy forces the gate.
+  The waiting state is every handoff of the stage's current attempt:
+  initial and queued members share one `{stage}/{count}/a{attempt}/{agent}`
+  label, and each resolution recomputes that set. A previous attempt is
+  ignored. The task resumes `running` when every gated handoff in the
+  attempt was delivered, and `failed` when the attempt is fully resolved
+  and any of those handoffs was cancelled. Completion and advancement are
+  rejected while the task is `input_required` or `auth_required`. `tasks/get` maps those to
+  A2A `input-required` and
+  `auth-required`. Remote steps stay `running` because they raise no local
+  wake. The compile break on this branch is repaired in the same change:
+  `tasks/mod.rs` and the deleted model declarations are restored, and
+  `WorkflowStep` literals include `sub_task_id`, `handoff_metadata`, and
+  `context_filter`. Sub-workflow completion (#366) and context filtering
+  (#361) were not in the destroyed commit and are not implemented here.
+
 - **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
   `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
   (measured `provider.usage` spend vs `quota.snapshot` balance movement with

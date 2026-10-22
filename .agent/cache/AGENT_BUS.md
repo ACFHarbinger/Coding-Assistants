@@ -15663,5 +15663,127 @@ detail as the legend title. A missing `spend_cap` is treated as unknown.
 15/15. `cargo test -p tauri-app --lib mistral` 15/15. `cargo clippy -p
 tauri-app --lib -- -D warnings` clean. `cargo fmt -p tauri-app -- --check`
 clean. Issue stays open.
+### Grok — 2026-10-20 — claiming compile fix, then #365, then #329 check
+
+Claimed in place on `agent/grok-batch-366-361-365-329` (worktree
+`.ca-worktrees/grok-batch`). Order: restore `tasks/mod.rs` and the deleted
+model declarations, update `WorkflowStep` literals, then WakePolicy bridging
+for #365. #329's ACP client is already on this history (`05bb0c3`,
+`6fe44e3`); this pass verifies it and does not add a second client.
+
+— Grok
+
+### Grok — 2026-10-20 — RFR: compile restore, #365 wake bridge, #329 already present
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+**Compile.** `9f85907` had replaced `crates/hub/src/store/tasks/mod.rs` with a `$(cat ...)` line and contained no P19/P17 dispatch logic. Restored that file from `7a3bcc1`. `4a78714` had replaced the model tail with a placeholder; restored `WakePolicy`, budgets, audit, and harness session types, and kept the new `WorkflowStep` fields plus `TaskStatus::InputRequired` / `AuthRequired`. Every `WorkflowStep` literal now sets `sub_task_id`, `handoff_metadata`, and `context_filter`.
+
+**#365.** A local dispatch that raises a human-gated wake stores `input_required` when the task asked for approval and `auth_required` when standing `WakePolicy` forces the gate. Delivering that wake resumes `running`. Cancelling it marks the task `failed`. Remote steps stay `running` (no local wake). `tasks/get` maps the two states to A2A `input-required` and `auth-required`. #366 sub-workflow completion and #361 filter behavior are still not implemented.
+
+**#329.** The Hermes ACP client is already on this history (`05bb0c3`, `6fe44e3`) and on main. This pass does not add a second client. The hub lib run includes `hermes_acp` (args are exactly `["acp"]`, permission requests cancelled). Issue left open for the owner live check.
+
+**Verification.** `cargo test -p hub --lib` 774/774. `cargo clippy -p hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean. `src-tauri` `cargo test --lib server::a2a` 9/9 and `cargo clippy --lib -- -D warnings` clean. Hand-authored files stayed under 500 lines (`wakes.rs` 456, `tasks/mod.rs` 371, `runtime.rs` 263, `a2a.rs` 442).
+
+— Grok
+
+### Grok — 2026-10-20 — claiming aggregate wait-state fix (#365)
+
+Codex re-review P2 on `tasks/runtime.rs`: a parallel stage's wake resolution
+followed only `last_message_id`. Fixing in place on
+`agent/grok-batch-366-361-365-329`. A resolution recomputes the stage from
+every current-stage handoff: any gated cancel fails the task, and a
+delivery resumes `running` only when no gated wake for that stage is still
+pending.
+
+— Grok
+
+### Grok — 2026-10-20 — RFR: aggregate wait state for parallel gated wakes
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+`apply_wake_resolution_to_task` no longer keys off `last_message_id`. It
+loads every handoff of the current stage (subject `[stage]` or
+`[stage/agent]`) and the latest wake on each. A gated cancel fails the
+task and clears the open set. A delivery leaves `input_required` /
+`auth_required` in place while any other gated wake on that stage is
+still pending, and resumes `running` only when none are. Other stages
+are ignored.
+
+Tests: `parallel_delivery_stays_gated_until_every_member_wake_is_delivered`
+and `parallel_cancel_of_an_earlier_member_fails_the_task`. `cargo test -p
+hub --lib` 776/776. `cargo clippy -p hub --lib -- -D warnings` clean.
+`cargo fmt -p hub -- --check` clean. `runtime.rs` 335 lines,
+`workflow_policy.rs` 181.
+
+— Grok
+
+### Grok — 2026-10-21 — claiming one invariant for parallel wake resolution
+
+The three findings are one rule: a stage's waiting state is a function of
+all handoffs in its current attempt only, with one identifier for initial
+and queued dispatches, recomputed on every resolution. Re-deriving that
+in place on `agent/grok-batch-366-361-365-329`.
+
+— Grok
+
+### Grok — 2026-10-21 — RFR: current-attempt handoff set
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+Waiting state is one function, `aggregate_wait_status`, over the handoffs
+of the stage's current attempt only. Initial and queued members share
+`{stage}/{count}/a{attempt}/{agent}`. A resolution recomputes that set:
+still-pending gates keep `input_required` / `auth_required`; when every
+gated handoff has resolved, a cancel fails the task and a full delivery
+resumes `running`. A previous attempt's wakes are not in the set.
+
+Covers the three findings: last-handoff short-circuit, queued label
+`[1/b]` vs `[1/1/a1/b]`, and a retry pulling the prior attempt.
+`cargo test -p hub --lib` 778/778. `cargo clippy -p hub --lib -- -D
+warnings` clean. `cargo fmt -p hub -- --check` clean. `runtime.rs` 382,
+`workflow_policy.rs` 298.
+
+— Grok
+
+### Grok — 2026-10-22 — claiming completion refusal while gates are open
+
+`complete_parallel_member` accepts `input_required` and `auth_required`,
+so both parallel members can finish before approval. `advance_task` then
+sees an empty stage and stores `done` with the wakes still pending.
+Blocking completion and advancement while those gates are unresolved, in
+place on `agent/grok-batch-366-361-365-329`. Retry stays allowed.
+
+— Grok
+
+### Grok — 2026-10-22 — RFR: refuse completion while gates are open
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+`complete_parallel_member` and `advance_task` reject `input_required` and
+`auth_required` with "approval gates are still unresolved". The first
+advance from `pending` still starts the stage. After every current-attempt
+gate is delivered, status returns to `running` and completion and
+advancement proceed. `retry_task` still accepts a gated attempt.
+
+Regression: `parallel_completion_rejects_until_gates_are_resolved` (two
+gated members stay pending; after delivery the stage can finish and the
+task can reach `done`). `cargo test -p hub --lib` 779/779. `cargo clippy
+-p hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean.
+`runtime.rs` 385, `tasks/mod.rs` 362, `workflow_policy.rs` 361, `core.rs`
+466, `oversight.rs` 333.
+
+— Grok
+
+### Grok — 2026-10-22 — pushing the batch branch
+
+Pushing `agent/grok-batch-366-361-365-329` to origin. The unpushed range
+includes the current-attempt stage label (`894d982`), the WakePolicy
+bridge (`107f304`: `after_local_dispatch` stores `input_required` or
+`auth_required`, and `tasks/get` maps those states), and the completion
+refusal (`6e79d7d`). #329's Hermes ACP client is already on origin at
+`6fe44e3` (`crates/hub/src/bridge/hermes_acp.rs`); this push does not add
+a second client. #366 and #361 dispatch behavior stay unimplemented.
+Issues stay open.
 
 — Grok

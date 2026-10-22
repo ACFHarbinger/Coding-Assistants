@@ -8,6 +8,14 @@ use tempfile::tempdir;
 fn open() -> (HubStore, String, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path().join("home")).unwrap();
+    // These tests exercise guardrail/watermark mechanics, not the #365
+    // approval-gate wait state — keep wakes ungated.
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let workspace = dir.path().join("ws");
     fs::create_dir_all(&workspace).unwrap();
     (store, workspace.to_string_lossy().to_string(), dir)
@@ -22,6 +30,9 @@ fn step(agent: &str, instruction: &str) -> WorkflowStep {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }
 }
 
@@ -57,7 +68,13 @@ fn unscoped_task_inherits_only_hub_wide_rules() {
         .is_empty());
 
     let task = store
-        .create_task("unscoped", None, &[step("dev", "please rm -rf /")])
+        .create_task_with_parallel(
+            "unscoped",
+            None,
+            &[step("dev", "please rm -rf /")],
+            4,
+            false,
+        )
         .unwrap();
     assert_eq!(
         store.advance_task(&task.id, None, None).unwrap().status,
@@ -106,7 +123,7 @@ fn queued_parallel_dispatch_does_not_hide_earlier_member_output() {
                 grouped("dev_c", "c"),
             ],
             2,
-            true,
+            false,
         )
         .unwrap();
     let started = store.advance_task(&task.id, None, None).unwrap();
@@ -205,10 +222,12 @@ fn parallel_output_watermark_is_stamped_before_member_dispatches() {
         )
         .unwrap();
     let task = store
-        .create_task(
+        .create_task_with_parallel(
             "par",
             Some(&ws),
             &[grouped("dev_a", "a"), grouped("dev_b", "b")],
+            4,
+            false,
         )
         .unwrap();
     let started = store.advance_task(&task.id, None, None).unwrap();

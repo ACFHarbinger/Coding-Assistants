@@ -7,6 +7,15 @@ use tempfile::tempdir;
 fn open() -> (HubStore, String, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path().join("home")).unwrap();
+    // These tests exercise guardrail trips, not the #365 approval-gate
+    // wait state — keep wakes ungated so advance/complete isn't blocked
+    // on a human resolving a per-handoff wake.
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let workspace = dir.path().join("ws");
     fs::create_dir_all(&workspace).unwrap();
     (store, workspace.to_string_lossy().to_string(), dir)
@@ -21,6 +30,9 @@ fn step(agent: &str, instruction: &str) -> WorkflowStep {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }
 }
 
@@ -121,10 +133,12 @@ fn input_guardrail_blocks_task_dispatch_without_sending_or_advancing() {
         )
         .unwrap();
     let task = store
-        .create_task(
+        .create_task_with_parallel(
             "risky",
             Some(&ws),
             &[step("dev", "please rm -rf the build dir")],
+            4,
+            false,
         )
         .unwrap();
     let err = store
@@ -149,10 +163,12 @@ fn input_guardrail_blocks_task_dispatch_without_sending_or_advancing() {
 
     // A hub-wide rule elsewhere does not reach a different workspace.
     let other = store
-        .create_task(
+        .create_task_with_parallel(
             "fine",
             Some("/other/ws"),
             &[step("dev", "please rm -rf the build dir")],
+            4,
+            false,
         )
         .unwrap();
     assert_eq!(
@@ -177,10 +193,12 @@ fn output_guardrail_blocks_stage_advance_until_the_reply_is_acceptable() {
         )
         .unwrap();
     let task = store
-        .create_task(
+        .create_task_with_parallel(
             "flow",
             Some(&ws),
             &[step("dev", "implement"), step("reviewer", "review")],
+            4,
+            false,
         )
         .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
@@ -254,7 +272,9 @@ fn output_guardrail_screens_parallel_members_on_completion() {
     a.parallel_group = Some("g".into());
     let mut b = step("dev_b", "b");
     b.parallel_group = Some("g".into());
-    let task = store.create_task("par", Some(&ws), &[a, b]).unwrap();
+    let task = store
+        .create_task_with_parallel("par", Some(&ws), &[a, b], 4, false)
+        .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
     store
         .send_message(

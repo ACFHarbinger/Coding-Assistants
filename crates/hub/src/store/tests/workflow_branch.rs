@@ -6,6 +6,14 @@ use tempfile::tempdir;
 fn open() -> (HubStore, String, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path().join("home")).unwrap();
+    // These tests exercise branch routing, not the #365 approval-gate
+    // wait state — keep wakes ungated.
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let workspace = dir.path().join("ws");
     fs::create_dir_all(&workspace).unwrap();
     (store, workspace.to_string_lossy().to_string(), dir)
@@ -20,6 +28,9 @@ fn step(agent: &str, instruction: &str) -> WorkflowStep {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }
 }
 
@@ -46,7 +57,9 @@ fn passing_branch_skips_to_its_target_stage_and_records_the_route() {
     let mut plan = step("planner", "plan");
     plan.branch = branch("true", BranchTarget::Stage { index: 2 }, BranchTarget::Next);
     let steps = vec![plan, step("dev", "implement"), step("reviewer", "review")];
-    let task = store.create_task("branchy", Some(&ws), &steps).unwrap();
+    let task = store
+        .create_task_with_parallel("branchy", Some(&ws), &steps, 4, false)
+        .unwrap();
 
     store.advance_task(&task.id, None, None).unwrap();
     let routed = store
@@ -74,7 +87,9 @@ fn failing_branch_takes_on_fail_and_linear_default_still_advances() {
     let mut plan = step("planner", "plan");
     plan.branch = branch("false", BranchTarget::Done, BranchTarget::Next);
     let steps = vec![plan, step("dev", "implement")];
-    let task = store.create_task("branchy", Some(&ws), &steps).unwrap();
+    let task = store
+        .create_task_with_parallel("branchy", Some(&ws), &steps, 4, false)
+        .unwrap();
 
     store.advance_task(&task.id, None, None).unwrap();
     let routed = store.advance_task(&task.id, Some("planner"), None).unwrap();
@@ -90,7 +105,13 @@ fn done_and_fail_targets_finish_the_task_early() {
     let mut plan = step("planner", "plan");
     plan.branch = branch("true", BranchTarget::Done, BranchTarget::Next);
     let task = store
-        .create_task("early-done", Some(&ws), &[plan, step("dev", "implement")])
+        .create_task_with_parallel(
+            "early-done",
+            Some(&ws),
+            &[plan, step("dev", "implement")],
+            4,
+            false,
+        )
         .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
     let done = store.advance_task(&task.id, Some("planner"), None).unwrap();
@@ -100,7 +121,13 @@ fn done_and_fail_targets_finish_the_task_early() {
     let mut check = step("tester", "run the suite");
     check.branch = branch("false", BranchTarget::Next, BranchTarget::Fail);
     let task = store
-        .create_task("early-fail", Some(&ws), &[check, step("dev", "ship")])
+        .create_task_with_parallel(
+            "early-fail",
+            Some(&ws),
+            &[check, step("dev", "ship")],
+            4,
+            false,
+        )
         .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
     let failed = store.advance_task(&task.id, Some("tester"), None).unwrap();
@@ -121,7 +148,7 @@ fn back_edge_loops_within_max_retries_then_fails() {
         BranchTarget::Stage { index: 0 },
     );
     let task = store
-        .create_task("loop", Some(&ws), &[dev, tester])
+        .create_task_with_parallel("loop", Some(&ws), &[dev, tester], 4, false)
         .unwrap();
 
     store.advance_task(&task.id, None, None).unwrap(); // dev #1
@@ -217,7 +244,13 @@ fn parallel_stage_branch_uses_the_whole_stage_as_its_subject() {
     let mut b = step("dev_b", "part b");
     b.parallel_group = Some("impl".into());
     let task = store
-        .create_task("par", Some(&ws), &[a, b, step("reviewer", "review")])
+        .create_task_with_parallel(
+            "par",
+            Some(&ws),
+            &[a, b, step("reviewer", "review")],
+            4,
+            false,
+        )
         .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
     store
@@ -257,7 +290,7 @@ fn branch_approval_is_keyed_by_stage_not_just_task_and_attempt() {
         on_fail: BranchTarget::Fail,
     });
     let task = store
-        .create_task("keyed", Some(&ws), &[first, second])
+        .create_task_with_parallel("keyed", Some(&ws), &[first, second], 4, false)
         .unwrap();
     store.advance_task(&task.id, None, None).unwrap();
 

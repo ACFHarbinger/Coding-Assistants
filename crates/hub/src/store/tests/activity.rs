@@ -19,6 +19,9 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             parallel_group: None,
             peer: None,
             branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -28,6 +31,9 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             parallel_group: None,
             peer: None,
             branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
 
@@ -127,6 +133,9 @@ fn activity_view_filters_by_agent() {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
     let steps_grok = vec![WorkflowStep {
         agent: "grok".into(),
@@ -136,6 +145,9 @@ fn activity_view_filters_by_agent() {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     store
@@ -180,6 +192,9 @@ fn activity_view_filters_by_time_range_and_limit() {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     let task1 = store.create_task("Old Task", None, &steps).unwrap();
@@ -220,6 +235,9 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     let matching = store
@@ -262,6 +280,9 @@ fn activity_view_matches_stamped_task_id_in_process_json() {
         parallel_group: None,
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
     let task = store
         .create_task("T1 stamps", Some(&root.to_string_lossy()), &steps)

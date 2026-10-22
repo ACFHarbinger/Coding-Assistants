@@ -64,10 +64,14 @@ fn remote_step_records_result_as_handoff_without_local_wake() {
                 parallel_group: None,
                 peer: Some(peer.clone()),
                 branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
     let advanced = store.advance_task(&task.id, Some("lead"), None).unwrap();
+    assert_eq!(advanced.status, "running");
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
 
     let message_id = advanced
@@ -107,6 +111,9 @@ fn remote_step_without_pairing_token_fails_closed() {
                 parallel_group: None,
                 peer: Some("127.0.0.1:1".into()),
                 branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
@@ -150,6 +157,9 @@ fn remote_result_is_screened_as_output_before_the_handoff_is_stored() {
                 parallel_group: None,
                 peer: Some(peer),
                 branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
@@ -181,6 +191,9 @@ fn failed_wake_now_member_stays_pending_with_later_window_members() {
         parallel_group: Some("g".into()),
         peer,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     };
     let task = store
         .create_task_with_parallel(
@@ -227,6 +240,12 @@ fn refill_dispatch_is_persisted_before_the_next_slot_is_attempted() {
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
         agent: agent.into(),
         role: None,
@@ -235,6 +254,9 @@ fn refill_dispatch_is_persisted_before_the_next_slot_is_attempted() {
         parallel_group: Some("g".into()),
         peer,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     };
     let task = store
         .create_task_with_parallel(
@@ -247,7 +269,7 @@ fn refill_dispatch_is_persisted_before_the_next_slot_is_attempted() {
                 grouped("dev_d", Some("127.0.0.1:1".into())),
             ],
             2,
-            true,
+            false,
         )
         .unwrap();
     let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
@@ -289,6 +311,12 @@ fn failed_refill_keeps_the_already_persisted_completion() {
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
         agent: agent.into(),
         role: None,
@@ -297,6 +325,9 @@ fn failed_refill_keeps_the_already_persisted_completion() {
         parallel_group: Some("g".into()),
         peer,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     };
     let task = store
         .create_task_with_parallel(
@@ -308,7 +339,7 @@ fn failed_refill_keeps_the_already_persisted_completion() {
                 grouped("dev_c", Some("127.0.0.1:1".into())),
             ],
             2,
-            true,
+            false,
         )
         .unwrap();
     let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
@@ -335,6 +366,12 @@ fn pending_only_stage_retries_queued_dispatch_without_stage_retry() {
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
         agent: agent.into(),
         role: None,
@@ -343,6 +380,9 @@ fn pending_only_stage_retries_queued_dispatch_without_stage_retry() {
         parallel_group: Some("g".into()),
         peer,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     };
     let task = store
         .create_task_with_parallel(
@@ -350,7 +390,7 @@ fn pending_only_stage_retries_queued_dispatch_without_stage_retry() {
             None,
             &[grouped("dev_a", None), grouped("dev_b", Some(peer))],
             1,
-            true,
+            false,
         )
         .unwrap();
     let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
@@ -419,6 +459,12 @@ fn retry_task_recovers_a_stalled_open_member_while_a_peer_is_still_queued() {
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
+    store
+        .set_wake_policy(&WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let grouped = |agent: &str| WorkflowStep {
         agent: agent.into(),
         role: None,
@@ -427,9 +473,12 @@ fn retry_task_recovers_a_stalled_open_member_while_a_peer_is_still_queued() {
         parallel_group: Some("g".into()),
         peer: None,
         branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     };
     let task = store
-        .create_task_with_parallel("par", None, &[grouped("dev_a"), grouped("dev_b")], 1, true)
+        .create_task_with_parallel("par", None, &[grouped("dev_a"), grouped("dev_b")], 1, false)
         .unwrap();
     let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
     assert_eq!(started.open_agents, vec!["dev_a".to_string()]);
