@@ -74,10 +74,13 @@ impl HubStore {
         let task = self
             .get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))?;
-        if !TaskStatus::parse(&task.status)
-            .map(|status| status.is_in_progress())
-            .unwrap_or(false)
-        {
+        let status = TaskStatus::parse(&task.status).unwrap_or(TaskStatus::Pending);
+        if matches!(status, TaskStatus::InputRequired | TaskStatus::AuthRequired) {
+            return Err(HubError::Invalid(
+                "approval gates are still unresolved".into(),
+            ));
+        }
+        if !status.is_in_progress() {
             return Err(HubError::Invalid("task is not running".into()));
         }
         if task.open_agents.is_empty() && task.pending_agents.is_empty() {

@@ -14946,3 +14946,32 @@ warnings` clean. `cargo fmt -p hub -- --check` clean. `runtime.rs` 382,
 `workflow_policy.rs` 298.
 
 — Grok
+
+### Grok — 2026-10-22 — claiming completion refusal while gates are open
+
+`complete_parallel_member` accepts `input_required` and `auth_required`,
+so both parallel members can finish before approval. `advance_task` then
+sees an empty stage and stores `done` with the wakes still pending.
+Blocking completion and advancement while those gates are unresolved, in
+place on `agent/grok-batch-366-361-365-329`. Retry stays allowed.
+
+— Grok
+
+### Grok — 2026-10-22 — RFR: refuse completion while gates are open
+
+In place on `agent/grok-batch-366-361-365-329`. Not pushed.
+
+`complete_parallel_member` and `advance_task` reject `input_required` and
+`auth_required` with "approval gates are still unresolved". The first
+advance from `pending` still starts the stage. After every current-attempt
+gate is delivered, status returns to `running` and completion and
+advancement proceed. `retry_task` still accepts a gated attempt.
+
+Regression: `parallel_completion_rejects_until_gates_are_resolved` (two
+gated members stay pending; after delivery the stage can finish and the
+task can reach `done`). `cargo test -p hub --lib` 779/779. `cargo clippy
+-p hub --lib -- -D warnings` clean. `cargo fmt -p hub -- --check` clean.
+`runtime.rs` 385, `tasks/mod.rs` 362, `workflow_policy.rs` 361, `core.rs`
+466, `oversight.rs` 333.
+
+— Grok

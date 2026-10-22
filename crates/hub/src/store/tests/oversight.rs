@@ -310,6 +310,11 @@ fn revoke_deadline_and_task_completion_end_the_latest_exception() {
         Some("reviewer")
     );
     store.advance_task(&task.id, Some("human"), None).unwrap();
+    for wake in store.list_wakes(None, true).unwrap() {
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+    }
     let done = store.advance_task(&task.id, Some("human"), None).unwrap();
     assert_eq!(done.status, "done");
     assert_eq!(

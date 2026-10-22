@@ -312,6 +312,11 @@ impl HubStore {
                 task.status
             )));
         }
+        if matches!(status, TaskStatus::InputRequired | TaskStatus::AuthRequired) {
+            return Err(HubError::Invalid(
+                "approval gates are still unresolved".into(),
+            ));
+        }
         if !task.open_agents.is_empty() {
             return Err(HubError::Invalid(format!(
                 "parallel stage still open for agents: {}",

@@ -82,6 +82,15 @@ fn policy_forced_gate_is_auth_required_and_cancel_fails_the_task() {
         .unwrap();
     let advanced = store.advance_task(&task.id, Some("human"), None).unwrap();
     assert_eq!(advanced.status, "auth_required");
+    let blocked = store
+        .advance_task(&task.id, Some("human"), None)
+        .expect_err("gates block advancement");
+    assert!(
+        blocked
+            .to_string()
+            .contains("approval gates are still unresolved"),
+        "{blocked}"
+    );
     let wakes = store.list_wakes(Some("claude"), true).unwrap();
     assert!(wakes[0].requires_human_gate);
     store
@@ -279,6 +288,60 @@ fn retry_waiting_state_ignores_the_previous_attempt() {
             .unwrap();
     }
     assert_eq!(store.get_task(&task.id).unwrap().unwrap().status, "running");
+}
+
+#[test]
+fn parallel_completion_rejects_until_gates_are_resolved() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let task = store
+        .create_task_with_parallel("gated parallel", None, &parallel_impl_steps(), 2, true)
+        .unwrap();
+    let advanced = store.advance_task(&task.id, Some("human"), None).unwrap();
+    assert_eq!(advanced.status, "input_required");
+    assert_eq!(advanced.open_agents.len(), 2);
+
+    for agent in &advanced.open_agents {
+        let err = store
+            .complete_parallel_member(&task.id, agent, None)
+            .expect_err("gates block completion");
+        assert!(
+            err.to_string()
+                .contains("approval gates are still unresolved"),
+            "{err}"
+        );
+    }
+    let advance_err = store
+        .advance_task(&task.id, Some("human"), None)
+        .expect_err("gates block advancement");
+    assert!(
+        advance_err
+            .to_string()
+            .contains("approval gates are still unresolved"),
+        "{advance_err}"
+    );
+    let still = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(still.status, "input_required");
+    assert_eq!(store.list_wakes(None, true).unwrap().len(), 2);
+
+    for wake in store.list_wakes(None, true).unwrap() {
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+    }
+    let mut cur = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(cur.status, "running");
+    while !cur.open_agents.is_empty() {
+        let agent = cur.open_agents[0].clone();
+        cur = store
+            .complete_parallel_member(&task.id, &agent, None)
+            .unwrap();
+    }
+    assert!(cur.pending_agents.is_empty());
+    assert_eq!(cur.status, "running");
+    let done = store.advance_task(&task.id, Some("human"), None).unwrap();
+    assert_eq!(done.status, "done");
+    assert!(store.list_wakes(None, true).unwrap().is_empty());
 }
 
 #[test]
