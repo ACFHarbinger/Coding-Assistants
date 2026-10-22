@@ -81,6 +81,8 @@ export interface ProviderQuotaBalance {
   topped_up?: number | null;
   paid?: number | null;
   gift?: number | null;
+  /** Spend-kind: `"uncapped"` vs `"unknown"`. Omitted when `total` is a real cap. */
+  spend_cap?: "uncapped" | "unknown" | null;
 }
 
 // Raw counts a harness recorded locally (Mistral Vibe `meta.json` stats,

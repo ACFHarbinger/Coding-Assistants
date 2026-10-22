@@ -61,7 +61,7 @@ describe("BalanceBreakdownBar", () => {
     );
 
     expect(screen.getByTestId("balance-breakdown-bar")).toBeInTheDocument();
-    expect(screen.getByText("Account balance")).toBeInTheDocument();
+    expect(screen.getByText("Period spend")).toBeInTheDocument();
     expect(screen.getByText("$20.00 included this cycle")).toBeInTheDocument();
 
     // Check bar segments
@@ -75,7 +75,7 @@ describe("BalanceBreakdownBar", () => {
 
     // Check legend items
     expect(screen.getByText("Spent $20.00")).toBeInTheDocument();
-    expect(screen.getByText("Budget $0.00")).toBeInTheDocument();
+    expect(screen.getByText("Budget $0.00 of $20.00")).toBeInTheDocument();
     expect(screen.getByText("Free $51.22")).toBeInTheDocument();
   });
 
@@ -95,8 +95,75 @@ describe("BalanceBreakdownBar", () => {
     expect(budgetSegment).toHaveAttribute("title", "Remaining Budget: $15.00");
 
     expect(screen.getByText("Spent $5.00")).toBeInTheDocument();
-    expect(screen.getByText("Budget $15.00")).toBeInTheDocument();
+    expect(screen.getByText("Budget $15.00 of $20.00")).toBeInTheDocument();
     expect(screen.queryByText(/Free/)).not.toBeInTheDocument();
+  });
+
+  it("draws spend only and says so when the provider reports no cap (Mistral shape)", () => {
+    const uncapped: ProviderQuotaBalance = {
+      currency: "EUR",
+      total: 0,
+      kind: "spend",
+      spent: 16.25,
+      spend_cap: "uncapped",
+    };
+    render(<BalanceBreakdownBar balance={uncapped} />);
+
+    expect(screen.getByText("Period spend")).toBeInTheDocument();
+    expect(screen.getByText("€16.25")).toBeInTheDocument();
+    expect(screen.getByTestId("breakdown-spent")).toHaveStyle({ width: "100%" });
+    expect(screen.queryByTestId("breakdown-budget")).not.toBeInTheDocument();
+    expect(screen.getByTestId("breakdown-no-cap")).toBeInTheDocument();
+    expect(screen.queryByTestId("breakdown-cap-unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Budget/)).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-label",
+      "Period spend: €16.25 spent, no spend cap"
+    );
+  });
+
+  it("does not claim 'no spend cap' when the cap could not be read", () => {
+    const unread: ProviderQuotaBalance = {
+      currency: "EUR",
+      total: 0,
+      kind: "spend",
+      spent: 16.25,
+      spend_cap: "unknown",
+    };
+    render(
+      <BalanceBreakdownBar
+        balance={unread}
+        capNote="Monthly spend cap could not be read from Mistral Admin API (HTTP 500) — reporting spend only."
+      />
+    );
+
+    expect(screen.getByTestId("breakdown-spent")).toHaveStyle({ width: "100%" });
+    expect(screen.queryByTestId("breakdown-budget")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("breakdown-no-cap")).not.toBeInTheDocument();
+    const legend = screen.getByTestId("breakdown-cap-unavailable");
+    expect(legend).toHaveTextContent("Spend cap unavailable");
+    expect(legend).toHaveAttribute(
+      "title",
+      expect.stringContaining("could not be read")
+    );
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-label",
+      "Period spend: €16.25 spent, spend cap unavailable"
+    );
+  });
+
+  it("uses neutral wording when a zero total has no spend_cap field", () => {
+    const unread: ProviderQuotaBalance = {
+      currency: "EUR",
+      total: 0,
+      kind: "spend",
+      spent: 16.25,
+    };
+    render(<BalanceBreakdownBar balance={unread} />);
+    expect(screen.getByTestId("breakdown-cap-unavailable")).toHaveTextContent(
+      "Spend cap unavailable"
+    );
+    expect(screen.queryByTestId("breakdown-no-cap")).not.toBeInTheDocument();
   });
 
   it("handles over-budget spend with warning styling", () => {
@@ -127,7 +194,7 @@ describe("BalanceBreakdownBar", () => {
     expect(screen.queryByTestId("breakdown-spent")).not.toBeInTheDocument();
     expect(screen.getByTestId("breakdown-budget")).toBeInTheDocument();
     expect(screen.getByTestId("breakdown-free")).toBeInTheDocument();
-    expect(screen.getByText("Budget $7.34")).toBeInTheDocument();
+    expect(screen.getByText("Budget $7.34 of $7.34")).toBeInTheDocument();
     expect(screen.getByText("Free $5.00")).toBeInTheDocument();
   });
 });
@@ -174,6 +241,45 @@ describe("QuotaChart with balance_info spend", () => {
     expect(screen.getByText(/86% remaining/)).toBeInTheDocument();
     expect(screen.getByText("Spent $20.00")).toBeInTheDocument();
     expect(screen.getByText("Free $51.22")).toBeInTheDocument();
+  });
+
+  it("charts a capped monthly spend (Mistral shape) instead of a text line", () => {
+    const mistralQuota: ProviderQuota = {
+      agent_id: "mistral",
+      provider: "mistral",
+      harness_title: "Mistral Vibe",
+      status: "ok",
+      fetched_at: 1_725_800_000,
+      balance: "Spent $16.25 USD · Vibe $12.50 · 2026-09-01 → 2026-09-30",
+      balance_info: {
+        currency: "USD",
+        total: 100.0,
+        kind: "spend",
+        spent: 16.25,
+      },
+      windows: [
+        {
+          label: "Monthly spend",
+          family: "Mistral Admin",
+          used_percent: 16,
+          remaining_percent: 84,
+        },
+      ],
+    };
+
+    render(
+      <QuotaChart
+        quotas={[mistralQuota]}
+        refreshingIds={new Set()}
+        onRefreshOne={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("balance-breakdown-bar")).toBeInTheDocument();
+    expect(screen.getByText("Period spend")).toBeInTheDocument();
+    expect(screen.getByText("Spent $16.25")).toBeInTheDocument();
+    expect(screen.getByText("Budget $83.75 of $100.00")).toBeInTheDocument();
+    expect(screen.getByText(/84% remaining/)).toBeInTheDocument();
   });
 
   it("falls back to plain balance text when balance_info is absent", () => {

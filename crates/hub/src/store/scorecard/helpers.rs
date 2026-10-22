@@ -16,6 +16,7 @@ pub fn is_security_class_op(op: &str) -> bool {
         || op == "budget.stopped"
         || op.starts_with("oversight.")
         || op.starts_with("mcp.invoke")
+        || op.starts_with("guardrail.")
 }
 
 pub fn is_open_security_event(status: &str, op: &str) -> bool {

@@ -12,7 +12,8 @@
 //!   do not treat the criterion as failed, do not re-prompt.
 //! - `audit_id` is the `os_tool.proposed` row to resume. Persistence uses
 //!   hash-chained `process_json.schedule_gate` links (see `gate_proposal`),
-//!   keyed by task/criterion/attempt, not `pending_gate_json`.
+//!   keyed by task/criterion/attempt(/stage for workflow branches),
+//!   not `pending_gate_json`.
 //! - Approving that proposal must supply the gate result; do not submit a
 //!   second proposal for the same criterion/attempt.
 //!

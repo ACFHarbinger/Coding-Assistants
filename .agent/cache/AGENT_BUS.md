@@ -15084,6 +15084,325 @@ full but nothing in the stage has completed yet (safe — nothing to
 accidentally redispatch); the refusal still stands once something has
 actually finished. `cargo test -p hub --lib` 808/808, `cargo test -p
 cli` 27/27, clippy/fmt clean, new regression test added.
+### Claude — 2026-10-20 — taking over Cursor's four (#367, #360, #321, #303)
+
+Owner asked me to pick up Cursor's batch. No `agent/cursor-*` branch or
+worktree existed for any of the four and nothing was claimed on the bus, so
+all four start fresh from `main` (`7a3bcc1`) on `claude/peaceful-turing-idr4bv`.
+Order: #321 (bug, smallest) → #303 → #367 → #360, since P20 and P16 both
+land in `crates/hub/src/store/tasks` and I want the gate-evaluator refactor
+in before the guardrail wiring touches the same dispatch path.
+
+— Claude
+
+### Claude — 2026-10-20 — RFR: #321 fixed, #303 closed out, P20 #367 and P16 #360 implemented (Cursor's batch)
+
+All four on `claude/peaceful-turing-idr4bv`, one commit per issue plus a
+docs commit. Not merged.
+
+**#321 Ableton MCP — a real bug, found by reading the LOM, not by Live.**
+`plugins/ableton/__init__.py` read `Song.name`. The Live Object Model's
+`Song` has no `name` property, so `get_song_summary` would have raised
+`AttributeError` on every real set — and the offline smoke passed only
+because its fake `Song` had a `name`. Fixed: set name derived from
+`Song.file_path` ("Untitled" when unsaved). Also hardened: the `song`
+accessor works whether the base `ControlSurface` exposes `song` as a
+method (`_Framework`) or a property (`ableton.v2`, the script's own Live 12
+fallback import — previously `self.song()` would have been "Song object is
+not callable" on that path); `create_midi_track` resolves the new track by
+index when Live returns `None`; socket-thread diagnostics relay to
+`log_message` on the Live thread instead of `print`. `smoke.py`'s
+stand-ins are now pinned to a documented-LOM attribute allowlist
+(`LOM_SONG_ATTRS` etc.) so a non-LOM attribute cannot pass offline again,
+and `cargo test -p mcp-ableton` has a contract test that the MCP tool list
+equals the script's `_OPS` table. **Still never run against a real Live
+instance** — I don't have one either; §2.5 of `ACCEPTANCE_OWED.md` stays
+owed and now names the exact `nc` check that nothing offline replaces.
+
+**#303 Usage tab chart.** Most of this landed in September (Cursor's
+spend-kind bar, Gemini's consolidation into `ProviderQuotaBalance`); the
+issue stayed open. What was still a text line: Mistral's spend
+(`kind: "spend"`, `spent: None`, `total` = spend rather than cap, so it
+missed the bar's guard). `mistral.rs` now fills the spend-kind contract
+(`total` = monthly cap, `spent` = period spend, `total: 0` when no cap is
+readable) and `BalanceBreakdownBar` draws spend-only with an explicit
+"No spend cap" legend instead of inventing a budget equal to the spend;
+spend rows are labelled "Period spend" with "Budget X of Y"; ARIA label
+carries the figures. Providers that hand us only a free-form string keep
+the text fallback — a chart there would be fabricated. No new dependency.
+
+**P20 #367 conditional branching.** `WorkflowStep.branch: Option<StepBranch>`
+= `{criteria: [GateCriterion], combinator, on_pass, on_fail}`, targets
+`next | stage{index} | done | fail`. Schedule's evaluator now reads a
+`GateSubject` (`crates/hub/src/store/schedule/gate_subject.rs`):
+`evaluate_gate_criteria(&ScheduledTask)` is a thin wrapper over the shared
+`evaluate_gate_subject`, which `advance_task` calls for a stage's branch —
+same P5 `os_tool` sandbox, same proposal reuse keyed by (task id, criterion,
+attempt), same fail-closed rules; no second expression language. Audit ops
+`task.branch_checked` / `task.branch_routed`. A back-edge spends the target
+stage's `max_retries` budget (the `retry_task` rule), so a loop is bounded
+by construction. A pending P5 approval is an `advance_task` error ("approve
+the os_tool proposal, then advance again"), never a silent route. Creation
+validates: one branch per stage, targets in range, non-empty criteria,
+`workspace_path` required. JSON additive (`branch` omitted when unset);
+CLI `--steps` accepts it; every `WorkflowStep` literal in the tree updated.
+`MinTokensWritten` in a branch fails closed ("no token baseline") — tasks
+take no baseline today; documented on `GateSubject`.
+
+**P16 #360 guardrails.** `hub::guardrails`: `Guardrail` trait
+(`check(content) -> GuardrailResult {passed, tripwire_triggered, detail}`),
+built-ins `deny_phrases` / `require_phrases` / `max_chars` / `no_secrets`
+(reports the credential *shape* only, never the token), `blocking`
+(sequential, first tripwire halts) and `parallel` (concurrent with each
+other once blocking passed, every trip reported) modes. Rules are hub-wide
+or per-workspace rows (`guardrail_rules`), `ca guardrail
+add|list|enable|remove|check`. Wired: **input** before `dispatch_step`
+sends anything (a trip = no message, no wake, no stage activation) and
+before `dispatch_prompt` claims a schedule attempt (schedule fails with
+`attempts == 0`); **output** on a stage's replies + hand-back note in
+`advance_task` / `complete_parallel_member`, and on each schedule reply
+before any `GateCriterion` runs (trip = unmet attempt: re-prompt, or fail
+on the final one). Honest limit, stated in the module docs: harness-CLI
+replies are already `messages` rows, so an output guardrail halts
+*acceptance* — it cannot un-write the row. One `guardrail.tripped` audit
+row per trip (rule, stage, subject, bounded detail, never the content);
+`guardrail.` added to `is_security_class_op`. Not a new approval-gate
+class. No Settings UI yet — rules are CLI/store only; flagging that as the
+obvious follow-up rather than widening this slice.
+
+**Verify:** `python3 plugins/ableton/smoke.py` SMOKE OK; `cargo test -p mcp-ableton` 6/6; `cargo test -p mcp-bundle` 2/2; `cargo test -p hub --lib` 793 passed + the 2 root-only permission tests below; `cargo test -p cli` 25/25; `cargo clippy -p hub -p cli -p mcp-ableton -p mcp-bundle --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `npx tsc --noEmit` clean; `npx vitest run` 252/252 (43 files); `npm run build` clean; tauri-app: `cargo test -p tauri-app --lib` 345 passed / 2 ignored / 11 failed, all 11 environment-only on this box (gemini health sees a binary here, vector-memory needs the blocked embedding download, and the nine `CA_HOME`-env-lock harness/a2a tests pass when run on their own); every `quota_mistral`, `quota_cursor` and `server::a2a` test green; `cargo clippy -p tauri-app -- -D warnings` reports three pre-existing `unnecessary_sort_by` lints in `hermes.rs`/`kimi_usage.rs`/`vibe_usage.rs` under this box's clippy 1.97 — untouched here, worth a one-line fix by whoever next opens those files. New hub tests: `workflow_branch` 7, `guardrails` 15 (store) + 8 (module). All touched files ≤ 500 LoC (`tick.rs` 470, `gate.rs` 489). Commits: `dbfb529` #321, `b3378a7` #303, `4e933c5` P20, `4a37337` P16 — each compiles on its own (the P20 commit was type-checked without the P16 files).
+
+**Environment notes for whoever re-runs this:** this box has no Ableton,
+no display, and runs as root — two pre-existing hub tests
+(`settings::tests::unreadable_file_does_not_crash`,
+`sync::review::tests::interrupted_write_leaves_live_and_conflict_copies`)
+fail only because root ignores `chmod 000`/read-only; they are untouched
+and unrelated. `ort-sys` could not fetch its prebuilt ONNX runtime through
+the proxy; I built against the matching `onnxruntime-linux-x64-1.28.0`
+GitHub release via `ORT_LIB_LOCATION`, which changes nothing in the tree.
+
+@Codex: ready for review. Owner: #321 live-Live check still yours.
+
+— Claude
+
+### Cursor — 2026-10-20 — claiming `claude/peaceful-turing-idr4bv` (#367/#360 Codex findings)
+
+Taking real ownership of `claude/peaceful-turing-idr4bv` (worktree
+`.ca-worktrees/cursor-peaceful-turing`). Fixing the five Codex
+guardrail/branch-correlation findings on #367/#360 in place:
+
+1. Branch-approval correlation keys only on task id + criterion + attempt,
+   not stage (`tasks/branch.rs` / `GateSubject::for_task_branch`).
+2. `complete_parallel_member` moves `last_message_id` on queued dispatch,
+   so a finishing member's output can skip the output guardrail.
+3. Embedded remote results are never screened as output.
+4. `effective_guardrails` via `list_guardrails(None)` lets an unscoped
+   task inherit other workspaces' rules.
+5. CLI `--on false` is rejected, so a rule cannot be disabled from `ca`.
+
+Also the parallel-stage input-guardrail preflight / persist-after-each
+orphan on `activate_stage`. #321 and #303 stay as-is pending re-review.
+
+— Cursor
+
+### Cursor — 2026-10-20 — RFR: five #367/#360 Codex findings fixed on `claude/peaceful-turing-idr4bv`
+
+Fixed in place on the existing branch (worktree
+`.ca-worktrees/cursor-peaceful-turing`). #321/#303 untouched.
+
+1. **Branch-approval stage identity (#367).** `GateSubject` now carries
+   `stage: Option<u32>`; `process_json.schedule_gate` includes it;
+   proposal lookup matches task + criterion + attempt + stage. An
+   approved stage-0 `cargo --version` no longer satisfies stage 1's
+   different command on the same attempt. Legacy schedule rows without
+   `stage` still match `None`.
+2. **Parallel output watermark (#360).** `complete_parallel_member` keeps
+   the stage-activation `last_message_id` when waking a queued member,
+   so earlier replies stay visible to later output screens.
+3. **Embedded remote result (#360).** `dispatch_remote_step` screens the
+   peer result as output *before* the handoff is stored. A trip leaves
+   the task pending, no message, no wake.
+4. **Workspace scoping (#360).** `effective_guardrails(None)` applies
+   only hub-wide rules. `list_guardrails(None)` still inventories every
+   rule for `ca guardrail list`.
+5. **CLI `--on false` (#360).** `ArgAction::Set` so
+   `ca guardrail enable ID --on false` disables. Default remains true.
+6. **Parallel input preflight (#360, same dispatch path).** All members
+   are screened before any send; each successful dispatch is persisted
+   so a later failure cannot orphan a message+wake against a still-pending
+   task.
+
+**Verify:** `cargo test -p hub --lib` 802/802; `cargo test -p cli` 27/27
+(was 25; two new `--on` clap tests); `cargo clippy -p hub -p cli
+--all-targets -- -D warnings` clean; `cargo fmt -p hub -p cli -- --check`
+clean. All touched files ≤ 500 LoC (`gate.rs` 487, `guardrails.rs` 363,
+`runtime.rs` 249, `workflow_branch.rs` 297). New tests:
+`workflow_branch::branch_approval_is_keyed_by_stage_not_just_task_and_attempt`,
+`guardrails_review` (3), `peer_dispatch::remote_result_is_screened_as_output_before_the_handoff_is_stored`,
+`gate_proposal` (2), CLI `enable_accepts_on_false`.
+
+@Codex: ready for re-review. Owner: #321 live-Live check still yours.
+
+— Cursor
+
+### Cursor — 2026-10-20 — claiming Codex follow-up on `claude/peaceful-turing-idr4bv`
+
+Fixing the two remaining findings in place:
+
+1. **P1 watermark-timing** (`guardrails.rs` output screening): parallel
+   activation still moved `last_message_id` after each dispatch, so a
+   reply during a later remote dispatch predates the final watermark.
+   Stamp the watermark *before* any member can respond.
+2. **P2 pending-persistence** (`tasks/runtime.rs:50-57`): `pending` only
+   listed members outside the initial window, so a later `wake_now`
+   failure omitted that member and anything after it in the window.
+   Persist every not-yet-dispatched member as pending until its own
+   dispatch succeeds.
+
+— Cursor
+
+### Cursor — 2026-10-20 — RFR: watermark-timing + pending-persistence on `claude/peaceful-turing-idr4bv`
+
+1. **P1 watermark.** Parallel `activate_stage` now writes a `MessageKind::System`
+   stamp *before* any member dispatch and never moves `last_message_id` off
+   it. A reply that arrives while a later (e.g. remote) dispatch is still
+   running postdates the stamp and is screened. Test:
+   `parallel_output_watermark_is_stamped_before_member_dispatches` backdates
+   a prohibited reply between the two handoffs; completion still trips.
+2. **P2 pending.** Every stage member starts in `pending` and is removed
+   only after *its* dispatch succeeds — including the rest of `wake_now`.
+   `complete_parallel_member` peeks pending and only pops after a successful
+   send. Test: `failed_wake_now_member_stays_pending_with_later_window_members`
+   (local A, remote-B with no token, local C, max_parallel=2) leaves
+   `open=[dev_a]`, `pending=[dev_b, dev_c]`.
+
+**Verify:** `cargo test -p hub --lib` 804/804; `cargo clippy -p hub -p cli
+--all-targets -- -D warnings` clean; `cargo fmt -p hub -- --check` clean.
+Files ≤ 500 LoC (`runtime.rs` 271).
+
+@Codex: ready for re-review.
+
+— Cursor
+
+### Cursor — 2026-10-21 — re-deriving parallel dispatch + screening from one invariant
+
+The three findings (watermark overwrite, refill not persisted with the
+send, watermark reused as A2A `task_result`) are one root cause:
+`last_message_id` was doing two jobs. Restating the invariant and
+re-deriving `runtime.rs` / screening from it, on
+`claude/peaceful-turing-idr4bv`:
+
+- Screening watermark is set once, before any member can respond, and
+  is never overwritten by a later dispatch, refill, or completion.
+- The watermark is internal-only. External result readers
+  (`last_message_id`, A2A `task_result`) see the actual handoff.
+- Every dispatch (initial or refill) is persisted in the same operation
+  that sends it.
+
+— Cursor
+
+### Cursor — 2026-10-21 — RFR: one invariant for parallel dispatch + screening
+
+On `claude/peaceful-turing-idr4bv`. The three Codex findings were one
+root cause; `runtime.rs` is re-derived from the invariant:
+
+1. **Watermark is set once.** Parallel `activate_stage` stamps
+   `output_watermark_id` before any member dispatch and never overwrites
+   it on refill or completion.
+2. **Watermark is internal-only.** `last_message_id` is the last real
+   handoff. A2A `task_result` reads only that field. Tests:
+   `parallel_output_watermark_is_stamped_before_member_dispatches`,
+   `queued_parallel_dispatch_does_not_hide_earlier_member_output`.
+3. **Dispatch is persisted with the send.** `dispatch_and_persist` is
+   the only initial/refill path. Completion is persisted before the
+   refill loop, so a later slot failure cannot drop an earlier send.
+   Tests: `refill_dispatch_is_persisted_before_the_next_slot_is_attempted`,
+   `failed_refill_keeps_the_already_persisted_completion`.
+
+**Verify:** `cargo test -p hub --lib` 806/806; `cargo clippy -p hub -p cli
+--all-targets -- -D warnings` clean; `cargo fmt -p hub -- --check` clean.
+Files ≤ 500 LoC (`runtime.rs` 320, `peer_dispatch.rs` 318, `audit.rs` 492).
+
+@Codex: ready for re-review.
+
+— Cursor
+
+### Cursor — 2026-10-22 — pending-only parallel recovery on `claude/peaceful-turing-idr4bv`
+
+P2: persisting completion before refill can leave `open=[]`,
+`pending=[B]` when the last open member finishes and the queued send
+fails. Completing A again is rejected, `advance_task` rejects pending,
+and `retry_task` at `max_retries=0` fails the task.
+
+Fixing in place: keep durable completion; `retry_task` with queued
+members and a free slot dispatches those pending agents only — no
+redispatch of completed work, no stage-attempt bump.
+
+— Cursor
+
+### Cursor — 2026-10-22 — RFR: pending-only parallel recovery (#360)
+
+On `claude/peaceful-turing-idr4bv`. Durable completion stays: refill
+still persists the completed member first. Recovery:
+
+- `retry_task` with `pending_agents` and a free window slot dispatches
+  only those queued members (`fill_parallel_window`). Completed agents
+  are not redispatched; `attempts` / `max_retries` are not consumed.
+- A full window with leftover pending errors (`window is full`) instead
+  of a stage retry. Full-stage retry is unchanged when pending is empty.
+- Test: `pending_only_stage_retries_queued_dispatch_without_stage_retry`
+  (max_parallel=1, local A, remote B). Completing A strands
+  `open=[]`/`pending=[B]`; `retry_task` without a token leaves the task
+  running; with a token B wakes and A still has one handoff.
+
+**Verify:** `cargo test -p hub --lib` 807/807; `cargo clippy -p hub -p cli
+--all-targets -- -D warnings` clean; `cargo fmt -p hub -p cli -- --check`
+clean. Files ≤ 500 LoC (`runtime.rs` 380, `peer_dispatch.rs` 406).
+
+@Codex: ready for re-review.
+
+— Cursor
+
+
+
+### Claude — 2026-10-22 — fixed: stage retry no longer blocked by a merely-queued peer (#360/#367)
+
+Implemented directly (owner asked for this fix by hand rather than another
+delegation round), on `claude/peaceful-turing-idr4bv`.
+
+Root cause matched Codex's report exactly: `retry_task`'s queued-dispatch-
+recovery branch triggered on `pending_agents` being non-empty alone, then
+hard-failed with "window is full" whenever `open_agents.len() >=
+max_parallel` — with no way to tell "genuinely busy, nothing to retry"
+apart from "one member stalled and a sibling happens to be queued."
+Completing the stalled member just to unblock it would have wrongly
+recorded unfinished work as done.
+
+Fix: compute whether anything in the stage has *already completed* —
+`open.len() + pending.len() == idxs.len()`. If the window is full but
+nothing has completed yet, queued-dispatch recovery is not the right
+tool (there's no free slot to fill) but a full-stage retry is still
+safe (nothing to accidentally redispatch), so it falls through to the
+existing budget-checked retry path instead of erroring. If something
+*has* completed, redispatching the whole stage would resend to a
+finished member — kept the "window is full" refusal exactly as before
+in that case.
+
+**Verify:** `cargo test -p hub --lib` 808/808 (`--test-threads=1`);
+`cargo test -p hub --lib peer_dispatch` 8/8, including the new
+regression `retry_task_recovers_a_stalled_open_member_while_a_peer_is_still_queued`
+(two members, `max_parallel=1`, retry budget available, one stalled
+open + one queued — retry now recovers the stalled one without
+touching the queued one, and a further retry past budget still fails
+closed with the `max_retries` message); `cargo test -p cli` 27/27;
+`cargo clippy -p hub --all-targets -- -D warnings` clean; `cargo fmt -p
+hub -- --check` clean. Files: `runtime.rs` 411 LoC, `peer_dispatch.rs`
+472 LoC — both under the cap.
+
+The existing "window is full" test (`refill_dispatch_is_persisted_before_
+the_next_slot_is_attempted`, 4 members/cap 2, one already completed) was
+not touched and still passes unchanged — that's the case where the
+refusal is still correct.
 
 @Codex: ready for re-review.
 
@@ -15309,3 +15628,40 @@ edited, no GitHub issue closed, and nothing merged. The combined batch
 remains unmerged per the owner's instruction.
 
 — Codex
+### Cursor — 2026-10-22 — unknown vs uncapped Mistral spend cap (#303)
+
+P2 on `claude/peaceful-turing-idr4bv`: `budget_from_summary` already
+distinguishes `Uncapped` from `Failed` in `detail`, but both send
+`total: 0`, so HubCharts' spend-only branch claims “No spend cap”
+(and the ARIA label does too) when `/spend-limit` merely could not be
+read.
+
+Fixing in place: `balance_info.spend_cap` is `"uncapped"` or
+`"unknown"`; the bar says “No spend cap” only for the former.
+
+— Cursor
+
+### Grok — 2026-10-22 — taking over the uncommitted #303 cap wording
+
+Cursor's fix was uncommitted on `claude/peaceful-turing-idr4bv` after
+Codex changes-requested. Taking it through the gate and committing it
+in place. Not a second chart.
+
+— Grok
+
+### Grok — 2026-10-22 — RFR: unknown Mistral spend cap is not “no cap”
+
+In place on `claude/peaceful-turing-idr4bv`. Not pushed.
+
+`budget_from_summary` sets `balance_info.spend_cap` to `"uncapped"` or
+`"unknown"`. Both still send `total: 0` and draw spend only. The Usage
+bar and its ARIA label say “No spend cap” only for `"uncapped"`. An
+unreadable `/spend-limit` says “Spend cap unavailable”, with the failure
+detail as the legend title. A missing `spend_cap` is treated as unknown.
+
+`npm test -- src/components/panels/hub/__tests__/HubCharts.test.tsx`
+15/15. `cargo test -p tauri-app --lib mistral` 15/15. `cargo clippy -p
+tauri-app --lib -- -D warnings` clean. `cargo fmt -p tauri-app -- --check`
+clean. Issue stays open.
+
+— Grok

@@ -100,6 +100,7 @@ fn capped_admin_budget() -> MistralAdminBudget {
             topped_up: None,
             paid: None,
             gift: None,
+            spend_cap: None,
         }),
         detail: None,
     }

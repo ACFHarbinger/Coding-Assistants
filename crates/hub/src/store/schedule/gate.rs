@@ -11,6 +11,10 @@
 //! `types::ScheduledTask` for the accounting gap this has for
 //! harness-CLI targets. Missing measurements and an empty baseline fail
 //! closed instead of vacuously passing.
+//!
+//! The evaluator reads a [`GateSubject`] (P20 / #367), so workflow-step
+//! branches reuse it unchanged: `evaluate_gate_criteria` is the schedule
+//! wrapper, `evaluate_gate_subject` the shared core.
 
 use super::super::*;
 use super::gate_proposal as proposals;
@@ -155,13 +159,21 @@ impl HubStore {
         &self,
         task: &ScheduledTask,
     ) -> Result<GateCheckResult, HubError> {
-        if let Err(error) = workspace_ready(Path::new(&task.workspace)) {
+        let agents = self.schedule_target_agent_ids(&task.target)?;
+        self.evaluate_gate_subject(&GateSubject::for_schedule(task, agents))
+    }
+
+    pub fn evaluate_gate_subject(
+        &self,
+        subject: &GateSubject<'_>,
+    ) -> Result<GateCheckResult, HubError> {
+        if let Err(error) = workspace_ready(Path::new(subject.workspace)) {
             return Ok(GateCheckResult::workspace_failure(format!(
                 "workspace {}: {error}",
-                task.workspace
+                subject.workspace
             )));
         }
-        if task.gate_criteria.is_empty() {
+        if subject.criteria.is_empty() {
             return Ok(GateCheckResult {
                 passed: true,
                 pending: false,
@@ -169,24 +181,24 @@ impl HubStore {
             });
         }
         let strictness = SettingsStore::open(self.data_dir())
-            .effective(Some(&task.workspace))
+            .effective(Some(subject.workspace))
             .orchestration
             .sandbox_strictness;
-        let stamp = SliceStamp::registered(Some(task.id.clone()), None, None);
+        let stamp = SliceStamp::registered(Some(subject.id.to_string()), None, None);
         let audit_events = self.list_audit_events(false)?;
 
-        let mut outcomes = Vec::with_capacity(task.gate_criteria.len());
-        for (index, criterion) in task.gate_criteria.iter().enumerate() {
+        let mut outcomes = Vec::with_capacity(subject.criteria.len());
+        for (index, criterion) in subject.criteria.iter().enumerate() {
             outcomes.push(self.evaluate_one(
                 criterion,
-                task,
+                subject,
                 strictness,
                 &stamp,
                 index,
                 &audit_events,
             )?);
         }
-        let result = GateCheckResult::from_outcomes(task.gate_combinator, outcomes);
+        let result = GateCheckResult::from_outcomes(subject.combinator, outcomes);
         let details = result
             .outcomes
             .iter()
@@ -199,14 +211,14 @@ impl HubStore {
             })
             .collect::<Vec<_>>();
         let _ = self.record_audit_event(
-            Path::new(&task.workspace),
-            Path::new(&task.workspace),
-            "schedule.gate_checked",
+            Path::new(subject.workspace),
+            Path::new(subject.workspace),
+            subject.audit_operation,
             &json!({
-                "schedule_id": task.id,
+                subject.audit_key: subject.id,
                 "passed": result.passed,
                 "pending": result.pending,
-                "combinator": task.gate_combinator.as_str(),
+                "combinator": subject.combinator.as_str(),
                 "outcomes": details,
             })
             .to_string(),
@@ -218,7 +230,7 @@ impl HubStore {
     fn evaluate_one(
         &self,
         criterion: &GateCriterion,
-        task: &ScheduledTask,
+        subject: &GateSubject<'_>,
         strictness: SandboxStrictness,
         stamp: &SliceStamp,
         index: usize,
@@ -232,7 +244,7 @@ impl HubStore {
             } => self.evaluate_command(
                 program,
                 args,
-                task,
+                subject,
                 strictness,
                 stamp,
                 *check,
@@ -244,14 +256,14 @@ impl HubStore {
                 .evaluate_max_lines_per_file(
                     *max_lines,
                     globs,
-                    task,
+                    subject,
                     strictness,
                     stamp,
                     index,
                     audit_events,
                 ),
             GateCriterion::MinTokensWritten { min_tokens } => {
-                self.evaluate_min_tokens_written(*min_tokens, task)
+                self.evaluate_min_tokens_written(*min_tokens, subject)
             }
         }
     }
@@ -261,7 +273,7 @@ impl HubStore {
         &self,
         program: &str,
         args: &[String],
-        task: &ScheduledTask,
+        subject: &GateSubject<'_>,
         strictness: SandboxStrictness,
         stamp: &SliceStamp,
         check: GateCheck,
@@ -270,9 +282,7 @@ impl HubStore {
         audit_events: &[AuditEvent],
     ) -> Result<CriterionOutcome, HubError> {
         let label = format!("{program} {}", args.join(" "));
-        if let Some(proposal) =
-            proposals::proposal(audit_events, &task.id, criterion_key, task.attempts)
-        {
+        if let Some(proposal) = proposals::proposal_for(audit_events, subject, criterion_key) {
             if let Some(run) = proposals::approved_run(audit_events, &proposal.id) {
                 return Ok(approved_outcome(program, args, check, run));
             }
@@ -292,10 +302,10 @@ impl HubStore {
         let request = OsToolRequest {
             program: program.to_string(),
             args: args.to_vec(),
-            cwd: task.workspace.clone(),
-            workspace: Some(task.workspace.clone()),
+            cwd: subject.workspace.to_string(),
+            workspace: Some(subject.workspace.to_string()),
         };
-        let metadata = proposals::metadata(&task.id, index, criterion_key, task.attempts);
+        let metadata = proposals::metadata_for(subject, index, criterion_key);
         let result = os_tool::submit_with_metadata(
             self,
             request,
@@ -338,13 +348,13 @@ impl HubStore {
         &self,
         max_lines: u64,
         globs: &[String],
-        task: &ScheduledTask,
+        subject: &GateSubject<'_>,
         strictness: SandboxStrictness,
         stamp: &SliceStamp,
         index: usize,
         audit_events: &[AuditEvent],
     ) -> Result<CriterionOutcome, HubError> {
-        let workspace = Path::new(&task.workspace);
+        let workspace = Path::new(subject.workspace);
         let mut offenders = Vec::new();
         let mut pending: Option<CriterionOutcome> = None;
         let mut checked = 0u32;
@@ -361,7 +371,7 @@ impl HubStore {
             let outcome = self.evaluate_command(
                 "wc",
                 &["-l".to_string(), file.to_string_lossy().to_string()],
-                task,
+                subject,
                 strictness,
                 stamp,
                 GateCheck::AtMost { max: max_lines },
@@ -399,21 +409,21 @@ impl HubStore {
     fn evaluate_min_tokens_written(
         &self,
         min_tokens: u64,
-        task: &ScheduledTask,
+        subject: &GateSubject<'_>,
     ) -> Result<CriterionOutcome, HubError> {
-        if task.token_baseline.is_empty() {
+        if subject.token_baseline.is_empty() {
             return Ok(CriterionOutcome::failed(
                 "no token baseline; measurement is unavailable",
             ));
         }
         let metrics = self.list_agent_metrics()?;
         let mut short: Vec<String> = Vec::new();
-        let agents = self.schedule_target_agent_ids(&task.target)?;
+        let agents = &subject.agents;
         if agents.is_empty() {
             return Ok(CriterionOutcome::failed("no eligible token targets"));
         }
-        for agent_id in &agents {
-            let Some(baseline) = task.token_baseline.get(agent_id) else {
+        for agent_id in agents {
+            let Some(baseline) = subject.token_baseline.get(agent_id) else {
                 short.push(format!("{agent_id}: no token baseline"));
                 continue;
             };

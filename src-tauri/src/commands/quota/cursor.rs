@@ -221,6 +221,7 @@ pub(crate) fn balance_info_from_period_usage(value: &Value) -> Option<ProviderQu
         topped_up: None,
         paid: None,
         gift: Some(bonus_spend as f64 / 100.0),
+        spend_cap: None,
     })
 }
 

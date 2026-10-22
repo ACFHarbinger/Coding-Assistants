@@ -41,6 +41,7 @@ mod branch_links;
 mod bus_entries;
 mod danger;
 mod exports;
+mod guardrails;
 mod linked_accounts;
 pub use linked_accounts::*;
 mod messages;
@@ -53,6 +54,7 @@ pub mod schedule;
 pub use schedule::*;
 mod sync_gate;
 mod tasks;
+pub use tasks::{BranchTarget, StepBranch};
 #[cfg(test)]
 mod tests;
 mod workspaces;

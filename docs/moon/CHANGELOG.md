@@ -7,12 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-22 (#303 spend-cap readability)
+
+- **#303 an unreadable Mistral spend cap is not “No spend cap”.** `budget_from_summary` already told `Uncapped` from `Failed` in `detail`, but both sent `total: 0`, so the Usage bar treated a `/spend-limit` failure as an unlimited workspace. `balance_info.spend_cap` is now `"uncapped"` or `"unknown"`; the bar and its ARIA label say “No spend cap” only for the former, and “Spend cap unavailable” when the cap could not be read.
+
+### Codex review corrections — 2026-10-22 (P16 stalled-open-member recovery)
+
+- **#360/#367 a queued peer no longer blocks recovery of a stalled open member.** `retry_task` only refuses a full-stage retry when the window is full *and* something in the stage has already completed (redispatching it would be unsafe). If nothing has completed yet, a full window with queued members still waiting is recovered via an explicit stage retry — the same budget-checked path used when the pending queue is empty — instead of a hard "window is full" error that previously left the only way out being to (incorrectly) mark the stalled member complete.
+
+### Codex review corrections — 2026-10-22 (P16 pending-only recovery)
+
+- **#360 pending-only parallel stages can retry queued dispatches.** Completing the last open member still persists before refill. If that refill fails, `retry_task` wakes remaining `pending_agents` without redispatching completed members or consuming `max_retries`.
+
+### Codex review corrections — 2026-10-21 (P16 parallel invariant)
+
+- **#360 screening watermark is not the result pointer.** Parallel stages store an internal `output_watermark_id` (set once, before any member can reply) and keep `last_message_id` as the last real handoff. A2A `task_result` reads only the handoff. Every dispatch — initial or refill — is persisted in the same operation that sends it, so a later slot failure cannot leave a successful send unrecorded.
+
+### Codex review corrections — 2026-10-20 (P16/P20 follow-up)
+
+- **#360 parallel output watermark is stamped before any member can reply.** A system-kind stage stamp is written first; later (including remote) dispatches no longer move `last_message_id`, so a reply that arrives while another member is still dispatching is still screened.
+- **#360 failed `wake_now` members stay pending.** Parallel activation records every not-yet-dispatched member as pending until that member's own dispatch succeeds, so a later failure in the initial window cannot drop that member (or anyone after it) off the stage.
+
+### Codex review corrections — 2026-10-20 (P16/P20)
+
+- **#367 branch-approval correlation includes stage identity.** P5 proposal reuse for a `WorkflowStep` branch is keyed by task + criterion + attempt + stage, so an approved stage-0 command cannot satisfy stage 1 on the same attempt.
+- **#360 output guardrails cover parallel watermarks and remote results.** `complete_parallel_member` no longer moves `last_message_id` when waking a queued member (earlier replies stay visible to later screens). An embedded remote result is screened as output *before* the handoff is stored.
+- **#360 unscoped tasks inherit only hub-wide rules.** `effective_guardrails(None)` no longer applies other workspaces' restrictions. `ca guardrail list` still inventories every rule.
+- **#360 `ca guardrail enable --on false` actually disables.** `--on` takes a bool value (`ArgAction::Set`) instead of a flag that rejected `false`.
+- **#360 parallel-stage input preflight.** All members of a parallel stage are screened before any dispatch, and each successful send is persisted so a later failure cannot orphan a message+wake.
+
 ### Codex review corrections — 2026-10-20
 
 - Codex corrected wake-time backdating and lexical/invalid timestamp authority checks (#347). The later-wake regression failed before the correction and passes afterwards; scorecard tests 46/46 and Hub lib tests 656/656 pass.
 
 ### Added
 
+- **Conditional branching on `WorkflowStep` (P20, #367, `platform.md`):**
+  `WorkflowStep.branch: Option<StepBranch>` — `{criteria: [GateCriterion],
+  combinator, on_pass, on_fail}` with targets `next | stage{index} | done |
+  fail`. When a stage completes, `advance_task` evaluates the branch with
+  Schedule's own gate evaluator, now generalised over a `GateSubject`
+  (`evaluate_gate_criteria` is the schedule wrapper around the shared
+  `evaluate_gate_subject`): same P5 `os_tool` sandbox and proposal reuse,
+  same fail-closed rules, audit rows `task.branch_checked` and
+  `task.branch_routed`. A back-edge spends the target stage's `max_retries`
+  budget (the `retry_task` rule) so loops stay bounded; a pending P5 approval
+  is an `advance_task` error ("approve, then advance again"), never a silent
+  route. At most one branch per stage; targets validated at creation; the
+  task needs a `workspace_path`. JSON is additive (`branch` omitted when
+  unset) and the CLI `--steps` payload accepts it. Hub tests
+  `workflow_branch` 7/7.
+- **Guardrails primitive (P16, #360, `platform.md`):** `hub::guardrails` —
+  `Guardrail` trait (`check(content) -> GuardrailResult {passed,
+  tripwire_triggered, detail}`), built-in predicate implementors
+  (`deny_phrases`, `require_phrases`, `max_chars`, `no_secrets` — the last
+  reports only the credential *shape*, never the token), `blocking`
+  (sequential, first tripwire halts) and `parallel` (concurrent with each
+  other after blocking passes; every trip reported) modes. Rules persist as
+  hub-wide or per-workspace `guardrail_rules` rows (`ca guardrail
+  add|list|enable|remove|check`). Wired as **input** guardrails before
+  `dispatch_step` sends anything (no message, no wake, no stage activation
+  on a trip) and before `dispatch_prompt` claims a schedule attempt (the
+  schedule fails with zero attempts burned); as **output** guardrails on a
+  stage's replies plus hand-back note in `advance_task` /
+  `complete_parallel_member`, and on each schedule reply before any
+  `GateCriterion` runs (a trip is an unmet attempt: re-prompt, or fail on
+  the final one). Not a new approval-gate class: sits before P5 and
+  Schedule gates. Honest limit: harness-CLI replies are already `messages`
+  rows, so an output guardrail halts *acceptance*, it cannot un-write the
+  row. One `guardrail.tripped` audit row per trip (security-class; never
+  the screened content). Hub tests `guardrails` 15/15.
+
+### Fixed
+
+- **Ableton MCP bridge would have failed on every real Live set (#321):**
+  `plugins/ableton/__init__.py` read `Song.name`, which the Live Object
+  Model does not define — `get_song_summary` raised `AttributeError` inside
+  Live while the offline smoke passed because its fake `Song` had a `name`.
+  The set name is now derived from `Song.file_path` ("Untitled" when
+  unsaved). Also: the `song` accessor works whether the base
+  `ControlSurface` exposes `song` as a method (`_Framework`) or a property
+  (`ableton.v2`, the Live 12 fallback import), `create_midi_track` resolves
+  the new track by index when Live returns `None`, and socket-thread
+  diagnostics are relayed to `log_message` on the Live thread. `smoke.py`'s
+  stand-ins are now pinned to a documented-LOM attribute allowlist so a
+  non-LOM attribute cannot pass offline again, and `cargo test -p
+  mcp-ableton` checks the MCP tool list against the script's `_OPS` table.
+  Still never run against a live Ableton instance — owner acceptance stays
+  owed (`ACCEPTANCE_OWED.md` §2.5).
+- **Usage tab: Mistral spend was the last per-currency text line (#303):**
+  `mistral.rs` now fills the spend-kind contract (`total` = monthly cap,
+  `spent` = period spend; `total: 0` when no cap is readable) so the Usage
+  tab draws the same stacked spent / remaining-budget / free bar Cursor
+  gets. `BalanceBreakdownBar` labels spend-kind rows "Period spend", shows
+  "Budget X of Y", and renders a spend-only bar with an explicit "No spend
+  cap" legend instead of inventing a budget equal to the spend; ARIA label
+  carries the figures. Providers that hand us only a free-form string (no
+  structured figures) keep the text fallback — a chart there would be
+  fabricated. Vitest 252/252, `tsc` clean.
 - **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
   `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
   (measured `provider.usage` spend vs `quota.snapshot` balance movement with

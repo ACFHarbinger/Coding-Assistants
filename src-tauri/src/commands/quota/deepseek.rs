@@ -159,6 +159,7 @@ pub(crate) fn deepseek_quota() -> ProviderQuota {
         topped_up,
         paid: topped_up,
         gift: granted,
+        spend_cap: None,
     };
     ProviderQuota {
         agent_id: AGENT_ID.into(),
@@ -204,6 +205,7 @@ mod tests {
             topped_up,
             paid: topped_up,
             gift: granted,
+            spend_cap: None,
         };
         assert_eq!(balance_info.total, 12.34);
         assert_eq!(balance_info.paid, Some(7.34));

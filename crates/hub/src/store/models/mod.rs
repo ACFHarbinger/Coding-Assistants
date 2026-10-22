@@ -18,7 +18,9 @@ pub struct WorkflowStep {
     #[serde(default)]
     pub role: Option<String>,
     pub instruction: String,
-    /// How many times this step may be re-dispatched after `retry_task` (default 0).
+    /// How many times this step may be re-dispatched after a full-stage
+    /// `retry_task` (default 0). Retrying queued `pending_agents` does not
+    /// consume this budget.
     #[serde(default)]
     pub max_retries: u32,
     /// When set, adjacent steps with the same group run as one parallel stage.
@@ -29,6 +31,12 @@ pub struct WorkflowStep {
     /// locally as before. Old JSON without this key still parses.
     #[serde(default)]
     pub peer: Option<String>,
+    /// P20 (#367): optional next-stage selector evaluated when this step's
+    /// stage completes, with Schedule's gate evaluator. `None` keeps the
+    /// linear advance. Omitted from JSON when unset so older readers see
+    /// the same payload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<StepBranch>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,8 +87,13 @@ pub struct TaskRecord {
     pub steps: Vec<WorkflowStep>,
     pub created_at: String,
     pub updated_at: String,
-    /// Last handoff message id produced by advance/retry, if any.
+    /// Last real handoff of the current stage — the externally-visible
+    /// result pointer (A2A `task_result`, UI). Never the screening stamp.
     pub last_message_id: Option<String>,
+    /// Internal output-screening cursor. Set once before any parallel
+    /// member can respond; never overwritten mid-stage; never a result.
+    #[serde(default)]
+    pub output_watermark_id: Option<String>,
     /// Per-stage attempt counts (`"0" → 1` after first dispatch).
     pub attempts: std::collections::HashMap<String, u32>,
     /// Agents still outstanding in the current parallel stage (empty when sequential).

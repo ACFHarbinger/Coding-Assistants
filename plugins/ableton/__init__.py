@@ -9,6 +9,12 @@ Opens a localhost line-JSON TCP server that `crates/mcp/ableton`
 The Live Object Model is main-thread only, so the socket thread queues
 each job and `update_display` (Live calls this ~10 Hz) pumps it.
 
+Every LOM attribute touched here is one the published Live Object Model
+documents on `Song` / `Track` / `Scene` / `ClipSlot` (Live 11/12). In
+particular `Song` has **no** `name` property — the set name is derived
+from `Song.file_path`. `smoke.py` keeps its stand-in objects to that same
+attribute allowlist so a non-LOM attribute cannot pass offline again.
+
 Install: copy this folder to
 `~/Music/Ableton/User Library/Remote Scripts/CodingAssistants/`
 then pick **CodingAssistants** in Preferences → Link/MIDI → Control
@@ -39,7 +45,7 @@ except ImportError:  # allow py_compile / ruff outside Live
     _IN_LIVE = False
 
     class ControlSurface(object):  # type: ignore
-        def __init__(self, c_instance=None):
+        def __init__(self, c_instance=None, *_args, **_kwargs):
             self._c_instance = c_instance
 
         def song(self):
@@ -92,10 +98,22 @@ def _nth(seq, index, label):
     return seq[index]
 
 
+def _set_name(file_path):
+    """`Song` has no `name` in the LOM; Live shows the file stem instead."""
+    if not file_path:
+        return "Untitled"
+    stem = str(file_path).replace("\\", "/").rsplit("/", 1)[-1]
+    if stem.lower().endswith(".als"):
+        stem = stem[:-4]
+    return stem or "Untitled"
+
+
 def _op_get_song_summary(song, _args):
+    # `file_path` is documented from Live 11.0; older sets report "".
+    file_path = getattr(song, "file_path", "") or ""
     return {
-        "name": song.name,
-        "file_path": song.file_path,
+        "name": _set_name(file_path),
+        "file_path": file_path,
         "tempo": song.tempo,
         "signature_numerator": song.signature_numerator,
         "signature_denominator": song.signature_denominator,
@@ -149,11 +167,14 @@ def _op_set_tempo(song, args):
 def _op_create_midi_track(song, args):
     # LOM: 0 <= index <= len(tracks). len(tracks) appends. (-1 is a
     # community alias for "end" but is not in the published signature.)
-    track = song.create_midi_track(len(song.tracks))
+    index = len(song.tracks)
+    track = song.create_midi_track(index)
+    if track is None:  # Live < 11 returned nothing; the new track sits at `index`
+        track = _nth(song.tracks, index, "track_index")
     name = args.get("name")
     if name:
         track.name = name
-    return {"index": len(song.tracks) - 1, "name": track.name}
+    return {"index": index, "name": track.name}
 
 
 def _op_set_track_name(song, args):
@@ -187,12 +208,13 @@ _OPS = {
 
 
 class _BridgeServer(threading.Thread):
-    def __init__(self, port, jobs):
+    def __init__(self, port, jobs, log=None):
         super(_BridgeServer, self).__init__(daemon=True)
         self.port = port
         self._jobs = jobs
         self._stop = threading.Event()
         self._sock = None
+        self._log = log or print
 
     def run(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -200,7 +222,7 @@ class _BridgeServer(threading.Thread):
         try:
             sock.bind((_HOST, self.port))
         except OSError as exc:
-            print(
+            self._log(
                 "[coding-assistants] Ableton bridge bind failed on %s:%s: %s"
                 % (_HOST, self.port, exc)
             )
@@ -261,12 +283,19 @@ class CodingAssistantsBridge(ControlSurface):
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
         self._jobs = queue.Queue()
-        self._server = _BridgeServer(DEFAULT_PORT, self._jobs)
+        self._pending_logs = queue.Queue()
+        self._server = _BridgeServer(DEFAULT_PORT, self._jobs, self._pending_logs.put)
         self._server.start()
         self.log_message(
             "[coding-assistants] Ableton bridge listening on %s:%s"
             % (_HOST, DEFAULT_PORT)
         )
+
+    def _current_song(self):
+        """`_Framework.ControlSurface.song` is a method; `ableton.v2`'s is a
+        property. Accept either so a Live 12 fallback import still works."""
+        song = getattr(self, "song", None)
+        return song() if callable(song) else song
 
     def disconnect(self):
         if self._server is not None:
@@ -275,7 +304,17 @@ class CodingAssistantsBridge(ControlSurface):
 
     def update_display(self):
         ControlSurface.update_display(self)
+        self._drain_logs()
         self._pump()
+
+    def _drain_logs(self):
+        # Socket-thread diagnostics are relayed from the Live thread, where
+        # `log_message` is safe to call.
+        while True:
+            try:
+                self.log_message(self._pending_logs.get_nowait())
+            except queue.Empty:
+                return
 
     def _pump(self):
         while True:
@@ -288,7 +327,7 @@ class CodingAssistantsBridge(ControlSurface):
                 if handler is None:
                     reply.put({"ok": False, "error": "unknown op %r" % (op,)})
                     continue
-                song = self.song()
+                song = self._current_song()
                 if song is None:
                     raise RuntimeError("no Live set")
                 reply.put({"ok": True, "result": handler(song, args)})

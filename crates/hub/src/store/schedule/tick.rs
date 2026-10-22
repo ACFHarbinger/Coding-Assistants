@@ -183,6 +183,25 @@ impl HubStore {
         body: &str,
         detail: &str,
     ) -> Result<TickOutcome, HubError> {
+        // P16 (#360): input guardrails run before the attempt is claimed, so
+        // a tripped prompt burns no attempt and sends nothing.
+        let screened = self.screen_content(
+            crate::guardrails::GuardrailStage::Input,
+            Some(&task.workspace),
+            "schedule",
+            &task.id,
+            body,
+        )?;
+        if let Some(trip) = screened.tripped() {
+            return self.finish(
+                task,
+                ScheduleStatus::Failed,
+                &crate::store::guardrails::trip_message(
+                    crate::guardrails::GuardrailStage::Input,
+                    trip,
+                ),
+            );
+        }
         let Some(attempt) = self.claim_schedule_dispatch(task, now, body)? else {
             return Ok(TickOutcome {
                 id: task.id.clone(),
@@ -242,6 +261,15 @@ impl HubStore {
         }
 
         if responded {
+            // P16 (#360): output guardrails screen each reply before any
+            // gate criterion is evaluated against it. A trip counts as an
+            // unmet attempt: re-prompt, or fail on the final one.
+            if let Some(trip) = self.schedule_output_trip(task, last_fired)? {
+                if self.final_attempt_exhausted(task) {
+                    return self.finish(task, ScheduleStatus::Failed, &trip);
+                }
+                return self.reprompt_after_interval(task, now, last_fired, &trip);
+            }
             let gate = self.evaluate_gate_criteria(task)?;
             let summary = gate
                 .outcomes

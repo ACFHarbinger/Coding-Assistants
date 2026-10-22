@@ -105,6 +105,7 @@ pub fn a2a_task_state(status: &str) -> &'static str {
 
 fn task_result(store: &HubStore, task: &hub::TaskRecord, context_id: &str) -> Value {
     let state = a2a_task_state(&task.status);
+    // Result pointer only — never `output_watermark_id` (internal screening).
     let message = task
         .last_message_id
         .as_deref()
@@ -179,6 +180,7 @@ pub fn handle_rpc(store: &HubStore, method: &str, params: &Value, id: &Value) ->
                 max_retries: 0,
                 parallel_group: None,
                 peer: None,
+                branch: None,
             }];
             let task = match store
                 .create_task(&title, None, &steps)
