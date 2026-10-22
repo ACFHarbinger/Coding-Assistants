@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex review corrections — 2026-10-22 (P16 pending-only recovery)
+
+- **#360 pending-only parallel stages can retry queued dispatches.** Completing the last open member still persists before refill. If that refill fails, `retry_task` wakes remaining `pending_agents` without redispatching completed members or consuming `max_retries`.
+
 ### Codex review corrections — 2026-10-21 (P16 parallel invariant)
 
 - **#360 screening watermark is not the result pointer.** Parallel stages store an internal `output_watermark_id` (set once, before any member can reply) and keep `last_message_id` as the last real handoff. A2A `task_result` reads only the handoff. Every dispatch — initial or refill — is persisted in the same operation that sends it, so a later slot failure cannot leave a successful send unrecorded.

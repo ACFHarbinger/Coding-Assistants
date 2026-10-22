@@ -98,7 +98,7 @@ ca task create --title "plan-impl-review" --workspace "$PWD" --max-parallel 2 --
 ca task advance 'TASK-UUID'                         # plan stage
 ca task advance 'TASK-UUID' --from grok             # parallel impl (2 wake, 1 queued)
 ca task complete 'TASK-UUID' --agent dev_a          # frees a slot → wakes queued
-ca task retry 'TASK-UUID' --note "flake"            # re-dispatch current stage
+ca task retry 'TASK-UUID' --note "flake"            # wake queued members, or re-dispatch stage
 ca task list --status running
 ```
 

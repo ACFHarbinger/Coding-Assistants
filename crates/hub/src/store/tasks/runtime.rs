@@ -10,6 +10,10 @@
 //! - A dispatch (initial or refill) is persisted as part of the same
 //!   operation that sends it. "Succeeded but not yet saved" is not a
 //!   representable state.
+//! - Completing the last open member can leave a pending-only window if
+//!   the queued send fails. `retry_task` then dispatches those queued
+//!   members only — it does not redispatch completed work or consume a
+//!   stage retry.
 
 use super::super::*;
 impl HubStore {
@@ -117,7 +121,6 @@ impl HubStore {
         let mut last_handoff = task.last_message_id.clone();
         let watermark = task.output_watermark_id.clone();
         let stage_index = task.step_index;
-        let max_parallel = task.max_parallel;
         let attempts = task.attempts.clone();
 
         self.persist_task_runtime(
@@ -130,11 +133,42 @@ impl HubStore {
             &open,
             &pending,
         )?;
+        self.fill_parallel_window(
+            id,
+            &task,
+            agent,
+            note,
+            &mut last_handoff,
+            watermark.as_deref(),
+            &mut open,
+            &mut pending,
+        )?;
 
-        while open.len() < max_parallel as usize && !pending.is_empty() {
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
+    }
+
+    /// Dispatch queued members into free parallel slots. Does not change
+    /// the stage attempt counter or the screening watermark.
+    #[allow(clippy::too_many_arguments)]
+    fn fill_parallel_window(
+        &self,
+        id: &str,
+        task: &TaskRecord,
+        from_agent: &str,
+        note: Option<&str>,
+        last_handoff: &mut Option<String>,
+        watermark: Option<&str>,
+        open: &mut Vec<String>,
+        pending: &mut Vec<String>,
+    ) -> Result<(), HubError> {
+        let stage_index = task.step_index;
+        let stages = Self::workflow_stages(&task.steps);
+        let idxs = stages
+            .get(stage_index as usize)
+            .ok_or_else(|| HubError::Invalid("invalid stage index".into()))?;
+        while open.len() < task.max_parallel as usize && !pending.is_empty() {
             let next_agent = pending[0].clone();
-            let stages = Self::workflow_stages(&task.steps);
-            let idxs = &stages[stage_index as usize];
             let step = idxs
                 .iter()
                 .map(|i| &task.steps[*i])
@@ -144,22 +178,20 @@ impl HubStore {
                 })?;
             self.dispatch_and_persist(
                 id,
-                &task,
+                task,
                 step,
-                agent,
+                from_agent,
                 note,
                 &format!("{}/{}", stage_index + 1, next_agent),
                 stage_index,
-                &mut last_handoff,
-                watermark.as_deref(),
-                &attempts,
-                &mut open,
-                &mut pending,
+                last_handoff,
+                watermark,
+                &task.attempts,
+                open,
+                pending,
             )?;
         }
-
-        self.get_task(id)?
-            .ok_or_else(|| HubError::NotFound(id.into()))
+        Ok(())
     }
 
     /// Send one member and persist that send in the same operation.
@@ -237,7 +269,12 @@ impl HubStore {
         Ok(())
     }
 
-    /// Re-dispatch the current stage (honours max_retries on the stage).
+    /// Retry queued parallel dispatches, or re-dispatch the current stage.
+    ///
+    /// Queued members (`pending_agents`) with a free window slot are
+    /// dispatched in place: completed work is left alone and the stage
+    /// attempt counter is not incremented. A full-stage retry (empty
+    /// pending queue) still honours `max_retries`.
     pub fn retry_task(
         &self,
         id: &str,
@@ -249,6 +286,29 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.into()))?;
         if task.status != TaskStatus::Running.as_str() {
             return Err(HubError::Invalid("can only retry a running task".into()));
+        }
+        if !task.pending_agents.is_empty() {
+            if task.open_agents.len() >= task.max_parallel as usize {
+                return Err(HubError::Invalid(
+                    "parallel window is full; complete an open member to wake queued agents".into(),
+                ));
+            }
+            let mut open = task.open_agents.clone();
+            let mut pending = task.pending_agents.clone();
+            let mut last_handoff = task.last_message_id.clone();
+            self.fill_parallel_window(
+                id,
+                &task,
+                from_agent.unwrap_or("human"),
+                note,
+                &mut last_handoff,
+                task.output_watermark_id.as_deref(),
+                &mut open,
+                &mut pending,
+            )?;
+            return self
+                .get_task(id)?
+                .ok_or_else(|| HubError::NotFound(id.into()));
         }
         let stages = Self::workflow_stages(&task.steps);
         let stage_index = task.step_index as usize;

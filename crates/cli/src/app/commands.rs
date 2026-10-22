@@ -138,7 +138,7 @@ pub(crate) enum TaskCommand {
         #[arg(long)]
         note: Option<String>,
     },
-    /// Re-dispatch the current stage (honours max_retries; may mark task failed).
+    /// Wake queued parallel members, or re-dispatch the stage (honours max_retries).
     Retry {
         id: String,
         #[arg(long)]

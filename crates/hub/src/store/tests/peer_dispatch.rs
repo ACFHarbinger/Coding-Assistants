@@ -271,6 +271,16 @@ fn refill_dispatch_is_persisted_before_the_next_slot_is_attempted() {
         .unwrap();
     assert_eq!(result.kind, "handoff");
     assert_eq!(result.to_agent, "dev_c");
+    let err = store
+        .retry_task(&task.id, None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("window is full"), "{err}");
+    let still = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(still.open_agents, after.open_agents);
+    assert_eq!(still.pending_agents, after.pending_agents);
+    assert_eq!(still.attempts, after.attempts);
+    assert_eq!(still.status, "running");
 }
 
 #[test]
@@ -315,4 +325,82 @@ fn failed_refill_keeps_the_already_persisted_completion() {
     assert_eq!(after.open_agents, vec!["dev_b".to_string()]);
     assert_eq!(after.pending_agents, vec!["dev_c".to_string()]);
     assert!(!after.open_agents.iter().any(|a| a == "dev_a"));
+}
+
+#[test]
+fn pending_only_stage_retries_queued_dispatch_without_stage_retry() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
+    let peer = stub_peer_once("test-pairing-token", "peer-done");
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let grouped = |agent: &str, peer: Option<String>| WorkflowStep {
+        agent: agent.into(),
+        role: None,
+        instruction: format!("work {agent}"),
+        max_retries: 0,
+        parallel_group: Some("g".into()),
+        peer,
+        branch: None,
+    };
+    let task = store
+        .create_task_with_parallel(
+            "par",
+            None,
+            &[grouped("dev_a", None), grouped("dev_b", Some(peer))],
+            1,
+            true,
+        )
+        .unwrap();
+    let started = store.advance_task(&task.id, Some("lead"), None).unwrap();
+    assert_eq!(started.open_agents, vec!["dev_a"]);
+    assert_eq!(started.pending_agents, vec!["dev_b"]);
+    let watermark = started.output_watermark_id.clone();
+    let attempts = started.attempts.clone();
+
+    store
+        .complete_parallel_member(&task.id, "dev_a", None)
+        .expect_err("queued remote refill has no pairing token");
+    let stranded = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(stranded.open_agents, Vec::<String>::new());
+    assert_eq!(stranded.pending_agents, vec!["dev_b".to_string()]);
+    assert_eq!(stranded.attempts, attempts);
+
+    let complete_again = store
+        .complete_parallel_member(&task.id, "dev_a", None)
+        .unwrap_err()
+        .to_string();
+    assert!(complete_again.contains("not in the open parallel set"));
+    let advance = store
+        .advance_task(&task.id, Some("lead"), None)
+        .unwrap_err()
+        .to_string();
+    assert!(advance.contains("queued agents"));
+
+    store
+        .retry_task(&task.id, Some("lead"), None)
+        .expect_err("queued remote still has no pairing token");
+    let still = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(still.status, "running");
+    assert_eq!(still.open_agents, Vec::<String>::new());
+    assert_eq!(still.pending_agents, vec!["dev_b".to_string()]);
+    assert_eq!(still.attempts, attempts);
+    assert_eq!(still.output_watermark_id, watermark);
+    assert_eq!(store.poll_messages("dev_a", false).unwrap().len(), 1);
+
+    std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
+    let recovered = store.retry_task(&task.id, Some("lead"), None).unwrap();
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    assert_eq!(recovered.open_agents, vec!["dev_b".to_string()]);
+    assert!(recovered.pending_agents.is_empty());
+    assert_eq!(recovered.attempts, attempts);
+    assert_eq!(recovered.output_watermark_id, watermark);
+    assert_eq!(store.poll_messages("dev_a", false).unwrap().len(), 1);
+    let result = store
+        .get_message(recovered.last_message_id.as_deref().unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.kind, "handoff");
+    assert_eq!(result.to_agent, "dev_b");
 }

@@ -18,7 +18,9 @@ pub struct WorkflowStep {
     #[serde(default)]
     pub role: Option<String>,
     pub instruction: String,
-    /// How many times this step may be re-dispatched after `retry_task` (default 0).
+    /// How many times this step may be re-dispatched after a full-stage
+    /// `retry_task` (default 0). Retrying queued `pending_agents` does not
+    /// consume this budget.
     #[serde(default)]
     pub max_retries: u32,
     /// When set, adjacent steps with the same group run as one parallel stage.
