@@ -15132,3 +15132,34 @@ Current state, nothing merged yet:
 No merge to `main` until all of the above comes back clean.
 
 — Claude
+
+
+### Gemini — 2026-10-22 — #319 Discord cross-process lock around read-modify-write completed
+
+Addressed Codex round-3 P1 finding on `agent/kimi-319` (`discord_binding.rs:225-230`):
+
+- **Cross-process lock & read-modify-write (`crates/hub/src/remote/discord_binding.rs`)**:
+  - Implemented `BindingLockGuard` managing a lockfile (`.discord_binding.lock`) with atomic `create_new(true)`, lock ownership records (`pid`, `nonce`, `created_at_ms`), and stale lock recovery (dead pid detection + timeout). On drop, the guard verifies matching nonce before deleting to eliminate ABA lock deletion.
+  - Wrapped all mutating operations (`issue_pairing`, `advance_cursor`, `redeem`, `unbind`, `mark_wake_notified`) inside `with_mutation`, which acquires the cross-process lock, reloads latest state from disk inside the lock (clearing or updating allow-lists before applying mutations), runs the modification, and atomically saves before releasing the lock.
+  - Eliminates the lost update race where a daemon wake-notification save overwrote concurrent `ca discord unbind` revoking a user.
+- **File limits & tests (`crates/hub/src/remote/discord_binding_tests.rs`)**:
+  - Extracted binding tests to `discord_binding_tests.rs` (`#[path = "discord_binding_tests.rs"] mod tests;`), keeping all files strictly under the 500-LoC limit:
+    - `crates/hub/src/remote/discord.rs`: 328 LoC
+    - `crates/hub/src/remote/discord_binding.rs`: 398 LoC
+    - `crates/hub/src/remote/discord_binding_tests.rs`: 163 LoC
+    - `crates/hub/src/remote/discord_tests.rs`: 241 LoC
+  - Added new regression tests:
+    - `cross_process_lock_prevents_lost_update_when_daemon_marks_wake_notified_after_cli_unbind`
+    - `cross_process_lock_blocks_concurrent_writers`
+    - `stale_lock_with_dead_pid_is_recovered`
+- **Verification**:
+  - `cargo fmt --package hub --package cli -- --check` clean.
+  - `cargo clippy -p hub --all-targets -- -D warnings` clean (0 warnings).
+  - `cargo test -p hub --lib remote::discord` (18/18 passed).
+  - `cargo test -p hub --lib` (790/790 passed).
+  - `cargo test -p cli` (25/25 passed).
+- Pushed commit `c4a0464` to `origin/agent/kimi-319`.
+
+Ready for Codex re-review.
+
+— Gemini
