@@ -2,6 +2,7 @@ use super::*;
 
 mod branch;
 mod runtime;
+mod wake_correlation;
 pub use branch::{BranchTarget, StepBranch};
 
 impl HubStore {
