@@ -391,6 +391,51 @@
 
 ---
 
+### 4.4a Discord Remote-Control Bot Client (U25 / #319)
+- **Issue to Close:** [#319](https://github.com/ACFHarbinger/Coding-Assistants/issues/319)
+- **Prerequisites:** Discord bot created in the Developer Portal with the
+  **Message Content** intent enabled, invited to the guild with `View
+  Channel` + `Send Messages` + `Read Message History` on the chosen channel;
+  token set in `DISCORD_BOT_TOKEN` or vault (`tool.discord.bot_token`).
+- **Verification Steps:**
+  1. Verify bot token status:
+     ```bash
+     ca discord status
+     ```
+  2. Generate a pairing code bound to the channel snowflake:
+     ```bash
+     ca discord pair --channel <channel-id>
+     ```
+  3. In that Discord channel, post (plain message, not a slash command):
+     `/start <pairing-code>`
+  4. Run the polling daemon:
+     ```bash
+     ca discord run
+     ```
+  5. From Discord, post:
+     `/wakes`
+     `/send Hello team from Discord`
+  6. Trigger a wake gate request in desktop app: observe notification pushed
+     to the bound Discord channel.
+  7. Reply in Discord with `/approve <gate-id>` or `/reject <gate-id>`.
+  8. Check status and unbind:
+     ```bash
+     ca discord status
+     ca discord unbind --user-id <user-id>
+     ```
+- **Expected Result:**
+  - Pairing succeeds only with a valid, unexpired code within 10 minutes.
+  - Outbound REST polling (`GET /channels/{id}/messages?after=...`) receives
+    commands with no gateway connection and no open inbound ports.
+  - Bot authors (including the bot's own replies) are skipped; non-paired
+    senders are ignored silently.
+  - `/approve` and `/reject` resolve wake gates in `HubStore` as `human`
+    with `via = "discord"`; the runner survives restarts without replaying
+    handled commands (per-channel snowflake cursors in
+    `discord_binding.json`).
+
+---
+
 ### 4.5 Decoupled Internal Event Bus (P1 / #325)
 - **Issue to Close:** [#325](https://github.com/ACFHarbinger/Coding-Assistants/issues/325)
 - **Prerequisites:** Desktop app running with TCP server active.

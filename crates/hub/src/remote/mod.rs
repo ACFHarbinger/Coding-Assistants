@@ -1,11 +1,14 @@
-//! Chat-platform remote client (U25 / #319). Telegram v1 only.
+//! Chat-platform remote clients (U25 / #319). Telegram and Discord v1.
 //!
-//! The bot token is resolved through P12. Pairing state lives in
-//! `telegram_binding.json` next to `hub.db`. Inbound slash commands map onto
-//! existing HubStore writes; unknown senders are silent.
+//! Bot tokens are resolved through P12. Pairing state lives in
+//! `<platform>_binding.json` next to `hub.db`. Inbound slash commands map
+//! onto existing HubStore writes; unknown senders are silent. Both
+//! transports are outbound-only polls — no webhook, no listen port.
 
 mod binding;
 mod command;
+pub mod discord;
+mod discord_binding;
 mod dispatch;
 mod telegram;
 

@@ -408,6 +408,20 @@ pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
         ),
     },
     FieldSpec {
+        id: "tool.discord.bot_token",
+        display_name: "Discord Bot Token",
+        owner_kind: OwnerKind::Tool,
+        owner_key: "discord",
+        env_var: Some("DISCORD_BOT_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://discord.com/developers/docs/quick-start/getting-started"),
+        notes: Some(
+            "Bot token for the U25 Discord remote client. Requires the Message Content \
+             intent and View/Send channel perms. Vault wins; env is the fallback.",
+        ),
+    },
+    FieldSpec {
         id: "tool.tcp.auth_token",
         display_name: "LAN TCP Auth Token",
         owner_kind: OwnerKind::Tool,
