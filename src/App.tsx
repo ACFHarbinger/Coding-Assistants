@@ -4,7 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 
 import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages } from "./app/hubState";
 import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
-import HubPanel from "./components/panels/HubPanel";
+import ChannelsTab from "./components/panels/hub/ChannelsTab";
+import OperationsPanel from "./components/panels/OperationsPanel";
+import WorkPanel from "./components/panels/WorkPanel";
 import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
 import RemotePanel from "./components/panels/RemotePanel";
 import MessagerPanel from "./components/panels/MessagerPanel";
@@ -29,10 +31,11 @@ function App() {
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
-  const [mainView, setMainView] = useState<"orchestrate" | "hub" | "messager">("messager");
-  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals" | "schedule">("setup");
+  const [mainView, setMainView] = useState<"orchestrate" | "messager" | "operations" | "work">("messager");
+  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals" | "schedule" | "channels">("setup");
   const [requestedTerminalHarness, setRequestedTerminalHarness] = useState<string | null>(null);
-  const [hubVisited, setHubVisited] = useState(false);
+  const [operationsVisited, setOperationsVisited] = useState(false);
+  const [workVisited, setWorkVisited] = useState(false);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamError, setTeamError] = useState<string | null>(null);
@@ -335,11 +338,18 @@ function App() {
             Orchestrate
           </button>
           <button
-            className={mainView === "hub" ? "btn-primary" : "btn-secondary"}
+            className={mainView === "operations" ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => { setHubVisited(true); setMainView("hub"); }}
+            onClick={() => { setOperationsVisited(true); setMainView("operations"); }}
           >
-            Shared Hub
+            Operations
+          </button>
+          <button
+            className={mainView === "work" ? "btn-primary" : "btn-secondary"}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
+            onClick={() => { setWorkVisited(true); setMainView("work"); }}
+          >
+            Work
           </button>
           <button
             type="button"
@@ -384,19 +394,31 @@ function App() {
           />
         </div>
 
-        {(mainView === "hub" || hubVisited) && <div style={{ display: mainView === "hub" ? "contents" : "none" }}><HubPanel teamMemberIds={teamMemberIds} onAddAgent={addAgentToTeam} onRemoveAgent={removeAgentFromTeam} /></div>}
+        {(mainView === "work" || workVisited) && <div style={{ display: mainView === "work" ? "contents" : "none" }}><WorkPanel teamMemberIds={teamMemberIds} onAddAgent={addAgentToTeam} onRemoveAgent={removeAgentFromTeam} /></div>}
+
+
+        {(mainView === "operations" || operationsVisited) && <div style={{ display: mainView === "operations" ? "contents" : "none" }}><OperationsPanel /></div>}
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
-          <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", width: "fit-content", marginBottom: "1rem" }}>
-            <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("setup")}>
-              ⚙️ Setup &amp; Config
-            </button>
-            <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("terminals")}>
-              🖥️ Terminal Grid
-            </button>
-            <button type="button" className={orchestrateSubView === "schedule" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("schedule")}>
-              ⏱️ Schedule
-            </button>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
+              <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("setup")}>
+                ⚙️ Setup &amp; Config
+              </button>
+              <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("terminals")}>
+                🖥️ Terminal Grid
+              </button>
+              <button type="button" className={orchestrateSubView === "schedule" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("schedule")}>
+                ⏱️ Schedule
+              </button>
+              <button type="button" className={orchestrateSubView === "channels" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("channels")}>
+                📡 Channels
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: orchestrateSubView === "channels" ? "block" : "none" }}>
+            <ChannelsTab />
           </div>
 
           <div style={{ display: orchestrateSubView === "schedule" ? "block" : "none" }}>

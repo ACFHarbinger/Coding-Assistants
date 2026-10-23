@@ -1,34 +1,98 @@
+import { useCallback, useEffect, useState } from "react";
+import { invoke } from "../../../lib/tauri";
 import GrokLeaderCard from "../harness/GrokLeaderCard";
 import type { ChannelWorkspace } from "./types";
 import { cardStyle, inputStyle } from "./HubCharts";
 
-export default function ChannelsTab(props: {
-  channelWorkspaces: ChannelWorkspace[];
-  channelRenameDrafts: Record<string, string>;
-  setChannelRenameDrafts: (next: (prev: Record<string, string>) => Record<string, string>) => void;
-  renameChannelWorkspace: (workspace: string) => void;
-  deleteChannelWorkspace: (workspace: string) => void;
-  refreshChannelWorkspaces: () => void;
-  channelConnected: Record<string, boolean>;
-  channelConnecting: Record<string, boolean>;
-  connectChannelWorkspace: (workspace: string) => void;
-  grokWorkspace: string;
-}) {
-  const {
-    channelWorkspaces,
-    channelRenameDrafts,
-    setChannelRenameDrafts,
-    renameChannelWorkspace,
-    deleteChannelWorkspace,
-    refreshChannelWorkspaces,
-    channelConnected,
-    channelConnecting,
-    connectChannelWorkspace,
-    grokWorkspace,
-  } = props;
+export default function ChannelsTab() {
+  const [channelWorkspaces, setChannelWorkspaces] = useState<ChannelWorkspace[]>([]);
+  const [channelRenameDrafts, setChannelRenameDrafts] = useState<Record<string, string>>({});
+  const [channelConnected, setChannelConnected] = useState<Record<string, boolean>>({});
+  const [channelConnecting, setChannelConnecting] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string>("");
+  const [status, setStatus] = useState<string>("");
+
+  const run = useCallback(async <T,>(label: string, fn: () => Promise<T>, pendingMessage?: string): Promise<T | null> => {
+    setError("");
+    if (pendingMessage) {
+      setStatus(pendingMessage);
+    }
+    try {
+      const result = await fn();
+      setStatus(label);
+      return result;
+    } catch (e) {
+      setError(String(e));
+      setStatus("");
+      return null;
+    }
+  }, []);
+
+  const refreshChannelWorkspaces = useCallback(async () => {
+    const list = await run("channels refreshed", () =>
+      invoke<ChannelWorkspace[]>("claude_channel_list_workspaces")
+    );
+    if (list) {
+      setChannelWorkspaces(list);
+      for (const cw of list) {
+        invoke<boolean>("hub_is_channel_workspace_connected", { workspace: cw.workspace })
+          .then((connected) => {
+            setChannelConnected((prev) => ({ ...prev, [cw.workspace]: connected }));
+          })
+          .catch(() => {});
+      }
+    }
+  }, [run]);
+
+  const connectChannelWorkspace = useCallback(async (workspace: string) => {
+    setChannelConnecting((prev) => ({ ...prev, [workspace]: true }));
+    try {
+      const outcome = await run(
+        "channel connection requested",
+        () => invoke<{ ok: boolean; pid?: number; detail: string }>("hub_connect_channel_workspace", { workspace }),
+        "Starting Claude Code channel…",
+      );
+      if (outcome?.ok) {
+        setChannelConnected((prev) => ({ ...prev, [workspace]: true }));
+        setStatus(`Claude Channel connected (pid ${outcome.pid ?? "unknown"})`);
+      } else if (outcome) {
+        setError(outcome.detail);
+      }
+    } finally {
+      setChannelConnecting((prev) => ({ ...prev, [workspace]: false }));
+    }
+  }, [run]);
+
+  const renameChannelWorkspace = async (workspace: string) => {
+    const draft = channelRenameDrafts[workspace]?.trim();
+    if (!draft) return;
+    await run("channel renamed", () =>
+      invoke("hub_rename_channel_workspace", { workspace, displayName: draft })
+    );
+    await refreshChannelWorkspaces();
+  };
+
+  const deleteChannelWorkspace = async (workspace: string) => {
+    await run("channel removed", () =>
+      invoke("hub_delete_channel_workspace", { workspace })
+    );
+    await refreshChannelWorkspaces();
+  };
+
+  useEffect(() => {
+    refreshChannelWorkspaces();
+  }, [refreshChannelWorkspaces]);
+
+  const grokWorkspace = typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? (localStorage.getItem("ca.workspaceRoot") || "") : "";
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div>
+        {error && <span style={{ color: "#ef4444", fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>Error: {error}</span>}
+        {status && !error && <span style={{ color: "#22c55e", fontSize: "0.85rem", background: "rgba(34, 197, 94, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> {status}
+        </span>}
+      </div>
       <div style={{ ...cardStyle, display: "grid", gap: "0.85rem" }}>
         <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-main)" }}>Grok leader</h3>
         <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>

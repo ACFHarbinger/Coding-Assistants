@@ -3,7 +3,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { QuotaStatusStrip } from "./QuotaStatusStrip";
 import { TeamRoleBadge } from "../../common/TeamRoleBadge";
 export default function MessagerSidebar(props: any) {
-  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink, onRefresh } = props;
+  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, filteredMemories, insertMemoryLink, onRefresh } = props;
   return (
       <div className="glass-card" style={{
         padding: "1.25rem 1rem",
@@ -222,15 +222,14 @@ export default function MessagerSidebar(props: any) {
         {/* Compact provider quota mirror (DeepSeek / OpenCode Go) */}
         <QuotaStatusStrip />
 
-        {/* Memory Hub Drawer Toggle Button */}
+        {/* Memory subtab shortcut */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--border-color)" }}>
           <button
-            className={showMemoryDrawer ? "btn-primary" : "btn-secondary"}
-            onClick={() => setShowMemoryDrawer(prev => !prev)}
+            className="btn-secondary"
+            onClick={onOpenMemory}
             style={{ width: "100%", padding: "0.6rem", fontSize: "0.85rem", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}
           >
             <span>🧠 Memory Hub</span>
-            <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>({memories.length})</span>
           </button>
         </div>
       </div>

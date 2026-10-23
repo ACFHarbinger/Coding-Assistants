@@ -114,8 +114,6 @@ export interface ProviderQuota {
   local_usage?: ProviderQuotaLocalUsage | null;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "scorecard" | "channels" | "tools" | "board" | "branches" | "system";
-
 export type FigureProvenance = "measured" | "estimated" | "unknown";
 export type HarnessCoverage = "managed" | "observed" | "unregistered";
 

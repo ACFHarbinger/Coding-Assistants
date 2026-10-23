@@ -3,7 +3,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { isNearNewestEdge, newestEdgeScrollTop } from "./utils";
 import { renderMessageBody } from "./attachments";
 export default function MessageStream(props: any) {
-  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
+  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, onJumpToMemory, startReply, openMessageMenu, readMarkers } = props;
   return (
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div
@@ -275,10 +275,7 @@ export default function MessageStream(props: any) {
                           <button
                             key={memory.id}
                             className="btn-secondary"
-                            onClick={() => {
-                              setShowMemoryDrawer(true);
-                              setMemorySearch(memory.id.slice(0, 8));
-                            }}
+                            onClick={() => onJumpToMemory(memory.id)}
                             style={{ justifySelf: "start", padding: "0.3rem 0.55rem", fontSize: "0.75rem", color: "var(--accent)" }}
                             title="Open this durable memory in the Memory Hub"
                           >

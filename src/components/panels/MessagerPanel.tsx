@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { startTransition, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "../../lib/tauri";
 import type { ChannelRecord, ContextMenuState, HubMessage, MemoryRecord, PendingAttachment, ReplyTarget, MessagerPanelProps, WorkspaceAgentPresence } from "./messager/types";
 import { useHarnessDelivery } from "./messager/useHarnessDelivery";
@@ -6,8 +6,10 @@ import { useSendMessage } from "./messager/useSendMessage";
 import { AGENT_COLORS, agentInfo, DEFAULT_CHANNELS, isNearBottom, latestCreatedAt, loadLastRead, newestEdgeScrollTop, persistLastRead, rosterAgentIds, sortByCreatedAt, teamWakeTargets, threadRootId, uniqueChannelPosts, unreadPosts } from "./messager/utils";
 import MessagerSidebar from "./messager/MessagerSidebar";
 import ChatCanvas from "./messager/ChatCanvas";
-import MemoryDrawer from "./messager/MemoryDrawer";
+import MessagerMemoryTab from "./messager/MessagerMemoryTab";
 import MessageContextMenu from "./messager/MessageContextMenu";
+import JournalPanel from "./governance/JournalPanel";
+import type { AuditEvent } from "./hub/types";
 import { forwardVtuberSpeech } from "../settings/api";
 export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, MessagerPanelProps } from "./messager/types";
 export default function MessagerPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: MessagerPanelProps) {
@@ -44,11 +46,14 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string>("");
 
-  // Memories side drawer state
-  const [memories, setMemories] = useState<MemoryRecord[]>([]);
-  const [showMemoryDrawer, setShowMemoryDrawer] = useState<boolean>(false);
-  const [memorySearch, setMemorySearch] = useState<string>("");
-  const [selectedTierFilter, setSelectedTierFilter] = useState<string>("all");
+  // Chat / Memory / Journal subtabs (#303 Hub split)
+  const [activeSubtab, setActiveSubtab] = useState<"chat" | "memory" | "journal">("chat");
+  const [memoryJumpQuery, setMemoryJumpQuery] = useState<string>("");
+
+  // Journal subtab (moved from Governance)
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [auditShowAll, setAuditShowAll] = useState(false);
+  const [auditError, setAuditError] = useState<string>("");
 
   // Workspace-scoped harness liveness (never a global process-name scan)
   const [agentPresence, setAgentPresence] = useState<WorkspaceAgentPresence | null>(null);
@@ -118,17 +123,15 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     };
   }, [contextMenu]);
 
-  // Fetch memories and channels
+  // Fetch channels
   useEffect(() => {
     async function loadHubData() {
       if (!isTauriRuntime()) return;
       try {
         const listed = await invoke<ChannelRecord[]>("hub_list_channels");
         if (listed.length > 0) setChannels(listed);
-        const mems = await invoke<MemoryRecord[]>("hub_list_memories", { scope: null, tier: null });
-        setMemories(mems);
       } catch (err) {
-        console.error("Failed to load hub memories:", err);
+        console.error("Failed to load hub channels:", err);
       }
     }
     loadHubData();
@@ -410,13 +413,99 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     }
   }, [threadKey, activeChannel, sortOrder]);
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
+  const onOpenMemory = () => startTransition(() => setActiveSubtab("memory"));
+  const onJumpToMemory = (memoryId: string) => {
+    setMemoryJumpQuery(memoryId.slice(0, 8));
+    startTransition(() => setActiveSubtab("memory"));
+  };
+
+  const refreshAuditEvents = async () => {
+    try {
+      const list = await invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: !auditShowAll });
+      setAuditEvents(list);
+      setAuditError("");
+    } catch (e) {
+      setAuditError(String(e));
+    }
+  };
+
+  const approveAudit = async (eventId: string) => {
+    try {
+      await invoke("hub_approve_audit_event", { eventId, approvedBy: "human" });
+      setAuditError("");
+    } catch (e) {
+      setAuditError(String(e));
+    }
+    await refreshAuditEvents();
+  };
+
+  const quarantineAudit = async (eventId: string) => {
+    try {
+      await invoke("hub_quarantine_audit_event", { eventId, quarantinedBy: "human", reason: "Rejected via desktop journal" });
+      setAuditError("");
+    } catch (e) {
+      setAuditError(String(e));
+    }
+    await refreshAuditEvents();
+  };
+
+  useEffect(() => {
+    invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: true })
+      .then(setAuditEvents)
+      .catch((e) => console.error("Failed to load pending audit events:", e));
+  }, []);
+
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, onJumpToMemory, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
+
+  const tabBtn = (id: "chat" | "memory" | "journal", label: string, badge?: number) => (
+    <button
+      key={id}
+      className={activeSubtab === id ? "btn-primary" : "btn-secondary"}
+      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }}
+      onClick={() => startTransition(() => setActiveSubtab(id))}
+    >
+      {label}
+      {!!badge && (
+        <span style={{ marginLeft: "0.4rem", fontSize: "0.7rem", padding: "0.05rem 0.4rem", borderRadius: "20px", background: "#eab308", color: "#1a1a1a", fontWeight: 700 }}>
+          {badge}
+        </span>
+      )}
+    </button>
+  );
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: showMemoryDrawer ? "260px 1fr 340px" : "260px 1fr", height: "calc(100vh - 120px)", gap: "1rem", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
-      <MessagerSidebar {...viewProps} />
-      <ChatCanvas {...viewProps} />
-      <MemoryDrawer {...viewProps} />
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", height: "calc(100vh - 120px)", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
+          {tabBtn("chat", "💬 Chat")}
+          {tabBtn("memory", "🧠 Memory")}
+          {tabBtn("journal", "📜 Journal", auditEvents.filter((e) => e.status === "pending").length)}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: activeSubtab === "chat" ? "260px 1fr" : "1fr", flex: 1, minHeight: 0, gap: "1rem", overflowY: activeSubtab === "journal" ? "auto" : "visible" }}>
+        {activeSubtab === "chat" && (
+          <>
+            <MessagerSidebar {...viewProps} />
+            <ChatCanvas {...viewProps} />
+          </>
+        )}
+        {activeSubtab === "memory" && (
+          <MessagerMemoryTab workspacePath={workspacePath} initialSearchQuery={memoryJumpQuery} />
+        )}
+        {activeSubtab === "journal" && (
+          <div>
+            {auditError && <div style={{ marginBottom: "1rem", color: "#ef4444", fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>Error: {auditError}</div>}
+            <JournalPanel
+              auditEvents={auditEvents}
+              auditShowAll={auditShowAll}
+              setAuditShowAll={setAuditShowAll}
+              refreshAuditEvents={refreshAuditEvents}
+              approveAudit={approveAudit}
+              quarantineAudit={quarantineAudit}
+            />
+          </div>
+        )}
+      </div>
       <MessageContextMenu {...viewProps} />
     </div>
   );
