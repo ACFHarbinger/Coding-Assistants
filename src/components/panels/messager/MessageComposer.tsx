@@ -43,16 +43,21 @@ export default function MessageComposer(props: any) {
   ).filter((id: string) => id !== "human" && id !== "system");
   const selectionStyle = (active: boolean, accent: "violet" | "teal" | "amber" = "violet"): React.CSSProperties => {
     const colors = accent === "amber"
-      ? { border: "#facc15", background: "#854d0e", text: "#fefce8" }
+      ? { border: "#f59e0b", background: "rgba(245, 158, 11, 0.22)", text: "#fef08a", glow: "rgba(245, 158, 11, 0.35)" }
       : accent === "teal"
-        ? { border: "#5eead4", background: "#065f46", text: "#ecfdf5" }
-        : { border: "#c4b5fd", background: "#6d28d9", text: "#fff" };
+        ? { border: "#38bdf8", background: "rgba(56, 189, 248, 0.22)", text: "#e0f2fe", glow: "rgba(56, 189, 248, 0.35)" }
+        : { border: "#6366f1", background: "rgba(99, 102, 241, 0.25)", text: "#ffffff", glow: "rgba(99, 102, 241, 0.35)" };
     return {
-      padding: "0.4rem 0.75rem", borderRadius: "7px",
-      border: active ? `2px solid ${colors.border}` : "1px solid #475569",
-      background: active ? colors.background : "#111827", color: active ? colors.text : "#cbd5e1",
-      boxShadow: active ? `0 0 0 2px ${colors.border}33` : "none",
-      fontSize: "0.8rem", cursor: "pointer", fontWeight: active ? 800 : 600,
+      padding: "0.4rem 0.75rem",
+      borderRadius: "7px",
+      border: active ? `2px solid ${colors.border}` : "1px solid rgba(148, 163, 184, 0.24)",
+      background: active ? colors.background : "rgba(15, 23, 42, 0.6)",
+      color: active ? colors.text : "#94a3b8",
+      boxShadow: active ? `0 0 10px ${colors.glow}` : "none",
+      fontSize: "0.8rem",
+      cursor: "pointer",
+      fontWeight: active ? 800 : 600,
+      transition: "all 0.16s cubic-bezier(0.2, 0, 0, 1)",
     };
   };
   return (
@@ -199,6 +204,7 @@ export default function MessageComposer(props: any) {
                     <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Recipients:</span>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("all")}
                       aria-pressed={recipientMode === "all"}
                       style={selectionStyle(recipientMode === "all")}
@@ -207,6 +213,7 @@ export default function MessageComposer(props: any) {
                     </button>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("subset")}
                       aria-pressed={recipientMode === "subset"}
                       style={selectionStyle(recipientMode === "subset")}
@@ -215,6 +222,7 @@ export default function MessageComposer(props: any) {
                     </button>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("single")}
                       aria-pressed={recipientMode === "single"}
                       style={selectionStyle(recipientMode === "single")}
@@ -227,6 +235,7 @@ export default function MessageComposer(props: any) {
                         {recipients.map((agentId: string) => {
                           const selected = selectedSubset[agentId] !== false;
                           return <button key={agentId} type="button" aria-pressed={selected}
+                            className="noc-focusable"
                             onClick={() => setSelectedSubset((prev: Record<string, boolean>) => ({ ...prev, [agentId]: !selected }))}
                             style={{ ...selectionStyle(selected, "teal"), display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
                           >
@@ -246,6 +255,7 @@ export default function MessageComposer(props: any) {
 
                     {recipientMode === "single" && (
                       <select
+                        className="noc-focusable"
                         value={singleRecipient}
                         onChange={e => setSingleRecipient(e.target.value)}
                         style={{
@@ -270,6 +280,7 @@ export default function MessageComposer(props: any) {
 
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => fileInputRef.current?.click()}
                   title="Add attachment (image or file)"
                   style={{
@@ -286,7 +297,7 @@ export default function MessageComposer(props: any) {
                   📎 Attach
                 </button>
                 <button
-                  className={sending ? "btn-secondary" : "btn-primary"}
+                  className={`${sending ? "btn-secondary" : "btn-primary"} noc-focusable`}
                   onClick={handleSendMessage}
                   disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
                   style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
@@ -300,6 +311,7 @@ export default function MessageComposer(props: any) {
                 <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Intent Tags:</span>
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => setIsTaskTag(prev => !prev)}
                   aria-pressed={isTaskTag}
                   style={selectionStyle(isTaskTag, "amber")}
@@ -309,6 +321,7 @@ export default function MessageComposer(props: any) {
                 </button>
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => setIsWakeTag(prev => !prev)}
                   aria-pressed={isWakeTag}
                   style={selectionStyle(isWakeTag, "teal")}
@@ -318,6 +331,7 @@ export default function MessageComposer(props: any) {
                 </button>
 
                 <button type="button" aria-pressed={wakePolicyGate}
+                  className="noc-focusable"
                   onClick={() => setWakePolicyGate((previous: boolean) => !previous)}
                   style={{ ...selectionStyle(wakePolicyGate, "amber"), marginLeft: "auto" }}
                 >{wakePolicyGate ? "✓ " : "○ "}Require Human Approval Gate</button>

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
-import { cardStyle, inputStyle } from "../hub/HubCharts";
+import { Meter } from "../../common/telemetry/gauges";
+import { nocPanelStyle } from "../../common/telemetry/panel";
+import { NOC_SURFACES } from "../../common/telemetry/tokens";
+import { inputStyle } from "../hub/HubCharts";
 import { consolidateMemories } from "../hub/memoryApi";
 import type { AgentRecord } from "../hub/types";
 import MemoryLinksSection from "./MemoryLinksSection";
@@ -267,27 +270,27 @@ export default function MessagerMemoryTab({
             </div>
           )}
 
-          <div style={{ ...cardStyle, display: "grid", gap: "1rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--text-main)" }}>Write Memory</h3>
+          <div style={{ ...nocPanelStyle, display: "grid", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Write Memory</h3>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <select value={memTier} onChange={(e) => setMemTier(e.target.value)} style={inputStyle}>
+              <select value={memTier} onChange={(e) => setMemTier(e.target.value)} style={inputStyle} className="noc-focusable">
                 <option value="short_term">short_term</option>
                 <option value="episodic">episodic</option>
                 <option value="semantic">semantic</option>
               </select>
-              <select value={memScope} onChange={(e) => setMemScope(e.target.value)} style={inputStyle}>
+              <select value={memScope} onChange={(e) => setMemScope(e.target.value)} style={inputStyle} className="noc-focusable">
                 <option value="workspace">workspace</option>
                 <option value="global">global</option>
                 <option value="session">session</option>
               </select>
-              <select value={memAgent} onChange={(e) => setMemAgent(e.target.value)} style={inputStyle}>
+              <select value={memAgent} onChange={(e) => setMemAgent(e.target.value)} style={inputStyle} className="noc-focusable">
                 {agents.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
               </select>
-              <input placeholder="Title (optional)" value={memTitle} onChange={(e) => setMemTitle(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 150 }} />
+              <input placeholder="Title (optional)" value={memTitle} onChange={(e) => setMemTitle(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 150 }} className="noc-focusable" />
             </div>
-            <textarea rows={3} placeholder="Memory body…" value={memBody} onChange={(e) => setMemBody(e.target.value)} style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-sans)" }} />
+            <textarea rows={3} placeholder="Memory body…" value={memBody} onChange={(e) => setMemBody(e.target.value)} style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-sans)" }} className="noc-focusable" />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn-primary" onClick={writeMemory} disabled={!memBody.trim()}>Save to hub</button>
+              <button className="btn-primary noc-focusable" onClick={writeMemory} disabled={!memBody.trim()}>Save to hub</button>
             </div>
           </div>
 
@@ -300,13 +303,13 @@ export default function MessagerMemoryTab({
               </div>
             )}
             {memories.map((m) => (
-              <div key={m.id} style={{ ...cardStyle, position: "relative", overflow: "hidden" }}>
+              <div key={m.id} style={{ ...nocPanelStyle, position: "relative", overflow: "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border-color)" }}>
                   <div style={{ flex: 1 }}>
                     {editingMemory === m.id ? (
-                      <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Memory title (optional)" style={{ ...inputStyle, width: "100%", marginBottom: "0.5rem" }} />
+                      <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Memory title (optional)" style={{ ...inputStyle, width: "100%", marginBottom: "0.5rem" }} className="noc-focusable" />
                     ) : (
-                      <strong style={{ fontSize: "1.1rem", color: m.stale ? "var(--text-muted)" : "var(--primary)", textDecoration: m.stale ? "line-through" : "none" }}>
+                      <strong style={{ fontSize: "1.05rem", color: m.stale ? "var(--text-muted)" : "var(--primary)", textDecoration: m.stale ? "line-through" : "none" }}>
                         {m.title || "(untitled)"}
                       </strong>
                     )}
@@ -314,35 +317,40 @@ export default function MessagerMemoryTab({
                       <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "var(--text-main)" }}>{m.tier}</span>
                       <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: m.scope === "global" ? "rgba(16, 185, 129, 0.1)" : "rgba(56, 189, 248, 0.1)", borderRadius: "4px", color: m.scope === "global" ? "#10b981" : "#38bdf8" }}>{m.scope}</span>
                       {m.agent_id && <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(168, 85, 247, 0.1)", borderRadius: "4px", color: "#a855f7" }}>{m.agent_id}</span>}
-                      {"score" in m && typeof m.score === "number" && (
-                        <span title={`Similarity score: ${m.score.toFixed(4)}`} style={{ fontSize: "0.7rem", padding: "0.1rem 0.45rem", background: "rgba(56, 189, 248, 0.18)", borderRadius: "4px", color: "#38bdf8", border: "1px solid rgba(56, 189, 248, 0.3)", fontWeight: 700 }}>
-                          ⚡ {formatScore(m.score)} match
-                        </span>
-                      )}
                       {m.stale && <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "4px", color: "#ef4444" }}>STALE</span>}
                     </div>
+                    {"score" in m && typeof m.score === "number" && (
+                      <div style={{ maxWidth: 200, marginTop: "0.5rem" }}>
+                        <Meter
+                          label="Similarity"
+                          percent={Math.round(m.score * 100)}
+                          detail={formatScore(m.score)}
+                          tone="cyan"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", flexWrap: "wrap" }}>
                     {editingMemory === m.id ? (
                       <>
-                        <button className="btn-primary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)}>Save</button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)}>Cancel</button>
+                        <button className="btn-primary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)}>Save</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)}>Cancel</button>
                       </>
                     ) : (
                       <>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setExpandedMemoryId(expandedMemoryId === m.id ? null : m.id)}>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setExpandedMemoryId(expandedMemoryId === m.id ? null : m.id)}>
                           {expandedMemoryId === m.id ? "Hide links" : "🔗 Links"}
                         </button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => copyMemoryReference(m.id)}>Copy reference</button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => { setEditingMemory(m.id); setEditTitle(m.title || ""); setEditBody(m.body); }}>Edit</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => copyMemoryReference(m.id)}>Copy reference</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => { setEditingMemory(m.id); setEditTitle(m.title || ""); setEditBody(m.body); }}>Edit</button>
                         {m.tier === "short_term" && (
-                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" })); await refreshMemories(); }}>→ episodic</button>
+                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" })); await refreshMemories(); }}>→ episodic</button>
                         )}
                         {m.tier === "episodic" && (
-                          <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" })); await refreshMemories(); }}>→ semantic</button>
+                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" })); await refreshMemories(); }}>→ semantic</button>
                         )}
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true })); await refreshMemories(); }}>Stale</button>
-                        <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => { await run("deleted", () => invoke("hub_delete_memory", { id: m.id })); await refreshMemories(); }}>Delete</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true })); await refreshMemories(); }}>Stale</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => { await run("deleted", () => invoke("hub_delete_memory", { id: m.id })); await refreshMemories(); }}>Delete</button>
                       </>
                     )}
                   </div>

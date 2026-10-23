@@ -96,14 +96,17 @@ export default function MessagerSidebar(props: any) {
                   >
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.name}</span>
                     {unreadCount > 0 && (
-                      <span style={{
-                        background: isActive ? "var(--primary)" : "rgba(255, 255, 255, 0.1)",
-                        color: "#fff",
-                        fontSize: "0.7rem",
-                        padding: "0.15rem 0.45rem",
-                        borderRadius: "10px",
-                        fontWeight: 600
-                      }}>
+                      <span
+                        className="tabular-nums"
+                        style={{
+                          background: isActive ? "var(--primary)" : "rgba(56, 189, 248, 0.2)",
+                          color: isActive ? "#fff" : "#38bdf8",
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "10px",
+                          fontWeight: 700,
+                        }}
+                      >
                         {unreadCount}
                       </span>
                     )}
@@ -202,10 +205,13 @@ export default function MessagerSidebar(props: any) {
                             : "Not connected to this workspace"
                       }
                       style={{
-                      width: "8px", height: "8px", borderRadius: "50%",
-                      background: agentId === "human" ? "#3b82f6" : info.isLive ? "#10b981" : "#64748b",
-                      flexShrink: 0
-                    }} />
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: agentId === "human" ? "#6366f1" : info.isLive ? "#10b981" : "#94a3b8",
+                        flexShrink: 0,
+                      }}
+                    />
                     <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                       {info.displayName}
                     </div>
