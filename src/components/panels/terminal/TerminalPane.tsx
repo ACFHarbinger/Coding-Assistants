@@ -3,6 +3,7 @@ import EmbeddedTerminal from "../harness/EmbeddedTerminal";
 import TerminalPaneErrorBoundary from "../harness/TerminalPaneErrorBoundary";
 import type { LeafNode, Rect } from "./layoutTree";
 import { DISPLAY_NAMES } from "./gridConstants";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export interface TerminalPaneProps {
   node: LeafNode;
@@ -51,45 +52,71 @@ export default function TerminalPane({
         height: isMaximized ? `${bounds.height}px` : `${rect.height}px`,
         display: "flex",
         flexDirection: "column",
-        borderRadius: "6px",
+        borderRadius: "8px",
         overflow: "hidden",
-        border: isMaximized ? "1px solid rgba(96, 165, 250, 0.45)" : "1px solid rgba(148, 163, 184, 0.25)",
+        border: isMaximized ? "1px solid rgba(56, 189, 248, 0.45)" : "1px solid rgba(148, 163, 184, 0.22)",
         background: "#080d1a",
         zIndex: isMaximized ? 20 : 1,
         visibility: isHidden ? "hidden" : "visible",
         pointerEvents: isHidden ? "none" : "auto",
       }}
     >
-      {/* Pane Title Bar */}
+      {/* 28px NOC Telemetry Header Bar */}
       <div
         onPointerDown={onTitlePointerDown}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0.3rem 0.6rem",
-          background: "rgba(0, 0, 0, 0.5)",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+          height: "28px",
+          minHeight: "28px",
+          padding: "0 0.55rem",
+          background: "rgba(2, 6, 23, 0.9)",
+          borderBottom: "1px solid rgba(148, 163, 184, 0.18)",
           userSelect: "none",
-          cursor: hasMaximized ? "default" : (isDragging ? "grabbing" : "grab"),
+          cursor: hasMaximized ? "default" : isDragging ? "grabbing" : "grab",
+          boxSizing: "border-box",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", minWidth: 0, overflow: "hidden" }}>
           {!hasMaximized && (
-            <span style={{ color: "var(--text-muted)", fontSize: "0.75rem", letterSpacing: "-1px" }} title="Drag to rearrange pane">
+            <span style={{ color: NOC_SURFACES.textMuted, fontSize: "0.72rem", letterSpacing: "-1px" }} title="Drag to rearrange pane">
               ⋮⋮
             </span>
           )}
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: sessionId ? "#22c55e" : "#64748b" }} />
-          <strong style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>{title}</strong>
+          <span
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: sessionId ? NOC_COLORS.ok : NOC_COLORS.idle,
+              display: "inline-block",
+              flexShrink: 0,
+            }}
+          />
+          <strong style={{ fontSize: "0.8rem", color: NOC_SURFACES.textPrimary, whiteSpace: "nowrap" }}>{title}</strong>
+          <code
+            className="tabular-nums"
+            style={{
+              fontSize: "0.68rem",
+              color: NOC_COLORS.cyan,
+              fontFamily: "var(--font-mono)",
+              background: "rgba(56, 189, 248, 0.1)",
+              padding: "0.05rem 0.3rem",
+              borderRadius: "3px",
+              flexShrink: 0,
+            }}
+          >
+            {node.id.slice(0, 6)}
+          </code>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", flexShrink: 0 }}>
           {!sessionId && (
             <button
               type="button"
-              className="btn-secondary"
-              style={{ padding: "0.15rem 0.45rem", fontSize: "0.72rem", marginTop: 0 }}
+              className="btn-secondary noc-focusable"
+              style={{ padding: "0.1rem 0.45rem", fontSize: "0.7rem", marginTop: 0, lineHeight: 1.2 }}
               disabled={isBusy}
               onClick={onConnect}
             >
@@ -98,18 +125,38 @@ export default function TerminalPane({
           )}
           <button
             type="button"
+            className="noc-focusable"
             aria-label={isMaximized ? `Restore ${node.harness} pane` : `Maximize ${node.harness} pane`}
             title={isMaximized ? "Restore grid (Esc)" : "Maximize pane"}
-            style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0.1rem 0.35rem", borderRadius: "4px", fontSize: "0.85rem", lineHeight: 1 }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: NOC_SURFACES.textMuted,
+              cursor: "pointer",
+              padding: "0.1rem 0.3rem",
+              borderRadius: "4px",
+              fontSize: "0.82rem",
+              lineHeight: 1,
+            }}
             onClick={onToggleMaximize}
           >
             {isMaximized ? "❐" : "⛶"}
           </button>
           <button
             type="button"
+            className="noc-focusable"
             aria-label={`Close ${node.harness} pane`}
             title="Close pane"
-            style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0.1rem 0.35rem", borderRadius: "4px", fontSize: "0.85rem", lineHeight: 1 }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: NOC_SURFACES.textMuted,
+              cursor: "pointer",
+              padding: "0.1rem 0.3rem",
+              borderRadius: "4px",
+              fontSize: "0.82rem",
+              lineHeight: 1,
+            }}
             onClick={onClose}
           >
             ✕

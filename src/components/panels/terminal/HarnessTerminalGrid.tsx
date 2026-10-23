@@ -193,12 +193,12 @@ export default function HarnessTerminalGrid({
             onStatus={(msg) => setStatusMsg(msg)}
           />
           {openLeaves.length > 0 && (
-            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={() => void resetGrid()} title="Close all panes and reset layout">
+            <button type="button" className="btn-secondary noc-focusable" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={() => void resetGrid()} title="Close all panes and reset layout">
               Reset grid
             </button>
           )}
           {onOpenSetup && (
-            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={onOpenSetup}>
+            <button type="button" className="btn-secondary noc-focusable" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }} onClick={onOpenSetup}>
               ⚙️ Harness Setup
             </button>
           )}
@@ -228,13 +228,13 @@ export default function HarnessTerminalGrid({
           minHeight: canvasSize ? "280px" : "480px",
           borderRadius: "10px",
           background: "#030712",
-          border: "1px solid var(--border-color)",
+          border: "1px solid rgba(148, 163, 184, 0.2)",
           overflow: "hidden",
         }}
       >
         {openLeaves.length === 0 ? (
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
-            <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-main)" }}>No active harness terminals in grid</div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
               Launch any of the {ALL_HARNESSES.length} supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
             </p>
@@ -243,7 +243,7 @@ export default function HarnessTerminalGrid({
                 <button
                   key={h}
                   type="button"
-                  className="btn-primary"
+                  className="btn-primary noc-focusable"
                   style={{ marginTop: 0, padding: "0.45rem 0.85rem", fontSize: "0.85rem" }}
                   disabled={busyId !== null}
                   onClick={() => void launchHarness(h)}

@@ -8,6 +8,8 @@ import WorkspaceRootSection from "./config/WorkspaceRootSection";
 import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 import { processTargetId, spawnedRoleTeamMember } from "./config/types";
 import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
+import { nocPanelStyle } from "../common/telemetry/panel";
+import { NOC_SURFACES } from "../common/telemetry/tokens";
 
 export type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
 
@@ -245,9 +247,9 @@ export default function ConfigPanel({
   return (
     <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        <h2 style={{ margin: 0 }}>Agent Team Configuration</h2>
+        <h2 style={{ margin: 0, color: NOC_SURFACES.textPrimary, fontSize: "1.35rem" }}>Agent Team Configuration</h2>
         <button
-          className={hasScanned ? "btn-primary" : "btn-secondary"}
+          className={`${hasScanned ? "btn-primary" : "btn-secondary"} noc-focusable`}
           onClick={detectProcesses}
           disabled={detecting}
           style={hasScanned ? { background: 'rgba(168, 85, 247, 0.92)' } : undefined}
@@ -256,42 +258,45 @@ export default function ConfigPanel({
         </button>
       </div>
 
-      <WorkspaceRootSection
-        workDir={config.work_dir}
-        onWorkDirChange={(workDir) => setConfig(prev => ({ ...prev, work_dir: workDir }))}
-        onWorkspaceApplied={applyWorkspace}
-        workspaceNotice={workspaceNotice}
-        setWorkspaceNotice={setWorkspaceNotice}
-        activeWorkSessionId={activeWorkSessionId}
-        onSelectWorkSession={onSelectWorkSession}
-        onSwitchToChatView={onSwitchToChatView}
-      />
+      {/* 2-Column Responsive Bento Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1.25rem", marginBottom: "1.5rem" }}>
+        <WorkspaceRootSection
+          workDir={config.work_dir}
+          onWorkDirChange={(workDir) => setConfig(prev => ({ ...prev, work_dir: workDir }))}
+          onWorkspaceApplied={applyWorkspace}
+          workspaceNotice={workspaceNotice}
+          setWorkspaceNotice={setWorkspaceNotice}
+          activeWorkSessionId={activeWorkSessionId}
+          onSelectWorkSession={onSelectWorkSession}
+          onSwitchToChatView={onSwitchToChatView}
+        />
 
-      <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
+        <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
 
-      <WorkSessionSection
-        workSessions={workSessions}
-        activeWorkSessionId={activeWorkSessionId}
-        activeWorkSessionName={activeWorkSessionName}
-        workSessionName={workSessionName}
-        setWorkSessionName={setWorkSessionName}
-        creatingWorkSession={creatingWorkSession}
-        sessionError={sessionError}
-        setSessionError={setSessionError}
-        createWorkSession={() => void createWorkSession()}
-        loadWorkSession={loadWorkSession}
-        onSelectWorkSession={onSelectWorkSession}
-      />
+        <WorkSessionSection
+          workSessions={workSessions}
+          activeWorkSessionId={activeWorkSessionId}
+          activeWorkSessionName={activeWorkSessionName}
+          workSessionName={workSessionName}
+          setWorkSessionName={setWorkSessionName}
+          creatingWorkSession={creatingWorkSession}
+          sessionError={sessionError}
+          setSessionError={setSessionError}
+          createWorkSession={() => void createWorkSession()}
+          loadWorkSession={loadWorkSession}
+          onSelectWorkSession={onSelectWorkSession}
+        />
 
-      <DetectedProcessesSection
-        hasScanned={hasScanned}
-        detectError={detectError}
-        detectedProcesses={detectedProcesses}
-        addedPids={addedPids}
-        teamMemberIds={teamMemberIds}
-        onAddProcess={addDetectedProcess}
-        onRemoveProcess={removeDetectedProcess}
-      />
+        <DetectedProcessesSection
+          hasScanned={hasScanned}
+          detectError={detectError}
+          detectedProcesses={detectedProcesses}
+          addedPids={addedPids}
+          teamMemberIds={teamMemberIds}
+          onAddProcess={addDetectedProcess}
+          onRemoveProcess={removeDetectedProcess}
+        />
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
         {config.roles.map((role, index) => (
@@ -344,9 +349,9 @@ export default function ConfigPanel({
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Add New Role</span>
         </div>
 
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div style={{ ...nocPanelStyle, gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <label className="label" style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>MCP Configuration (JSON)</label>
+            <label className="label" style={{ margin: 0, fontWeight: 700, color: NOC_SURFACES.textPrimary }}>MCP Configuration (JSON)</label>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 style={{ width: '260px', padding: '0.4rem 0.65rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
