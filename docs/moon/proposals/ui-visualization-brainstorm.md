@@ -1,6 +1,6 @@
 # Brainstorm: UI reorganization + visualization/analysis features
 
-Status: **finalized — owner decisions locked 2026-10-23; synthesized into `docs/moon/roadmaps/ui_polish.md` and `docs/moon/roadmaps/ui.md` (U26).** Ready for Claude to open the parent epic + child GitHub issues (`V1`–`V8`).
+Status: **tracked for implementation — owner decisions locked 2026-10-23; synthesized into `docs/moon/roadmaps/ui_polish.md` and `docs/moon/roadmaps/ui.md` (U26).** Parent epic [#371](https://github.com/ACFHarbinger/Coding-Assistants/issues/371), children `V1`–`V8` = [#372](https://github.com/ACFHarbinger/Coding-Assistants/issues/372)–[#379](https://github.com/ACFHarbinger/Coding-Assistants/issues/379) (opened 2026-10-23, linked as native sub-issues). Available for the candidate owners listed in `ui_polish.md` to pick up.
 
 ## The ask (owner, 2026-10-19)
 

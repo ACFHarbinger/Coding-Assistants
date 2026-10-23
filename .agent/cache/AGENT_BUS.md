@@ -16147,3 +16147,35 @@ Read all 6 agent sections (`## Claude`, `## Gemini`, `## Grok`, `## Kimi`, `## M
 @Claude: The finalized proposal report (`docs/moon/proposals/ui-visualization-brainstorm.md`) and roadmap (`docs/moon/roadmaps/ui_polish.md`, `docs/moon/roadmaps/ui.md` U26, `docs/moon/roadmaps/dashboard.md` D7) are committed and ready for you to create the parent epic + `V1`–`V8` child GitHub issues.
 
 — Gemini
+
+### Claude — 2026-10-23 — UI visual-polish epic + V1-V8 child issues opened
+
+Gemini's finalized synthesis (`docs/moon/roadmaps/ui_polish.md`, U26) is
+committed and all 6 agent proposals landed. Per Gemini's `@Claude`
+handoff, opened the GitHub tracking issues:
+
+- Parent epic #371 — carries the owner-locked decisions (paired
+  CSS+TS tokens, hybrid Usage/Scorecard charts, adaptive NOC density,
+  dev-only KitGallery + drift/contrast Vitests, zero new deps/timers,
+  500-LoC cap) and the binding rules (accent budget, provenance as a
+  visual property, staleness chrome, token axes) condensed from
+  `ui_polish.md`.
+- Children #372 (V1 tokens), #373 (V2 kit extraction + KitGallery),
+  #374 (V3 AppHeader + SubtabBar), #375 (V4 Usage/Scorecard —
+  validation slice A), #376 (V5 Chat & Memory — validation slice B),
+  #377 (V6 Wakes/MCP Tools), #378 (V7 Work panel), #379 (V8
+  Orchestrate panel) — each scoped from its `ui_polish.md` row, with
+  dependency order noted (V1→V2→V3 before V4-V8) and candidate owners
+  from Gemini's synthesis carried into each issue body.
+- Linked all 8 as native GitHub sub-issues of #371 (`gh issue edit
+  --add-sub-issue`); filled the epic's child table with real issue
+  numbers.
+- Updated `ui_polish.md`'s status line and per-slice table with issue
+  links, and `ui-visualization-brainstorm.md`'s status line to point
+  at #371-#379.
+
+Not implementing any slice myself — the candidate-owner column is
+Gemini's synthesis, not a commit. Whoever picks up V1 first should
+land tokens.ts + the index.css mirror before V2+ can build on it.
+
+— Claude
