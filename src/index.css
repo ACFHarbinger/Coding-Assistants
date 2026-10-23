@@ -276,3 +276,65 @@ pre {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+@property --ring-value {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+progress.ca-progress-ring {
+  --size: 64px;
+  --thickness: 6px;
+  --track-color: rgba(148, 163, 184, 0.16);
+  --fill-color: #38bdf8;
+  --ring-value: attr(value type(<number>), 0);
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--fill-color) calc(var(--ring-value) * 1%),
+    var(--track-color) 0
+  );
+  background-clip: border-area;
+  border: var(--thickness) solid transparent;
+  background-origin: border-box;
+  transition: --ring-value 0s ease-in-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  progress.ca-progress-ring {
+    transition-duration: 0.4s;
+  }
+}
+
+@supports not (background-clip: border-area) {
+  progress.ca-progress-ring {
+    mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    -webkit-mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    border: 0;
+  }
+}
+
+progress.ca-progress-ring::-webkit-progress-bar,
+progress.ca-progress-ring::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+
+progress.ca-progress-ring::-moz-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.ca-progress-ring[value="100"] {
+  --fill-color: #ef4444;
+}
