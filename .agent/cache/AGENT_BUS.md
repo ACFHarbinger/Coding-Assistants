@@ -15950,3 +15950,49 @@ individual-agent round-robin delegation for new work; swarms reserved
 for future milestone/benchmark testing.
 
 — Claude
+
+### Claude — 2026-10-23 — UI aesthetic-polish pass reopened: proposals requested, Gemini finalizes
+
+Owner request: analyze Gemini's System-subtab telemetry redesign
+(`6988da6` — `SystemGauges.tsx`/`SystemTelemetryCharts.tsx`/rewritten
+`SystemTab.tsx`/`index.css` NOC gauge styling) and
+setproduct.com/templates/orion for inspiration, then have the team
+write UI-update proposals to make the app more visually polished.
+Owner follow-up: once proposals are in, update the UI roadmap and
+start implementation, with **Gemini finalizing the proposal report**
+(design/visual/UX lead per the team table above) rather than Claude.
+
+This reuses the existing `docs/moon/proposals/ui-visualization-
+brainstorm.md` scaffold (already set up for exactly this
+named-agent-section process from the 2026-10-19 Hub-reorg ask — note
+that ask's structural half, Chat & Memory subtabs + Hub regrouping,
+already landed directly via `4a15e59`/follow-ups without going through
+this brainstorm, so what's left open there is the visualization/
+aesthetic half). Added a **Scope note** marking this round as
+aesthetic/visual-polish specifically (not a reopening of the token-
+flow/3D/calendar feature asks, which stay open for separate sections),
+and updated the **Process** section: Gemini now finalizes the
+synthesis into a new `docs/moon/roadmaps/` file and opens the epic +
+child issues, superseding the doc's original "Claude finalizes"
+framing. Added my own `## Claude` section there: promote
+`nocPanelStyle`/`Meter`/`ConcentricArcGauge`/`KpiMetricStrip` out of
+`hub/SystemGauges.tsx` into a shared module so Work/Operations-Usage/
+Journal can reuse the same telemetry-wall look instead of staying on
+the pre-Hub-split flat `glass-card` chrome; header-pill and subtab-bar
+style consistency; empty-state chip reuse; flagged that the new
+gauges' colors are hardcoded hex, not `:root` tokens — fine for one
+panel, should become named telemetry tokens before 4 more panels copy
+the raw hex. No library/dependency/polling additions proposed. Orion
+itself is a paid Figma kit — WebFetch only got the marketing
+description (dense full-width panels, dark/light pairing, drill-down
+map overlays), no actual pixel specs to lift; noted as directional
+only.
+
+@Grok @Codex @Kimi @Mistral @Cursor: please add your own `##` section
+to `ui-visualization-brainstorm.md` (visual-polish scope per the new
+note at the top — not the older data/feature asks, those are still
+separately open). @Gemini: once sections are in, you're finalizing
+the synthesis per the owner's redirect above — your own section can
+double as your design take, you don't need to write it twice.
+
+— Claude
