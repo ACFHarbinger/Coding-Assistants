@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
+import { NOC_COLORS } from "../../common/telemetry/tokens";
 import {
   ConcentricArcGauge,
   type CpuCore,
@@ -258,7 +259,7 @@ export default function SystemTab() {
               {
                 label: "RAM",
                 percent: memPercent,
-                color: "#ec4899",
+                color: NOC_COLORS.pink,
                 detail: snapshot
                   ? `${formatBytes(snapshot.memory.used_bytes)} / ${formatBytes(snapshot.memory.total_bytes)}`
                   : "—",
@@ -268,7 +269,7 @@ export default function SystemTab() {
                     {
                       label: "Swap",
                       percent: swapPercent,
-                      color: "#06b6d4",
+                      color: NOC_COLORS.teal,
                       detail: `${formatBytes(snapshot.swap.used_bytes)} / ${formatBytes(snapshot.swap.total_bytes)}`,
                     },
                   ]
@@ -280,14 +281,14 @@ export default function SystemTab() {
               <Meter
                 label="RAM"
                 percent={memPercent}
-                color="#ec4899"
+                color={NOC_COLORS.pink}
                 detail={`${formatBytes(snapshot.memory.used_bytes)} / ${formatBytes(snapshot.memory.total_bytes)}`}
               />
               {snapshot.swap.total_bytes > 0 && (
                 <Meter
                   label="Swap"
                   percent={swapPercent}
-                  color="#06b6d4"
+                  color={NOC_COLORS.teal}
                   detail={`${formatBytes(snapshot.swap.used_bytes)} / ${formatBytes(snapshot.swap.total_bytes)}`}
                 />
               )}
@@ -298,7 +299,7 @@ export default function SystemTab() {
         <div style={{ ...nocPanelStyle, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "0.85rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <strong style={{ color: "var(--text-main)", fontSize: "0.9rem" }}>GPU &amp; Storage Dials</strong>
-            <span style={{ fontSize: "0.72rem", color: snapshot?.gpu.available ? "#10b981" : "var(--text-muted)" }}>
+            <span style={{ fontSize: "0.72rem", color: snapshot?.gpu.available ? NOC_COLORS.ok : "var(--text-muted)" }}>
               {snapshot?.gpu.available ? "Accelerator Online" : "Host Volumes"}
             </span>
           </div>
@@ -312,13 +313,13 @@ export default function SystemTab() {
                 {
                   label: "Core",
                   percent: primaryGpu ? primaryGpu.usage_percent : 0,
-                  color: "#10b981",
+                  color: NOC_COLORS.ok,
                   detail: primaryGpu ? `${primaryGpu.usage_percent.toFixed(0)}%` : "idle",
                 },
                 {
                   label: "VRAM",
                   percent: primaryGpuVramPct,
-                  color: "#a855f7",
+                  color: NOC_COLORS.purple,
                   detail: primaryGpu ? formatBytes(primaryGpu.mem_used_bytes) : "—",
                 },
               ]}
@@ -331,7 +332,7 @@ export default function SystemTab() {
               rings={(snapshot?.disks ?? []).slice(0, 3).map((d, idx) => {
                 const used = Math.max(0, d.total_bytes - d.available_bytes);
                 const pct = d.total_bytes > 0 ? (used / d.total_bytes) * 100 : 0;
-                const palette = ["#22c55e", "#38bdf8", "#f59e0b"];
+                const palette = [NOC_COLORS.emerald, NOC_COLORS.cyan, NOC_COLORS.amber];
                 return { label: d.mount_point, percent: pct, color: palette[idx % palette.length], detail: `${pct.toFixed(0)}%` };
               })}
             />
@@ -339,15 +340,15 @@ export default function SystemTab() {
           <div style={{ background: "rgba(0, 0, 0, 0.25)", borderRadius: "6px", padding: "0.55rem 0.7rem", fontSize: "0.76rem", display: "grid", gap: "0.25rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}>
               <span>Volume Health Status:</span>
-              <strong style={{ color: totalDiskPct >= 90 ? "#ef4444" : "#10b981" }}>{totalDiskPct >= 90 ? "HIGH USAGE" : "OK"}</strong>
+              <strong style={{ color: totalDiskPct >= 90 ? NOC_COLORS.crit : NOC_COLORS.ok }}>{totalDiskPct >= 90 ? "HIGH USAGE" : "OK"}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}>
               <span>Used Space:</span>
-              <strong style={{ color: "#e2e8f0" }}>{totalDiskPct.toFixed(2)}% ({formatBytes(usedDiskBytes)} / {formatBytes(totalDiskBytes)})</strong>
+              <strong style={{ color: "var(--noc-text-secondary)" }}>{totalDiskPct.toFixed(2)}% ({formatBytes(usedDiskBytes)} / {formatBytes(totalDiskBytes)})</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", gap: "0.5rem" }}>
               <span>Accelerator State:</span>
-              <span style={{ color: "#cbd5e1", textAlign: "right" }}>
+              <span style={{ color: "var(--noc-text-secondary)", textAlign: "right" }}>
                 {snapshot?.gpu.available ? `${snapshot.gpu.gpus.length} GPU(s) active` : "Standby (host CPU mode)"}
               </span>
             </div>
@@ -362,7 +363,7 @@ export default function SystemTab() {
           fixedMax={100}
           showAverageLine
           timestamps={timestamps}
-          series={[{ label: "Total CPU %", color: "#38bdf8", fill: "rgba(56, 189, 248, 0.24)", values: cpuHistory }]}
+          series={[{ label: "Total CPU %", color: NOC_COLORS.cyan, fill: "rgba(56, 189, 248, 0.24)", values: cpuHistory }]}
         />
         <TelemetryTimeSeriesCard
           title="Memory & Swap Utilization"
@@ -370,8 +371,8 @@ export default function SystemTab() {
           fixedMax={100}
           timestamps={timestamps}
           series={[
-            { label: "RAM Used %", color: "#ec4899", fill: "rgba(236, 72, 153, 0.22)", values: memHistory },
-            { label: "Swap Used %", color: "#06b6d4", values: swapHistory },
+            { label: "RAM Used %", color: NOC_COLORS.pink, fill: "rgba(236, 72, 153, 0.22)", values: memHistory },
+            { label: "Swap Used %", color: NOC_COLORS.teal, values: swapHistory },
           ]}
         />
         <TelemetryTimeSeriesCard
@@ -379,8 +380,8 @@ export default function SystemTab() {
           unitLabel="KB/s"
           timestamps={timestamps}
           series={[
-            { label: "Read Rate", color: "#10b981", fill: "rgba(16, 185, 129, 0.18)", values: readRateHistory, formatter: (v) => formatRate(v * 1024) },
-            { label: "Write Rate", color: "#f59e0b", values: writeRateHistory, formatter: (v) => formatRate(v * 1024) },
+            { label: "Read Rate", color: NOC_COLORS.ok, fill: "rgba(16, 185, 129, 0.18)", values: readRateHistory, formatter: (v) => formatRate(v * 1024) },
+            { label: "Write Rate", color: NOC_COLORS.amber, values: writeRateHistory, formatter: (v) => formatRate(v * 1024) },
           ]}
         />
       </div>

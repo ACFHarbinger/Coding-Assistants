@@ -9,6 +9,76 @@
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-blur: blur(20px);
   --accent: #a855f7;
+
+  /* Paired NOC Telemetry Design Tokens (mirrored in src/components/common/telemetry/tokens.ts) */
+  --noc-ok: #10b981;
+  --noc-warn: #eab308;
+  --noc-crit: #ef4444;
+  --noc-idle: #94a3b8;
+  --noc-cyan: #38bdf8;
+  --noc-teal: #06b6d4;
+  --noc-indigo: #6366f1;
+  --noc-purple: #a855f7;
+  --noc-pink: #ec4899;
+  --noc-amber: #f59e0b;
+  --noc-orange: #f97316;
+  --noc-emerald: #22c55e;
+
+  --noc-bg-panel: #0f172a;
+  --noc-bg-deep: #090e1a;
+  --noc-text-primary: #f8fafc;
+  --noc-text-secondary: #e2e8f0;
+  --noc-text-muted: #94a3b8;
+  --noc-border: rgba(148, 163, 184, 0.14);
+  --noc-border-strong: rgba(148, 163, 184, 0.28);
+  --noc-gridline: rgba(148, 163, 184, 0.14);
+  --noc-gridline-subtle: rgba(148, 163, 184, 0.08);
+  --noc-track: rgba(148, 163, 184, 0.16);
+  --noc-focus-ring: 0 0 0 2px #090e1a, 0 0 0 4px #38bdf8;
+
+  /* 3-Tier NOC Typography Ramp */
+  --noc-type-kpi: 1.5rem;
+  --noc-type-body: 0.85rem;
+  --noc-type-micro: 0.72rem;
+
+  /* Spacing, Elevation, & Radius Ramp */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --elev-1: none;
+  --elev-2: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --elev-3: 0 20px 40px rgba(0, 0, 0, 0.55);
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+
+  /* Motion Choreography Tokens */
+  --dur-instant: 100ms;
+  --dur-fast: 160ms;
+  --dur-slow: 240ms;
+  --ease-noc: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.noc-focusable:focus-visible {
+  outline: none;
+  box-shadow: var(--noc-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary,
+  .btn-secondary,
+  .noc-focusable,
+  .noc-subtab-indicator {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 * {

@@ -1,4 +1,5 @@
 import type React from "react";
+import { NOC_COLORS, NOC_ELEVATION, NOC_SURFACES, NOC_TYPOGRAPHY } from "../../common/telemetry/tokens";
 
 export type CpuCore = { name: string; usage_percent: number; freq_mhz: number };
 export type MemoryInfo = { total_bytes: number; used_bytes: number; available_bytes: number };
@@ -74,16 +75,16 @@ export function Meter({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-        <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{label}</span>
-        <span>{detail}</span>
+        <span style={{ color: NOC_SURFACES.textSecondary, fontWeight: 600 }}>{label}</span>
+        <span className="tabular-nums">{detail}</span>
       </div>
-      <div style={{ height: 7, background: "rgba(148, 163, 184, 0.14)", borderRadius: 4, marginTop: "0.28rem", overflow: "hidden" }}>
+      <div style={{ height: 7, background: NOC_SURFACES.gridline, borderRadius: 4, marginTop: "0.28rem", overflow: "hidden" }}>
         <div
           style={{
             width: `${clamped}%`,
             height: "100%",
             borderRadius: 4,
-            background: clamped > 90 ? "#ef4444" : color,
+            background: clamped > 90 ? NOC_COLORS.crit : color,
           }}
         />
       </div>
@@ -93,10 +94,10 @@ export function Meter({
 
 export const nocPanelStyle: React.CSSProperties = {
   background: "linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(9, 14, 26, 0.96) 100%)",
-  border: "1px solid rgba(148, 163, 184, 0.14)",
+  border: `1px solid ${NOC_SURFACES.border}`,
   borderRadius: "10px",
   padding: "1rem 1.15rem",
-  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.35)",
+  boxShadow: NOC_ELEVATION.elev2,
 };
 
 function statusTone(percent: number, available = true): { bg: string; border: string; text: string } {
@@ -107,7 +108,7 @@ function statusTone(percent: number, available = true): { bg: string; border: st
     return { bg: "rgba(239, 68, 68, 0.88)", border: "#f87171", text: "#ffffff" };
   }
   if (percent >= 72) {
-    return { bg: "rgba(234, 179, 8, 0.88)", border: "#facc15", text: "#0f172a" };
+    return { bg: "rgba(234, 179, 8, 0.88)", border: "#facc15", text: NOC_SURFACES.bgPanel };
   }
   return { bg: "rgba(16, 185, 129, 0.88)", border: "#34d399", text: "#052e16" };
 }
@@ -163,18 +164,18 @@ export function MonitorStatusStrip({
   return (
     <div style={nocPanelStyle} data-testid="monitor-status-strip">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.65rem", gap: "0.75rem", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#e2e8f0", letterSpacing: "0.02em" }}>
+        <span style={{ fontSize: "0.82rem", fontWeight: 600, color: NOC_SURFACES.textSecondary, letterSpacing: "0.02em" }}>
           Current Status of All Monitors
         </span>
-        <div style={{ display: "flex", gap: "0.85rem", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+        <div style={{ display: "flex", gap: "0.85rem", fontSize: NOC_TYPOGRAPHY.micro, color: "var(--text-muted)" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-            <i style={{ width: 8, height: 8, borderRadius: 2, background: "#10b981", display: "inline-block" }} /> Optimal (&lt;72%)
+            <i style={{ width: 8, height: 8, borderRadius: 2, background: NOC_COLORS.ok, display: "inline-block" }} /> Optimal (&lt;72%)
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-            <i style={{ width: 8, height: 8, borderRadius: 2, background: "#eab308", display: "inline-block" }} /> Elevated (72–89%)
+            <i style={{ width: 8, height: 8, borderRadius: 2, background: NOC_COLORS.warn, display: "inline-block" }} /> Elevated (72–89%)
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-            <i style={{ width: 8, height: 8, borderRadius: 2, background: "#ef4444", display: "inline-block" }} /> Critical (≥90%)
+            <i style={{ width: 8, height: 8, borderRadius: 2, background: NOC_COLORS.crit, display: "inline-block" }} /> Critical (≥90%)
           </span>
         </div>
       </div>
@@ -249,7 +250,7 @@ export function KpiMetricStrip({
       value: cpuTotal.toFixed(1),
       unit: "%",
       footer: `${cpus.length} logical core${cpus.length === 1 ? "" : "s"}`,
-      accent: cpuTotal >= 90 ? "#ef4444" : "#38bdf8",
+      accent: cpuTotal >= 90 ? NOC_COLORS.crit : NOC_COLORS.cyan,
     },
     {
       title: "Peak Core Frequency",
@@ -257,7 +258,7 @@ export function KpiMetricStrip({
       value: maxFreq > 0 ? String(maxFreq) : "—",
       unit: maxFreq > 0 ? "MHz" : "",
       footer: maxFreq > 0 ? `${(maxFreq / 1000).toFixed(2)} GHz peak clock` : "Frequency nominal",
-      accent: "#f97316",
+      accent: NOC_COLORS.orange,
     },
     {
       title: "Physical Memory Used",
@@ -265,7 +266,7 @@ export function KpiMetricStrip({
       value: memPct.toFixed(1),
       unit: "%",
       footer: `Avail: ${formatBytes(memory.available_bytes)}`,
-      accent: "#ec4899",
+      accent: NOC_COLORS.pink,
     },
     {
       title: "Aggregate Disk I/O",
@@ -273,7 +274,7 @@ export function KpiMetricStrip({
       value: combinedIo > 0 ? formatBytes(combinedIo).split(" ")[0] : "0.0",
       unit: combinedIo > 0 ? `${formatBytes(combinedIo).split(" ")[1] ?? "B"}/s` : "B/s",
       footer: `${disks.length} mounted volume${disks.length === 1 ? "" : "s"}`,
-      accent: "#10b981",
+      accent: NOC_COLORS.ok,
     },
     {
       title: "GPU Accelerator",
@@ -283,7 +284,7 @@ export function KpiMetricStrip({
       footer: primaryGpu
         ? `VRAM ${formatBytes(primaryGpu.mem_used_bytes)} / ${formatBytes(primaryGpu.mem_total_bytes)}`
         : "No NVIDIA runtime",
-      accent: "#a855f7",
+      accent: NOC_COLORS.purple,
     },
     {
       title: "Managed Harnesses",
@@ -291,7 +292,7 @@ export function KpiMetricStrip({
       value: String(harnessCount),
       unit: "active",
       footer: `${processCount} total watched PIDs`,
-      accent: "#22c55e",
+      accent: NOC_COLORS.emerald,
     },
   ];
 
@@ -310,19 +311,19 @@ export function KpiMetricStrip({
             borderTop: `2px solid ${card.accent}`,
           }}
         >
-          <div style={{ fontSize: "0.76rem", fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: "0.76rem", fontWeight: 600, color: NOC_SURFACES.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {card.title}
           </div>
-          <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "0.2rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: "0.68rem", color: NOC_SURFACES.textMuted, marginTop: "0.2rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {card.subtitle}
           </div>
-          <div style={{ margin: "0.55rem 0 0.45rem", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "0.2rem" }}>
-            <span style={{ fontSize: "1.65rem", fontWeight: 800, color: "#f8fafc", letterSpacing: "-0.02em", lineHeight: 1 }}>
+          <div className="tabular-nums" style={{ margin: "0.55rem 0 0.45rem", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "0.2rem" }}>
+            <span style={{ fontSize: "1.65rem", fontWeight: 800, color: NOC_SURFACES.textPrimary, letterSpacing: "-0.02em", lineHeight: 1 }}>
               {card.value}
             </span>
             {card.unit && <span style={{ fontSize: "0.75rem", fontWeight: 600, color: card.accent }}>{card.unit}</span>}
           </div>
-          <div style={{ fontSize: "0.66rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: "0.68rem", color: NOC_SURFACES.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {card.footer}
           </div>
         </div>
@@ -376,7 +377,7 @@ export function ConcentricArcGauge({
             const filledLength = (clamped / 100) * arcLength;
             return (
               <g key={ring.label} transform={`rotate(${startAngleDeg} ${center} ${center})`}>
-                <circle cx={center} cy={center} r={radius} fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth={strokeWidth} strokeDasharray={`${arcLength} ${circumference}`} strokeLinecap="round" />
+                <circle cx={center} cy={center} r={radius} fill="none" stroke={NOC_SURFACES.track} strokeWidth={strokeWidth} strokeDasharray={`${arcLength} ${circumference}`} strokeLinecap="round" />
                 {clamped > 0 && (
                   <circle cx={center} cy={center} r={radius} fill="none" stroke={ring.color} strokeWidth={strokeWidth} strokeDasharray={`${filledLength} ${circumference}`} strokeLinecap="round" />
                 )}
@@ -384,17 +385,17 @@ export function ConcentricArcGauge({
             );
           })}
         </svg>
-        <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", pointerEvents: "none", padding: "0 0.5rem" }}>
-          <span style={{ fontSize: "1.35rem", fontWeight: 800, color: "#f8fafc", lineHeight: 1.05 }}>{centerPrimary}</span>
-          {centerSecondary && <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#38bdf8", marginTop: "0.1rem" }}>{centerSecondary}</span>}
-          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#cbd5e1", marginTop: "0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{title}</span>
+        <div className="tabular-nums" style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", pointerEvents: "none", padding: "0 0.5rem" }}>
+          <span style={{ fontSize: "1.35rem", fontWeight: 800, color: NOC_SURFACES.textPrimary, lineHeight: 1.05 }}>{centerPrimary}</span>
+          {centerSecondary && <span style={{ fontSize: "0.85rem", fontWeight: 700, color: NOC_COLORS.cyan, marginTop: "0.1rem" }}>{centerSecondary}</span>}
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: NOC_SURFACES.textSecondary, marginTop: "0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{title}</span>
         </div>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.65rem", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.65rem", fontSize: NOC_TYPOGRAPHY.micro, color: NOC_SURFACES.textMuted }}>
         {rings.map((ring) => (
-          <span key={ring.label} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+          <span key={ring.label} className="tabular-nums" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: "50%", background: ring.color, display: "inline-block" }} />
-            <strong style={{ color: "#e2e8f0" }}>{ring.label}:</strong> {ring.detail}
+            <strong style={{ color: NOC_SURFACES.textSecondary }}>{ring.label}:</strong> {ring.detail}
           </span>
         ))}
       </div>
@@ -416,22 +417,22 @@ export function CpuCoreRadialGauge({ core, maxFreqMhz }: { core: CpuCore; maxFre
 
   const loadClamped = Math.max(0, Math.min(100, core.usage_percent));
   const freqRatio = maxFreqMhz > 0 ? Math.max(10, Math.min(100, (core.freq_mhz / maxFreqMhz) * 100)) : 50;
-  const loadColor = loadClamped >= 90 ? "#ef4444" : loadClamped >= 70 ? "#eab308" : "#22c55e";
+  const loadColor = loadClamped >= 90 ? NOC_COLORS.crit : loadClamped >= 70 ? NOC_COLORS.warn : NOC_COLORS.emerald;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(15, 23, 42, 0.55)", border: "1px solid rgba(148, 163, 184, 0.12)", borderRadius: "8px", padding: "0.35rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(15, 23, 42, 0.55)", border: `1px solid ${NOC_SURFACES.border}`, borderRadius: "8px", padding: "0.35rem" }}>
       <div style={{ position: "relative", width: size, height: size, display: "grid", placeItems: "center" }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${core.name} usage ${loadClamped.toFixed(0)}%`}>
           <g transform={`rotate(${startAngle} ${center} ${center})`}>
-            <circle cx={center} cy={center} r={outerR} fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth={5.5} strokeDasharray={`${outerArc} ${outerCirc}`} strokeLinecap="round" />
-            <circle cx={center} cy={center} r={outerR} fill="none" stroke="#ef4444" strokeWidth={5.5} strokeDasharray={`${(freqRatio / 100) * outerArc} ${outerCirc}`} strokeLinecap="round" />
-            <circle cx={center} cy={center} r={innerR} fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth={5.5} strokeDasharray={`${innerArc} ${innerCirc}`} strokeLinecap="round" />
+            <circle cx={center} cy={center} r={outerR} fill="none" stroke={NOC_SURFACES.track} strokeWidth={5.5} strokeDasharray={`${outerArc} ${outerCirc}`} strokeLinecap="round" />
+            <circle cx={center} cy={center} r={outerR} fill="none" stroke={NOC_COLORS.crit} strokeWidth={5.5} strokeDasharray={`${(freqRatio / 100) * outerArc} ${outerCirc}`} strokeLinecap="round" />
+            <circle cx={center} cy={center} r={innerR} fill="none" stroke={NOC_SURFACES.track} strokeWidth={5.5} strokeDasharray={`${innerArc} ${innerCirc}`} strokeLinecap="round" />
             <circle cx={center} cy={center} r={innerR} fill="none" stroke={loadColor} strokeWidth={5.5} strokeDasharray={`${(loadClamped / 100) * innerArc} ${innerCirc}`} strokeLinecap="round" />
           </g>
         </svg>
-        <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.15, textAlign: "center" }}>
-          <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#f8fafc" }}>{core.name}</span>
-          <span style={{ fontSize: "0.58rem", color: "#94a3b8" }}>{core.freq_mhz}MHz</span>
+        <div className="tabular-nums" style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.15, textAlign: "center" }}>
+          <span style={{ fontSize: "0.68rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>{core.name}</span>
+          <span style={{ fontSize: "0.6rem", color: NOC_SURFACES.textMuted }}>{core.freq_mhz}MHz</span>
           <span style={{ fontSize: "0.7rem", fontWeight: 800, color: loadColor }}>{loadClamped.toFixed(0)}%</span>
         </div>
       </div>
