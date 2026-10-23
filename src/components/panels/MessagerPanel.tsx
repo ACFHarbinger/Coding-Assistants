@@ -9,8 +9,8 @@ import ChatCanvas from "./messager/ChatCanvas";
 import MessagerMemoryTab from "./messager/MessagerMemoryTab";
 import MessageContextMenu from "./messager/MessageContextMenu";
 import JournalPanel from "./governance/JournalPanel";
-import type { AuditEvent } from "./hub/types";
 import { forwardVtuberSpeech } from "../settings/api";
+import { useJournalAudit } from "./messager/useJournalAudit";
 export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, MessagerPanelProps } from "./messager/types";
 export default function MessagerPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: MessagerPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
@@ -50,10 +50,15 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [activeSubtab, setActiveSubtab] = useState<"chat" | "memory" | "journal">("chat");
   const [memoryJumpQuery, setMemoryJumpQuery] = useState<string>("");
 
-  // Journal subtab (moved from Governance)
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
-  const [auditShowAll, setAuditShowAll] = useState(false);
-  const [auditError, setAuditError] = useState<string>("");
+  const {
+    auditEvents,
+    auditShowAll,
+    setAuditShowAll,
+    auditError,
+    refreshAuditEvents,
+    approveAudit,
+    quarantineAudit,
+  } = useJournalAudit();
 
   // Workspace-scoped harness liveness (never a global process-name scan)
   const [agentPresence, setAgentPresence] = useState<WorkspaceAgentPresence | null>(null);
@@ -418,42 +423,6 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     setMemoryJumpQuery(memoryId.slice(0, 8));
     startTransition(() => setActiveSubtab("memory"));
   };
-
-  const refreshAuditEvents = async () => {
-    try {
-      const list = await invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: !auditShowAll });
-      setAuditEvents(list);
-      setAuditError("");
-    } catch (e) {
-      setAuditError(String(e));
-    }
-  };
-
-  const approveAudit = async (eventId: string) => {
-    try {
-      await invoke("hub_approve_audit_event", { eventId, approvedBy: "human" });
-      setAuditError("");
-    } catch (e) {
-      setAuditError(String(e));
-    }
-    await refreshAuditEvents();
-  };
-
-  const quarantineAudit = async (eventId: string) => {
-    try {
-      await invoke("hub_quarantine_audit_event", { eventId, quarantinedBy: "human", reason: "Rejected via desktop journal" });
-      setAuditError("");
-    } catch (e) {
-      setAuditError(String(e));
-    }
-    await refreshAuditEvents();
-  };
-
-  useEffect(() => {
-    invoke<AuditEvent[]>("hub_list_audit_events", { pendingOnly: true })
-      .then(setAuditEvents)
-      .catch((e) => console.error("Failed to load pending audit events:", e));
-  }, []);
 
   const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, onJumpToMemory, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
 
