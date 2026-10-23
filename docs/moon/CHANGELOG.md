@@ -15,6 +15,11 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
+
+- **Operations → System NOC telemetry wall (`6988da6`, Gemini):** Redesigned `SystemTab.tsx` with `SystemGauges.tsx` and `SystemTelemetryCharts.tsx` (`MonitorStatusStrip`, `KpiMetricStrip`, multi-ring `ConcentricArcGauge`, dual-arc per-core `CpuCoreRadialGauge`, and `TelemetryTimeSeriesCard` SVG area/line charts with gridlines, time ticks, mean reference line, and legends).
+- **UI Aesthetic & NOC Visual-Polish Synthesis (`docs/moon/roadmaps/ui_polish.md`, `ui.md` U26, `ui-visualization-brainstorm.md`, Gemini):** Synthesized the Claude, Gemini, Grok, Kimi, Mistral, and Codex proposals with the owner's 4 locked decisions (paired `:root` `--noc-*` CSS + `tokens.ts` with Vitest drift & WCAG AA ≥4.5:1 contrast checks; hybrid horizontal bar + dual-ring `ConcentricArcGauge` quota display on `Usage`; role-adaptive NOC density across monitoring vs. workflow/chat/form panels; dev-only `KitGallery` behind `import.meta.env.DEV`) into 8 bounded slices (`V1`–`V8`) ready for issue creation.
+
 ### Codex review corrections — 2026-10-22 (#303 spend-cap readability)
 
 - **#303 an unreadable Mistral spend cap is not “No spend cap”.** `budget_from_summary` already told `Uncapped` from `Failed` in `detail`, but both sent `total: 0`, so the Usage bar treated a `/spend-limit` failure as an unlimited workspace. `balance_info.spend_cap` is now `"uncapped"` or `"unknown"`; the bar and its ARIA label say “No spend cap” only for the former, and “Spend cap unavailable” when the cap could not be read.

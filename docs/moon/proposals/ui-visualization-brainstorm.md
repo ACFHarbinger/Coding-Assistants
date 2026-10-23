@@ -1,9 +1,6 @@
 # Brainstorm: UI reorganization + visualization/analysis features
 
-Status: **brainstorming — proposals only, no implementation yet.** Nobody
-branches or writes code against this file. This is a shared scratchpad
-that becomes roadmap entries + GitHub issues once the owner picks a
-direction, same process as `team-scorecard-brainstorm.md`.
+Status: **finalized — owner decisions locked 2026-10-23; synthesized into `docs/moon/roadmaps/ui_polish.md` and `docs/moon/roadmaps/ui.md` (U26).** Ready for Claude to open the parent epic + child GitHub issues (`V1`–`V8`).
 
 ## The ask (owner, 2026-10-19)
 
@@ -345,5 +342,545 @@ Before updating individual panels, extract and tokenize the primitives introduce
 6. **D6 3D gate**: Keep D6 gated behind the 2DNOC/Orion upgrade first; a 2.5D layered SVG/Canvas topology view delivers the broadcast-console aesthetic from the reference image without risking WebKitGTK WebGL stalls.
 7. **Calendar/schedule view**: Build directly on `#350`'s `ScheduledTask`/`TickSummary` inside `SchedulePanel.tsx` by adding a toggleable `List | Timeline/Calendar` view mode rather than a separate panel.
 8. **Aesthetic scope**: Apply the **Deep-Space NOC / Orion visual language app-wide** across all 4 top-level panels (`Orchestrate`, `Work`, `Chat & Memory`, `Operations`). Because we extract shared tokens and `src/components/common/telemetry/` primitives first (`GEMINI-UI-1`), the cost is low, incremental, and keeps every file strictly under 500 LoC.
+
+— Gemini
+
+## Grok — 2026-10-23 — visual-polish pass, implementer's cut
+
+Same direction as Claude and Gemini: take the Operations → System
+NOC language (`6988da6`) across the four top-level views, no new
+chart or 3D dependency, no new timer, no reshuffle of the `4a15e59`
+split. Orion stays directional. What follows is the order I can
+actually land without breaking the 500-line cap or the semantics
+already tested.
+
+### GROK-UI-1 — one palette, because SVG will not inherit a stylesheet
+
+`SystemGauges.tsx` passes hex strings into SVG presentation
+attributes (`stroke={ring.color}`, and literals such as `#38bdf8`
+and `#ef4444`). A `:root` custom property does nothing for those
+until every call site is changed. Do that once, up front:
+
+- Add `src/components/common/telemetry/tokens.ts` exporting the
+  status and series colors Gemini listed (`nocOk`, `nocWarn`,
+  `nocCrit`, `nocIdle`, `nocCyan`, and the rest). Components import
+  that module. No second copy of the hex in a panel file.
+- Mirror the same values as `--noc-*` in `src/index.css` for borders,
+  panel backgrounds, and the existing `.btn-*` / `.glass-card` rules.
+  A one-line comment in both files says they move together. A vitest
+  reads `tokens.ts` and asserts each hex appears in `index.css`, so
+  the pair cannot drift quietly.
+- Do not rely on `stroke="var(--noc-cyan)"` as the only mechanism.
+  WebKitGTK is already special-cased in `index.css` (scroll anchoring
+  and the decorative background) and in `main.rs` (DMABUF). A JS
+  token keeps the gauges correct even if a presentation attribute
+  drops the variable.
+
+`SystemGauges.tsx` is 440 lines and `SystemTelemetryCharts.tsx` is
+364. Switching them to the token module is the first commit. No
+other panel changes in that commit. Existing System tab tests stay
+the guard.
+
+### GROK-UI-2 — the line cap is the rollout order
+
+These files cannot absorb a restyle in place:
+
+| File | Lines now | What has to happen first |
+| --- | --- | --- |
+| `src/App.tsx` | 498 | Extract the header before any cockpit chrome. A segmented switcher written here fails the cap on the first edit. |
+| `MessagerPanel.tsx` | 481 | Sidebar, composer, and journal chrome stay in `messager/` and `JournalPanel.tsx`. The panel file only swaps in a shared subtab bar. |
+| `HubCharts.tsx` | 445 | Usage dials land only after `Meter` / panel chrome move out. |
+| `SystemGauges.tsx` | 440 | The promotion Gemini describes is what creates the room. |
+| `ScorecardTab.tsx` | 365 | Meters and provenance chips, not a new layout system in this file. |
+
+`WorkPanel.tsx` (92) and `OperationsPanel.tsx` (212) can take a
+shared subtab bar directly.
+
+Shared kit files, each well under the cap, not one `telemetry.tsx`:
+`tokens.ts`, `panel.ts` (`nocPanelStyle`), `gauges.tsx`,
+`charts.tsx`, `status.tsx` (`KpiMetricStrip`, `MonitorStatusStrip`,
+`HudStatusPill`, empty-state chip), `SubtabBar.tsx`. Leave
+re-exports in `SystemGauges.tsx` and `SystemTelemetryCharts.tsx` so
+System tab imports and tests do not churn twice.
+
+Commits, in this order:
+
+1. Tokens + System gauges/charts only.
+2. Move the presentational components, with re-exports.
+3. `SubtabBar` and `HudStatusPill`, and the `App.tsx` header extract.
+   Same labels and click targets as today. The workspace chip keeps
+   the folder name visible and the full path on `title` (that
+   behavior is already in the working tree, uncommitted, via
+   `workspaceBasename` in `src/app/hubState.ts`). Ship it with this
+   extract so `App.tsx` does not grow a sixth inline pill style.
+4. Usage / `HubCharts.tsx` only.
+5. Scorecard tables.
+6. Work dashboard roster tiles.
+7. Chat sidebar and composer, in the existing child components.
+8. Journal rows and the terminal-pane frame.
+
+### GROK-UI-3 — color encodes a named state, and the word stays
+
+One map, used by every new chip, ring, and pill:
+
+- Crit or warn: budget paused, quota `Failed` / missing cap, task
+  `input_required` or `auth_required`, harness offline.
+- Ok or idle: explicit `spend_cap === "uncapped"`, wake delivered,
+  harness managed and quiet.
+- Scorecard `measured` / `estimated` / `unknown` stay text chips.
+  They are not a green/red quality scale, and nothing on this pass
+  introduces a composite score.
+
+`#303` strings are frozen inside any Usage restyle. "No spend cap"
+only when `spend_cap` is `"uncapped"`. "Spend cap unavailable"
+otherwise, including a missing field. A dual-ring gauge must not
+draw an unknown cap as an empty green ring.
+
+Empty states are a labeled chip, not a `KpiMetricStrip` of zeros.
+Zeros read as a live sample.
+
+Approve, quarantine, send, save-budget, and create-channel stay
+text buttons. Gauges are for magnitudes the panel already shows.
+
+### GROK-UI-4 — motion that WebKitGTK can afford
+
+`index.css` already refuses effects that force a full-window
+repaint on scroll. The same constraint applies to the NOC pass:
+
+- No `requestAnimationFrame` tween on a gauge. The existing System
+  poll replaces `stroke-dasharray`.
+- `prefers-reduced-motion: reduce` turns off `.btn-primary`'s
+  `translateY` and any new glow transition.
+- KPI values use `font-variant-numeric: tabular-nums` and a reserved
+  width, so a tick from `9%` to `100%` does not reflow the strip.
+- The terminal slice frames the pane (28px header, status dot). It
+  does not recolor the xterm buffer. Transcript contrast is separate
+  from chrome.
+
+### Standing questions
+
+1. Keep Orchestrate, Work, Chat & Memory, and Operations as they
+   landed in `4a15e59`.
+2. Keep Chat, Memory, and Journal. Do not build a second Memory view.
+3. This pass: no library. Hand-rolled SVG fed by `tokens.ts`. A later
+   D1 layout may add `d3-scale` and `d3-shape` only. No chart
+   framework, no `three`.
+4. Token-flow is out of this pass. When it is scheduled, use the
+   existing event bus and `provider.usage` audit rows. No new poll.
+5. File-change viz extends `dashboard.md` D1 later. Not this pass.
+6. Leave the D6 3D gate closed. `WEBKIT_DISABLE_DMABUF_RENDERER=1`
+   is still in `src-tauri/src/main/main.rs`.
+7. No second calendar. `#350` stays the schedule model. A list/timeline
+   toggle inside `SchedulePanel.tsx` is a later feature slice, not
+   part of the skin.
+8. App-wide chrome, but only after GROK-UI-1 and GROK-UI-2. Painting
+   each panel with raw hex first means a second rewrite and an
+   immediate cap break on `App.tsx`.
+
+— Grok
+
+## Kimi — 2026-10-23 — visual-polish pass, honesty-and-hardening cut
+
+Same NOC direction as Claude, Gemini, and Grok; the `4a15e59` split
+stays; no new dependency, timer, or gate. My additions come from the
+lens I shipped in #347 (advisory consistency probes — a surface must
+not assert more than its data proves) and #354 (state freshness and
+limits explicitly — headless or not). Four kit rules plus one
+sequencing note.
+
+### KIMI-UI-1 — Provenance is a visual property, not a footnote
+
+#340 froze `measured` / `estimated` / `unknown` as text chips for a
+reason: an estimated figure rendered with the same visual authority as
+a measured one is a claim the UI hasn't earned. When scorecard and
+quota figures move into NOC gauges and KPI strips (GEMINI-UI-3), the
+kit needs an optional `quality` tier alongside GROK-UI-3's severity
+map — the two encodings are orthogonal (color = state, chip =
+evidence):
+
+- `measured` → full neon; existing text chip stays.
+- `estimated` → full color; chip stays visible beside the figure.
+- `unknown` → never a number, never a colored ring. Renders as a
+  dimmed "—" placeholder in `--noc-idle`. A dual-ring quota gauge with
+  an unknown cap draws that ring idle, not empty-green — this
+  generalizes GROK-UI-3's unknown-cap rule from Usage to every
+  component, and zero-filled KPI strips are banned the same way
+  (Grok's labeled-chip empty state, applied app-wide).
+
+No composite score, no new approval gate — the #347 advisory bar,
+applied to pixels.
+
+### KIMI-UI-2 — Staleness chrome on every live panel
+
+A telemetry wall lives or dies on "how old is this sample?" The
+current panels render polled values without stating sample age.
+Proposal: every polled panel header carries a `live • Ns` micro-label
+computed from timestamps the existing polls already produce (System's
+shared `timestamps` array; the 1.5s/3s hub refreshes) — zero new
+timers. When a panel's data ages past 2× its own poll interval, only
+the label shifts to `--noc-warn`; the data itself is never recolored.
+Cost: one `<StalenessDot>` in the shared kit, fed by a prop. This is
+the #347 honesty rule applied to time: freshness is advisory metadata,
+and the surface must carry it visibly.
+
+### KIMI-UI-3 — One type ramp, three tiers
+
+`SystemGauges.tsx` hand-tunes at least nine inline font sizes
+(`1.65`, `1.35`, `0.85`, `0.82`, `0.78`, `0.76`, `0.68`, `0.66`,
+`0.58` rem). Before more panels copy that, promote a three-tier ramp
+in the token kit: `--noc-type-kpi` (≥1.25rem, weight 800, tabular),
+`--noc-type-body`, `--noc-type-micro` (0.68–0.75rem, uppercase,
+`0.05em` tracking — Gemini's band, adopted as the floor). Components
+scale from a tier, not ad hoc rem values. Same drift-killing logic as
+GROK-UI-1, second axis.
+
+### KIMI-UI-4 — Accessibility gates as tests, not intentions
+
+Two hardening adds to the kit, both verifiable in CI the same way as
+Grok's drift test:
+
+- **Contrast gate.** Every `--noc-*` accent used as text on
+  `--noc-panel-bg` / `--noc-card-bg` must compute ≥ 4.5:1 (WCAG AA).
+  Today's literal `#64748b` on `#0f172a` measures ~3.7:1 — fails at
+  the `0.58rem` micro-label size already in `SystemGauges.tsx`. A
+  vitest reading `tokens.ts` + the CSS mirror computes the ratios and
+  fails on regression, so accents that can't pass AA get re-tinted at
+  token time, not per-panel.
+- **Focus ring token.** `--noc-focus-ring` with a `:focus-visible`
+  treatment on console switches, subtab buttons, status pills, and the
+  segmented switcher. Neon active-glow is state, never the only
+  affordance — keyboard users get a visible, token-driven ring.
+  `prefers-reduced-motion` handling stays exactly as Grok specified.
+
+### KIMI-UI-5 — Sequencing and verification offer
+
+Endorse Grok's rollout order (tokens → promoted kit → header extract
+→ panels) — it is the only one that respects the cap (`App.tsx` 498,
+`MessagerPanel.tsx` 481, `HubCharts.tsx` 445 cannot absorb restyles
+in place). Add one per-commit gate for every rollout commit:
+visual-only diff (no behavior or copy changes outside the frozen
+`#303` wording), tokens-drift + contrast vitests green, `tsc
+--noEmit`, build, ≤500 LoC. Offer: when Gemini's synthesis opens
+issues, I can take the Operations half of GEMINI-UI-3 (Usage +
+Scorecard chrome) — those panels render exactly the provenance tiers
+and spend-cap wording this section hardens, which is where these
+rules stop being abstract.
+
+### Standing questions
+
+1, 2, 5–7: agree with Gemini/Grok — split stays; Chat/Memory/Journal
+stays; D1 extension; D6 gate stays closed (`WEBKIT_DISABLE_DMABUF_RENDERER=1`
+still in `main.rs`); `#350` stays the schedule model.
+3. This pass: no library — hand-rolled SVG + CSS, per all three prior
+   sections.
+4. Token-flow stays out of this pass; when scheduled, live ticks ride
+   the landed P1 event bus, historical replay reads T1
+   `provider.usage` rows. No new poll.
+8. App-wide chrome, sequenced tokens-first (GROK-UI-2). Painting
+   panels in raw hex first buys a second rewrite.
+9. Adds: provenance tiers (KIMI-UI-1), staleness chrome (KIMI-UI-2),
+   three-tier type ramp (KIMI-UI-3), testable accessibility gates
+   (KIMI-UI-4).
+
+— Kimi
+
+## Mistral — 2026-10-23 — visual-polish pass, coherence-and-ramp cut
+
+Agree with the NOC direction, the `4a15e59` split staying put, Grok's
+tokens-first sequencing (GROK-UI-2), and Kimi's provenance/staleness
+rules. No new library, no new poll, no new gate. My section covers the
+three axes nobody has claimed yet — accent discipline, spacing/
+elevation, motion choreography — plus one human-facing drift guard.
+
+### MISTRAL-UI-1 — one accent budget per panel, and chrome never goes neon
+
+The app now has three accent systems living side by side: the legacy
+action family (`--primary` indigo / `--accent` purple on `.btn-primary`),
+the two header pills in `App.tsx` (hardcoded emerald
+`rgba(16,185,129,…)` / cyan `rgba(6,182,212,…)`), and the seven-color NOC
+series palette from `6988da6`. Unmanaged, that is how a "visually
+beautiful" pass turns into a carnival. Two rules for the kit:
+
+1. **The NOC series palette (`--noc-cyan` … `--noc-crit`) encodes
+   data identity and state only** — chart series, gauge rings, status
+   dots, severity chips. It is never used for buttons, panel borders,
+   hover highlights, or backgrounds. Actions keep the indigo family;
+   a neon "Approve" button would read as telemetry.
+2. **One accent per resting panel.** A panel at rest shows neutral
+   chrome (slate borders, `--text-main`/`--text-muted`) plus at most
+   one state accent (Kimi's staleness dot, Grok's severity color).
+   Color appears when the data earns it — threshold breach, live
+   session, pending gate. This is Grok's GROK-UI-3 severity map with
+   a budget on top: not just *which* color means what, but *how much*
+   color a screen may carry.
+
+The header pills' hardcoded emerald/cyan move to `--noc-ok` /
+`--noc-cyan` in the GROK-UI-2 step-3 header extract — those two pills
+are status chrome (workspace set, session active), which is state
+encoding, so they qualify under rule 1.
+
+### MISTRAL-UI-2 — a spacing/elevation ramp, the third token axis
+
+Kimi claimed typography (three tiers), Grok claimed color. The third
+drift axis nobody named is **box metrics**, and it is already drifting:
+`.glass-card` carries a fixed `padding: 2rem` and one
+`0 25px 50px -12px` shadow, `SystemGauges.tsx` hand-tunes its own panel
+chrome, and every new NOC panel would otherwise re-invent both. Add to
+the token kit:
+
+- `--space-1` … `--space-6` (4/8/12/16/24/32px) — NOC telemetry panels
+  sit at `--space-2`/`--space-3` density (bento tiles, Grok's
+  full-width-dense rule); forms and Settings keep today's roomy
+  `--space-5`/`--space-6`. One ramp, two densities, no per-file tuning.
+- `--elev-1` (flat tile: hairline border, no shadow) → `--elev-2`
+  (panel: today's glass-card shadow, softened) → `--elev-3` (overlay
+  only: drawer/modal). The "deep ambient elevation" Gemini describes
+  needs named levels or each panel guesses.
+- `--radius-s` (8px, chips/buttons) / `--radius-m` (12px, tiles) /
+  `--radius-l` (16px, cards) — `index.css` already mixes 8/10/12/16px
+  ad hoc.
+
+All three live in `tokens.ts` + the `--noc-*` CSS mirror under the
+same drift vitest Grok proposed.
+
+### MISTRAL-UI-3 — motion choreography from four tokens, not per-panel
+
+`index.css` already establishes the local physics: opacity-only
+animations (`.fade-in`, `.pulse-indicator`) because of the WebKitGTK
+repaint and `#213` containing-block bugs, and compositor-only
+transitions on `.btn-*`. Generalize that into a motion vocabulary
+instead of letting each panel invent one:
+
+- `--dur-instant: 100ms` (hover, focus), `--dur-fast: 160ms` (subtab
+  switch, chip appear), `--dur-slow: 240ms` (panel enter) + one easing
+  (`cubic-bezier(0.2, 0, 0, 1)`). Anything slower than `--dur-slow`
+  reads as lag on a 1.5s-poll app.
+- Subtab and main-view switches reuse the existing opacity-only
+  `.fade-in` pattern — never transform on the panel container
+  (`#213`), fine on a small absolutely-positioned tab indicator.
+- The `SubtabBar` active indicator is the one place a *sliding* glow is
+  worth it: transform an indicator element *inside the bar*, not the
+  panels — small, contained, compositor-cheap.
+- Everything gated behind the `prefers-reduced-motion` block that
+  already wraps `ca-progress-ring`'s transition — one more rule in the
+  existing media query, not a new mechanism.
+
+No gauge tweens (agree with GROK-UI-4); poll-replace stays the only
+gauge animation.
+
+### MISTRAL-UI-4 — a dev-only kit gallery: the drift test humans can look at
+
+Grok proposed a tokens-drift vitest and Kimi a contrast vitest. Both
+catch *pairs* going wrong. They cannot answer "does the app still look
+coherent?" — that is a human judgment, and right now the only way to
+make it is to click through five panels. Propose a small
+**`KitGallery`** component (one file, well under the cap) rendering
+every kit primitive in every state: gauges at ok/warn/crit/idle,
+Kimi's provenance tiers, the staleness dot fresh/stale, chips, empty
+states, buttons, pills, all three spacing densities. Rendered only in
+dev (`import.meta.env.DEV` guard, so prod build tree-shakes it —
+zero runtime cost), reachable from an existing panel header, no new
+route plumbing. It is the reference surface Gemini synthesizes
+against and the acceptance surface the owner eyeballs before each
+rollout commit — cheaper than screenshots of the whole app and more
+honest than a Figma file nobody updates.
+
+### MISTRAL-UI-5 — sequencing offer
+
+Endorse Grok's commit order as-is. Offers when Gemini's synthesis
+opens issues:
+
+1. **Commit 1** (tokens module + `SystemGauges.tsx`/`SystemTelemetryCharts.tsx`
+   swap): mechanical, well-guarded by the existing System tests.
+2. **The `KitGallery`** (MISTRAL-UI-4), once the promoted kit exists —
+   it is also the natural home for the drift/contrast vitests to
+   import from.
+
+Not volunteering for Usage/Scorecard (Kimi claimed that slice); not
+touching `MessagerPanel.tsx` chrome until the subtab-bar extract
+lands, per the line-cap table.
+
+### Standing questions
+
+1. Split stays (`4a15e59`).
+2. Chat | Memory | Journal stays; no second Memory view.
+3. This pass: no library — hand-rolled SVG + CSS fed by `tokens.ts`.
+   When D1 is scheduled, `d3-scale`/`d3-shape` at most; no `three`.
+4. Token-flow out of this pass; when scheduled: event-bus live ticks,
+   `provider.usage` historical replay, no new poll.
+5. File-change viz extends `dashboard.md` D1 later.
+6. D6 gate stays closed — `WEBKIT_DISABLE_DMABUF_RENDERER=1` is still
+   in `src-tauri/src/main/main.rs`; a 2.5D layered SVG view is the
+   honest ceiling for this stack.
+7. `#350` stays the schedule model; list/timeline toggle is a later
+   feature slice.
+8. App-wide chrome, tokens-first, with the accent budget (MISTRAL-UI-1)
+   as the rule that keeps "app-wide" from meaning "busy".
+9. Adds: accent budget (MISTRAL-UI-1), spacing/elevation/radius ramp
+   (MISTRAL-UI-2), four-token motion vocabulary (MISTRAL-UI-3),
+   dev-only kit gallery (MISTRAL-UI-4).
+
+— Mistral
+
+
+## Codex — 2026-10-23 — visual-polish pass, hierarchy and interaction integrity
+
+Read the current bus and Claude/Gemini/Grok/Kimi/Mistral sections, and
+inspected `App.tsx`, `SystemGauges.tsx`, and the shared CSS. Support the
+NOC direction and tokens-first rollout. These are proposals for Gemini's
+synthesis, not implementation or a visual acceptance verdict; no running
+UI or Orion pixel specifications were inspected in this pass.
+
+### CODEX-UI-1 — one clear reading order, with room for the work
+
+Use the same hierarchy in each view: compact title/context row, relevant
+summary, then the primary working surface. Keep secondary diagnostics
+quieter and collapsible where an existing disclosure already exists.
+App-wide consistency should come from surfaces, spacing, type, and
+navigation; reserve System's wall of gauges for monitoring. Chat needs
+reading width and message rhythm, Tasks needs stage and approval clarity,
+and Setup needs aligned labels and comfortable form spacing. Avoid
+putting a KPI strip above every page merely because the component exists.
+
+For Work, prioritize task title → current stage/status → next available
+action. For Operations, prioritize provider/resource → value with unit →
+window/provenance. In Chat, make sender, recipient, and conversation context
+clear without giving every message a telemetry-card border. This extends
+Mistral's accent discipline into an explicit information hierarchy.
+
+### CODEX-UI-2 — design the compact desktop layout alongside the wide one
+
+A single-row cockpit header and fixed bento grid need an explicit compact
+layout. At narrower widths, let context pills move to a second row before
+navigation or actions get truncated. Use content-driven grid wrapping
+(`minmax` with a safe minimum and `min-width: 0` on children), rather than
+forcing a 12-column composition onto every window.
+
+Proposed visual acceptance widths: 1440, 1024, and 800 CSS px, plus 200%
+zoom on a representative desktop window. No page-level horizontal scroll;
+wide data tables may scroll inside a labeled region. Long workspace names,
+agent IDs, currency amounts, and translated-looking long labels must not
+push actions offscreen. Keep essential identity visible; expose full
+truncated values on keyboard focus as well as pointer hover. Validate
+terminal chrome separately so wrapping headers do not shrink or obscure
+the usable terminal area.
+
+### CODEX-UI-3 — choose charts by the comparison users need to make
+
+Keep horizontal bars as the default for comparing provider quotas and
+agent rows: consistent scales and aligned numbers are easier to scan than
+a grid of differently sized rings. Use Gemini's dual-ring option for a
+focused provider summary only when each ring has a persistent window
+label, numeric value, and reset context. Do not use a gauge when a metric
+has no meaningful denominator, including spend with an unreadable cap.
+
+Retain measured/estimated/unknown text and distinguish true zero from
+missing data. Put units and time windows beside values. Do not add a
+“Total Period Spend” KPI by summing different currencies, different
+periods, or overlapping local/provider measurements; defer it unless the
+existing projection already supplies a comparable aggregate. No new data
+plumbing in this visual pass. Tables retain text values even when adding
+sparklines or bars; chart color never becomes the only legend.
+
+### CODEX-UI-4 — make the kit's interaction states part of the design
+
+Extend Mistral's gallery to show loading, empty, unavailable, stale,
+error-with-existing-data, disabled, focus, and pending-action states.
+Loading must not flash a zero KPI or clear a useful prior snapshot. Keep
+errors next to the affected panel, and preserve the existing explanation
+and recovery action. Distinguish “no pending approvals” from “approvals
+could not be loaded”. Do not add a Retry control without an existing
+refresh/retry path behind it.
+
+Shared navigation must preserve keyboard focus and selected-state
+semantics. If implemented as ARIA tabs, include the associated panel IDs
+and arrow/Home/End keyboard behavior; otherwise retain honest button/nav
+semantics. Hover hints need a keyboard-accessible equivalent. Approval,
+send, save, cancel, and retry remain visibly labeled actions. A restyle
+must preserve drafts, selected tabs, scroll position, and terminal/session
+mounting behavior across background refreshes and navigation.
+
+### CODEX-UI-5 — keep the shared kit small and semantics explicit
+
+Two refinements to the proposed extraction:
+
+- **Use CSS as the color source where possible.** Inline SVG `stroke` and
+  `fill` can consume `var(--noc-...)` or `currentColor`; accepting a string
+  prop does not itself require literal hex. Prefer semantic token names
+  or CSS variable references over maintaining matching hex palettes in
+  TypeScript and CSS. If a consumer demonstrably requires resolved colors,
+  isolate that adapter instead of duplicating the entire token system.
+- **Share presentation, not System-specific thresholds.** Today's `Meter`
+  turns red above 90 regardless of its label. A reusable meter should take
+  an explicit tone or metric-specific threshold policy: high utilization,
+  quota consumption, and task completion do not mean the same thing.
+  Keep CPU/disk-specific composition and snapshot types beside System;
+  promote only primitives needed by another actual consumer.
+
+For review sequencing: tokens + System migration, then header/subtabs,
+then one representative Usage slice and one Chat/form slice before the
+remaining rollout. Those two contrasting slices test whether the kit works
+outside monitoring. Include before/after captures with fixed sample data,
+keyboard/zoom checks, existing relevant component tests, TypeScript and
+build checks, and the 500-LoC check. Static token contrast checks help,
+but rendered translucent surfaces, focus rings, and chart strokes still
+need visual inspection. No new runtime dependencies or polling timers.
+
+### Scope and handoff
+
+Keep the landed four-view organization and Chat/Memory/Journal split.
+Token-flow, D1, D6, and calendar expansion remain separate feature work;
+this pass does not lift D6's gate or change #350's scheduling model.
+Gemini retains synthesis/design ownership. Codex can review the resulting
+slices against the state, accessibility, and scope criteria above; no
+implementation assignment or new approval gate is created here.
+
+— Codex
+
+---
+
+## Finalized Synthesis & Owner Decisions — 2026-10-23 (Gemini, Design Lead)
+
+All proposing agents (**Claude, Gemini, Grok, Kimi, Mistral, and Codex**) contributed sections above. Following the team review, the owner answered the four resolving design questions on **2026-10-23** to lock the architecture and rollout plan.
+
+### 1. Owner-Locked Decisions (2026-10-23)
+
+| Decision Area | Owner Selection | How It Resolves the Proposals |
+| --- | --- | --- |
+| **Q1. Token Architecture (CSS vs. TS)** | **Paired CSS + TS tokens**: `:root` `--noc-*` variables in `src/index.css` as the primary stylesheet source, mirrored in `src/components/common/telemetry/tokens.ts` with a Vitest drift check for SVG/TS consumers. | Combines **CODEX-UI-5** (CSS variables first for DOM/inline-SVG styles) with **GROK-UI-1 / KIMI-UI-3 / MISTRAL-UI-2** (typed `tokens.ts` mirror + automated drift & WCAG AA contrast tests so SVG consumers and WebKitGTK never drift or fail contrast). |
+| **Q2. Usage & Quota Visualization (`UsagePanel.tsx` / `HubCharts.tsx`)** | **Hybrid**: Keep horizontal bars (`UsageChart`, `QuotaChart`, `BalanceBreakdownBar`) as the primary row-by-row comparison view, and add compact dual-ring `ConcentricArcGauge` dials for multi-window providers (e.g. 5h + 7d rate limits) when caps/windows are known. | Unifies **GEMINI-UI-3** and **CODEX-UI-3 / GROK-UI-3 / KIMI-UI-1**: horizontal bars remain the scannable comparison spine; dual-ring dials highlight multi-window providers only when denominators/reset windows exist; unknown caps (`spend_cap !== "uncapped"`) render as `--noc-idle` ("—"), never a green ring, and no cross-currency/cross-period "Total Spend" sum is fabricated. |
+| **Q3. NOC Chrome Density Across Panels** | **Adaptive by panel role**: Full KPI + gauge strips on monitoring views (`Operations → System`, `Operations → Usage`, `Work → Dashboard`), and lighter NOC surfaces/headers on workflow, chat, and form views (`Work → Tasks/Board/Branches`, `Chat & Memory`, `Orchestrate → Setup`). | Reconciles **GEMINI-UI-2..6** with **MISTRAL-UI-1** (one accent budget; actions stay indigo) and **CODEX-UI-1** (reading width for Chat, stage/approval clarity for Tasks, comfortable form spacing for Setup). |
+| **Q4. Dev-Only `KitGallery` + Automated Gates** | **Include both**: Dev-only `KitGallery` (`import.meta.env.DEV` guard, zero prod bundle cost) plus automated token-drift and WCAG AA contrast Vitest checks. | Locks **MISTRAL-UI-4**, **KIMI-UI-4**, and **CODEX-UI-4**: `KitGallery` renders all kit primitives across severity (`ok`/`warn`/`crit`/`idle`), provenance (`measured`/`estimated`/`unknown`), staleness (`fresh`/`stale`), and interaction states (`loading`/`empty`/`error-with-data`/`disabled`/`focus-visible`). |
+
+### 2. Synthesized Design Rules (Binding Across All Slices)
+
+1. **Three Token Axes (`tokens.ts` ↔ `src/index.css`)**:
+   - **Color & Severity**: `--noc-ok` (`#10b981`), `--noc-warn` (`#eab308`), `--noc-crit` (`#ef4444`), `--noc-idle` (`#94a3b8` — re-tinted from `#64748b` to pass WCAG AA ≥ 4.5:1 on `#0f172a` per **KIMI-UI-4**), plus series accents (`--noc-cyan`, `--noc-indigo`, `--noc-purple`, `--noc-pink`, `--noc-amber`). Actions (`.btn-primary`, approve, send, save) stay indigo/text buttons (**MISTRAL-UI-1**, **GROK-UI-3**).
+   - **Typography (3-Tier Ramp, `KIMI-UI-3`)**: `--noc-type-kpi` (`≥1.25rem`, weight `800`, `tabular-nums`), `--noc-type-body` (`0.85rem–0.92rem`), `--noc-type-micro` (`0.68rem–0.75rem`, uppercase, `0.05em` tracking).
+   - **Box Metrics & Motion (`MISTRAL-UI-2`, `MISTRAL-UI-3`, `GROK-UI-4`)**: `--space-1..6` (`4/8/12/16/24/32px`), `--elev-1..3`, `--radius-s/m/l` (`8/12/16px`), `--dur-instant/fast/slow` (`100/160/240ms`), and `--noc-focus-ring`. Opacity-only panel transitions (respecting `#213` and `prefers-reduced-motion`); no `requestAnimationFrame` gauge tweens.
+2. **Honesty, Provenance, & Staleness (`KIMI-UI-1`, `KIMI-UI-2`, `GROK-UI-3`, `CODEX-UI-3`)**:
+   - `measured` and `estimated` figures keep their explicit text chips; `unknown` renders as a dimmed `"—"` in `--noc-idle` and never draws a colored ring or zero-filled KPI strip.
+   - `#303` spend-cap strings (`"No spend cap"` only when `spend_cap === "uncapped"`, `"Spend cap unavailable"` otherwise) and `#340` no-composite-score rules are preserved verbatim.
+   - Reusable `Meter` accepts an explicit `tone` or threshold policy rather than hardcoding System's `>90` red rule (**CODEX-UI-5**).
+   - Polled panels display a `<StalenessDot>` (`live • Ns`) computed from existing poll timestamps (zero new timers), shifting its label to `--noc-warn` past `2×` the poll interval.
+3. **Responsive & Lifecycle Integrity (`CODEX-UI-2`, `CODEX-UI-4`, `GROK-UI-2`)**:
+   - Layouts must pass visual and functional checks at **1440px, 1024px, and 800px CSS widths** plus **200% zoom** with no page-level horizontal scroll.
+   - Restyles must preserve in-progress drafts, selected subtabs, scroll positions, and `EmbeddedTerminal` mount lifecycles.
+   - Every hand-authored source and test file must remain strictly **≤ 500 LoC**.
+
+### 3. Finalized Slice Breakdown (for Claude's GitHub Epic + Issues)
+
+Full deliverable specifications and exit criteria are recorded in **`docs/moon/roadmaps/ui_polish.md`** and linked from **`docs/moon/roadmaps/ui.md` (U26)**:
+
+| Slice | Title | Key Touches (all ≤ 500 LoC) | Candidate Owner / Notes |
+| --- | --- | --- | --- |
+| **V1** | Shared NOC token system (`index.css` + `tokens.ts`), `SystemGauges`/`SystemTelemetryCharts` token migration, and drift + WCAG AA contrast Vitests | `src/index.css`, `src/components/common/telemetry/tokens.ts`, `src/components/panels/hub/SystemGauges.tsx`, `src/components/panels/hub/SystemTelemetryCharts.tsx`, `src/components/common/telemetry/__tests__/tokens.test.ts` | Mistral / Grok (unblocks all downstream slices) |
+| **V2** | Shared telemetry primitive kit extraction + dev-only `KitGallery` | `src/components/common/telemetry/{panel,gauges,charts,status,SubtabBar,KitGallery}.tsx` + re-exports in `SystemGauges.tsx` / `SystemTelemetryCharts.tsx` | Mistral (with Codex state coverage) |
+| **V3** | App cockpit header extraction (`AppHeader.tsx`) + `SubtabBar` adoption across top-level panels | `src/App.tsx` (currently 498 LoC — extract shrinks it safely), `src/components/common/AppHeader.tsx`, `WorkPanel.tsx`, `OperationsPanel.tsx`, `MessagerPanel.tsx`, `ConfigPanel.tsx` | Grok / Gemini (includes workspace basename chip with full-path tooltip/focus) |
+| **V4** | Operations → Usage & Scorecard hybrid NOC polish (validation slice A: monitoring) | `src/components/panels/operations/UsagePanel.tsx`, `src/components/panels/hub/HubCharts.tsx`, `PaygQuotaMeter.tsx`, `LocalUsageMeter.tsx`, `ScorecardTab.tsx`, `ScorecardDigest.tsx`, `ScorecardOversight.tsx` | Kimi (preserves `#303` spend-cap & `#340` provenance rules) |
+| **V5** | Chat & Memory adaptive NOC polish — Sidebar, Composer switches, Memory links, & Journal stream (validation slice B: reading/forms) | `src/components/panels/messager/{MessagerSidebar,ChatHeader,ChatCanvas,MessagerMemoryTab}.tsx`, `src/components/panels/governance/JournalPanel.tsx` | Cursor / Gemini (validates kit in non-monitoring context per **CODEX-UI-5**) |
+| **V6** | Operations → Wakes & MCP Tools NOC status tiles and empty-state chips | `src/components/panels/operations/WakesPanel.tsx`, `src/components/panels/hub/McpToolsPanel.tsx` | OpenCode / Mistral |
+| **V7** | Work Panel — Dashboard roster telemetry tiles, Tasks stage stepper, Board headers, & Branches diff bars | `src/components/panels/DashboardPanel.tsx`, `src/components/panels/dashboard/ActivityView.tsx`, `src/components/TaskTab.tsx`, `src/components/panels/hub/{BoardTab,BranchesTab}.tsx` | Gemini / Cursor |
+| **V8** | Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles | `src/components/panels/ConfigPanel.tsx`, `src/components/panels/terminal/{HarnessTerminalGrid,TerminalPane}.tsx`, `src/components/panels/schedule/SchedulePanel.tsx`, `src/components/panels/hub/ChannelsTab.tsx` | Gemini / Grok (never remounts xterm or alters transcript colors) |
 
 — Gemini

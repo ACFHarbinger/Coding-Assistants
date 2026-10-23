@@ -1,0 +1,73 @@
+# UI Aesthetic & NOC Telemetry Visual-Polish Roadmap
+
+> **Status:** Approved implementation plan (Owner-locked 2026-10-23; synthesized by Gemini from `docs/moon/proposals/ui-visualization-brainstorm.md`).
+>
+> **Goal:** Extend the Deep-Space Network Operations Center (NOC) + Orion-inspired visual language introduced in `Operations → System` (`6988da6`) across the desktop application (`Orchestrate`, `Work`, `Chat & Memory`, `Operations`) with an adaptive density model, paired CSS/TS design tokens, strict data provenance and accessibility guardrails, zero new runtime dependencies, zero new polling timers, and strict adherence to the 500-LoC per-file cap.
+
+---
+
+## Scope & Owner Decisions Locked (2026-10-23)
+
+| Topic | Owner Decision | Source / Rationale |
+| --- | --- | --- |
+| **Panel Structure** | Keep the 4 top-level views (`Orchestrate`, `Work`, `Chat & Memory`, `Operations`) and `Chat \| Memory \| Journal` subtabs as landed in `4a15e59` (#303). | Unanimous across all 6 proposing agents. |
+| **Token Architecture** | **Paired CSS + TS tokens**: `:root` `--noc-*` custom properties in `src/index.css` are the primary stylesheet source, mirrored in `src/components/common/telemetry/tokens.ts` for SVG/TS consumers and guarded by a Vitest drift check. | Resolves **GROK-UI-1**, **KIMI-UI-3**, **MISTRAL-UI-2**, and **CODEX-UI-5**. |
+| **Usage & Quota Charts** | **Hybrid model**: Keep horizontal bars (`UsageChart`, `QuotaChart`, `BalanceBreakdownBar`) as the primary comparison view, and add compact dual-ring `ConcentricArcGauge` dials for multi-window providers (e.g. 5h + 7d rate limits) when caps/windows are known. | Resolves **GEMINI-UI-3** and **CODEX-UI-3 / GROK-UI-3 / KIMI-UI-1**. Preserves `#303` `spend_cap` semantics verbatim and avoids fabricating cross-currency/cross-period spend sums. |
+| **NOC Chrome Density** | **Adaptive by panel role**: Full KPI + gauge strips on monitoring views (`System`, `Usage`, `Work Dashboard`), and lighter NOC surfaces/headers on workflow, chat, and form views (`Tasks`, `Board`, `Branches`, `Chat & Memory`, `Orchestrate Setup`). | Resolves **GEMINI-UI-2..6**, **MISTRAL-UI-1** (one accent budget; actions stay indigo), and **CODEX-UI-1** (reading width for Chat, form comfort for Setup). |
+| **Verification & Gallery** | **Dev-only `KitGallery` + Automated Vitest Gates**: Ship `KitGallery` behind `import.meta.env.DEV` (zero prod bundle cost) alongside automated token-drift and WCAG AA (`≥ 4.5:1`) contrast Vitests. | Resolves **MISTRAL-UI-4**, **KIMI-UI-4**, and **CODEX-UI-4**. |
+| **Dependencies & Timers** | **Zero new npm dependencies** and **zero new polling timers**. Hand-rolled SVG + CSS `@property` rings only; staleness indicators derive from existing poll timestamps. | Unanimous grounding constraint (`DEPENDENCY_POLICY.md` + WebKitGTK `WEBKIT_DISABLE_DMABUF_RENDERER=1` safety). |
+
+---
+
+## Binding Design & Engineering Rules
+
+1. **Three Token Axes (`src/index.css` ↔ `src/components/common/telemetry/tokens.ts`)**:
+   - **Color & Severity (`GROK-UI-1`, `MISTRAL-UI-1`, `KIMI-UI-4`)**:
+     - Status tones: `--noc-ok` (`#10b981`), `--noc-warn` (`#eab308`), `--noc-crit` (`#ef4444`), `--noc-idle` (`#94a3b8` — tuned so text/micro-labels on `#0f172a` achieve ≥ 4.5:1 WCAG AA contrast).
+     - Series palette: `--noc-cyan` (`#38bdf8`), `--noc-indigo` (`#6366f1`), `--noc-purple` (`#a855f7`), `--noc-pink` (`#ec4899`), `--noc-amber` (`#f59e0b`).
+     - Accent budget: NOC series colors encode data series and telemetry state only. Interactive buttons (`.btn-primary`, approve, send, save, cancel) retain the primary indigo action palette and visible text labels.
+   - **Typography (`KIMI-UI-3`)**:
+     - `--noc-type-kpi` (`≥ 1.25rem`, weight `800`, `font-variant-numeric: tabular-nums`).
+     - `--noc-type-body` (`0.85rem–0.92rem`).
+     - `--noc-type-micro` (`0.68rem–0.75rem`, uppercase, `letter-spacing: 0.05em`).
+   - **Spacing, Elevation, Radius, & Motion (`MISTRAL-UI-2`, `MISTRAL-UI-3`, `GROK-UI-4`)**:
+     - Spacing: `--space-1..6` (`4 / 8 / 12 / 16 / 24 / 32px` — dense `--space-2/3` for telemetry tiles, roomy `--space-5/6` for forms).
+     - Elevation & radius: `--elev-1..3`, `--radius-s/m/l` (`8 / 12 / 16px`), `--noc-focus-ring`.
+     - Motion: `--dur-instant` (`100ms`), `--dur-fast` (`160ms`), `--dur-slow` (`240ms`), `cubic-bezier(0.2, 0, 0, 1)`. Panel transitions stay opacity-only (preserving `#213` containing-block safety); no `requestAnimationFrame` gauge tweens; `prefers-reduced-motion: reduce` disables glow and indicator transitions.
+2. **Data Honesty, Provenance, & Staleness (`KIMI-UI-1`, `KIMI-UI-2`, `GROK-UI-3`, `CODEX-UI-3`, `CODEX-UI-5`)**:
+   - **Provenance tiers (`#340`)**: `measured` and `estimated` keep their explicit text chips; `unknown` renders as a dimmed `"—"` placeholder in `--noc-idle` and never draws a colored ring or zero-filled KPI strip. No composite scores.
+   - **Spend-cap honesty (`#303`)**: `"No spend cap"` is rendered only when `spend_cap === "uncapped"`; `"Spend cap unavailable"` is rendered when `spend_cap === "unknown"` or missing.
+   - **Semantic meter thresholds (`CODEX-UI-5`)**: Shared `Meter` takes an explicit `tone` or threshold policy rather than hardcoding System's `> 90%` red threshold.
+   - **Staleness indicator (`KIMI-UI-2`)**: `<StalenessDot>` displays `live • Ns` from existing poll timestamps and shifts its label to `--noc-warn` past `2×` the poll cadence without recoloring the data.
+   - **Empty & error states (`GROK-UI-3`, `CODEX-UI-4`)**: Empty states render a styled chip (never a `KpiMetricStrip` of zeros); loading/refreshing states preserve prior snapshot data without flashing zeros.
+3. **Responsive Layout & Lifecycle Preservation (`CODEX-UI-2`, `CODEX-UI-4`, `GROK-UI-2`)**:
+   - All views must render cleanly at **1440px, 1024px, and 800px CSS widths** plus **200% zoom** with no page-level horizontal scroll (`minmax` wrapping + `min-width: 0`).
+   - Restyles must preserve message drafts, active subtab state, scroll positions, keyboard focus, and `EmbeddedTerminal` PTY mount lifecycles.
+   - Every hand-authored file must stay strictly **≤ 500 LoC**.
+
+---
+
+## Delivery Slices (`V1`–`V8`)
+
+Sequenced strictly to respect the 500-LoC cap (`App.tsx` is 498 LoC, `MessagerPanel.tsx` 481 LoC, `HubCharts.tsx` 445 LoC, `SystemGauges.tsx` 440 LoC) and to validate the kit on one monitoring slice (`V4`) and one reading/form slice (`V5`) before completing the remaining panels (`CODEX-UI-5`).
+
+| # | Slice | Summary & Exit Criteria | Touches (all ≤ 500 LoC) | Status |
+| --- | --- | --- | --- | --- |
+| **V1** | Shared NOC tokens (`index.css` + `tokens.ts`), `SystemTab` gauge/chart migration, and drift + WCAG AA contrast Vitests | Add `:root` `--noc-*` variables (color, 3-tier type, spacing, elevation, radius, motion, focus ring) to `src/index.css` and mirror in `src/components/common/telemetry/tokens.ts`. Migrate `SystemGauges.tsx` and `SystemTelemetryCharts.tsx` to consume the token system (fixing `#64748b` → `#94a3b8` micro-label contrast on `#0f172a`). Add `tokens.test.ts` asserting 1:1 CSS↔TS pairing and WCAG AA (`≥ 4.5:1`) contrast for text/micro-label tokens against panel backgrounds. Existing `SystemTab.test.tsx` green. | `src/index.css`, `src/components/common/telemetry/tokens.ts`, `src/components/common/telemetry/__tests__/tokens.test.ts`, `src/components/panels/hub/SystemGauges.tsx`, `src/components/panels/hub/SystemTelemetryCharts.tsx` | 📋 Planned |
+| **V2** | Shared telemetry primitive kit extraction + dev-only `KitGallery` | Extract generic telemetry primitives out of `hub/SystemGauges.tsx` and `hub/SystemTelemetryCharts.tsx` into focused modules under `src/components/common/telemetry/`: `panel.ts` (`nocPanelStyle`), `gauges.tsx` (`ConcentricArcGauge`, `Meter` with explicit `tone`/threshold props), `charts.tsx` (`TelemetryTimeSeriesCard`), `status.tsx` (`KpiMetricStrip`, `MonitorStatusStrip`, `HudStatusPill`, `StalenessDot`, `EmptyStateChip`), and `SubtabBar.tsx` (accessible tab/nav semantics + `:focus-visible` ring + reduced-motion sliding indicator). Keep backwards-compatible re-exports in `SystemGauges.tsx` and `SystemTelemetryCharts.tsx`. Add dev-only `KitGallery.tsx` (`import.meta.env.DEV` guard) rendering all primitives across severity, provenance (`measured`/`estimated`/`unknown`), staleness, loading, empty, error-with-data, and focus states. | `src/components/common/telemetry/{panel.ts,gauges.tsx,charts.tsx,status.tsx,SubtabBar.tsx,KitGallery.tsx}`, `src/components/common/telemetry/__tests__/KitGallery.test.tsx`, `src/components/panels/hub/{SystemGauges,SystemTelemetryCharts}.tsx` | 📋 Planned |
+| **V3** | App cockpit header extraction (`AppHeader.tsx`) + `SubtabBar` adoption across top-level panels | Extract the top header from `src/App.tsx` (reducing `App.tsx` well below 498 LoC) into `src/components/common/AppHeader.tsx`: segmented HUD mode switcher (`Orchestrate`, `Work`, `Chat & Memory`, `Operations`) with active glow, responsive 2-row wrapping at 1024px/800px, and standardized `<HudStatusPill>` badges for **Workspace Root** (folder basename visible, full path on `title` and keyboard focus), **Active Team Session**, and **Pending Gates/Wakes**. Adopt `<SubtabBar>` in `WorkPanel.tsx`, `OperationsPanel.tsx`, `MessagerPanel.tsx`, and `ConfigPanel.tsx` with zero change to existing click targets or labels. | `src/App.tsx`, `src/components/common/AppHeader.tsx`, `src/components/panels/{WorkPanel,OperationsPanel,MessagerPanel,ConfigPanel}.tsx` | 📋 Planned |
+| **V4** | Operations → Usage & Scorecard hybrid NOC polish *(Validation Slice A: Monitoring)* | Restyle `UsagePanel.tsx`, `HubCharts.tsx`, `PaygQuotaMeter.tsx`, and `LocalUsageMeter.tsx` using the shared kit: compact inline budget control bar, `KpiMetricStrip` for comparable counts (*Active Budgets*, *Paused Agents*, *Live Quota Providers* — no cross-currency/cross-period spend sum), horizontal comparison bars as primary, and compact dual-ring `ConcentricArcGauge` dials for multi-window providers when windows/caps are known (`unknown` cap renders `--noc-idle` `"—"`, `#303` wording frozen). Restyle `ScorecardTab.tsx`, `ScorecardDigest.tsx`, and `ScorecardOversight.tsx` into `nocPanelStyle` bento cards with `.tabular-nums`, text provenance chips (`measured`/`estimated`/`unknown`, `#340` no-composite-score preserved), and inline utilization bars. | `src/components/panels/operations/UsagePanel.tsx`, `src/components/panels/hub/{HubCharts,PaygQuotaMeter,LocalUsageMeter,ScorecardTab,ScorecardDigest,ScorecardOversight}.tsx` | 📋 Planned |
+| **V5** | Chat & Memory adaptive NOC polish — Sidebar, Composer switches, Memory links, & Journal stream *(Validation Slice B: Reading & Forms)* | Apply lighter NOC chrome to `MessagerSidebar.tsx`, `ChatHeader.tsx`, and `ChatCanvas.tsx`: preserve comfortable reading width and message rhythm (no gauge strips in Chat); add NOC presence dots (`managed`/`observed`/`offline`), unread badges, and tactile console switches for Recipient Mode (`All Team`/`Subset`/`Single`) and Intent Tags (`⚡ [TASK]`, `🔔 [WAKE]`) with full keyboard focus rings. Style `MessagerMemoryTab.tsx` cards and M7 link similarity meters with `nocPanelStyle` and explicit-tone `Meter`. Restyle `JournalPanel.tsx` audit rows with category pills (`os_tool.*`, `budget.*`, `task.*`, `oversight.*`), monospace chain hashes, and clear text action buttons (`Approve` / `Quarantine`). | `src/components/panels/messager/{MessagerSidebar,ChatHeader,ChatCanvas,MessagerMemoryTab}.tsx`, `src/components/panels/governance/JournalPanel.tsx` | 📋 Planned |
+| **V6** | Operations → Wakes & MCP Tools NOC status tiles and empty-state chips | Upgrade `WakesPanel.tsx` and `McpToolsPanel.tsx` from plain list rows to `nocPanelStyle` cards with semantic severity badges (`pending` warn, `delivered` ok, `cancelled` idle), `.tabular-nums` timestamps, `<StalenessDot>`, and `<EmptyStateChip>` when lists are empty. | `src/components/panels/operations/WakesPanel.tsx`, `src/components/panels/hub/McpToolsPanel.tsx` | 📋 Planned |
+| **V7** | Work Panel — Dashboard roster telemetry tiles, Tasks stage stepper, Board headers, & Branches diff bars | **Dashboard** (`DashboardPanel.tsx`, `ActivityView.tsx`): `KpiMetricStrip` + roster readiness `MonitorStatusStrip` + Orion-style per-agent cards (avatar, enrollment badge, tabular counters, explicit-tone utilization meter). **Tasks** (`TaskTab.tsx`): visual workflow-stage pipeline stepper showing parallel stage status (`open`/`pending`/`input_required`/`auth_required`/`done`) with clear next-action buttons. **Board** (`BoardTab.tsx`): `nocPanelStyle` column headers with count pills and priority accent borders. **Branches** (`BranchesTab.tsx`): proportional two-tone `+added / -removed` diff stat bars and worktree/issue chips. | `src/components/panels/DashboardPanel.tsx`, `src/components/panels/dashboard/ActivityView.tsx`, `src/components/TaskTab.tsx`, `src/components/panels/hub/{BoardTab,BranchesTab}.tsx` | 📋 Planned |
+| **V8** | Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles | **Setup & Config** (`ConfigPanel.tsx` + child sections): responsive 2-column NOC bento layout with roomy `--space-5` form spacing. **Terminal Grid** (`HarnessTerminalGrid.tsx`, `TerminalPane.tsx`): 28px NOC telemetry header bar per pane (harness badge, instance key, PID liveness dot, relaunch/close controls) and `<EmptyStateChip>` launchpad when 0 panes are open — never remounting xterm or altering transcript colors. **Schedule** (`SchedulePanel.tsx`) & **Channels** (`ChannelsTab.tsx`): `nocPanelStyle` cards, bridge connection tiles, and `.tabular-nums` cron/countdown badges. | `src/components/panels/ConfigPanel.tsx`, `src/components/panels/terminal/{HarnessTerminalGrid,TerminalPane}.tsx`, `src/components/panels/schedule/SchedulePanel.tsx`, `src/components/panels/hub/ChannelsTab.tsx` | 📋 Planned |
+
+---
+
+## Per-Slice Verification Gate
+
+Every slice (`V1`–`V8`) must pass before Ready-for-Review:
+1. `npx vitest run` (including `tokens.test.ts` drift + WCAG AA contrast checks, `KitGallery.test.tsx`, and the touched panel's test suite).
+2. `npx tsc --noEmit` and `npm run build` clean.
+3. Visual/layout check at **1440px, 1024px, and 800px** widths + **200% zoom** (no page-level horizontal scroll, no truncated actions).
+4. Every touched file strictly **≤ 500 LoC** (`wc -l`).
