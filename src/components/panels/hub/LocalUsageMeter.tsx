@@ -91,7 +91,7 @@ export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
             Sessions
           </span>
-          <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)" }}>
+          <span className="tabular-nums" style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)" }}>
             {usage.sessions.toLocaleString()}
           </span>
           <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
@@ -113,7 +113,7 @@ export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
             Prompt Tokens
           </span>
-          <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#38bdf8" }}>
+          <span className="tabular-nums" style={{ fontSize: "1.25rem", fontWeight: 700, color: "#38bdf8" }}>
             {usage.prompt_tokens.toLocaleString()}
           </span>
           <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
@@ -135,7 +135,7 @@ export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
             Completion Tokens
           </span>
-          <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#a855f7" }}>
+          <span className="tabular-nums" style={{ fontSize: "1.25rem", fontWeight: 700, color: "#a855f7" }}>
             {usage.completion_tokens.toLocaleString()}
           </span>
           <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
@@ -157,7 +157,7 @@ export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
             Cached Tokens
           </span>
-          <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#34d399" }}>
+          <span className="tabular-nums" style={{ fontSize: "1.25rem", fontWeight: 700, color: "#34d399" }}>
             {usage.cached_tokens.toLocaleString()}
           </span>
           <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>

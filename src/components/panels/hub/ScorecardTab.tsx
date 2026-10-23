@@ -3,6 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScorecardView, AgentScorecardRow, HarnessScorecardRow, ProviderScorecardRow, FigureProvenance } from "./types";
 import { ScorecardDigest } from "./ScorecardDigest";
 import { ScorecardOversight } from "./ScorecardOversight";
+import { Meter } from "../../common/telemetry/gauges";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS } from "../../common/telemetry/tokens";
 
 export function ScorecardTab() {
   const renderCoverage = (coverage?: { measured_requests: number; total_requests: number } | null) =>
@@ -145,10 +148,8 @@ export function ScorecardTab() {
                 <div
                   key={agent.agent_id}
                   style={{
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: hasOpenSec ? "1px solid rgba(239, 68, 68, 0.5)" : "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "8px",
-                    padding: "1rem",
+                    ...nocCardDenseStyle,
+                    borderLeft: hasOpenSec ? `3px solid ${NOC_COLORS.crit}` : `3px solid ${NOC_COLORS.cyan}`,
                     display: "flex",
                     flexDirection: "column",
                     gap: "0.75rem",
@@ -208,11 +209,11 @@ export function ScorecardTab() {
                   </div>
 
                   {/* Tokens, Cost & Budget info */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem", gap: "0.5rem", flexWrap: "wrap" }}>
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Tokens</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span className="tabular-nums" style={{ fontWeight: 600 }}>
                           {agent.tokens?.value != null ? agent.tokens.value.toLocaleString() : "—"}
                         </span>
                         {agent.tokens && renderProvenanceChip(agent.tokens.provenance)}
@@ -223,7 +224,7 @@ export function ScorecardTab() {
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Attributed Cost</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span className="tabular-nums" style={{ fontWeight: 600 }}>
                           {agent.cost.value != null ? (agent.cost.unit === "currency" ? `$${agent.cost.value.toFixed(4)}` : agent.cost.value.toLocaleString(undefined, { maximumFractionDigits: 4 })) : "—"}
                         </span>
                         {renderProvenanceChip(agent.cost.provenance)}
@@ -234,13 +235,21 @@ export function ScorecardTab() {
                     {agent.budget_limit != null && (
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Budget</div>
-                        <div style={{ fontSize: "0.8rem" }}>
+                        <div className="tabular-nums" style={{ fontSize: "0.8rem" }}>
                           {agent.budget_spent?.toFixed(1) ?? "0"} / {agent.budget_limit.toFixed(1)}
                           {agent.budget_paused && <span style={{ color: "#ef4444", marginLeft: "0.25rem" }}>(Paused)</span>}
                         </div>
                       </div>
                     )}
                   </div>
+                  {agent.budget_limit != null && agent.budget_limit > 0 && (
+                    <Meter
+                      percent={((agent.budget_spent ?? 0) / agent.budget_limit) * 100}
+                      detail={`${(((agent.budget_spent ?? 0) / agent.budget_limit) * 100).toFixed(0)}%`}
+                      tone={agent.budget_paused ? "crit" : ((agent.budget_spent ?? 0) / agent.budget_limit) > 0.85 ? "warn" : "ok"}
+                      label="Budget Utilization"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -311,17 +320,14 @@ export function ScorecardTab() {
               <div
                 key={`${p.provider}-${p.via_gateway}-${idx}`}
                 style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  borderRadius: "8px",
-                  padding: "1rem",
+                  ...nocCardDenseStyle,
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.5rem",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{p.provider}</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: NOC_COLORS.cyan }}>{p.provider}</div>
                   {p.via_gateway && (
                     <span style={{ fontSize: "0.75rem", padding: "0.15rem 0.4rem", borderRadius: "4px", background: "rgba(168, 85, 247, 0.15)", color: "#c084fc", border: "1px solid rgba(168, 85, 247, 0.3)" }}>
                       via {p.via_gateway}
@@ -332,7 +338,7 @@ export function ScorecardTab() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem", marginTop: "0.25rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Measured Tokens:</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <span>{p.tokens.value != null ? p.tokens.value.toLocaleString() : "—"}</span>
+                    <span className="tabular-nums">{p.tokens.value != null ? p.tokens.value.toLocaleString() : "—"}</span>
                     {renderProvenanceChip(p.tokens.provenance)}
                     {renderCoverage(p.tokens.coverage)}
                   </div>
@@ -341,7 +347,7 @@ export function ScorecardTab() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Measured Cost:</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <span>{p.cost.value != null ? `$${p.cost.value.toFixed(4)}` : "—"}</span>
+                    <span className="tabular-nums">{p.cost.value != null ? `$${p.cost.value.toFixed(4)}` : "—"}</span>
                     {renderProvenanceChip(p.cost.provenance)}
                     {renderCoverage(p.cost.coverage)}
                   </div>
@@ -349,7 +355,7 @@ export function ScorecardTab() {
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Requests:</span>
-                  <span style={{ color: "var(--text-muted, #94a3b8)" }}>{p.request_count.value ?? 0}</span>
+                  <span className="tabular-nums" style={{ color: "var(--text-muted, #94a3b8)" }}>{p.request_count.value ?? 0}</span>
                 </div>
               </div>
             ))}

@@ -4,6 +4,9 @@ import { useProviderHealth } from "../harness/useProviderHealth";
 import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
 import { PaygQuotaMeter } from "./PaygQuotaMeter";
 import { LocalUsageMeter } from "./LocalUsageMeter";
+import { ConcentricArcGauge } from "../../common/telemetry/gauges";
+import { nocPanelStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 
 /**
@@ -204,23 +207,18 @@ export function BalanceBreakdownBar({
 }
 
 export const cardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-color)",
-  borderRadius: "12px",
-  padding: "1.5rem",
-  background: "rgba(0, 0, 0, 0.3)",
-  boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  /* Narrow to compositable properties only — avoids layout thrash on hover. */
-  transition: "border-color 0.2s ease, box-shadow 0.2s ease"
+  ...nocPanelStyle,
+  padding: "1.25rem 1.5rem",
 };
 
 export const inputStyle: React.CSSProperties = {
-  padding: '0.75rem',
-  borderRadius: '8px',
-  background: 'rgba(0,0,0,0.4)',
-  color: 'white',
-  border: '1px solid var(--border-color)',
-  outline: 'none',
-  transition: 'border-color 0.2s'
+  padding: "0.65rem 0.85rem",
+  borderRadius: "8px",
+  background: "rgba(9, 14, 26, 0.72)",
+  color: "white",
+  border: `1px solid ${NOC_SURFACES.border}`,
+  outline: "none",
+  transition: "border-color 0.2s ease",
 };
 
 export function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
@@ -377,9 +375,27 @@ export function QuotaChart({
                 ) : (quota.balance || quota.balance_info) ? null : (
                   <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
                 )
-              ) : families.length > 0 ? (
+              ) : (
                 <>
-                  {families.map((family) => {
+                  {quota.windows.length >= 2 && (
+                    <div style={{ display: "flex", justifyContent: "center", padding: "0.4rem 0" }}>
+                      <ConcentricArcGauge
+                        title="Quota Windows"
+                        centerPrimary={`${quota.windows[0]?.remaining_percent ?? 0}%`}
+                        centerSecondary="rem"
+                        size={110}
+                        rings={quota.windows.slice(0, 2).map((w, idx) => ({
+                          label: w.label,
+                          percent: w.remaining_percent,
+                          color: idx === 0 ? NOC_COLORS.cyan : NOC_COLORS.purple,
+                          detail: `${w.remaining_percent}% rem`,
+                        }))}
+                      />
+                    </div>
+                  )}
+                  {families.length > 0 ? (
+                    <>
+                      {families.map((family) => {
                     const familyWindows = quota.windows.filter((w) => w.family === family);
                     return (
                       <div key={`${quota.agent_id}-${family}`} style={{ display: "grid", gap: "0.5rem", marginTop: "0.25rem" }}>
@@ -436,9 +452,11 @@ export function QuotaChart({
                   {quota.local_usage && <LocalUsageMeter usage={quota.local_usage} />}
                 </>
               )}
-            </div>
-          );
-        })}
+            </>
+          )}
+        </div>
+      );
+    })}
       </div>
     </div>
   );

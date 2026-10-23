@@ -126,22 +126,22 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
                         <code>{reviewer.reviewer_id}</code>
                       </div>
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_recorded, 0)} <ProvenanceChip prov={reviewer.findings_recorded.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_corrected_by_owner, 0)} <ProvenanceChip prov={reviewer.findings_corrected_by_owner.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_per_task)} <ProvenanceChip prov={reviewer.findings_per_task.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.owner_override_reversal_rate)} <ProvenanceChip prov={reviewer.owner_override_reversal_rate.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.zero_evidence_approvals, 0)} <ProvenanceChip prov={reviewer.zero_evidence_approvals.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.review_dwell, 0)} <ProvenanceChip prov={reviewer.review_dwell.provenance} />
                     </td>
                   </tr>

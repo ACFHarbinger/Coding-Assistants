@@ -67,7 +67,7 @@ function summaryStat(label: string, value: string, tone?: string): React.ReactEl
       <div style={{ fontSize: "0.7rem", color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
         {label}
       </div>
-      <div style={{ fontSize: "1rem", fontWeight: 600, color: tone ?? "var(--text-color, #fff)" }}>{value}</div>
+      <div className="tabular-nums" style={{ fontSize: "1rem", fontWeight: 600, color: tone ?? "var(--text-color, #fff)" }}>{value}</div>
     </div>
   );
 }
