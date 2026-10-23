@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages } from "./app/hubState";
+import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages, workspaceBasename } from "./app/hubState";
 import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
 import ChannelsTab from "./components/panels/hub/ChannelsTab";
 import OperationsPanel from "./components/panels/OperationsPanel";
@@ -313,7 +313,7 @@ function App() {
             style={{ maxWidth: '260px', padding: '0.42rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.1)', color: '#a7f3d0', fontSize: '0.74rem', lineHeight: 1.25, cursor: 'pointer' }}
           >
             <strong style={{ display: 'block', color: '#6ee7b7' }}>Workspace root</strong>
-            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{config.work_dir || 'Not set'}</span>
+            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{config.work_dir ? workspaceBasename(config.work_dir) : 'Not set'}</span>
           </div>
           <div
             title={activeWorkSession?.name ? `Active: ${activeWorkSession.name} (Click to open Chat)` : 'No active team chat (Click to open Chat)'}
