@@ -64,7 +64,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | --- | --- | --- |
 | Grok | #351/#352 reconciliation | **Ready for review** on `agent/grok-352` (worktree `.ca-worktrees/grok-352`). #352 rebased onto `971f999`; one wake-replay/completion implementation; max-attempts boundary regression. Codex reviews. |
 | Cursor | #351 and #355 | **PASS with fixes:** core `971f999`, poller `0e747fc`; wake retry/serialization and delivery-gated one-shot completion verified. Await #352 reconciliation and combined integration gate. |
-| Gemini | #353 and #154 | #353 PASS with argv/numeric/result-label fixes `0ea5419`; wait for corrected core. #154 docs PASS; owner live acceptance owed. |
+| Gemini | #371 (#372–#379) + #353/#154 | #371 V1–V8 **Ready for review / Owner acceptance** on main (commits eb5a904..51d4c4b); clean build, 53 vitest suites (284 tests) pass, all files ≤500 LoC. #353 PASS with argv/numeric/result-label fixes `0ea5419`; wait for corrected core. #154 docs PASS; owner live acceptance owed. |
 | Mistral | #344 and #346 | #344 PASS `cc4cde4`; #346 PASS with expiry-before-use fix `42684c8`. Await combined integration. |
 | Kimi | #347 and #354 | #347 PASS with authority fixes `17b4046`; #354 CLI slice PASS with help fix `c9c9f74`. Await combined integration; do not enable old scheduler core. |
 | OpenCode | #352 + custody #345; #356 | #352 gate slice PASS `c92e4b4`; #345 PASS `11b8624`; #356 pipe-drain follow-up PASS `397bd97`. Await corrected core and combined integration. |
@@ -16179,3 +16179,32 @@ Gemini's synthesis, not a commit. Whoever picks up V1 first should
 land tokens.ts + the index.css mirror before V2+ can build on it.
 
 — Claude
+
+### Gemini — 2026-10-23 — UI visual-polish epic #371 (V1–V8, #372–#379) implemented & verified on main
+
+Implemented and verified the full Deep-Space NOC & Orion-inspired aesthetic upgrade across all 8 slices (V1–V8, closing out issues #372–#379 for parent epic #371) on `main`, strictly obeying all owner-locked decisions and architecture constraints:
+
+1. **Commit Log & Slices**:
+   - **V1 (`#372`, `eb5a904`)**: Added `:root` `--noc-*` CSS variables in `src/index.css` paired 1:1 with typed constants in `src/components/common/telemetry/tokens.ts`. Migrated `SystemGauges.tsx` and `SystemTelemetryCharts.tsx`. Added `tokens.test.ts` drift & WCAG AA (≥4.5:1) contrast checks.
+   - **V2 (`#373`, `a25f80a`)**: Extracted shared telemetry kit into `src/components/common/telemetry/` (`panel.ts`, `gauges.tsx`, `charts.tsx`, `status.tsx`, `SubtabBar.tsx`). Created dev-only `KitGallery.tsx` and `KitGallery.test.tsx` (`import.meta.env.DEV` guarded).
+   - **V3 (`#374`, `ac7e0e8`)**: Extracted cockpit header `src/components/common/AppHeader.tsx` (dropping `App.tsx` from 498 to 432 LoC) with segmented HUD navigation, active glow indicator, and `<HudStatusPill>` badges. Adopted `<SubtabBar>` across `WorkPanel.tsx`, `OperationsPanel.tsx`, `MessagerPanel.tsx`, and `App.tsx`. Added `AppHeader.test.tsx`.
+   - **V4 (`#375`, `f4028a9`)**: Restyled `UsagePanel.tsx` with 3-card `KpiCardGrid`, compact inline budget control bar, and `Meter` rows. Upgraded `HubCharts.tsx` with dual-ring `ConcentricArcGauge` quota dials. Modernized `ScorecardTab.tsx`, `ScorecardDigest.tsx`, `ScorecardOversight.tsx`, and `LocalUsageMeter.tsx`. Preserved #303 spend_cap honesty and #340 provenance rules. Added `UsagePanel.test.tsx`.
+   - **V5 (`#376`, `21fa13a`)**: Chat & Memory adaptive NOC polish. Upgraded `MessagerSidebar.tsx` with presence dots (`#10b981` managed, `#6366f1` observed, `#94a3b8` idle) and cyan-tinted unread badges. Upgraded `MessageComposer.tsx` with tactile switch styling and keyboard focus rings (`noc-focusable`). Styled `MessagerMemoryTab.tsx` with `nocPanelStyle` and explicit-tone similarity `Meter`. Restyled `JournalPanel.tsx` audit rows with category pills, monospace chain hashes, `<EmptyStateChip>`, and tactile buttons. Added `JournalPanel.test.tsx`.
+   - **V6 (`#377`, `198ae48`)**: Operations → Wakes & MCP Tools NOC status tiles. Upgraded `WakesPanel.tsx` with semantic severity status badges (`pending` warn, `delivered` ok, idle fallback), tabular timestamps, human gate indicator, `<StalenessDot>` telemetry indicators, and `<EmptyStateChip>` on empty lists. Upgraded `McpToolsPanel.tsx` with `nocPanelStyle`, `<EmptyStateChip>` guidance, and monospace execution result logs with explicit status badges (`OK` / `ERR`). Added `WakesPanel.test.tsx`.
+   - **V7 (`#378`, `259e5e7`)**: Work Panel polish. Modernized `DashboardPanel.tsx` (375 LoC) with `<SubtabBar>`, `<KpiCardGrid>`, collaboration overview tiles, and Orion-style per-agent roster cards with `<Meter>` utilization bars. Restyled `ActivityView.tsx` with dense cards and `<EmptyStateChip>`. Built visual workflow-stage pipeline stepper in `TaskTab.tsx` tracking parallel stage status (`open`/`pending`/`input_required`/`auth_required`/`done`). Restyled `BoardTab.tsx` with count pills and priority borders. Added proportional two-tone `+ahead / -behind` diff stat bars in `BranchesTab.tsx`. Added `TaskTab.test.tsx`.
+   - **V8 (`#379`, `51d4c4b`)**: Orchestrate Panel polish. Restructured `ConfigPanel.tsx` (462 LoC) into a responsive 2-column NOC bento layout. Added 28px NOC telemetry header bar per pane in `TerminalPane.tsx` with PID liveness dot, harness badge, and monospace instance key snippet. Updated `HarnessTerminalGrid.tsx` launchpad empty state and canvas border chrome. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` countdown badges. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills.
+
+2. **Verification & Guardrails**:
+   - `npm run build`: Clean production build (1.17s) with zero errors.
+   - `npx vitest run`: All 53 test files and 284 tests pass cleanly.
+   - `wc -l`: Strict ≤500 LoC per file respected across all modified and new files.
+   - **Zero new npm dependencies** and **zero new polling timers**.
+   - Preserved `#303` spend-cap wording honesty (`"No spend cap"` only when `spend_cap === "uncapped"`, `"Spend cap unavailable"` otherwise) and `#340` provenance discipline (`measured` / `estimated` / `unknown`, zero composite scores).
+   - Preserved WebKitGTK / Linux stability (`WEBKIT_DISABLE_DMABUF_RENDERER=1`, opacity-only panel transitions, no inline `backdropFilter`).
+
+3. **Status & Tracking**:
+   - Sub-issues #372–#379 and parent epic #371 commented with commit references and verification details.
+   - Roadmaps (`docs/moon/roadmaps/ui_polish.md`, `docs/moon/roadmaps/ui.md`, `docs/moon/roadmaps/dashboard.md`) and changelogs (`docs/CHANGELOG.md`, `docs/moon/CHANGELOG.md`) updated.
+   - **Ready for review / Owner live acceptance**.
+
+— Gemini
