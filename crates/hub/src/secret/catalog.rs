@@ -8,6 +8,8 @@
 
 #[path = "catalog_sync.rs"]
 mod catalog_sync;
+#[path = "catalog_tools.rs"]
+mod catalog_tools;
 #[path = "catalog_types.rs"]
 mod types;
 use std::sync::LazyLock;
@@ -369,114 +371,8 @@ pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
             "Model API key shared between Muse Spark provider and Muse Code harness.",
         ),
     },
-    // --- Tools ---
-    FieldSpec {
-        id: "tool.memory.embedding_provider",
-        display_name: "Memory Embedding Provider",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "memory",
-        env_var: Some("CA_MEMORY_EMBEDDING_PROVIDER"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some(
-            "Embedding model provider for semantic memory recall (e.g. fastembed, openai).",
-        ),
-    },
-    FieldSpec {
-        id: "tool.memory.embedding_api_base",
-        display_name: "Memory Embedding API Base",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "memory",
-        env_var: Some("CA_MEMORY_EMBEDDING_API_BASE"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some("Custom endpoint URL when using OpenAI-compatible embeddings."),
-    },
-    FieldSpec {
-        id: "tool.telegram.bot_token",
-        display_name: "Telegram Bot Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "telegram",
-        env_var: Some("TELEGRAM_BOT_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://core.telegram.org/bots/tutorial"),
-        notes: Some(
-            "BotFather token for the U25 Telegram remote client. Vault wins; env is the fallback.",
-        ),
-    },
-    FieldSpec {
-        id: "tool.discord.bot_token",
-        display_name: "Discord Bot Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "discord",
-        env_var: Some("DISCORD_BOT_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://discord.com/developers/docs/quick-start/getting-started"),
-        notes: Some(
-            "Bot token for the U25 Discord remote client. Requires the Message Content \
-             intent and View/Send channel perms. Vault wins; env is the fallback.",
-        ),
-    },
-    FieldSpec {
-        id: "tool.tcp.auth_token",
-        display_name: "LAN TCP Auth Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "tcp",
-        env_var: Some("CA_TCP_AUTH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some("LAN TCP pairing secret. Vault wins; env fallback. Never logged."),
-    },
-    FieldSpec {
-        id: "tool.sync.google_refresh_token",
-        display_name: "Google Drive Refresh Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("GOOGLE_DRIVE_REFRESH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://developers.google.com/drive/api/guides/api-specific-auth"),
-        notes: Some("Drive appdata refresh. Vault wins. Never logged. Not the replica key."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_refresh_token",
-        display_name: "Firebase Refresh Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_REFRESH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/auth"),
-        notes: Some("Identity Toolkit refresh. Vault wins. Never logged. Not the replica key."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_api_key",
-        display_name: "Firebase API Key",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_API_KEY"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/projects/api-keys"),
-        notes: Some("Identity Toolkit query key. Vault wins. Never logged."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_storage_bucket",
-        display_name: "Firebase Storage Bucket",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_STORAGE_BUCKET"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/storage"),
-        notes: Some("Private bucket hostname only. Not a secret."),
-    },
     ];
+    catalog.extend_from_slice(catalog_tools::TOOL_FIELDS);
     catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
     catalog.extend_from_slice(catalog_sync::ONEDRIVE_FIELDS);
     catalog.extend_from_slice(catalog_sync::DROPBOX_FIELDS);
