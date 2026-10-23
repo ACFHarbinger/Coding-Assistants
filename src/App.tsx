@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages, workspaceBasename } from "./app/hubState";
+import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages } from "./app/hubState";
 import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
 import ChannelsTab from "./components/panels/hub/ChannelsTab";
 import OperationsPanel from "./components/panels/OperationsPanel";
@@ -14,6 +14,8 @@ import { openSettingsWindow } from "./lib/settingsWindow";
 import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
 import HarnessTerminalGrid from "./components/panels/terminal/HarnessTerminalGrid";
 import { SchedulePanel } from "./components/panels/schedule/SchedulePanel";
+import { AppHeader } from "./components/common/AppHeader";
+import { SubtabBar } from "./components/common/telemetry/SubtabBar";
 
 function App() {
   const [config, setConfig] = useState<AgentConfig>(() => {
@@ -294,82 +296,17 @@ function App() {
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
-      <header style={{
-        padding: '1.5rem 2.5rem',
-        borderBottom: '1px solid var(--border-color)',
-        background: 'rgba(2, 6, 23, 0.85)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        zIndex: 10
-      }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.025em', background: 'linear-gradient(to right, #fff, var(--text-muted))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          Coding Assistants
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div
-            title={config.work_dir || 'Workspace root is not set (Click to configure)'}
-            onClick={() => setMainView("orchestrate")}
-            style={{ maxWidth: '260px', padding: '0.42rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.1)', color: '#a7f3d0', fontSize: '0.74rem', lineHeight: 1.25, cursor: 'pointer' }}
-          >
-            <strong style={{ display: 'block', color: '#6ee7b7' }}>Workspace root</strong>
-            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{config.work_dir ? workspaceBasename(config.work_dir) : 'Not set'}</span>
-          </div>
-          <div
-            title={activeWorkSession?.name ? `Active: ${activeWorkSession.name} (Click to open Chat)` : 'No active team chat (Click to open Chat)'}
-            onClick={() => setMainView("messager")}
-            style={{ maxWidth: '210px', padding: '0.42rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'rgba(6, 182, 212, 0.1)', color: '#cffafe', fontSize: '0.74rem', lineHeight: 1.25, cursor: 'pointer' }}
-          >
-            <strong style={{ display: 'block', color: '#67e8f9' }}>Active team chat</strong>
-            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeWorkSession?.name || 'None selected'}</span>
-          </div>
-          <button
-            className={mainView === "messager" ? "btn-primary" : "btn-secondary"}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => setMainView("messager")}
-          >
-            💬 Chat & Memory
-          </button>
-          <button
-            className={mainView === "orchestrate" ? "btn-primary" : "btn-secondary"}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => setMainView("orchestrate")}
-          >
-            Orchestrate
-          </button>
-          <button
-            className={mainView === "operations" ? "btn-primary" : "btn-secondary"}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => { setOperationsVisited(true); setMainView("operations"); }}
-          >
-            Operations
-          </button>
-          <button
-            className={mainView === "work" ? "btn-primary" : "btn-secondary"}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', borderRadius: '8px' }}
-            onClick={() => { setWorkVisited(true); setMainView("work"); }}
-          >
-            Work
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ marginTop: 0, padding: "0.5rem 0.9rem", fontSize: "0.9rem", borderRadius: "8px", display: "inline-flex", alignItems: "center", gap: "0.45rem" }}
-            onClick={() => { void openSettingsWindow(); }}
-            aria-haspopup="dialog"
-            title="Open Settings in its own window"
-          >
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.66 18.7a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15.04a1.7 1.7 0 0 0-1.56-1.04h-.08v-3h.08A1.7 1.7 0 0 0 7 9.96a1.7 1.7 0 0 0-.34-1.88L6.6 8.02 8.72 5.9l.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 11.7 4.74v-.08h3v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 11h.08v3h-.08A1.7 1.7 0 0 0 19.4 15Z" />
-            </svg>
-            Settings
-          </button>
-          <div className="status-badge" style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: 'rgba(16, 185, 129, 0.15)', color: '#6ee7b7', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-            Local hub online
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        mainView={mainView}
+        onSelectView={(view) => {
+          if (view === "operations") setOperationsVisited(true);
+          if (view === "work") setWorkVisited(true);
+          setMainView(view);
+        }}
+        workspacePath={config.work_dir}
+        activeWorkSessionName={activeWorkSession?.name ?? null}
+        onOpenSettings={() => void openSettingsWindow()}
+      />
 
       <main className="main-content">
         {teamError && (
@@ -401,20 +338,17 @@ function App() {
 
         <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-            <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
-              <button type="button" className={orchestrateSubView === "setup" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("setup")}>
-                ⚙️ Setup &amp; Config
-              </button>
-              <button type="button" className={orchestrateSubView === "terminals" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("terminals")}>
-                🖥️ Terminal Grid
-              </button>
-              <button type="button" className={orchestrateSubView === "schedule" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("schedule")}>
-                ⏱️ Schedule
-              </button>
-              <button type="button" className={orchestrateSubView === "channels" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }} onClick={() => setOrchestrateSubView("channels")}>
-                📡 Channels
-              </button>
-            </div>
+            <SubtabBar
+              ariaLabel="Orchestrate subtabs"
+              tabs={[
+                { id: "setup", label: "⚙️ Setup & Config" },
+                { id: "terminals", label: "🖥️ Terminal Grid" },
+                { id: "schedule", label: "⏱️ Schedule" },
+                { id: "channels", label: "📡 Channels" },
+              ]}
+              activeId={orchestrateSubView}
+              onSelect={(id) => setOrchestrateSubView(id)}
+            />
           </div>
 
           <div style={{ display: orchestrateSubView === "channels" ? "block" : "none" }}>

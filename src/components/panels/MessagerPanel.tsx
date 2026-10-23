@@ -11,6 +11,7 @@ import MessageContextMenu from "./messager/MessageContextMenu";
 import JournalPanel from "./governance/JournalPanel";
 import { forwardVtuberSpeech } from "../settings/api";
 import { useJournalAudit } from "./messager/useJournalAudit";
+import { SubtabBar } from "../common/telemetry/SubtabBar";
 export type { HubMessage, HubAgent, WorkSession, MemoryRecord, DetectedProcess, ChannelRecord, MessagerPanelProps } from "./messager/types";
 export default function MessagerPanel({ hubMessages, hubAgents, workSessions, activeWorkSessionId, focusSessionId, focusSessionToken, workspacePath, onSelectWorkSession, onRefresh }: MessagerPanelProps) {
   const [activeChannel, setActiveChannel] = useState<string>("general");
@@ -426,30 +427,21 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
 
   const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, onJumpToMemory, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
 
-  const tabBtn = (id: "chat" | "memory" | "journal", label: string, badge?: number) => (
-    <button
-      key={id}
-      className={activeSubtab === id ? "btn-primary" : "btn-secondary"}
-      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }}
-      onClick={() => startTransition(() => setActiveSubtab(id))}
-    >
-      {label}
-      {!!badge && (
-        <span style={{ marginLeft: "0.4rem", fontSize: "0.7rem", padding: "0.05rem 0.4rem", borderRadius: "20px", background: "#eab308", color: "#1a1a1a", fontWeight: 700 }}>
-          {badge}
-        </span>
-      )}
-    </button>
-  );
+  const pendingAuditCount = auditEvents.filter((e) => e.status === "pending").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", height: "calc(100vh - 120px)", color: "var(--text-main)", fontFamily: "'Inter', sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
-          {tabBtn("chat", "💬 Chat")}
-          {tabBtn("memory", "🧠 Memory")}
-          {tabBtn("journal", "📜 Journal", auditEvents.filter((e) => e.status === "pending").length)}
-        </div>
+        <SubtabBar
+          ariaLabel="Chat & Memory subtabs"
+          tabs={[
+            { id: "chat", label: "💬 Chat" },
+            { id: "memory", label: "🧠 Memory" },
+            { id: "journal", label: "📜 Journal", badgeCount: pendingAuditCount },
+          ]}
+          activeId={activeSubtab}
+          onSelect={(id) => startTransition(() => setActiveSubtab(id))}
+        />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: activeSubtab === "chat" ? "260px 1fr" : "1fr", flex: 1, minHeight: 0, gap: "1rem", overflowY: activeSubtab === "journal" ? "auto" : "visible" }}>
         {activeSubtab === "chat" && (

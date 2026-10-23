@@ -6,8 +6,17 @@ import UsagePanel from "./operations/UsagePanel";
 import WakesPanel from "./operations/WakesPanel";
 import { ScorecardTab } from "./hub/ScorecardTab";
 import type { AgentRecord, BudgetStatus, ProviderQuota, WakeRecord } from "./hub/types";
+import { SubtabBar, SubtabItem } from "../common/telemetry/SubtabBar";
 
 type OpsTab = "system" | "usage" | "tools" | "wakes" | "scorecard";
+
+const OPS_SUBTABS: SubtabItem<OpsTab>[] = [
+  { id: "system", label: "System" },
+  { id: "usage", label: "Usage" },
+  { id: "tools", label: "Tools" },
+  { id: "wakes", label: "Wakes" },
+  { id: "scorecard", label: "Scorecard" },
+];
 
 export default function OperationsPanel() {
   const [opsTab, setOpsTab] = useState<OpsTab>("system");
@@ -138,30 +147,18 @@ export default function OperationsPanel() {
     }
   }, [opsTab, refreshBudgets, refreshQuotas, refreshWakes]);
 
-  const tabBtn = (id: OpsTab, label: string) => (
-    <button
-      key={id}
-      className={opsTab === id ? "btn-primary" : "btn-secondary"}
-      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }}
-      onClick={() => startTransition(() => setOpsTab(id))}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="glass-card fade-in" style={{ animationDelay: "0.1s" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
         <h2 style={{ margin: 0, fontSize: "1.5rem", background: "linear-gradient(to right, #fff, var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           Operations
         </h2>
-        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
-          {tabBtn("system", "System")}
-          {tabBtn("usage", "Usage")}
-          {tabBtn("tools", "Tools")}
-          {tabBtn("wakes", "Wakes")}
-          {tabBtn("scorecard", "Scorecard")}
-        </div>
+        <SubtabBar
+          ariaLabel="Operations subtabs"
+          tabs={OPS_SUBTABS}
+          activeId={opsTab}
+          onSelect={(id) => startTransition(() => setOpsTab(id))}
+        />
       </div>
 
       <div style={{ marginBottom: "1rem" }}>

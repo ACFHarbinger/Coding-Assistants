@@ -6,8 +6,16 @@ import BoardTab from "./hub/BoardTab";
 import BranchesTab from "./hub/BranchesTab";
 import type { AgentRecord } from "./hub/types";
 import type { TeamMember } from "./config/types";
+import { SubtabBar, SubtabItem } from "../common/telemetry/SubtabBar";
 
 type WorkTab = "dashboard" | "tasks" | "board" | "branches";
+
+const WORK_SUBTABS: SubtabItem<WorkTab>[] = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "tasks", label: "Tasks" },
+  { id: "board", label: "Board" },
+  { id: "branches", label: "Branches" },
+];
 
 export default function WorkPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: {
   teamMemberIds: string[];
@@ -50,29 +58,18 @@ export default function WorkPanel({ teamMemberIds, onAddAgent, onRemoveAgent }: 
     refreshAgents().catch((e) => setError(String(e)));
   }, [refreshAgents]);
 
-  const tabBtn = (id: WorkTab, label: string) => (
-    <button
-      key={id}
-      className={workTab === id ? "btn-primary" : "btn-secondary"}
-      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem", borderRadius: "8px", transition: "opacity 0.15s ease, transform 0.15s ease" }}
-      onClick={() => startTransition(() => setWorkTab(id))}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="glass-card fade-in" style={{ animationDelay: "0.1s" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
         <h2 style={{ margin: 0, fontSize: "1.5rem", background: "linear-gradient(to right, #fff, var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           Work
         </h2>
-        <div style={{ display: "flex", gap: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.25rem", borderRadius: "10px", flexWrap: "wrap" }}>
-          {tabBtn("dashboard", "Dashboard")}
-          {tabBtn("tasks", "Tasks")}
-          {tabBtn("board", "Board")}
-          {tabBtn("branches", "Branches")}
-        </div>
+        <SubtabBar
+          ariaLabel="Work subtabs"
+          tabs={WORK_SUBTABS}
+          activeId={workTab}
+          onSelect={(id) => startTransition(() => setWorkTab(id))}
+        />
       </div>
 
       {error && (
