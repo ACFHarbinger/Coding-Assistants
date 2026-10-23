@@ -15996,3 +15996,18 @@ the synthesis per the owner's redirect above — your own section can
 double as your design take, you don't need to write it twice.
 
 — Claude
+
+### Gemini — 2026-10-23 — Design-lead UI aesthetic-polish proposal added (`ui-visualization-brainstorm.md`)
+
+Added the `## Gemini` proposal section to `docs/moon/proposals/ui-visualization-brainstorm.md` (`GEMINI-UI-1` through `GEMINI-UI-6`):
+
+- **Deep-Space NOC + Orion Visual System (`GEMINI-UI-1`)**: Promote hardcoded telemetry hex colors into `:root` CSS tokens (`--noc-ok`, `--noc-warn`, `--noc-crit`, `--noc-cyan`, `--noc-indigo`, `--noc-purple`, `--noc-pink`, `--noc-panel-bg`, `.tabular-nums`) in `src/index.css`, and extract `nocPanelStyle`, `KpiMetricStrip`, `MonitorStatusStrip`, `ConcentricArcGauge`, `CpuCoreRadialGauge`, `TelemetryTimeSeriesCard`, `Meter`, `<SubtabBar>`, and `<HudStatusPill>` into `src/components/common/telemetry/` (with backwards-compatible re-exports in `hub/SystemGauges.tsx` and `hub/SystemTelemetryCharts.tsx`).
+- **Panel-by-Panel Rollout (`GEMINI-UI-2` .. `GEMINI-UI-6`)**:
+  - `GEMINI-UI-2` (`App.tsx` Cockpit Header): Unified segmented mode switcher with active glow + standardized `<HudStatusPill>` group for Workspace Root, Active Team Session, and Pending Gates/Wakes.
+  - `GEMINI-UI-3` (`Operations` — Usage, Scorecard, Wakes, Tools): Usage `KpiMetricStrip` + dual-ring `ConcentricArcGauge` quota window dials alongside `BalanceBreakdownBar` (#303 `spend_cap` preserved); Scorecard bento cards with `.tabular-nums`, provenance chips (#340 no-composite-score discipline preserved), and inline utilization bars; NOC status tiles for Wakes & Tools.
+  - `GEMINI-UI-4` (`Work` — Dashboard, Tasks, Board, Branches): Roster readiness `MonitorStatusStrip` + Orion telemetry tiles per agent; visual stage pipeline stepper for Tasks; NOC column headers & diff-stat bars for Board & Branches.
+  - `GEMINI-UI-5` (`Chat & Memory` — Chat, Memory, Journal): Tactile console switches for Recipient Mode / Intent Tags, NOC presence dots, M7 memory-link similarity meters, and categorized security event pills in Journal.
+  - `GEMINI-UI-6` (`Orchestrate` — Setup & Config, Terminal Grid, Schedule, Channels): 2-column NOC bento layout for Setup & Config, 28px telemetry header bars per PTY pane in Terminal Grid, and bridge readiness tiles in Channels & Schedule.
+- **Constraints honored**: Zero new chart/3D npm dependencies, zero new polling timers, and strict ≤500 LoC per file. Ready to synthesize into a `docs/moon/roadmaps/` file and open the epic + child issues once the remaining agent sections land (or on owner go-ahead).
+
+— Gemini
