@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import { loadWorkspaceRoot } from "../../../app/hubState";
+import { nocPanelStyle, nocCardDenseStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export type GitBranch = {
   name: string;
@@ -91,113 +94,207 @@ export default function BranchesTab() {
 
   if (!workspace) {
     return (
-      <div>
-        <strong style={{ color: "var(--text-main)" }}>Branches</strong>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-          Set an absolute workspace root in Config to list local and remote-tracking branches.
-        </p>
+      <div style={nocPanelStyle}>
+        <EmptyStateChip
+          title="No workspace root configured"
+          detail="Set an absolute workspace root in Config to list local and remote-tracking branches."
+          tone="idle"
+        />
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap" }}>
-        <strong style={{ color: "var(--text-main)" }}>Branches</strong>
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Header bar */}
+      <div style={{ ...nocPanelStyle, display: "flex", gap: "0.75rem", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Branches</h3>
+          <p style={{ margin: "0.2rem 0 0", color: NOC_SURFACES.textMuted, fontSize: "0.82rem" }}>
+            Read-only listing with proportional ahead/behind diff bars. Checkout and branch mutations stay in the terminal.
+          </p>
+        </div>
         <button
           type="button"
-          className="btn-secondary"
-          style={{ marginTop: 0 }}
+          className="btn-secondary noc-focusable"
+          style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
           disabled={busy}
           onClick={() => void refresh()}
         >
           {busy ? "Refreshing…" : "Refresh"}
         </button>
-        <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-          Read-only listing. Checkout and delete stay in the terminal.
-        </span>
       </div>
+
       {(error || list?.notice) && (
-        <div style={{ marginBottom: "0.75rem", color: "#fecaca", fontSize: "0.82rem" }}>
+        <div style={{ color: NOC_COLORS.crit, fontSize: "0.82rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.45rem 0.75rem", borderRadius: "8px" }}>
           {error || list?.notice}
         </div>
       )}
-      <div style={{ display: "grid", gap: "0.55rem" }}>
-        {(list?.branches ?? []).map((branch) => (
-          <article
-            key={`${branch.kind}:${branch.name}`}
-            style={{
-              padding: "0.65rem 0.75rem",
-              borderRadius: "10px",
-              background: "rgba(15,23,42,0.7)",
-              border: "1px solid rgba(148,163,184,0.25)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ color: "#fff", fontWeight: 600, fontSize: "0.88rem" }}>
-                  {branch.name}
-                  <span style={{ marginLeft: "0.5rem", color: "var(--text-muted)", fontWeight: 400, fontSize: "0.72rem" }}>
-                    {branch.kind} · {branch.tip} · {formatCommitAge(branch.committed_at)}
-                  </span>
-                </div>
-                <div style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginTop: "0.2rem" }}>
-                  {branch.subject || "(no subject)"} · +{branch.ahead} / −{branch.behind} vs main
-                </div>
-              </div>
-              <div style={{ minWidth: "220px" }}>
-                {branch.issue_number ? (
-                  <div style={{ fontSize: "0.8rem", color: "#bbf7d0" }}>
-                    #{branch.issue_number}
-                    {branch.issue_state ? ` · ${branch.issue_state}` : ""}
-                    {branch.override_issue ? " · override" : ""}
-                    <div style={{ color: "var(--text-main)" }}>
-                      {branch.issue_url ? (
-                        <a href={branch.issue_url} style={{ color: "#7dd3fc" }}>
-                          {branch.issue_title || "linked issue"}
-                        </a>
-                      ) : (
-                        branch.issue_title || "linked issue (GitHub title unavailable)"
-                      )}
-                    </div>
+
+      {/* Branches list */}
+      <div style={{ display: "grid", gap: "0.65rem" }}>
+        {(list?.branches ?? []).map((branch) => {
+          const totalDiff = Math.max(1, branch.ahead + branch.behind);
+          const aheadPct = Math.round((branch.ahead / totalDiff) * 100);
+          const behindPct = 100 - aheadPct;
+          const isInSync = branch.ahead === 0 && branch.behind === 0;
+
+          return (
+            <article
+              key={`${branch.kind}:${branch.name}`}
+              style={{
+                ...nocCardDenseStyle,
+                padding: "0.75rem 0.95rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ minWidth: 260, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{ color: NOC_COLORS.cyan, fontWeight: 700, fontSize: "0.92rem", fontFamily: "var(--font-mono)" }}>
+                      {branch.name}
+                    </span>
+                    <span
+                      style={{
+                        color: NOC_SURFACES.textMuted,
+                        fontSize: "0.72rem",
+                        padding: "0.1rem 0.4rem",
+                        background: "rgba(255,255,255,0.06)",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {branch.kind}
+                    </span>
+                    <span className="tabular-nums" style={{ color: NOC_SURFACES.textMuted, fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>
+                      {branch.tip}
+                    </span>
+                    <span style={{ color: NOC_SURFACES.textMuted, fontSize: "0.72rem" }}>
+                      · {formatCommitAge(branch.committed_at)}
+                    </span>
                   </div>
-                ) : (
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>No linked issue</div>
-                )}
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void saveOverride(branch.name, drafts[branch.name] ?? String(branch.issue_number ?? ""));
-                  }}
-                  style={{ display: "flex", gap: "0.35rem", marginTop: "0.35rem" }}
-                >
-                  <input
-                    inputMode="numeric"
-                    placeholder="issue #"
-                    value={drafts[branch.name] ?? String(branch.issue_number ?? "")}
-                    onChange={(event) =>
-                      setDrafts((prev) => ({ ...prev, [branch.name]: event.target.value }))
-                    }
-                    style={{
-                      width: "88px",
-                      padding: "0.25rem 0.4rem",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border-color)",
-                      background: "rgba(0,0,0,0.3)",
-                      color: "white",
-                      fontSize: "0.75rem",
+
+                  <div style={{ color: NOC_SURFACES.textSecondary, fontSize: "0.82rem", marginTop: "0.35rem" }}>
+                    {branch.subject || "(no subject)"}
+                  </div>
+
+                  {/* Proportional two-tone diff bar */}
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.55rem", marginTop: "0.45rem" }}>
+                    {isInSync ? (
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: NOC_COLORS.ok,
+                          background: "rgba(16, 185, 129, 0.15)",
+                          padding: "0.1rem 0.4rem",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        In sync with main
+                      </span>
+                    ) : (
+                      <>
+                        <span className="tabular-nums" style={{ color: NOC_COLORS.ok, fontSize: "0.78rem", fontWeight: 700 }}>
+                          +{branch.ahead}
+                        </span>
+                        <span className="tabular-nums" style={{ color: NOC_COLORS.crit, fontSize: "0.78rem", fontWeight: 700 }}>
+                          −{branch.behind}
+                        </span>
+                        <div
+                          style={{
+                            width: 64,
+                            height: 6,
+                            background: "rgba(148, 163, 184, 0.2)",
+                            borderRadius: 3,
+                            display: "flex",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {branch.ahead > 0 && <div style={{ width: `${aheadPct}%`, background: NOC_COLORS.ok }} />}
+                          {branch.behind > 0 && <div style={{ width: `${behindPct}%`, background: NOC_COLORS.crit }} />}
+                        </div>
+                        <span style={{ fontSize: "0.74rem", color: NOC_SURFACES.textMuted }}>vs main</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Linked Issue Chip */}
+                <div style={{ minWidth: 200, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  {branch.issue_number ? (
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        padding: "0.3rem 0.55rem",
+                        borderRadius: "6px",
+                        background: "rgba(16, 185, 129, 0.1)",
+                        border: "1px solid rgba(16, 185, 129, 0.25)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: NOC_COLORS.ok }}>
+                        #{branch.issue_number}
+                        {branch.issue_state ? ` · ${branch.issue_state}` : ""}
+                        {branch.override_issue ? " · override" : ""}
+                      </div>
+                      <div style={{ color: NOC_SURFACES.textPrimary, fontSize: "0.76rem", marginTop: "0.15rem" }}>
+                        {branch.issue_url ? (
+                          <a href={branch.issue_url} style={{ color: "#7dd3fc", textDecoration: "none" }}>
+                            {branch.issue_title || "linked issue"}
+                          </a>
+                        ) : (
+                          branch.issue_title || "linked issue"
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.76rem" }}>No linked issue</div>
+                  )}
+
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void saveOverride(branch.name, drafts[branch.name] ?? String(branch.issue_number ?? ""));
                     }}
-                  />
-                  <button type="submit" className="btn-secondary" style={{ marginTop: 0, fontSize: "0.72rem" }} disabled={busy}>
-                    Link
-                  </button>
-                </form>
+                    style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}
+                  >
+                    <input
+                      inputMode="numeric"
+                      className="noc-focusable"
+                      placeholder="issue #"
+                      value={drafts[branch.name] ?? String(branch.issue_number ?? "")}
+                      onChange={(event) =>
+                        setDrafts((prev) => ({ ...prev, [branch.name]: event.target.value }))
+                      }
+                      style={{
+                        width: "80px",
+                        padding: "0.25rem 0.45rem",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(148, 163, 184, 0.2)",
+                        background: "rgba(0,0,0,0.35)",
+                        color: NOC_SURFACES.textPrimary,
+                        fontSize: "0.75rem",
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn-secondary noc-focusable"
+                      style={{ marginTop: 0, fontSize: "0.72rem", padding: "0.25rem 0.6rem" }}
+                      disabled={busy}
+                    >
+                      Link
+                    </button>
+                  </form>
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
+
         {list && list.branches.length === 0 && (
-          <p style={{ color: "var(--text-muted)" }}>No local or remote-tracking branches found.</p>
+          <EmptyStateChip
+            title="No branches found"
+            detail="No local or remote-tracking branches found for this repository."
+            tone="idle"
+          />
         )}
       </div>
     </div>
