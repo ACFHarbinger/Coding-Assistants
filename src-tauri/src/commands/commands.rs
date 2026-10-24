@@ -53,6 +53,8 @@ mod quota_gemini;
 mod quota_grok;
 #[path = "quota/hermes.rs"]
 mod quota_hermes;
+#[path = "quota/kimi.rs"]
+pub(crate) mod quota_kimi;
 #[path = "quota/kimi_usage.rs"]
 pub(crate) mod quota_kimi_usage;
 #[path = "quota/mistral.rs"]
