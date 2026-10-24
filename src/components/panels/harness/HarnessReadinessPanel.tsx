@@ -174,7 +174,7 @@ export default function HarnessReadinessPanel({
   };
 
   return (
-    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.amber}`, marginBottom: "1.25rem" }}>
+    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.amber}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
         <div>
           <strong style={{ color: NOC_SURFACES.textPrimary, fontSize: "1.02rem" }}>Harness interfaces</strong>

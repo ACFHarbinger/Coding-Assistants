@@ -40,7 +40,6 @@ export default function DetectedProcessesSection({
             display: "flex",
             flexDirection: "column",
             gap: "0.65rem",
-            marginBottom: "1.25rem",
           }}
         >
           <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.8rem" }}>

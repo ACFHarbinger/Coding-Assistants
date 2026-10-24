@@ -205,7 +205,6 @@ export default function WorkspaceRootSection({
     <section
       style={{
         ...nocPanelStyle,
-        marginBottom: "1.25rem",
         borderLeft: `3px solid ${NOC_COLORS.ok}`,
       }}
       aria-label="Workspace Root Section"

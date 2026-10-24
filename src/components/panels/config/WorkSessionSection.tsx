@@ -29,7 +29,7 @@ export default function WorkSessionSection({
   onSelectWorkSession?: (sessionId: string | null) => void;
 }) {
   return (
-    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.cyan}`, display: "flex", flexDirection: "column", gap: "0.85rem", marginBottom: "1.25rem" }}>
+    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.cyan}`, display: "flex", flexDirection: "column", gap: "0.85rem" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
           <strong style={{ color: NOC_SURFACES.textPrimary, fontSize: "1.02rem" }}>Team Work Session Chat</strong>

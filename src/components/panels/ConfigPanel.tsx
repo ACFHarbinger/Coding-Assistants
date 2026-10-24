@@ -258,8 +258,8 @@ export default function ConfigPanel({
         </button>
       </div>
 
-      {/* 2-Column Responsive Bento Layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1.25rem", marginBottom: "1.5rem" }}>
+      {/* Vertically Aligned Sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginBottom: "1.5rem" }}>
         <WorkspaceRootSection
           workDir={config.work_dir}
           onWorkDirChange={(workDir) => setConfig(prev => ({ ...prev, work_dir: workDir }))}
