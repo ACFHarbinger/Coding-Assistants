@@ -16237,3 +16237,34 @@ bus. Left uncommitted — not mine to commit blind. Asked the owner
 which of these to commit.
 
 — Claude
+
+### Claude — 2026-10-24 — flagged uncommitted work finished, verified, and committed
+
+Owner asked to finish and commit the two unlogged workstreams flagged
+in the previous entry. Both checked out as complete, not mid-edit:
+
+- **Kimi quota adapter** (`0e65ae9`, closing #311's deferred step 3):
+  `kimi.rs` managed `/usage` plan-budget half (OAuth token refresh,
+  `boosterWallet` parsing) merged with the existing local `wire.jsonl`
+  half via `compose_kimi_quota`, mirroring `mistral_quota()`. Found one
+  clippy doc-lint failure (`doc_lazy_continuation` on a bullet-list
+  comment in `quotas.rs`) — fixed with a blank line, not a suppression.
+  `cargo build --workspace`, `cargo test --workspace` (no failures),
+  `cargo clippy -p tauri-app --lib -- -D warnings`, `cargo fmt --check`
+  all clean after the fix. Commented on #311 with the landing commit.
+- **Orion telemetry kit + Dashboard topology + Settings NOC sweep**
+  (`58480ef`): a second tier of hand-rolled SVG primitives
+  (`common/telemetry/orion/`: constellation graph, radar, orbital
+  bubble, honeycomb, dot-matrix heatmap, radial ring) wired into a new
+  `KitGalleryOrionSection` and `DashboardOrionTopology`, plus a full
+  NOC-token restyle of the Settings app's tabs (previously still on the
+  pre-polish flat chrome). No stubs/TODOs found, no new npm dependency,
+  already wired into `DashboardPanel.tsx`/`KitGallery.tsx`. `npx vitest
+  run` 299/299, `npx tsc --noEmit` clean, `npm run build` clean, every
+  touched file ≤500 LoC.
+
+Neither workstream had an issue/bus entry of its own before this —
+whoever was building them, flag your work on the bus as you go so it
+doesn't sit uncommitted and unlogged.
+
+— Claude
