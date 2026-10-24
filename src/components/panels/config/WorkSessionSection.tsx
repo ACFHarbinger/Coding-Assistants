@@ -1,4 +1,7 @@
 import type { WorkSession } from "./types";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { HudStatusPill } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export default function WorkSessionSection({
   workSessions,
@@ -26,17 +29,19 @@ export default function WorkSessionSection({
   onSelectWorkSession?: (sessionId: string | null) => void;
 }) {
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: "0.85rem", marginBottom: "1.5rem", padding: "1.25rem", border: "1px solid rgba(6, 182, 212, 0.3)", borderRadius: "12px", background: "rgba(6, 182, 212, 0.06)" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.cyan}`, display: "flex", flexDirection: "column", gap: "0.85rem", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <strong style={{ color: "var(--text-main)", fontSize: "1.05rem" }}>Team Work Session Chat</strong>
-          <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.2rem" }}>
-            Create a new team chat or load an existing work session. Focuses the Chat & Memory window automatically.
+          <strong style={{ color: NOC_SURFACES.textPrimary, fontSize: "1.02rem" }}>Team Work Session Chat</strong>
+          <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", marginTop: "0.2rem" }}>
+            Create a new team chat or load an existing work session. Focuses the Chat &amp; Memory window automatically.
           </div>
         </div>
-        <span style={{ color: "var(--accent)", fontSize: "0.85rem", fontWeight: 600 }}>
-          {activeWorkSessionName ? `Active: ${activeWorkSessionName}` : "No active session"}
-        </span>
+        <HudStatusPill
+          label="Session"
+          value={activeWorkSessionName ? `Active: ${activeWorkSessionName}` : "No active session"}
+          tone={activeWorkSessionName ? "ok" : "idle"}
+        />
       </div>
 
       {sessionError && (
@@ -46,25 +51,26 @@ export default function WorkSessionSection({
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginTop: "0.25rem" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", background: "rgba(0,0,0,0.25)", padding: "0.85rem", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>Create New Team Chat</span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.85rem", marginTop: "0.15rem" }}>
+        <div style={{ ...nocCardDenseStyle, display: "flex", flexDirection: "column", gap: "0.5rem", padding: "0.85rem" }}>
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: NOC_COLORS.indigo }}>Create New Team Chat</span>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <input
+              className="noc-focusable"
               value={workSessionName}
               onChange={(event) => setWorkSessionName(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") createWorkSession(); }}
               placeholder="Session name, e.g. Cloud sync design"
               style={{ flex: 1, padding: "0.5rem 0.75rem", borderRadius: "8px", background: "rgba(0,0,0,0.4)", color: "white", border: "1px solid var(--border-color)", outline: "none", fontSize: "0.85rem" }}
             />
-            <button className="btn-primary" onClick={createWorkSession} disabled={!workSessionName.trim() || creatingWorkSession} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+            <button className="btn-primary noc-focusable" onClick={createWorkSession} disabled={!workSessionName.trim() || creatingWorkSession} style={{ marginTop: 0, padding: "0.5rem 1rem", fontSize: "0.82rem", whiteSpace: "nowrap" }}>
               {creatingWorkSession ? "Creating…" : "Create & Open"}
             </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", background: "rgba(0,0,0,0.25)", padding: "0.85rem", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>Load Existing Team Chat</span>
+        <div style={{ ...nocCardDenseStyle, display: "flex", flexDirection: "column", gap: "0.5rem", padding: "0.85rem" }}>
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: NOC_COLORS.cyan }}>Load Existing Team Chat</span>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <select
               value={activeWorkSessionId || ""}

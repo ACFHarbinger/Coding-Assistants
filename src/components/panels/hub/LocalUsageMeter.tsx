@@ -18,12 +18,37 @@ function formatSince(timestamp?: number | null): string | null {
   }
 }
 
+/**
+ * Format a token count in 1024-based units matching Kimi CLI's `/usage`
+ * `formatTokenCount` (`262144` → `"256k"`, `>= 100k` rounded to whole k).
+ */
+export function formatTokenCompact(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  const trimDecimal = (v: number) => {
+    const s = v.toFixed(1);
+    return s.endsWith(".0") ? s.slice(0, -2) : s;
+  };
+  if (n >= 1024 * 1024) {
+    return `${trimDecimal(n / (1024 * 1024))}M`;
+  }
+  if (n >= 1024) {
+    const k = n / 1024;
+    return `${k >= 100 ? Math.round(k) : trimDecimal(k)}k`;
+  }
+  return String(Math.round(n));
+}
+
 export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
   const sinceStr = formatSince(usage.since);
   const totalTools =
     usage.tool_calls_succeeded +
     usage.tool_calls_failed +
     usage.tool_calls_rejected;
+  const totalTokens =
+    usage.prompt_tokens + usage.cached_tokens + usage.completion_tokens;
+  const promptShare = totalTokens > 0 ? (usage.prompt_tokens / totalTokens) * 100 : 0;
+  const cachedShare = totalTokens > 0 ? (usage.cached_tokens / totalTokens) * 100 : 0;
+  const completionShare = totalTokens > 0 ? (usage.completion_tokens / totalTokens) * 100 : 0;
 
   return (
     <div
@@ -188,6 +213,112 @@ export function LocalUsageMeter({ usage, detail }: LocalUsageMeterProps) {
           </span>
         </div>
       </div>
+
+      {/* Token distribution chart (Prompt vs Cached vs Completion) */}
+      {totalTokens > 0 && (
+        <div
+          data-testid="local-usage-token-chart"
+          style={{
+            display: "grid",
+            gap: "0.35rem",
+            background: "rgba(0, 0, 0, 0.2)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "0.65rem 0.8rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+              fontSize: "0.76rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            <span style={{ fontWeight: 600, color: "var(--text-main)" }}>
+              Token Distribution
+            </span>
+            <span className="tabular-nums">
+              {formatTokenCompact(totalTokens)} total tokens
+            </span>
+          </div>
+          <div
+            role="img"
+            aria-label="Local session token distribution"
+            style={{
+              height: 10,
+              background: "#1e293b",
+              borderRadius: 5,
+              overflow: "hidden",
+              display: "flex",
+              width: "100%",
+            }}
+          >
+            {promptShare > 0 && (
+              <div
+                data-testid="local-usage-prompt-bar"
+                title={`Prompt: ${usage.prompt_tokens.toLocaleString()} (${formatTokenCompact(usage.prompt_tokens)})`}
+                style={{
+                  width: `${promptShare}%`,
+                  height: "100%",
+                  background: "#38bdf8",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            )}
+            {cachedShare > 0 && (
+              <div
+                data-testid="local-usage-cached-bar"
+                title={`Cached: ${usage.cached_tokens.toLocaleString()} (${formatTokenCompact(usage.cached_tokens)})`}
+                style={{
+                  width: `${cachedShare}%`,
+                  height: "100%",
+                  background: "#34d399",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            )}
+            {completionShare > 0 && (
+              <div
+                data-testid="local-usage-completion-bar"
+                title={`Completion: ${usage.completion_tokens.toLocaleString()} (${formatTokenCompact(usage.completion_tokens)})`}
+                style={{
+                  width: `${completionShare}%`,
+                  height: "100%",
+                  background: "#a855f7",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            )}
+          </div>
+          <div
+            className="tabular-nums"
+            style={{
+              display: "flex",
+              gap: "0.9rem",
+              flexWrap: "wrap",
+              fontSize: "0.72rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+              <i style={{ width: 7, height: 7, borderRadius: 2, background: "#38bdf8", display: "inline-block" }} />
+              Prompt {formatTokenCompact(usage.prompt_tokens)}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+              <i style={{ width: 7, height: 7, borderRadius: 2, background: "#34d399", display: "inline-block" }} />
+              Cached {formatTokenCompact(usage.cached_tokens)}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+              <i style={{ width: 7, height: 7, borderRadius: 2, background: "#a855f7", display: "inline-block" }} />
+              Completion {formatTokenCompact(usage.completion_tokens)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Detail advisory (e.g. admin key note) */}
       {detail && (

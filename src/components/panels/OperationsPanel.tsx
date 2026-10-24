@@ -7,6 +7,7 @@ import WakesPanel from "./operations/WakesPanel";
 import { ScorecardTab } from "./hub/ScorecardTab";
 import type { AgentRecord, BudgetStatus, ProviderQuota, WakeRecord } from "./hub/types";
 import { SubtabBar, SubtabItem } from "../common/telemetry/SubtabBar";
+import { NOC_COLORS, NOC_SURFACES } from "../common/telemetry/tokens";
 
 type OpsTab = "system" | "usage" | "tools" | "wakes" | "scorecard";
 
@@ -20,6 +21,7 @@ const OPS_SUBTABS: SubtabItem<OpsTab>[] = [
 
 export default function OperationsPanel() {
   const [opsTab, setOpsTab] = useState<OpsTab>("system");
+  const [visitedTabs, setVisitedTabs] = useState<Set<OpsTab>>(() => new Set(["system"]));
   const [agents, setAgents] = useState<AgentRecord[]>([]);
   const [error, setError] = useState<string>("");
   const [status, setStatus] = useState<string>("");
@@ -149,61 +151,85 @@ export default function OperationsPanel() {
 
   return (
     <div className="glass-card fade-in" style={{ animationDelay: "0.1s" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.5rem", background: "linear-gradient(to right, #fff, var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Operations
-        </h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem", paddingBottom: "0.75rem", borderBottom: "1px solid rgba(148, 163, 184, 0.14)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 800, color: NOC_SURFACES.textPrimary, letterSpacing: "-0.01em" }}>
+            Operations
+          </h2>
+          <span style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted }}>
+            System telemetry, provider budgets &amp; quotas, MCP tools, wakes &amp; team scorecard
+          </span>
+        </div>
         <SubtabBar
           ariaLabel="Operations subtabs"
           tabs={OPS_SUBTABS}
           activeId={opsTab}
-          onSelect={(id) => startTransition(() => setOpsTab(id))}
+          onSelect={(id) =>
+            startTransition(() => {
+              setVisitedTabs((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+              setOpsTab(id);
+            })
+          }
         />
       </div>
 
       <div style={{ marginBottom: "1rem" }}>
-        {error && <span style={{ color: "#ef4444", fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>Error: {error}</span>}
-        {status && !error && <span style={{ color: "#22c55e", fontSize: "0.85rem", background: "rgba(34, 197, 94, 0.1)", padding: "0.2rem 0.5rem", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
-          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} /> {status}
+        {error && <span style={{ color: NOC_COLORS.crit, fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.25rem 0.6rem", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>Error: {error}</span>}
+        {status && !error && <span style={{ color: NOC_COLORS.ok, fontSize: "0.85rem", background: "rgba(16, 185, 129, 0.12)", padding: "0.25rem 0.6rem", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: NOC_COLORS.ok }} /> {status}
         </span>}
       </div>
 
-      {opsTab === "system" && <SystemTab />}
-      {opsTab === "tools" && <McpToolsPanel />}
-      {opsTab === "usage" && (
-        <UsagePanel
-          agents={agents}
-          budgetAgent={budgetAgent}
-          setBudgetAgent={setBudgetAgent}
-          budgetLimit={budgetLimit}
-          setBudgetLimit={setBudgetLimit}
-          setBudget={setBudget}
-          refreshBudgets={refreshBudgets}
-          refreshQuotas={refreshQuotas}
-          refreshStaleQuotas={refreshStaleQuotas}
-          budgets={budgets}
-          quotas={quotas}
-          refreshingQuotaIds={refreshingQuotaIds}
-          refreshSingleQuota={refreshSingleQuota}
-          budgetSpend={budgetSpend}
-          setBudgetSpend={setBudgetSpend}
-          recordSpend={recordSpend}
-          resumeBudget={resumeBudget}
-        />
+      <div style={{ display: opsTab === "system" ? "block" : "none" }}>
+        <SystemTab />
+      </div>
+      {visitedTabs.has("tools") && (
+        <div style={{ display: opsTab === "tools" ? "block" : "none" }}>
+          <McpToolsPanel />
+        </div>
       )}
-      {opsTab === "wakes" && (
-        <WakesPanel
-          agents={agents}
-          wakeTarget={wakeTarget}
-          setWakeTarget={setWakeTarget}
-          wakeReason={wakeReason}
-          setWakeReason={setWakeReason}
-          requestWake={requestWake}
-          refreshWakes={refreshWakes}
-          wakes={wakes}
-        />
+      {visitedTabs.has("usage") && (
+        <div style={{ display: opsTab === "usage" ? "block" : "none" }}>
+          <UsagePanel
+            agents={agents}
+            budgetAgent={budgetAgent}
+            setBudgetAgent={setBudgetAgent}
+            budgetLimit={budgetLimit}
+            setBudgetLimit={setBudgetLimit}
+            setBudget={setBudget}
+            refreshBudgets={refreshBudgets}
+            refreshQuotas={refreshQuotas}
+            refreshStaleQuotas={refreshStaleQuotas}
+            budgets={budgets}
+            quotas={quotas}
+            refreshingQuotaIds={refreshingQuotaIds}
+            refreshSingleQuota={refreshSingleQuota}
+            budgetSpend={budgetSpend}
+            setBudgetSpend={setBudgetSpend}
+            recordSpend={recordSpend}
+            resumeBudget={resumeBudget}
+          />
+        </div>
       )}
-      {opsTab === "scorecard" && <ScorecardTab />}
+      {visitedTabs.has("wakes") && (
+        <div style={{ display: opsTab === "wakes" ? "block" : "none" }}>
+          <WakesPanel
+            agents={agents}
+            wakeTarget={wakeTarget}
+            setWakeTarget={setWakeTarget}
+            wakeReason={wakeReason}
+            setWakeReason={setWakeReason}
+            requestWake={requestWake}
+            refreshWakes={refreshWakes}
+            wakes={wakes}
+          />
+        </div>
+      )}
+      {visitedTabs.has("scorecard") && (
+        <div style={{ display: opsTab === "scorecard" ? "block" : "none" }}>
+          <ScorecardTab />
+        </div>
+      )}
     </div>
   );
 }

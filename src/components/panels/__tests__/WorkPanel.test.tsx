@@ -13,6 +13,34 @@ const mockInvoke = vi.fn(async (cmd: string) => {
   if (cmd === "hub_get_budget") return null;
   if (cmd === "hub_list_agent_metrics") return [];
   if (cmd === "hub_list_tasks") return [];
+  if (cmd === "hub_list_project_board") {
+    return {
+      owner: "ACFHarbinger",
+      project_number: 21,
+      notice: null,
+      columns: [
+        {
+          name: "Backlog",
+          cards: [
+            {
+              id: "card-1",
+              kind: "internal",
+              title: "Persistent Board Card",
+              status: "Backlog",
+              issue_number: 42,
+              url: null,
+              labels: [],
+              github_assignees: [],
+              roster_assignees: ["kimi"],
+              deadline: null,
+              linked_branches: [],
+              size: null,
+            },
+          ],
+        },
+      ],
+    };
+  }
   return [];
 });
 
@@ -86,5 +114,37 @@ describe("WorkPanel persistence synchronization (U22 / #225)", () => {
       const calls = mockInvoke.mock.calls.map(c => c[0]);
       expect(calls.filter(cmd => cmd === "hub_list_agents").length).toBeGreaterThanOrEqual(2);
     });
+  });
+
+  it("keeps BoardTab mounted and avoids refetching when switching subtabs and back", async () => {
+    render(
+      <WorkPanel
+        teamMemberIds={["human", "claude"]}
+        onAddAgent={vi.fn()}
+        onRemoveAgent={vi.fn()}
+      />,
+    );
+
+    // Initially on Dashboard; Board has not been mounted/fetched yet
+    expect(mockInvoke.mock.calls.filter((c) => c[0] === "hub_list_project_board").length).toBe(0);
+
+    // Switch to Board subtab
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(await screen.findByText("Persistent Board Card")).toBeTruthy();
+    expect(mockInvoke.mock.calls.filter((c) => c[0] === "hub_list_project_board").length).toBe(1);
+
+    // Type a draft title in the Board subtab
+    const draftInput = screen.getByPlaceholderText("Internal task title…") as HTMLInputElement;
+    fireEvent.change(draftInput, { target: { value: "Keep this draft" } });
+
+    // Switch away to Tasks and Dashboard, then back to Board
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+
+    // Card and draft remain in the DOM without a second hub_list_project_board call
+    expect(screen.getByText("Persistent Board Card")).toBeTruthy();
+    expect((screen.getByPlaceholderText("Internal task title…") as HTMLInputElement).value).toBe("Keep this draft");
+    expect(mockInvoke.mock.calls.filter((c) => c[0] === "hub_list_project_board").length).toBe(1);
   });
 });

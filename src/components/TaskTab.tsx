@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "../lib/tauri";
 import { nocPanelStyle, nocCardDenseStyle } from "./common/telemetry/panel";
-import { EmptyStateChip } from "./common/telemetry/status";
+import { EmptyStateChip, KpiCardGrid, StalenessDot, type KpiCardItem } from "./common/telemetry/status";
+import { Meter } from "./common/telemetry/gauges";
 import { NOC_COLORS, NOC_SURFACES } from "./common/telemetry/tokens";
 
 export interface TaskRecord {
@@ -69,15 +70,30 @@ export default function TaskTab() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
   const [taskMessages, setTaskMessages] = useState<MessageRecord[]>([]);
+  const [lastUpdatedSec, setLastUpdatedSec] = useState<number | null>(null);
 
   const refreshTasks = useCallback(async () => {
     try {
       const res = await invoke<TaskRecord[]>("hub_list_tasks", { status: null });
       setTasks(res);
+      setLastUpdatedSec(Math.floor(Date.now() / 1000));
     } catch (e) {
       console.error(e);
     }
   }, []);
+
+  const kpis = useMemo<KpiCardItem[]>(() => {
+    const completed = tasks.filter((t) => t.status === "completed").length;
+    const waiting = tasks.filter((t) => t.status === "input_required" || t.status === "auth_required").length;
+    const failed = tasks.filter((t) => t.status === "failed").length;
+    const active = tasks.length - completed - failed;
+    return [
+      { title: "Total Workflows", subtitle: "Hub history", value: String(tasks.length), footer: "Recorded pipelines", accent: NOC_COLORS.indigo },
+      { title: "Active / Open", subtitle: "In flight", value: String(active), footer: "Executing stages", accent: NOC_COLORS.cyan },
+      { title: "Waiting on Gate", subtitle: "Human / Auth", value: String(waiting), footer: waiting > 0 ? "Input or auth required" : "No blocked gates", accent: waiting > 0 ? NOC_COLORS.warn : NOC_COLORS.idle },
+      { title: "Completed", subtitle: "Finished", value: String(completed), footer: failed > 0 ? `${failed} failed` : "All finished clean", accent: NOC_COLORS.ok },
+    ];
+  }, [tasks]);
 
   const selectTask = async (task: TaskRecord) => {
     setSelectedTask(task);
@@ -240,9 +256,12 @@ export default function TaskTab() {
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div style={{ ...nocPanelStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ ...nocPanelStyle, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Task Browser</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Task Browser</h3>
+            <StalenessDot lastUpdatedUnixSeconds={lastUpdatedSec} pollIntervalSeconds={30} />
+          </div>
           <p style={{ margin: "0.2rem 0 0", color: NOC_SURFACES.textMuted, fontSize: "0.82rem" }}>
             Inspect ongoing and past workflow execution pipelines.
           </p>
@@ -251,6 +270,8 @@ export default function TaskTab() {
           Refresh
         </button>
       </div>
+
+      {tasks.length > 0 && <KpiCardGrid cards={kpis} />}
 
       {tasks.length === 0 ? (
         <EmptyStateChip
@@ -262,19 +283,22 @@ export default function TaskTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
           {tasks.map((t) => {
             const totalSteps = Math.max(1, t.steps?.length || 1);
+            const stageNum = Math.min(totalSteps, t.step_index + 1);
+            const stagePct = t.status === "completed" ? 100 : Math.round((stageNum / totalSteps) * 100);
+            const tone = t.status === "completed" ? "ok" : t.status === "failed" ? "crit" : t.status === "input_required" || t.status === "auth_required" ? "warn" : "ok";
             return (
               <div
                 key={t.id}
                 role="button"
                 tabIndex={0}
                 className="noc-focusable"
-                style={{ ...nocCardDenseStyle, cursor: "pointer", transition: "all 0.16s cubic-bezier(0.2, 0, 0, 1)" }}
+                style={{ ...nocCardDenseStyle, cursor: "pointer", transition: "all 0.16s cubic-bezier(0.2, 0, 0, 1)", display: "flex", flexDirection: "column", gap: "0.45rem" }}
                 onClick={() => selectTask(t)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") selectTask(t);
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
                   <strong style={{ fontSize: "1rem", fontWeight: 700, color: NOC_COLORS.cyan }}>{t.title}</strong>
                   <span
                     style={{
@@ -293,9 +317,10 @@ export default function TaskTab() {
                 <div style={{ display: "flex", gap: "1rem", fontSize: "0.78rem", color: NOC_SURFACES.textMuted, flexWrap: "wrap" }}>
                   <span>ID: <code style={{ color: NOC_SURFACES.textPrimary }}>{t.id.slice(0, 8)}</code></span>
                   {t.workspace_path && <span>Workspace: {t.workspace_path.split("/").pop()}</span>}
-                  <span className="tabular-nums">Stage: {t.step_index + 1} / {totalSteps}</span>
+                  <span className="tabular-nums">Stage: {stageNum} / {totalSteps}</span>
                   <span className="tabular-nums">Created: {new Date(t.created_at).toLocaleString()}</span>
                 </div>
+                <Meter label="Pipeline Progress" percent={stagePct} detail={`${stagePct}%`} tone={tone} />
               </div>
             );
           })}

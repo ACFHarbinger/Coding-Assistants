@@ -3,6 +3,7 @@ import { invoke } from "../../lib/tauri";
 import { AgentAvatar } from "./messager/AgentAvatar";
 import { rosterAgentToTeamMember } from "../../app/team";
 import ActivityView from "./dashboard/ActivityView";
+import { DashboardOrionTopology } from "./dashboard/DashboardOrionTopology";
 import type { TeamMember } from "./config/types";
 import { nocPanelStyle, nocCardDenseStyle } from "../common/telemetry/panel";
 import { KpiCardGrid, type KpiCardItem, EmptyStateChip } from "../common/telemetry/status";
@@ -54,6 +55,7 @@ interface WakeRecord {
 
 const DASHBOARD_SUBTABS = [
   { id: "overview", label: "Telemetry & Overview" },
+  { id: "topology", label: "Orion Visual Topology" },
   { id: "activity", label: "Tool & Workspace Activity" },
 ];
 
@@ -70,7 +72,7 @@ export default function DashboardPanel({
   onAddAgent: (agent: TeamMember) => Promise<void> | void;
   onRemoveAgent: (agent: TeamMember) => Promise<void> | void;
 }) {
-  const [subTab, setSubTab] = useState<"overview" | "activity">("overview");
+  const [subTab, setSubTab] = useState<"overview" | "topology" | "activity">("overview");
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -164,14 +166,16 @@ export default function DashboardPanel({
             <p style={{ margin: "0.2rem 0 0", color: NOC_SURFACES.textMuted, fontSize: "0.82rem" }}>
               {subTab === "overview"
                 ? "Local cumulative usage from the Shared Hub. Token counts are whitespace estimates."
-                : "Activity traceability across tasks, commands, files, and agents."}
+                : subTab === "topology"
+                  ? "Interactive constellation network, radar capability profile, and honeycomb situational matrix."
+                  : "Activity traceability across tasks, commands, files, and agents."}
             </p>
           </div>
           <SubtabBar
             ariaLabel="Dashboard view modes"
             tabs={DASHBOARD_SUBTABS}
             activeId={subTab}
-            onSelect={(id: string) => setSubTab(id as "overview" | "activity")}
+            onSelect={(id: string) => setSubTab(id as "overview" | "topology" | "activity")}
           />
         </div>
 
@@ -188,7 +192,16 @@ export default function DashboardPanel({
         </div>
       )}
 
-      {subTab === "activity" ? (
+      {subTab === "topology" ? (
+        <DashboardOrionTopology
+          agents={agents}
+          metrics={metrics}
+          budgets={budgets}
+          tasks={tasks}
+          messages={messages}
+          wakes={wakes}
+        />
+      ) : subTab === "activity" ? (
         <ActivityView agents={agents} />
       ) : (
         <>

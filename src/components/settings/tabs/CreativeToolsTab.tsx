@@ -7,6 +7,8 @@ import {
   setCreativeToolEnabled,
 } from "../api";
 import { ToggleRow, shortenPath } from "./shared";
+import { NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
 
 export interface CreativeToolsTabProps {
   workspaceRoot: string | null;
@@ -99,7 +101,15 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
 
   if (!workspaceRoot) {
     return (
-      <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+      <div
+        style={{
+          ...nocCardDenseStyle,
+          padding: "2rem",
+          textAlign: "center",
+          color: NOC_SURFACES.textMuted,
+          fontSize: "0.85rem",
+        }}
+      >
         Select an active workspace in Orchestrate to configure workspace-scoped Creative Tools MCP bridges.
       </div>
     );
@@ -109,16 +119,16 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
     <div style={{ display: "grid", gap: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Creative Tools MCP Bridges</h3>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Creative Tools MCP Bridges</h3>
+          <p style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
             Expose local creative software (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz, Ableton Live) to coding agents in{" "}
-            <strong>{shortenPath(workspaceRoot, 32)}</strong>.
+            <strong style={{ color: NOC_SURFACES.textPrimary }}>{shortenPath(workspaceRoot, 32)}</strong>.
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary noc-focusable"
             style={{ marginTop: 0, padding: "0.35rem 0.75rem", fontSize: "0.78rem" }}
             disabled={busy || loading}
             onClick={() => void handleReapply()}
@@ -127,7 +137,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
           </button>
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary noc-focusable"
             style={{ marginTop: 0, padding: "0.35rem 0.75rem", fontSize: "0.78rem" }}
             disabled={busy || loading}
             onClick={() => void handleCopyCodex()}
@@ -141,7 +151,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            borderRadius: "8px",
+            borderRadius: NOC_RADIUS.s,
             background: "rgba(239, 68, 68, 0.12)",
             border: "1px solid rgba(248, 113, 113, 0.45)",
             color: "#fca5a5",
@@ -156,7 +166,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            borderRadius: "8px",
+            borderRadius: NOC_RADIUS.s,
             background: "rgba(16, 185, 129, 0.12)",
             border: "1px solid rgba(16, 185, 129, 0.35)",
             color: "#6ee7b7",
@@ -172,26 +182,25 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
           <div
             key={tool.key}
             style={{
-              padding: "0.9rem 1.1rem",
-              borderRadius: "10px",
-              border: `1px solid ${tool.enabled ? "rgba(99, 102, 241, 0.4)" : "var(--border-color)"}`,
-              background: tool.enabled ? "rgba(99, 102, 241, 0.06)" : "rgba(0,0,0,0.22)",
+              ...nocCardDenseStyle,
+              border: `1px solid ${tool.enabled ? "rgba(99, 102, 241, 0.45)" : NOC_SURFACES.border}`,
+              background: tool.enabled ? "rgba(99, 102, 241, 0.08)" : NOC_SURFACES.bgDeep,
               display: "grid",
               gap: "0.55rem",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-                <strong style={{ fontSize: "0.95rem", color: "var(--text-main)" }}>{tool.displayName}</strong>
+                <strong style={{ fontSize: "0.95rem", color: NOC_SURFACES.textPrimary }}>{tool.displayName}</strong>
                 <span
                   style={{
                     fontSize: "0.7rem",
                     fontWeight: 600,
                     padding: "0.12rem 0.5rem",
                     borderRadius: "999px",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--text-muted)",
+                    background: "rgba(15, 23, 42, 0.6)",
+                    border: `1px solid ${NOC_SURFACES.border}`,
+                    color: NOC_SURFACES.textMuted,
                     textTransform: "capitalize",
                   }}
                 >
@@ -213,7 +222,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
                 <span
                   style={{
                     fontSize: "0.7rem",
-                    color: tool.appRunning ? "#6ee7b7" : "var(--text-muted)",
+                    color: tool.appRunning ? "#6ee7b7" : NOC_SURFACES.textMuted,
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.3rem",
@@ -231,7 +240,7 @@ export default function CreativeToolsTab({ workspaceRoot, busy }: CreativeToolsT
               />
             </div>
 
-            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "grid", gap: "0.25rem" }}>
+            <div style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted, display: "grid", gap: "0.25rem" }}>
               {tool.binaryPath && <div>Binary: <code>{tool.binaryPath}</code></div>}
               {!tool.binaryFound && (
                 <div style={{ color: "#fde68a" }}>

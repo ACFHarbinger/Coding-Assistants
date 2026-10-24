@@ -383,11 +383,11 @@ export function QuotaChart({
                         title="Quota Windows"
                         centerPrimary={`${quota.windows[0]?.remaining_percent ?? 0}%`}
                         centerSecondary="rem"
-                        size={110}
-                        rings={quota.windows.slice(0, 2).map((w, idx) => ({
+                        size={quota.windows.length >= 3 ? 132 : 110}
+                        rings={quota.windows.slice(0, 3).map((w, idx) => ({
                           label: w.label,
                           percent: w.remaining_percent,
-                          color: idx === 0 ? NOC_COLORS.cyan : NOC_COLORS.purple,
+                          color: idx === 0 ? NOC_COLORS.cyan : idx === 1 ? NOC_COLORS.purple : NOC_COLORS.indigo,
                           detail: `${w.remaining_percent}% rem`,
                         }))}
                       />

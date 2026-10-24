@@ -2,6 +2,9 @@
 import { useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { MemoryRecord } from "./types";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export default function TopicBrowsePanel() {
   const [query, setQuery] = useState("");
@@ -31,18 +34,19 @@ export default function TopicBrowsePanel() {
     : agentId.charAt(0).toUpperCase() + agentId.slice(1);
 
   return (
-    <div className="glass-card" style={{
-      padding: "1.25rem 1rem",
+    <div style={{
+      ...nocPanelStyle,
+      padding: "1.1rem 1rem",
       display: "flex",
       flexDirection: "column",
-      gap: "1rem",
+      gap: "0.9rem",
       overflow: "hidden"
     }}>
       <div>
-        <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--primary)" }}>
+        <h3 style={{ margin: 0, fontSize: "0.98rem", fontWeight: 700, color: NOC_COLORS.cyan }}>
           🔎 Topic Browse
         </h3>
-        <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+        <p style={{ margin: "0.25rem 0 0", fontSize: "0.78rem", color: NOC_SURFACES.textMuted }}>
           Compare what each agent remembers about the same topic.
         </p>
       </div>
@@ -50,32 +54,30 @@ export default function TopicBrowsePanel() {
       <form onSubmit={(event) => { event.preventDefault(); search(); }} style={{ display: "flex", gap: "0.5rem" }}>
         <input
           type="text"
+          className="noc-focusable"
           placeholder="Search a topic..."
           value={query}
           onChange={event => setQuery(event.target.value)}
           style={{
             flex: 1,
             minWidth: 0,
-            padding: "0.5rem 0.75rem",
+            padding: "0.45rem 0.75rem",
             borderRadius: "8px",
-            background: "rgba(0,0,0,0.4)",
-            border: "1px solid var(--border-color)",
-            color: "var(--text-main)",
-            fontSize: "0.85rem",
+            background: "rgba(9, 14, 26, 0.78)",
+            border: "1px solid rgba(148, 163, 184, 0.22)",
+            color: NOC_SURFACES.textPrimary,
+            fontSize: "0.82rem",
             outline: "none"
           }}
         />
         <button
           type="submit"
+          className="btn-primary noc-focusable"
           disabled={!query.trim() || loading}
           style={{
-            padding: "0.5rem 0.8rem",
-            borderRadius: "8px",
-            border: "none",
-            background: "var(--primary)",
-            color: "#fff",
+            marginTop: 0,
+            padding: "0.45rem 0.85rem",
             fontSize: "0.8rem",
-            fontWeight: 600,
             cursor: loading ? "wait" : "pointer",
             opacity: !query.trim() || loading ? 0.6 : 1
           }}
@@ -85,15 +87,19 @@ export default function TopicBrowsePanel() {
       </form>
 
       {error ? (
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--accent)", textAlign: "center" }}>{error}</p>
+        <p style={{ margin: 0, fontSize: "0.82rem", color: NOC_COLORS.crit, textAlign: "center" }}>{error}</p>
       ) : results === null ? (
-        <p style={{ margin: "1rem 0", fontSize: "0.85rem", color: "var(--text-muted)", textAlign: "center" }}>
-          Search for a topic to see what each agent has written about it.
-        </p>
+        <EmptyStateChip
+          title="Search for a topic"
+          detail="See what each agent has written about it across memory tiers."
+          tone="idle"
+        />
       ) : groups.length === 0 ? (
-        <p style={{ margin: "1rem 0", fontSize: "0.85rem", color: "var(--text-muted)", textAlign: "center" }}>
-          No memories found for that topic.
-        </p>
+        <EmptyStateChip
+          title="No memories found for that topic"
+          detail="Try a broader keyword or another concept."
+          tone="idle"
+        />
       ) : (
         <div style={{
           display: "grid",
@@ -104,47 +110,47 @@ export default function TopicBrowsePanel() {
         }}>
           {groups.map(([agentId, memories]) => (
             <section key={agentId} style={{
+              ...nocCardDenseStyle,
               minWidth: 0,
-              background: "rgba(0,0,0,0.2)",
-              border: "1px solid var(--border-color)",
-              borderRadius: "10px",
+              borderLeft: `3px solid ${NOC_COLORS.cyan}`,
               padding: "0.75rem",
               display: "flex",
               flexDirection: "column",
-              gap: "0.6rem"
+              gap: "0.55rem"
             }}>
-              <div style={{ color: "var(--accent)", fontWeight: 700, fontSize: "0.85rem" }}>
+              <div style={{ color: NOC_COLORS.cyan, fontWeight: 700, fontSize: "0.84rem" }}>
                 {formatAgentName(agentId)}
               </div>
               {memories.map(memory => (
                 <div key={memory.id} style={{
-                  background: "rgba(0,0,0,0.3)",
-                  border: "1px solid var(--border-color)",
+                  background: "rgba(2, 6, 23, 0.55)",
+                  border: "1px solid rgba(148, 163, 184, 0.14)",
                   borderRadius: "8px",
-                  padding: "0.65rem",
+                  padding: "0.6rem",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.4rem"
+                  gap: "0.35rem"
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
-                    <div style={{ color: "var(--text-main)", fontWeight: 600, fontSize: "0.85rem" }}>
+                    <div style={{ color: NOC_SURFACES.textPrimary, fontWeight: 600, fontSize: "0.83rem" }}>
                       {memory.title || `Memory #${memory.id.slice(0, 8)}`}
                     </div>
                     <span style={{
                       flexShrink: 0,
-                      color: "var(--accent)",
+                      color: NOC_COLORS.purple,
                       background: "rgba(168, 85, 247, 0.15)",
+                      border: "1px solid rgba(168, 85, 247, 0.3)",
                       borderRadius: "4px",
-                      padding: "0.1rem 0.4rem",
-                      fontSize: "0.7rem",
+                      padding: "0.08rem 0.4rem",
+                      fontSize: "0.68rem",
                       fontWeight: 700
                     }}>
                       {memory.tier}
                     </span>
                   </div>
                   <div style={{
-                    color: "var(--text-muted)",
-                    fontSize: "0.78rem",
+                    color: NOC_SURFACES.textMuted,
+                    fontSize: "0.76rem",
                     display: "-webkit-box",
                     WebkitLineClamp: 3,
                     WebkitBoxOrient: "vertical",

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import { loadWorkspaceRoot } from "../../../app/hubState";
 import { nocPanelStyle, nocCardDenseStyle } from "../../common/telemetry/panel";
-import { EmptyStateChip } from "../../common/telemetry/status";
+import { EmptyStateChip, KpiCardGrid, StalenessDot, type KpiCardItem } from "../../common/telemetry/status";
 import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export type GitBranch = {
@@ -45,6 +45,8 @@ export default function BranchesTab() {
   const [list, setList] = useState<BranchList | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lastUpdatedSec, setLastUpdatedSec] = useState<number | null>(null);
+  const [filterText, setFilterText] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
@@ -56,6 +58,7 @@ export default function BranchesTab() {
     try {
       const next = await invoke<BranchList>("hub_list_git_branches", { workspace });
       setList(next);
+      setLastUpdatedSec(Math.floor(Date.now() / 1000));
       setError("");
     } catch (cause) {
       setError(String(cause));
@@ -63,6 +66,31 @@ export default function BranchesTab() {
       setBusy(false);
     }
   }, [workspace]);
+
+  const kpis = useMemo<KpiCardItem[]>(() => {
+    const branches = list?.branches ?? [];
+    const inSync = branches.filter((b) => b.ahead === 0 && b.behind === 0).length;
+    const diverged = branches.length - inSync;
+    const linked = branches.filter((b) => b.issue_number != null).length;
+    return [
+      { title: "Total Branches", subtitle: "Repository refs", value: String(branches.length), footer: "Local & remote-tracking", accent: NOC_COLORS.indigo },
+      { title: "In Sync", subtitle: "Up to date", value: String(inSync), footer: "0 ahead · 0 behind main", accent: NOC_COLORS.ok },
+      { title: "Ahead / Diverged", subtitle: "Branch delta", value: String(diverged), footer: "Commits vs main", accent: diverged > 0 ? NOC_COLORS.cyan : NOC_COLORS.idle },
+      { title: "Linked Issues", subtitle: "GitHub tracking", value: String(linked), footer: "Inferred or overridden", accent: NOC_COLORS.purple },
+    ];
+  }, [list]);
+
+  const filteredBranches = useMemo(() => {
+    const branches = list?.branches ?? [];
+    const q = filterText.trim().toLowerCase();
+    if (!q) return branches;
+    return branches.filter((b) =>
+      [b.name, b.subject, b.tip, b.issue_number ? `#${b.issue_number}` : "", b.issue_title ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [list, filterText]);
 
   useEffect(() => {
     void refresh();
@@ -109,21 +137,45 @@ export default function BranchesTab() {
       {/* Header bar */}
       <div style={{ ...nocPanelStyle, display: "flex", gap: "0.75rem", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Branches</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Branches</h3>
+            <StalenessDot lastUpdatedUnixSeconds={lastUpdatedSec} pollIntervalSeconds={60} />
+          </div>
           <p style={{ margin: "0.2rem 0 0", color: NOC_SURFACES.textMuted, fontSize: "0.82rem" }}>
             Read-only listing with proportional ahead/behind diff bars. Checkout and branch mutations stay in the terminal.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-secondary noc-focusable"
-          style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
-          disabled={busy}
-          onClick={() => void refresh()}
-        >
-          {busy ? "Refreshing…" : "Refresh"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            type="search"
+            className="noc-focusable"
+            value={filterText}
+            onChange={(event) => setFilterText(event.target.value)}
+            placeholder="Filter branches or #issue…"
+            style={{
+              padding: "0.38rem 0.65rem",
+              borderRadius: "8px",
+              border: "1px solid rgba(148, 163, 184, 0.2)",
+              background: "rgba(0,0,0,0.35)",
+              color: NOC_SURFACES.textPrimary,
+              fontSize: "0.8rem",
+              minWidth: "200px",
+              outline: "none",
+            }}
+          />
+          <button
+            type="button"
+            className="btn-secondary noc-focusable"
+            style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            {busy ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
+
+      {list && list.branches.length > 0 && <KpiCardGrid cards={kpis} />}
 
       {(error || list?.notice) && (
         <div style={{ color: NOC_COLORS.crit, fontSize: "0.82rem", background: "rgba(239, 68, 68, 0.1)", padding: "0.45rem 0.75rem", borderRadius: "8px" }}>
@@ -133,7 +185,7 @@ export default function BranchesTab() {
 
       {/* Branches list */}
       <div style={{ display: "grid", gap: "0.65rem" }}>
-        {(list?.branches ?? []).map((branch) => {
+        {filteredBranches.map((branch) => {
           const totalDiff = Math.max(1, branch.ahead + branch.behind);
           const aheadPct = Math.round((branch.ahead / totalDiff) * 100);
           const behindPct = 100 - aheadPct;

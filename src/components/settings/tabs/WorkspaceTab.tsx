@@ -1,5 +1,6 @@
 import type { EffectiveSettings, SettingsField } from "../types";
 import { FieldRow, StatusPill, inputStyle, shortenPath } from "./shared";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
 
 export interface WorkspaceTabProps {
   effective: EffectiveSettings;
@@ -27,14 +28,19 @@ export default function WorkspaceTab({
   resetField,
 }: WorkspaceTabProps) {
   return (
-    <>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        <button type="button" className={scope === "global" ? "btn-primary" : "btn-secondary"} style={{ marginTop: 0 }} onClick={() => setScope("global")}>
+    <div style={{ display: "grid", gap: "1rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        <button
+          type="button"
+          className={`${scope === "global" ? "btn-primary" : "btn-secondary"} noc-focusable`}
+          style={{ marginTop: 0 }}
+          onClick={() => setScope("global")}
+        >
           Global defaults
         </button>
         <button
           type="button"
-          className={scope === "workspace" ? "btn-primary" : "btn-secondary"}
+          className={`${scope === "workspace" ? "btn-primary" : "btn-secondary"} noc-focusable`}
           style={{ marginTop: 0 }}
           disabled={!workspaceRoot}
           title={workspaceRoot ?? "No workspace root is set in the main window"}
@@ -44,30 +50,51 @@ export default function WorkspaceTab({
         </button>
       </div>
 
-      <FieldRow
-        label="Default chat / session"
-        hint="Which Chat & Memory session this scope opens by default."
-        pill={scope === "workspace" ? <StatusPill status={effective.default_session_status} /> : undefined}
-      >
-        <input
-          style={inputStyle}
-          value={defaultSessionDraft}
-          onChange={(event) => setDefaultSessionDraft(event.target.value)}
-          placeholder="session id"
-          disabled={busy}
-        />
-        <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={saveDefaultSession}>
-          Save
-        </button>
-        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy || !effective.default_session} onClick={clearDefaultSession}>
-          Clear
-        </button>
-        {scope === "workspace" && effective.default_session_status === "override" && (
-          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => resetField("default_session")}>
-            Reset to Global
+      <div style={{ ...nocCardDenseStyle, padding: "1.25rem" }}>
+        <FieldRow
+          label="Default chat / session"
+          hint="Which Chat & Memory session this scope opens by default."
+          pill={scope === "workspace" ? <StatusPill status={effective.default_session_status} /> : undefined}
+        >
+          <input
+            style={inputStyle}
+            className="noc-focusable"
+            value={defaultSessionDraft}
+            onChange={(event) => setDefaultSessionDraft(event.target.value)}
+            placeholder="session id"
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="btn-primary noc-focusable"
+            style={{ marginTop: 0 }}
+            disabled={busy}
+            onClick={saveDefaultSession}
+          >
+            Save
           </button>
-        )}
-      </FieldRow>
-    </>
+          <button
+            type="button"
+            className="btn-secondary noc-focusable"
+            style={{ marginTop: 0 }}
+            disabled={busy || !effective.default_session}
+            onClick={clearDefaultSession}
+          >
+            Clear
+          </button>
+          {scope === "workspace" && effective.default_session_status === "override" && (
+            <button
+              type="button"
+              className="btn-secondary noc-focusable"
+              style={{ marginTop: 0 }}
+              disabled={busy}
+              onClick={() => resetField("default_session")}
+            >
+              Reset to Global
+            </button>
+          )}
+        </FieldRow>
+      </div>
+    </div>
   );
 }

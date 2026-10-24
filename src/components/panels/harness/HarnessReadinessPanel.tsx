@@ -6,6 +6,9 @@ import GrokLeaderCard from "./GrokLeaderCard";
 import ProviderHealthChip from "./ProviderHealthChip";
 import { useProviderHealth } from "./useProviderHealth";
 import { TeamRoleBadge } from "../../common/TeamRoleBadge";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
 
 const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
@@ -171,11 +174,11 @@ export default function HarnessReadinessPanel({
   };
 
   return (
-    <section style={{ marginBottom: "1.5rem", padding: "1.25rem", border: "1px solid rgba(251, 191, 36, 0.35)", borderRadius: "12px", background: "rgba(251, 191, 36, 0.06)" }}>
+    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.amber}`, marginBottom: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
         <div>
-          <strong style={{ color: "var(--text-main)" }}>Harness interfaces</strong>
-          <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.25rem" }}>
+          <strong style={{ color: NOC_SURFACES.textPrimary, fontSize: "1.02rem" }}>Harness interfaces</strong>
+          <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", marginTop: "0.25rem" }}>
             Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Resume in terminal kills an optional managed pid and opens a real interactive CLI — it does not attach to an undocumented socket or TTY.
           </div>
         </div>
@@ -277,10 +280,10 @@ export default function HarnessReadinessPanel({
 
       <div style={{ display: "grid", gap: "0.55rem" }}>
         {sessions.length === 0 && (
-          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No harness sessions registered for this workspace.</div>
+          <EmptyStateChip title="No harness sessions registered for this workspace" detail="Register an observed session or start a managed harness above." tone="idle" />
         )}
         {sessions.map((row) => (
-          <div key={`${row.harness}:${row.workspace}`} style={{ display: "flex", flexDirection: "column", gap: "0.55rem", padding: "0.65rem 0.75rem", borderRadius: "9px", border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.22)" }}>
+          <div key={`${row.harness}:${row.workspace}`} style={{ ...nocCardDenseStyle, display: "flex", flexDirection: "column", gap: "0.55rem", padding: "0.65rem 0.85rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

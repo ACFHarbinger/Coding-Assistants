@@ -340,4 +340,68 @@ describe("QuotaChart with balance_info spend", () => {
     expect(screen.getByTestId("balance-breakdown-bar")).toBeInTheDocument();
     expect(screen.queryByText("No provider quota windows returned.")).not.toBeInTheDocument();
   });
+
+  it("renders Kimi /usage 3-window radial gauge, monthly breakdown bars, and local token chart", () => {
+    const kimiQuota: ProviderQuota = {
+      agent_id: "kimi",
+      provider: "kimi",
+      harness_title: "Kimi",
+      status: "ok",
+      fetched_at: 1_792_775_900,
+      windows: [
+        {
+          label: "5h limit",
+          family: "Kimi Code",
+          used_percent: 100,
+          remaining_percent: 0,
+          resets_at: 1_792_778_006,
+          window_minutes: 300,
+        },
+        {
+          label: "Monthly limit (kimi 71% · code 20%)",
+          family: "Kimi Code",
+          used_percent: 91,
+          remaining_percent: 9,
+          resets_at: 1_795_219_200,
+          window_minutes: 30 * 24 * 60,
+        },
+        {
+          label: "Monthly code",
+          family: "Kimi Code",
+          used_percent: 20,
+          remaining_percent: 80,
+          resets_at: 1_795_219_200,
+          window_minutes: 30 * 24 * 60,
+        },
+      ],
+      local_usage: {
+        sessions: 8,
+        prompt_tokens: 18_432,
+        completion_tokens: 2_048,
+        cached_tokens: 65_536,
+        tool_calls_succeeded: 24,
+        tool_calls_failed: 0,
+        tool_calls_rejected: 0,
+        since: 1_790_000_000,
+      },
+    };
+
+    render(
+      <QuotaChart
+        quotas={[kimiQuota]}
+        refreshingIds={new Set()}
+        onRefreshOne={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: /Quota Windows radial gauge/i })).toBeInTheDocument();
+    expect(screen.getByText(/5h limit · hourly window/)).toBeInTheDocument();
+    expect(screen.getByText(/Monthly limit \(kimi 71% · code 20%\) · monthly window/)).toBeInTheDocument();
+    expect(screen.getByText(/Monthly code · monthly window/)).toBeInTheDocument();
+    expect(screen.getByText("0% remaining")).toBeInTheDocument();
+    expect(screen.getByText("9% remaining")).toBeInTheDocument();
+    expect(screen.getByText("80% remaining")).toBeInTheDocument();
+    expect(screen.getByTestId("local-usage-token-chart")).toBeInTheDocument();
+    expect(screen.getByText("84k total tokens")).toBeInTheDocument();
+  });
 });

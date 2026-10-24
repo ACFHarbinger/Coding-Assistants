@@ -6,6 +6,8 @@ import {
   setExternalMcpEnabled,
 } from "../api";
 import { ToggleRow, shortenPath } from "./shared";
+import { NOC_COLORS, NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
 
 export interface ExternalMcpTabProps {
   workspaceRoot: string | null;
@@ -83,10 +85,11 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
     return (
       <div
         style={{
-          padding: "1.5rem",
+          ...nocCardDenseStyle,
+          padding: "2rem",
           textAlign: "center",
-          color: "var(--text-muted)",
-          fontSize: "0.9rem",
+          color: NOC_SURFACES.textMuted,
+          fontSize: "0.85rem",
         }}
       >
         Select an active workspace in Orchestrate to configure workspace-scoped External MCP
@@ -150,9 +153,9 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
           fontWeight: 600,
           padding: "0.12rem 0.5rem",
           borderRadius: "999px",
-          background: "rgba(255, 255, 255, 0.06)",
-          border: "1px solid var(--border-color)",
-          color: "var(--text-muted)",
+          background: "rgba(15, 23, 42, 0.6)",
+          border: `1px solid ${NOC_SURFACES.border}`,
+          color: NOC_SURFACES.textMuted,
         }}
       >
         No Auth Required
@@ -207,15 +210,15 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
         }}
       >
         <div>
-          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>External MCP Servers</h3>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>External MCP Servers</h3>
+          <p style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
             Register and configure shared external MCP servers (Perplexity, etc.) for coding agents
             in <strong>{shortenPath(workspaceRoot, 32)}</strong>.
           </p>
         </div>
         <button
           type="button"
-          className="btn-secondary"
+          className="btn-secondary noc-focusable"
           style={{ marginTop: 0, padding: "0.35rem 0.75rem", fontSize: "0.78rem" }}
           disabled={busy || loading}
           onClick={() => void handleReapply()}
@@ -228,7 +231,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            borderRadius: "8px",
+            borderRadius: NOC_RADIUS.s,
             background: "rgba(239, 68, 68, 0.12)",
             border: "1px solid rgba(248, 113, 113, 0.45)",
             color: "#fca5a5",
@@ -243,7 +246,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            borderRadius: "8px",
+            borderRadius: NOC_RADIUS.s,
             background: "rgba(16, 185, 129, 0.12)",
             border: "1px solid rgba(16, 185, 129, 0.35)",
             color: "#6ee7b7",
@@ -259,10 +262,9 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
           <div
             key={server.key}
             style={{
-              padding: "0.9rem 1.1rem",
-              borderRadius: "10px",
-              border: `1px solid ${server.enabled ? "rgba(99, 102, 241, 0.4)" : "var(--border-color)"}`,
-              background: server.enabled ? "rgba(99, 102, 241, 0.06)" : "rgba(0,0,0,0.22)",
+              ...nocCardDenseStyle,
+              border: `1px solid ${server.enabled ? "rgba(99, 102, 241, 0.45)" : NOC_SURFACES.border}`,
+              background: server.enabled ? "rgba(99, 102, 241, 0.08)" : NOC_SURFACES.bgDeep,
               display: "grid",
               gap: "0.6rem",
             }}
@@ -284,7 +286,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
                   flexWrap: "wrap",
                 }}
               >
-                <strong style={{ fontSize: "0.95rem", color: "var(--text-main)" }}>
+                <strong style={{ fontSize: "0.95rem", color: NOC_SURFACES.textPrimary }}>
                   {server.displayName}
                 </strong>
 
@@ -316,7 +318,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
                     rel="noreferrer"
                     style={{
                       fontSize: "0.72rem",
-                      color: "var(--primary-color, #60a5fa)",
+                      color: NOC_COLORS.cyan,
                       textDecoration: "none",
                     }}
                   >
@@ -336,7 +338,7 @@ export default function ExternalMcpTab({ workspaceRoot, busy }: ExternalMcpTabPr
             {renderAuthHint(server)}
 
             {server.launcherPath && (
-              <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: "0.74rem", color: NOC_SURFACES.textMuted }}>
                 Launcher path: <code>{server.launcherPath}</code>
               </div>
             )}

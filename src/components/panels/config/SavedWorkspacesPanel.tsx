@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke, isTauriRuntime } from "../../../lib/tauri";
 import type { SavedWorkspace } from "../../../app/hubState";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS } from "../../common/telemetry/tokens";
 
 export interface SavedWorkspacesPanelProps {
   workDir: string;
@@ -132,14 +134,14 @@ export default function SavedWorkspacesPanel({
             <li
               key={row.id}
               style={{
+                ...nocCardDenseStyle,
                 display: "flex",
                 gap: "0.45rem",
                 alignItems: "center",
                 flexWrap: "wrap",
-                padding: "0.4rem 0.55rem",
-                borderRadius: "8px",
-                border: active ? "1px solid rgba(16, 185, 129, 0.55)" : "1px solid var(--border-color)",
-                background: active ? "rgba(16, 185, 129, 0.12)" : "rgba(0,0,0,0.2)",
+                padding: "0.45rem 0.65rem",
+                borderLeft: active ? `3px solid ${NOC_COLORS.ok}` : `3px solid ${NOC_COLORS.idle}`,
+                background: active ? "rgba(16, 185, 129, 0.1)" : nocCardDenseStyle.background,
               }}
             >
               {renamingId === row.id ? (

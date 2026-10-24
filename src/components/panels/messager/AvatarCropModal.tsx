@@ -273,7 +273,7 @@ export function AvatarCropModal(props: {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary noc-focusable"
             disabled={saving}
             onClick={onCancel}
             style={{ marginTop: 0, padding: "0.55rem 1.1rem" }}
@@ -282,7 +282,7 @@ export function AvatarCropModal(props: {
           </button>
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary noc-focusable"
             disabled={saving || !crop || Boolean(loadError)}
             onClick={() => void handleSave()}
             style={{ padding: "0.55rem 1.1rem" }}
