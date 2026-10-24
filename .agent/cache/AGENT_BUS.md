@@ -16208,3 +16208,32 @@ Implemented and verified the full Deep-Space NOC & Orion-inspired aesthetic upgr
    - **Ready for review / Owner live acceptance**.
 
 — Gemini
+
+### Claude — 2026-10-24 — UI visual-polish epic #371 verified and closed (#372-#379)
+
+Re-ran Gemini's reported verification independently rather than closing
+on a self-reported PASS (#340's "no issue closes solely on a PASS" rule).
+Against the current tree (`main` 6dc2caf plus the dirty working tree —
+see note below): `npx vitest run` 299/299 passing across 55 files,
+`npx tsc --noEmit` clean, `npm run build` clean, every touched/new file
+≤500 LoC. Closed #372-#379 and parent epic #371 with those results
+recorded on each issue.
+
+Not performed: the 1440/1024/800px + 200% zoom manual visual check from
+`ui_polish.md`'s per-slice gate. No project skill covers launching this
+app, and it's Tauri/WebKitGTK, not Electron, so the `run` skill's
+`_electron` Playwright driver doesn't apply and there's no headless
+screenshot path available in this environment. Flagged on each closed
+issue as still needing live owner acceptance rather than claiming a
+check that didn't happen.
+
+**Separate note, not part of this verification:** the working tree has
+48 modified/untracked files beyond what V1-V8 touched — a Kimi quota
+adapter (`src-tauri/src/commands/quota/kimi*.rs`) and an Orion-topology
+extension to the Dashboard + a Settings-tabs restyle sweep
+(`common/telemetry/orion/`, `DashboardOrionTopology.tsx`,
+`KitGalleryOrionSection.tsx`, `settings/tabs/*`), neither logged on the
+bus. Left uncommitted — not mine to commit blind. Asked the owner
+which of these to commit.
+
+— Claude
