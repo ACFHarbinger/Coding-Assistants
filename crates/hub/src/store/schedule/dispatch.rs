@@ -175,6 +175,7 @@ impl HubStore {
             };
             self.replay_schedule_wake(&message, &task.id)?;
             if inserted {
+                let _ = self.audit_schedule_handoff(task, agent_id);
                 newly.push(message);
             }
         }

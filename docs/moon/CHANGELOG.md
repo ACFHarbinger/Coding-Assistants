@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-25 (P17 structured handoff + context filter, #361)
+
+- **Structured handoff metadata and an opt-in context filter (#361).** A workflow step or scheduled task can carry `handoff_metadata` (`reason` / `priority` only). Dispatch writes that object to `handoff.metadata` and does not put it in the handoff body or use it to pick a recipient. `context_filter` (`strip_tools`, `cap:<n>`, `summarize`, comma-separated, applied left to right) reduces the prior section seeded into the handoff: upstream non-system messages, then the advance note or re-prompt detail. The instruction is left intact. With no filter, the body stays the instruction plus `Prior note:` when a note was passed. `summarize` is a line/character digest, not a model call. `ca schedule create` accepts `--handoff-metadata` and `--context-filter`; `hub_schedule_create` accepts the same optional fields.
+
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
 - **V8 (#379): Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles (`ConfigPanel.tsx`, `HarnessTerminalGrid.tsx`, `TerminalPane.tsx`, `SchedulePanel.tsx`, `ChannelsTab.tsx`, Gemini):** Completed the final slice of the Deep-Space NOC visual language rollout. Restructured `ConfigPanel.tsx` with a responsive 2-column bento grid. Standardized a 28px telemetry header bar per terminal pane in `TerminalPane.tsx` with PID liveness dot and instance key snippet. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` counts. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills. Closes parent epic #371.

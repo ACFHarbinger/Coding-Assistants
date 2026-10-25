@@ -40,6 +40,8 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
                 max_attempts,
                 deadline,
                 created_by,
+                handoff_metadata,
+                context_filter,
             } = *args;
             let criteria = parse_gate_criteria(&gate_criteria)?;
             let task = create_task(
@@ -60,6 +62,12 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
                     deadline: deadline.as_deref(),
                     created_by: &created_by,
                 },
+            )?;
+            let task = apply_schedule_handoff(
+                store,
+                task,
+                handoff_metadata.as_deref(),
+                context_filter.as_deref(),
             )?;
             if stop_on_quota_exhausted {
                 eprintln!(
@@ -212,6 +220,24 @@ pub(crate) fn list_tasks(
             Ok(tasks.into_iter().filter(|t| t.status == wanted).collect())
         }
     }
+}
+
+fn apply_schedule_handoff(
+    store: &HubStore,
+    task: ScheduledTask,
+    metadata: Option<&str>,
+    context_filter: Option<&str>,
+) -> anyhow::Result<ScheduledTask> {
+    if metadata.is_none() && context_filter.is_none() {
+        return Ok(task);
+    }
+    let metadata = metadata
+        .map(serde_json::from_str)
+        .transpose()
+        .context("--handoff-metadata must be a JSON object")?;
+    store
+        .set_schedule_handoff(&task.id, metadata, context_filter)
+        .map_err(Into::into)
 }
 
 pub(crate) fn create_task(

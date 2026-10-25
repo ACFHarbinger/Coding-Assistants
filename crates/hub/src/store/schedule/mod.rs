@@ -14,6 +14,7 @@ mod gate_contract;
 mod gate_proposal;
 mod gate_subject;
 mod globset;
+mod handoff;
 mod schema;
 mod tick;
 mod time;

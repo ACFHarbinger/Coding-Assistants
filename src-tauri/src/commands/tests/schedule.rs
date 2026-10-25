@@ -27,6 +27,8 @@ fn args() -> ScheduleCreateArgs {
         budget: BudgetPolicy::default(),
         max_attempts: 3,
         deadline: None,
+        handoff_metadata: None,
+        context_filter: None,
     }
 }
 

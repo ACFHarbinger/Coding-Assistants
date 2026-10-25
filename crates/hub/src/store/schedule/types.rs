@@ -195,6 +195,14 @@ pub struct ScheduledTask {
     /// time, so `MinTokensWritten` measures a delta, not a lifetime total.
     #[serde(default)]
     pub token_baseline: std::collections::HashMap<String, i64>,
+    /// Audit-only reason/priority for each dispatch (P17 / #361).
+    /// Does not change the target or the instruction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handoff_metadata: Option<serde_json::Value>,
+    /// Opt-in prior-context filter (`strip_tools`, `cap:<n>`, `summarize`).
+    /// Absent keeps the unfiltered prompt (P17 / #361).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_filter: Option<String>,
 }
 
 fn default_response_timeout_secs() -> i64 {

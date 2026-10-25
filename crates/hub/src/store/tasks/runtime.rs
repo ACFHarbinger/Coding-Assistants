@@ -314,7 +314,7 @@ impl HubStore {
         note: Option<&str>,
     ) -> Result<(), HubError> {
         for si in idxs {
-            let body = Self::step_dispatch_body(&task.steps[*si], note);
+            let body = self.prepare_handoff(task_id, &task.steps[*si], note)?.body;
             self.enforce_guardrails(
                 crate::guardrails::GuardrailStage::Input,
                 task.workspace_path.as_deref(),

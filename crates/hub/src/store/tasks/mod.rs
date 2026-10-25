@@ -1,9 +1,11 @@
 use super::*;
 
 mod branch;
+mod handoff;
 mod runtime;
 mod wake_correlation;
 pub use branch::{BranchTarget, StepBranch};
+pub(crate) use handoff::render_filtered;
 
 impl HubStore {
     pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
@@ -98,6 +100,7 @@ impl HubStore {
             if s.instruction.trim().is_empty() {
                 return Err(HubError::Invalid(format!("step {i}: instruction required")));
             }
+            Self::validate_step_handoff(s, i)?;
             self.upsert_agent(&s.agent, &s.agent)?;
         }
         Self::validate_branches(steps, workspace_path)?;
@@ -175,7 +178,7 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
-        let body = Self::step_dispatch_body(step, note);
+        let prepared = self.prepare_handoff(task_id, step, note)?;
         // P16 (#360): input guardrails run before anything is sent — a
         // tripwire leaves no message, no wake, and no stage activation.
         self.enforce_guardrails(
@@ -183,8 +186,12 @@ impl HubStore {
             task.workspace_path.as_deref(),
             "task",
             task_id,
-            &body,
+            &prepared.body,
         )?;
+        // P17 (#361): metadata and filter stats are audit-only. They do
+        // not choose the recipient and they are not copied into the body.
+        self.record_handoff_audit(task, step, stage_label, &prepared)?;
+        let body = prepared.body;
         if let Some(peer) = step
             .peer
             .as_deref()

@@ -32,7 +32,9 @@ impl HubStore {
                 last_fired_at TEXT,
                 next_fire_at TEXT,
                 attempts INTEGER NOT NULL DEFAULT 0,
-                token_baseline_json TEXT NOT NULL DEFAULT '{}'
+                token_baseline_json TEXT NOT NULL DEFAULT '{}',
+                handoff_metadata_json TEXT,
+                context_filter TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due
                 ON scheduled_tasks(status, next_fire_at);
@@ -62,6 +64,15 @@ impl HubStore {
         // are ignored the same way audit.rs soft-migrates.
         let _ = self.conn.execute(
             "ALTER TABLE scheduled_tasks ADD COLUMN pending_gate_json TEXT",
+            [],
+        );
+        // P17 / #361. NULL means the pre-filter handoff body and no metadata audit.
+        let _ = self.conn.execute(
+            "ALTER TABLE scheduled_tasks ADD COLUMN handoff_metadata_json TEXT",
+            [],
+        );
+        let _ = self.conn.execute(
+            "ALTER TABLE scheduled_tasks ADD COLUMN context_filter TEXT",
             [],
         );
         Ok(())

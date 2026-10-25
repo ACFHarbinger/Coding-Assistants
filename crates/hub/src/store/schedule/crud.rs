@@ -29,6 +29,8 @@ struct ScheduleRow {
     next_fire_at: Option<String>,
     token_baseline_json: String,
     attempts: u32,
+    handoff_metadata_json: Option<String>,
+    context_filter: Option<String>,
 }
 
 fn map_raw(r: &rusqlite::Row<'_>) -> Result<ScheduleRow, rusqlite::Error> {
@@ -54,6 +56,8 @@ fn map_raw(r: &rusqlite::Row<'_>) -> Result<ScheduleRow, rusqlite::Error> {
         next_fire_at: r.get(18)?,
         token_baseline_json: r.get(19)?,
         attempts: r.get::<_, i64>(20)? as u32,
+        handoff_metadata_json: r.get(21)?,
+        context_filter: r.get(22)?,
     })
 }
 
@@ -98,13 +102,20 @@ fn decode_schedule(row: &ScheduleRow) -> Result<ScheduledTask, HubError> {
         next_fire_at: row.next_fire_at.clone(),
         attempts: row.attempts,
         token_baseline: decode_json("token_baseline", &row.token_baseline_json)?,
+        handoff_metadata: row
+            .handoff_metadata_json
+            .as_deref()
+            .map(|raw| decode_json("handoff_metadata", raw))
+            .transpose()?,
+        context_filter: row.context_filter.clone(),
     })
 }
 
 const SELECT_COLUMNS: &str = "id, name, instruction, target_json, workspace, fire_at,
     repeat_interval_secs, response_timeout_secs, gate_criteria_json, gate_combinator,
     budget_json, max_attempts, deadline, status, created_by, created_at, updated_at,
-    last_fired_at, next_fire_at, token_baseline_json, attempts";
+    last_fired_at, next_fire_at, token_baseline_json, attempts,
+    handoff_metadata_json, context_filter";
 
 impl HubStore {
     /// Create a new scheduled task. `fire_at`/`deadline` are RFC3339 and

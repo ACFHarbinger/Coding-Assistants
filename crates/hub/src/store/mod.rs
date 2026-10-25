@@ -52,6 +52,7 @@ mod policies;
 mod roles;
 pub mod schedule;
 pub use schedule::*;
+mod handoff_filter;
 mod sync_gate;
 mod tasks;
 pub use tasks::{BranchTarget, StepBranch};
