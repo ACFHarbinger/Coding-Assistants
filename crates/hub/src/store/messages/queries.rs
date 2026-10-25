@@ -1,20 +1,53 @@
 use super::super::*;
+
+/// A fan-out may need several attempts to reserve its recipient-set row:
+/// the base subject plus a bounded number of fresh UUID suffixes.
+const RECIPIENT_SUBJECT_MAX_ATTEMPTS: usize = 8;
+
+/// The recipient-set insert's only constraint is the `subject` primary
+/// key, so a constraint violation on that insert is exactly a subject
+/// collision with another fan-out.
+fn is_subject_collision(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(failure, _)
+            if failure.code == rusqlite::ErrorCode::ConstraintViolation
+    )
+}
+
 impl HubStore {
-    /// A recipient set represents one fan-out, while a channel/session prefix
-    /// represents a conversation. Callers may intentionally reuse that prefix
-    /// for subsequent posts, so retain it but give the later fan-out its own
-    /// suffix before inserting the primary-keyed recipient-set row.
-    pub(super) fn unique_recipient_subject(&self, subject: &str) -> Result<String, HubError> {
-        let exists = self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM message_recipient_sets WHERE subject = ?1)",
-            params![subject],
-            |row| row.get::<_, i64>(0),
-        )? != 0;
-        Ok(if exists {
-            format!("{subject}:{}", Uuid::new_v4())
-        } else {
-            subject.to_owned()
-        })
+    /// A recipient set represents one fan-out, while a channel/session
+    /// prefix represents a conversation. Callers may intentionally reuse
+    /// that prefix for subsequent posts, and a concurrent send may take
+    /// the same subject between any prior existence check and this
+    /// insert, so the reservation is the insert itself: keep the prefix,
+    /// append a fresh UUID suffix when the subject is already recorded,
+    /// and return the subject actually reserved so messages and outcomes
+    /// reference the row that exists (C14.9 / #157).
+    pub(super) fn reserve_recipient_subject(
+        &self,
+        base_subject: &str,
+        session_id: Option<&str>,
+        recipients: &[String],
+    ) -> Result<String, HubError> {
+        let recipient_ids_json = serde_json::to_string(recipients)
+            .map_err(|error| HubError::Invalid(format!("recipient set serialize: {error}")))?;
+        let mut subject = base_subject.to_owned();
+        for _ in 0..RECIPIENT_SUBJECT_MAX_ATTEMPTS {
+            match self.conn.execute(
+                "INSERT INTO message_recipient_sets(subject, session_id, recipient_ids_json, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![subject, session_id, recipient_ids_json, Utc::now().to_rfc3339()],
+            ) {
+                Ok(_) => return Ok(subject),
+                Err(error) if is_subject_collision(&error) => {
+                    subject = format!("{base_subject}:{}", Uuid::new_v4());
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(HubError::Invalid(format!(
+            "could not record a distinct recipient set for subject {base_subject}"
+        )))
     }
 
     pub fn get_message(&self, id: &str) -> Result<Option<MessageRecord>, HubError> {

@@ -149,6 +149,115 @@ fn repeated_tagged_channel_subjects_remain_distinct_fan_outs() {
 }
 
 #[test]
+fn subject_collision_at_insert_time_retries_with_a_distinct_suffix() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_team_member("claude", true).unwrap();
+
+    // Simulate a concurrent fan-out winning the race for the same subject
+    // after this send's existence check but before its insert: the trigger
+    // aborts only the base-subject attempt, like a rival row landing
+    // between the check and the insert (two Tauri commands each open
+    // their own connection, so this interleaving is reachable in practice).
+    store
+        .conn
+        .execute(
+            "CREATE TRIGGER race_base_subject BEFORE INSERT ON message_recipient_sets
+             WHEN NEW.subject = 'channel:race'
+             BEGIN SELECT RAISE(ABORT, 'raced'); END",
+            [],
+        )
+        .unwrap();
+
+    let outcomes = store
+        .send_tagged_message(
+            "human",
+            &["claude".to_string()],
+            true,
+            false,
+            "raced task",
+            Some("channel:race"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(outcomes.len(), 1);
+    let subject = &outcomes[0].subject;
+    assert!(subject.starts_with("channel:race:"), "{subject}");
+    // The retry kept the channel prefix and still recorded exactly one
+    // durable recipient set and outcome under the reserved subject, so
+    // the fan-out stays reconstructable.
+    let recorded: Option<String> = store
+        .conn
+        .query_row(
+            "SELECT recipient_ids_json FROM message_recipient_sets WHERE subject = ?1",
+            params![subject],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Vec<String>>(&recorded.unwrap()).unwrap(),
+        vec!["claude".to_string()]
+    );
+    assert_eq!(store.list_tagged_send_outcomes(subject).unwrap().len(), 1);
+}
+
+#[test]
+fn repeated_session_channel_sends_stay_distinct_fan_outs() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_team_member("grok", true).unwrap();
+    store.set_team_member("claude", true).unwrap();
+    let session = store.create_work_session("C14.9 repeats").unwrap();
+    let recipients = vec!["grok".to_string(), "claude".to_string()];
+
+    let first = store
+        .send_session_message(
+            "human",
+            &session.id,
+            &recipients,
+            "first post",
+            Some("channel:session:repeats"),
+            None,
+            None,
+        )
+        .unwrap();
+    let second = store
+        .send_session_message(
+            "human",
+            &session.id,
+            &recipients,
+            "second post",
+            Some("channel:session:repeats"),
+            None,
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(first.len(), 2);
+    assert_eq!(second.len(), 2);
+    assert!(first
+        .iter()
+        .all(|message| message.subject.as_deref() == Some("channel:session:repeats")));
+    assert!(second.iter().all(|message| message
+        .subject
+        .as_deref()
+        .is_some_and(|subject| subject.starts_with("channel:session:repeats:"))));
+    let rows: i64 = store
+        .conn
+        .query_row(
+            "SELECT COUNT(*) FROM message_recipient_sets WHERE subject LIKE 'channel:session:repeats%'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(rows, 2);
+}
+
+#[test]
 fn harness_capture_dedups_the_same_body() {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();

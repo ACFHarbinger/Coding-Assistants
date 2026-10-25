@@ -25,6 +25,9 @@ project's GitHub Releases page.
 - **Tool records match before attribution.** `strip_tools` sees the stored line, then the renderer adds `from -> to (kind):`. A first-line `Tool:` record or a JSON tool object still strips.
 - **Steps after `summarize` still run.** The digest becomes the next input, so `summarize,cap:1` keeps one digest line and `summarize,strip_tools` can still drop tool noise in that digest.
 - **Filtered handoffs do not reseed themselves.** Dispatch stores the unfiltered source on `messages.context_body` (soft-migrated). Later priors prefer that column, so a filtered body is not nested into the next seed. Parallel members send the preflight snapshot.
+### Fixed — 2026-10-25 (C14.9 distinct recipient records for repeated tagged channel sends, #157, Mistral)
+
+- **Concurrent same-subject fan-outs no longer fail with `UNIQUE constraint failed: message_recipient_sets.subject`.** The deterministic collision — a second send reusing the same channel subject — was already fixed on 2026-08-13; this closes the remaining check-then-insert race: every Tauri command and CLI process opens its own SQLite connection, so two sends reusing the same channel subject could both pass the old existence check and then one insert failed. `HubStore::reserve_recipient_subject` (`crates/hub/src/store/messages/queries.rs`) makes the reservation the insert itself: the channel prefix is kept for transcript grouping, and a bounded number of fresh UUID suffixes is retried on the primary-key collision, so every fan-out — repeated or racing — gets a distinct durable recipient-set row and the messages/outcomes reference the subject actually recorded. Covered by a trigger-simulated mid-flight collision test plus repeated-send tests on both the tagged and session paths.
 
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
