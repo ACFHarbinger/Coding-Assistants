@@ -159,7 +159,6 @@ impl HubStore {
         let subject = subject
             .map(str::to_string)
             .unwrap_or_else(|| format!("tagged:{}", Uuid::new_v4()));
-        let subject = self.unique_recipient_subject(&subject)?;
 
         let mut recipients: Vec<String> = Vec::new();
         for id in to {
@@ -179,7 +178,7 @@ impl HubStore {
                 )));
             }
         }
-        self.record_recipient_set(&subject, session_id, &recipients)?;
+        let subject = self.reserve_recipient_subject(&subject, session_id, &recipients)?;
 
         // S5 / #131: a wake may only enroll a brand-new (not-yet-team-member)
         // identity when Settings' orchestration policy allows it. Resolved
@@ -335,8 +334,7 @@ impl HubStore {
         let subject = subject
             .map(str::to_owned)
             .unwrap_or_else(|| format!("channel:session:{session_id}:{}", Uuid::new_v4()));
-        let subject = self.unique_recipient_subject(&subject)?;
-        self.record_recipient_set(&subject, Some(session_id), &recipients)?;
+        let subject = self.reserve_recipient_subject(&subject, Some(session_id), &recipients)?;
         recipients
             .iter()
             .map(|recipient| {
@@ -351,21 +349,6 @@ impl HubStore {
                 )
             })
             .collect()
-    }
-
-    fn record_recipient_set(
-        &self,
-        subject: &str,
-        session_id: Option<&str>,
-        recipients: &[String],
-    ) -> Result<(), HubError> {
-        let recipient_ids_json = serde_json::to_string(recipients)
-            .map_err(|error| HubError::Invalid(format!("recipient set serialize: {error}")))?;
-        self.conn.execute(
-            "INSERT INTO message_recipient_sets(subject, session_id, recipient_ids_json, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![subject, session_id, recipient_ids_json, Utc::now().to_rfc3339()],
-        )?;
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
