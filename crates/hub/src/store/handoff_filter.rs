@@ -14,18 +14,6 @@ pub(crate) fn validate_context_filter(spec: &str) -> Result<(), HubError> {
     Ok(())
 }
 
-pub(crate) fn apply_context_filter(prior: &str, spec: &str) -> Result<String, HubError> {
-    let mut text = prior.to_string();
-    for step in parse_steps(spec.trim())? {
-        text = match step {
-            Step::StripTools => strip_tools(&text),
-            Step::Cap(n) => cap_lines(&text, n),
-            Step::Summarize => summarize(&text),
-        };
-    }
-    Ok(text)
-}
-
 /// Audit-only object. `reason` and `priority` are the only keys, matching
 /// the structured input idea without becoming a routing channel.
 pub(crate) fn validate_handoff_metadata(value: &serde_json::Value) -> Result<(), HubError> {
@@ -110,11 +98,55 @@ fn parse_steps(spec: &str) -> Result<Vec<Step>, HubError> {
     Ok(steps)
 }
 
-fn strip_tools(text: &str) -> String {
-    text.lines()
-        .filter(|line| !is_tool_noise(line))
+/// One logical prior-context line. Message attribution stays in `prefix`
+/// until render, so `strip_tools` can see the stored body.
+#[derive(Debug, Clone)]
+pub(crate) struct PriorLine {
+    pub text: String,
+    pub prefix: Option<String>,
+    /// Stored message bodies are stripped. Advance notes are not.
+    pub strip: bool,
+}
+
+pub(crate) fn render_prior_lines(lines: &[PriorLine]) -> String {
+    lines
+        .iter()
+        .map(|line| match &line.prefix {
+            Some(prefix) => format!("{prefix}{}", line.text),
+            None => line.text.clone(),
+        })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Apply the filter to raw message lines, then add attribution.
+pub(crate) fn filter_attributed_prior(
+    mut lines: Vec<PriorLine>,
+    spec: &str,
+) -> Result<String, HubError> {
+    for step in parse_steps(spec.trim())? {
+        match step {
+            Step::StripTools => lines.retain(|line| !line.strip || !is_tool_noise(&line.text)),
+            Step::Cap(n) => {
+                if lines.len() > n {
+                    lines = lines.split_off(lines.len() - n);
+                }
+            }
+            // Later steps see the digest lines. `summarize,cap:1` keeps one
+            // digest line; `summarize,strip_tools` can still drop tool noise.
+            Step::Summarize => {
+                lines = summarize(&render_prior_lines(&lines))
+                    .lines()
+                    .map(|line| PriorLine {
+                        text: line.to_string(),
+                        prefix: None,
+                        strip: true,
+                    })
+                    .collect();
+            }
+        }
+    }
+    Ok(render_prior_lines(&lines))
 }
 
 fn is_tool_noise(line: &str) -> bool {
@@ -177,14 +209,6 @@ fn is_tool_type(kind: &str) -> bool {
     )
 }
 
-fn cap_lines(text: &str, n: usize) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.len() <= n {
-        return text.trim_end_matches('\n').to_string();
-    }
-    lines[lines.len() - n..].join("\n")
-}
-
 fn summarize(text: &str) -> String {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -219,17 +243,31 @@ fn clip(line: &str) -> String {
 mod tests {
     use super::*;
 
+    fn body(text: &str) -> PriorLine {
+        PriorLine {
+            text: text.into(),
+            prefix: None,
+            strip: true,
+        }
+    }
+
     #[test]
     fn strip_then_cap_drops_tool_lines_and_keeps_the_tail() {
-        let prior = "keep-a\nTool: read src/lib.rs\n{\"type\":\"tool_use\",\"name\":\"bash\"}\nkeep-b\nkeep-c";
-        let out = apply_context_filter(prior, "strip_tools,cap:2").unwrap();
+        let lines = vec![
+            body("keep-a"),
+            body("Tool: read src/lib.rs"),
+            body(r#"{"type":"tool_use","name":"bash"}"#),
+            body("keep-b"),
+            body("keep-c"),
+        ];
+        let out = filter_attributed_prior(lines, "strip_tools,cap:2").unwrap();
         assert_eq!(out, "keep-b\nkeep-c");
     }
 
     #[test]
     fn summarize_is_a_digest_not_the_middle() {
-        let prior = "alpha\nbeta secret middle\ngamma";
-        let out = apply_context_filter(prior, "summarize").unwrap();
+        let lines = vec![body("alpha"), body("beta secret middle"), body("gamma")];
+        let out = filter_attributed_prior(lines, "summarize").unwrap();
         assert!(out.contains("3 lines"));
         assert!(out.contains("first: alpha"));
         assert!(out.contains("last: gamma"));
@@ -237,12 +275,64 @@ mod tests {
     }
 
     #[test]
+    fn steps_after_summarize_still_run_left_to_right() {
+        let lines = vec![body("alpha"), body("beta secret middle"), body("gamma")];
+        let capped = filter_attributed_prior(lines, "summarize,cap:1").unwrap();
+        assert_eq!(capped, "last: gamma");
+
+        let summarized_tail = filter_attributed_prior(
+            vec![body("alpha"), body("beta secret middle"), body("gamma")],
+            "cap:1,summarize",
+        )
+        .unwrap();
+        assert!(summarized_tail.contains("1 lines"));
+        assert!(summarized_tail.contains("first: gamma"));
+        assert!(!summarized_tail.contains("alpha"));
+
+        let stripped =
+            filter_attributed_prior(vec![body(r#"{"tool_calls":[]}"#)], "summarize,strip_tools")
+                .unwrap();
+        assert!(!stripped.contains("tool_calls"));
+        assert!(stripped.contains("lines"));
+    }
+
+    #[test]
     fn unknown_and_empty_steps_fail() {
-        assert!(apply_context_filter("x", "drop_all").is_err());
-        assert!(apply_context_filter("x", "cap:0").is_err());
+        assert!(filter_attributed_prior(vec![body("x")], "drop_all").is_err());
+        assert!(filter_attributed_prior(vec![body("x")], "cap:0").is_err());
         assert!(validate_context_filter("strip_tools,,cap:1").is_err());
         assert!(validate_handoff_metadata(&serde_json::json!({"agent":"root"})).is_err());
         assert!(validate_handoff_metadata(&serde_json::json!("nope")).is_err());
         validate_handoff_metadata(&serde_json::json!({"reason":"review","priority":2})).unwrap();
+    }
+
+    #[test]
+    fn strip_tools_sees_first_line_tool_records_before_attribution() {
+        let lines = vec![
+            PriorLine {
+                text: "Tool: read src/lib.rs".into(),
+                prefix: Some("grok -> claude (message): ".into()),
+                strip: true,
+            },
+            PriorLine {
+                text: r#"{"type":"RUN_COMMAND"}"#.into(),
+                prefix: Some("grok -> claude (message): ".into()),
+                strip: true,
+            },
+            PriorLine {
+                text: "keep-visible".into(),
+                prefix: Some("gemini -> claude (message): ".into()),
+                strip: true,
+            },
+            PriorLine {
+                text: "note: tail".into(),
+                prefix: None,
+                strip: false,
+            },
+        ];
+        let out = filter_attributed_prior(lines, "strip_tools").unwrap();
+        assert!(!out.contains("Tool:"));
+        assert!(!out.contains("RUN_COMMAND"));
+        assert_eq!(out, "gemini -> claude (message): keep-visible\nnote: tail");
     }
 }

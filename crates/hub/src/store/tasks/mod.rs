@@ -179,6 +179,20 @@ impl HubStore {
         stage_label: &str,
     ) -> Result<String, HubError> {
         let prepared = self.prepare_handoff(task_id, step, note)?;
+        self.dispatch_prepared_step(task_id, task, step, from_agent, note, stage_label, prepared)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_prepared_step(
+        &self,
+        task_id: &str,
+        task: &TaskRecord,
+        step: &WorkflowStep,
+        from_agent: &str,
+        note: Option<&str>,
+        stage_label: &str,
+        prepared: handoff::PreparedHandoff,
+    ) -> Result<String, HubError> {
         // P16 (#360): input guardrails run before anything is sent — a
         // tripwire leaves no message, no wake, and no stage activation.
         self.enforce_guardrails(
@@ -205,11 +219,12 @@ impl HubStore {
                 peer,
                 from_agent,
                 &body,
+                &Self::step_dispatch_body(step, note),
                 stage_label,
             );
         }
         let subject = Some(format!("[{}] {}", stage_label, task.title));
-        let msg = self.send_message(
+        let msg = self.send_message_with_context(
             from_agent,
             &step.agent,
             MessageKind::Handoff,
@@ -217,6 +232,7 @@ impl HubStore {
             subject.as_deref(),
             task.workspace_path.as_deref(),
             Some(task_id),
+            Some(&Self::step_dispatch_body(step, note)),
         )?;
         self.request_wake(
             &step.agent,
@@ -249,6 +265,7 @@ impl HubStore {
         peer: &str,
         from_agent: &str,
         body: &str,
+        original_body: &str,
         stage_label: &str,
     ) -> Result<String, HubError> {
         let token = crate::secret::resolve(crate::peer::PEER_AUTH_KEY)
@@ -275,7 +292,11 @@ impl HubStore {
             "{body}\n\n---\nRemote result ({}@{peer}):\n{result}",
             step.agent
         );
-        let msg = self.send_message(
+        let original = format!(
+            "{original_body}\n\n---\nRemote result ({}@{peer}):\n{result}",
+            step.agent
+        );
+        let msg = self.send_message_with_context(
             from_agent,
             &step.agent,
             MessageKind::Handoff,
@@ -283,6 +304,7 @@ impl HubStore {
             subject.as_deref(),
             task.workspace_path.as_deref(),
             Some(task_id),
+            Some(&original),
         )?;
         Ok(msg.id)
     }

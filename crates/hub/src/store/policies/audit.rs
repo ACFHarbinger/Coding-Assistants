@@ -367,6 +367,7 @@ impl HubStore {
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
+            "ALTER TABLE messages ADD COLUMN context_body TEXT",
             "ALTER TABLE agents ADD COLUMN card_json TEXT",
             "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",

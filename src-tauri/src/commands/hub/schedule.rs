@@ -47,8 +47,8 @@ pub fn hub_schedule_create(
     let created_by = caller_agent_id
         .filter(|id| !id.trim().is_empty())
         .unwrap_or_else(|| "human".to_string());
-    let task = store
-        .create_scheduled_task(
+    store
+        .create_scheduled_task_with_handoff(
             &args.name,
             &args.instruction,
             args.target,
@@ -62,19 +62,6 @@ pub fn hub_schedule_create(
             args.max_attempts,
             args.deadline.as_deref(),
             &created_by,
-        )
-        .map_err(|e| e.to_string())?;
-    if args.handoff_metadata.is_none()
-        && args
-            .context_filter
-            .as_deref()
-            .is_none_or(|spec| spec.trim().is_empty())
-    {
-        return Ok(task);
-    }
-    store
-        .set_schedule_handoff(
-            &task.id,
             args.handoff_metadata,
             args.context_filter.as_deref(),
         )

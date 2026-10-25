@@ -44,7 +44,7 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
                 context_filter,
             } = *args;
             let criteria = parse_gate_criteria(&gate_criteria)?;
-            let task = create_task(
+            let task = create_task_with_handoff(
                 store,
                 CreateSchedule {
                     name: &name,
@@ -62,10 +62,6 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
                     deadline: deadline.as_deref(),
                     created_by: &created_by,
                 },
-            )?;
-            let task = apply_schedule_handoff(
-                store,
-                task,
                 handoff_metadata.as_deref(),
                 context_filter.as_deref(),
             )?;
@@ -109,7 +105,7 @@ pub(crate) fn run(store: &HubStore, action: ScheduleCommand) -> anyhow::Result<(
     Ok(())
 }
 
-/// Fields [`create_task`] needs, kept as a struct so validation stays in
+/// Fields [`persist_schedule`] needs, kept as a struct so validation stays in
 /// one place and tests can drive it directly.
 pub(crate) struct CreateSchedule<'a> {
     pub name: &'a str,
@@ -222,27 +218,24 @@ pub(crate) fn list_tasks(
     }
 }
 
-fn apply_schedule_handoff(
+pub(crate) fn create_task_with_handoff(
     store: &HubStore,
-    task: ScheduledTask,
-    metadata: Option<&str>,
+    args: CreateSchedule<'_>,
+    handoff_metadata: Option<&str>,
     context_filter: Option<&str>,
 ) -> anyhow::Result<ScheduledTask> {
-    if metadata.is_none() && context_filter.is_none() {
-        return Ok(task);
-    }
-    let metadata = metadata
+    let metadata = handoff_metadata
         .map(serde_json::from_str)
         .transpose()
         .context("--handoff-metadata must be a JSON object")?;
-    store
-        .set_schedule_handoff(&task.id, metadata, context_filter)
-        .map_err(Into::into)
+    persist_schedule(store, args, metadata, context_filter)
 }
 
-pub(crate) fn create_task(
+fn persist_schedule(
     store: &HubStore,
     args: CreateSchedule<'_>,
+    handoff_metadata: Option<serde_json::Value>,
+    context_filter: Option<&str>,
 ) -> anyhow::Result<ScheduledTask> {
     validate_create(&args)?;
     let target = parse_target(args.target)?;
@@ -253,7 +246,7 @@ pub(crate) fn create_task(
         stop_on_quota_exhausted: args.stop_on_quota_exhausted,
     };
     store
-        .create_scheduled_task(
+        .create_scheduled_task_with_handoff(
             args.name,
             args.instruction,
             target,
@@ -267,6 +260,8 @@ pub(crate) fn create_task(
             args.max_attempts,
             args.deadline,
             args.created_by,
+            handoff_metadata,
+            context_filter,
         )
         .map_err(Into::into)
 }

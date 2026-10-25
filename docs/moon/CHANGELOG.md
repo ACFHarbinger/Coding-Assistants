@@ -19,6 +19,13 @@ project's GitHub Releases page.
 
 - **Structured handoff metadata and an opt-in context filter (#361).** A workflow step or scheduled task can carry `handoff_metadata` (`reason` / `priority` only). Dispatch writes that object to `handoff.metadata` and does not put it in the handoff body or use it to pick a recipient. `context_filter` (`strip_tools`, `cap:<n>`, `summarize`, comma-separated, applied left to right) reduces the prior section seeded into the handoff: upstream non-system messages, then the advance note or re-prompt detail. The instruction is left intact. With no filter, the body stays the instruction plus `Prior note:` when a note was passed. `summarize` is a line/character digest, not a model call. `ca schedule create` accepts `--handoff-metadata` and `--context-filter`; `hub_schedule_create` accepts the same optional fields.
 
+### Fixed — 2026-10-25 (P17 review, #361)
+
+- **Schedule handoff options commit with the row.** `create_scheduled_task_with_handoff` validates metadata and the filter, then inserts them in the same transaction as the schedule. Invalid options leave no row. A blank filter means no filter.
+- **Tool records match before attribution.** `strip_tools` sees the stored line, then the renderer adds `from -> to (kind):`. A first-line `Tool:` record or a JSON tool object still strips.
+- **Steps after `summarize` still run.** The digest becomes the next input, so `summarize,cap:1` keeps one digest line and `summarize,strip_tools` can still drop tool noise in that digest.
+- **Filtered handoffs do not reseed themselves.** Dispatch stores the unfiltered source on `messages.context_body` (soft-migrated). Later priors prefer that column, so a filtered body is not nested into the next seed. Parallel members send the preflight snapshot.
+
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
 - **V8 (#379): Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles (`ConfigPanel.tsx`, `HarnessTerminalGrid.tsx`, `TerminalPane.tsx`, `SchedulePanel.tsx`, `ChannelsTab.tsx`, Gemini):** Completed the final slice of the Deep-Space NOC visual language rollout. Restructured `ConfigPanel.tsx` with a responsive 2-column bento grid. Standardized a 28px telemetry header bar per terminal pane in `TerminalPane.tsx` with PID liveness dot and instance key snippet. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` counts. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills. Closes parent epic #371.

@@ -9,7 +9,8 @@
 use std::path::Path;
 
 use super::super::handoff_filter::{
-    apply_context_filter, validate_context_filter, validate_handoff_metadata,
+    filter_attributed_prior, render_prior_lines, validate_context_filter,
+    validate_handoff_metadata, PriorLine,
 };
 use super::super::*;
 
@@ -51,8 +52,9 @@ impl HubStore {
             });
         };
         validate_context_filter(filter)?;
-        let prior = self.prior_context_text(task_id, note)?;
-        let filtered = apply_context_filter(&prior, filter)?;
+        let lines = self.prior_lines(task_id, note)?;
+        let prior = render_prior_lines(&lines);
+        let filtered = filter_attributed_prior(lines, filter)?;
         Ok(PreparedHandoff {
             body: render_filtered(&step.instruction, &filtered),
             filtered: true,
@@ -107,13 +109,14 @@ impl HubStore {
         Ok(())
     }
 
-    pub(crate) fn prior_context_text(
+    /// Message bodies stay unprefixed so tool filters match the stored line.
+    pub(crate) fn prior_lines(
         &self,
         task_id: &str,
         note: Option<&str>,
-    ) -> Result<String, HubError> {
+    ) -> Result<Vec<PriorLine>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT from_agent, to_agent, kind, body FROM messages
+            "SELECT from_agent, to_agent, kind, body, context_body FROM messages
              WHERE task_id = ?1 AND kind != 'system'
              ORDER BY created_at ASC, rowid ASC",
         )?;
@@ -123,17 +126,41 @@ impl HubStore {
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
             ))
         })?;
-        let mut parts = Vec::new();
+        let mut lines = Vec::new();
         for row in rows {
-            let (from, to, kind, body) = row?;
-            parts.push(format!("{from} -> {to} ({kind}): {body}"));
+            let (from, to, kind, body, original) = row?;
+            // Older handoffs have no provenance column. Remove their rendered
+            // seed too, while retaining a remote result appended by dispatch.
+            let body = original.unwrap_or_else(|| {
+                if kind == "handoff" {
+                    original_handoff_body(&body)
+                } else {
+                    body
+                }
+            });
+            let mut first = true;
+            for line in body.lines() {
+                lines.push(PriorLine {
+                    text: line.to_string(),
+                    prefix: first.then(|| format!("{from} -> {to} ({kind}): ")),
+                    strip: true,
+                });
+                first = false;
+            }
         }
         if let Some(note) = note.map(str::trim).filter(|text| !text.is_empty()) {
-            parts.push(format!("note: {note}"));
+            for line in format!("note: {note}").lines() {
+                lines.push(PriorLine {
+                    text: line.to_string(),
+                    prefix: None,
+                    strip: false,
+                });
+            }
         }
-        Ok(parts.join("\n"))
+        Ok(lines)
     }
 }
 
@@ -149,5 +176,18 @@ pub(crate) fn render_filtered(instruction: &str, filtered: &str) -> String {
         instruction.to_string()
     } else {
         format!("{instruction}\n\n---\nPrior context:\n{filtered}")
+    }
+}
+
+/// Compatibility for handoffs written before context provenance was stored.
+/// New dispatches never need to infer boundaries from their rendered prompt.
+pub(crate) fn original_handoff_body(body: &str) -> String {
+    let Some((instruction, seeded)) = body.split_once("\n\n---\nPrior context:\n") else {
+        return body.to_owned();
+    };
+    if let Some((_, remote)) = seeded.rsplit_once("\n\n---\nRemote result (") {
+        format!("{instruction}\n\n---\nRemote result ({remote}")
+    } else {
+        instruction.to_owned()
     }
 }

@@ -8,13 +8,84 @@
 use std::path::Path;
 
 use super::super::handoff_filter::{
-    apply_context_filter, validate_context_filter, validate_handoff_metadata,
+    filter_attributed_prior, validate_context_filter, validate_handoff_metadata,
 };
 use super::super::tasks::render_filtered;
 use super::super::*;
 use super::time::now_utc_rfc3339;
 
 impl HubStore {
+    /// Reject a bad metadata object or context filter before a schedule row exists.
+    /// Blank filter text means "no filter", matching [`Self::set_schedule_handoff`].
+    pub fn validate_schedule_handoff_options(
+        &self,
+        metadata: Option<&serde_json::Value>,
+        context_filter: Option<&str>,
+    ) -> Result<(), HubError> {
+        if let Some(meta) = metadata {
+            validate_handoff_metadata(meta)?;
+        }
+        if let Some(spec) = context_filter
+            .map(str::trim)
+            .filter(|spec| !spec.is_empty())
+        {
+            validate_context_filter(spec)?;
+        }
+        Ok(())
+    }
+
+    /// Create a schedule and its handoff options in one commit.
+    ///
+    /// Callers that insert first and update options second leave a window
+    /// where a due poller can dispatch the row with neither filter nor metadata.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_scheduled_task_with_handoff(
+        &self,
+        name: &str,
+        instruction: &str,
+        target: ScheduleTarget,
+        workspace: &str,
+        fire_at: &str,
+        repeat_interval_secs: Option<i64>,
+        response_timeout_secs: i64,
+        gate_criteria: Vec<GateCriterion>,
+        gate_combinator: GateCombinator,
+        budget: BudgetPolicy,
+        max_attempts: u32,
+        deadline: Option<&str>,
+        created_by: &str,
+        handoff_metadata: Option<serde_json::Value>,
+        context_filter: Option<&str>,
+    ) -> Result<ScheduledTask, HubError> {
+        self.validate_schedule_handoff_options(handoff_metadata.as_ref(), context_filter)?;
+        let meta_json = handoff_metadata
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|err| HubError::Invalid(format!("handoff_metadata encode: {err}")))?;
+        let filter = context_filter
+            .map(str::trim)
+            .filter(|spec| !spec.is_empty())
+            .map(str::to_string);
+        self.insert_scheduled_task(
+            name,
+            instruction,
+            target,
+            workspace,
+            fire_at,
+            repeat_interval_secs,
+            response_timeout_secs,
+            gate_criteria,
+            gate_combinator,
+            budget,
+            max_attempts,
+            deadline,
+            created_by,
+            meta_json.as_deref(),
+            filter.as_deref(),
+        )
+    }
+
     pub fn set_schedule_handoff(
         &self,
         id: &str,
@@ -68,16 +139,10 @@ impl HubStore {
             return Ok(body.to_string());
         };
         validate_context_filter(filter)?;
-        let mut prior = self.prior_context_text(&task.id, None)?;
         let detail = schedule_detail(&task.instruction, body);
-        if !detail.is_empty() {
-            if !prior.is_empty() {
-                prior.push('\n');
-            }
-            prior.push_str("note: ");
-            prior.push_str(detail);
-        }
-        let filtered = apply_context_filter(&prior, filter)?;
+        let note = (!detail.is_empty()).then_some(detail);
+        let lines = self.prior_lines(&task.id, note)?;
+        let filtered = filter_attributed_prior(lines, filter)?;
         Ok(render_filtered(&task.instruction, &filtered))
     }
 

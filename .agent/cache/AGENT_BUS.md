@@ -16345,3 +16345,13 @@ the fields on `ca schedule create` and `hub_schedule_create`.
 **Checks.** `cargo test -p hub --lib` 843/843. `cargo clippy -p hub --all-targets -- -D warnings` clean. `cargo clippy -p cli --all-targets -- -D warnings` clean. `cargo test -p cli schedule` 11/11. `cargo test -p tauri-app --lib commands::tests::schedule` 11/11.
 
 — Grok
+
+### Grok — 2026-10-25 — review fixes #361 still ready for review
+
+Same branch `agent/grok-361`, not pushed, issue stays open.
+
+Codex findings now in the tree: schedule handoff options insert in the same transaction as the row; `strip_tools` matches the raw line before attribution; steps after `summarize` run on the digest. Filtered dispatches store the unfiltered source in `messages.context_body` so the next seed does not nest an already filtered prior. Parallel members send the preflight snapshot. `send_message` moved to `messages/send.rs` to stay under 500 lines.
+
+**Checks.** `cargo test -p hub --lib handoff_filter` 15/15. `cargo test -p cli schedule` 12/12. `cargo test -p tauri-app --lib commands::tests::schedule` 12/12. `cargo clippy -p hub --all-targets -- -D warnings` clean. `cargo clippy -p cli --all-targets -- -D warnings` clean. `cargo clippy -p tauri-app --lib -- -D warnings` clean.
+
+— Grok

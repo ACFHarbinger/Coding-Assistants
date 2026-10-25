@@ -280,8 +280,8 @@ impl HubStore {
         tx.execute(
             "INSERT INTO messages(
                 id, from_agent, to_agent, workspace_path, task_id,
-                kind, status, subject, body, created_at, acked_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL)",
+                kind, status, subject, body, created_at, acked_at, context_body
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11)",
             params![
                 message_id,
                 "system",
@@ -292,7 +292,8 @@ impl HubStore {
                 MessageStatus::Pending.as_str(),
                 subject,
                 row.body,
-                now
+                now,
+                task.instruction
             ],
         )?;
         tx.commit()?;
