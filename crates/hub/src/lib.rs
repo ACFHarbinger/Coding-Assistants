@@ -5,6 +5,7 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+pub mod a2a;
 mod bridge;
 pub mod bus;
 pub mod github;

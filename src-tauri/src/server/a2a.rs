@@ -1,9 +1,10 @@
 //! Public A2A wire compatibility (P11b / #335). Minimal std-only HTTP/1.1
 //! listener speaking the A2A JSON-RPC envelope — no new dependencies.
 //!
-//! v1 methods: `message/send`, `tasks/get`, `tasks/cancel`, plus the public
-//! agent card. Out of scope: streaming/SSE, push notifications, non-text
-//! message parts.
+//! v1 methods: `message/send`, `tasks/get`, `tasks/cancel`, the four
+//! `tasks/pushNotificationConfig/*` verbs (#364, implemented in
+//! `hub::a2a`), plus the public agent card. Out of scope: streaming/SSE,
+//! non-text message parts.
 //!
 //! Security posture (see the P11b design note on the bus):
 //! - Default-off: the listener only starts after the owner sets
@@ -15,6 +16,10 @@
 //!   carries names, descriptions, and skill tags only — never workspaces,
 //!   file paths, or machine info. Pinned by test.
 
+/// The task-state mapping and Task JSON shape live in `hub::a2a` so the
+/// listener and the push notifier (#364) speak identically; re-exported
+/// here to keep this module's public surface stable.
+pub use hub::a2a::{a2a_task_state, task_result};
 use hub::{AgentCard, AgentRecord, HubStore, WorkflowStep};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -59,7 +64,7 @@ pub fn build_agent_card(version: &str, agents: &[AgentRecord]) -> Value {
         "name": "Coding Assistants",
         "description": "Coding Assistants Hub: multi-agent orchestration over A2A.",
         "version": version,
-        "capabilities": {"streaming": false, "pushNotifications": false},
+        "capabilities": {"streaming": false, "pushNotifications": true},
         "defaultInputModes": ["text"],
         "defaultOutputModes": ["text"],
         "authentication": {"schemes": ["bearer"]},
@@ -90,51 +95,14 @@ fn rpc_ok(id: &Value, result: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "result": result})
 }
 
-/// Map Hub task states onto A2A task states. Unknown persists as `failed`
-/// rather than claiming progress.
-pub fn a2a_task_state(status: &str) -> &'static str {
-    match status {
-        "pending" => "submitted",
-        "running" => "working",
-        "done" => "completed",
-        "cancelled" => "canceled",
-        "failed" => "failed",
-        "input_required" | "input-required" => "input-required",
-        "auth_required" | "auth-required" => "auth-required",
-        _ => "failed",
-    }
-}
-
-fn task_result(store: &HubStore, task: &hub::TaskRecord, context_id: &str) -> Value {
-    let state = a2a_task_state(&task.status);
-    // Result pointer only — never `output_watermark_id` (internal screening).
-    let message = task
-        .last_message_id
-        .as_deref()
-        .and_then(|id| store.get_message(id).ok())
-        .flatten()
-        .map(|msg| {
-            json!({
-                "role": "agent",
-                "messageId": msg.id,
-                "parts": [{"type": "text", "text": msg.body}],
-            })
-        });
-    let mut status = json!({"state": state});
-    if let Some(message) = message {
-        status["message"] = message;
-    }
-    json!({
-        "id": task.id,
-        "contextId": context_id,
-        "status": status,
-        "artifacts": [],
-    })
-}
-
 /// Dispatch one JSON-RPC call against the store. Pure logic — no sockets —
 /// so every method is unit-testable against a temp `HubStore`.
 pub fn handle_rpc(store: &HubStore, method: &str, params: &Value, id: &Value) -> Value {
+    // Push-notification config verbs (#364) are handled in `hub::a2a`;
+    // `None` means "not a push method" and falls through to the v1 table.
+    if let Some(response) = hub::a2a::handle_push_rpc(store, method, params, id) {
+        return response;
+    }
     match method {
         "message/send" => {
             let message = params.get("message");
@@ -385,6 +353,8 @@ pub struct A2aServer {
     address: String,
     running: Arc<AtomicBool>,
     handle: Option<std::thread::JoinHandle<()>>,
+    /// Webhook notifier (#364): lives and dies with the listener.
+    notifier: hub::a2a::PushNotifier,
 }
 
 impl A2aServer {
@@ -420,10 +390,15 @@ impl A2aServer {
                 }
             }
         });
+        // The push notifier (#364) shares the listener's lifetime and the
+        // same hub home the per-connection stores open.
+        let notifier =
+            hub::a2a::PushNotifier::start(hub::default_hub_home(), hub::a2a::DEFAULT_NOTIFY_POLL);
         Ok(Self {
             address,
             running,
             handle: Some(handle),
+            notifier,
         })
     }
 
@@ -432,6 +407,7 @@ impl A2aServer {
     }
 
     pub fn stop(&mut self) {
+        self.notifier.stop();
         self.running.store(false, Ordering::SeqCst);
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
