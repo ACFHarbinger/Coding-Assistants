@@ -16268,3 +16268,52 @@ whoever was building them, flag your work on the bus as you go so it
 doesn't sit uncommitted and unlogged.
 
 — Claude
+
+### Claude — 2026-10-25 — new delegation round: Grok, Mistral, Gemini, Codex
+
+Finished and committed the terminal-grid export/import feature that was
+sitting uncommitted in the shared `main` checkout (`8ab4097`): layout
+export/import to arbitrary JSON files, Ubuntu-terminal-alignment import
+support, per-pane `cwd` override. Split `terminal_grid.rs` (963 lines
+with the new code) into `terminal_grid.rs` + new `terminal_grid_io.rs`,
+both ≤500 LoC (#158). `cargo build/test/clippy/fmt`, `tsc`, `vitest`
+(305/305), `npm run build` all clean. Whoever owns this next time,
+please log your own work on the bus as you go rather than leaving it
+for the next session to discover uncommitted.
+
+Owner asked to delegate more work. Surveyed the open-issue backlog
+first: most plausible candidates (#213, #215, #225, #262, #267, #279,
+#282, #288, #307, #317, #318, #320, #322, #329, #363, #364) already
+have landed commits on `main` — they're open only pending the owner's
+own live verification (see #337's checklist), not available for new
+implementation. Checked branch/commit state for each before assigning
+anything new, per the standing "no issue closes solely on a PASS" rule
+(#340) applied in reverse — don't *assign* solely because an issue
+shows OPEN either.
+
+Genuinely unimplemented, unclaimed, and confirmed via `git log
+--grep`/file inspection (zero hits, no stub/TODO already in place):
+
+| Agent | Issue | Scope | Why this agent |
+| --- | --- | --- | --- |
+| **Grok** | **#361** — P17 structured handoff + context filter | `crates/hub/src/store/tasks/mod.rs`: optional `handoff_metadata` (reason/priority, audit-only) and opt-in `context_filter` (strip tool-call noise / cap history / summarize) on `MessageKind::Handoff` in `dispatch_step` and Schedule's `send_schedule_prompt`. Full-context behavior stays default when no filter given. Builds on #350 S3 and existing `Handoff` dispatch; does not replace either. Confirmed currently unimplemented: `context_filter`/`handoff_metadata` fields do not exist in `tasks/mod.rs` today despite an earlier commit (`9f85907`) claiming to land them — that logic was since reverted/superseded by the #365/#366 partial-dispatch work. Roadmap: `docs/moon/roadmaps/platform.md` P17. |
+| **Mistral** | **#157** — C14.9 distinct recipient records for repeated tagged channel sends | A second tagged send on the same channel subject fails `UNIQUE constraint failed: message_recipient_sets.subject`. Fix: subsequent fan-outs keep the channel prefix but gain a UUID suffix before their recipient-set row is recorded, preserving transcript grouping while giving every send a distinct durable record. Acceptance: repeated task/wake sends through the same channel/session succeed and list as distinct fan-outs; recipient/audit outcomes stay reconstructable. Parent: #147. Backend-only, scoped, matches Mistral's recent hardening work (#346 network samples, #344 digest). |
+| **Gemini** | **#87** — D1 task timeline/collaboration visualization | Extend the Work → Dashboard beyond aggregate counters with a 2D task timeline: messages, wakes, workflow transitions, provider calls, tool activity, and handoffs ordered by task and agent. Acceptance: select a task, inspect its ordered events, filter by agent/event type, spot paused/failed transitions. Frontend-only (new Dashboard view + a read query over existing audit/task data, no new columns). This is the deferred item from Gemini's own `GEMINI-UI-1..6` proposal and the UI brainstorm's grounding notes ("file-change viz extends D1 later, not this pass") — natural next round for the design/UX lead, and distinct from what V1-V8 (#371) already shipped (those were agent/budget/metrics tiles, not an ordered event timeline). |
+| **Codex** | *(no new feature issue this round)* | Stays acting integrator/coordinator per the standing team-structure handoff: review Grok's #361, Mistral's #157, and Gemini's #87 slices when they reach Ready-for-review (no self-review, preserve existing PASS/RFR conventions), and separately drive closure of the stale-open landed-but-unverified backlog found during this survey by extending `docs/moon/ACCEPTANCE_OWED.md` (#337) with the issues listed above and closing whichever don't need a live device/owner step. |
+
+Each of #361/#157/#87 should land in its own isolated worktree
+(`.ca-worktrees/<agent>-<issue>`), per the standing per-slice-worktree
+convention — do not work directly in the shared `main` checkout (see
+this entry's own cleanup above for why that's a problem for everyone
+else).
+
+@Grok: #361, isolated worktree, no touching #365/#366's already-landed
+parallel-dispatch logic beyond what's needed to wire the filter.
+@Mistral: #157, isolated worktree, `message_recipient_sets` + its
+fan-out call sites only.
+@Gemini: #87, isolated worktree, Dashboard/Work panel + a new read-only
+query; do not duplicate #340's Scorecard or #371's existing Dashboard
+tiles.
+@Codex: review queue above + #337 backlog-closure pass.
+
+— Claude
