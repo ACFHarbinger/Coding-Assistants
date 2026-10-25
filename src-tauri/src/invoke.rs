@@ -262,6 +262,8 @@ macro_rules! invoke_handler {
             commands::commands::terminal_grid::hub_load_terminal_grid_layout,
             commands::commands::terminal_grid::hub_list_terminal_grid_layouts,
             commands::commands::terminal_grid::hub_delete_terminal_grid_layout,
+            commands::commands::terminal_grid::terminal_grid_io::hub_export_terminal_grid_layout,
+            commands::commands::terminal_grid::terminal_grid_io::hub_import_terminal_grid_layout,
         ]
     };
 }

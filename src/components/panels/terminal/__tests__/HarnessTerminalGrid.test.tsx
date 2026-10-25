@@ -139,6 +139,7 @@ describe("HarnessTerminalGrid", () => {
       workspace: "/test/workspace",
       existingPid: null,
       instanceKey: expect.stringMatching(/^leaf-claude-/),
+      cwd: null,
     });
 
     // Palette button should now reflect active count: "+ Claude · 1"
@@ -176,8 +177,49 @@ describe("HarnessTerminalGrid", () => {
       workspace: "/test/workspace",
       existingPid: null,
       instanceKey: "saved-claude",
+      cwd: null,
     });
     expect(screen.getAllByRole("button", { name: "Close claude pane" })).toHaveLength(1);
+  });
+
+  it("connects an imported pane in its own working directory (cwd override)", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([{ name: "imported", savedAt: "2026-10-25T00:00:00Z", paneCount: 1 }]);
+      }
+      if (cmd === "hub_load_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "imported",
+          savedAt: "2026-10-25T00:00:00Z",
+          canvas: null,
+          layout: {
+            type: "leaf",
+            id: "imported-claude",
+            harness: "claude",
+            cwd: "/tmp/other-project",
+          },
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    expect(await screen.findByText("imported")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    expect(await screen.findByText("Connect CLI")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Connect CLI"));
+    expect(await screen.findByTestId("embedded-terminal-sid-claude")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("hub_relaunch_harness_embedded", {
+      harness: "claude",
+      workspace: "/test/workspace",
+      existingPid: null,
+      instanceKey: "imported-claude",
+      cwd: "/tmp/other-project",
+    });
   });
 
   it("closes a pane and removes it from layout when clicking close button", async () => {

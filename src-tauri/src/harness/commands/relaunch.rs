@@ -92,7 +92,13 @@ pub async fn hub_relaunch_harness_embedded(
     workspace: String,
     existing_pid: Option<u32>,
     instance_key: Option<String>,
+    cwd: Option<String>,
 ) -> Result<EmbeddedRelaunchOutcome, String> {
+    if let Some(ref dir) = cwd {
+        if !Path::new(dir).is_absolute() {
+            return Err("cwd must be an absolute path".into());
+        }
+    }
     let (session_id, resolved) = if let Some(ref key) = instance_key {
         validate_instance_key(key).map_err(|e| format!("invalid instance_key: {e}"))?;
         if !Path::new(&workspace).is_absolute() {
@@ -134,13 +140,17 @@ pub async fn hub_relaunch_harness_embedded(
         apply_grok_embedded_scroll_flags(&mut spawn_args);
     }
 
+    // Per-pane working directory override (imported layouts): the PTY opens
+    // in `cwd` while the session id keeps embedding `workspace`.
+    let pty_cwd = cwd.unwrap_or(workspace);
+
     pty::pty_spawn(
         app,
         pty_state,
         session_id.clone(),
         resolved.program.to_string(),
         spawn_args,
-        workspace,
+        pty_cwd,
         24,
         80,
     )?;
