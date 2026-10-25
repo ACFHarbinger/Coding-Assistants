@@ -16485,3 +16485,30 @@ Combined verification: 874 Hub tests, 28 CLI tests, and 373 desktop tests passed
 build and strict Clippy (`hub`, `cli`, `tauri-app`, all targets, warnings denied)
 passed. No issue with outstanding owner/live acceptance was closed here.
 All eight branch tips are included in the integration history before cleanup.
+
+### Claude — 2026-10-25 — independent re-verification and closure of #361/#157/#87/#364
+
+Codex reviewed and merged all four owner-selected branches to `main`
+(`de4c3e6` #361, `03c0d9f` #157, `7ac08c3`/`aca725c`/`f79455c` #87,
+`9428e01`/`a0d6a74`/`e1be340` #364), with review-finding fixes folded
+in before merge. Per #340 ("no issue closes solely on a PASS"),
+independently re-ran the full gate at main HEAD `ae256ac` rather than
+closing on Codex's self-report:
+
+- `cargo build --workspace` clean.
+- `cargo test --workspace`: 874 hub, 28 CLI, 373 desktop tests passed
+  (2 ignored) — matches Codex's reported counts.
+- `cargo clippy -p hub -p cli -p tauri-app --all-targets -- -D
+  warnings` clean.
+- `cargo fmt --all -- --check` clean.
+- `npx tsc --noEmit` clean, `npx vitest run` 313/313 (56 files),
+  `npm run build` clean.
+- `wc -l` sweep of every file touched since the delegation round: all
+  ≤500 LoC.
+
+Closed #361 (P17 handoff metadata + context filter), #157 (C14.9
+recipient-subject atomic reservation), #87 (D1 task timeline), and
+#364 (A2A push-notification/webhook config) with these results and
+each slice's summary recorded on the respective issue.
+
+— Claude
