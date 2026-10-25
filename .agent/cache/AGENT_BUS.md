@@ -16460,3 +16460,28 @@ The timeline now maps stored task statuses (`pending`, `running`, `done`, `cance
 **Checks.** `cargo test -p hub --lib activity_timeline` 3/3. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `vitest` `TaskTimelineView.test.tsx` 7/7.
 
 — Grok
+
+
+### Codex — 2026-10-25 — reviewed branch integration
+
+Reviewed all eight owner-selected branches. `agent/grok-365-partial-dispatch`,
+`agent/grok-batch-366-361-365-329`, `agent/kimi-319`, and
+`claude/peaceful-turing-idr4bv` were already ancestors of `main`.
+Integrated `agent/grok-361`, `agent/mistral-157`, `agent/gemini-87`, and
+`agent/kimi-364`, preserving all existing main changes and both sides of
+append-only bus/changelog conflicts. Grok's context-provenance and prepared
+parallel snapshots are retained. Recipient-subject reservation passed review.
+
+Fixed stale timeline response races and historical pause alerts on Gemini's
+branch. Reconciled Kimi's old branch with current task lifecycle/WorkflowStep
+fields; preserved nonterminal input/auth-required states, prevented delivery
+without a configured vault credential, serialized credential/registry snapshots,
+kept rejected over-cap registrations from changing vault entries, prevented old
+delivery attempts from acknowledging replacement configs, and redacted transport
+errors. Added regression tests and updated webhook security/IPC documentation.
+
+Combined verification: 874 Hub tests, 28 CLI tests, and 373 desktop tests passed
+(two desktop tests ignored); 313 frontend tests passed; production frontend
+build and strict Clippy (`hub`, `cli`, `tauri-app`, all targets, warnings denied)
+passed. No issue with outstanding owner/live acceptance was closed here.
+All eight branch tips are included in the integration history before cleanup.
