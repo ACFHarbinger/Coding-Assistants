@@ -1,4 +1,5 @@
 mod agent;
+mod browser_pane;
 mod bus;
 mod client;
 mod commands;

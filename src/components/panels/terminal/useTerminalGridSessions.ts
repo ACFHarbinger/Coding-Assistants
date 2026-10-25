@@ -22,6 +22,7 @@ import {
   type CanvasSize,
 } from "./gridConstants";
 import type { DragTargetZone } from "./useTerminalGridDrag";
+import { DEEPSEEK_GUI_HOME, isBrowserLeaf, stampLeaf } from "./browserUrl";
 
 export interface UseTerminalGridSessionsOptions {
   workspace: string;
@@ -86,7 +87,7 @@ export function useTerminalGridSessions({
 
       const leaves = collectLeaves(restored);
       const statuses = await Promise.all(
-        leaves.map(async (leaf) => {
+        leaves.filter((leaf) => !isBrowserLeaf(leaf)).map(async (leaf) => {
           const instanceSid = terminalSessionId(leaf.harness, workspace, leaf.id);
           const legacySid = terminalSessionId(leaf.harness, workspace);
           let foundSid: string | null = null;
@@ -111,7 +112,8 @@ export function useTerminalGridSessions({
       const live = statuses.flatMap((entry) => (entry ? [entry] : []));
       const liveLeafIds = new Set(live.map((entry) => entry.leafId));
       const pruned = leaves.reduce<LayoutNode | null>(
-        (tree, leaf) => (liveLeafIds.has(leaf.id) ? tree : removeLeaf(tree, leaf.id)),
+        (tree, leaf) =>
+          isBrowserLeaf(leaf) || liveLeafIds.has(leaf.id) ? tree : removeLeaf(tree, leaf.id),
         restored,
       );
 
@@ -121,10 +123,11 @@ export function useTerminalGridSessions({
       if (restoredMaximized) {
         // Layouts saved before #301 stored the harness name. Convert that
         // legacy value to the live leaf ID rather than hiding every pane.
+        const stillThere = collectLeaves(pruned).some((leaf) => leaf.id === restoredMaximized);
         const maximizedLeaf = live.find(
           (entry) => entry.leafId === restoredMaximized || entry.harness === restoredMaximized,
         );
-        setMaximizedId(maximizedLeaf?.leafId ?? null);
+        setMaximizedId(stillThere ? restoredMaximized : (maximizedLeaf?.leafId ?? null));
       } else {
         setMaximizedId(null);
       }
@@ -260,7 +263,7 @@ export function useTerminalGridSessions({
     setTerminals({});
     setLayout(null);
     setMaximizedId(null);
-    setStatusMsg("All harness terminal panes closed.");
+    setStatusMsg("All grid panes closed.");
   }, [terminals]);
 
   const handleLoadLayout = useCallback(
@@ -281,6 +284,20 @@ export function useTerminalGridSessions({
     },
     [workspace, resetCanvasSize, setCanvasSize],
   );
+
+  const addBrowserPane = useCallback(() => {
+    const leafId = generateNodeId("leaf-browser");
+    setLayout((prev) => {
+      const { tree } = insertLeaf(prev, "browser", undefined, undefined, leafId);
+      return stampLeaf(tree, leafId, { kind: "browser", url: DEEPSEEK_GUI_HOME });
+    });
+    setStatusMsg("DeepSeek GUI pane added.");
+    setError("");
+  }, []);
+
+  const setBrowserUrl = useCallback((leafId: string, url: string) => {
+    setLayout((prev) => (prev ? stampLeaf(prev, leafId, { url }) : prev));
+  }, []);
 
   const handleDrop = useCallback(
     (sourceLeafId: string, targetLeafId: string, zone: DragTargetZone) => {
@@ -307,6 +324,8 @@ export function useTerminalGridSessions({
     statusMsg,
     setStatusMsg,
     launchHarness,
+    addBrowserPane,
+    setBrowserUrl,
     closePane,
     resetGrid,
     handleLoadLayout,

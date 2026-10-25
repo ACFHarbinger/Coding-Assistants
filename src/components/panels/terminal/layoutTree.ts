@@ -15,6 +15,10 @@ export interface LeafNode {
    * in the grid-wide workspace.
    */
   cwd?: string;
+  /** Absent or `terminal` is a harness PTY. `browser` is the DeepSeek web GUI. */
+  kind?: "terminal" | "browser";
+  /** Public https URL shown by a browser pane. */
+  url?: string;
 }
 
 export interface SplitNode {
@@ -345,7 +349,9 @@ export function isValidLayoutNode(node: unknown): node is LayoutNode {
     return (
       typeof anyNode.id === "string" &&
       typeof anyNode.harness === "string" &&
-      (anyNode.cwd === undefined || typeof anyNode.cwd === "string")
+      (anyNode.cwd === undefined || typeof anyNode.cwd === "string") &&
+      (anyNode.kind === undefined || anyNode.kind === "terminal" || anyNode.kind === "browser") &&
+      (anyNode.url === undefined || typeof anyNode.url === "string")
     );
   }
 
@@ -447,8 +453,8 @@ export function moveLeaf(
     return root;
   }
 
-  const fixedSource: LeafNode = { type: "leaf", id: sourceLeaf.id, harness: sourceLeaf.harness };
-  const fixedTarget: LeafNode = { type: "leaf", id: targetLeaf.id, harness: targetLeaf.harness };
+  const fixedSource: LeafNode = { ...sourceLeaf };
+  const fixedTarget: LeafNode = { ...targetLeaf };
 
   const treeWithoutSource = removeLeaf(root, fixedSource.id);
   if (!treeWithoutSource) {

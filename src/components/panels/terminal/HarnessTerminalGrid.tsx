@@ -12,7 +12,9 @@ import { useTerminalGridSessions } from "./useTerminalGridSessions";
 import CanvasResizeHandles from "./CanvasResizeHandles";
 import DropZoneOverlay from "./DropZoneOverlay";
 import TerminalPane from "./TerminalPane";
+import BrowserPane from "./BrowserPane";
 import GridLayoutMenu from "./GridLayoutMenu";
+import { isBrowserLeaf } from "./browserUrl";
 import {
   ALL_HARNESSES,
   DISPLAY_NAMES,
@@ -59,6 +61,8 @@ export default function HarnessTerminalGrid({
     statusMsg,
     setStatusMsg,
     launchHarness,
+    addBrowserPane,
+    setBrowserUrl,
     closePane,
     resetGrid,
     handleLoadLayout,
@@ -156,6 +160,14 @@ export default function HarnessTerminalGrid({
               </button>
             );
           })}
+          <button
+            type="button"
+            className="btn-secondary noc-focusable"
+            style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
+            onClick={addBrowserPane}
+          >
+            + DeepSeek GUI{(harnessCounts.browser || 0) > 0 ? ` · ${harnessCounts.browser}` : ""}
+          </button>
           {maxLabel && (
             <span style={{ fontSize: "0.78rem", color: "#93c5fd", fontWeight: 600, background: "rgba(59, 130, 246, 0.18)", padding: "0.2rem 0.5rem", borderRadius: "6px", border: "1px solid rgba(59, 130, 246, 0.35)" }}>
               Maximized: {maxLabel} (Esc to restore)
@@ -236,7 +248,7 @@ export default function HarnessTerminalGrid({
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Launch any of the {ALL_HARNESSES.length} supported harness CLIs in an in-app interactive terminal pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
+              Launch any of the {ALL_HARNESSES.length} supported harness CLIs in an in-app interactive terminal pane, or open the DeepSeek web GUI in a browser pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginTop: "0.5rem" }}>
               {ALL_HARNESSES.map((h) => (
@@ -251,6 +263,14 @@ export default function HarnessTerminalGrid({
                   Launch {DISPLAY_NAMES[h]}
                 </button>
               ))}
+              <button
+                type="button"
+                className="btn-secondary noc-focusable"
+                style={{ marginTop: 0, padding: "0.45rem 0.85rem", fontSize: "0.85rem" }}
+                onClick={addBrowserPane}
+              >
+                Open DeepSeek GUI
+              </button>
             </div>
           </div>
         ) : (
@@ -261,6 +281,29 @@ export default function HarnessTerminalGrid({
               const isBusy = busyId === node.id || busyId === node.harness;
               const isMaximized = maximizedId === node.id;
               const isHidden = maximizedId !== null && !isMaximized;
+
+              if (isBrowserLeaf(node)) {
+                return (
+                  <BrowserPane
+                    key={node.id}
+                    node={node}
+                    rect={rect}
+                    bounds={bounds}
+                    isMaximized={isMaximized}
+                    isHidden={isHidden}
+                    hasMaximized={maximizedId !== null}
+                    active={!isHidden && !dragState.isDragging}
+                    onTitlePointerDown={(e) => {
+                      if (!maximizedId) {
+                        startPaneDrag(e, node.harness, node.id, () => leaves, containerRef.current, handleDrop);
+                      }
+                    }}
+                    onUrlChange={(url) => setBrowserUrl(node.id, url)}
+                    onToggleMaximize={() => setMaximizedId(isMaximized ? null : node.id)}
+                    onClose={() => void closePane(node.id)}
+                  />
+                );
+              }
 
               return (
                 <TerminalPane

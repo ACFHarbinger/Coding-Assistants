@@ -21,6 +21,7 @@ export const DISPLAY_NAMES: Record<string, string> = {
   qwen: "Qwen",
   kimi: "Kimi",
   hermes: "Hermes",
+  browser: "DeepSeek GUI",
 };
 
 export function storageKey(workspace: string): string {

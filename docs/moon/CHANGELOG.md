@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-25 (Terminal Grid DeepSeek GUI browser pane)
+
+- **DeepSeek web GUI in the Terminal Grid.** A grid leaf can host the DeepSeek web app (`https://chat.deepseek.com/`) in a child webview. The address bar accepts other public https pages. Loopback, private, localhost, credentialed, and non-https targets are rejected. The page is not on a capability remote-URL list, so it cannot call app commands. Closing or dragging the pane hides or closes that webview. Harness PTY panes are unchanged.
+
 ### Added — 2026-10-25 (A2A webhook notifications, #364)
 
 - **A2A task push configuration and notifications.** Authenticated callers can create, get, list, and delete per-task HTTP(S) callback configurations. A notifier posts task status changes with bounded retries and no redirects. Webhook credentials remain in the vault; interrupted tasks preserve `input-required` / `auth-required` on both polling and push responses. Missing configured credentials prevent delivery. Registry/credential snapshots and replacement-aware acknowledgement keep concurrent reconfiguration consistent.
