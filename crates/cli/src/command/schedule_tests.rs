@@ -164,7 +164,10 @@ fn create_validates_inputs_before_touching_the_store() {
         },
     ];
     for args in bad {
-        assert!(create_task(&store, args).is_err(), "expected rejection");
+        assert!(
+            persist_schedule(&store, args, None, None).is_err(),
+            "expected rejection"
+        );
     }
     assert!(list_tasks(&store, None).unwrap().is_empty());
 }
@@ -172,7 +175,13 @@ fn create_validates_inputs_before_touching_the_store() {
 #[test]
 fn create_get_list_cancel_round_trip() {
     let (store, workspace, _dir) = open();
-    let created = create_task(&store, base_args(&workspace, "2099-01-01T00:00:00Z")).unwrap();
+    let created = persist_schedule(
+        &store,
+        base_args(&workspace, "2099-01-01T00:00:00Z"),
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(created.status, ScheduleStatus::Scheduled);
     assert_eq!(created.created_by, "human");
 
@@ -199,7 +208,7 @@ fn create_keeps_stop_on_quota_exhausted_flag() {
     let (store, workspace, _dir) = open();
     let mut args = base_args(&workspace, "2099-01-01T00:00:00Z");
     args.stop_on_quota_exhausted = true;
-    let created = create_task(&store, args).unwrap();
+    let created = persist_schedule(&store, args, None, None).unwrap();
     assert!(created.budget.stop_on_quota_exhausted);
     assert!(quota_aware_open_task_exists(&store).unwrap());
 
@@ -210,7 +219,13 @@ fn create_keeps_stop_on_quota_exhausted_flag() {
 #[test]
 fn tick_dispatches_due_one_shot_and_summary_is_the_cli_result() {
     let (store, workspace, _dir) = open();
-    let created = create_task(&store, base_args(&workspace, "2020-01-01T00:00:00Z")).unwrap();
+    let created = persist_schedule(
+        &store,
+        base_args(&workspace, "2020-01-01T00:00:00Z"),
+        None,
+        None,
+    )
+    .unwrap();
 
     let summary = tick(&store, Some("2020-01-01T00:00:01Z")).unwrap();
     assert_eq!(summary.outcomes.len(), 1);
@@ -229,7 +244,13 @@ fn tick_dispatches_due_one_shot_and_summary_is_the_cli_result() {
 #[test]
 fn tick_is_empty_when_nothing_is_due() {
     let (store, workspace, _dir) = open();
-    create_task(&store, base_args(&workspace, "2099-01-01T00:00:00Z")).unwrap();
+    persist_schedule(
+        &store,
+        base_args(&workspace, "2099-01-01T00:00:00Z"),
+        None,
+        None,
+    )
+    .unwrap();
     let summary = tick(&store, Some("2026-01-01T00:00:00Z")).unwrap();
     assert!(summary.outcomes.is_empty());
 }
@@ -244,4 +265,32 @@ fn tick_rejects_a_non_rfc3339_now() {
 fn pending_proposal_count_is_zero_on_a_fresh_store() {
     let (store, _workspace, _dir) = open();
     assert_eq!(pending_proposal_count(&store).unwrap(), 0);
+}
+
+#[test]
+fn invalid_handoff_options_do_not_persist_a_schedule() {
+    let (store, workspace, _dir) = open();
+    let args = base_args(&workspace, "2099-01-01T00:00:00Z");
+    assert!(create_task_with_handoff(&store, args, Some(r#"{"agent":"root"}"#), None).is_err());
+    assert!(list_tasks(&store, None).unwrap().is_empty());
+
+    let args = base_args(&workspace, "2099-01-01T00:00:00Z");
+    assert!(create_task_with_handoff(&store, args, None, Some("drop_all")).is_err());
+    assert!(list_tasks(&store, None).unwrap().is_empty());
+
+    let args = base_args(&workspace, "2099-01-01T00:00:00Z");
+    assert!(create_task_with_handoff(&store, args, Some("not-json"), None).is_err());
+    assert!(list_tasks(&store, None).unwrap().is_empty());
+
+    let args = base_args(&workspace, "2099-01-01T00:00:00Z");
+    let created = create_task_with_handoff(
+        &store,
+        args,
+        Some(r#"{"reason":"nightly","priority":1}"#),
+        Some("cap:2"),
+    )
+    .unwrap();
+    assert_eq!(created.context_filter.as_deref(), Some("cap:2"));
+    assert_eq!(created.handoff_metadata.unwrap()["reason"], "nightly");
+    assert_eq!(list_tasks(&store, None).unwrap().len(), 1);
 }

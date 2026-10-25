@@ -7,6 +7,7 @@ mod danger_purge;
 mod embeddings;
 mod guardrails;
 mod guardrails_review;
+mod handoff_filter;
 mod integration;
 mod memory_recall;
 mod memory_tool_scope;

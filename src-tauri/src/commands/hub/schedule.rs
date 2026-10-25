@@ -26,6 +26,12 @@ pub struct ScheduleCreateArgs {
     pub max_attempts: u32,
     #[serde(default)]
     pub deadline: Option<String>,
+    /// Audit-only reason/priority object (P17 / #361).
+    #[serde(default)]
+    pub handoff_metadata: Option<serde_json::Value>,
+    /// Opt-in prior-context filter. Omit for the unfiltered prompt.
+    #[serde(default)]
+    pub context_filter: Option<String>,
 }
 
 fn default_response_timeout_secs() -> i64 {
@@ -42,7 +48,7 @@ pub fn hub_schedule_create(
         .filter(|id| !id.trim().is_empty())
         .unwrap_or_else(|| "human".to_string());
     store
-        .create_scheduled_task(
+        .create_scheduled_task_with_handoff(
             &args.name,
             &args.instruction,
             args.target,
@@ -56,6 +62,8 @@ pub fn hub_schedule_create(
             args.max_attempts,
             args.deadline.as_deref(),
             &created_by,
+            args.handoff_metadata,
+            args.context_filter.as_deref(),
         )
         .map_err(|e| e.to_string())
 }

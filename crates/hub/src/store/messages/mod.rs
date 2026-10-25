@@ -1,51 +1,10 @@
 use super::*;
 mod queries;
 mod read_markers;
+mod send;
 mod wakes;
-#[allow(clippy::too_many_arguments)]
+
 impl HubStore {
-    pub fn send_message(
-        &self,
-        from_agent: &str,
-        to_agent: &str,
-        kind: MessageKind,
-        body: &str,
-        subject: Option<&str>,
-        workspace_path: Option<&str>,
-        task_id: Option<&str>,
-    ) -> Result<MessageRecord, HubError> {
-        self.ensure_mutable()?;
-        if body.trim().is_empty() {
-            return Err(HubError::Invalid("message body must not be empty".into()));
-        }
-        self.upsert_agent(from_agent, from_agent)?;
-        self.upsert_agent(to_agent, to_agent)?;
-
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
-        self.conn.execute(
-            r#"
-            INSERT INTO messages(
-                id, from_agent, to_agent, workspace_path, task_id,
-                kind, status, subject, body, created_at, acked_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL)
-            "#,
-            params![
-                id,
-                from_agent,
-                to_agent,
-                workspace_path,
-                task_id,
-                kind.as_str(),
-                MessageStatus::Pending.as_str(),
-                subject,
-                body,
-                now,
-            ],
-        )?;
-        self.get_message(&id)?.ok_or_else(|| HubError::NotFound(id))
-    }
-
     /// Fan out a team message while retaining one shared subject so clients
     /// can render the broadcast once instead of once per recipient.
     pub fn send_message_to_team(

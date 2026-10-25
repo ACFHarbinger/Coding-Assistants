@@ -26,6 +26,7 @@
 //! the sibling `wake_correlation` module.
 
 use super::super::*;
+use super::handoff::PreparedHandoff;
 impl HubStore {
     pub(super) fn activate_stage(
         &self,
@@ -59,7 +60,7 @@ impl HubStore {
             last_msg = Some(msg_id.clone());
             watermark = Some(msg_id);
         } else {
-            self.preflight_stage_inputs(id, task, idxs, note)?;
+            let prepared = self.preflight_stage_inputs(id, task, idxs, note)?;
             watermark = Some(self.stamp_stage_watermark(
                 id,
                 task.workspace_path.as_deref(),
@@ -69,7 +70,7 @@ impl HubStore {
             let mut last_handoff: Option<String> = None;
             let cap = task.max_parallel as usize;
             let wake_now: Vec<usize> = idxs.iter().copied().take(cap.min(idxs.len())).collect();
-            for si in &wake_now {
+            for (si, prepared) in wake_now.iter().zip(prepared) {
                 let step = &task.steps[*si];
                 self.dispatch_and_persist(
                     id,
@@ -84,6 +85,7 @@ impl HubStore {
                     &attempts,
                     &mut open,
                     &mut pending,
+                    prepared,
                 )?;
             }
             last_msg = last_handoff;
@@ -216,28 +218,37 @@ impl HubStore {
             .get(&stage_index.to_string())
             .copied()
             .unwrap_or(1);
-        while open.len() < task.max_parallel as usize && !pending.is_empty() {
-            let next_agent = pending[0].clone();
-            let step = idxs
-                .iter()
-                .map(|i| &task.steps[*i])
-                .find(|s| s.agent == next_agent)
-                .ok_or_else(|| {
-                    HubError::Invalid(format!("pending agent '{next_agent}' not in stage"))
-                })?;
+        let available = (task.max_parallel as usize).saturating_sub(open.len());
+        let queued: Vec<usize> = pending
+            .iter()
+            .take(available)
+            .map(|agent| {
+                idxs.iter()
+                    .copied()
+                    .find(|i| task.steps[*i].agent == *agent)
+                    .ok_or_else(|| {
+                        HubError::Invalid(format!("pending agent '{agent}' not in stage"))
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        let prepared = self.preflight_stage_inputs(id, task, &queued, note)?;
+        for (si, prepared) in queued.into_iter().zip(prepared) {
+            let step = &task.steps[si];
+            let next_agent = &step.agent;
             self.dispatch_and_persist(
                 id,
                 task,
                 step,
                 from_agent,
                 note,
-                &Self::handoff_label(stage_index, stages.len(), attempt, &next_agent),
+                &Self::handoff_label(stage_index, stages.len(), attempt, next_agent),
                 stage_index,
                 last_handoff,
                 watermark,
                 &task.attempts,
                 open,
                 pending,
+                prepared,
             )?;
         }
         Ok(())
@@ -263,8 +274,10 @@ impl HubStore {
         attempts: &std::collections::HashMap<String, u32>,
         open: &mut Vec<String>,
         pending: &mut Vec<String>,
+        prepared: PreparedHandoff,
     ) -> Result<(), HubError> {
-        let msg_id = self.dispatch_step(id, task, step, from_agent, note, stage_label)?;
+        let msg_id =
+            self.dispatch_prepared_step(id, task, step, from_agent, note, stage_label, prepared)?;
         *last_handoff = Some(msg_id);
         pending.retain(|name| name != &step.agent);
         if !open.iter().any(|name| name == &step.agent) {
@@ -312,18 +325,20 @@ impl HubStore {
         task: &TaskRecord,
         idxs: &[usize],
         note: Option<&str>,
-    ) -> Result<(), HubError> {
+    ) -> Result<Vec<PreparedHandoff>, HubError> {
+        let mut prepared = Vec::with_capacity(idxs.len());
         for si in idxs {
-            let body = Self::step_dispatch_body(&task.steps[*si], note);
+            let handoff = self.prepare_handoff(task_id, &task.steps[*si], note)?;
             self.enforce_guardrails(
                 crate::guardrails::GuardrailStage::Input,
                 task.workspace_path.as_deref(),
                 "task",
                 task_id,
-                &body,
+                &handoff.body,
             )?;
+            prepared.push(handoff);
         }
-        Ok(())
+        Ok(prepared)
     }
 
     /// Retry queued parallel dispatches, or re-dispatch the current stage.

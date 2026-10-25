@@ -29,6 +29,8 @@ struct ScheduleRow {
     next_fire_at: Option<String>,
     token_baseline_json: String,
     attempts: u32,
+    handoff_metadata_json: Option<String>,
+    context_filter: Option<String>,
 }
 
 fn map_raw(r: &rusqlite::Row<'_>) -> Result<ScheduleRow, rusqlite::Error> {
@@ -54,6 +56,8 @@ fn map_raw(r: &rusqlite::Row<'_>) -> Result<ScheduleRow, rusqlite::Error> {
         next_fire_at: r.get(18)?,
         token_baseline_json: r.get(19)?,
         attempts: r.get::<_, i64>(20)? as u32,
+        handoff_metadata_json: r.get(21)?,
+        context_filter: r.get(22)?,
     })
 }
 
@@ -98,13 +102,20 @@ fn decode_schedule(row: &ScheduleRow) -> Result<ScheduledTask, HubError> {
         next_fire_at: row.next_fire_at.clone(),
         attempts: row.attempts,
         token_baseline: decode_json("token_baseline", &row.token_baseline_json)?,
+        handoff_metadata: row
+            .handoff_metadata_json
+            .as_deref()
+            .map(|raw| decode_json("handoff_metadata", raw))
+            .transpose()?,
+        context_filter: row.context_filter.clone(),
     })
 }
 
 const SELECT_COLUMNS: &str = "id, name, instruction, target_json, workspace, fire_at,
     repeat_interval_secs, response_timeout_secs, gate_criteria_json, gate_combinator,
     budget_json, max_attempts, deadline, status, created_by, created_at, updated_at,
-    last_fired_at, next_fire_at, token_baseline_json, attempts";
+    last_fired_at, next_fire_at, token_baseline_json, attempts,
+    handoff_metadata_json, context_filter";
 
 impl HubStore {
     /// Create a new scheduled task. `fire_at`/`deadline` are RFC3339 and
@@ -125,6 +136,47 @@ impl HubStore {
         max_attempts: u32,
         deadline: Option<&str>,
         created_by: &str,
+    ) -> Result<ScheduledTask, HubError> {
+        self.insert_scheduled_task(
+            name,
+            instruction,
+            target,
+            workspace,
+            fire_at,
+            repeat_interval_secs,
+            response_timeout_secs,
+            gate_criteria,
+            gate_combinator,
+            budget,
+            max_attempts,
+            deadline,
+            created_by,
+            None,
+            None,
+        )
+    }
+
+    /// Insert the schedule row. Handoff columns are part of this statement
+    /// and commit with it, so a poller never observes a row that is missing
+    /// the requested filter or metadata.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn insert_scheduled_task(
+        &self,
+        name: &str,
+        instruction: &str,
+        target: ScheduleTarget,
+        workspace: &str,
+        fire_at: &str,
+        repeat_interval_secs: Option<i64>,
+        response_timeout_secs: i64,
+        gate_criteria: Vec<GateCriterion>,
+        gate_combinator: GateCombinator,
+        budget: BudgetPolicy,
+        max_attempts: u32,
+        deadline: Option<&str>,
+        created_by: &str,
+        handoff_metadata_json: Option<&str>,
+        context_filter: Option<&str>,
     ) -> Result<ScheduledTask, HubError> {
         self.ensure_mutable()?;
         if name.trim().is_empty() {
@@ -183,14 +235,17 @@ impl HubStore {
         let token_baseline = self.schedule_token_baseline(&target)?;
         let id = Uuid::new_v4().to_string();
         let now = now_utc_rfc3339();
-        self.conn.execute(
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "INSERT INTO scheduled_tasks(
                 id, name, instruction, target_json, workspace, fire_at,
                 repeat_interval_secs, response_timeout_secs, gate_criteria_json,
                 gate_combinator, budget_json, max_attempts, deadline, status,
                 created_by, created_at, updated_at, last_fired_at, next_fire_at,
-                token_baseline_json, attempts
-            ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,NULL,?18,?19,0)",
+                token_baseline_json, attempts, handoff_metadata_json, context_filter
+            ) VALUES (
+                ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,NULL,?18,?19,0,?20,?21
+            )",
             params![
                 id,
                 name,
@@ -211,8 +266,11 @@ impl HubStore {
                 now,
                 fire_at,
                 encode_json("token_baseline", &token_baseline)?,
+                handoff_metadata_json,
+                context_filter,
             ],
         )?;
+        tx.commit()?;
         let task = self
             .get_scheduled_task(&id)?
             .ok_or_else(|| HubError::NotFound(id.clone()))?;

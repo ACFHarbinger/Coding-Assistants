@@ -27,6 +27,8 @@ fn args() -> ScheduleCreateArgs {
         budget: BudgetPolicy::default(),
         max_attempts: 3,
         deadline: None,
+        handoff_metadata: None,
+        context_filter: None,
     }
 }
 
@@ -69,5 +71,28 @@ fn hub_schedule_create_rejects_a_bad_payload_the_same_way_the_store_does() {
         let mut bad = args();
         bad.max_attempts = 0;
         assert!(hub_schedule_create(bad, None).is_err());
+    });
+}
+
+#[test]
+fn hub_schedule_create_rejects_handoff_options_before_inserting_a_row() {
+    with_home(|| {
+        let before = hub_schedule_list().unwrap().len();
+        let mut bad_meta = args();
+        bad_meta.handoff_metadata = Some(serde_json::json!({"agent": "root"}));
+        assert!(hub_schedule_create(bad_meta, None).is_err());
+        assert_eq!(hub_schedule_list().unwrap().len(), before);
+
+        let mut bad_filter = args();
+        bad_filter.context_filter = Some("drop_all".into());
+        assert!(hub_schedule_create(bad_filter, None).is_err());
+        assert_eq!(hub_schedule_list().unwrap().len(), before);
+
+        let mut ok = args();
+        ok.handoff_metadata = Some(serde_json::json!({"reason": "nightly", "priority": 1}));
+        ok.context_filter = Some("cap:2".into());
+        let created = hub_schedule_create(ok, None).unwrap();
+        assert_eq!(created.context_filter.as_deref(), Some("cap:2"));
+        assert_eq!(hub_schedule_list().unwrap().len(), before + 1);
     });
 }

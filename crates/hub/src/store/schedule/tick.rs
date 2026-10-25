@@ -185,12 +185,13 @@ impl HubStore {
     ) -> Result<TickOutcome, HubError> {
         // P16 (#360): input guardrails run before the attempt is claimed, so
         // a tripped prompt burns no attempt and sends nothing.
+        let body = self.schedule_handoff_body(task, body)?;
         let screened = self.screen_content(
             crate::guardrails::GuardrailStage::Input,
             Some(&task.workspace),
             "schedule",
             &task.id,
-            body,
+            &body,
         )?;
         if let Some(trip) = screened.tripped() {
             return self.finish(
@@ -202,7 +203,7 @@ impl HubStore {
                 ),
             );
         }
-        let Some(attempt) = self.claim_schedule_dispatch(task, now, body)? else {
+        let Some(attempt) = self.claim_schedule_dispatch(task, now, &body)? else {
             return Ok(TickOutcome {
                 id: task.id.clone(),
                 action: "noop".into(),

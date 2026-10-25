@@ -78,4 +78,11 @@ pub(crate) struct ScheduleCreateArgs {
     pub deadline: Option<String>,
     #[arg(long, default_value = "human")]
     pub created_by: String,
+    /// JSON object `{"reason":"...","priority":...}` stored for audit only.
+    #[arg(long)]
+    pub handoff_metadata: Option<String>,
+    /// Opt-in prior-context filter: strip_tools, cap:<n>, summarize, or a
+    /// comma-separated list. Omit to keep the full unfiltered prompt.
+    #[arg(long)]
+    pub context_filter: Option<String>,
 }
