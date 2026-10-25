@@ -16,10 +16,12 @@
 //!   carries names, descriptions, and skill tags only — never workspaces,
 //!   file paths, or machine info. Pinned by test.
 
+#[cfg(test)]
+pub use hub::a2a::a2a_task_state;
 /// The task-state mapping and Task JSON shape live in `hub::a2a` so the
 /// listener and the push notifier (#364) speak identically; re-exported
 /// here to keep this module's public surface stable.
-pub use hub::a2a::{a2a_task_state, task_result};
+pub use hub::a2a::task_result;
 use hub::{AgentCard, AgentRecord, HubStore, WorkflowStep};
 use serde_json::{json, Value};
 use std::collections::HashMap;
