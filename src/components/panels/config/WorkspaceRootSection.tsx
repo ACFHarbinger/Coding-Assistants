@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import { invoke, isTauriRuntime } from "../../../lib/tauri";
 import type { WorkspaceValidation } from "./types";
 import SavedWorkspacesPanel from "./SavedWorkspacesPanel";
+import { nocPanelStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export interface WorkspaceRootSectionProps {
   workDir: string;
@@ -202,11 +204,8 @@ export default function WorkspaceRootSection({
   return (
     <section
       style={{
-        marginBottom: "1.5rem",
-        padding: "1.25rem",
-        border: "1px solid rgba(16, 185, 129, 0.32)",
-        borderRadius: "12px",
-        background: "rgba(16, 185, 129, 0.06)",
+        ...nocPanelStyle,
+        borderLeft: `3px solid ${NOC_COLORS.ok}`,
       }}
       aria-label="Workspace Root Section"
     >
@@ -215,14 +214,14 @@ export default function WorkspaceRootSection({
         htmlFor="workspace-root-input"
         style={{
           fontWeight: 700,
-          color: "var(--text-primary)",
-          marginBottom: "0.5rem",
+          color: NOC_SURFACES.textPrimary,
+          marginBottom: "0.4rem",
           display: "block",
         }}
       >
         Workspace Root
       </label>
-      <div style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: "0.75rem" }}>
+      <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", marginBottom: "0.75rem" }}>
         All team sessions, harness capture, and task delivery use this absolute repository path. Direct path entry and ~ expansion supported.
       </div>
       <SavedWorkspacesPanel

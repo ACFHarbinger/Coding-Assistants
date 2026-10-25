@@ -3,6 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScorecardView, AgentScorecardRow, HarnessScorecardRow, ProviderScorecardRow, FigureProvenance } from "./types";
 import { ScorecardDigest } from "./ScorecardDigest";
 import { ScorecardOversight } from "./ScorecardOversight";
+import { Meter } from "../../common/telemetry/gauges";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip, StalenessDot } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export function ScorecardTab() {
   const renderCoverage = (coverage?: { measured_requests: number; total_requests: number } | null) =>
@@ -88,30 +92,32 @@ export function ScorecardTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* Top Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+      <div style={{ ...nocPanelStyle, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-color, #fff)" }}>Team Scorecard</h3>
-          <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem", color: "var(--text-muted, #94a3b8)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Team Scorecard</h3>
+            <StalenessDot lastUpdatedUnixSeconds={data?.generated_at ? Math.floor(Date.parse(data.generated_at) / 1000) : null} pollIntervalSeconds={60} />
+          </div>
+          <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.82rem", color: NOC_SURFACES.textMuted }}>
             Projected security posture, operational backlog, harness coverage, and measured provider usage.
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
           {data?.generated_at && (
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)" }}>
+            <span className="tabular-nums" style={{ fontSize: "0.75rem", color: NOC_SURFACES.textMuted }}>
               Updated: {new Date(data.generated_at).toLocaleTimeString()}
             </span>
           )}
           <button
+            type="button"
+            className="btn-secondary noc-focusable"
             onClick={() => void loadScorecard()}
             disabled={loading}
             style={{
+              marginTop: 0,
               padding: "0.35rem 0.8rem",
-              borderRadius: "6px",
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              color: "var(--text-color, #fff)",
+              fontSize: "0.8rem",
               cursor: loading ? "wait" : "pointer",
-              fontSize: "0.85rem",
             }}
           >
             {loading ? "Refreshing…" : "Refresh"}
@@ -145,10 +151,8 @@ export function ScorecardTab() {
                 <div
                   key={agent.agent_id}
                   style={{
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: hasOpenSec ? "1px solid rgba(239, 68, 68, 0.5)" : "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "8px",
-                    padding: "1rem",
+                    ...nocCardDenseStyle,
+                    borderLeft: hasOpenSec ? `3px solid ${NOC_COLORS.crit}` : `3px solid ${NOC_COLORS.cyan}`,
                     display: "flex",
                     flexDirection: "column",
                     gap: "0.75rem",
@@ -208,11 +212,11 @@ export function ScorecardTab() {
                   </div>
 
                   {/* Tokens, Cost & Budget info */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "0.5rem", borderTop: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.85rem", gap: "0.5rem", flexWrap: "wrap" }}>
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Tokens</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span className="tabular-nums" style={{ fontWeight: 600 }}>
                           {agent.tokens?.value != null ? agent.tokens.value.toLocaleString() : "—"}
                         </span>
                         {agent.tokens && renderProvenanceChip(agent.tokens.provenance)}
@@ -223,7 +227,7 @@ export function ScorecardTab() {
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Attributed Cost</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span className="tabular-nums" style={{ fontWeight: 600 }}>
                           {agent.cost.value != null ? (agent.cost.unit === "currency" ? `$${agent.cost.value.toFixed(4)}` : agent.cost.value.toLocaleString(undefined, { maximumFractionDigits: 4 })) : "—"}
                         </span>
                         {renderProvenanceChip(agent.cost.provenance)}
@@ -234,19 +238,27 @@ export function ScorecardTab() {
                     {agent.budget_limit != null && (
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", marginBottom: "0.15rem" }}>Budget</div>
-                        <div style={{ fontSize: "0.8rem" }}>
+                        <div className="tabular-nums" style={{ fontSize: "0.8rem" }}>
                           {agent.budget_spent?.toFixed(1) ?? "0"} / {agent.budget_limit.toFixed(1)}
                           {agent.budget_paused && <span style={{ color: "#ef4444", marginLeft: "0.25rem" }}>(Paused)</span>}
                         </div>
                       </div>
                     )}
                   </div>
+                  {agent.budget_limit != null && agent.budget_limit > 0 && (
+                    <Meter
+                      percent={((agent.budget_spent ?? 0) / agent.budget_limit) * 100}
+                      detail={`${(((agent.budget_spent ?? 0) / agent.budget_limit) * 100).toFixed(0)}%`}
+                      tone={agent.budget_paused ? "crit" : ((agent.budget_spent ?? 0) / agent.budget_limit) > 0.85 ? "warn" : "ok"}
+                      label="Budget Utilization"
+                    />
+                  )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>No agent rows available.</div>
+          <EmptyStateChip title="No agent rows available" detail="Agent scorecard rows appear once agents are registered in the Hub." tone="idle" />
         )}
       </div>
 
@@ -256,35 +268,35 @@ export function ScorecardTab() {
       {/* Section 2: Harness Coverage */}
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.75rem" }}>
-          <h4 style={{ margin: 0, fontSize: "1rem", color: "var(--text-color, #fff)" }}>Harness Coverage</h4>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted, #94a3b8)" }}>
+          <h4 style={{ margin: 0, fontSize: "1rem", color: NOC_SURFACES.textPrimary }}>Harness Coverage</h4>
+          <span style={{ fontSize: "0.8rem", color: NOC_SURFACES.textMuted }}>
             Tracking managed vs observed registrations across workspaces
           </span>
         </div>
 
         {data?.harnesses && data.harnesses.length > 0 ? (
-          <div style={{ overflowX: "auto", background: "rgba(255, 255, 255, 0.02)", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", textAlign: "left" }}>
+          <div style={{ ...nocPanelStyle, padding: 0, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.83rem", textAlign: "left" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(255, 255, 255, 0.02)" }}>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Harness</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Coverage</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Workspace</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>State</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Session</th>
+                <tr style={{ borderBottom: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(9, 14, 26, 0.7)" }}>
+                  <th style={{ padding: "0.65rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Harness</th>
+                  <th style={{ padding: "0.65rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Coverage</th>
+                  <th style={{ padding: "0.65rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Workspace</th>
+                  <th style={{ padding: "0.65rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>State</th>
+                  <th style={{ padding: "0.65rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Session</th>
                 </tr>
               </thead>
               <tbody>
                 {data.harnesses.map((h: HarnessScorecardRow, idx: number) => (
-                  <tr key={`${h.harness}-${h.workspace}-${idx}`} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
-                    <td style={{ padding: "0.6rem 1rem", fontWeight: 600 }}>{h.harness}</td>
+                  <tr key={`${h.harness}-${h.workspace}-${idx}`} style={{ borderBottom: "1px solid rgba(148, 163, 184, 0.08)" }}>
+                    <td style={{ padding: "0.6rem 1rem", fontWeight: 700, color: NOC_COLORS.cyan }}>{h.harness}</td>
                     <td style={{ padding: "0.6rem 1rem" }}>{renderCoverageChip(h.coverage)}</td>
-                    <td style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>
-                      <code>{h.workspace}</code>
+                    <td style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textSecondary }}>
+                      <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>{h.workspace}</code>
                     </td>
-                    <td style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>{h.state || "—"}</td>
-                    <td style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>
-                      {h.disk_session_id ? <code>{h.disk_session_id}</code> : "—"}
+                    <td style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted }}>{h.state || "—"}</td>
+                    <td style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted }}>
+                      {h.disk_session_id ? <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>{h.disk_session_id}</code> : "—"}
                     </td>
                   </tr>
                 ))}
@@ -292,7 +304,7 @@ export function ScorecardTab() {
             </table>
           </div>
         ) : (
-          <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>No harness records available.</div>
+          <EmptyStateChip title="No harness records available" detail="Register an observed or managed harness session in Orchestrate." tone="idle" />
         )}
       </div>
 
@@ -311,17 +323,14 @@ export function ScorecardTab() {
               <div
                 key={`${p.provider}-${p.via_gateway}-${idx}`}
                 style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  borderRadius: "8px",
-                  padding: "1rem",
+                  ...nocCardDenseStyle,
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.5rem",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{p.provider}</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: NOC_COLORS.cyan }}>{p.provider}</div>
                   {p.via_gateway && (
                     <span style={{ fontSize: "0.75rem", padding: "0.15rem 0.4rem", borderRadius: "4px", background: "rgba(168, 85, 247, 0.15)", color: "#c084fc", border: "1px solid rgba(168, 85, 247, 0.3)" }}>
                       via {p.via_gateway}
@@ -332,7 +341,7 @@ export function ScorecardTab() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem", marginTop: "0.25rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Measured Tokens:</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <span>{p.tokens.value != null ? p.tokens.value.toLocaleString() : "—"}</span>
+                    <span className="tabular-nums">{p.tokens.value != null ? p.tokens.value.toLocaleString() : "—"}</span>
                     {renderProvenanceChip(p.tokens.provenance)}
                     {renderCoverage(p.tokens.coverage)}
                   </div>
@@ -341,7 +350,7 @@ export function ScorecardTab() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Measured Cost:</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <span>{p.cost.value != null ? `$${p.cost.value.toFixed(4)}` : "—"}</span>
+                    <span className="tabular-nums">{p.cost.value != null ? `$${p.cost.value.toFixed(4)}` : "—"}</span>
                     {renderProvenanceChip(p.cost.provenance)}
                     {renderCoverage(p.cost.coverage)}
                   </div>
@@ -349,7 +358,7 @@ export function ScorecardTab() {
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
                   <span style={{ color: "var(--text-muted, #94a3b8)" }}>Requests:</span>
-                  <span style={{ color: "var(--text-muted, #94a3b8)" }}>{p.request_count.value ?? 0}</span>
+                  <span className="tabular-nums" style={{ color: "var(--text-muted, #94a3b8)" }}>{p.request_count.value ?? 0}</span>
                 </div>
               </div>
             ))}

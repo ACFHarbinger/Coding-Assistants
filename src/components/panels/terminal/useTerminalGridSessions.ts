@@ -4,6 +4,7 @@ import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionSta
 import {
   collectLeaves,
   deserializeLayout,
+  findLeaf,
   generateNodeId,
   insertLeaf,
   moveLeaf,
@@ -192,6 +193,10 @@ export function useTerminalGridSessions({
         return;
       }
       const leafId = existingLeafId ?? generateNodeId(`leaf-${harness}`);
+      // Imported layouts can pin a pane to its own working directory
+      // (Ubuntu-style alignment files); otherwise the PTY opens in the
+      // grid-wide workspace.
+      const cwd = existingLeafId ? (findLeaf(layout, existingLeafId)?.cwd ?? null) : null;
       setBusyId(leafId);
       setError("");
       setStatusMsg(`Starting ${DISPLAY_NAMES[harness] || harness} terminal…`);
@@ -209,6 +214,7 @@ export function useTerminalGridSessions({
           workspace,
           existingPid,
           instanceKey: leafId,
+          cwd,
         });
         const sid = outcome?.sessionId ?? (outcome as { session_id?: string })?.session_id;
         if (!sid) throw new Error("Relaunch did not return an in-app terminal session id.");
@@ -223,7 +229,7 @@ export function useTerminalGridSessions({
         setBusyId(null);
       }
     },
-    [workspace],
+    [workspace, layout],
   );
 
   const closePane = useCallback(

@@ -6,10 +6,16 @@ embedded CPython) or Max for Live. This plugin is a Remote Script that
 opens a localhost line-JSON TCP server — the same socket-bridge model as
 Blender/Krita, not a file-parse surface.
 
-**Not compiler-verified against Ableton.** Live is not installed on this
+**Not run against a live Ableton instance.** Live is not installed on this
 machine or CI. The script targets Live 11/12 (`_Framework.ControlSurface`,
-Python 3). `python3 -m py_compile plugins/ableton/__init__.py` is the
-offline check.
+with an `ableton.v2` fallback; Python 3). What is verified offline:
+`python3 plugins/ableton/smoke.py` compiles the script and drives every op
+against stand-in objects that expose **only** documented Live Object Model
+attributes (the first port read a `Song.name` that Live does not have —
+`get_song_summary` would have failed on every real set), and
+`cargo test -p mcp-ableton` checks the MCP tool list against the script's
+`_OPS` table. Owner acceptance against real Live is still owed
+(`docs/moon/ACCEPTANCE_OWED.md` §2.5).
 
 ```
 agent ──stdio MCP──► coding-assistants-mcp ableton ──TCP line-JSON──► Remote Script ──► Live LOM
@@ -60,7 +66,7 @@ script and pass a matching `--port` if you need a different one.
 
 | Tool | Effect |
 |---|---|
-| `get_song_summary` | name, file path, tempo, time sig, playing, track/scene counts |
+| `get_song_summary` | set name (from `file_path`, "Untitled" when unsaved), file path, tempo, time sig, playing, track/scene counts |
 | `list_tracks` | session tracks: `{ index, name, kind, mute, solo, arm }` |
 | `list_scenes` | `{ index, name, clip_count }` |
 | `fire_clip` | launch clip slot `(track_index, scene_index)` |

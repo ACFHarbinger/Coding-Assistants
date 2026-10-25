@@ -1,5 +1,8 @@
 import React from "react";
 import type { DigestResolutionCounts, DigestSessionGroup, OwnerDigest } from "./types";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 function formatAge(ageSeconds: number | null | undefined): string {
   if (ageSeconds == null) return "unknown age";
@@ -57,17 +60,17 @@ function summaryStat(label: string, value: string, tone?: string): React.ReactEl
   return (
     <div
       style={{
-        background: "rgba(255, 255, 255, 0.03)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        borderRadius: "6px",
-        padding: "0.5rem 0.9rem",
-        minWidth: "120px",
+        ...nocCardDenseStyle,
+        borderLeft: `3px solid ${tone ?? NOC_COLORS.indigo}`,
+        padding: "0.6rem 0.9rem",
+        minWidth: "140px",
+        flex: "1 1 140px",
       }}
     >
-      <div style={{ fontSize: "0.7rem", color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+      <div style={{ fontSize: "0.68rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
         {label}
       </div>
-      <div style={{ fontSize: "1rem", fontWeight: 600, color: tone ?? "var(--text-color, #fff)" }}>{value}</div>
+      <div className="tabular-nums" style={{ fontSize: "1.1rem", fontWeight: 800, color: tone ?? NOC_SURFACES.textPrimary, marginTop: "0.15rem" }}>{value}</div>
     </div>
   );
 }
@@ -77,10 +80,8 @@ function GroupCard({ group, windowDays }: { group: DigestSessionGroup; windowDay
   return (
     <div
       style={{
-        background: "rgba(255, 255, 255, 0.02)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        borderRadius: "8px",
-        padding: "0.75rem 1rem",
+        ...nocCardDenseStyle,
+        padding: "0.8rem 1rem",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -147,21 +148,21 @@ export function ScorecardDigest({ digest }: { digest: OwnerDigest | null }): Rea
   if (!digest) return null;
   const { summary, groups, window_days: windowDays } = digest;
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-        <h4 style={{ margin: 0, fontSize: "1rem", color: "var(--text-color, #fff)" }}>Owner Review Digest</h4>
-        <span style={{ fontSize: "0.8rem", color: "var(--text-muted, #94a3b8)" }}>
+    <div style={nocPanelStyle}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.65rem", flexWrap: "wrap" }}>
+        <h4 style={{ margin: 0, fontSize: "1rem", color: NOC_SURFACES.textPrimary }}>Owner Review Digest</h4>
+        <span style={{ fontSize: "0.8rem", color: NOC_SURFACES.textMuted }}>
           Private, advisory — approve and reject from Messager and Journal. Remote approvals share the same human clock, tagged by channel.
         </span>
       </div>
 
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-        {summaryStat("Pending decisions", String(summary.pending_count), summary.pending_count > 0 ? "#fbbf24" : undefined)}
-        {summaryStat("Oldest pending", summary.oldest_pending_at ? new Date(summary.oldest_pending_at).toLocaleString() : "—")}
-        {summaryStat("Open findings", String(summary.unresolved_findings), summary.unresolved_findings > 0 ? "#f87171" : undefined)}
-        {summaryStat(`Resolved (${windowDays}d)`, String(summary.resolved_window.total))}
+        {summaryStat("Pending decisions", String(summary.pending_count), summary.pending_count > 0 ? NOC_COLORS.warn : NOC_COLORS.ok)}
+        {summaryStat("Oldest pending", summary.oldest_pending_at ? new Date(summary.oldest_pending_at).toLocaleString() : "—", NOC_COLORS.cyan)}
+        {summaryStat("Open findings", String(summary.unresolved_findings), summary.unresolved_findings > 0 ? NOC_COLORS.crit : NOC_COLORS.ok)}
+        {summaryStat(`Resolved (${windowDays}d)`, String(summary.resolved_window.total), NOC_COLORS.purple)}
       </div>
-      <div style={{ marginBottom: "0.75rem", fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)" }}>
+      <div style={{ marginBottom: "0.75rem", fontSize: "0.75rem", color: NOC_SURFACES.textMuted }}>
         Channels: {viaChips(summary.resolved_window)}
       </div>
 
@@ -170,9 +171,11 @@ export function ScorecardDigest({ digest }: { digest: OwnerDigest | null }): Rea
           <GroupCard key={group.work_session_id ?? `ungrouped-${idx}`} group={group} windowDays={windowDays} />
         ))}
         {groups.length === 0 && (
-          <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>
-            Nothing awaiting your review — no pending decisions, findings, or recent resolutions.
-          </div>
+          <EmptyStateChip
+            title="Nothing awaiting your review"
+            detail="No pending decisions, findings, or recent resolutions."
+            tone="ok"
+          />
         )}
       </div>
     </div>

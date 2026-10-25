@@ -101,4 +101,23 @@ describe("DashboardPanel roster enroll (U22 / #225)", () => {
     expect(await screen.findByText(/Could not remove claude: HubStore failure/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Unenroll" })).toBeTruthy();
   });
+
+  it("switches to the Orion Visual Topology subtab and renders topology components", async () => {
+    render(
+      <DashboardPanel
+        agents={agents}
+        teamMemberIds={["claude"]}
+        onAddAgent={vi.fn()}
+        onRemoveAgent={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Kimi")).toBeTruthy());
+
+    const topologyTab = screen.getByRole("button", { name: "Orion Visual Topology" });
+    fireEvent.click(topologyTab);
+
+    expect(screen.getByTestId("dashboard-orion-topology")).toBeTruthy();
+    expect(screen.getByText("Orion Telemetry Topology & Multi-Agent Matrix")).toBeTruthy();
+    expect(screen.getByTestId("orion-constellation-graph")).toBeTruthy();
+  });
 });

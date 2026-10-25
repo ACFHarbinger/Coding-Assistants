@@ -1,6 +1,10 @@
 use super::*;
 
+mod branch;
 mod runtime;
+mod wake_correlation;
+pub use branch::{BranchTarget, StepBranch};
+
 impl HubStore {
     pub fn workflow_stages(steps: &[WorkflowStep]) -> Vec<Vec<usize>> {
         let mut stages: Vec<Vec<usize>> = Vec::new();
@@ -51,6 +55,7 @@ impl HubStore {
             created_at: r.get(6)?,
             updated_at: r.get(7)?,
             last_message_id: r.get(8)?,
+            output_watermark_id: r.get(14).unwrap_or(None),
             attempts: serde_json::from_str(&attempts_json).unwrap_or_default(),
             open_agents: serde_json::from_str(&open_json).unwrap_or_default(),
             pending_agents: serde_json::from_str(&pending_json).unwrap_or_default(),
@@ -95,6 +100,7 @@ impl HubStore {
             }
             self.upsert_agent(&s.agent, &s.agent)?;
         }
+        Self::validate_branches(steps, workspace_path)?;
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let steps_json = serde_json::to_string(steps)
@@ -103,10 +109,10 @@ impl HubStore {
             r#"
             INSERT INTO tasks(
                 id, title, workspace_path, status, step_index, steps_json,
-                created_at, updated_at, last_message_id,
+                created_at, updated_at, last_message_id, output_watermark_id,
                 attempts_json, open_agents_json, pending_agents_json, max_parallel,
                 require_human_approval
-            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, '{}', '[]', '[]', ?8, ?9)
+            ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, NULL, NULL, '{}', '[]', '[]', ?8, ?9)
             "#,
             params![
                 id,
@@ -129,7 +135,7 @@ impl HubStore {
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
                    attempts_json, open_agents_json, pending_agents_json, max_parallel,
-                   require_human_approval
+                   require_human_approval, output_watermark_id
             FROM tasks WHERE id = ?1
             "#,
         )?;
@@ -143,7 +149,7 @@ impl HubStore {
             SELECT id, title, workspace_path, status, step_index, steps_json,
                    created_at, updated_at, last_message_id,
                    attempts_json, open_agents_json, pending_agents_json, max_parallel,
-                   require_human_approval
+                   require_human_approval, output_watermark_id
             FROM tasks WHERE 1=1
             "#,
         );
@@ -169,6 +175,16 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
+        let body = Self::step_dispatch_body(step, note);
+        // P16 (#360): input guardrails run before anything is sent — a
+        // tripwire leaves no message, no wake, and no stage activation.
+        self.enforce_guardrails(
+            crate::guardrails::GuardrailStage::Input,
+            task.workspace_path.as_deref(),
+            "task",
+            task_id,
+            &body,
+        )?;
         if let Some(peer) = step
             .peer
             .as_deref()
@@ -181,15 +197,10 @@ impl HubStore {
                 step,
                 peer,
                 from_agent,
-                note,
+                &body,
                 stage_label,
             );
         }
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
-        } else {
-            step.instruction.clone()
-        };
         let subject = Some(format!("[{}] {}", stage_label, task.title));
         let msg = self.send_message(
             from_agent,
@@ -200,13 +211,21 @@ impl HubStore {
             task.workspace_path.as_deref(),
             Some(task_id),
         )?;
-        let _wake = self.request_wake(
+        self.request_wake(
             &step.agent,
             Some(&format!("task {task_id} {stage_label}")),
             Some(&msg.id),
             task.require_human_approval,
         )?;
         Ok(msg.id)
+    }
+
+    pub(super) fn step_dispatch_body(step: &WorkflowStep, note: Option<&str>) -> String {
+        if let Some(n) = note {
+            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
+        } else {
+            step.instruction.clone()
+        }
     }
 
     /// Remote variant of [`Self::dispatch_step`] (P11a / #334): the step runs
@@ -222,7 +241,7 @@ impl HubStore {
         step: &WorkflowStep,
         peer: &str,
         from_agent: &str,
-        note: Option<&str>,
+        body: &str,
         stage_label: &str,
     ) -> Result<String, HubError> {
         let token = crate::secret::resolve(crate::peer::PEER_AUTH_KEY)
@@ -233,13 +252,17 @@ impl HubStore {
                 "remote delegation needs a pairing token (CA_TCP_AUTH_TOKEN)".into(),
             ));
         };
-        let body = if let Some(n) = note {
-            format!("{}\n\n---\nPrior note: {}", step.instruction, n)
-        } else {
-            step.instruction.clone()
-        };
-        let result = crate::peer::delegate_remote_step(peer, &step.agent, &body, &token)
+        let result = crate::peer::delegate_remote_step(peer, &step.agent, body, &token)
             .map_err(HubError::Invalid)?;
+        // P16 (#360): the remote result is embedded in this handoff, not a
+        // later agent reply — screen it before accepting it into messages.
+        self.enforce_guardrails(
+            crate::guardrails::GuardrailStage::Output,
+            task.workspace_path.as_deref(),
+            "task",
+            task_id,
+            &result,
+        )?;
         let subject = Some(format!("[{}] {}", stage_label, task.title));
         let transcript = format!(
             "{body}\n\n---\nRemote result ({}@{peer}):\n{result}",
@@ -264,6 +287,7 @@ impl HubStore {
         status: &str,
         stage_index: i64,
         last_message_id: Option<&str>,
+        output_watermark_id: Option<&str>,
         attempts: &std::collections::HashMap<String, u32>,
         open_agents: &[String],
         pending_agents: &[String],
@@ -276,14 +300,16 @@ impl HubStore {
             r#"
             UPDATE tasks
             SET status = ?1, step_index = ?2, updated_at = ?3, last_message_id = ?4,
-                attempts_json = ?5, open_agents_json = ?6, pending_agents_json = ?7
-            WHERE id = ?8
+                output_watermark_id = ?5, attempts_json = ?6, open_agents_json = ?7,
+                pending_agents_json = ?8
+            WHERE id = ?9
             "#,
             params![
                 status,
                 stage_index,
                 now,
                 last_message_id,
+                output_watermark_id,
                 attempts_json,
                 open_json,
                 pending_json,
@@ -311,6 +337,11 @@ impl HubStore {
                 task.status
             )));
         }
+        if matches!(status, TaskStatus::InputRequired | TaskStatus::AuthRequired) {
+            return Err(HubError::Invalid(
+                "approval gates are still unresolved".into(),
+            ));
+        }
         if !task.open_agents.is_empty() {
             return Err(HubError::Invalid(format!(
                 "parallel stage still open for agents: {}",
@@ -328,29 +359,53 @@ impl HubStore {
         if stages.is_empty() {
             return Err(HubError::Invalid("task has no steps".into()));
         }
+        if status != TaskStatus::Pending {
+            // P16 (#360): output guardrails screen the stage's replies and
+            // the hand-back note before the workflow acts on them.
+            let agents: Vec<String> = stages
+                .get(task.step_index.max(0) as usize)
+                .map(|stage| stage.iter().map(|i| task.steps[*i].agent.clone()).collect())
+                .unwrap_or_default();
+            self.enforce_stage_output_guardrails(&task, &agents, note)?;
+        }
 
         let next_stage = if status == TaskStatus::Pending {
             0i64
         } else {
-            let ni = task.step_index + 1;
-            if ni >= stages.len() as i64 {
-                self.persist_task_runtime(
-                    id,
-                    TaskStatus::Done.as_str(),
-                    task.step_index,
-                    task.last_message_id.as_deref(),
-                    &task.attempts,
-                    &[],
-                    &[],
-                )?;
-                self.sweep_oversight_exceptions()?;
-                return self
-                    .get_task(id)?
-                    .ok_or_else(|| HubError::NotFound(id.into()));
+            // P20 (#367): a stage with a branch picks its successor by
+            // Schedule's gate evaluator; otherwise linear advance.
+            match self.decide_next_stage(&task, &stages)? {
+                branch::StageDecision::Activate(index) => index,
+                branch::StageDecision::Complete => {
+                    return self.finish_task(id, &task, TaskStatus::Done);
+                }
+                branch::StageDecision::Fail(_reason) => {
+                    return self.finish_task(id, &task, TaskStatus::Failed);
+                }
             }
-            ni
         };
 
         self.activate_stage(id, &task, next_stage, from_agent.unwrap_or("human"), note)
+    }
+
+    fn finish_task(
+        &self,
+        id: &str,
+        task: &TaskRecord,
+        status: TaskStatus,
+    ) -> Result<TaskRecord, HubError> {
+        self.persist_task_runtime(
+            id,
+            status.as_str(),
+            task.step_index,
+            task.last_message_id.as_deref(),
+            task.output_watermark_id.as_deref(),
+            &task.attempts,
+            &[],
+            &[],
+        )?;
+        self.sweep_oversight_exceptions()?;
+        self.get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))
     }
 }

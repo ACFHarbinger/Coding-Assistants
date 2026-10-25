@@ -277,6 +277,22 @@ describe("layoutTree - pure tree operations", () => {
       expect(deserializeLayout("invalid json {}")).toBeNull();
       expect(deserializeLayout(JSON.stringify({ type: "split", invalid: true }))).toBeNull();
     });
+
+    it("accepts optional per-pane cwd and round-trips it", () => {
+      const withCwd: LayoutNode = {
+        type: "split",
+        id: "s1",
+        direction: "row",
+        ratio: 0.5,
+        first: { type: "leaf", id: "l1", harness: "grok", cwd: "/tmp/project-a" },
+        second: { type: "leaf", id: "l2", harness: "claude" },
+      };
+      expect(isValidLayoutNode(withCwd)).toBe(true);
+      expect(deserializeLayout(serializeLayout(withCwd))).toEqual(withCwd);
+
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: 42 })).toBe(false);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: null })).toBe(false);
+    });
   });
 
   describe("swapLeaves", () => {

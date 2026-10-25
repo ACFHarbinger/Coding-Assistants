@@ -223,4 +223,21 @@ impl HubStore {
             Ok(pending)
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_message_created_at(
+        &self,
+        id: &str,
+        created_at: &str,
+    ) -> Result<(), HubError> {
+        let n = self.conn.execute(
+            "UPDATE messages SET created_at = ?1 WHERE id = ?2",
+            params![created_at, id],
+        )?;
+        if n == 0 {
+            Err(HubError::NotFound(id.into()))
+        } else {
+            Ok(())
+        }
+    }
 }

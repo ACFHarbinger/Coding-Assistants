@@ -9,6 +9,7 @@ pub mod a2a;
 mod bridge;
 pub mod bus;
 pub mod github;
+pub mod guardrails;
 mod harness;
 pub mod mcp;
 pub mod net_samples;
@@ -100,6 +101,10 @@ pub use github::{
     parse_agent_issue_branch, set_project_item_status, BoardCard, BoardColumn, BranchList,
     GitBranch, ProjectBoard, DEFAULT_BOARD_COLUMNS,
 };
+pub use guardrails::{
+    Guardrail, GuardrailMode, GuardrailResult, GuardrailRule, GuardrailSpec, GuardrailStage,
+    GuardrailTrip, GuardrailVerdict,
+};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
     cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
@@ -127,20 +132,21 @@ pub use settings::{
 pub use store::{
     parse_memory_references, ActivityCommandRun, ActivityFileTouch, ActivityFilter, ActivityItem,
     AgentCard, AgentMetrics, AgentRecord, AgentScorecardRow, AttachmentRecord, Attribution,
-    AuditEvent, BudgetPauseOutcome, BudgetPolicy, BudgetStatus, BusEntryFilter, BusEntryRecord,
-    ChannelRecord, CompactReport, ConsolidationCluster, ConsolidationReport, CriterionOutcome,
-    DigestDecisionKind, DigestPendingDecision, DigestResolutionCounts, DigestSessionGroup,
-    DigestSummary, EffectiveAgentPermissions, FigureProvenance, GateCheck, GateCheckResult,
-    GateCombinator, GateCriterion, GateVerdict, GitExportOutcome, HarnessCoverage,
-    HarnessScorecardRow, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
-    HubError, HubStore, LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord,
-    MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
-    OversightExceptionRequest, OversightExceptionScope, OwnerDigest, PendingGateApproval,
-    PendingGateEntry, ProbeState, ProviderCallGate, ProviderScorecardRow, ProviderUsage,
-    QuotaSnapshot, ReadMarker, ReviewFinding, ReviewerSignatureRow, Role, RoleProviderDefault,
-    ScheduleStatus, ScheduleTarget, ScheduledTask, ScorecardFigure, ScorecardProbe,
-    ScorecardSecurityEvent, ScorecardView, SendOutcome, ShutdownOutcome, SliceStamp, TaskRecord,
-    TaskStatus, TickOutcome, TickSummary, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord,
-    WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS, DIGEST_WINDOW_DAYS,
-    FINDING_ORIGINS, FINDING_SEVERITIES, UNATTRIBUTED_AUTHOR,
+    AuditEvent, BranchTarget, BudgetPauseOutcome, BudgetPolicy, BudgetStatus, BusEntryFilter,
+    BusEntryRecord, ChannelRecord, CompactReport, ConsolidationCluster, ConsolidationReport,
+    CriterionOutcome, DigestDecisionKind, DigestPendingDecision, DigestResolutionCounts,
+    DigestSessionGroup, DigestSummary, EffectiveAgentPermissions, FigureProvenance, GateCheck,
+    GateCheckResult, GateCombinator, GateCriterion, GateSubject, GateVerdict, GitExportOutcome,
+    HarnessCoverage, HarnessScorecardRow, HarnessSessionMode, HarnessSessionRegistration,
+    HarnessSessionState, HubError, HubStore, LinkSuggestion, LinkedAccountRecord,
+    LinkedAccountStatus, MemoryLinkRecord, MemoryRecord, MemoryScope, MemoryTier, MessageKind,
+    MessageRecord, MessageStatus, OversightExceptionRequest, OversightExceptionScope, OwnerDigest,
+    PendingGateApproval, PendingGateEntry, ProbeState, ProviderCallGate, ProviderScorecardRow,
+    ProviderUsage, QuotaSnapshot, ReadMarker, ReviewFinding, ReviewerSignatureRow, Role,
+    RoleProviderDefault, ScheduleStatus, ScheduleTarget, ScheduledTask, ScorecardFigure,
+    ScorecardProbe, ScorecardSecurityEvent, ScorecardView, SendOutcome, ShutdownOutcome,
+    SliceStamp, StepBranch, TaskRecord, TaskStatus, TickOutcome, TickSummary, WakePolicy,
+    WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord,
+    DEFAULT_PROVIDER_CALL_UNITS, DIGEST_WINDOW_DAYS, FINDING_ORIGINS, FINDING_SEVERITIES,
+    UNATTRIBUTED_AUTHOR,
 };

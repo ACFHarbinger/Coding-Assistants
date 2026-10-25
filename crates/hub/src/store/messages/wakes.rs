@@ -116,8 +116,9 @@ impl HubStore {
     }
 
     /// Resolves a wake and records the channel that carried the human
-    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, and TCP all
-    /// resolve the same wake row — one `human` clock, never double-counted.
+    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, Discord, and
+    /// TCP all resolve the same wake row — one `human` clock, never
+    /// double-counted.
     ///
     /// Idempotent by construction: at most one `wake.resolved` audit row is
     /// ever written per wake, only for a pending → terminal transition of a
@@ -133,7 +134,7 @@ impl HubStore {
         via: &str,
     ) -> Result<(), HubError> {
         let via = via.trim();
-        if !matches!(via, "desktop" | "telegram" | "tcp") {
+        if !matches!(via, "desktop" | "telegram" | "discord" | "tcp") {
             return Err(HubError::Invalid(format!(
                 "unknown wake resolution channel: {via}"
             )));
@@ -141,15 +142,15 @@ impl HubStore {
         // Refuse before any state change while a sync lock is held.
         self.ensure_mutable()?;
 
-        let current: Option<(String, i64)> = self
+        let current: Option<(String, i64, Option<String>)> = self
             .conn
             .query_row(
-                "SELECT status, requires_human_gate FROM wake_requests WHERE id = ?1",
+                "SELECT status, requires_human_gate, message_id FROM wake_requests WHERE id = ?1",
                 params![id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let Some((previous_status, human_gate)) = current else {
+        let Some((previous_status, human_gate, message_id)) = current else {
             return Err(HubError::NotFound(id.into()));
         };
         if previous_status == status.as_str() {
@@ -213,6 +214,9 @@ impl HubStore {
             if status != WakeStatus::Pending {
                 let _ = fs::remove_file(&path);
             }
+        }
+        if is_resolution {
+            self.apply_wake_resolution_to_task(message_id.as_deref(), status)?;
         }
         Ok(())
     }

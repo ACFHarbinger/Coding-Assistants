@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import type { ScheduledTask, ScheduleStatus } from "./types";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 interface ScheduleTaskListProps {
   tasks: ScheduledTask[];
@@ -81,42 +84,40 @@ export function ScheduleTaskList({
 
   if (tasks.length === 0) {
     return (
-      <div
-        style={{
-          padding: "3rem 1.5rem",
-          textAlign: "center",
-          borderRadius: "12px",
-          background: "rgba(255, 255, 255, 0.02)",
-          border: "1px dashed rgba(255, 255, 255, 0.1)",
-          color: "var(--text-muted, #94a3b8)",
-        }}
-      >
-        <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>⏱️</div>
-        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-color, #fff)" }}>
-          No scheduled goals found
-        </div>
-        <p style={{ margin: "0.4rem 0 0 0", fontSize: "0.85rem" }}>
-          Create a scheduled goal above to automate timed or continuous re-prompts across standing agents.
-        </p>
-      </div>
+      <EmptyStateChip
+        title="No scheduled goals found"
+        detail="Create a scheduled goal above to automate timed or continuous re-prompts across standing agents."
+        tone="idle"
+      />
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
       {tasks.map((task) => {
         const isExpanded = expandedId === task.id;
         const terminal = isTerminal(task.status);
         const isCancelling = cancellingId === task.id;
+        const borderAccent =
+          task.status === "active"
+            ? NOC_COLORS.cyan
+            : task.status === "scheduled"
+              ? NOC_COLORS.indigo
+              : task.status === "completed"
+                ? NOC_COLORS.ok
+                : task.status === "paused"
+                  ? NOC_COLORS.warn
+                  : task.status === "failed"
+                    ? NOC_COLORS.crit
+                    : NOC_COLORS.idle;
 
         return (
           <div
             key={task.id}
             style={{
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              borderRadius: "10px",
-              padding: "1rem 1.25rem",
+              ...nocCardDenseStyle,
+              borderLeft: `3px solid ${borderAccent}`,
+              padding: "0.95rem 1.15rem",
               display: "flex",
               flexDirection: "column",
               gap: "0.75rem",
@@ -189,34 +190,35 @@ export function ScheduleTaskList({
                 gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                 gap: "0.75rem",
                 padding: "0.6rem 0.8rem",
-                borderRadius: "6px",
-                background: "rgba(0, 0, 0, 0.2)",
+                borderRadius: "8px",
+                background: "rgba(2, 6, 23, 0.55)",
+                border: "1px solid rgba(148, 163, 184, 0.12)",
                 fontSize: "0.8rem",
               }}
             >
               <div>
-                <span style={{ color: "var(--text-muted, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Next Fire</span>
-                <span style={{ fontWeight: 500, color: "#fff" }}>{formatDateTime(task.next_fire_at)}</span>
+                <span style={{ color: NOC_SURFACES.textMuted, display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Next Fire</span>
+                <span className="tabular-nums" style={{ fontWeight: 600, color: NOC_SURFACES.textPrimary }}>{formatDateTime(task.next_fire_at)}</span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Last Fired</span>
-                <span style={{ color: "var(--text-muted, #94a3b8)" }}>{formatDateTime(task.last_fired_at)}</span>
+                <span style={{ color: NOC_SURFACES.textMuted, display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Last Fired</span>
+                <span className="tabular-nums" style={{ color: NOC_SURFACES.textSecondary }}>{formatDateTime(task.last_fired_at)}</span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Attempts</span>
-                <span style={{ fontWeight: 500, color: task.attempts >= task.max_attempts ? "#ef4444" : "#fff" }}>
+                <span style={{ color: NOC_SURFACES.textMuted, display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Attempts</span>
+                <span className="tabular-nums" style={{ fontWeight: 600, color: task.attempts >= task.max_attempts ? NOC_COLORS.crit : NOC_SURFACES.textPrimary }}>
                   {task.attempts} / {task.max_attempts}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Cadence</span>
-                <span style={{ color: "#fff" }}>
+                <span style={{ color: NOC_SURFACES.textMuted, display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Cadence</span>
+                <span className="tabular-nums" style={{ color: NOC_SURFACES.textPrimary }}>
                   {task.repeat_interval_secs ? `Every ${Math.round(task.repeat_interval_secs / 60)}m` : "One-shot"}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Gate Criteria</span>
-                <span style={{ color: "#fff" }}>
+                <span style={{ color: NOC_SURFACES.textMuted, display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Gate Criteria</span>
+                <span className="tabular-nums" style={{ color: NOC_SURFACES.textPrimary }}>
                   {task.gate_criteria.length} criteria ({task.gate_combinator.toUpperCase()})
                 </span>
               </div>

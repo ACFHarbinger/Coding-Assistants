@@ -193,9 +193,13 @@
 - **Issue to Close:** [#321](https://github.com/ACFHarbinger/Coding-Assistants/issues/321)
 - **Prerequisites:** Python 3. Optional: Ableton Live 11/12 installed.
 - **Verification Steps:**
-  1. Run the offline dummy-LOM smoke test:
+  1. Run the offline smoke test (drives every op against stand-in objects that
+     expose **only** documented Live Object Model attributes; this is what
+     caught the `Song.name` bug — Live's `Song` has no `name`, so the first
+     port's `get_song_summary` would have failed on every real set):
      ```bash
      python3 plugins/ableton/smoke.py
+     cargo test -p mcp-ableton   # tool list == Remote Script _OPS table
      ```
   2. Start the MCP server in standalone mode:
      ```bash
@@ -206,7 +210,12 @@
      `~/Music/Ableton/User Library/Remote Scripts/CodingAssistants/`
      Select **CodingAssistants** under Preferences -> Link/Tempo/MIDI -> Control Surface.
 - **Expected Result:**
-  - `smoke.py` prints `SMOKE OK` verifying line-JSON protocol over TCP.
+  - `smoke.py` prints `SMOKE OK` (ops against the LOM-shaped stand-ins, and the
+    `song` accessor works on both `_Framework` and `ableton.v2` bases).
+  - In Live: `printf '{"op":"get_song_summary","args":{}}\n' | nc 127.0.0.1 9770`
+    returns `{"ok": true, "result": {"name": "<set file stem>", ...}}`. **This
+    step is the one nothing offline can replace** — the bridge has still never
+    been run against a real Live instance (2026-10-20 audit, Claude).
   - `coding-assistants-mcp ableton` starts cleanly and speaks standard stdio MCP.
   - When `--allow-run-lom` is omitted, arbitrary code execution tool `run_lom` is disabled.
 
@@ -379,6 +388,51 @@
   - Non-paired senders are ignored silently.
   - `/approve` and `/reject` resolve wake gates in `HubStore` as `human`.
   - Pushed notifications deliver pending wake requests to paired chats.
+
+---
+
+### 4.4a Discord Remote-Control Bot Client (U25 / #319)
+- **Issue to Close:** [#319](https://github.com/ACFHarbinger/Coding-Assistants/issues/319)
+- **Prerequisites:** Discord bot created in the Developer Portal with the
+  **Message Content** intent enabled, invited to the guild with `View
+  Channel` + `Send Messages` + `Read Message History` on the chosen channel;
+  token set in `DISCORD_BOT_TOKEN` or vault (`tool.discord.bot_token`).
+- **Verification Steps:**
+  1. Verify bot token status:
+     ```bash
+     ca discord status
+     ```
+  2. Generate a pairing code bound to the channel snowflake:
+     ```bash
+     ca discord pair --channel <channel-id>
+     ```
+  3. In that Discord channel, post (plain message, not a slash command):
+     `/start <pairing-code>`
+  4. Run the polling daemon:
+     ```bash
+     ca discord run
+     ```
+  5. From Discord, post:
+     `/wakes`
+     `/send Hello team from Discord`
+  6. Trigger a wake gate request in desktop app: observe notification pushed
+     to the bound Discord channel.
+  7. Reply in Discord with `/approve <gate-id>` or `/reject <gate-id>`.
+  8. Check status and unbind:
+     ```bash
+     ca discord status
+     ca discord unbind --user-id <user-id>
+     ```
+- **Expected Result:**
+  - Pairing succeeds only with a valid, unexpired code within 10 minutes.
+  - Outbound REST polling (`GET /channels/{id}/messages?after=...`) receives
+    commands with no gateway connection and no open inbound ports.
+  - Bot authors (including the bot's own replies) are skipped; non-paired
+    senders are ignored silently.
+  - `/approve` and `/reject` resolve wake gates in `HubStore` as `human`
+    with `via = "discord"`; the runner survives restarts without replaying
+    handled commands (per-channel snowflake cursors in
+    `discord_binding.json`).
 
 ---
 

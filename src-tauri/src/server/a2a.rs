@@ -150,6 +150,10 @@ pub fn handle_rpc(store: &HubStore, method: &str, params: &Value, id: &Value) ->
                 max_retries: 0,
                 parallel_group: None,
                 peer: None,
+                branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }];
             let task = match store
                 .create_task(&title, None, &steps)

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { GateCriteriaSection } from "./GateCriteriaSection";
+import { nocPanelStyle } from "../../common/telemetry/panel";
 import type {
   GateCombinator,
   GateCriterion,
@@ -144,13 +145,11 @@ export function ScheduleTaskBuilder({
     <form
       onSubmit={handleSubmit}
       style={{
-        background: "rgba(255, 255, 255, 0.04)",
-        border: "1px solid rgba(255, 255, 255, 0.12)",
-        borderRadius: "12px",
-        padding: "1.5rem",
+        ...nocPanelStyle,
+        padding: "1.35rem",
         display: "flex",
         flexDirection: "column",
-        gap: "1.25rem",
+        gap: "1.15rem",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

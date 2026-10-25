@@ -9,10 +9,10 @@ use std::sync::Mutex;
 use tempfile::tempdir;
 
 /// Serializes the `CA_TCP_AUTH_TOKEN` override below; the key is process
-/// global and this is its only test user.
-static PEER_TOKEN_LOCK: Mutex<()> = Mutex::new(());
+/// global and shared with the parallel-retry tests in the sibling module.
+pub(super) static PEER_TOKEN_LOCK: Mutex<()> = Mutex::new(());
 
-fn stub_peer_once(expected_token: &str, result: &str) -> String {
+pub(super) fn stub_peer_once(expected_token: &str, result: &str) -> String {
     let expected = expected_token.to_string();
     let result = result.to_string();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -47,7 +47,7 @@ fn stub_peer_once(expected_token: &str, result: &str) -> String {
 
 #[test]
 fn remote_step_records_result_as_handoff_without_local_wake() {
-    let _lock = PEER_TOKEN_LOCK.lock().unwrap();
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
     let peer = stub_peer_once("test-pairing-token", "peer-done");
     let dir = tempdir().unwrap();
@@ -63,10 +63,15 @@ fn remote_step_records_result_as_handoff_without_local_wake() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some(peer.clone()),
+                branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
     let advanced = store.advance_task(&task.id, Some("lead"), None).unwrap();
+    assert_eq!(advanced.status, "running");
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
 
     let message_id = advanced
@@ -90,7 +95,7 @@ fn remote_step_records_result_as_handoff_without_local_wake() {
 
 #[test]
 fn remote_step_without_pairing_token_fails_closed() {
-    let _lock = PEER_TOKEN_LOCK.lock().unwrap();
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::remove_var("CA_TCP_AUTH_TOKEN");
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
@@ -105,6 +110,10 @@ fn remote_step_without_pairing_token_fails_closed() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: Some("127.0.0.1:1".into()),
+                branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
@@ -115,4 +124,55 @@ fn remote_step_without_pairing_token_fails_closed() {
         error.to_string().contains("pairing token"),
         "unexpected: {error}"
     );
+}
+
+#[test]
+fn remote_result_is_screened_as_output_before_the_handoff_is_stored() {
+    let _lock = PEER_TOKEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("CA_TCP_AUTH_TOKEN", "test-pairing-token");
+    let peer = stub_peer_once("test-pairing-token", "peer-done with a secret");
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store
+        .add_guardrail(
+            "no-secret",
+            None,
+            crate::guardrails::GuardrailStage::Output,
+            crate::guardrails::GuardrailMode::Blocking,
+            crate::guardrails::GuardrailSpec::DenyPhrases {
+                phrases: vec!["secret".into()],
+                case_insensitive: true,
+            },
+        )
+        .unwrap();
+    let task = store
+        .create_task(
+            "remote delegation",
+            None,
+            &[WorkflowStep {
+                agent: "dev".into(),
+                role: None,
+                instruction: "do it remotely".into(),
+                max_retries: 0,
+                parallel_group: None,
+                peer: Some(peer),
+                branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
+            }],
+        )
+        .unwrap();
+    let error = store
+        .advance_task(&task.id, Some("lead"), None)
+        .expect_err("output trip must reject the remote result");
+    std::env::remove_var("CA_TCP_AUTH_TOKEN");
+    assert!(
+        error.to_string().contains("no-secret"),
+        "unexpected: {error}"
+    );
+    let after = store.get_task(&task.id).unwrap().unwrap();
+    assert_eq!(after.status, "pending");
+    assert!(after.last_message_id.is_none());
+    assert!(store.poll_messages("dev", false).unwrap().is_empty());
 }

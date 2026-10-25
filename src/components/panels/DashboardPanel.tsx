@@ -3,7 +3,13 @@ import { invoke } from "../../lib/tauri";
 import { AgentAvatar } from "./messager/AgentAvatar";
 import { rosterAgentToTeamMember } from "../../app/team";
 import ActivityView from "./dashboard/ActivityView";
+import { DashboardOrionTopology } from "./dashboard/DashboardOrionTopology";
 import type { TeamMember } from "./config/types";
+import { nocPanelStyle, nocCardDenseStyle } from "../common/telemetry/panel";
+import { KpiCardGrid, type KpiCardItem, EmptyStateChip } from "../common/telemetry/status";
+import { Meter } from "../common/telemetry/gauges";
+import { NOC_COLORS, NOC_SURFACES } from "../common/telemetry/tokens";
+import { SubtabBar } from "../common/telemetry/SubtabBar";
 
 interface AgentRecord {
   id: string;
@@ -47,12 +53,12 @@ interface WakeRecord {
   created_at: string;
 }
 
-const cardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-color)",
-  borderRadius: "12px",
-  padding: "1.25rem",
-  background: "rgba(0,0,0,0.3)",
-};
+const DASHBOARD_SUBTABS = [
+  { id: "overview", label: "Telemetry & Overview" },
+  { id: "topology", label: "Orion Visual Topology" },
+  { id: "activity", label: "Tool & Workspace Activity" },
+];
+
 const number = (value: number) => new Intl.NumberFormat().format(value);
 
 export default function DashboardPanel({
@@ -66,7 +72,7 @@ export default function DashboardPanel({
   onAddAgent: (agent: TeamMember) => Promise<void> | void;
   onRemoveAgent: (agent: TeamMember) => Promise<void> | void;
 }) {
-  const [subTab, setSubTab] = useState<"overview" | "activity">("overview");
+  const [subTab, setSubTab] = useState<"overview" | "topology" | "activity">("overview");
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -110,12 +116,43 @@ export default function DashboardPanel({
   const total = (field: keyof AgentMetrics) =>
     metrics.reduce((sum, metric) => sum + Number(metric[field] || 0), 0);
 
+  const kpiItems: KpiCardItem[] = [
+    {
+      title: "Provider Calls",
+      subtitle: "Lifetime completions",
+      value: number(total("provider_calls")),
+      footer: "Model inference calls",
+      provenance: "measured",
+    },
+    {
+      title: "Lines Written",
+      subtitle: "Code lines delivered",
+      value: number(total("lines_written")),
+      footer: "Cumulative source lines",
+      provenance: "measured",
+    },
+    {
+      title: "Tokens Used",
+      subtitle: "Whitespace estimates",
+      value: number(total("tokens_used")),
+      footer: "Turn token estimates",
+      provenance: "estimated",
+    },
+    {
+      title: "Cached Tokens",
+      subtitle: "Reported cached reuse",
+      value: number(total("tokens_cached")),
+      footer: "Provider cached prompt tokens",
+      provenance: "measured",
+    },
+  ];
+
   return (
-    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Navigation Subtabs & Refresh Bar */}
       <div
         style={{
-          ...cardStyle,
+          ...nocPanelStyle,
           display: "flex",
           justifyContent: "space-between",
           gap: "1rem",
@@ -123,162 +160,102 @@ export default function DashboardPanel({
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
           <div>
-            <h3 style={{ margin: 0, color: "var(--text-main)" }}>Dashboard</h3>
-            <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Dashboard</h3>
+            <p style={{ margin: "0.2rem 0 0", color: NOC_SURFACES.textMuted, fontSize: "0.82rem" }}>
               {subTab === "overview"
                 ? "Local cumulative usage from the Shared Hub. Token counts are whitespace estimates."
-                : "Activity traceability across tasks, commands, files, and agents (Roadmap D4)."}
+                : subTab === "topology"
+                  ? "Interactive constellation network, radar capability profile, and honeycomb situational matrix."
+                  : "Activity traceability across tasks, commands, files, and agents."}
             </p>
           </div>
-
-          <div
-            style={{
-              display: "inline-flex",
-              background: "rgba(0, 0, 0, 0.4)",
-              borderRadius: "8px",
-              padding: "0.2rem",
-              border: "1px solid var(--border-color)",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setSubTab("overview")}
-              style={{
-                background: subTab === "overview" ? "var(--primary)" : "transparent",
-                color: subTab === "overview" ? "#000" : "var(--text-muted)",
-                border: "none",
-                borderRadius: "6px",
-                padding: "0.3rem 0.75rem",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              Telemetry & Overview
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubTab("activity")}
-              style={{
-                background: subTab === "activity" ? "var(--primary)" : "transparent",
-                color: subTab === "activity" ? "#000" : "var(--text-muted)",
-                border: "none",
-                borderRadius: "6px",
-                padding: "0.3rem 0.75rem",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              Tool & Workspace Activity
-            </button>
-          </div>
+          <SubtabBar
+            ariaLabel="Dashboard view modes"
+            tabs={DASHBOARD_SUBTABS}
+            activeId={subTab}
+            onSelect={(id: string) => setSubTab(id as "overview" | "topology" | "activity")}
+          />
         </div>
 
         {subTab === "overview" && (
-          <button className="btn-secondary" onClick={() => void refresh()}>
+          <button className="btn-secondary noc-focusable" onClick={() => void refresh()}>
             Refresh{updated ? ` · ${updated}` : ""}
           </button>
         )}
       </div>
 
-      {error && <div style={{ ...cardStyle, color: "#ef4444" }}>{error}</div>}
+      {error && (
+        <div style={{ ...nocPanelStyle, color: NOC_COLORS.crit, background: "rgba(239, 68, 68, 0.1)" }}>
+          {error}
+        </div>
+      )}
 
-      {subTab === "activity" ? (
+      {subTab === "topology" ? (
+        <DashboardOrionTopology
+          agents={agents}
+          metrics={metrics}
+          budgets={budgets}
+          tasks={tasks}
+          messages={messages}
+          wakes={wakes}
+        />
+      ) : subTab === "activity" ? (
         <ActivityView agents={agents} />
       ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "1rem",
-            }}
-          >
-            {["provider_calls", "lines_written", "tokens_used", "tokens_cached"].map((field) => (
-              <div key={field} style={cardStyle}>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "0.78rem",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {field.replace(/_/g, " ")}
-                </div>
-                <strong
-                  style={{
-                    display: "block",
-                    color: "var(--primary)",
-                    fontSize: "1.7rem",
-                    marginTop: "0.4rem",
-                  }}
-                >
-                  {number(total(field as keyof AgentMetrics))}
-                </strong>
-              </div>
-            ))}
-          </div>
+          {/* NOC KPI Summary Grid */}
+          <KpiCardGrid cards={kpiItems} />
 
-          <div style={{ ...cardStyle }}>
-            <h3 style={{ margin: "0 0 1rem", color: "var(--text-main)" }}>
+          {/* Collaboration Overview */}
+          <div style={nocPanelStyle}>
+            <h3 style={{ margin: "0 0 0.85rem", fontSize: "0.95rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>
               Collaboration Overview
             </h3>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                 gap: "0.75rem",
-                marginBottom: "1rem",
+                marginBottom: tasks.length > 0 ? "1rem" : 0,
               }}
             >
-              <span style={{ color: "var(--text-muted)" }}>
-                Tasks<br />
-                <b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>
-                  {number(tasks.length)}
-                </b>
-              </span>
-              <span style={{ color: "var(--text-muted)" }}>
-                Messages<br />
-                <b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>
-                  {number(messages.length)}
-                </b>
-              </span>
-              <span style={{ color: "var(--text-muted)" }}>
-                Wakes<br />
-                <b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>
-                  {number(wakes.length)}
-                </b>
-              </span>
-              <span style={{ color: "var(--text-muted)" }}>
-                Pending wakes<br />
-                <b style={{ color: "var(--text-main)", fontSize: "1.25rem" }}>
-                  {number(wakes.filter((wake) => wake.status === "pending").length)}
-                </b>
-              </span>
+              {[
+                { label: "Tasks", count: tasks.length, color: NOC_COLORS.cyan },
+                { label: "Messages", count: messages.length, color: NOC_COLORS.indigo },
+                { label: "Wakes", count: wakes.length, color: NOC_COLORS.purple },
+                { label: "Pending Wakes", count: wakes.filter((w) => w.status === "pending").length, color: NOC_COLORS.warn },
+              ].map((c) => (
+                <div key={c.label} style={{ ...nocCardDenseStyle, padding: "0.6rem 0.85rem" }}>
+                  <div style={{ fontSize: "0.74rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase" }}>{c.label}</div>
+                  <div className="tabular-nums" style={{ fontSize: "1.35rem", fontWeight: 800, color: c.color, marginTop: "0.2rem" }}>
+                    {number(c.count)}
+                  </div>
+                </div>
+              ))}
             </div>
+
             {tasks.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", borderTop: "1px solid rgba(148, 163, 184, 0.14)", paddingTop: "0.75rem" }}>
                 {tasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
+                      alignItems: "center",
                       gap: "1rem",
-                      borderTop: "1px solid var(--border-color)",
-                      paddingTop: "0.55rem",
                       fontSize: "0.85rem",
+                      padding: "0.25rem 0",
                     }}
                   >
-                    <span style={{ color: "var(--text-main)" }}>{task.title}</span>
+                    <span style={{ color: NOC_SURFACES.textPrimary, fontWeight: 500 }}>{task.title}</span>
                     <span
                       style={{
-                        color: task.status === "failed" ? "#ef4444" : "var(--text-muted)",
+                        fontSize: "0.74rem",
+                        fontWeight: 600,
+                        color: task.status === "failed" ? NOC_COLORS.crit : task.status === "completed" ? NOC_COLORS.ok : NOC_COLORS.cyan,
                       }}
                     >
                       {task.status}
@@ -287,14 +264,10 @@ export default function DashboardPanel({
                 ))}
               </div>
             )}
-            {tasks.length === 0 && (
-              <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                No workflow tasks recorded.
-              </span>
-            )}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Per-Agent Roster Telemetry Cards */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
             {agents.map((agent) => {
               const metric = metricFor(agent.id);
               const budget = budgetFor(agent.id);
@@ -304,7 +277,7 @@ export default function DashboardPanel({
               const enrolled = teamMemberIds.includes(agent.id);
               const member = rosterAgentToTeamMember(agent);
               return (
-                <div key={agent.id} style={cardStyle}>
+                <div key={agent.id} style={nocPanelStyle}>
                   <div
                     style={{
                       display: "flex",
@@ -312,118 +285,100 @@ export default function DashboardPanel({
                       gap: "1rem",
                       flexWrap: "wrap",
                       alignItems: "center",
+                      marginBottom: "0.6rem",
                     }}
                   >
-                    <strong
-                      style={{
-                        color: "var(--primary)",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
-                    >
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "0.6rem" }}>
                       <AgentAvatar
                         agentId={agent.id}
                         displayName={agent.display_name}
                         avatarAttachmentId={agent.avatar_attachment_id}
-                        size={24}
+                        size={28}
                       />
-                      {agent.display_name}
-                    </strong>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.75rem" }}>
-                      <span
-                        style={{
-                          color: budget?.paused ? "#ef4444" : "var(--text-muted)",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {budget
-                          ? `${budget.spent_units} / ${budget.limit_units} budget units${
-                              budget.paused ? " · paused" : ""
-                            }`
-                          : "No budget configured"}
-                      </span>
-                      <button
-                        type="button"
-                        className={enrolled ? "btn-secondary" : "btn-primary"}
-                        style={{ marginTop: 0, padding: "0.3rem 0.7rem", fontSize: "0.75rem" }}
-                        onClick={async () => {
-                          setError("");
-                          try {
-                            if (enrolled) {
-                              await onRemoveAgent(member);
-                            } else {
-                              await onAddAgent(member);
-                            }
-                          } catch (e) {
-                            setError(String(e));
+                      <div>
+                        <strong style={{ color: NOC_COLORS.cyan, fontSize: "1rem" }}>
+                          {agent.display_name}
+                        </strong>
+                        <span
+                          style={{
+                            marginLeft: "0.5rem",
+                            fontSize: "0.72rem",
+                            padding: "0.1rem 0.45rem",
+                            borderRadius: "4px",
+                            background: enrolled ? "rgba(16, 185, 129, 0.15)" : "rgba(148, 163, 184, 0.15)",
+                            color: enrolled ? NOC_COLORS.ok : NOC_COLORS.idle,
+                            border: `1px solid ${enrolled ? "rgba(16, 185, 129, 0.3)" : "rgba(148, 163, 184, 0.3)"}`,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {enrolled ? "Enrolled" : "Roster Only"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`${enrolled ? "btn-secondary" : "btn-primary"} noc-focusable`}
+                      style={{ marginTop: 0, padding: "0.3rem 0.75rem", fontSize: "0.78rem" }}
+                      onClick={async () => {
+                        setError("");
+                        try {
+                          if (enrolled) {
+                            await onRemoveAgent(member);
+                          } else {
+                            await onAddAgent(member);
                           }
-                        }}
-                      >
-                        {enrolled ? "Unenroll" : "Enroll"}
-                      </button>
-                    </span>
-                  </div>
-                  {budget && (
-                    <div
-                      style={{
-                        height: 7,
-                        background: "rgba(255,255,255,0.1)",
-                        borderRadius: 4,
-                        margin: "0.8rem 0",
+                        } catch (e) {
+                          setError(String(e));
+                        }
                       }}
                     >
-                      <div
-                        style={{
-                          width: `${percent}%`,
-                          height: "100%",
-                          borderRadius: 4,
-                          background: budget.paused ? "#ef4444" : "var(--primary)",
-                        }}
+                      {enrolled ? "Unenroll" : "Enroll"}
+                    </button>
+                  </div>
+
+                  {budget && (
+                    <div style={{ margin: "0.75rem 0" }}>
+                      <Meter
+                        label="Budget Utilization"
+                        percent={percent}
+                        detail={`${budget.spent_units} / ${budget.limit_units} units${budget.paused ? " · paused" : ""}`}
+                        tone={budget.paused ? "crit" : "cyan"}
+                        provenance="measured"
                       />
                     </div>
                   )}
+
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                      gap: "0.75rem",
-                      color: "var(--text-muted)",
-                      fontSize: "0.85rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                      gap: "0.6rem",
+                      marginTop: "0.6rem",
                     }}
                   >
-                    <span>
-                      Lines written<br />
-                      <b style={{ color: "var(--text-main)" }}>
-                        {number(metric?.lines_written || 0)}
-                      </b>
-                    </span>
-                    <span>
-                      Tokens used<br />
-                      <b style={{ color: "var(--text-main)" }}>
-                        {number(metric?.tokens_used || 0)} est.
-                      </b>
-                    </span>
-                    <span>
-                      Cached tokens<br />
-                      <b style={{ color: "var(--text-main)" }}>
-                        {number(metric?.tokens_cached || 0)} reported
-                      </b>
-                    </span>
-                    <span>
-                      Provider calls<br />
-                      <b style={{ color: "var(--text-main)" }}>
-                        {number(metric?.provider_calls || 0)}
-                      </b>
-                    </span>
+                    {[
+                      { label: "Lines written", val: number(metric?.lines_written || 0), suffix: "" },
+                      { label: "Tokens used", val: number(metric?.tokens_used || 0), suffix: " est." },
+                      { label: "Cached tokens", val: number(metric?.tokens_cached || 0), suffix: " rep." },
+                      { label: "Provider calls", val: number(metric?.provider_calls || 0), suffix: "" },
+                    ].map((m) => (
+                      <div key={m.label} style={{ ...nocCardDenseStyle, padding: "0.45rem 0.65rem" }}>
+                        <div style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>{m.label}</div>
+                        <div className="tabular-nums" style={{ color: NOC_SURFACES.textPrimary, fontWeight: 700, fontSize: "0.95rem", marginTop: "0.15rem" }}>
+                          {m.val}{m.suffix}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
             })}
             {agents.length === 0 && (
-              <div style={{ ...cardStyle, color: "var(--text-muted)" }}>
-                No agents registered yet.
-              </div>
+              <EmptyStateChip
+                title="No agents registered yet"
+                detail="Agents configured in the workspace will appear in the dashboard roster."
+                tone="idle"
+              />
             )}
           </div>
         </>

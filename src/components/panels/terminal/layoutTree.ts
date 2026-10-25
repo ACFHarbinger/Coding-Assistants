@@ -9,6 +9,12 @@ export interface LeafNode {
   type: "leaf";
   id: string;
   harness: string;
+  /**
+   * Optional per-pane working directory override (e.g. imported from an
+   * Ubuntu-terminal-style alignment file). When absent, the pane launches
+   * in the grid-wide workspace.
+   */
+  cwd?: string;
 }
 
 export interface SplitNode {
@@ -336,7 +342,11 @@ export function isValidLayoutNode(node: unknown): node is LayoutNode {
   const anyNode = node as Record<string, unknown>;
 
   if (anyNode.type === "leaf") {
-    return typeof anyNode.id === "string" && typeof anyNode.harness === "string";
+    return (
+      typeof anyNode.id === "string" &&
+      typeof anyNode.harness === "string" &&
+      (anyNode.cwd === undefined || typeof anyNode.cwd === "string")
+    );
   }
 
   if (anyNode.type === "split") {

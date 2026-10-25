@@ -19,7 +19,8 @@ pub enum Reply {
     Text(String),
 }
 
-const HELP: &str = "\
+/// Command summary sent on `/help` or malformed input (all chat platforms).
+pub const HELP: &str = "\
 /start <code> — pair this chat to the Hub
 /approve <wake-id> — approve a pending wake
 /reject <wake-id> — reject a pending wake
@@ -39,11 +40,20 @@ pub fn handle_inbound(
     match inbound {
         Inbound::Start { code } => redeem(bindings, from, code.as_deref()),
         _ if !bindings.is_bound(from.user_id) => Reply::Silent,
-        Inbound::Approve { wake_id } => resolve_wake(hub, &wake_id, WakeStatus::Delivered),
-        Inbound::Reject { wake_id } => resolve_wake(hub, &wake_id, WakeStatus::Cancelled),
+        inbound => apply_authenticated(hub, "telegram", inbound),
+    }
+}
+
+/// Apply an already-authorized, non-pairing command. Shared by every chat
+/// platform transport (U25); `via` labels the wake-resolution audit row and
+/// must be one of the channels accepted by `HubStore::set_wake_status_via`.
+pub fn apply_authenticated(hub: &HubStore, via: &str, inbound: Inbound) -> Reply {
+    match inbound {
+        Inbound::Approve { wake_id } => resolve_wake(hub, &wake_id, WakeStatus::Delivered, via),
+        Inbound::Reject { wake_id } => resolve_wake(hub, &wake_id, WakeStatus::Cancelled, via),
         Inbound::Send { session_id, body } => send(hub, session_id.as_deref(), &body),
         Inbound::Wakes => list_wakes(hub),
-        Inbound::Help | Inbound::Unknown(_) => Reply::Text(HELP.into()),
+        Inbound::Start { .. } | Inbound::Help | Inbound::Unknown(_) => Reply::Text(HELP.into()),
     }
 }
 
@@ -57,8 +67,8 @@ fn redeem(bindings: &mut BindingStore, from: &ChatUser, code: Option<&str>) -> R
     }
 }
 
-fn resolve_wake(hub: &HubStore, wake_id: &str, status: WakeStatus) -> Reply {
-    match hub.set_wake_status_via(wake_id, status, "telegram") {
+fn resolve_wake(hub: &HubStore, wake_id: &str, status: WakeStatus, via: &str) -> Reply {
+    match hub.set_wake_status_via(wake_id, status, via) {
         Ok(()) => Reply::Text(format!("{wake_id} → {}", status.as_str())),
         Err(error) => Reply::Text(error.to_string()),
     }

@@ -4,6 +4,9 @@
 
 import React from "react";
 import type { ScorecardProbe, ReviewerSignatureRow, ProbeState, FigureProvenance, ScorecardFigure } from "./types";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 const stateChip = (state: ProbeState): React.CSSProperties => ({
   display: "inline-block",
@@ -50,33 +53,34 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
               <div
                 key={`${probe.probe}-${probe.subject}-${idx}`}
                 style={{
+                  ...nocCardDenseStyle,
                   display: "flex",
                   alignItems: "flex-start",
                   gap: "0.75rem",
-                  padding: "0.6rem 0.8rem",
-                  borderRadius: "6px",
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border:
+                  padding: "0.65rem 0.85rem",
+                  borderLeft:
                     probe.state === "disagreement"
-                      ? "1px solid rgba(239, 68, 68, 0.35)"
-                      : "1px solid rgba(255, 255, 255, 0.08)",
+                      ? `3px solid ${NOC_COLORS.crit}`
+                      : probe.state === "ok"
+                        ? `3px solid ${NOC_COLORS.ok}`
+                        : `3px solid ${NOC_COLORS.idle}`,
                   fontSize: "0.82rem",
                 }}
               >
                 <span style={stateChip(probe.state)}>{probe.state}</span>
                 <div style={{ flex: 1 }}>
                   <div>
-                    <code>{probe.probe}</code>
-                    <span style={{ color: "var(--text-muted, #94a3b8)" }}> · {probe.subject}</span>
+                    <code style={{ color: NOC_COLORS.cyan }}>{probe.probe}</code>
+                    <span style={{ color: NOC_SURFACES.textMuted }}> · {probe.subject}</span>
                   </div>
                   {probe.reason && (
-                    <div style={{ color: probe.state === "disagreement" ? "#fca5a5" : "var(--text-muted, #94a3b8)", marginTop: "0.15rem" }}>
+                    <div style={{ color: probe.state === "disagreement" ? "#fca5a5" : NOC_SURFACES.textMuted, marginTop: "0.15rem" }}>
                       {probe.reason}
                     </div>
                   )}
                 </div>
                 {probe.source_event_ids.length > 0 && (
-                  <span style={{ color: "var(--text-muted, #94a3b8)", whiteSpace: "nowrap" }}>
+                  <span className="tabular-nums" style={{ color: NOC_SURFACES.textMuted, whiteSpace: "nowrap" }}>
                     {probe.source_event_ids.length} source row{probe.source_event_ids.length > 1 ? "s" : ""}
                   </span>
                 )}
@@ -84,64 +88,62 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
             ))}
           </div>
         ) : (
-          <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>
-            No probes visible for this caller.
-          </div>
+          <EmptyStateChip title="No probes visible for this caller" detail="Consistency probes compare stamped audit rows across sources." tone="idle" />
         )}
       </div>
 
       {/* Section: Reviewer Signature */}
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.75rem" }}>
-          <h4 style={{ margin: 0, fontSize: "1rem", color: "var(--text-color, #fff)" }}>Reviewer Signature</h4>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted, #94a3b8)" }}>
+          <h4 style={{ margin: 0, fontSize: "1rem", color: NOC_SURFACES.textPrimary }}>Reviewer Signature</h4>
+          <span style={{ fontSize: "0.8rem", color: NOC_SURFACES.textMuted }}>
             Descriptive figures per reviewer — never a single reviewer-quality score
           </span>
         </div>
         {reviewers && reviewers.length > 0 ? (
-          <div style={{ overflowX: "auto", background: "rgba(255, 255, 255, 0.02)", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div style={{ ...nocPanelStyle, padding: 0, overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", textAlign: "left" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(255, 255, 255, 0.02)" }}>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Reviewer</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Findings</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Owner Corrections</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Findings / Documented Task</th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Reversal Rate</th>
+                <tr style={{ borderBottom: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(9, 14, 26, 0.7)" }}>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Reviewer</th>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Findings</th>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Owner Corrections</th>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Findings / Documented Task</th>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Reversal Rate</th>
                   <th
                     title="Always unknown for now: gate decisions record no reviewer identity, and a send is not proof evidence was inspected"
-                    style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}
+                    style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}
                   >
                     Zero-evidence Approvals
                   </th>
-                  <th style={{ padding: "0.6rem 1rem", color: "var(--text-muted, #94a3b8)" }}>Review Dwell</th>
+                  <th style={{ padding: "0.6rem 1rem", color: NOC_SURFACES.textMuted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Review Dwell</th>
                 </tr>
               </thead>
               <tbody>
                 {reviewers.map((reviewer) => (
-                  <tr key={reviewer.reviewer_id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
-                    <td style={{ padding: "0.6rem 1rem", fontWeight: 600 }}>
+                  <tr key={reviewer.reviewer_id} style={{ borderBottom: "1px solid rgba(148, 163, 184, 0.08)" }}>
+                    <td style={{ padding: "0.6rem 1rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>
                       {reviewer.display_name}
-                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted, #94a3b8)" }}>
+                      <div style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>
                         <code>{reviewer.reviewer_id}</code>
                       </div>
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_recorded, 0)} <ProvenanceChip prov={reviewer.findings_recorded.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_corrected_by_owner, 0)} <ProvenanceChip prov={reviewer.findings_corrected_by_owner.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.findings_per_task)} <ProvenanceChip prov={reviewer.findings_per_task.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.owner_override_reversal_rate)} <ProvenanceChip prov={reviewer.owner_override_reversal_rate.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.zero_evidence_approvals, 0)} <ProvenanceChip prov={reviewer.zero_evidence_approvals.provenance} />
                     </td>
-                    <td style={{ padding: "0.6rem 1rem" }}>
+                    <td className="tabular-nums" style={{ padding: "0.6rem 1rem" }}>
                       {figureText(reviewer.review_dwell, 0)} <ProvenanceChip prov={reviewer.review_dwell.provenance} />
                     </td>
                   </tr>
@@ -150,9 +152,11 @@ export function ScorecardOversight({ probes, reviewers }: { probes?: ScorecardPr
             </table>
           </div>
         ) : (
-          <div style={{ color: "var(--text-muted, #94a3b8)", fontSize: "0.85rem" }}>
-            Reviewer signature is private to the owner, or no reviewers are enrolled yet.
-          </div>
+          <EmptyStateChip
+            title="Reviewer signature is private to the owner"
+            detail="Or no reviewers are enrolled yet."
+            tone="idle"
+          />
         )}
       </div>
     </>

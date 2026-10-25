@@ -70,6 +70,8 @@ pub fn a2a_task_state(status: &str) -> &'static str {
         "done" => "completed",
         "cancelled" => "canceled",
         "failed" => "failed",
+        "input_required" | "input-required" => "input-required",
+        "auth_required" | "auth-required" => "auth-required",
         _ => "failed",
     }
 }

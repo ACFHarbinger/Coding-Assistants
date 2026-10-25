@@ -99,49 +99,71 @@ pub(crate) fn compose_mistral_quota(
     }
 }
 
-/// Kimi quota is the free local half only, for now. The CLI writes a
-/// per-turn token record into every session's `wire.jsonl`, so a truthful
-/// local read-out is available on every plan tier for the cost of a few
-/// file reads: no network, no model turn, nothing to gate behind
-/// `allow_metered_quota_probes`. The plan-budget half (`/oauth/usage`
-/// weekly + rolling windows, pay-as-you-go balance) is served through the
-/// Kimi Code local daemon (`kimi web` → `GET /api/v1/oauth/usage`), not a
-/// stable direct endpoint — see the `quota_kimi_usage` module header and
-/// #311 — so there is no admin half to merge yet the way `mistral_quota()`
-/// merges its two halves. Neither direction fails the other by
-/// construction: no sessions yet stays `unavailable` with both reasons
-/// named, exactly like the Mistral neither-half case.
+/// Kimi quota merges two independent halves (`kimi.rs` + `kimi_usage.rs`),
+/// mirroring `mistral_quota()`:
+/// - The managed `/usage` half (`GET {base_url}/usages` using the OAuth
+///   credentials in `~/.kimi-code/credentials/*.json`) fills plan-budget
+///   `windows` (`5h limit`, `Weekly limit`, `Monthly limit` with `kimi · code`
+///   breakdown, `Monthly code`) and optional `boosterWallet` (`balance_info`).
+/// - The CLI's on-disk `wire.jsonl` accounting (`kimi_usage.rs`) fills
+///   `local_usage` (sessions, prompt/completion/cached tokens).
+///
+/// Neither half can fail the other: an unauthenticated machine with local
+/// sessions still reports `local_usage`, and a fresh login with no sessions
+/// yet still charts the `/usage` plan-budget windows.
 pub(crate) fn kimi_quota() -> ProviderQuota {
-    match quota_kimi_usage::local_usage() {
-        Some(local_usage) => ProviderQuota {
+    compose_kimi_quota(
+        super::quota_kimi::kimi_managed_budget(),
+        quota_kimi_usage::local_usage(),
+    )
+}
+
+/// Pure merge of the two Kimi halves so tests can drive a managed `/usage`
+/// response beside local session usage without network or disk.
+pub(crate) fn compose_kimi_quota(
+    managed: Result<super::quota_kimi::KimiManagedBudget, String>,
+    local_usage: Option<ProviderQuotaLocalUsage>,
+) -> ProviderQuota {
+    match managed {
+        Ok(budget) => ProviderQuota {
             agent_id: "kimi".into(),
             provider: "kimi".into(),
             harness_title: "Kimi".into(),
             status: "ok".into(),
-            // The local totals are not a budget, so say what is missing
-            // rather than implying they are one.
-            detail: Some(
-                "Locally recorded Kimi session usage. Plan-budget windows are \
-                 not read here: Moonshot serves account usage through the Kimi \
-                 Code local daemon (`kimi web` → /api/v1/oauth/usage), not a \
-                 stable direct endpoint (see #311)."
-                    .into(),
-            ),
-            windows: Vec::new(),
+            detail: budget.detail,
+            windows: budget.windows,
             fetched_at: now_unix(),
-            balance: None,
-            balance_info: None,
-            local_usage: Some(local_usage),
+            balance: budget.balance,
+            balance_info: budget.balance_info,
+            local_usage,
         },
-        None => unavailable_quota(
-            "kimi",
-            "kimi",
-            "Kimi",
-            "No Kimi Code sessions recorded yet; run `kimi` once. \
-             Plan-budget windows are not read here: Moonshot serves account \
-             usage through the Kimi Code local daemon (`kimi web` → \
-             /api/v1/oauth/usage), not a stable direct endpoint (see #311).",
-        ),
+        Err(managed_detail) => {
+            let Some(local_usage) = local_usage else {
+                return unavailable_quota(
+                    "kimi",
+                    "kimi",
+                    "Kimi",
+                    format!(
+                        "{managed_detail} No Kimi Code sessions recorded yet either; \
+                         run `kimi` once (or `kimi login` if unauthenticated)."
+                    ),
+                );
+            };
+            ProviderQuota {
+                agent_id: "kimi".into(),
+                provider: "kimi".into(),
+                harness_title: "Kimi".into(),
+                status: "ok".into(),
+                detail: Some(format!(
+                    "Locally recorded Kimi session usage. {managed_detail}"
+                )),
+                windows: Vec::new(),
+                fetched_at: now_unix(),
+                balance: None,
+                balance_info: None,
+                local_usage: Some(local_usage),
+            }
+        }
     }
 }
 

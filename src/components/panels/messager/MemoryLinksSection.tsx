@@ -2,21 +2,21 @@
 import { useEffect, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { MemoryLinkRecord, LinkSuggestion } from "./types";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const sectionHeaderStyle = {
   margin: 0,
-  fontSize: "0.9rem",
+  fontSize: "0.88rem",
   fontWeight: 700,
-  color: "var(--primary)",
+  color: NOC_COLORS.cyan,
 };
 
 const rowStyle = {
-  background: "rgba(0,0,0,0.3)",
-  border: "1px solid var(--border-color)",
-  borderRadius: "10px",
-  padding: "0.65rem 0.75rem",
+  ...nocCardDenseStyle,
+  padding: "0.6rem 0.75rem",
   fontSize: "0.82rem",
   display: "flex",
   alignItems: "flex-start",
@@ -31,15 +31,16 @@ const pillStyle = (accent) => ({
   fontSize: "0.72rem",
   fontWeight: 700,
   background: accent
-    ? "rgba(168, 85, 247, 0.18)"
+    ? "rgba(56, 189, 248, 0.16)"
     : "rgba(255,255,255,0.08)",
-  color: accent ? "var(--accent)" : "var(--text-muted)",
+  color: accent ? NOC_COLORS.cyan : NOC_SURFACES.textMuted,
+  border: accent ? "1px solid rgba(56, 189, 248, 0.3)" : "none",
   whiteSpace: "nowrap",
 });
 
 const mutedStyle = {
-  fontSize: "0.78rem",
-  color: "var(--text-muted)",
+  fontSize: "0.76rem",
+  color: NOC_SURFACES.textMuted,
 };
 
 const btnStyle = (variant = "secondary") => ({

@@ -283,6 +283,10 @@ fn revoke_deadline_and_task_completion_end_the_latest_exception() {
                 max_retries: 0,
                 parallel_group: None,
                 peer: None,
+                branch: None,
+                sub_task_id: None,
+                handoff_metadata: None,
+                context_filter: None,
             }],
         )
         .unwrap();
@@ -307,6 +311,11 @@ fn revoke_deadline_and_task_completion_end_the_latest_exception() {
         Some("reviewer")
     );
     store.advance_task(&task.id, Some("human"), None).unwrap();
+    for wake in store.list_wakes(None, true).unwrap() {
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+    }
     let done = store.advance_task(&task.id, Some("human"), None).unwrap();
     assert_eq!(done.status, "done");
     assert_eq!(

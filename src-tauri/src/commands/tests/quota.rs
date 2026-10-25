@@ -5,8 +5,9 @@ use super::super::quota_codex::{
 use super::super::quota_grok::{
     grok_home, grok_quota, grok_token_from_auth, grok_windows_from_value,
 };
+use super::super::quota_kimi::KimiManagedBudget;
 use super::super::quota_mistral::MistralAdminBudget;
-use super::super::quotas::{compose_mistral_quota, kimi_quota};
+use super::super::quotas::{compose_kimi_quota, compose_mistral_quota, kimi_quota};
 
 #[test]
 fn claude_quota_is_well_formed_when_logged_in() {
@@ -100,6 +101,7 @@ fn capped_admin_budget() -> MistralAdminBudget {
             topped_up: None,
             paid: None,
             gift: None,
+            spend_cap: None,
         }),
         detail: None,
     }
@@ -161,10 +163,95 @@ fn mistral_quota_without_an_admin_key_stays_local_only() {
         .contains("MISTRAL_ADMIN_API_KEY is not set"));
 }
 
-/// Kimi (#311) is local-only: `ok` with `local_usage` and no windows when
-/// sessions exist, `unavailable` with both reasons named when none do. No
-/// environment gate — both branches are asserted, so the test holds on a
-/// machine with or without a Kimi install.
+fn managed_kimi_budget() -> KimiManagedBudget {
+    KimiManagedBudget {
+        windows: vec![
+            ProviderQuotaWindow {
+                label: "5h limit".into(),
+                family: Some("Kimi Code".into()),
+                used_percent: 100,
+                remaining_percent: 0,
+                resets_at: Some(1_792_778_006),
+                window_minutes: Some(300),
+            },
+            ProviderQuotaWindow {
+                label: "Monthly limit (kimi 71% · code 20%)".into(),
+                family: Some("Kimi Code".into()),
+                used_percent: 91,
+                remaining_percent: 9,
+                resets_at: Some(1_795_219_200),
+                window_minutes: Some(30 * 24 * 60),
+            },
+            ProviderQuotaWindow {
+                label: "Monthly code".into(),
+                family: Some("Kimi Code".into()),
+                used_percent: 20,
+                remaining_percent: 80,
+                resets_at: Some(1_795_219_200),
+                window_minutes: Some(30 * 24 * 60),
+            },
+        ],
+        balance: None,
+        balance_info: None,
+        detail: None,
+    }
+}
+
+#[test]
+fn kimi_quota_merges_managed_usage_with_local_usage() {
+    let quota = compose_kimi_quota(Ok(managed_kimi_budget()), Some(two_session_local_usage()));
+    assert_eq!(quota.agent_id, "kimi");
+    assert_eq!(quota.provider, "kimi");
+    assert_eq!(quota.status, "ok");
+    assert!(quota.detail.is_none());
+
+    assert_eq!(quota.windows.len(), 3);
+    assert_eq!(quota.windows[0].label, "5h limit");
+    assert_eq!(quota.windows[0].used_percent, 100);
+    assert_eq!(quota.windows[0].remaining_percent, 0);
+    assert_eq!(
+        quota.windows[1].label,
+        "Monthly limit (kimi 71% · code 20%)"
+    );
+    assert_eq!(quota.windows[1].used_percent, 91);
+    assert_eq!(quota.windows[1].remaining_percent, 9);
+    assert_eq!(quota.windows[2].label, "Monthly code");
+    assert_eq!(quota.windows[2].used_percent, 20);
+    assert_eq!(quota.windows[2].remaining_percent, 80);
+
+    let local = quota.local_usage.expect("local usage preserved");
+    assert_eq!(local.sessions, 2);
+    assert_eq!(local.prompt_tokens, 4967);
+}
+
+#[test]
+fn kimi_quota_without_oauth_token_stays_local_only() {
+    let quota = compose_kimi_quota(
+        Err("Not logged in to Kimi Code".into()),
+        Some(two_session_local_usage()),
+    );
+    assert_eq!(quota.status, "ok");
+    assert!(quota.windows.is_empty());
+    assert_eq!(quota.local_usage.map(|local| local.sessions), Some(2));
+    assert!(quota
+        .detail
+        .as_deref()
+        .unwrap_or_default()
+        .contains("Not logged in to Kimi Code"));
+}
+
+#[test]
+fn kimi_quota_with_neither_half_is_unavailable_with_both_reasons() {
+    let quota = compose_kimi_quota(Err("Not logged in to Kimi Code".into()), None);
+    assert_eq!(quota.status, "unavailable");
+    let detail = quota.detail.unwrap_or_default();
+    assert!(detail.contains("Not logged in to Kimi Code"), "{detail}");
+    assert!(
+        detail.contains("No Kimi Code sessions recorded yet"),
+        "{detail}"
+    );
+}
+
 #[test]
 fn kimi_quota_is_well_formed_with_or_without_sessions() {
     let quota = kimi_quota();
@@ -172,23 +259,22 @@ fn kimi_quota_is_well_formed_with_or_without_sessions() {
     assert_eq!(quota.provider, "kimi");
     match quota.status.as_str() {
         "ok" => {
-            let local = quota.local_usage.expect("local usage present");
-            assert!(local.sessions > 0);
-            assert!(quota.windows.is_empty(), "local totals are not a budget");
-            assert!(quota
-                .detail
-                .as_deref()
-                .unwrap_or_default()
-                .contains("Locally recorded"));
+            assert!(
+                !quota.windows.is_empty() || quota.local_usage.is_some(),
+                "ok Kimi quota must carry managed windows and/or local session usage"
+            );
+            for window in &quota.windows {
+                assert!((0..=100).contains(&window.used_percent));
+                assert_eq!(window.used_percent + window.remaining_percent, 100);
+            }
+            if let Some(local) = &quota.local_usage {
+                assert!(local.sessions > 0);
+            }
         }
         "unavailable" => {
             let detail = quota.detail.unwrap_or_default();
             assert!(
                 detail.contains("No Kimi Code sessions recorded yet"),
-                "{detail}"
-            );
-            assert!(
-                detail.contains("Plan-budget windows are not read here"),
                 "{detail}"
             );
         }

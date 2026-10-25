@@ -3,6 +3,8 @@ use crate::helpers::{audit_file_hash, audit_operation, audit_process_context, de
 use hub::{BusEntryFilter, HubStore, TaskStatus, WakeStatus, WorkflowStep};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
+mod discord;
+mod guardrail;
 mod harness;
 mod memory;
 mod msg;
@@ -328,9 +330,11 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             set_as_default_session_settings,
         )?,
         Command::Telegram { action } => telegram::run(&store, action)?,
+        Command::Discord { action } => discord::run(&store, action)?,
         Command::Sync { action } => sync::run(&store, action)?,
         Command::Tool { action } => tool::run(&store, &home, action)?,
         Command::Schedule { action } => schedule::run(&store, action)?,
+        Command::Guardrail { action } => guardrail::run(&store, action)?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

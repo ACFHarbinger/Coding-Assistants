@@ -30,8 +30,12 @@ fn running_task(store: &HubStore) -> crate::TaskRecord {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
-    let task = store.create_task("push test", None, &steps).unwrap();
+    let task = store.create_task_with_parallel("push test", None, &steps, 4, false).unwrap();
     store.advance_task(&task.id, Some("worker"), None).unwrap()
 }
 

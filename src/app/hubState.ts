@@ -104,6 +104,13 @@ export function loadWorkspaceRoot(): string {
   }
 }
 
+/** Last path segment, for the workspace chip. */
+export function workspaceBasename(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  return parts[parts.length - 1] || trimmed || "workspace";
+}
+
 export async function persistWorkSession(name: string, workDir: string): Promise<WorkSession> {
   let workspaceId: string | null = null;
   try {

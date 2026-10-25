@@ -1,5 +1,8 @@
 import type { DetectedProcess } from "./types";
 import { processTargetId } from "./types";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 interface DetectedProcessesSectionProps {
   hasScanned: boolean;
@@ -32,17 +35,14 @@ export default function DetectedProcessesSection({
       {hasScanned && (
         <div
           style={{
+            ...nocPanelStyle,
+            borderLeft: `3px solid ${NOC_COLORS.purple}`,
             display: "flex",
             flexDirection: "column",
             gap: "0.65rem",
-            padding: "1rem",
-            marginBottom: "1.5rem",
-            border: "1px solid var(--border-color)",
-            borderRadius: "10px",
-            background: "rgba(168, 85, 247, 0.06)",
           }}
         >
-          <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+          <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.8rem" }}>
             External agent binaries currently running anywhere on this machine (not workspace-scoped,
             not a live Chat &amp; Memory connection). Selecting one adds its identity to the team; it
             does not take ownership of or terminate the process. A task executes automatically only
@@ -55,24 +55,23 @@ export default function DetectedProcessesSection({
               <div
                 key={process.pid}
                 style={{
+                  ...nocCardDenseStyle,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: "1rem",
                   flexWrap: "wrap",
-                  padding: "0.65rem 0.75rem",
-                  borderRadius: "8px",
-                  background: "rgba(0,0,0,0.25)",
+                  padding: "0.65rem 0.85rem",
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <strong style={{ color: "var(--primary)" }}>{process.agent}</strong>
-                  <span style={{ color: "var(--text-muted)", marginLeft: "0.6rem", fontSize: "0.8rem" }}>
+                  <strong style={{ color: NOC_COLORS.cyan }}>{process.agent}</strong>
+                  <span className="tabular-nums" style={{ color: NOC_SURFACES.textMuted, marginLeft: "0.6rem", fontSize: "0.78rem", fontFamily: "var(--font-mono)" }}>
                     PID {process.pid}
                   </span>
                   <div
                     style={{
-                      color: "var(--text-muted)",
+                      color: NOC_SURFACES.textMuted,
                       fontFamily: "var(--font-mono)",
                       fontSize: "0.75rem",
                       overflow: "hidden",
@@ -85,7 +84,8 @@ export default function DetectedProcessesSection({
                   </div>
                 </div>
                 <button
-                  className={isAdded ? "btn-secondary" : "btn-primary"}
+                  className={isAdded ? "btn-secondary noc-focusable" : "btn-primary noc-focusable"}
+                  style={{ marginTop: 0 }}
                   onClick={() => (isAdded ? onRemoveProcess(process) : onAddProcess(process))}
                 >
                   {isAdded ? "Remove from team" : "Add to team"}
@@ -94,9 +94,7 @@ export default function DetectedProcessesSection({
             );
           })}
           {detectedProcesses.length === 0 && (
-            <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-              No supported agent processes found.
-            </span>
+            <EmptyStateChip title="No supported agent processes found" detail="Start an agent CLI or scan again after launching." tone="idle" />
           )}
         </div>
       )}

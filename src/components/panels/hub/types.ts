@@ -81,6 +81,8 @@ export interface ProviderQuotaBalance {
   topped_up?: number | null;
   paid?: number | null;
   gift?: number | null;
+  /** Spend-kind: `"uncapped"` vs `"unknown"`. Omitted when `total` is a real cap. */
+  spend_cap?: "uncapped" | "unknown" | null;
 }
 
 // Raw counts a harness recorded locally (Mistral Vibe `meta.json` stats,
@@ -111,8 +113,6 @@ export interface ProviderQuota {
   balance_info?: ProviderQuotaBalance | null;
   local_usage?: ProviderQuotaLocalUsage | null;
 }
-
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "scorecard" | "channels" | "tools" | "board" | "branches" | "system";
 
 export type FigureProvenance = "measured" | "estimated" | "unknown";
 export type HarnessCoverage = "managed" | "observed" | "unregistered";
