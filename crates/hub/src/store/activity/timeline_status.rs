@@ -63,21 +63,14 @@ pub(super) fn wake_event_status(status: &str) -> TimelineEventStatus {
 
 /// Keep the stored task status on the view. Terminal tasks stay terminal.
 /// Interrupted tasks (`input_required`, `auth_required`) raise the pause alert.
-pub(super) fn timeline_presentation(
-    task_status: &str,
-    events: &[TaskTimelineEvent],
-) -> (String, bool) {
+pub(super) fn timeline_presentation(task_status: &str) -> (String, bool) {
     let parsed = TaskStatus::parse(task_status).ok();
     let terminal = parsed.is_some_and(TaskStatus::is_terminal);
     let interrupted = matches!(
         parsed,
         Some(TaskStatus::InputRequired | TaskStatus::AuthRequired)
     );
-    let event_paused = events
-        .iter()
-        .any(|event| event.status == TimelineEventStatus::Paused);
-    (
-        task_status.to_string(),
-        !terminal && (interrupted || event_paused),
-    )
+    // Historical pause events remain in the timeline after a task resumes.
+    // Only the persisted runtime status determines the current pause alert.
+    (task_status.to_string(), !terminal && interrupted)
 }

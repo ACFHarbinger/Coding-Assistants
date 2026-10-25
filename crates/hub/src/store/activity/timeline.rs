@@ -429,7 +429,7 @@ impl HubStore {
             }
         };
 
-        let (status, is_paused) = timeline_presentation(&task.status, &events);
+        let (status, is_paused) = timeline_presentation(&task.status);
 
         if task.status == "failed" && failure_reason.is_none() {
             failure_reason = Some("Task terminated in failed status".to_string());

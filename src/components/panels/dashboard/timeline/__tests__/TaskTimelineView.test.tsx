@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import TaskTimelineView from "../TaskTimelineView";
 import type { TaskRecord, TaskTimelineView as ITaskTimelineView } from "../types";
 
@@ -244,4 +244,22 @@ describe("TaskTimelineView (Roadmap D1 / #87)", () => {
       expect(screen.getByText(/Step 3 timed out waiting for human gate approval/i)).toBeTruthy();
     });
   });
+
+
+it("ignores a stale response after switching tasks", async () => {
+  let resolveFirst!: (data: ITaskTimelineView) => void;
+  mockInvoke.mockImplementation((_command: string, args: { taskId: string }) => {
+    if (args.taskId === sampleTasks[0].id) {
+      return new Promise<ITaskTimelineView>((resolve) => { resolveFirst = resolve; });
+    }
+    return Promise.resolve({ ...mockTimelineData, task: sampleTasks[1], status: "done", events: [] });
+  });
+  render(<TaskTimelineView tasks={sampleTasks} />);
+  fireEvent.change(screen.getByLabelText("Task:"), { target: { value: sampleTasks[1].id } });
+  await waitFor(() => expect(screen.getByText("done")).toBeTruthy());
+  await act(async () => { resolveFirst(mockTimelineData); });
+  expect(screen.queryByText(mockTimelineData.events[0].summary)).toBeNull();
+  expect(screen.getByText("done")).toBeTruthy();
+});
+
 });

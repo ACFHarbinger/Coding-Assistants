@@ -168,3 +168,28 @@ fn timeline_maps_persisted_wake_statuses() {
         .filter(|event| event.event_type == TimelineEventType::Wake)
         .all(|event| event.status != TimelineEventStatus::InProgress));
 }
+
+#[test]
+fn resumed_task_does_not_inherit_a_historical_pause_alert() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let task = store
+        .create_task("resumed", None, &[step("worker", None)])
+        .unwrap();
+    set_runtime(&store, &task.id, "running", 0, "[]", "[]");
+    store
+        .record_audit_event(
+            std::path::Path::new("."),
+            std::path::Path::new("."),
+            "task.paused",
+            &serde_json::json!({"task_id": task.id}).to_string(),
+            None,
+        )
+        .unwrap();
+    let view = store.get_task_timeline(&task.id).unwrap();
+    assert!(view
+        .events
+        .iter()
+        .any(|event| event.status == TimelineEventStatus::Paused));
+    assert!(!view.is_paused);
+}

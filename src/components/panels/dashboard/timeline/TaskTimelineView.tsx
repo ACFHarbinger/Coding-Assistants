@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "../../../../lib/tauri";
 import type {
   AgentRecord,
@@ -91,32 +91,44 @@ export const TaskTimelineView: React.FC<TaskTimelineViewProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<TaskTimelineEvent | null>(null);
 
+  const requestId = useRef(0);
+  const currentTaskId = useRef(selectedTaskId);
+  currentTaskId.current = selectedTaskId;
+
   useEffect(() => {
-    if (!selectedTaskId && tasks.length > 0) {
-      setSelectedTaskId(tasks[0].id);
+    if (!tasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(tasks[0]?.id ?? "");
     }
   }, [tasks, selectedTaskId]);
 
   const loadTimeline = useCallback(async (taskId: string) => {
-    if (!taskId) return;
+    const request = ++requestId.current;
+    if (!taskId) {
+      setTimeline(null);
+      setSelectedEvent(null);
+      setLoading(false);
+      return;
+    }
+    setTimeline(null);
+    setSelectedEvent(null);
     setLoading(true);
     setError("");
     try {
       const data = await invoke<ITaskTimelineView>("hub_get_task_timeline", { taskId });
+      if (request !== requestId.current || taskId !== currentTaskId.current) return;
       setTimeline(data);
-      setSelectedEvent((curr) => (curr ? data.events.find((e) => e.id === curr.id) || null : null));
     } catch (e) {
+      if (request !== requestId.current || taskId !== currentTaskId.current) return;
       setError(String(e));
       setTimeline(null);
     } finally {
-      setLoading(false);
+      if (request === requestId.current && taskId === currentTaskId.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedTaskId) {
-      void loadTimeline(selectedTaskId);
-    }
+    void loadTimeline(selectedTaskId);
+    return () => { requestId.current += 1; };
   }, [selectedTaskId, loadTimeline]);
 
   const filteredEvents = useMemo(() => {
