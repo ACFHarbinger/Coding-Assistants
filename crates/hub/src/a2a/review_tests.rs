@@ -101,8 +101,20 @@ fn delivery_does_not_acknowledge_a_replaced_configuration() {
         stream
             .set_read_timeout(Some(std::time::Duration::from_secs(5)))
             .unwrap();
-        let mut buf = [0; 4096];
-        stream.read(&mut buf).unwrap();
+        let mut head = Vec::new();
+        while !head.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            head.push(byte[0]);
+        }
+        let head = String::from_utf8(head).unwrap();
+        let length = head
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+            .map(|(_, value)| value.trim().parse::<usize>().unwrap())
+            .unwrap_or(0);
+        stream.read_exact(&mut vec![0; length]).unwrap();
         update_store(&home, |configs| {
             let entry = configs.find_mut(&task_id, &config_id).unwrap();
             entry.created_at = "replacement-generation".into();
