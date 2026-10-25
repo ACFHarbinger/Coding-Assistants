@@ -159,6 +159,7 @@ macro_rules! invoke_handler {
             commands::commands::workflow::hub_list_agent_metrics,
             commands::commands::workflow::hub_record_agent_metrics,
             commands::commands::activity::hub_get_activity_view,
+            commands::commands::activity::hub_get_task_timeline,
             commands::commands::scorecard::hub_get_scorecard,
             commands::commands::schedule::hub_schedule_create,
             commands::commands::schedule::hub_schedule_list,

@@ -15,6 +15,16 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-25 (D1 / #87 Task timeline & collaboration visualization)
+
+- **D1 (#87): Task Timeline & Collaboration 2D visualization (`DashboardPanel.tsx`, `TaskTimelineView.tsx`, `TimelineLaneChart.tsx`, `TimelineEventList.tsx`, `TimelineDetailDrawer.tsx`, `crates/hub/src/store/activity/timeline.rs`, Gemini):** Extended the Shared Hub Dashboard beyond aggregate counters with a complete 2D chronological task execution timeline. Added read-only `hub_get_task_timeline` query over existing `tasks`, `messages`, `wake_requests`, and `audit_events` tables without migrations or schema changes. Dashboard subtab bar now provides a "Task Timeline (D1)" view featuring:
+  - Responsive 2D agent swimlanes showing chronological event execution across agents with status-coded chips and handoff connectors.
+  - Chronological event feed view with actor/target direction, step sequence numbers, and status indicators.
+  - Granular multi-criteria filtering by agent, event type (`task_created`, `workflow_step`, `transition`, `handoff`, `message`, `wake`, `tool`, `file`, `provider_call`, `gate`), status (`completed`, `in_progress`, `paused`, `failed`, `pending`), and full-text search.
+  - Prominent visual alerts for paused workflows (awaiting human gate sign-off or user input) and task failure reasons.
+  - Deep event inspection drawer presenting detailed attributes, timestamps (`.tabular-nums`), and structured JSON payload metadata.
+  - Strict compliance with NOC telemetry tokens, glass-morphism styling, and ≤500 LoC per hand-authored file limit. Unit tested in `TaskTimelineView.test.tsx` and `crates/hub/src/store/tests/activity.rs`.
+
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
 - **V8 (#379): Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles (`ConfigPanel.tsx`, `HarnessTerminalGrid.tsx`, `TerminalPane.tsx`, `SchedulePanel.tsx`, `ChannelsTab.tsx`, Gemini):** Completed the final slice of the Deep-Space NOC visual language rollout. Restructured `ConfigPanel.tsx` with a responsive 2-column bento grid. Standardized a 28px telemetry header bar per terminal pane in `TerminalPane.tsx` with PID liveness dot and instance key snippet. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` counts. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills. Closes parent epic #371.

@@ -3,9 +3,11 @@ use std::collections::HashSet;
 
 mod sessions;
 mod tasks;
+mod timeline;
 mod types;
 mod workspaces;
 
+pub use timeline::*;
 pub use types::*;
 
 /// True when either normalized workspace path is the other or its child.
