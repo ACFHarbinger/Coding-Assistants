@@ -31,6 +31,7 @@ Prefer useful 2D observability before any 3D visualization.
 - Deep event inspection drawer displaying actor, target, step index, timestamps (`tabular-nums`),
   and formatted JSON payload metadata.
 - Tracked under issue [#87](https://github.com/ACFHarbinger/Coding-Assistants/issues/87).
+- Review fix: chips follow workflow stages and persisted `open_agents` / `pending_agents`. The view keeps the stored task status (`done`, `cancelled`, `failed`, `input_required`, `auth_required`, and the rest). Pause is a non-terminal interrupted task or a pending wake. Wake rows use `pending` / `delivered` / `cancelled`.
 
 ### Tool and workspace activity views (D4, 2026-09-18)
 

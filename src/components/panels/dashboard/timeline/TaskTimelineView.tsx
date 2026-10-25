@@ -22,9 +22,15 @@ interface TaskTimelineViewProps {
 
 const statusBadgeColor: Record<string, { bg: string; text: string }> = {
   completed: { bg: "rgba(16, 185, 129, 0.15)", text: NOC_COLORS.ok },
+  done: { bg: "rgba(16, 185, 129, 0.15)", text: NOC_COLORS.ok },
   in_progress: { bg: "rgba(56, 189, 248, 0.15)", text: NOC_COLORS.cyan },
+  running: { bg: "rgba(56, 189, 248, 0.15)", text: NOC_COLORS.cyan },
+  active: { bg: "rgba(56, 189, 248, 0.15)", text: NOC_COLORS.cyan },
   paused: { bg: "rgba(245, 158, 11, 0.2)", text: NOC_COLORS.amber },
+  input_required: { bg: "rgba(245, 158, 11, 0.2)", text: NOC_COLORS.amber },
+  auth_required: { bg: "rgba(245, 158, 11, 0.2)", text: NOC_COLORS.amber },
   failed: { bg: "rgba(239, 68, 68, 0.2)", text: NOC_COLORS.crit },
+  cancelled: { bg: "rgba(148, 163, 184, 0.12)", text: NOC_COLORS.idle },
   pending: { bg: "rgba(148, 163, 184, 0.12)", text: NOC_COLORS.idle },
 };
 

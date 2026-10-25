@@ -1,3 +1,4 @@
+use super::timeline_status::{timeline_presentation, wake_event_status, workflow_step_status};
 use super::*;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -127,23 +128,12 @@ impl HubStore {
             })),
         });
 
-        // 2. Workflow steps
+        // 2. Workflow steps. `step_index` selects a stage, not a flat step.
+        let stages = Self::workflow_stages(&task.steps);
         for (idx, step) in task.steps.iter().enumerate() {
             let step_idx = idx as i64;
             involved.insert(step.agent.clone());
-
-            let step_status = if step_idx < task.step_index {
-                TimelineEventStatus::Completed
-            } else if step_idx == task.step_index {
-                match task.status.as_str() {
-                    "failed" => TimelineEventStatus::Failed,
-                    "paused" => TimelineEventStatus::Paused,
-                    "completed" => TimelineEventStatus::Completed,
-                    _ => TimelineEventStatus::InProgress,
-                }
-            } else {
-                TimelineEventStatus::Pending
-            };
+            let step_status = workflow_step_status(&task, &stages, idx, &step.agent);
 
             let step_time = if step_idx == 0 {
                 task.created_at.clone()
@@ -288,12 +278,7 @@ impl HubStore {
             let (w_id, target, reason, status_str, req_gate, created_at) = r?;
             involved.insert(target.clone());
 
-            let status = match status_str.as_str() {
-                "completed" | "resolved" => TimelineEventStatus::Completed,
-                "failed" | "rejected" => TimelineEventStatus::Failed,
-                "pending" => TimelineEventStatus::Paused,
-                _ => TimelineEventStatus::InProgress,
-            };
+            let status = wake_event_status(&status_str);
 
             let reason_text = reason.unwrap_or_else(|| "task execution".to_string());
 
@@ -444,10 +429,7 @@ impl HubStore {
             }
         };
 
-        let is_paused = task.status == "paused"
-            || events
-                .iter()
-                .any(|e| e.status == TimelineEventStatus::Paused);
+        let (status, is_paused) = timeline_presentation(&task.status, &events);
 
         if task.status == "failed" && failure_reason.is_none() {
             failure_reason = Some("Task terminated in failed status".to_string());
@@ -461,11 +443,7 @@ impl HubStore {
             events,
             involved_agents: involved_list,
             duration_seconds,
-            status: if is_paused {
-                "paused".to_string()
-            } else {
-                "active".to_string()
-            },
+            status,
             failure_reason,
             is_paused,
         })

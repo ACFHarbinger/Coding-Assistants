@@ -25,6 +25,10 @@ project's GitHub Releases page.
   - Deep event inspection drawer presenting detailed attributes, timestamps (`.tabular-nums`), and structured JSON payload metadata.
   - Strict compliance with NOC telemetry tokens, glass-morphism styling, and ≤500 LoC per hand-authored file limit. Unit tested in `TaskTimelineView.test.tsx` and `crates/hub/src/store/tests/activity.rs`.
 
+### Fixed — 2026-10-25 (D1 review, #87)
+
+- **Timeline status uses the stored task and wake vocabulary.** Workflow chips compare `workflow_stages` and the current stage's `open_agents` / `pending_agents`. `pending` / `running` / `done` / `cancelled` / `failed` / `input_required` / `auth_required` map onto the timeline enum. The view status stays the stored task status. The pause alert is for a non-terminal interrupted task or a still-pending wake. Delivered wakes are completed and cancelled wakes are failed. Terminal tasks do not raise the task-level pause alert.
+
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
 - **V8 (#379): Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles (`ConfigPanel.tsx`, `HarnessTerminalGrid.tsx`, `TerminalPane.tsx`, `SchedulePanel.tsx`, `ChannelsTab.tsx`, Gemini):** Completed the final slice of the Deep-Space NOC visual language rollout. Restructured `ConfigPanel.tsx` with a responsive 2-column bento grid. Standardized a 28px telemetry header bar per terminal pane in `TerminalPane.tsx` with PID liveness dot and instance key snippet. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` counts. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills. Closes parent epic #371.

@@ -4,6 +4,7 @@ use std::collections::HashSet;
 mod sessions;
 mod tasks;
 mod timeline;
+mod timeline_status;
 mod types;
 mod workspaces;
 
