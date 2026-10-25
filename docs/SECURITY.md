@@ -50,6 +50,22 @@ No additional permissions (shell access, clipboard, filesystem, etc.) are grante
 
 ## Key Security Controls
 
+### A2A webhook notifications
+
+The optional A2A listener is disabled by default, binds to loopback by default,
+and requires the pairing Bearer token for webhook configuration. Callback URLs
+must use HTTP(S), include a host, and contain no embedded credentials. Authenticated
+owners may target local or internal addresses; URL validation does not prevent
+DNS rebinding. The notifier never follows redirects and accepts only 2xx responses,
+with a five-second timeout per attempt and at most three attempts per observed state.
+
+Webhook credentials stay in the secret vault. Registry and credential snapshots
+are serialized so reconfiguration cannot pair a new credential with an old URL.
+If a configured credential is unavailable, delivery is skipped rather than sent
+without authentication. Logs omit callback paths, query strings, and credentials.
+Notifications are best-effort snapshots of persisted task state; intermediate
+transitions between polls may be coalesced.
+
 ### 1. No Shell Invocation
 
 LLM providers are invoked via `std::process::Command` with **explicit arguments**, never through a shell:

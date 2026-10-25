@@ -73,6 +73,7 @@ Coding-Assistants/
 | `run_agent_task`     | Execute multi-agent task sequence          |
 | `submit_user_input`  | Send user response to waiting agent        |
 | `cancel_task`        | Cancel running agent task                  |
+| `hub_get_task_timeline` | Read task timeline events and collaboration status |
 | `get_agent_resources`| List prompts, rules, and workflows         |
 | `get_resource_content`| Read a resource file from `.agent/`       |
 | `read_file_absolute` | Read file at absolute path                 |

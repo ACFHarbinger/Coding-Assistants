@@ -15,6 +15,14 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-25 (A2A webhook notifications, #364)
+
+- **A2A task push configuration and notifications.** Authenticated callers can create, get, list, and delete per-task HTTP(S) callback configurations. A notifier posts task status changes with bounded retries and no redirects. Webhook credentials remain in the vault; interrupted tasks preserve `input-required` / `auth-required` on both polling and push responses. Missing configured credentials prevent delivery. Registry/credential snapshots and replacement-aware acknowledgement keep concurrent reconfiguration consistent.
+
+### Fixed — 2026-10-25 (branch integration review)
+
+- **Task selection ignores stale responses.** Switching or removing a selected task invalidates earlier timeline requests. A resumed task no longer inherits its task-level pause alert from historical events.
+
 ### Added — 2026-10-25 (P17 structured handoff + context filter, #361)
 
 - **Structured handoff metadata and an opt-in context filter (#361).** A workflow step or scheduled task can carry `handoff_metadata` (`reason` / `priority` only). Dispatch writes that object to `handoff.metadata` and does not put it in the handoff body or use it to pick a recipient. `context_filter` (`strip_tools`, `cap:<n>`, `summarize`, comma-separated, applied left to right) reduces the prior section seeded into the handoff: upstream non-system messages, then the advance note or re-prompt detail. The instruction is left intact. With no filter, the body stays the instruction plus `Prior note:` when a note was passed. `summarize` is a line/character digest, not a model call. `ca schedule create` accepts `--handoff-metadata` and `--context-filter`; `hub_schedule_create` accepts the same optional fields.
@@ -25,9 +33,11 @@ project's GitHub Releases page.
 - **Tool records match before attribution.** `strip_tools` sees the stored line, then the renderer adds `from -> to (kind):`. A first-line `Tool:` record or a JSON tool object still strips.
 - **Steps after `summarize` still run.** The digest becomes the next input, so `summarize,cap:1` keeps one digest line and `summarize,strip_tools` can still drop tool noise in that digest.
 - **Filtered handoffs do not reseed themselves.** Dispatch stores the unfiltered source on `messages.context_body` (soft-migrated). Later priors prefer that column, so a filtered body is not nested into the next seed. Parallel members send the preflight snapshot.
+
 ### Fixed — 2026-10-25 (C14.9 distinct recipient records for repeated tagged channel sends, #157, Mistral)
 
 - **Concurrent same-subject fan-outs no longer fail with `UNIQUE constraint failed: message_recipient_sets.subject`.** The deterministic collision — a second send reusing the same channel subject — was already fixed on 2026-08-13; this closes the remaining check-then-insert race: every Tauri command and CLI process opens its own SQLite connection, so two sends reusing the same channel subject could both pass the old existence check and then one insert failed. `HubStore::reserve_recipient_subject` (`crates/hub/src/store/messages/queries.rs`) makes the reservation the insert itself: the channel prefix is kept for transcript grouping, and a bounded number of fresh UUID suffixes is retried on the primary-key collision, so every fan-out — repeated or racing — gets a distinct durable recipient-set row and the messages/outcomes reference the subject actually recorded. Covered by a trigger-simulated mid-flight collision test plus repeated-send tests on both the tagged and session paths.
+
 ### Added — 2026-10-25 (D1 / #87 Task timeline & collaboration visualization)
 
 - **D1 (#87): Task Timeline & Collaboration 2D visualization (`DashboardPanel.tsx`, `TaskTimelineView.tsx`, `TimelineLaneChart.tsx`, `TimelineEventList.tsx`, `TimelineDetailDrawer.tsx`, `crates/hub/src/store/activity/timeline.rs`, Gemini):** Extended the Shared Hub Dashboard beyond aggregate counters with a complete 2D chronological task execution timeline. Added read-only `hub_get_task_timeline` query over existing `tasks`, `messages`, `wake_requests`, and `audit_events` tables without migrations or schema changes. Dashboard subtab bar now provides a "Task Timeline (D1)" view featuring:
@@ -40,7 +50,7 @@ project's GitHub Releases page.
 
 ### Fixed — 2026-10-25 (D1 review, #87)
 
-- **Timeline status uses the stored task and wake vocabulary.** Workflow chips compare `workflow_stages` and the current stage's `open_agents` / `pending_agents`. `pending` / `running` / `done` / `cancelled` / `failed` / `input_required` / `auth_required` map onto the timeline enum. The view status stays the stored task status. The pause alert is for a non-terminal interrupted task or a still-pending wake. Delivered wakes are completed and cancelled wakes are failed. Terminal tasks do not raise the task-level pause alert.
+- **Timeline status uses the stored task and wake vocabulary.** Workflow chips compare `workflow_stages` and the current stage's `open_agents` / `pending_agents`. `pending` / `running` / `done` / `cancelled` / `failed` / `input_required` / `auth_required` map onto the timeline enum. The view status stays the stored task status. The pause alert follows the current interrupted task status, so historical pauses do not keep a resumed task paused. Delivered wakes are completed and cancelled wakes are failed. Terminal tasks do not raise the task-level pause alert.
 
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
