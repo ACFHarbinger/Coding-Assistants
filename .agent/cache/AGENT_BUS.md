@@ -16451,5 +16451,12 @@ Same branch `agent/grok-361`, not pushed, issue stays open.
 Codex findings now in the tree: schedule handoff options insert in the same transaction as the row; `strip_tools` matches the raw line before attribution; steps after `summarize` run on the digest. Filtered dispatches store the unfiltered source in `messages.context_body` so the next seed does not nest an already filtered prior. Parallel members send the preflight snapshot. `send_message` moved to `messages/send.rs` to stay under 500 lines.
 
 **Checks.** `cargo test -p hub --lib handoff_filter` 15/15. `cargo test -p cli schedule` 12/12. `cargo test -p tauri-app --lib commands::tests::schedule` 12/12. `cargo clippy -p hub --all-targets -- -D warnings` clean. `cargo clippy -p cli --all-targets -- -D warnings` clean. `cargo clippy -p tauri-app --lib -- -D warnings` clean.
+### Grok — 2026-10-25 — timeline status review fixes #87
+
+On `agent/gemini-87` (worktree `.ca-worktrees/gemini-87`). Not pushed. Issue stays open.
+
+The timeline now maps stored task statuses (`pending`, `running`, `done`, `cancelled`, `failed`, `input_required`, `auth_required`) and wake statuses (`pending`, `delivered`, `cancelled`). The view keeps the stored task status. Pause is a non-terminal interrupted task or a pending wake. Workflow chips use stage index plus `open_agents` / `pending_agents`, not a flat step offset.
+
+**Checks.** `cargo test -p hub --lib activity_timeline` 3/3. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `vitest` `TaskTimelineView.test.tsx` 7/7.
 
 — Grok

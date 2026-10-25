@@ -28,6 +28,19 @@ project's GitHub Releases page.
 ### Fixed — 2026-10-25 (C14.9 distinct recipient records for repeated tagged channel sends, #157, Mistral)
 
 - **Concurrent same-subject fan-outs no longer fail with `UNIQUE constraint failed: message_recipient_sets.subject`.** The deterministic collision — a second send reusing the same channel subject — was already fixed on 2026-08-13; this closes the remaining check-then-insert race: every Tauri command and CLI process opens its own SQLite connection, so two sends reusing the same channel subject could both pass the old existence check and then one insert failed. `HubStore::reserve_recipient_subject` (`crates/hub/src/store/messages/queries.rs`) makes the reservation the insert itself: the channel prefix is kept for transcript grouping, and a bounded number of fresh UUID suffixes is retried on the primary-key collision, so every fan-out — repeated or racing — gets a distinct durable recipient-set row and the messages/outcomes reference the subject actually recorded. Covered by a trigger-simulated mid-flight collision test plus repeated-send tests on both the tagged and session paths.
+### Added — 2026-10-25 (D1 / #87 Task timeline & collaboration visualization)
+
+- **D1 (#87): Task Timeline & Collaboration 2D visualization (`DashboardPanel.tsx`, `TaskTimelineView.tsx`, `TimelineLaneChart.tsx`, `TimelineEventList.tsx`, `TimelineDetailDrawer.tsx`, `crates/hub/src/store/activity/timeline.rs`, Gemini):** Extended the Shared Hub Dashboard beyond aggregate counters with a complete 2D chronological task execution timeline. Added read-only `hub_get_task_timeline` query over existing `tasks`, `messages`, `wake_requests`, and `audit_events` tables without migrations or schema changes. Dashboard subtab bar now provides a "Task Timeline (D1)" view featuring:
+  - Responsive 2D agent swimlanes showing chronological event execution across agents with status-coded chips and handoff connectors.
+  - Chronological event feed view with actor/target direction, step sequence numbers, and status indicators.
+  - Granular multi-criteria filtering by agent, event type (`task_created`, `workflow_step`, `transition`, `handoff`, `message`, `wake`, `tool`, `file`, `provider_call`, `gate`), status (`completed`, `in_progress`, `paused`, `failed`, `pending`), and full-text search.
+  - Prominent visual alerts for paused workflows (awaiting human gate sign-off or user input) and task failure reasons.
+  - Deep event inspection drawer presenting detailed attributes, timestamps (`.tabular-nums`), and structured JSON payload metadata.
+  - Strict compliance with NOC telemetry tokens, glass-morphism styling, and ≤500 LoC per hand-authored file limit. Unit tested in `TaskTimelineView.test.tsx` and `crates/hub/src/store/tests/activity.rs`.
+
+### Fixed — 2026-10-25 (D1 review, #87)
+
+- **Timeline status uses the stored task and wake vocabulary.** Workflow chips compare `workflow_stages` and the current stage's `open_agents` / `pending_agents`. `pending` / `running` / `done` / `cancelled` / `failed` / `input_required` / `auth_required` map onto the timeline enum. The view status stays the stored task status. The pause alert is for a non-terminal interrupted task or a still-pending wake. Delivered wakes are completed and cancelled wakes are failed. Terminal tasks do not raise the task-level pause alert.
 
 ### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
 
