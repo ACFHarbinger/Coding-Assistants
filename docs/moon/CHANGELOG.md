@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-25 (CLIP STUDIO PAINT MCP)
+
+- **CLIP STUDIO PAINT creative-tool bridge.** `coding-assistants-mcp clipstudio` registers in the Creative Tools catalog as `coding-assistants-mcp-clipstudio`. It exposes the 33-tool 5.1.2 production catalog. File exchange is limited to three configured roots (`CSP_MCP_CONFIG` or `--config`). `csp_preflight` issues a 45-second single-use token. Screenshot, window, and input tools fail closed: this bridge does not attest `CLIPStudioPaint.exe` and does not send pointer or keyboard input. `csp_open_document` validates an input-root file and does not launch CSP.
+
 ### Added — 2026-10-25 (A2A webhook notifications, #364)
 
 - **A2A task push configuration and notifications.** Authenticated callers can create, get, list, and delete per-task HTTP(S) callback configurations. A notifier posts task status changes with bounded retries and no redirects. Webhook credentials remain in the vault; interrupted tasks preserve `input-required` / `auth-required` on both polling and push responses. Missing configured credentials prevent delivery. Registry/credential snapshots and replacement-aware acknowledgement keep concurrent reconfiguration consistent.

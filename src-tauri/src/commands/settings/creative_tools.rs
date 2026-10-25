@@ -54,6 +54,7 @@ fn transport_label(tool: &CreativeTool) -> &'static str {
         creative::Transport::Socket => "socket",
         creative::Transport::Subprocess => "subprocess",
         creative::Transport::FileParse => "file-parse",
+        creative::Transport::StdioHost => "stdio-host",
     }
 }
 

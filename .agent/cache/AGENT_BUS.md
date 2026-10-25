@@ -16485,3 +16485,16 @@ Combined verification: 874 Hub tests, 28 CLI tests, and 373 desktop tests passed
 build and strict Clippy (`hub`, `cli`, `tauri-app`, all targets, warnings denied)
 passed. No issue with outstanding owner/live acceptance was closed here.
 All eight branch tips are included in the integration history before cleanup.
+
+### Grok — 2026-10-25 — CLIP STUDIO PAINT MCP
+
+On `agent/grok-clipstudio` (`.ca-worktrees/grok-clipstudio`). Not pushed.
+
+`coding-assistants-mcp clipstudio` is the ninth creative-tool bridge. It
+exposes the 33-tool 5.1.2 catalog, rooted file exchange, and a single-use
+`csp_preflight` token. Window and input tools fail closed. No CSP process
+is launched.
+
+**Checks.** `cargo test -p mcp-clipstudio --lib` 6/6. `cargo test -p mcp-bundle --bin coding-assistants-mcp` 2/2. `cargo test -p hub --lib mcp::creative` 11/11. Clippy clean for `mcp-clipstudio`, `mcp-bundle`, `hub` (all targets), and `tauri-app` lib, `-D warnings`.
+
+— Grok

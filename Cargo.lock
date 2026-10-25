@@ -3158,11 +3158,23 @@ dependencies = [
  "mcp-ableton",
  "mcp-aseprite",
  "mcp-blender",
+ "mcp-clipstudio",
  "mcp-godot",
  "mcp-krita",
  "mcp-opentoonz",
  "mcp-unity",
  "mcp-unreal",
+]
+
+[[package]]
+name = "mcp-clipstudio"
+version = "0.1.0"
+dependencies = [
+ "mcp-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]

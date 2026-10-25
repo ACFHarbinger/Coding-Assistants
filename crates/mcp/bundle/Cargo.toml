@@ -13,6 +13,7 @@ path = "src/main.rs"
 mcp-ableton = { path = "../ableton" }
 mcp-aseprite = { path = "../aseprite" }
 mcp-blender = { path = "../blender" }
+mcp-clipstudio = { path = "../clipstudio" }
 mcp-godot = { path = "../godot" }
 mcp-krita = { path = "../krita" }
 mcp-opentoonz = { path = "../opentoonz" }
