@@ -134,6 +134,10 @@ pub fn classify(config: &Config, raw: &str, write: bool) -> Result<(RootKind, Pa
     if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err("parent segments are rejected".into());
     }
+    // Canonicalize resolves directory symlinks away. Reject them on the
+    // original component chain first, but only inside a configured root so
+    // an ancestor symlink outside those roots is not a false positive.
+    reject_symlink_components(config, &path)?;
     let resolved = canonical_candidate(&path)?;
     let roots = [
         (RootKind::Input, &config.input),
@@ -149,12 +153,33 @@ pub fn classify(config: &Config, raw: &str, write: bool) -> Result<(RootKind, Pa
         return Err("the input root is read-only".into());
     }
     reject_symlinks(root, &resolved)?;
-    if let Ok(meta) = fs::symlink_metadata(&resolved) {
-        if meta.is_file() && link_count(&meta) > 1 {
-            return Err("hard links are rejected".into());
+    ensure_not_hard_linked(&resolved)?;
+    Ok((kind, resolved))
+}
+
+fn reject_symlink_components(config: &Config, path: &Path) -> Result<(), String> {
+    let roots = [&config.input, &config.working, &config.exports];
+    let mut cur = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => cur.push(prefix.as_os_str()),
+            Component::RootDir => cur.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => return Err("parent segments are rejected".into()),
+            Component::Normal(part) => {
+                cur.push(part);
+                if !roots.iter().any(|root| cur.starts_with(root)) {
+                    continue;
+                }
+                if let Ok(meta) = fs::symlink_metadata(&cur) {
+                    if meta.file_type().is_symlink() {
+                        return Err("reparse points are rejected".into());
+                    }
+                }
+            }
         }
     }
-    Ok((kind, resolved))
+    Ok(())
 }
 
 fn canonical_candidate(path: &Path) -> Result<PathBuf, String> {
@@ -220,20 +245,88 @@ fn has_extra_colon(raw: &str) -> bool {
     rest.contains(&b':')
 }
 
-fn link_count(meta: &fs::Metadata) -> u64 {
+fn ensure_not_hard_linked(path: &Path) -> Result<(), String> {
+    if !path.is_file() {
+        return Ok(());
+    }
+    if link_count(path)? > 1 {
+        return Err("hard links are rejected".into());
+    }
+    Ok(())
+}
+
+fn link_count(path: &Path) -> Result<u64, String> {
     #[cfg(unix)]
     {
-        std::os::unix::fs::MetadataExt::nlink(meta)
+        let meta = fs::metadata(path).map_err(|err| format!("hard link check: {err}"))?;
+        Ok(std::os::unix::fs::MetadataExt::nlink(&meta))
     }
     #[cfg(windows)]
     {
-        std::os::windows::fs::MetadataExt::number_of_links(meta)
+        windows_link_count(path)
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = meta;
-        1
+        let _ = path;
+        Ok(1)
     }
+}
+
+/// `MetadataExt::number_of_links` is unstable on Windows and returns
+/// `Option<u32>`. `GetFileInformationByHandle` is the stable link count.
+#[cfg(windows)]
+fn windows_link_count(path: &Path) -> Result<u64, String> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+
+    #[repr(C)]
+    struct Filetime {
+        low: u32,
+        high: u32,
+    }
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        file_attributes: u32,
+        creation_time: Filetime,
+        last_access_time: Filetime,
+        last_write_time: Filetime,
+        volume_serial_number: u32,
+        file_size_high: u32,
+        file_size_low: u32,
+        number_of_links: u32,
+        file_index_high: u32,
+        file_index_low: u32,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandle(
+            file: *mut std::ffi::c_void,
+            info: *mut ByHandleFileInformation,
+        ) -> i32;
+    }
+
+    const FILE_SHARE_READ: u32 = 0x0000_0001;
+    const FILE_SHARE_WRITE: u32 = 0x0000_0002;
+    const FILE_SHARE_DELETE: u32 = 0x0000_0004;
+
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .open(path)
+        .map_err(|err| format!("hard link check: {err}"))?;
+    let mut info = std::mem::MaybeUninit::<ByHandleFileInformation>::zeroed();
+    // Safety: `info` is a writable BY_HANDLE_FILE_INFORMATION and `file` is open.
+    let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) };
+    if ok == 0 {
+        return Err(format!(
+            "hard link check: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    // Safety: a non-zero return means Windows wrote the whole information struct.
+    let info = unsafe { info.assume_init() };
+    Ok(u64::from(info.number_of_links))
 }
 
 #[derive(Debug)]

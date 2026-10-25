@@ -168,6 +168,34 @@ fn symlink_and_open_document_fail_closed() {
 }
 
 #[test]
+fn directory_symlink_inside_the_root_is_rejected() {
+    let (_dir, config) = sample_config();
+    let nested = config.input.join("nested");
+    fs::create_dir(&nested).unwrap();
+    let page = nested.join("page.png");
+    fs::write(&page, b"page").unwrap();
+    let bridge = bridge(config.clone());
+    #[cfg(unix)]
+    {
+        let link = config.input.join("link");
+        std::os::unix::fs::symlink(&nested, &link).unwrap();
+        let rejected = text(bridge.call(
+            "csp_file_info",
+            &json!({ "path": link.join("page.png").display().to_string() }),
+        ));
+        assert!(
+            rejected.contains("reparse"),
+            "directory symlink was accepted: {rejected}"
+        );
+    }
+    let direct = text(bridge.call(
+        "csp_file_info",
+        &json!({ "path": page.display().to_string() }),
+    ));
+    assert!(direct.contains("sha256"), "{direct}");
+}
+
+#[test]
 fn session_inspection_does_not_pretend_to_capture() {
     let bridge = ClipStudio::new(None);
     let err = text(bridge.call("csp_capture", &json!({})));

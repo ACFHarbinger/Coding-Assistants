@@ -112,7 +112,7 @@ pub fn wait_for_file(config: &Config, args: &Value) -> Result<Value, String> {
         return Err("wait_for_file does not watch the input root".into());
     }
     let deadline = SystemTime::now() + Duration::from_millis(timeout_ms);
-    let mut previous: Option<(u64, u64)> = None;
+    let mut previous: Option<(u64, SystemTime)> = None;
     loop {
         if let Some(sample) = sample_file(&resolved)? {
             if sample.0 > 0 && previous == Some(sample) {
@@ -169,12 +169,13 @@ fn info_json(kind: RootKind, path: &Path) -> Result<Value, String> {
     }))
 }
 
-fn sample_file(path: &Path) -> Result<Option<(u64, u64)>, String> {
+fn sample_file(path: &Path) -> Result<Option<(u64, SystemTime)>, String> {
     if !path.is_file() {
         return Ok(None);
     }
     let meta = fs::metadata(path).map_err(|err| err.to_string())?;
-    Ok(Some((meta.len(), modified_unix(path)?)))
+    let modified = meta.modified().map_err(|err| err.to_string())?;
+    Ok(Some((meta.len(), modified)))
 }
 
 fn modified_unix(path: &Path) -> Result<u64, String> {
@@ -203,4 +204,29 @@ fn hex_encode(bytes: &[u8]) -> String {
         out.push(HEX[(byte & 0xf) as usize] as char);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn stability_sample_keeps_subsecond_mtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.png");
+        fs::write(&path, b"same-length").unwrap();
+        let base = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        let file = fs::File::options().write(true).open(&path).unwrap();
+        file.set_modified(base).unwrap();
+        let first = sample_file(&path).unwrap().unwrap();
+        file.set_modified(base + Duration::from_millis(10)).unwrap();
+        let second = sample_file(&path).unwrap().unwrap();
+        assert_eq!(first.0, second.0);
+        assert_eq!(
+            first.1.duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            second.1.duration_since(UNIX_EPOCH).unwrap().as_secs()
+        );
+        assert_ne!(first.1, second.1);
+    }
 }
