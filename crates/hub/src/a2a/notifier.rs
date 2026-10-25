@@ -23,7 +23,7 @@ use std::sync::{
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use super::push::{update_store, vault_key_for, PushConfigEntry, PushConfigStore};
+use super::push::{read_store, update_store, vault_key_for, PushConfigEntry};
 use super::{a2a_task_state, task_result, HubStore, TaskRecord};
 
 /// Default poll interval for the production notifier.
@@ -92,7 +92,7 @@ pub fn deliver(
     }
     let response = request
         .send_json(payload)
-        .map_err(|error| format!("webhook POST failed: {error}"))?;
+        .map_err(|_| "webhook POST transport failed".to_string())?;
     let status = response.status().as_u16();
     // Body intentionally discarded unread; only the status acknowledges.
     if (200..300).contains(&status) {
@@ -122,25 +122,33 @@ fn deliver_with_retries(
 
 /// Outbound `Authorization` value for one config, or `None`. The credential
 /// materializes here only, straight from the P12 vault into the header.
-fn auth_header_for(entry: &PushConfigEntry) -> Option<String> {
+fn auth_header_for(entry: &PushConfigEntry) -> Result<Option<String>, &'static str> {
     if !entry.has_credentials {
-        return None;
+        return Ok(None);
     }
     crate::secret::resolve(&vault_key_for(&entry.task_id, &entry.config_id))
-        .map(|secret| format!("Bearer {}", secret.expose()))
+        .map(|secret| Some(format!("Bearer {}", secret.expose())))
+        .ok_or("configured webhook credential is unavailable")
 }
 
 /// One poll pass: deliver every state change since `last_notified_state`.
 /// Public so tests can drive a single tick without the thread.
 pub fn tick(store: &HubStore, agent: &ureq::Agent) {
-    let entries = match PushConfigStore::open(store.data_dir()) {
-        Ok(registry) => registry.configs().to_vec(),
+    let entries = match read_store(store.data_dir(), |registry| {
+        registry
+            .configs()
+            .iter()
+            .filter(|entry| entry.enabled)
+            .map(|entry| (entry.clone(), auth_header_for(entry)))
+            .collect::<Vec<_>>()
+    }) {
+        Ok(entries) => entries,
         Err(error) => {
             eprintln!("a2a push notifier: cannot read config registry: {error}");
             return;
         }
     };
-    for entry in entries.iter().filter(|entry| entry.enabled) {
+    for (entry, auth_header) in &entries {
         let task = match store.get_task(&entry.task_id) {
             Ok(Some(task)) => task,
             // Missing task: nothing to report; the config stays for `get`.
@@ -151,7 +159,13 @@ pub fn tick(store: &HubStore, agent: &ureq::Agent) {
             continue;
         }
         let payload = status_event(store, &task);
-        let auth_header = auth_header_for(entry);
+        let auth_header = match auth_header {
+            Ok(header) => header,
+            Err(error) => {
+                eprintln!("a2a push notifier: {error}");
+                continue;
+            }
+        };
         if let Err(error) = deliver_with_retries(
             agent,
             &entry.url,
@@ -168,7 +182,11 @@ pub fn tick(store: &HubStore, agent: &ureq::Agent) {
         // not wedge the loop into an infinite retry across ticks.
         let _ = update_store(store.data_dir(), |configs| {
             if let Some(stored) = configs.find_mut(&entry.task_id, &entry.config_id) {
-                stored.last_notified_state = Some(state.to_string());
+                // A replacement config has its own baseline; this delivery
+                // belongs only to the snapshot used above.
+                if stored.created_at == entry.created_at {
+                    stored.last_notified_state = Some(state.to_string());
+                }
             }
             Ok(())
         });

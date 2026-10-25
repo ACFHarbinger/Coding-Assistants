@@ -16,13 +16,19 @@ use std::sync::Arc;
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 
-fn temp_store() -> (TempDir, HubStore) {
+pub(super) fn temp_store() -> (TempDir, HubStore) {
     let dir = tempdir().unwrap();
     let store = HubStore::open(dir.path()).unwrap();
     (dir, store)
 }
 
-fn running_task(store: &HubStore) -> crate::TaskRecord {
+pub(super) fn running_task(store: &HubStore) -> crate::TaskRecord {
+    store
+        .set_wake_policy(&crate::WakePolicy {
+            default_requires_human_gate: false,
+            allow_auto_wake: true,
+        })
+        .unwrap();
     let steps = vec![WorkflowStep {
         agent: "worker".into(),
         role: None,
@@ -35,7 +41,9 @@ fn running_task(store: &HubStore) -> crate::TaskRecord {
         handoff_metadata: None,
         context_filter: None,
     }];
-    let task = store.create_task_with_parallel("push test", None, &steps, 4, false).unwrap();
+    let task = store
+        .create_task_with_parallel("push test", None, &steps, 4, false)
+        .unwrap();
     store.advance_task(&task.id, Some("worker"), None).unwrap()
 }
 
@@ -43,7 +51,7 @@ fn rpc(store: &HubStore, method: &str, params: Value, id: i64) -> Value {
     handle_push_rpc(store, method, &params, &json!(id)).expect("push method handled")
 }
 
-fn set_rpc(store: &HubStore, task_id: &str, url: &str) -> Value {
+pub(super) fn set_rpc(store: &HubStore, task_id: &str, url: &str) -> Value {
     rpc(
         store,
         "tasks/pushNotificationConfig/set",

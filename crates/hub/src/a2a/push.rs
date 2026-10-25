@@ -80,6 +80,16 @@ pub fn vault_key_for(task_id: &str, config_id: &str) -> String {
     format!("a2a.push.{task_id}.{config_id}")
 }
 
+/// Read a consistent registry/credential snapshot under the mutation lock.
+pub(super) fn read_store<T>(
+    data_dir: &Path,
+    read: impl FnOnce(&PushConfigStore) -> T,
+) -> Result<T, HubError> {
+    let _guard = PUSH_STORE_LOCK.lock().unwrap();
+    let store = PushConfigStore::open(data_dir)?;
+    Ok(read(&store))
+}
+
 /// Open a store under the process-wide lock, mutate, and persist. This is
 /// the only write path; readers (notifier) use [`PushConfigStore::open`].
 pub fn update_store<T>(

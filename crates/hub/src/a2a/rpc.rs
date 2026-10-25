@@ -191,22 +191,6 @@ fn set_config(store: &HubStore, params: &Value, id: &Value) -> Value {
         .unwrap_or(true);
 
     let vault_key = vault_key_for(&task_id, &config_id);
-    let prior = match load_store(store, id) {
-        Ok(existing) => existing
-            .find(&task_id, &config_id)
-            .map(|entry| entry.has_credentials),
-        Err(response) => return response,
-    };
-    // Webhook credentials live only in the P12 vault. Replacing a config
-    // without credentials revokes the old vault entry so a stale secret
-    // cannot ride a re-registered URL.
-    if let Some(secret_value) = &credentials {
-        if let Err(error) = secret::set_secret(&vault_key, secret_value) {
-            return rpc_error(id, -32000, &format!("vault store failed: {error}"));
-        }
-    } else if prior == Some(true) {
-        let _ = secret::clear_secret(&vault_key);
-    }
 
     let entry = PushConfigEntry {
         task_id: task_id.clone(),
@@ -233,6 +217,20 @@ fn set_config(store: &HubStore, params: &Value, id: &Value) -> Value {
                     "global push config limit ({MAX_CONFIGS_TOTAL}) reached"
                 )));
             }
+        }
+        // Check capacity before changing credentials, and serialize credential
+        // changes with notifier snapshots and registry mutations.
+        if let Some(secret_value) = &credentials {
+            secret::set_secret(&vault_key, secret_value).map_err(|error| {
+                crate::store::HubError::Invalid(format!("vault store failed: {error}"))
+            })?;
+        } else if configs
+            .find(&task_id, &entry.config_id)
+            .is_some_and(|old| old.has_credentials)
+        {
+            secret::clear_secret(&vault_key).map_err(|error| {
+                crate::store::HubError::Invalid(format!("vault clear failed: {error}"))
+            })?;
         }
         configs.upsert(entry);
         Ok(())
@@ -284,11 +282,16 @@ fn get_config(store: &HubStore, params: &Value, id: &Value, delete: bool) -> Val
         }
     };
     if delete {
-        if entry.has_credentials {
-            let _ = secret::clear_secret(&vault_key_for(&task_id, &entry.config_id));
-        }
         let config_id = entry.config_id.clone();
         let removed = update_store(store.data_dir(), |configs| {
+            if configs
+                .find(&task_id, &config_id)
+                .is_some_and(|current| current.has_credentials)
+            {
+                secret::clear_secret(&vault_key_for(&task_id, &config_id)).map_err(|error| {
+                    crate::store::HubError::Invalid(format!("vault clear failed: {error}"))
+                })?;
+            }
             configs.remove(&task_id, &config_id);
             Ok(())
         });
