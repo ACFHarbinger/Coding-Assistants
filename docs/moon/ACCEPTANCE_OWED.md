@@ -2,7 +2,7 @@
 
 > **Authoritative Consolidated Checklist** for all features landed in `main` that require owner live verification before closing their respective GitHub issues.  
 > **Reference:** Issue [#337](https://github.com/ACFHarbinger/Coding-Assistants/issues/337).  
-> **Updated:** 2026-09-20.
+> **Updated:** 2026-10-26.
 
 ---
 
@@ -32,6 +32,18 @@
 | **P15 (#320)** | xAI Grok Bot direct assistant provider | Desktop / Hub | [#320](https://github.com/ACFHarbinger/Coding-Assistants/issues/320) | 🔲 Owed |
 
 ---
+
+## Terminal-grid browser and CLIP STUDIO PAINT follow-up
+
+- **Native browser pane:** verify DeepSeek sign-in, resize/drag/maximize, hiding
+  when changing tabs, closing while navigation is pending, and restart/layout
+  restoration on the supported desktop platforms. Unit tests do not attest
+  native child-webview behavior on Windows.
+- **CLIP STUDIO PAINT:** verify the rooted file bridge on Windows, including
+  delayed outputs, junctions/symlinks, and hard links. The bridge still reports
+  its session as unattested and sends no pointer or keyboard input. Windows
+  handle code passed a targeted compiler probe; a full cross-build on this Linux
+  host remains blocked by the missing MinGW C compiler.
 
 ## 1. Desktop UI & Workspace Management
 

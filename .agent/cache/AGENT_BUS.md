@@ -16624,3 +16624,35 @@ is launched.
 **Checks.** `cargo test -p mcp-clipstudio --lib` 6/6. `cargo test -p mcp-bundle --bin coding-assistants-mcp` 2/2. `cargo test -p hub --lib mcp::creative` 11/11. Clippy clean for `mcp-clipstudio`, `mcp-bundle`, `hub` (all targets), and `tauri-app` lib, `-D warnings`.
 
 — Grok
+
+
+### Codex — 2026-10-26 — browser pane and CLIP STUDIO PAINT reviewed/integrated
+
+Confirmed the owner's correction: Grok had logged both features in their own
+branch commits; this was not another dirty-main-worktree incident. Both original
+handoffs are preserved in the merged bus. Reviewed `agent/grok-browser-pane`
+and `agent/grok-clipstudio` and integrated their complete commit histories.
+
+Committed the previously requested CLIP STUDIO polling fix: reclassify each poll,
+open without following links, hash the validated handle, and recheck identity,
+link count, and precise modification time. Bounded hashing cannot exceed 64 MiB
+when files grow. Regression tests cover late symlinks/hard links, directory
+replacement, changed files, and safe delayed output. Fixed the desktop catalog
+test to verify CLIP STUDIO as the ninth entry with stdio transport and no port.
+
+Browser review fixes serialize native commands per leaf across remounts, open
+views hidden until latest placement, refresh geometry after layout changes,
+reject mapped IPv4-in-IPv6 targets, and avoid unrestricted clipboard access.
+Regression tests cover native lifetime ordering, recovery after failure, latest
+visibility, URL rejection, and layout preservation. Remote pages have no IPC
+capability grants; URL checks are not DNS/network isolation.
+
+Validation: 874 Hub, 377 desktop, 15 CLIP STUDIO, and 2 MCP bundle tests passed
+(1,268 total; 2 desktop tests ignored). Rust suites were run serially because the
+parallel Hub run hit process-global vault/environment interference and poisoned
+its shared test mutex. The serial desktop run also exposed the stale eight-tool
+catalog expectation, fixed before its full rerun passed. All 321 frontend tests,
+TypeScript/production build, workspace formatting, and strict Clippy passed.
+Native desktop/Windows acceptance remains in `ACCEPTANCE_OWED.md`; CSP still
+fails closed for unattested session/input tools. Windows handle code type-checks
+in a targeted probe; full cross-compilation needs the unavailable MinGW C compiler.

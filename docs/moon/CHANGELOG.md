@@ -15,6 +15,12 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-26 (browser and CLIP STUDIO integration review)
+
+- Browser panes serialize native view lifetimes across remounts, apply current visibility and geometry, reject mapped local IP addresses, and keep unrestricted clipboard access disabled.
+- CLIP STUDIO output polling revalidates paths on each poll and hashes the same validated handle with bounded reads and before/after checks. Late links and path replacement fail closed. Desktop Creative Tools status includes the ninth, stdio-only CLIP STUDIO entry.
+
+
 ### Added — 2026-10-25 (CLIP STUDIO PAINT MCP)
 
 - **CLIP STUDIO PAINT creative-tool bridge.** `coding-assistants-mcp clipstudio` registers in the Creative Tools catalog as `coding-assistants-mcp-clipstudio`. It exposes the 33-tool 5.1.2 production catalog. File exchange is limited to three configured roots (`CSP_MCP_CONFIG` or `--config`). `csp_preflight` issues a 45-second single-use token. Screenshot, window, and input tools fail closed: this bridge does not attest `CLIPStudioPaint.exe` and does not send pointer or keyboard input. `csp_open_document` validates an input-root file and does not launch CSP. Symlink components are rejected on the original path before canonicalization. Windows hard-link checks use `GetFileInformationByHandle`. Output stability compares full-resolution modification times.
