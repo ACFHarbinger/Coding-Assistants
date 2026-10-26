@@ -205,7 +205,7 @@
      ```bash
      cargo run -p mcp-bundle -- ableton --port 9770
      ```
-  3. In desktop **Settings** -> **Creative Tools**, verify that Ableton Live is listed in the 8-tool catalog on port 9770.
+  3. In desktop **Settings** -> **Creative Tools**, verify that Ableton Live is listed in the creative-tool catalog on port 9770. CLIP STUDIO PAINT is a separate stdio entry and does not use that port.
   4. (If Ableton Live is available) Copy `plugins/ableton/` to:
      `~/Music/Ableton/User Library/Remote Scripts/CodingAssistants/`
      Select **CodingAssistants** under Preferences -> Link/Tempo/MIDI -> Control Surface.

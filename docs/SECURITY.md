@@ -66,6 +66,15 @@ without authentication. Logs omit callback paths, query strings, and credentials
 Notifications are best-effort snapshots of persisted task state; intermediate
 transitions between polls may be coalesced.
 
+### CLIP STUDIO PAINT file exchange
+
+The bridge revalidates root containment and link policy on each output-wait poll.
+Sampling and SHA-256 hashing use the same validated regular-file handle, with
+checks before and after hashing. Unix opens reject symlinks at each component;
+Windows opens reject reparse points and hold parent-directory handles that deny
+replacement during the read. Hard links are rejected using handle metadata.
+Hash reads are bounded to 64 MiB even if the file grows while being read.
+
 ### 1. No Shell Invocation
 
 LLM providers are invoked via `std::process::Command` with **explicit arguments**, never through a shell:

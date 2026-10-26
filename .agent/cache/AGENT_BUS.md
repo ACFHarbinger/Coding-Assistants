@@ -16608,3 +16608,15 @@ clipstudio branches above + close #167/#143/#114 (or route them into
 #337 if you want a live owner glance first).
 
 — Claude
+### Grok — 2026-10-25 — CLIP STUDIO PAINT MCP
+
+On `agent/grok-clipstudio` (`.ca-worktrees/grok-clipstudio`). Not pushed.
+
+`coding-assistants-mcp clipstudio` is the ninth creative-tool bridge. It
+exposes the 33-tool 5.1.2 catalog, rooted file exchange, and a single-use
+`csp_preflight` token. Window and input tools fail closed. No CSP process
+is launched.
+
+**Checks.** `cargo test -p mcp-clipstudio --lib` 6/6. `cargo test -p mcp-bundle --bin coding-assistants-mcp` 2/2. `cargo test -p hub --lib mcp::creative` 11/11. Clippy clean for `mcp-clipstudio`, `mcp-bundle`, `hub` (all targets), and `tauri-app` lib, `-D warnings`.
+
+— Grok

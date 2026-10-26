@@ -1,7 +1,7 @@
 //! Track C-9 — per-workspace registration of the creative-tool MCP bridges.
 //!
 //! The `crates/mcp/<tool>` bridges (Blender, Krita, Godot, Aseprite,
-//! Unreal, Unity, OpenToonz, Ableton) are all built but nothing hands them to an
+//! Unreal, Unity, OpenToonz, Ableton, CLIP STUDIO PAINT) are all built but nothing hands them to an
 //! agent. This module owns:
 //!
 //! - [`CATALOG`] — static metadata for each bridge (key, binary basename,
@@ -38,6 +38,8 @@ pub enum Transport {
     Subprocess,
     /// Reads project files directly; no live connection (OpenToonz).
     FileParse,
+    /// Local stdio policy bridge. No listening port (CLIP STUDIO PAINT).
+    StdioHost,
 }
 
 /// Static description of one `crates/mcp-<tool>` bridge.
@@ -142,6 +144,16 @@ pub const CATALOG: &[CreativeTool] = &[
         port: Some(9770),
         gated_flag: Some("--allow-run-lom"),
         app_process_names: &["Live", "Ableton Live"],
+    },
+    CreativeTool {
+        key: "coding-assistants-mcp-clipstudio",
+        display_name: "CLIP STUDIO PAINT",
+        binary: "coding-assistants-mcp",
+        default_args: &["clipstudio"],
+        transport: Transport::StdioHost,
+        port: None,
+        gated_flag: None,
+        app_process_names: &["CLIPStudioPaint"],
     },
 ];
 
@@ -314,7 +326,12 @@ mod tests {
                 Some(t.key.strip_prefix("coding-assistants-mcp-").unwrap())
             );
         }
-        assert_eq!(CATALOG.len(), 8);
+        assert_eq!(CATALOG.len(), 9);
+        let clipstudio = tool("coding-assistants-mcp-clipstudio").expect("clipstudio");
+        assert_eq!(clipstudio.transport, Transport::StdioHost);
+        assert_eq!(clipstudio.default_args, &["clipstudio"]);
+        assert!(clipstudio.port.is_none());
+        assert!(clipstudio.gated_flag.is_none());
     }
 
     #[test]
