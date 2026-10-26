@@ -3170,6 +3170,7 @@ dependencies = [
 name = "mcp-clipstudio"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "mcp-core",
  "serde",
  "serde_json",

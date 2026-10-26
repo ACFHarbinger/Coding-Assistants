@@ -5,6 +5,7 @@
 //! and input tools fail closed: this bridge does not attest `CLIPStudioPaint.exe`
 //! and does not inject pointer or keyboard input.
 
+mod checked_file;
 mod files;
 mod policy;
 mod tools;

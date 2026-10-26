@@ -277,8 +277,21 @@ fn link_count(path: &Path) -> Result<u64, String> {
 #[cfg(windows)]
 fn windows_link_count(path: &Path) -> Result<u64, String> {
     use std::os::windows::fs::OpenOptionsExt;
-    use std::os::windows::io::AsRawHandle;
+    const FILE_SHARE_READ: u32 = 0x0000_0001;
+    const FILE_SHARE_WRITE: u32 = 0x0000_0002;
+    const FILE_SHARE_DELETE: u32 = 0x0000_0004;
 
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .open(path)
+        .map_err(|err| format!("hard link check: {err}"))?;
+    windows_handle_links(&file)
+}
+
+#[cfg(windows)]
+pub(super) fn windows_handle_links(file: &fs::File) -> Result<u64, String> {
+    use std::os::windows::io::AsRawHandle;
     #[repr(C)]
     struct Filetime {
         low: u32,
@@ -297,7 +310,6 @@ fn windows_link_count(path: &Path) -> Result<u64, String> {
         file_index_high: u32,
         file_index_low: u32,
     }
-
     #[link(name = "kernel32")]
     extern "system" {
         fn GetFileInformationByHandle(
@@ -305,16 +317,6 @@ fn windows_link_count(path: &Path) -> Result<u64, String> {
             info: *mut ByHandleFileInformation,
         ) -> i32;
     }
-
-    const FILE_SHARE_READ: u32 = 0x0000_0001;
-    const FILE_SHARE_WRITE: u32 = 0x0000_0002;
-    const FILE_SHARE_DELETE: u32 = 0x0000_0004;
-
-    let file = fs::OpenOptions::new()
-        .read(true)
-        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
-        .open(path)
-        .map_err(|err| format!("hard link check: {err}"))?;
     let mut info = std::mem::MaybeUninit::<ByHandleFileInformation>::zeroed();
     // Safety: `info` is a writable BY_HANDLE_FILE_INFORMATION and `file` is open.
     let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) };

@@ -7,7 +7,7 @@ fn bridge(config: Config) -> ClipStudio {
     ClipStudio::new(Some(config))
 }
 
-fn sample_config() -> (tempfile::TempDir, Config) {
+pub(super) fn sample_config() -> (tempfile::TempDir, Config) {
     let dir = tempfile::tempdir().unwrap();
     for name in ["input", "working", "exports"] {
         fs::create_dir(dir.path().join(name)).unwrap();
