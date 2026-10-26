@@ -314,7 +314,7 @@ mod tests {
             .into_iter()
             .collect();
         let status = build_status(ws, &enabled, Vec::new());
-        assert_eq!(status.tools.len(), 8);
+        assert_eq!(status.tools.len(), 9);
         let blender = status
             .tools
             .iter()
@@ -329,6 +329,14 @@ mod tests {
             .unwrap();
         assert!(!ableton.enabled);
         assert_eq!(ableton.port, Some(9770));
-        assert!(status.tools.iter().filter(|t| !t.enabled).count() == 7);
+        assert_eq!(status.tools.iter().filter(|t| !t.enabled).count(), 8);
+        let clipstudio = status
+            .tools
+            .iter()
+            .find(|tool| tool.key == "coding-assistants-mcp-clipstudio")
+            .unwrap();
+        assert!(!clipstudio.enabled);
+        assert_eq!(clipstudio.transport, "stdio-host");
+        assert_eq!(clipstudio.port, None);
     }
 }
