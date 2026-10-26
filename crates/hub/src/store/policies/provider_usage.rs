@@ -6,6 +6,8 @@
 
 use super::super::*;
 use super::slice_stamp::SliceStamp;
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
 use serde_json::json;
 
 /// One provider response's measured usage. Tokens now; currency only when
@@ -97,6 +99,49 @@ impl HubStore {
             &usage.stamp,
         )?))
     }
+
+    /// Records measured usage once per durable `usage_key`.
+    ///
+    /// The key is independent of chat-message capture. A repeated transcript
+    /// poll, or a second response whose reply text matches an earlier one,
+    /// does not collapse this row. An empty key records without dedup.
+    /// Nothing is written when the usage has no measurement, and that call
+    /// does not consume the key.
+    pub fn record_provider_usage_once(
+        &self,
+        usage: &ProviderUsage,
+        usage_key: &str,
+    ) -> Result<Option<AuditEvent>, HubError> {
+        let usage_key = usage_key.trim();
+        if usage_key.is_empty() {
+            return self.record_provider_usage(usage);
+        }
+        self.conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS harness_spend_keys (
+                usage_key TEXT PRIMARY KEY NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+        )?;
+        let seen: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM harness_spend_keys WHERE usage_key = ?1",
+                [usage_key],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if seen.is_some() {
+            return Ok(None);
+        }
+        let recorded = self.record_provider_usage(usage)?;
+        if recorded.is_some() {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO harness_spend_keys (usage_key, created_at) VALUES (?1, ?2)",
+                params![usage_key, Utc::now().to_rfc3339()],
+            )?;
+        }
+        Ok(recorded)
+    }
 }
 
 #[cfg(test)]
@@ -166,5 +211,41 @@ mod tests {
         let round = SliceStamp::from_json_str(&event.process_json);
         assert_eq!(round.task_id.as_deref(), Some("task-1"));
         assert_eq!(round.work_session_id.as_deref(), Some("sess-1"));
+    }
+
+    #[test]
+    fn usage_once_keeps_distinct_keys_and_skips_a_repeat() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let usage = |prompt| ProviderUsage {
+            provider: "claude".into(),
+            actor_agent: "claude".into(),
+            prompt_tokens: Some(prompt),
+            completion_tokens: Some(1),
+            cache_tokens: None,
+            cost: None,
+            via_gateway: None,
+            model: None,
+            stamp: SliceStamp::default(),
+        };
+        assert!(store
+            .record_provider_usage_once(&usage(1), "sess:msg_1")
+            .unwrap()
+            .is_some());
+        assert!(store
+            .record_provider_usage_once(&usage(2), "sess:msg_2")
+            .unwrap()
+            .is_some());
+        assert!(store
+            .record_provider_usage_once(&usage(9), "sess:msg_1")
+            .unwrap()
+            .is_none());
+        let rows: Vec<_> = store
+            .list_audit_events(false)
+            .unwrap()
+            .into_iter()
+            .filter(|event| event.operation == "provider.usage")
+            .collect();
+        assert_eq!(rows.len(), 2);
     }
 }

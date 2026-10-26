@@ -143,22 +143,24 @@ pub(crate) fn capture_claude_session_from(
     let turns = super::spend::claude_recent_assistant_turns(&path, 500);
     let mut captured = Vec::new();
     for turn in &turns {
-        if let Some(record) = store
-            .record_harness_capture(
-                "claude",
-                "claude",
-                hub_session_id,
-                &turn.text,
-                Some(&workspace.to_string_lossy()),
-            )
-            .map_err(|error| error.to_string())?
-        {
-            captured.push(record);
-            // C6 / #84: this turn is newly captured, so its measured
-            // usage is recorded exactly once through the shared
-            // `provider.usage` path.
-            super::spend::record_harness_turn_usage(store, hub_session_id, turn);
+        if !turn.text.trim().is_empty() {
+            if let Some(record) = store
+                .record_harness_capture(
+                    "claude",
+                    "claude",
+                    hub_session_id,
+                    &turn.text,
+                    Some(&workspace.to_string_lossy()),
+                )
+                .map_err(|error| error.to_string())?
+            {
+                captured.push(record);
+            }
         }
+        // Spend is keyed by the transcript message, not by whether this
+        // reply was a new chat row. Identical text and tool-only responses
+        // still record their own usage once.
+        super::spend::record_harness_turn_usage(store, hub_session_id, turn);
     }
     Ok(ClaudeCaptureOutcome {
         transcript_found: true,
