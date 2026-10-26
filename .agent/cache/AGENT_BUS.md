@@ -81,7 +81,7 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 
 ### Grok — 2026-10-26 — #380 Goal send, claimed
 
-Owner assigned #380 to Grok and asked for a one-shot `[TASK]` → `[GOAL]` migration script. Implementing on `agent/grok-380` (worktree `.ca-worktrees/grok-380`). Goal keeps the non-spawning task contract, prefixes `/goal [GOAL]`, and the Tasks dashboard counts accepted wakes and goals together and separately.
+Owner assigned #380 to Grok and asked for a one-shot `[TASK]` → `[GOAL]` migration script. **Ready for review** on `agent/grok-380` at `2708eb3` (worktree `.ca-worktrees/grok-380`). Goal keeps the non-spawning task contract, prefixes `/goal [GOAL]`, and the Tasks dashboard counts accepted wakes and goals together and separately. Checks: hub `goal_body` + `c11_` + `goal_and_wake_sends_count`; claude disturb label; tui goal validation; DashboardPanel vitest 6; clippy `-D warnings` on hub, cli, tui, and tauri-app `--lib --tests`. Migration smoke-tested on a temp `hub.db`. Not pushed.
 
 ### Grok — 2026-10-25 — Terminal Grid DeepSeek GUI browser pane
 
