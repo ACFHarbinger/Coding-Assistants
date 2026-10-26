@@ -43,6 +43,7 @@ function ipv4Blocked(host: string): boolean | null {
 function ipv6Blocked(host: string): boolean {
   const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
   if (!bare.includes(":")) return false;
+  if (bare.startsWith("::ffff:")) return true;
   if (bare === "::" || bare === "::1") return true;
   if (/^fe[89ab]/.test(bare)) return true;
   return bare.startsWith("fc") || bare.startsWith("fd");

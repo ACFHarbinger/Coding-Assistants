@@ -70,7 +70,8 @@ fn ip_blocked(ip: IpAddr) -> bool {
                 || ip.is_documentation()
         }
         IpAddr::V6(ip) => {
-            ip.is_loopback()
+            ip.to_ipv4_mapped().is_some()
+                || ip.is_loopback()
                 || ip.is_unspecified()
                 || ip.is_multicast()
                 || ip.is_unique_local()
@@ -155,7 +156,6 @@ pub async fn browser_pane_open(
         .on_navigation(navigation_allowed)
         .on_new_window(|_url, _features| tauri::webview::NewWindowResponse::Deny)
         .disable_drag_drop_handler()
-        .enable_clipboard_access()
         .devtools(cfg!(debug_assertions))
         .incognito(false);
     let width = bounds.width.max(1.0);
@@ -233,6 +233,8 @@ mod tests {
             "https://10.1.2.3/admin",
             "https://192.168.0.8/",
             "https://[::1]/",
+            "https://[::ffff:127.0.0.1]/",
+            "https://[::ffff:7f00:1]/",
             "https://[fd00::1]/",
             "not a url",
         ] {

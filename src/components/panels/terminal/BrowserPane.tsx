@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { invoke } from "../../../lib/tauri";
+import { browserPaneCommand } from "./browserPaneCommands";
 import type { LeafNode, Rect } from "./layoutTree";
 import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 import { BROWSER_PANE_URL_ERROR, browserPaneUrlError, DEEPSEEK_GUI_HOME } from "./browserUrl";
@@ -61,32 +61,39 @@ export default function BrowserPane({
   const [draft, setDraft] = useState(node.url || DEEPSEEK_GUI_HOME);
   const [error, setError] = useState("");
   const initialUrl = useRef(node.url);
+  const generation = useRef(0);
+  const latestActive = useRef(active);
+  latestActive.current = active;
 
   useEffect(() => {
     let alive = true;
+    const current = ++generation.current;
+    const close = () => {
+      alive = false;
+      generation.current += 1;
+      void browserPaneCommand(node.id, "browser_pane_close").catch(() => undefined);
+    };
     const stored = (initialUrl.current ?? "").trim();
     if (!stored || browserPaneUrlError(stored)) {
       if (stored) setError(BROWSER_PANE_URL_ERROR);
-      return () => {
-        alive = false;
-      };
+      return close;
     }
-    void invoke("browser_pane_open", {
-      leafId: node.id,
+    void browserPaneCommand(node.id, "browser_pane_open", {
       url: stored,
-      bounds: readBounds(slotRef.current, active),
+      bounds: { ...readBounds(slotRef.current, active), visible: false },
     })
       .then(() => {
-        if (!alive) return invoke("browser_pane_close", { leafId: node.id });
+        if (alive && generation.current === current) {
+          return browserPaneCommand(node.id, "browser_pane_place", () => ({
+            bounds: readBounds(slotRef.current, latestActive.current),
+          }));
+        }
         return undefined;
       })
       .catch((cause: unknown) => {
         if (alive) setError(String(cause).replace(/^Error:\s*/, ""));
       });
-    return () => {
-      alive = false;
-      void invoke("browser_pane_close", { leafId: node.id }).catch(() => undefined);
-    };
+    return close;
     // The leaf id is the webview identity. URL edits go through navigate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
@@ -96,10 +103,9 @@ export default function BrowserPane({
     if (!slot) return;
     let frame = 0;
     const send = () => {
-      void invoke("browser_pane_place", {
-        leafId: node.id,
-        bounds: readBounds(slot, active),
-      }).catch(() => undefined);
+      void browserPaneCommand(node.id, "browser_pane_place", () => ({
+        bounds: readBounds(slotRef.current, latestActive.current),
+      })).catch(() => undefined);
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
@@ -119,7 +125,7 @@ export default function BrowserPane({
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
     };
-  }, [node.id, active]);
+  }, [node.id, active, rect.x, rect.y, rect.width, rect.height, bounds.width, bounds.height, isMaximized, isHidden]);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -129,14 +135,18 @@ export default function BrowserPane({
       setError(problem);
       return;
     }
-    void invoke("browser_pane_open", {
-      leafId: node.id,
+    const current = generation.current;
+    void browserPaneCommand(node.id, "browser_pane_open", {
       url: next,
-      bounds: readBounds(slotRef.current, active),
+      bounds: { ...readBounds(slotRef.current, active), visible: false },
     })
       .then(() => {
+        if (generation.current !== current) return;
         setError("");
         onUrlChange(next);
+        return browserPaneCommand(node.id, "browser_pane_place", () => ({
+          bounds: readBounds(slotRef.current, latestActive.current),
+        }));
       })
       .catch((cause: unknown) => setError(String(cause).replace(/^Error:\s*/, "")));
   };

@@ -66,6 +66,15 @@ without authentication. Logs omit callback paths, query strings, and credentials
 Notifications are best-effort snapshots of persisted task state; intermediate
 transitions between polls may be coalesced.
 
+### Terminal-grid browser panes
+
+Browser panes use remote child webviews with no remote capability grants for
+application IPC. Pop-out windows are denied, and the bridge does not enable
+unrestricted clipboard access. Navigation allows HTTPS without URL credentials
+and rejects localhost and blocked IP literals, including IPv4-mapped IPv6.
+These URL checks do not provide DNS or network isolation. Native view commands
+are serialized per pane, and views open hidden until current placement is applied.
+
 ### 1. No Shell Invocation
 
 LLM providers are invoked via `std::process::Command` with **explicit arguments**, never through a shell:

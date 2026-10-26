@@ -56,6 +56,8 @@ describe("DeepSeek GUI browser pane", () => {
     expect(browserPaneUrlError("https://user:secret@chat.deepseek.com/")).not.toBeNull();
     expect(browserPaneUrlError("https://127.0.0.1/")).not.toBeNull();
     expect(browserPaneUrlError("https://localhost/")).not.toBeNull();
+    expect(browserPaneUrlError("https://[::ffff:127.0.0.1]/")).not.toBeNull();
+    expect(browserPaneUrlError("https://[::ffff:7f00:1]/")).not.toBeNull();
     expect(browserPaneUrlError("file:///tmp/x")).not.toBeNull();
   });
 
