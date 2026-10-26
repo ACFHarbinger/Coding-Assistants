@@ -299,17 +299,18 @@ pub(crate) enum MsgCommand {
         task: Option<String>,
         body: String,
     },
-    /// C11: send a task- and/or wake-tagged message, enforcing the same
-    /// rules as the Chat & Memory composer — task targets must already be
-    /// present team/session members (rejected otherwise, no spawn); wake
-    /// may enroll a new identity before delivery, subject to wake policy.
+    /// Send a Goal and/or wake. Goal keeps the task contract: the recipient
+    /// must already be a team or session member (rejected otherwise, no
+    /// spawn) and the stored body starts with `/goal`. `--goal` is an alias
+    /// of `--task`. Wake may enroll a new identity, subject to wake policy.
     Tag {
         #[arg(long)]
         from: String,
         /// Comma-separated recipient agent ids.
         #[arg(long, value_delimiter = ',')]
         to: Vec<String>,
-        #[arg(long, default_value_t = false)]
+        /// Goal send. `--goal` is the same flag.
+        #[arg(long, visible_alias = "goal", default_value_t = false)]
         task: bool,
         #[arg(long, default_value_t = false)]
         wake: bool,

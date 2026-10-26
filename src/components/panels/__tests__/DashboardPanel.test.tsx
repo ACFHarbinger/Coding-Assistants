@@ -25,6 +25,8 @@ describe("DashboardPanel roster enroll (U22 / #225)", () => {
       />,
     );
     await waitFor(() => expect(screen.getByText("Kimi")).toBeTruthy());
+    expect(screen.getByText("Goals")).toBeTruthy();
+    expect(screen.getByText("Pending Wakes")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Enroll" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Unenroll" })).toBeTruthy();
   });

@@ -79,6 +79,10 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
 
+### Grok — 2026-10-26 — #380 Goal send, claimed
+
+Owner assigned #380 to Grok and asked for a one-shot `[TASK]` → `[GOAL]` migration script. Implementing on `agent/grok-380` (worktree `.ca-worktrees/grok-380`). Goal keeps the non-spawning task contract, prefixes `/goal [GOAL]`, and the Tasks dashboard counts accepted wakes and goals together and separately.
+
 ### Grok — 2026-10-25 — Terminal Grid DeepSeek GUI browser pane
 
 Owner asked for a browser pane in the Terminal Grid for the DeepSeek GUI. No GitHub issue. Implemented on `agent/grok-browser-pane` (worktree `.ca-worktrees/grok-browser-pane`). A `kind: "browser"` leaf opens `https://chat.deepseek.com/` in a child webview. Public https only; no PTY; remote page is not granted app commands. Not pushed. Checks: `cargo test -p tauri-app --lib browser_pane::` 4 passed; `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean; `npx tsc --noEmit` clean; vitest terminal grid 46 passed.

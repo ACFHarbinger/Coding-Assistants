@@ -86,6 +86,7 @@ macro_rules! invoke_handler {
             commands::commands::messaging::hub_send_session_message,
             commands::commands::messaging::hub_send_tagged_message,
             commands::commands::messaging::hub_list_tagged_send_outcomes,
+            commands::commands::goal_counts::hub_tagged_send_counts,
             commands::commands::messaging::hub_poll_messages,
             commands::commands::messaging::hub_list_messages,
             commands::commands::messaging::hub_mark_read,

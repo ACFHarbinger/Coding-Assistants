@@ -124,8 +124,8 @@ fn test_c11_task_validation_rejects_non_present_targets() {
         .check_confirmation_and_validation(&app.read_model.team_members, None);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.contains("Task target not on team"));
-    assert!(err.contains("Task stays non-spawning"));
+    assert!(err.contains("Goal target not on team"));
+    assert!(err.contains("Goal stays non-spawning"));
 }
 
 #[test]

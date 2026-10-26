@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Changed — 2026-10-26 (chat Goal send, #380, Grok)
+
+- The chat Task intent is now Goal. A Goal still delivers only to an enrolled member and does not spawn. The stored body and the harness prompt start with `/goal [GOAL]`. `ca msg tag --goal` is an alias of `--task`. The Shared Hub overview keeps the Tasks name and counts accepted wakes and goals combined, plus each count on its own. Workflow task rows stay under Workflow tasks. `migrations/rename-task-marker-to-goal.sh` rewrites stored `[TASK]` markers to `[GOAL]` once per PC.
+
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
 - **The Claude Code CLI harness now auto-records spend and is budget-gated like the in-process HTTP providers.** In-process providers (OpenRouter, Grok Bot, generic `llm.rs`) already wrote `provider.usage` per completion and gated calls through `gate_provider_call`; the CLI-subprocess swarm had no equivalent. First slice per the #84 delegation: (1) each Claude transcript response records measured tokens (input/output/cache read + creation) and model once per transcript session and provider message id (`message.id`, otherwise the transcript entry id), including tool-only responses — repeated polls do not double-count, and transcripts without usage figures invent no zero-cost rows; (2) a Claude one-shot spawn (wake/plain send) now reserves one budget unit through `claude_spawn_gate` before the process starts — a stopped agent gets a durable C6 handoff and `status: "stopped"` with no process spawned. Shared plumbing for later harnesses: `HarnessTurnUsage` + `record_harness_turn_usage` in `src-tauri/src/harness/spend.rs`.

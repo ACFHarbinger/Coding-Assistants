@@ -1,6 +1,6 @@
 //! Message composer for the Ratatui TUI client (T4 / #138).
 //!
-//! Provides desktop-parity All/Subset/One recipient selection, [TASK] and [WAKE]
+//! Provides desktop-parity All/Subset/One recipient selection, [GOAL] and [WAKE]
 //! intent tagging, confirmation defaults, C11 validation, and delivery outcome tracking.
 
 use hub::{
@@ -192,7 +192,7 @@ impl ComposerState {
 
         let enrolled_ids: Vec<&str> = enrolled_roster.iter().map(|a| a.id.as_str()).collect();
 
-        // C11 Validation: Task-tagged messages MUST target currently present members.
+        // Goal keeps the task contract: present members only, no spawn.
         if self.is_task_tag {
             let non_present: Vec<String> = targets
                 .iter()
@@ -201,7 +201,7 @@ impl ComposerState {
                 .collect();
             if !non_present.is_empty() {
                 return Err(format!(
-                    "Task target not on team: {}. Task stays non-spawning; use [WAKE] to enroll new agents.",
+                    "Goal target not on team: {}. Goal stays non-spawning; use [WAKE] to enroll new agents.",
                     non_present.join(", ")
                 ));
             }
@@ -245,9 +245,6 @@ impl ComposerState {
         let targets = self.resolve_targets(enrolled_roster, session);
         let mut body_text = self.body.trim().to_string();
 
-        if self.is_task_tag && !body_text.starts_with("[TASK]") {
-            body_text = format!("[TASK] {body_text}");
-        }
         if self.is_wake_tag && !body_text.starts_with("[WAKE]") {
             body_text = format!("[WAKE] {body_text}");
         }

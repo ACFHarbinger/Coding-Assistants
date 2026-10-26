@@ -27,6 +27,13 @@ fn c11_task_tag_rejects_absent_recipient_without_side_effects() {
     assert!(grok.accepted);
     assert!(!grok.enrolled);
     assert!(grok.message_id.is_some());
+    let delivered = store.list_messages(Some("grok"), None).unwrap();
+    assert_eq!(delivered.len(), 1);
+    assert_eq!(delivered[0].body, "/goal [GOAL] ship the release");
+    let counts = store.tagged_send_counts().unwrap();
+    assert_eq!(counts.goals, 1);
+    assert_eq!(counts.wakes, 0);
+    assert_eq!(counts.tasks, 1);
 
     let outsider = outcomes.iter().find(|o| o.to_agent == "outsider").unwrap();
     assert!(!outsider.accepted);
@@ -285,4 +292,62 @@ fn c11_unknown_session_fails_before_any_delivery() {
             None,
         )
         .is_err());
+}
+
+#[test]
+fn goal_and_wake_sends_count_together_and_apart() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    store.set_team_member("grok", true).unwrap();
+    store.set_team_member("claude", true).unwrap();
+
+    store
+        .send_tagged_message(
+            "human",
+            &["grok".to_string()],
+            true,
+            true,
+            "do both",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    store
+        .send_tagged_message(
+            "human",
+            &["outsider".to_string()],
+            true,
+            false,
+            "refused",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    store
+        .send_tagged_message(
+            "human",
+            &["claude".to_string()],
+            false,
+            true,
+            "wake only",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    let both = store.list_messages(Some("grok"), None).unwrap();
+    assert_eq!(both[0].body, "/goal [GOAL] do both");
+    let wake = store.list_messages(Some("claude"), None).unwrap();
+    assert_eq!(wake[0].body, "wake only");
+
+    let counts = store.tagged_send_counts().unwrap();
+    assert_eq!(counts.goals, 1);
+    assert_eq!(counts.wakes, 2);
+    assert_eq!(counts.tasks, 2);
 }

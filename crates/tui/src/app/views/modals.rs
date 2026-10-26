@@ -128,9 +128,9 @@ pub fn draw_composer_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         ),
         Span::styled(
             if app.composer.is_task_tag {
-                " [TASK (Active)] "
+                " [GOAL (Active)] "
             } else {
-                " [TASK] "
+                " [GOAL] "
             },
             task_tag_style,
         ),
