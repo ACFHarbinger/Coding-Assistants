@@ -1,4 +1,5 @@
 use crate::agent::AgentEvent;
+use crate::client::endpoint_link::{attached_endpoint, AttachedEndpoint, EndpointLinkState};
 use crate::client::events::emit_http_result;
 use crate::client::grok_bot_turn::grok_bot_completion;
 use crate::client::http::{
@@ -66,9 +67,13 @@ pub struct ModelConfig {
     pub provider: String,
     pub model: String,
     /// Optional OpenAI-compatible endpoint for an already-running model
-    /// service. When set, the app sends requests to that service and never
-    /// spawns or terminates a child process for this role.
+    /// service. A connected value sends chat completions there and never
+    /// spawns or terminates a child. A disconnected value keeps the draft
+    /// and refuses the call instead of falling through to a process spawn.
     pub endpoint: Option<String>,
+    /// Absent on older saved roles, which stay connected.
+    #[serde(default)]
+    pub endpoint_state: EndpointLinkState,
     pub prompt_file: Option<String>,
     pub rule_file: Option<String>,
     pub workflow_file: Option<String>,
@@ -82,6 +87,7 @@ impl Default for ModelConfig {
             provider: "opencode".to_string(),
             model: "big-pickle".to_string(),
             endpoint: None,
+            endpoint_state: EndpointLinkState::Connected,
             prompt_file: None,
             rule_file: None,
             workflow_file: None,
@@ -142,22 +148,21 @@ impl LLMClient {
             .await;
         }
 
-        if let Some(endpoint) = config
-            .endpoint
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return direct_http_completion(
-                endpoint,
-                is_openai_provider(&config.provider),
-                config,
-                prompt,
-                bus,
-                source,
-                token,
-            )
-            .await;
+        match attached_endpoint(config.endpoint.as_deref(), config.endpoint_state) {
+            AttachedEndpoint::Ready(endpoint) => {
+                return direct_http_completion(
+                    endpoint,
+                    is_openai_provider(&config.provider),
+                    config,
+                    prompt,
+                    bus,
+                    source,
+                    token,
+                )
+                .await;
+            }
+            AttachedEndpoint::Blocked(message) => return Err(message.to_string()),
+            AttachedEndpoint::None => {}
         }
 
         if config.provider == "ollama" {

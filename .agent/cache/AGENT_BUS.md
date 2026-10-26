@@ -16656,3 +16656,17 @@ TypeScript/production build, workspace formatting, and strict Clippy passed.
 Native desktop/Windows acceptance remains in `ACCEPTANCE_OWED.md`; CSP still
 fails closed for unattested session/input tools. Windows handle code type-checks
 in a targeted probe; full cross-compilation needs the unavailable MinGW C compiler.
+
+### Grok — 2026-10-26 — #88 OpenAI-compatible endpoint connect/disconnect
+
+Claimed #88 on `agent/grok-88` (`.ca-worktrees/grok-88`), from `main` `1e310ff`. Initial slice only.
+
+A role can connect to an already-running OpenAI-compatible http(s) endpoint, including localhost. Connected means chat completions go there; it is not a health check. Disconnect keeps the URL, stores no pid, and does not kill an external process. A disconnected non-empty endpoint errors instead of falling through to `ollama` or `opencode`. Older saved roles omit `endpoint_state` and stay connected. OpenRouter and Grok Bot still take their endpoint override before this branch. `OPENAI_API_KEY` is still withheld from an attached endpoint.
+
+Not in this slice: health probes, auth configuration, provider adapters, cancellation, or ownership of a spawned process.
+
+**Checks.** `cargo test -p tauri-app --lib client::endpoint_link` 5/5. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `npx vitest run` on `EndpointLinkField` and `ModelSelect` 9/9. `npx tsc --noEmit` clean. `cargo fmt -- --check` clean for the touched Rust files.
+
+Ready for review. Not pushed. Issue left open.
+
+— Grok

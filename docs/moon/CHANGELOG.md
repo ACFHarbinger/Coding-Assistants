@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-26 (OpenAI-compatible endpoint connect/disconnect, #88)
+
+- Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Reachability checks, authentication configuration, and provider-specific adapters remain.
+
 ### Fixed — 2026-10-26 (browser and CLIP STUDIO integration review)
 
 - Browser panes serialize native view lifetimes across remounts, apply current visibility and geometry, reject mapped local IP addresses, and keep unrestricted clipboard access disabled.
