@@ -38,11 +38,13 @@ export default function HarnessReadinessPanel({
   const [diskId, setDiskId] = useState("");
   const [harness, setHarness] = useState<string>("grok");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [relaunching, setRelaunching] = useState<string | null>(null);
 
   const { healthMap, refresh: refreshHealth } = useProviderHealth(30_000);
 
   const refresh = useCallback(async () => {
+    setRefreshing(true);
     void refreshHealth();
     try {
       const listed = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
@@ -62,6 +64,8 @@ export default function HarnessReadinessPanel({
       setAgentRoles(roles);
     } catch {
       // Non-critical fallback
+    } finally {
+      setRefreshing(false);
     }
   }, [workspace, refreshHealth]);
 
@@ -193,8 +197,8 @@ export default function HarnessReadinessPanel({
               Open terminal grid →
             </button>
           )}
-          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy}>
-            Refresh
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy || refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>

@@ -16,6 +16,7 @@ export default function GrokLeaderCard({
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
+    setBusy(true);
     try {
       const next = await invoke<GrokConnectResult>("hub_grok_leader_status", {
         workspace: workspace || null,
@@ -25,6 +26,8 @@ export default function GrokLeaderCard({
       setError("");
     } catch (cause) {
       setError(String(cause));
+    } finally {
+      setBusy(false);
     }
   }, [workspace]);
 
@@ -81,7 +84,7 @@ export default function GrokLeaderCard({
           {status?.leader_live ? "● Leader connected" : "○ No leader socket"}
         </span>
         <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void refresh()}>
-          Refresh
+          {busy ? "Refreshing…" : "Refresh"}
         </button>
         <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void connect(false)}>
           {busy ? "Connecting…" : "Start new leader session"}

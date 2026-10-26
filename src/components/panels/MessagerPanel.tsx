@@ -27,6 +27,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   const [creatingChannel, setCreatingChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [channelActionError, setChannelActionError] = useState("");
+  const [channelActionPending, setChannelActionPending] = useState(false);
   const [messageInput, setMessageInput] = useState<string>("");
   const [wakePolicyGate, setWakePolicyGate] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
@@ -56,6 +57,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     auditShowAll,
     setAuditShowAll,
     auditError,
+    auditLoading,
+    mutatingAuditId,
     refreshAuditEvents,
     approveAudit,
     quarantineAudit,
@@ -249,7 +252,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
   };
 
   const createChannel = async () => {
-    if (!newChannelName.trim() || !isTauriRuntime()) return;
+    if (!newChannelName.trim() || !isTauriRuntime() || channelActionPending) return;
+    setChannelActionPending(true);
     try {
       const created = await invoke<ChannelRecord>("hub_create_channel", {
         name: newChannelName.trim(),
@@ -264,12 +268,15 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       setActiveChannel(created.id);
     } catch (error) {
       setChannelActionError(String(error));
+    } finally {
+      setChannelActionPending(false);
     }
   };
 
   const deleteChannel = async (channel: ChannelRecord) => {
-    if (channel.builtin || !isTauriRuntime()) return;
+    if (channel.builtin || !isTauriRuntime() || channelActionPending) return;
     if (!window.confirm(`Delete #${channel.id}? Messages stay in the hub but the channel leaves the sidebar.`)) return;
+    setChannelActionPending(true);
     try {
       await invoke("hub_delete_channel", { id: channel.id });
       setChannels(prev => prev.filter(item => item.id !== channel.id));
@@ -277,6 +284,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
       if (activeChannel === channel.id) setActiveChannel("general");
     } catch (error) {
       setChannelActionError(String(error));
+    } finally {
+      setChannelActionPending(false);
     }
   };
 
@@ -425,7 +434,7 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
     startTransition(() => setActiveSubtab("memory"));
   };
 
-  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, onJumpToMemory, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
+  const viewProps = { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, channelActionPending, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, readMarkers, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, sortOrder, setSortOrder, scrollBoxRef, stickToBottomRef, forceScrollRef, jumpToStartRef, setJumpToLatest, jumpToLatest, isNearBottom, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError, onJumpToMemory, harnessSessions, workspacePath, deliveryNotices, onRetryDelivery: retryDelivery, onDismissDelivery: dismissDelivery, retryingHarness, onRefresh, vtuberNotice, onDismissVtuberNotice: () => setVtuberNotice(null) };
 
   const pendingAuditCount = auditEvents.filter((e) => e.status === "pending").length;
 
@@ -463,6 +472,8 @@ export default function MessagerPanel({ hubMessages, hubAgents, workSessions, ac
               refreshAuditEvents={refreshAuditEvents}
               approveAudit={approveAudit}
               quarantineAudit={quarantineAudit}
+              auditLoading={auditLoading}
+              mutatingAuditId={mutatingAuditId}
             />
           </div>
         )}

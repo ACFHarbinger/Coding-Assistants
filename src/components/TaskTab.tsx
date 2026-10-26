@@ -71,14 +71,19 @@ export default function TaskTab() {
   const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
   const [taskMessages, setTaskMessages] = useState<MessageRecord[]>([]);
   const [lastUpdatedSec, setLastUpdatedSec] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   const refreshTasks = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await invoke<TaskRecord[]>("hub_list_tasks", { status: null });
       setTasks(res);
       setLastUpdatedSec(Math.floor(Date.now() / 1000));
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -97,6 +102,7 @@ export default function TaskTab() {
 
   const selectTask = async (task: TaskRecord) => {
     setSelectedTask(task);
+    setLoadingMessages(true);
     try {
       const msgs = await invoke<MessageRecord[]>("hub_list_messages", { to: null, status: null });
       setTaskMessages(
@@ -106,6 +112,8 @@ export default function TaskTab() {
       );
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoadingMessages(false);
     }
   };
 
@@ -218,7 +226,11 @@ export default function TaskTab() {
         {/* Transcript & Handoffs */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <h4 style={{ margin: "0.25rem 0 0", color: NOC_SURFACES.textPrimary, fontSize: "0.95rem" }}>Transcript & Handoffs</h4>
-          {taskMessages.length === 0 ? (
+          {loadingMessages ? (
+            <div style={{ padding: "1.5rem", color: NOC_SURFACES.textMuted, fontSize: "0.85rem", textAlign: "center" }}>
+              Loading task messages…
+            </div>
+          ) : taskMessages.length === 0 ? (
             <EmptyStateChip
               title="No messages or handoffs recorded"
               detail="Agent communication during this workflow will be captured here."
@@ -266,8 +278,8 @@ export default function TaskTab() {
             Inspect ongoing and past workflow execution pipelines.
           </p>
         </div>
-        <button className="btn-secondary noc-focusable" onClick={refreshTasks}>
-          Refresh
+        <button className="btn-secondary noc-focusable" onClick={refreshTasks} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 

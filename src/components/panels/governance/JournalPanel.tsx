@@ -27,6 +27,8 @@ export default function JournalPanel({
   refreshAuditEvents,
   approveAudit,
   quarantineAudit,
+  auditLoading = false,
+  mutatingAuditId = null,
 }: {
   auditEvents: AuditEvent[];
   auditShowAll: boolean;
@@ -34,6 +36,8 @@ export default function JournalPanel({
   refreshAuditEvents: () => void;
   approveAudit: (eventId: string) => void;
   quarantineAudit: (eventId: string) => void;
+  auditLoading?: boolean;
+  mutatingAuditId?: string | null;
 }) {
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -55,15 +59,20 @@ export default function JournalPanel({
             />
             <span>Show all (not just pending)</span>
           </label>
-          <button className="btn-secondary noc-focusable" onClick={refreshAuditEvents}>
-            Refresh List
+          <button className="btn-secondary noc-focusable" onClick={refreshAuditEvents} disabled={auditLoading}>
+            {auditLoading ? "Refreshing…" : "Refresh List"}
           </button>
         </div>
       </div>
 
       {/* Stream list */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: 440, overflowY: "auto", paddingRight: "0.25rem" }}>
-        {auditEvents.length === 0 && (
+        {auditLoading && auditEvents.length === 0 && (
+          <div style={{ padding: "1.5rem", color: NOC_SURFACES.textMuted, fontSize: "0.85rem", textAlign: "center" }}>
+            Loading audit events…
+          </div>
+        )}
+        {!auditLoading && auditEvents.length === 0 && (
           <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem 1rem", width: "100%" }}>
             <EmptyStateChip title={auditShowAll ? "No audit events recorded" : "No pending audit events"} />
           </div>
@@ -135,11 +144,19 @@ export default function JournalPanel({
                 </span>
                 {event.status === "pending" && (
                   <>
-                    <button className="btn-primary noc-focusable" onClick={() => approveAudit(event.id)}>
-                      Approve
+                    <button
+                      className="btn-primary noc-focusable"
+                      disabled={mutatingAuditId === event.id}
+                      onClick={() => approveAudit(event.id)}
+                    >
+                      {mutatingAuditId === event.id ? "Approving…" : "Approve"}
                     </button>
-                    <button className="btn-secondary noc-focusable" onClick={() => quarantineAudit(event.id)}>
-                      Quarantine
+                    <button
+                      className="btn-secondary noc-focusable"
+                      disabled={mutatingAuditId === event.id}
+                      onClick={() => quarantineAudit(event.id)}
+                    >
+                      {mutatingAuditId === event.id ? "Quarantining…" : "Quarantine"}
                     </button>
                   </>
                 )}

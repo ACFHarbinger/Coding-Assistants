@@ -82,9 +82,12 @@ export default function DashboardPanel({
   const [wakes, setWakes] = useState<WakeRecord[]>([]);
   const [error, setError] = useState("");
   const [updated, setUpdated] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [enrollingAgentId, setEnrollingAgentId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError("");
+    setRefreshing(true);
     try {
       const [nextMetrics, nextBudgets, nextTasks, nextMessages, nextWakes] =
         await Promise.all([
@@ -106,6 +109,8 @@ export default function DashboardPanel({
       setUpdated(new Date().toLocaleTimeString());
     } catch (e) {
       setError(String(e));
+    } finally {
+      setRefreshing(false);
     }
   }, [agents]);
 
@@ -184,8 +189,8 @@ export default function DashboardPanel({
         </div>
 
         {subTab === "overview" && (
-          <button className="btn-secondary noc-focusable" onClick={() => void refresh()}>
-            Refresh{updated ? ` · ${updated}` : ""}
+          <button className="btn-secondary noc-focusable" onClick={() => void refresh()} disabled={refreshing}>
+            {refreshing ? "Refreshing…" : `Refresh${updated ? ` · ${updated}` : ""}`}
           </button>
         )}
       </div>
@@ -325,8 +330,10 @@ export default function DashboardPanel({
                       type="button"
                       className={`${enrolled ? "btn-secondary" : "btn-primary"} noc-focusable`}
                       style={{ marginTop: 0, padding: "0.3rem 0.75rem", fontSize: "0.78rem" }}
+                      disabled={enrollingAgentId === member.id}
                       onClick={async () => {
                         setError("");
+                        setEnrollingAgentId(member.id);
                         try {
                           if (enrolled) {
                             await onRemoveAgent(member);
@@ -335,10 +342,14 @@ export default function DashboardPanel({
                           }
                         } catch (e) {
                           setError(String(e));
+                        } finally {
+                          setEnrollingAgentId(null);
                         }
                       }}
                     >
-                      {enrolled ? "Unenroll" : "Enroll"}
+                      {enrollingAgentId === member.id
+                        ? (enrolled ? "Unenrolling…" : "Enrolling…")
+                        : (enrolled ? "Unenroll" : "Enroll")}
                     </button>
                   </div>
 

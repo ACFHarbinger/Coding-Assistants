@@ -50,9 +50,11 @@ export default function MessagerMemoryTab({
   const [editingMemory, setEditingMemory] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>, pendingMessage?: string): Promise<T | null> => {
     setError("");
+    setBusy(true);
     if (pendingMessage) setStatus(pendingMessage);
     try {
       const result = await fn();
@@ -62,6 +64,8 @@ export default function MessagerMemoryTab({
       setError(String(e));
       setStatus("");
       return null;
+    } finally {
+      setBusy(false);
     }
   }, []);
 
@@ -259,9 +263,9 @@ export default function MessagerMemoryTab({
               <option value="episodic">episodic</option>
               <option value="semantic">semantic</option>
             </select>
-            <button className="btn-secondary" onClick={refreshMemories}>Refresh</button>
-            <button className="btn-secondary" onClick={async () => { await run("compacted", () => invoke("hub_compact_short_term", { keepNewest: 20 }), "Compacting short-term memories…"); await refreshMemories(); }}>Compact ST</button>
-            <button className="btn-secondary" onClick={reindexVectors} title="Re-index missing vector embeddings for similarity search">Reindex Vectors</button>
+            <button className="btn-secondary" onClick={refreshMemories} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</button>
+            <button className="btn-secondary" onClick={async () => { await run("compacted", () => invoke("hub_compact_short_term", { keepNewest: 20 }), "Compacting short-term memories…"); await refreshMemories(); }} disabled={busy}>Compact ST</button>
+            <button className="btn-secondary" onClick={reindexVectors} disabled={busy} title="Re-index missing vector embeddings for similarity search">Reindex Vectors</button>
           </div>
 
           {searchError && (
@@ -290,7 +294,7 @@ export default function MessagerMemoryTab({
             </div>
             <textarea rows={3} placeholder="Memory body…" value={memBody} onChange={(e) => setMemBody(e.target.value)} style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-sans)" }} className="noc-focusable" />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn-primary noc-focusable" onClick={writeMemory} disabled={!memBody.trim()}>Save to hub</button>
+              <button className="btn-primary noc-focusable" onClick={writeMemory} disabled={!memBody.trim() || busy}>{busy ? "Saving…" : "Save to hub"}</button>
             </div>
           </div>
 
@@ -333,8 +337,8 @@ export default function MessagerMemoryTab({
                   <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", flexWrap: "wrap" }}>
                     {editingMemory === m.id ? (
                       <>
-                        <button className="btn-primary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)}>Save</button>
-                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)}>Cancel</button>
+                        <button className="btn-primary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => saveEditedMemory(m.id)} disabled={busy || !editBody.trim()}>Save</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => setEditingMemory(null)} disabled={busy}>Cancel</button>
                       </>
                     ) : (
                       <>
@@ -344,13 +348,13 @@ export default function MessagerMemoryTab({
                         <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => copyMemoryReference(m.id)}>Copy reference</button>
                         <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => { setEditingMemory(m.id); setEditTitle(m.title || ""); setEditBody(m.body); }}>Edit</button>
                         {m.tier === "short_term" && (
-                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" })); await refreshMemories(); }}>→ episodic</button>
+                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "episodic" })); await refreshMemories(); }} disabled={busy}>→ episodic</button>
                         )}
                         {m.tier === "episodic" && (
-                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" })); await refreshMemories(); }}>→ semantic</button>
+                          <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("promoted", () => invoke("hub_promote_memory", { id: m.id, toTier: "semantic" })); await refreshMemories(); }} disabled={busy}>→ semantic</button>
                         )}
-                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true })); await refreshMemories(); }}>Stale</button>
-                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => { await run("deleted", () => invoke("hub_delete_memory", { id: m.id })); await refreshMemories(); }}>Delete</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={async () => { await run("stale", () => invoke("hub_mark_memory_stale", { id: m.id, stale: true })); await refreshMemories(); }} disabled={busy}>Stale</button>
+                        <button className="btn-secondary noc-focusable" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderColor: "rgba(239, 68, 68, 0.3)", color: "#ef4444" }} onClick={async () => { await run("deleted", () => invoke("hub_delete_memory", { id: m.id })); await refreshMemories(); }} disabled={busy}>Delete</button>
                       </>
                     )}
                   </div>

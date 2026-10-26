@@ -29,6 +29,7 @@ function App() {
 
   const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
@@ -126,11 +127,14 @@ function App() {
       alert(`Please select a custom ${type} file to preview it.`);
       return;
     }
+    setPreviewLoading(true);
     try {
       const content = await invoke<string>("get_resource_content", { workDir: config.work_dir, path: name });
       setPreview({ type, name, content });
     } catch (e) {
       alert(`Failed to load preview: ${e}`);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -404,6 +408,14 @@ function App() {
             />
           </div>
         </div>
+
+        {previewLoading && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2,6,23,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.25rem 2rem', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600 }}>
+              Loading resource preview…
+            </div>
+          </div>
+        )}
 
         {preview && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2,6,23,0.92)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }} onClick={() => setPreview(null)}>
