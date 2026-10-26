@@ -7,6 +7,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Fixed
+
+- **Claude harness spend for identical replies and tool-only responses (#84)**: Usage is recorded once per transcript session and provider message (`message.id`, otherwise the transcript entry id). Two billable replies with the same text are both counted. A response that contains only tool or thinking blocks still records its reported tokens. Repeated polls do not count the same message twice. Chat capture still collapses identical reply text.
+
 ### Added
 
 - **Terminal Grid browser pane for the DeepSeek GUI**: Orchestrate → Terminal Grid can add a DeepSeek web-GUI leaf beside harness terminals. The pane opens `https://chat.deepseek.com/` in a child webview positioned over that leaf. Public https addresses can be opened from the pane's address bar. Private hosts, localhost, credentialed URLs, and non-https schemes are rejected, and the remote page is not granted app commands. Harness terminals stay mounted; the browser leaf does not start a PTY.

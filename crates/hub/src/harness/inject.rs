@@ -5,6 +5,7 @@
 //! replacement process.
 
 use crate::HubError;
+use crate::{ProviderCallGate, SliceStamp, DEFAULT_PROVIDER_CALL_UNITS};
 
 use super::spawn::spawn_explicit;
 use super::{
@@ -12,6 +13,42 @@ use super::{
     muse_spawn_args, opencode_spawn_args, qwen_spawn_args, vibe_managed_spawn_args, HarnessId,
     HarnessInjectRequest, HarnessInjectResult,
 };
+
+/// C6 / #84 first slice: a Claude one-shot spawn is a provider call, so
+/// the same pre-call budget decision the in-process path takes through
+/// `BudgetContext::deny_unless_allowed` must run before the process
+/// starts. `Ok(None)` = allowed (unmetered or reserved); `Ok(Some(..))` =
+/// stop without spawning. Reserving consumes one unit per spawned run.
+fn claude_spawn_gate(store: &crate::HubStore) -> Result<Option<HarnessInjectResult>, HubError> {
+    let stamp = SliceStamp::registered(None, None, Some("claude".to_string()));
+    match store.gate_provider_call(
+        "claude",
+        DEFAULT_PROVIDER_CALL_UNITS,
+        &stamp,
+        "Claude one-shot harness run",
+        "Claude one-shot harness runs completed so far.",
+        "Further Claude one-shot runs.",
+        None,
+    )? {
+        ProviderCallGate::Unmetered | ProviderCallGate::Reserved { .. } => Ok(None),
+        ProviderCallGate::Stopped { status, handoff } => Ok(Some(HarnessInjectResult {
+            harness: "claude".into(),
+            pid: None,
+            status: "stopped".into(),
+            detail: if handoff.is_some() {
+                format!(
+                    "claude reached its budget ({}/{} units); handoff written; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            } else {
+                format!(
+                    "claude is budget-paused ({}/{} units); resume_agent required; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            },
+        })),
+    }
+}
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
     inject_harness_inner(None, request)
@@ -118,6 +155,18 @@ fn inject_harness_inner(
 
     if !request.workspace.is_absolute() {
         return Err(HubError::Invalid("workspace path must be absolute".into()));
+    }
+    // C6 / #84 first slice: budget-stop a Claude spawn before the
+    // provider call starts. Applies to every spawn this function can
+    // make (wake and plain sends); task-only delivery returned earlier
+    // and must never spawn. Without a store (bare `inject_harness`) there
+    // is no budget to consult, matching the caller-driven CLI contract.
+    if harness == HarnessId::Claude {
+        if let Some(store) = store {
+            if let Some(stopped) = claude_spawn_gate(store)? {
+                return Ok(stopped);
+            }
+        }
     }
     let prompt = if request.is_task && request.is_wake {
         format!("[TASK] [WAKE] {}", request.body)
@@ -243,5 +292,40 @@ mod tests {
         assert_eq!(result.status, "unavailable");
         assert_eq!(result.pid, None);
         assert!(!result.detail.contains("spawned"));
+    }
+
+    #[test]
+    fn claude_wake_spawn_stops_before_the_call_when_the_budget_would_be_exceeded() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        // Half a unit: one reserved provider call cannot fit, so the
+        // gate pauses the agent and stops before any spawn.
+        store.set_agent_budget("claude", 0.5).unwrap();
+        let result = crate::inject_harness_with_store(
+            &store,
+            &HarnessInjectRequest {
+                harness: "claude".into(),
+                workspace: PathBuf::from("/tmp/workspace-claude-budget"),
+                body: "wake up".into(),
+                is_task: false,
+                is_wake: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(result.status, "stopped");
+        assert_eq!(result.pid, None);
+        assert!(result.detail.contains("handoff"), "{}", result.detail);
+        let status = store.get_budget("claude").unwrap().unwrap();
+        assert!(status.paused);
+    }
+
+    #[test]
+    fn claude_spawn_gate_allows_an_unmetered_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        // No budget row for claude: the gate must allow (None) without
+        // reserving anything, and without touching the spawn path.
+        assert!(claude_spawn_gate(&store).unwrap().is_none());
     }
 }
