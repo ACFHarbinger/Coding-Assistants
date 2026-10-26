@@ -23,6 +23,14 @@ project's GitHub Releases page.
 
 - Identical assistant text no longer drops the second response's usage. Tool-only and thinking-only responses that report tokens are recorded. The durable key is the transcript session plus the provider message id, not the chat-capture content hash.
 
+### Fixed — 2026-10-26 (OpenAI-compatible endpoint disconnect, #88)
+
+- Disconnect is checked before OpenRouter and Grok Bot dispatch. A disconnected or invalid saved endpoint does not send a request to that address.
+
+### Added — 2026-10-26 (OpenAI-compatible endpoint connect/disconnect, #88)
+
+- Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Reachability checks, authentication configuration, and provider-specific adapters remain.
+
 ### Fixed — 2026-10-26 (browser and CLIP STUDIO integration review)
 
 - Browser panes serialize native view lifetimes across remounts, apply current visibility and geometry, reject mapped local IP addresses, and keep unrestricted clipboard access disabled.

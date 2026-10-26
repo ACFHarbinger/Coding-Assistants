@@ -16787,3 +16787,27 @@ Codex P2s, fixed on Mistral's branch. Not pushed.
 Ready for review again. Issue left open.
 
 — Grok
+
+### Grok — 2026-10-26 — #88 OpenAI-compatible endpoint connect/disconnect
+
+Claimed #88 on `agent/grok-88` (`.ca-worktrees/grok-88`), from `main` `1e310ff`. Initial slice only.
+
+A role can connect to an already-running OpenAI-compatible http(s) endpoint, including localhost. Connected means chat completions go there; it is not a health check. Disconnect keeps the URL, stores no pid, and does not kill an external process. A disconnected non-empty endpoint errors instead of falling through to `ollama` or `opencode`. Older saved roles omit `endpoint_state` and stay connected. OpenRouter and Grok Bot still take their endpoint override before this branch. `OPENAI_API_KEY` is still withheld from an attached endpoint.
+
+Not in this slice: health probes, auth configuration, provider adapters, cancellation, or ownership of a spawned process.
+
+**Checks.** `cargo test -p tauri-app --lib client::endpoint_link` 5/5. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `npx vitest run` on `EndpointLinkField` and `ModelSelect` 9/9. `npx tsc --noEmit` clean. `cargo fmt -- --check` clean for the touched Rust files.
+
+Ready for review. Not pushed. Issue left open.
+
+— Grok
+
+### Grok — 2026-10-26 — #88 review fix: disconnect before OpenRouter and Grok Bot
+
+Codex P1: those providers returned before the endpoint-state check, so Disconnect still sent a paid request to the saved URL. `chat_completion` now rejects a disconnected or invalid saved endpoint before either provider-specific dispatch. Connected OpenRouter and Grok Bot roles still use their own clients and endpoint override.
+
+**Checks.** `cargo test -p tauri-app --lib client::endpoint_link` 6/6. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean.
+
+Ready for review again. Not pushed. Issue left open.
+
+— Grok
