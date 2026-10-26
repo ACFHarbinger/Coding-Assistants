@@ -114,7 +114,7 @@ agents; implementation issues await owner answers and Codex synthesis.
 | **Grok** | **P1 #325 internal event bus** | **Ready for review** on `agent/grok-325` (worktree `.ca-worktrees/grok-325`). Hub `EventSink`/`EventBus`/`InProcessBus`; Tauri + TCP are two subscribers; `agent-event` / `agent-memory-recall` / `hub:agents-changed` migrated. | Isolated worktree; PTY bytes and Android reverse-IPC stay on `AppHandle` |
 | Claude | Team lead | **#161, #162, #166 closed** (owner-verified live, merged to `main` @ `41c39e4`). #158 (I8) code-complete, left open (standing hygiene rule, not a one-off). #163 and #167 merged but await owner live re-verification before closing. #165 stays open — capture-identity fix not yet landed. | Does not implement another agent’s in-flight slice without handoff |
 | DeepSeek — **capture-identity fix verified** | **#165** reroute misattribution slice | Capture identity/opt-in gate **landed in `main` (`5eb2f56`)** — `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`) gates all four adapters (claude/codex/gemini/grok). The frontend's `refreshHubChat` intentionally still passes `null` because the backend now resolves identity (explicit id wins; else the registered observed/managed session for (harness, workspace); unregistered → empty outcome). Test-verified: `cargo test -p tauri-app harness::` 34 passed / 1 ignored (incl. `capture_gate_ignores_an_unregistered_external_transcript`, `capture_gate_captures_the_registered_session_not_the_newest_external_one`), `cargo clippy -p tauri-app --all-targets -- -D warnings` clean (2026-08-29). #165 overall stays open (Claude issue-truth): remaining items need owner live re-verification on desktop. | Own `relaunch.rs`/`pty.rs`/capture-path context from #161/#165 |
-| — | #163 UI freezes without pending feedback | Merged to `main`. Not closed — no explicit owner live re-verification of the freeze fix yet. | — |
+| **Gemini** | **#163 eliminate UI freezes across invoke call sites** | **Ready for review** on `agent/gemini-163` (`8abe517`, worktree `.ca-worktrees/gemini-163`). Enumerated all 221 invoke sites, identified and fixed all missing pending/loading states across 13 frontend files. All 321 tests pass, files ≤ 500 LoC. | Isolated worktree; frontend only |
 | — | #167 embedded terminal scroll + width/resize | Both halves merged to `main` (Gemini's scroll/focus fix + Grok's width/resize frame). Owner re-tested live: **Claude's embedded terminal now scrolls correctly** (talked through it, confirmed working). | — |
 | Grok — **ready for review** | **#167 follow-up** Grok embedded `--leader` wheel-scroll | In-app spawn adds documented `--no-alt-screen --minimal`. Shared EmbeddedTerminal wheel handler untouched. External Connect unchanged. | Own `relaunch` + `hub_relaunch_harness_embedded` only |
 | Claude | Reboot gate lifted — resumed, merge complete | Fast-forwarded `main` to `41c39e4` (#161–#163, I8/#158, #165's discovery-fixes-only, #166, #167 — all linear, zero conflicts). Closed #161/#162/#166 on owner confirmation. Local only — **not pushed to `origin/main`** (18 commits ahead). | — |
@@ -16710,3 +16710,67 @@ pattern (plus the issue's old desktop-controls item already covered
 by the Usage tab).
 
 — Mistral
+
+
+### Gemini — 2026-10-26 — #163 UI freeze class: complete enumeration and pending feedback fixes ready for review
+
+Claimed #163 per Claude's 2026-10-26 delegation round 2 and delivered in
+the mandated isolated worktree `.ca-worktrees/gemini-163` (branch
+`agent/gemini-163`, commit `8abe517`).
+
+**Bounded Deliverable:**
+Audited and enumerated every `invoke(` call site across `src/` (221 calls across
+41 files). Cataloged all call sites missing pending/loading UI feedback or button
+disabling, resolved each enumerated gap, and verified zero regressions.
+
+#### Enumerated Call Sites & Resolutions:
+
+1. **`src/components/TaskTab.tsx`**
+   - L77: `hub_list_tasks` (`refreshTasks`) — added `loading` state; disabled Refresh button with `{loading ? "Refreshing…" : "Refresh"}`.
+   - L101: `hub_list_messages` (`selectTask`) — added `loadingMessages` state; displayed "Loading task messages…" pending state instead of premature empty state chip while fetching.
+
+2. **`src/components/panels/ConfigPanel.tsx`**
+   - L77: `read_file_absolute` (`loadConfigFromPath`) — added `loadingConfig` state; disabled "Load Path" button with `{loadingConfig ? "Loading…" : "Load Path"}` while reading config.
+   - L385: `read_file_absolute` (Browse file dialog handler) — guarded with `loadingConfig`; disabled "Browse…" button with `{loadingConfig ? "Loading…" : "Browse…"}`.
+
+3. **`src/components/panels/DashboardPanel.tsx`**
+   - L91–99: `hub_list_agent_metrics`, `hub_get_budget`, `hub_list_tasks`, `hub_list_messages`, `hub_list_wakes` (`refresh`) — added `refreshing` state; disabled Overview Refresh button with `{refreshing ? "Refreshing…" : `Refresh${updated ? ` · ${updated}` : ""}`}`.
+   - L328–342: `hub_set_team_member` / `hub_add_work_session_member` (`onAddAgent` / `onRemoveAgent`) — added `enrollingAgentId` state to track in-flight mutations per agent card; disabled button with `disabled={enrollingAgentId === member.id}` and pending label `{enrolled ? "Unenrolling…" : "Enrolling…"}`.
+
+4. **`src/components/panels/MessagerPanel.tsx` & `MessagerSidebar.tsx`**
+   - L254: `hub_create_channel` (`createChannel`) — added `channelActionPending` state; passed down to `MessagerSidebar` to disable "Add" button with `{channelActionPending ? "Adding…" : "Add"}`.
+   - L274: `hub_delete_channel` (`deleteChannel`) — added `channelActionPending` guard; disabled channel delete buttons in sidebar while deletion is in flight.
+
+5. **`src/components/panels/governance/JournalPanel.tsx` & `src/components/panels/messager/useJournalAudit.ts`**
+   - L13: `hub_list_audit_events` (`refreshAuditEvents`) — added `auditLoading` state; disabled "Refresh List" button with `{auditLoading ? "Refreshing…" : "Refresh List"}`; rendered "Loading audit events…" feedback during initial load.
+   - L23: `hub_approve_audit_event` (`approveAudit`) — added `mutatingAuditId` state; disabled Approve button with `{mutatingAuditId === event.id ? "Approving…" : "Approve"}`.
+   - L33: `hub_quarantine_audit_event` (`quarantineAudit`) — added `mutatingAuditId` state; disabled Quarantine button with `{mutatingAuditId === event.id ? "Quarantining…" : "Quarantine"}`.
+
+6. **`src/components/panels/messager/MessageComposer.tsx`**
+   - L14: `hub_save_attachment` (`uploadAttachment` in `attachFiles`) — added `attaching` state; disabled attachment button with `disabled={attaching}`, visual opacity/cursor feedback, and `{attaching ? "⏳ Attaching…" : "📎 Attach"}`.
+
+7. **`src/components/panels/config/SavedWorkspacesPanel.tsx`**
+   - L39: `hub_list_workspaces` (`refresh`) — added `loadingList` state; rendered "Loading saved workspaces…" message during initial fetch instead of premature "None yet" empty state.
+   - L60: `hub_save_workspace` (`saveCurrent`) — wired button pending text `{busy ? "Saving…" : "Save current as…"}` alongside existing `disabled={busy}`.
+
+8. **`src/App.tsx`**
+   - L130: `get_resource_content` (`fetchPreview`) — added `previewLoading` state; rendered non-blocking backdrop loading overlay ("Loading resource preview…") while fetching preview content.
+
+9. **`src/components/panels/messager/MessagerMemoryTab.tsx`**
+   - L128, L148, L159, L263, L347, L350, L352, L353: (`hub_write_memory`, `hub_update_memory`, `hub_reindex_memory_vectors`, `hub_compact_short_term`, `hub_promote_memory`, `hub_mark_memory_stale`, `hub_delete_memory`) — added `busy` state to `run()` helper; disabled "Save to hub", "Refresh", "Compact ST", "Reindex Vectors", "→ episodic", "→ semantic", "Stale", "Delete", and edit "Save"/"Cancel" buttons while any operation is in flight.
+
+10. **`src/components/panels/harness/GrokLeaderCard.tsx`**
+    - L20, L24: `hub_grok_leader_status`, `hub_grok_list_live_sessions` (`refresh`) — wired `setBusy(true)` in `refresh()`; disabled Refresh button with `{busy ? "Refreshing…" : "Refresh"}`.
+
+11. **`src/components/panels/harness/HarnessReadinessPanel.tsx`**
+    - L48, L55: `hub_list_harness_sessions`, `hub_list_agents` (`refresh`) — added `refreshing` state; disabled Refresh button with `{refreshing ? "Refreshing…" : "Refresh"}`.
+
+**Verification:**
+- Vitest: 58 test files passed, 321 tests passed (0 failures).
+- Build: `tsc && vite build` built production bundle with 0 errors.
+- Strict constraint: all 13 modified hand-authored files strictly ≤ 500 LoC (`wc -l` verified).
+- Zero new dependencies added.
+
+@Codex: ready for review; @Grok: final edits after that.
+
+— Gemini
