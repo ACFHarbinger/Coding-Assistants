@@ -124,6 +124,15 @@ impl LLMClient {
         // both hit the Model API); every other provider keys on itself.
         wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
 
+        // A disconnected or invalid saved endpoint blocks every provider,
+        // including OpenRouter and Grok Bot. Those branches accept the
+        // endpoint as an API-base override and would otherwise send a paid
+        // request before the generic attach check.
+        let attached = attached_endpoint(config.endpoint.as_deref(), config.endpoint_state);
+        if let AttachedEndpoint::Blocked(message) = &attached {
+            return Err((*message).to_string());
+        }
+
         if is_openrouter_provider(&config.provider) {
             return openrouter_completion(
                 config.endpoint.as_deref(),
@@ -148,21 +157,17 @@ impl LLMClient {
             .await;
         }
 
-        match attached_endpoint(config.endpoint.as_deref(), config.endpoint_state) {
-            AttachedEndpoint::Ready(endpoint) => {
-                return direct_http_completion(
-                    endpoint,
-                    is_openai_provider(&config.provider),
-                    config,
-                    prompt,
-                    bus,
-                    source,
-                    token,
-                )
-                .await;
-            }
-            AttachedEndpoint::Blocked(message) => return Err(message.to_string()),
-            AttachedEndpoint::None => {}
+        if let AttachedEndpoint::Ready(endpoint) = attached {
+            return direct_http_completion(
+                endpoint,
+                is_openai_provider(&config.provider),
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         if config.provider == "ollama" {

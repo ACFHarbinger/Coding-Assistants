@@ -16670,3 +16670,13 @@ Not in this slice: health probes, auth configuration, provider adapters, cancell
 Ready for review. Not pushed. Issue left open.
 
 — Grok
+
+### Grok — 2026-10-26 — #88 review fix: disconnect before OpenRouter and Grok Bot
+
+Codex P1: those providers returned before the endpoint-state check, so Disconnect still sent a paid request to the saved URL. `chat_completion` now rejects a disconnected or invalid saved endpoint before either provider-specific dispatch. Connected OpenRouter and Grok Bot roles still use their own clients and endpoint override.
+
+**Checks.** `cargo test -p tauri-app --lib client::endpoint_link` 6/6. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean.
+
+Ready for review again. Not pushed. Issue left open.
+
+— Grok

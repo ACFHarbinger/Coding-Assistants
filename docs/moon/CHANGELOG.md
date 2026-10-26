@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-26 (OpenAI-compatible endpoint disconnect, #88)
+
+- Disconnect is checked before OpenRouter and Grok Bot dispatch. A disconnected or invalid saved endpoint does not send a request to that address.
+
 ### Added — 2026-10-26 (OpenAI-compatible endpoint connect/disconnect, #88)
 
 - Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Reachability checks, authentication configuration, and provider-specific adapters remain.

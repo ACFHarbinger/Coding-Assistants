@@ -224,4 +224,30 @@ mod tests {
             .unwrap_err();
         assert_eq!(error, DISCONNECTED_ENDPOINT);
     }
+
+    #[tokio::test]
+    async fn disconnected_openrouter_and_grok_bot_do_not_dispatch() {
+        let client = LLMClient::new();
+        let bus = InProcessBus::new();
+        for provider in ["openrouter", "grok-bot", "grok_bot"] {
+            let mut role = config(
+                Some("http://127.0.0.1:9/v1"),
+                EndpointLinkState::Disconnected,
+            );
+            role.provider = provider.into();
+            let error = client
+                .chat_completion(&role, "hello", None, &bus, "Developer", None, None)
+                .await
+                .unwrap_err();
+            assert_eq!(error, DISCONNECTED_ENDPOINT, "{provider}");
+
+            role.endpoint_state = EndpointLinkState::Connected;
+            role.endpoint = Some("file:///tmp/model".into());
+            let error = client
+                .chat_completion(&role, "hello", None, &bus, "Developer", None, None)
+                .await
+                .unwrap_err();
+            assert_eq!(error, ENDPOINT_URL_ERROR, "{provider}");
+        }
+    }
 }
