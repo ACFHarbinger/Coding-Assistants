@@ -3,7 +3,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { QuotaStatusStrip } from "./QuotaStatusStrip";
 import { TeamRoleBadge } from "../../common/TeamRoleBadge";
 export default function MessagerSidebar(props: any) {
-  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, filteredMemories, insertMemoryLink, onRefresh } = props;
+  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, channelActionPending, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, filteredMemories, insertMemoryLink, onRefresh } = props;
   return (
       <div className="glass-card" style={{
         padding: "1.25rem 1rem",
@@ -55,8 +55,8 @@ export default function MessagerSidebar(props: any) {
                 placeholder="new-channel"
                 style={{ flex: 1, padding: "0.4rem 0.55rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)", outline: "none", fontSize: "0.8rem" }}
               />
-              <button className="btn-primary" onClick={() => void createChannel()} disabled={!newChannelName.trim()} style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem" }}>
-                Add
+              <button className="btn-primary" onClick={() => void createChannel()} disabled={!newChannelName.trim() || channelActionPending} style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem" }}>
+                {channelActionPending ? "Adding…" : "Add"}
               </button>
             </div>
           )}
@@ -115,6 +115,7 @@ export default function MessagerSidebar(props: any) {
                     <button
                       className="btn-secondary"
                       title={`Delete ${ch.name}`}
+                      disabled={channelActionPending}
                       onClick={() => void deleteChannel(ch)}
                       style={{ padding: "0.25rem 0.4rem", fontSize: "0.7rem" }}
                     >

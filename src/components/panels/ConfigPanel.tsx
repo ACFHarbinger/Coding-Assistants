@@ -60,10 +60,12 @@ export default function ConfigPanel({
   const [sessionError, setSessionError] = useState("");
   const [externalConfigPath, setExternalConfigPath] = useState("");
   const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const [loadingConfig, setLoadingConfig] = useState(false);
 
   const loadConfigFromPath = async (inputPath: string) => {
     const trimmed = inputPath.trim();
-    if (!trimmed) return;
+    if (!trimmed || loadingConfig) return;
+    setLoadingConfig(true);
     try {
       let resolvedPath = trimmed;
       if (
@@ -80,6 +82,8 @@ export default function ConfigPanel({
     } catch (err) {
       console.error("Failed to load config from path", err);
       alert(`Failed to load config from ${trimmed}: ${err}`);
+    } finally {
+      setLoadingConfig(false);
     }
   };
 
@@ -364,14 +368,17 @@ export default function ConfigPanel({
                 className="btn-secondary"
                 style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
                 onClick={() => void loadConfigFromPath(externalConfigPath)}
-                disabled={!externalConfigPath.trim()}
+                disabled={!externalConfigPath.trim() || loadingConfig}
               >
-                Load Path
+                {loadingConfig ? "Loading…" : "Load Path"}
               </button>
               <button
                 className="btn-secondary"
                 style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
+                disabled={loadingConfig}
                 onClick={async () => {
+                  if (loadingConfig) return;
+                  setLoadingConfig(true);
                   try {
                     const defaultAgentPath = config.work_dir
                       ? `${config.work_dir.replace(/\/+$/, "")}/.agent`
@@ -389,10 +396,12 @@ export default function ConfigPanel({
                   } catch (err) {
                     console.error("Failed to load config", err);
                     alert("Failed to load config: " + err);
+                  } finally {
+                    setLoadingConfig(false);
                   }
                 }}
               >
-                Browse…
+                {loadingConfig ? "Loading…" : "Browse…"}
               </button>
             </div>
           </div>

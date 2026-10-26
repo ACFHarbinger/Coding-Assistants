@@ -6,25 +6,32 @@ export default function MessageComposer(props: any) {
   const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachmentNotice, setAttachmentNotice] = useState("");
+  const [attaching, setAttaching] = useState(false);
   const attachFiles = async (files: FileList | File[]) => {
+    if (attaching) return;
+    setAttaching(true);
     setAttachmentError("");
     setAttachmentNotice("");
-    for (const file of Array.from(files)) {
-      try {
-        const record = await uploadAttachment(file);
-        const previewUrl = URL.createObjectURL(file);
-        setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
-        if (isUnsupportedOrRawMime(record.mime, record.filename)) {
-          setAttachmentNotice(`"${record.filename}" attached as raw binary (no preview available).`);
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const record = await uploadAttachment(file);
+          const previewUrl = URL.createObjectURL(file);
+          setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
+          if (isUnsupportedOrRawMime(record.mime, record.filename)) {
+            setAttachmentNotice(`"${record.filename}" attached as raw binary (no preview available).`);
+          }
+          setMessageInput((prev: string) => {
+            const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
+            return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
+          });
+        } catch (err: any) {
+          const msg = err instanceof Error ? err.message : String(err?.message || err);
+          setAttachmentError(`Failed to attach "${file.name}": ${msg}`);
         }
-        setMessageInput((prev: string) => {
-          const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
-          return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
-        });
-      } catch (err: any) {
-        const msg = err instanceof Error ? err.message : String(err?.message || err);
-        setAttachmentError(`Failed to attach "${file.name}": ${msg}`);
       }
+    } finally {
+      setAttaching(false);
     }
   };
   const removeAttachment = (id: string) => {
@@ -282,6 +289,7 @@ export default function MessageComposer(props: any) {
                   type="button"
                   className="noc-focusable"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={attaching}
                   title="Add attachment (image or file)"
                   style={{
                     padding: "0.6rem 0.8rem",
@@ -291,10 +299,11 @@ export default function MessageComposer(props: any) {
                     background: "rgba(0,0,0,0.4)",
                     border: "1px solid var(--border-color)",
                     color: "#fff",
-                    cursor: "pointer"
+                    cursor: attaching ? "not-allowed" : "pointer",
+                    opacity: attaching ? 0.6 : 1,
                   }}
                 >
-                  📎 Attach
+                  {attaching ? "⏳ Attaching…" : "📎 Attach"}
                 </button>
                 <button
                   className={`${sending ? "btn-secondary" : "btn-primary"} noc-focusable`}
