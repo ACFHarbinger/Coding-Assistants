@@ -71,44 +71,6 @@ fn latest_transcript_path(
 /// recent tail; older lines were already captured on a prior poll (the hub
 /// dedups on content hash regardless, so re-scanning a bit of overlap is
 /// harmless, just wasted work past what's needed).
-fn recent_assistant_texts(path: &Path, tail_lines: usize) -> Vec<String> {
-    let Ok(raw) = fs::read_to_string(path) else {
-        return Vec::new();
-    };
-    let lines: Vec<&str> = raw.lines().collect();
-    let start = lines.len().saturating_sub(tail_lines);
-    let mut texts = Vec::new();
-    for line in &lines[start..] {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if value.get("type").and_then(|t| t.as_str()) != Some("assistant") {
-            continue;
-        }
-        let Some(content) = value
-            .get("message")
-            .and_then(|m| m.get("content"))
-            .and_then(|c| c.as_array())
-        else {
-            continue;
-        };
-        let text: String = content
-            .iter()
-            .filter(|item| item.get("type").and_then(|t| t.as_str()) == Some("text"))
-            .filter_map(|item| item.get("text").and_then(|t| t.as_str()))
-            .collect::<Vec<_>>()
-            .join("\n\n");
-        if !text.trim().is_empty() {
-            texts.push(text);
-        }
-    }
-    texts
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ClaudeCaptureOutcome {
     pub transcript_found: bool,
@@ -178,25 +140,29 @@ pub(crate) fn capture_claude_session_from(
             captured: Vec::new(),
         });
     };
-    let texts = recent_assistant_texts(&path, 500);
+    let turns = super::spend::claude_recent_assistant_turns(&path, 500);
     let mut captured = Vec::new();
-    for text in &texts {
+    for turn in &turns {
         if let Some(record) = store
             .record_harness_capture(
                 "claude",
                 "claude",
                 hub_session_id,
-                text,
+                &turn.text,
                 Some(&workspace.to_string_lossy()),
             )
             .map_err(|error| error.to_string())?
         {
             captured.push(record);
+            // C6 / #84: this turn is newly captured, so its measured
+            // usage is recorded exactly once through the shared
+            // `provider.usage` path.
+            super::spend::record_harness_turn_usage(store, hub_session_id, turn);
         }
     }
     Ok(ClaudeCaptureOutcome {
         transcript_found: true,
-        scanned: texts.len(),
+        scanned: turns.len(),
         captured,
     })
 }
@@ -327,8 +293,60 @@ mod tests {
             r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here is the review."}]}}"#,
         ];
         write_transcript(dir.path(), "session-1", &lines);
-        let texts = recent_assistant_texts(&dir.path().join("session-1.jsonl"), 500);
-        assert_eq!(texts, vec!["Here is the review.".to_string()]);
+        let turns = super::super::spend::claude_recent_assistant_turns(
+            &dir.path().join("session-1.jsonl"),
+            500,
+        );
+        assert_eq!(
+            turns
+                .iter()
+                .map(|turn| turn.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Here is the review."]
+        );
+    }
+
+    #[test]
+    fn capture_records_provider_usage_once_per_newly_captured_turn() {
+        let _lock = lock_home();
+        let _guard = HomeEnvGuard(std::env::var("HOME").ok());
+        let home = tempdir().unwrap();
+        std::env::set_var("HOME", home.path());
+        let workspace = home.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let store_dir = tempdir().unwrap();
+        let store = HubStore::open(store_dir.path()).unwrap();
+        store
+            .register_harness_session("claude", &workspace.to_string_lossy(), "spend-1", None)
+            .unwrap();
+        write_transcript(
+            &session_transcript_dir(&claude_home().join("projects"), &workspace),
+            "spend-1",
+            &[
+                r#"{"type":"assistant","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"costed reply"}],"usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":100}}}"#,
+            ],
+        );
+
+        let first = capture_claude_session(&store, &workspace, None, Some("hub-sess")).unwrap();
+        assert_eq!(first.captured.len(), 1);
+        let events = store.list_audit_events(false).unwrap();
+        let usage_rows: Vec<&hub::AuditEvent> = events
+            .iter()
+            .filter(|event| event.operation == "provider.usage")
+            .collect();
+        assert_eq!(usage_rows.len(), 1);
+        let json: serde_json::Value = serde_json::from_str(&usage_rows[0].process_json).unwrap();
+        assert_eq!(json["actor_agent"], "claude");
+        assert_eq!(json["prompt_tokens"], 10);
+        assert_eq!(json["completion_tokens"], 20);
+        assert_eq!(json["cache_tokens"], 100);
+        assert_eq!(json["session_id"], "hub-sess");
+
+        // Re-polling the same transcript captures nothing new, so the
+        // turn's spend is never double-counted.
+        let second = capture_claude_session(&store, &workspace, None, Some("hub-sess")).unwrap();
+        assert_eq!(second.captured.len(), 0);
+        assert_eq!(store.list_audit_events(false).unwrap().len(), 1);
     }
 
     #[test]
