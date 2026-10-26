@@ -18,6 +18,9 @@ project's GitHub Releases page.
 ### Added — 2026-10-25 (CLIP STUDIO PAINT MCP)
 
 - **CLIP STUDIO PAINT creative-tool bridge.** `coding-assistants-mcp clipstudio` registers in the Creative Tools catalog as `coding-assistants-mcp-clipstudio`. It exposes the 33-tool 5.1.2 production catalog. File exchange is limited to three configured roots (`CSP_MCP_CONFIG` or `--config`). `csp_preflight` issues a 45-second single-use token. Screenshot, window, and input tools fail closed: this bridge does not attest `CLIPStudioPaint.exe` and does not send pointer or keyboard input. `csp_open_document` validates an input-root file and does not launch CSP. Symlink components are rejected on the original path before canonicalization. Windows hard-link checks use `GetFileInformationByHandle`. Output stability compares full-resolution modification times.
+### Added — 2026-10-25 (Terminal Grid DeepSeek GUI browser pane)
+
+- **DeepSeek web GUI in the Terminal Grid.** A grid leaf can host the DeepSeek web app (`https://chat.deepseek.com/`) in a child webview. The address bar accepts other public https pages. Loopback, private, localhost, credentialed, and non-https targets are rejected. The page is not on a capability remote-URL list, so it cannot call app commands. Closing or dragging the pane hides or closes that webview. Harness PTY panes are unchanged.
 
 ### Added — 2026-10-25 (A2A webhook notifications, #364)
 

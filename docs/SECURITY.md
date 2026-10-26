@@ -74,6 +74,14 @@ checks before and after hashing. Unix opens reject symlinks at each component;
 Windows opens reject reparse points and hold parent-directory handles that deny
 replacement during the read. Hard links are rejected using handle metadata.
 Hash reads are bounded to 64 MiB even if the file grows while being read.
+### Terminal-grid browser panes
+
+Browser panes use remote child webviews with no remote capability grants for
+application IPC. Pop-out windows are denied, and the bridge does not enable
+unrestricted clipboard access. Navigation allows HTTPS without URL credentials
+and rejects localhost and blocked IP literals, including IPv4-mapped IPv6.
+These URL checks do not provide DNS or network isolation. Native view commands
+are serialized per pane, and views open hidden until current placement is applied.
 
 ### 1. No Shell Invocation
 

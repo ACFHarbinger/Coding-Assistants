@@ -24,6 +24,10 @@ macro_rules! invoke_handler {
             pty::pty_resize,
             pty::pty_kill,
             pty::pty_session_status,
+            browser_pane::browser_pane_open,
+            browser_pane::browser_pane_place,
+            browser_pane::browser_pane_navigate,
+            browser_pane::browser_pane_close,
             // Shared hub (`hub`) — same store as the `ca` CLI
             commands::commands::store::hub_init,
             commands::commands::store::hub_get_data_dir,

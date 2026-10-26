@@ -79,6 +79,10 @@ of #340/#350 and will close issues only after acceptance/landing evidence.
 | OpenCode | #352 + custody of #345; then #356 | Start P5 gate repairs, coordinating with Cursor. Handle review corrections on existing agent/deepseek-345 at 11b8624 without rebuilding. Linux trigger remains queued. |
 | Claude | none while usage is unavailable | Existing Scheduled Goals work transferred to #351/#352; no duplicate core implementation. |
 
+### Grok — 2026-10-25 — Terminal Grid DeepSeek GUI browser pane
+
+Owner asked for a browser pane in the Terminal Grid for the DeepSeek GUI. No GitHub issue. Implemented on `agent/grok-browser-pane` (worktree `.ca-worktrees/grok-browser-pane`). A `kind: "browser"` leaf opens `https://chat.deepseek.com/` in a child webview. Public https only; no PTY; remote page is not granted app commands. Not pushed. Checks: `cargo test -p tauri-app --lib browser_pane::` 4 passed; `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean; `npx tsc --noEmit` clean; vitest terminal grid 46 passed.
+
 #357 (macOS/Windows trigger) and #358 (headless quota extraction) are deferred
 and unassigned. UI/visualization brainstorming remains docs-only for invited
 agents; implementation issues await owner answers and Codex synthesis.

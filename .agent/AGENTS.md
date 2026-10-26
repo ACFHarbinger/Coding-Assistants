@@ -73,6 +73,8 @@ Coding-Assistants/
 | `run_agent_task`     | Execute multi-agent task sequence          |
 | `submit_user_input`  | Send user response to waiting agent        |
 | `cancel_task`        | Cancel running agent task                  |
+| `browser_pane_open` / `browser_pane_place` | Create and position a remote child webview |
+| `browser_pane_navigate` / `browser_pane_close` | Navigate or close a browser grid pane |
 | `hub_get_task_timeline` | Read task timeline events and collaboration status |
 | `get_agent_resources`| List prompts, rules, and workflows         |
 | `get_resource_content`| Read a resource file from `.agent/`       |
