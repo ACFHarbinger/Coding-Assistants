@@ -1,12 +1,12 @@
 //! Codex spend extraction for C6 / #84.
 //!
 //! Assistant chat text stays in [`super::codex`]. Token counts are a
-//! sibling line: `type=event_msg`, `payload.type=token_count`, with
-//! numbers under `payload.info.total_token_usage` when that object is
-//! present. That object is session-cumulative as Codex writes it; each
-//! event is recorded as reported, not differenced against
-//! `last_token_usage`. A missing key stays `None`. A line with no token
-//! object records no `provider.usage` row.
+//! sibling line: `type=event_msg`, `payload.type=token_count`.
+//! `last_token_usage` is that turn's own figure and is recorded as-is.
+//! `total_token_usage` is session-cumulative, so a later line records
+//! only the increase over the previous total in the same file. A missing
+//! key stays `None`. A line with no token object, or a zero increase,
+//! records no `provider.usage` row.
 
 use super::spend::HarnessTurnUsage;
 use std::fs;
@@ -19,8 +19,9 @@ pub(crate) fn codex_measured_turns(path: &Path, tail_lines: usize) -> Vec<Harnes
     let lines: Vec<&str> = raw.lines().collect();
     let session = transcript_session(&lines, path);
     let start = lines.len().saturating_sub(tail_lines);
+    let mut previous_total: Option<TokenCounts> = None;
     let mut turns = Vec::new();
-    for line in &lines[start..] {
+    for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -28,8 +29,28 @@ pub(crate) fn codex_measured_turns(path: &Path, tail_lines: usize) -> Vec<Harnes
         let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) else {
             continue;
         };
-        if let Some(turn) = turn_from_token_line(&value, line, &session) {
-            turns.push(turn);
+        let Some(parsed) = token_line(&value) else {
+            continue;
+        };
+        let in_tail = index >= start;
+        if let Some(total) = parsed.total {
+            let recorded = match previous_total {
+                Some(previous) => total.increase_over(previous),
+                None => total.measured(),
+            };
+            previous_total = Some(total);
+            if in_tail && parsed.last.is_none() {
+                if let Some(turn) = usage_turn(&value, line, &session, recorded) {
+                    turns.push(turn);
+                }
+            }
+        }
+        if in_tail {
+            if let Some(last) = parsed.last {
+                if let Some(turn) = usage_turn(&value, line, &session, last.measured()) {
+                    turns.push(turn);
+                }
+            }
         }
     }
     turns
@@ -61,11 +82,41 @@ fn transcript_session(lines: &[&str], path: &Path) -> String {
         })
 }
 
-fn turn_from_token_line(
-    line: &serde_json::Value,
-    raw: &str,
-    session: &str,
-) -> Option<HarnessTurnUsage> {
+struct TokenLine {
+    total: Option<TokenCounts>,
+    last: Option<TokenCounts>,
+}
+
+#[derive(Clone, Copy)]
+struct TokenCounts {
+    prompt: Option<u32>,
+    completion: Option<u32>,
+    cache: Option<u32>,
+}
+
+impl TokenCounts {
+    fn measured(self) -> Self {
+        Self {
+            prompt: nonzero(self.prompt),
+            completion: nonzero(self.completion),
+            cache: nonzero(self.cache),
+        }
+    }
+
+    fn increase_over(self, previous: Self) -> Self {
+        Self {
+            prompt: increase(previous.prompt, self.prompt),
+            completion: increase(previous.completion, self.completion),
+            cache: increase(previous.cache, self.cache),
+        }
+    }
+
+    fn any(self) -> bool {
+        self.prompt.is_some() || self.completion.is_some() || self.cache.is_some()
+    }
+}
+
+fn token_line(line: &serde_json::Value) -> Option<TokenLine> {
     if line.get("type").and_then(|kind| kind.as_str()) != Some("event_msg") {
         return None;
     }
@@ -73,26 +124,55 @@ fn turn_from_token_line(
     if payload.get("type").and_then(|kind| kind.as_str()) != Some("token_count") {
         return None;
     }
-    let total = payload
-        .get("info")
-        .and_then(|info| info.get("total_token_usage"))
-        .filter(|usage| usage.is_object())?;
-    let prompt_tokens = usage_field(total, "input_tokens");
-    let completion_tokens = usage_field(total, "output_tokens");
-    let cache_tokens = usage_field(total, "cached_input_tokens");
-    if prompt_tokens.is_none() && completion_tokens.is_none() && cache_tokens.is_none() {
+    let info = payload.get("info")?;
+    Some(TokenLine {
+        total: counts(info.get("total_token_usage")),
+        last: counts(info.get("last_token_usage")),
+    })
+}
+
+fn counts(usage: Option<&serde_json::Value>) -> Option<TokenCounts> {
+    let usage = usage.filter(|value| value.is_object())?;
+    let counts = TokenCounts {
+        prompt: usage_field(usage, "input_tokens"),
+        completion: usage_field(usage, "output_tokens"),
+        cache: usage_field(usage, "cached_input_tokens"),
+    };
+    counts.any().then_some(counts)
+}
+
+fn nonzero(value: Option<u32>) -> Option<u32> {
+    value.filter(|value| *value > 0)
+}
+
+fn increase(previous: Option<u32>, next: Option<u32>) -> Option<u32> {
+    let next = nonzero(next)?;
+    match previous {
+        Some(previous) if next > previous => Some(next - previous),
+        Some(previous) if next < previous => Some(next),
+        None => Some(next),
+        Some(_) => None,
+    }
+}
+
+fn usage_turn(
+    line: &serde_json::Value,
+    raw: &str,
+    session: &str,
+    counts: TokenCounts,
+) -> Option<HarnessTurnUsage> {
+    if !counts.any() {
         return None;
     }
-    let identity = event_identity(line, raw);
     Some(HarnessTurnUsage {
         provider: "codex",
         actor_agent: "codex",
         text: String::new(),
         model: None,
-        prompt_tokens,
-        completion_tokens,
-        cache_tokens,
-        usage_key: Some(format!("{session}:{identity}")),
+        prompt_tokens: counts.prompt,
+        completion_tokens: counts.completion,
+        cache_tokens: counts.cache,
+        usage_key: Some(format!("{session}:{}", event_identity(line, raw))),
     })
 }
 
@@ -188,9 +268,9 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0]["provider"], "codex");
         assert_eq!(rows[0]["actor_agent"], "codex");
-        assert_eq!(rows[0]["prompt_tokens"], 12);
-        assert_eq!(rows[0]["completion_tokens"], 34);
-        assert_eq!(rows[0]["cache_tokens"], 5);
+        assert_eq!(rows[0]["prompt_tokens"], 1);
+        assert_eq!(rows[0]["completion_tokens"], 1);
+        assert!(rows[0].get("cache_tokens").is_none());
         assert_eq!(rows[0]["currency"], "unknown");
         assert_eq!(rows[0]["session_id"], "hub-measured");
         assert!(rows[0].get("cost").is_none());
@@ -220,7 +300,6 @@ mod tests {
             &[
                 r#"{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"no figures"}]}}"#,
                 r#"{"type":"event_msg","payload":{"type":"token_count","id":"evt-empty"}}"#,
-                r#"{"type":"event_msg","payload":{"type":"token_count","id":"evt-last-only","info":{"last_token_usage":{"input_tokens":9,"output_tokens":9}}}}"#,
                 r#"{"type":"event_msg","payload":{"type":"token_count","id":"evt-blank","info":{"total_token_usage":{}}}}"#,
             ],
         );
@@ -290,7 +369,7 @@ mod tests {
             .into_iter()
             .map(|row| row["prompt_tokens"].as_u64().unwrap())
             .collect();
-        assert_eq!(prompts, vec![11, 22]);
+        assert_eq!(prompts, vec![11, 11]);
     }
 
     #[test]

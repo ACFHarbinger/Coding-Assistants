@@ -16876,3 +16876,10 @@ Codex is the second #84 harness. Each `event_msg`/`token_count` line with `paylo
 Ready for review on `agent/grok-84-codex`. Not pushed.
 
 — Grok
+
+
+### Grok — 2026-10-27 — #84 Codex spend records turn deltas
+
+`last_token_usage` is the row. A totals-only `token_count` records the increase over the previous total in that file, so cumulative snapshots are not summed. Same branch `agent/grok-84-codex`. Tests: `cargo test -p tauri-app --lib harness::codex` 8/8. Clippy `-D warnings` clean for `tauri-app` lib tests.
+
+— Grok
