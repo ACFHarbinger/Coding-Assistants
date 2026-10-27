@@ -8,9 +8,10 @@ use crate::client::http::{
     openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
     OPENAI_DEFAULT_MODEL, OPENAI_REQUEST_TIMEOUT_SECS,
 };
+use crate::client::muse_http::muse_chat_turn;
 use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
-    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
+    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider,
     muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
     parse_opencode_models, vibe_home_from_env, vibe_is_authenticated, vibe_programmatic_supported,
     vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
@@ -25,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::process::Command;
 
@@ -349,16 +350,22 @@ async fn direct_http_completion(
 /// per the official cookbook). The key comes from `MODEL_API_KEY` at call
 /// time and travels only in the `Authorization` header — it is never
 /// stored, logged, or placed in argv. An empty configured model falls back
-/// to the cookbook default. `work_dir`/`token` are dispatch-parity
-/// parameters the workspace-free API ignores.
+/// to the cookbook default. `work_dir` is unused. A set `token` cancels
+/// the Model API call and does not publish the assistant text.
 async fn muse_completion(
     config: &ModelConfig,
     prompt: &str,
     _work_dir: Option<&str>,
     bus: &InProcessBus,
     source: &str,
-    _token: Option<Arc<AtomicBool>>,
+    token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
+    if token
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    {
+        return Err("Task cancelled".to_string());
+    }
     // Resolved from the vault (keychain / file) or env as fallback via
     // hub::secret::resolve — never stored, logged, or placed in argv. The
     // key travels only in the outbound `Authorization` header.
@@ -379,16 +386,7 @@ async fn muse_completion(
     } else {
         model
     };
-    let output = muse_chat_request(api_key, model, prompt).await?;
-    bus.emit(
-        TOPIC_AGENT_EVENT,
-        AgentEvent {
-            source: source.to_string(),
-            event_type: "response".to_string(),
-            content: output.clone(),
-        },
-    );
-    Ok(output)
+    muse_chat_turn(api_key, model, prompt, bus, source, token).await
 }
 
 async fn vibe_completion(
