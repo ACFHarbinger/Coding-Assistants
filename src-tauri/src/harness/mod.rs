@@ -13,6 +13,7 @@ pub mod gemini;
 pub mod grok;
 pub mod hermes;
 pub mod kimi;
+mod kimi_spend;
 pub mod muse;
 pub mod presence;
 pub mod qwen;
