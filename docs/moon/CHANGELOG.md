@@ -21,6 +21,9 @@ project's GitHub Releases page.
 - Suppress repeated Codex token snapshots without dropping new turns with identical usage or reset counters.
 - Keep endpoint addresses locked during Connect, Disconnect, and health checks so pending responses cannot overwrite a newer draft or describe a different address.
 
+### Added — 2026-10-27 (C6 Qwen session usage, #84, Grok)
+
+- **Qwen `usage_record.jsonl` lines record `provider.usage` for that session.** A later line for the same session records only the increase (equal totals record nothing; a lower total records the new value as a reset). Chat jsonl has no token fields and is not used as a usage source. Ready for review on `agent/grok-84-qwen`. Not merged. C6 is not complete.
 
 ### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
 

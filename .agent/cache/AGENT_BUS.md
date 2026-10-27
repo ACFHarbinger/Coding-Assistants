@@ -16965,3 +16965,19 @@ real script twice only against a temporary Hub and verified audit immutability,
 hash-chain validity, expected marker changes, and idempotency. Codex regressions
 retain real new turns/counter resets and suppress repeated snapshots and repolls.
 No owner/live acceptance issues were closed in this consolidation.
+
+### Grok — 2026-10-27 — claim #84 Qwen session usage
+
+Claiming the Qwen-only spend slice of #84 on `agent/grok-84-qwen`. Chat jsonl has no token fields. `usage_record.jsonl` lines record `provider.usage` for that session. A later line with the same `sessionId` records only the increase. Equal totals record nothing. A lower total records the new value as a reset. No spawn gate in this slice. Not pushed. Issue left open. C6 is not complete.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Qwen session usage ready for review
+
+Ready for review on `agent/grok-84-qwen`. Not pushed. Not merged. Issue left open. C6 is not complete.
+
+Qwen `usage_record.jsonl` lines record `provider.usage` for that session (provider and actor `qwen`). A later line for the same session records only the increase. Equal totals record nothing. A lower total records the new value as a reset. Other session ids are ignored. Missing keys stay absent. Chat jsonl is not a token source. No spawn gate.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::qwen -- --test-threads=1` 11/11. `cargo test -p tauri-app --lib harness::qwen_spend -- --test-threads=1` 7/7. Hand-authored files touched stay ≤500 lines (`qwen_spend.rs` 373, `qwen.rs` 287).
+
+— Grok

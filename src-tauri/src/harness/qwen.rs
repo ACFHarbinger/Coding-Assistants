@@ -6,7 +6,9 @@
 //! Only final assistant **text** is captured: `type == "assistant"` text
 //! parts, skip `type == "system"`. `provenance` (`real_user` vs `system`)
 //! distinguishes injected user prompts, which this adapter already skips
-//! by type. Recorded as `("qwen", "qwen")` — no identity split.
+//! by type. Recorded as `("qwen", "qwen")` — no identity split. Chat
+//! transcripts carry no token counters; end-of-session totals come from
+//! `usage_record.jsonl` for this session id only.
 
 use hub::HubStore;
 use serde::Serialize;
@@ -138,6 +140,19 @@ pub fn capture_qwen_session_from(
         {
             captured.push(record);
         }
+    }
+    // Spend is a sibling file, not a chat-jsonl field. Missing file: still Ok.
+    if let Some(session_id) = qwen_session_id
+        .map(str::trim)
+        .filter(|session_id| !session_id.is_empty())
+    {
+        let disk_id = disk_session_id(session_id).unwrap_or_else(|| session_id.to_string());
+        super::qwen_spend::record_qwen_session_usage(
+            store,
+            &super::qwen_spend::usage_record_path(),
+            &disk_id,
+            hub_session_id,
+        );
     }
     Ok(QwenCaptureOutcome {
         transcript_found: true,

@@ -16,6 +16,7 @@ pub mod kimi;
 pub mod muse;
 pub mod presence;
 pub mod qwen;
+mod qwen_spend;
 pub mod spend;
 pub mod stop;
 pub mod vibe;
