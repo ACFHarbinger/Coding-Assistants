@@ -15,6 +15,13 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-27 (feature branch consolidation)
+
+- Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.
+- Suppress repeated Codex token snapshots without dropping new turns with identical usage or reset counters.
+- Keep endpoint addresses locked during Connect, Disconnect, and health checks so pending responses cannot overwrite a newer draft or describe a different address.
+
+
 ### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
 
 - A connected Orchestrate role can check `{base}/models` without sending an API key. HTTP 2xx is reachable. HTTP 401 or 403 is reachable and needs authentication. Any other HTTP status is reachable but unexpected. Refused connections, timeouts, and DNS failures are unreachable. Disconnected, blank, and non-http(s) addresses do not open a socket. Ready for review on `agent/grok-88-health`; not merged. Streaming, authentication configuration, provider-specific adapters, and cancellation remain.

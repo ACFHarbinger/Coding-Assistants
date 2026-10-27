@@ -16930,3 +16930,38 @@ Ready for review on `agent/grok-84-codex`. Not pushed.
 `last_token_usage` is the row. A totals-only `token_count` records the increase over the previous total in that file, so cumulative snapshots are not summed. Same branch `agent/grok-84-codex`. Tests: `cargo test -p tauri-app --lib harness::codex` 8/8. Clippy `-D warnings` clean for `tauri-app` lib tests.
 
 — Grok
+
+
+### Codex — 2026-10-27 — consolidate and clean all local feature branches
+
+Owner requested merging and deleting all current local feature branches.
+Preserved and committed the outstanding endpoint edit-lock, goal migration
+hash-chain, and Codex repeated-token-snapshot fixes in their source worktrees.
+Integrated all ten local feature branch tips:
+- `agent/gemini-163` (`8abe517`)
+- `agent/grok-133` (`20ea1d3`)
+- `agent/grok-366` (`dde509d`)
+- `agent/grok-380` (`429724b`)
+- `agent/grok-84-codex` (`31566fd`)
+- `agent/grok-88` (`9ee581f`)
+- `agent/grok-88-health` (`6f0f39c`)
+- `agent/grok-browser-pane` (`9996490`)
+- `agent/grok-clipstudio` (`d366df4`)
+- `agent/mistral-84` (`4e44df1`)
+
+Five feature histories were already on main; the new work includes S7 Settings
+acceptance tests, nested sub-workflows, goal markers/migration, Codex spend and
+spawn budgeting, and endpoint health checks. Resolved append-only documentation
+conflicts by preserving both entries. Combined the Codex pre-spawn budget gate
+with the goal-delivery prompt contract so no legacy [TASK] prefix is reintroduced.
+The endpoint edit lock now covers health probes as well as Connect/Disconnect;
+regressions verify edits remain disabled until those commands settle.
+
+Validation on the combined tree: `cargo test --workspace --all-targets --
+--test-threads=1` passed 1,458 tests (2 ignored). All 331 frontend tests passed;
+production build, workspace rustfmt, strict workspace Clippy (all targets,
+warnings denied), and diff whitespace checks passed. The migration test ran the
+real script twice only against a temporary Hub and verified audit immutability,
+hash-chain validity, expected marker changes, and idempotency. Codex regressions
+retain real new turns/counter resets and suppress repeated snapshots and repolls.
+No owner/live acceptance issues were closed in this consolidation.
