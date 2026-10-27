@@ -16981,3 +16981,20 @@ Hermes `--usage-file` reports record `provider.usage` once per session and file 
 Ready for review on `agent/grok-84-hermes`. Not pushed.
 
 — Grok
+
+
+### Codex — 2026-10-27 — Hermes spend review corrections (#84)
+
+The installed Hermes normalizer and usage display identify reasoning tokens as
+a subset of output tokens. Removed the extra reasoning addition, which changed
+the supplied report's completion count from 17 to an incorrect 30. Missing
+output remains unknown; a large valid output bucket is no longer discarded by
+an artificial reasoning-sum overflow. Adjusted fixture expectations accordingly.
+
+A second defect dropped resumed runs with byte-identical usage reports. Dedup
+now includes the report file name and modification version as well as bytes and
+session. The same unchanged version remains idempotent; a fresh version with
+identical counts records another run. Read metadata before/after parsing to skip
+concurrently changing reports. Regressions reproduce both original defects.
+Validation: 15 Hermes capture/spend tests passed; strict desktop lib/test Clippy
+passed. No live provider process was launched; estimated cost remains absent.

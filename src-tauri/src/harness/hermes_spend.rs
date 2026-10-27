@@ -4,12 +4,15 @@
 //! so the counts are recorded as-is (no delta). The quota reader still only
 //! sums these files. `record_harness_turn_usage` always leaves `via_gateway`
 //! unset, so recording calls `record_provider_usage_once` with the same key
-//! dedup and sets the gateway from the report's `provider` string.
+//! dedup and sets the gateway from the report's `provider` string. Report
+//! identity includes the file version, so a resumed run with identical
+//! counts is distinct while re-polling an unchanged report is not.
 
 use super::spend::HarnessTurnUsage;
 use hub::{HubStore, ProviderUsage, SliceStamp};
 use serde_json::Value;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// One parsed `--usage-file` report. `turn` is the shared harness usage
@@ -86,7 +89,19 @@ fn json_paths(path: &Path) -> Vec<PathBuf> {
 }
 
 fn report_from_file(path: &Path, session_id: Option<&str>) -> Option<HermesUsageTurn> {
-    let bytes = fs::read(path).ok()?;
+    let mut file = fs::File::open(path).ok()?;
+    let before = file.metadata().ok()?;
+    let modified = before.modified().ok()?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).ok()?;
+    let after = file.metadata().ok()?;
+    if before.len() != after.len() || modified != after.modified().ok()? {
+        return None;
+    }
+    let version = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
     let value: Value = serde_json::from_slice(&bytes).ok()?;
     if !value.is_object() {
         return None;
@@ -102,10 +117,9 @@ fn report_from_file(path: &Path, session_id: Option<&str>) -> Option<HermesUsage
         }
     }
     let prompt_tokens = token_field(&value, "input_tokens");
-    let completion_tokens = sum_fields(
-        token_field(&value, "output_tokens"),
-        token_field(&value, "reasoning_tokens"),
-    );
+    // Hermes reports reasoning as a subset of output_tokens, not an
+    // additional completion bucket (also reflected in total_tokens).
+    let completion_tokens = token_field(&value, "output_tokens");
     let cache_tokens = sum_fields(
         token_field(&value, "cache_read_tokens"),
         token_field(&value, "cache_write_tokens"),
@@ -123,7 +137,10 @@ fn report_from_file(path: &Path, session_id: Option<&str>) -> Option<HermesUsage
             prompt_tokens,
             completion_tokens,
             cache_tokens,
-            usage_key: Some(format!("{session}:{}", fnv1a64_hex(&bytes))),
+            usage_key: Some(format!(
+                "{session}:{stem}:{version}:{}",
+                fnv1a64_hex(&bytes)
+            )),
         },
         via_gateway: via_gateway(&value),
     })
@@ -226,7 +243,7 @@ mod tests {
         assert_eq!(rows[0]["provider"], "hermes");
         assert_eq!(rows[0]["actor_agent"], "hermes");
         assert_eq!(rows[0]["prompt_tokens"], 12356);
-        assert_eq!(rows[0]["completion_tokens"], 30);
+        assert_eq!(rows[0]["completion_tokens"], 17);
         assert_eq!(rows[0]["cache_tokens"], 0);
         assert_eq!(rows[0]["model"], "upstage/solar-pro4:free");
         assert_eq!(rows[0]["via_gateway"], "nous");
@@ -234,14 +251,13 @@ mod tests {
         assert!(rows[0].get("cost").is_none());
         let turns = hermes_usage_turns(&dir.path().join(format!("{SESSION}.json")), None);
         assert_eq!(turns.len(), 1);
-        assert_eq!(
-            turns[0].turn.usage_key.as_deref(),
-            Some(format!("{SESSION}:{}", fnv1a64_hex(SAMPLE.as_bytes())).as_str())
-        );
+        let key = turns[0].turn.usage_key.as_deref().unwrap();
+        assert!(key.starts_with(&format!("{SESSION}:{SESSION}:")));
+        assert!(key.ends_with(&fnv1a64_hex(SAMPLE.as_bytes())));
     }
 
     #[test]
-    fn reread_of_the_same_bytes_does_not_add_a_row() {
+    fn reread_of_the_same_report_version_does_not_add_a_row() {
         let dir = tempdir().unwrap();
         let path = dir.path().join(format!("{SESSION}.json"));
         fs::write(&path, SAMPLE).unwrap();
@@ -290,7 +306,7 @@ mod tests {
         let rows = usage_rows(&record(dir.path(), SESSION));
         assert_eq!(rows.len(), 1);
         assert!(rows[0].get("prompt_tokens").is_none());
-        assert_eq!(rows[0]["completion_tokens"], 5);
+        assert_eq!(rows[0]["completion_tokens"], 4);
         assert_eq!(rows[0]["cache_tokens"], 2);
         assert!(rows[0].get("cost").is_none());
     }
@@ -306,7 +322,7 @@ mod tests {
         let rows = usage_rows(&record(dir.path(), SESSION));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0]["prompt_tokens"], 3);
-        assert_eq!(rows[0]["completion_tokens"], 9);
+        assert_eq!(rows[0]["completion_tokens"], 4);
         assert!(rows[0].get("cache_tokens").is_none());
         assert!(rows[0].get("cost").is_none());
         assert_eq!(rows[0]["currency"], "unknown");
@@ -339,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_numbers_stay_absent_and_an_overflowing_sum_is_absent() {
+    fn invalid_numbers_stay_absent_without_adding_reasoning_to_output() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("edge.json");
         fs::write(
@@ -350,7 +366,7 @@ mod tests {
         let turns = hermes_usage_turns(&path, None);
         assert_eq!(turns.len(), 1);
         assert_eq!(turns[0].turn.prompt_tokens, None);
-        assert_eq!(turns[0].turn.completion_tokens, None);
+        assert_eq!(turns[0].turn.completion_tokens, Some(u32::MAX));
         assert_eq!(turns[0].turn.cache_tokens, Some(0));
         assert_eq!(turns[0].via_gateway, None);
         assert_eq!(turns[0].turn.provider, "hermes");
@@ -363,5 +379,30 @@ mod tests {
         let store = HubStore::open(dir.path().join("hub")).unwrap();
         record_hermes_session_usage(&store, None, &missing, SESSION);
         assert!(usage_rows(&store).is_empty());
+    }
+    #[test]
+    fn output_tokens_already_include_the_reasoning_subset() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join(format!("{SESSION}.json")), SAMPLE).unwrap();
+        let rows = usage_rows(&record(dir.path(), SESSION));
+        assert_eq!(rows[0]["completion_tokens"], 17);
+    }
+    #[test]
+    fn identical_usage_from_distinct_file_versions_counts_both_runs() {
+        use std::time::{Duration, UNIX_EPOCH};
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(format!("{SESSION}.json"));
+        fs::write(&path, SAMPLE).unwrap();
+        let file = fs::File::options().write(true).open(&path).unwrap();
+        file.set_modified(UNIX_EPOCH + Duration::from_secs(1_700_000_000))
+            .unwrap();
+        let store = HubStore::open(dir.path().join("hub")).unwrap();
+        record_hermes_session_usage(&store, None, dir.path(), SESSION);
+        fs::write(&path, SAMPLE).unwrap();
+        file.set_modified(UNIX_EPOCH + Duration::from_secs(1_700_000_001))
+            .unwrap();
+        record_hermes_session_usage(&store, None, dir.path(), SESSION);
+        record_hermes_session_usage(&store, None, dir.path(), SESSION);
+        assert_eq!(usage_rows(&store).len(), 2);
     }
 }
