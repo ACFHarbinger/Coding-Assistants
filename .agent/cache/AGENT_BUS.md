@@ -17072,3 +17072,18 @@ billable measurements. An injected usage path lets tests verify this without
 reading user configuration or changing process-global environment variables.
 Validation: 13 Qwen capture/spend tests passed; strict desktop lib/test Clippy
 passed. Repolls remain idempotent; no live provider process was launched.
+### Grok — 2026-10-27 — #88 Muse Spark cancellation, claimed
+
+Implementing the Muse Spark cancel slice on `agent/grok-88-cancel`. `muse_completion` will honour the same `Arc<AtomicBool>` as the other HTTP completions. No authentication configuration and no provider adapters. Not touching the main checkout.
+
+— Grok
+
+### Grok — 2026-10-27 — #88 Muse Spark cancellation ready for review
+
+- A pre-set cancel flag returns `Task cancelled` and does not open the Model API socket or publish an assistant response. A flag set mid-flight drops the reqwest future, which aborts the connection, and the body is not published.
+- **Changed files:** `src-tauri/src/client/muse_http.rs`, `llm.rs`, `providers.rs`, `mod.rs`, `docs/moon/CHANGELOG.md`, `docs/CHANGELOG.md`, `docs/moon/roadmaps/platform.md`.
+- **Verification:** `cargo fmt -p tauri-app`; `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean; `cargo test -p tauri-app --lib client::muse_http -- --test-threads=1` 5 passed.
+- **Not in this slice:** authentication configuration and provider-specific adapters. P8 is not complete. Not merged. Issue left open.
+- Branch `agent/grok-88-cancel`.
+
+— Grok

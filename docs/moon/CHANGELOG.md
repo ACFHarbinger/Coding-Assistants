@@ -35,6 +35,9 @@ project's GitHub Releases page.
 
 - Qwen retains last-known cumulative buckets across partial snapshots and records measured usage even when the chat transcript is unavailable.
 
+### Added — 2026-10-27 (Muse Spark cancellation, #88)
+
+- **Muse Spark honours the orchestration cancel flag.** A flag that is already set returns `Task cancelled` and does not open the Model API socket or publish an assistant response. A flag set while the reqwest call is in flight drops that future, which aborts the connection, and the body is not published. Ready for review on `agent/grok-88-cancel`; not merged. Authentication configuration and provider-specific adapters remain open on #88.
 
 ### Fixed — 2026-10-27 (feature branch consolidation)
 

@@ -184,7 +184,7 @@ pub fn canonical_rate_limit_key(provider: &str) -> &str {
 
 /// Auth presence only: a non-empty `MODEL_API_KEY`. Never reads key
 /// material beyond presence — the key travels only in the request's
-/// `Authorization` header, built at call time in `llm.rs`.
+/// `Authorization` header, built at call time in `muse_http`.
 pub fn muse_is_authenticated(model_api_key: Option<&str>) -> bool {
     model_api_key
         .map(str::trim)
@@ -220,48 +220,6 @@ pub fn muse_response_text(body: &str) -> Result<String, String> {
 
 pub fn muse_unavailable_unauthenticated() -> String {
     "Muse (meta) unavailable: not authenticated. Add MODEL_API_KEY in Settings → Credentials or export it in the environment.".into()
-}
-
-/// POST one non-streaming chat turn to the Model API and return the
-/// assistant text. Transport-only: auth presence is the caller's check,
-/// and nothing here logs the key, the prompt, or the reply. A hung host
-/// is bounded by `timeout`; an offline host fails fast at connect — both
-/// surface as plain errors, never retried.
-pub async fn muse_chat_request(api_key: &str, model: &str, prompt: &str) -> Result<String, String> {
-    muse_chat_request_to(
-        &muse_chat_completions_url(),
-        api_key,
-        model,
-        prompt,
-        std::time::Duration::from_secs(MUSE_REQUEST_TIMEOUT_SECS),
-    )
-    .await
-}
-
-pub async fn muse_chat_request_to(
-    url: &str,
-    api_key: &str,
-    model: &str,
-    prompt: &str,
-    timeout: std::time::Duration,
-) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(timeout)
-        .build()
-        .map_err(muse_unavailable_request)?;
-    let response = client
-        .post(url)
-        .bearer_auth(api_key)
-        .json(&muse_request_body(model, prompt))
-        .send()
-        .await
-        .map_err(muse_unavailable_request)?;
-    let status = response.status();
-    let body = response.text().await.map_err(muse_unavailable_request)?;
-    if !status.is_success() {
-        return Err(format!("Muse Model API returned {status}: {body}"));
-    }
-    muse_response_text(&body)
 }
 
 pub fn muse_unavailable_request(error: impl std::fmt::Display) -> String {
@@ -422,62 +380,6 @@ usage: vibe [-h] [-p [TEXT]] [--output {text,json,streaming}]
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0]["role"], "user");
         assert_eq!(messages[0]["content"], dangerous);
-    }
-
-    #[tokio::test]
-    async fn muse_offline_host_fails_fast_without_retry() {
-        // Port 1 on loopback is closed: connect fails immediately, proving
-        // offline hosts surface a plain error instead of hanging.
-        let error = muse_chat_request_to(
-            "http://127.0.0.1:1/chat/completions",
-            "presence-flag-not-a-secret",
-            "muse-spark-1.3",
-            "hi",
-            std::time::Duration::from_secs(5),
-        )
-        .await
-        .unwrap_err();
-        assert!(
-            error.contains("Model API request failed"),
-            "unexpected error: {error}"
-        );
-    }
-
-    #[tokio::test]
-    async fn muse_hung_host_hits_the_request_timeout() {
-        // Accept, hold the connection open, and never reply: the request
-        // must die on the client's timeout, not on the server's schedule.
-        // (Binding the accepted stream is load-bearing — dropping it
-        // FINs the connection and the client fails fast on send instead.)
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        std::thread::spawn(move || {
-            if let Ok((stream, _)) = listener.accept() {
-                let _held = stream;
-                std::thread::sleep(std::time::Duration::from_secs(30));
-            }
-        });
-        // The 300 ms deadline (not a fast transport failure) must produce
-        // this error: anything quicker means the dummy server FINed and the
-        // test is vacuous.
-        let started = std::time::Instant::now();
-        let error = muse_chat_request_to(
-            &format!("http://{address}/chat/completions"),
-            "presence-flag-not-a-secret",
-            "muse-spark-1.3",
-            "hi",
-            std::time::Duration::from_millis(300),
-        )
-        .await
-        .unwrap_err();
-        assert!(
-            started.elapsed() >= std::time::Duration::from_millis(250),
-            "error came too fast to be the timeout: {error}"
-        );
-        assert!(
-            error.contains("Model API request failed"),
-            "unexpected error: {error}"
-        );
     }
 
     #[test]
