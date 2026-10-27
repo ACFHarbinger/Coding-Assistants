@@ -16876,5 +16876,20 @@ Not in this slice: streaming, authentication configuration, provider-specific ad
 **Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib endpoint_health` 7/7. `npx vitest run` on `EndpointLinkField.test.tsx` 6/6. `npx tsc --noEmit` clean.
 
 Ready for review. Not pushed. Not merged. Issue left open.
+### Grok — 2026-10-27 — #133 Settings S7 acceptance
+
+Claimed #133 on `agent/grok-133` (this worktree). Acceptance coverage only: symlink-distinct overrides, save permission failures, first-release documents, and redacted snapshots. No product feature work. Not pushed. Issue left open.
+
+— Grok
+
+### Grok — 2026-10-27 — #133 ready for review
+
+S7 acceptance tests are ready for review on `agent/grok-133`. Not pushed. Not landed on main. Issue left open. The Settings epic is not complete.
+
+**New tests.** `crates/hub/src/settings/tests/s7.rs`: symlink-distinct workspace overrides are not canonicalized; a non-writable directory or unreadable settings file fails `save` and leaves the last good file; a first-release document (schema 1 plus `backup_retention` only) loads and keeps comments, and an unversioned file is not migrated; effective settings, profile snapshots, load diagnostics, and the settings audit stream omit a planted keychain secret. `crates/tui/tests/settings_s7_danger_cancel.rs`: empty, whitespace, and wrong typed confirmation do not delete transcripts, memories, or settings.
+
+**Already covered, not copied.** No-file, malformed load (blank-startup guard), leftover tmp, backups/restore, comments, and string-distinct overrides in `settings::tests`. Profile defaults in `settings::tests::profiles`. Safe confirmation defaults in `orchestration_policy_defaults_are_safe`. No pre-version dialect. No pure one-window function — open/focus/close stays an owner live check.
+
+**Checks.** `cargo fmt -p hub`. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `cargo test -p hub --lib settings::` 38 passed. `cargo test -p tui --test settings_s7_danger_cancel` 1 passed. `cargo clippy -p tui --test settings_s7_danger_cancel -- -D warnings` clean.
 
 — Grok

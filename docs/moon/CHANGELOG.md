@@ -18,6 +18,9 @@ project's GitHub Releases page.
 ### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
 
 - A connected Orchestrate role can check `{base}/models` without sending an API key. HTTP 2xx is reachable. HTTP 401 or 403 is reachable and needs authentication. Any other HTTP status is reachable but unexpected. Refused connections, timeouts, and DNS failures are unreachable. Disconnected, blank, and non-http(s) addresses do not open a socket. Ready for review on `agent/grok-88-health`; not merged. Streaming, authentication configuration, provider-specific adapters, and cancellation remain.
+### Added — 2026-10-27 (Settings S7 acceptance, #133, Grok)
+
+- **S7 acceptance tests, ready for review on `agent/grok-133`.** Symlink-distinct workspace overrides stay separate, a permission-denied save keeps the last good file, and a first-release `settings.toml` loads without a pre-version dialect. Redacted effective settings omit a planted keychain secret. A wrong or empty danger-zone confirmation does not delete transcripts, memories, or settings. Not landed on main.
 
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
