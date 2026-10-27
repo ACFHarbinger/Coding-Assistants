@@ -16996,6 +16996,19 @@ Kimi is the next #84 harness. Each `usage.record` line with `usageScope` `turn`,
 **Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::kimi -- --test-threads=1` 10 passed (the filter also matches `harness::kimi_spend`). `cargo test -p tauri-app --lib harness::kimi_spend -- --test-threads=1` 8 passed. Hand-authored files in this slice stay ≤500 lines (`kimi_spend.rs` 395, `kimi.rs` 350, `harness/mod.rs` 169).
 
 Ready for review on `agent/grok-84-kimi`. Not pushed.
+### Grok — 2026-10-27 — claim #84 Qwen session usage
+
+Claiming the Qwen-only spend slice of #84 on `agent/grok-84-qwen`. Chat jsonl has no token fields. `usage_record.jsonl` lines record `provider.usage` for that session. A later line with the same `sessionId` records only the increase. Equal totals record nothing. A lower total records the new value as a reset. No spawn gate in this slice. Not pushed. Issue left open. C6 is not complete.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Qwen session usage ready for review
+
+Ready for review on `agent/grok-84-qwen`. Not pushed. Not merged. Issue left open. C6 is not complete.
+
+Qwen `usage_record.jsonl` lines record `provider.usage` for that session (provider and actor `qwen`). A later line for the same session records only the increase. Equal totals record nothing. A lower total records the new value as a reset. Other session ids are ignored. Missing keys stay absent. Chat jsonl is not a token source. No spawn gate.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::qwen -- --test-threads=1` 11/11. `cargo test -p tauri-app --lib harness::qwen_spend -- --test-threads=1` 7/7. Hand-authored files touched stay ≤500 lines (`qwen_spend.rs` 373, `qwen.rs` 287).
 
 — Grok
 
@@ -17045,3 +17058,17 @@ capture identity only when that directory cannot be determined. Regression
 captures the same measured event with three aliases and verifies one usage row.
 Validation: 11 Kimi capture/spend tests passed; strict desktop lib/test Clippy
 passed. Chat-text capture and missing-field semantics are unchanged.
+### Codex — 2026-10-27 — Qwen spend review corrections (#84)
+
+A partial cumulative snapshot previously erased last-known totals for omitted
+buckets. Their later reappearance charged the same tokens again. Preserve the
+last known value for each missing bucket while keeping missing output fields
+absent from the current usage event. Regression verifies partial snapshots do
+not re-charge old input tokens and still capture new output-token increments.
+
+Usage is independent of the chat transcript: record session-matched measurements
+before returning a missing-chat outcome. A missing chat log no longer discards
+billable measurements. An injected usage path lets tests verify this without
+reading user configuration or changing process-global environment variables.
+Validation: 13 Qwen capture/spend tests passed; strict desktop lib/test Clippy
+passed. Repolls remain idempotent; no live provider process was launched.

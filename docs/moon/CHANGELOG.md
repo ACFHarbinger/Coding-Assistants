@@ -33,12 +33,18 @@ project's GitHub Releases page.
 
 - **Kimi `usage.record` turns record `provider.usage` once per session+time+line.** A wire.jsonl line with `type` `usage.record` and `usageScope` `turn`, or with no scope, records `inputOther` as prompt tokens, `output` as completion tokens, and `inputCacheRead` plus `inputCacheCreation` as cache tokens. Provider and actor are `kimi`. Cost stays absent. A re-poll of the same line does not insert another row. Two records with the same time but different bytes record twice. Any other scope, a non-usage line, or a record with no measured field writes nothing. A missing token key stays absent. A tool-only turn with a `usage.record` still records, and chat-text capture is unchanged. Ready for review on `agent/grok-84-kimi`. Not merged. Other harnesses are unchanged.
 
+- Qwen retains last-known cumulative buckets across partial snapshots and records measured usage even when the chat transcript is unavailable.
+
+
 ### Fixed — 2026-10-27 (feature branch consolidation)
 
 - Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.
 - Suppress repeated Codex token snapshots without dropping new turns with identical usage or reset counters.
 - Keep endpoint addresses locked during Connect, Disconnect, and health checks so pending responses cannot overwrite a newer draft or describe a different address.
 
+### Added — 2026-10-27 (C6 Qwen session usage, #84, Grok)
+
+- **Qwen `usage_record.jsonl` lines record `provider.usage` for that session.** A later line for the same session records only the increase (equal totals record nothing; a lower total records the new value as a reset). Chat jsonl has no token fields and is not used as a usage source. Ready for review on `agent/grok-84-qwen`. Not merged. C6 is not complete.
 
 ### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
 
