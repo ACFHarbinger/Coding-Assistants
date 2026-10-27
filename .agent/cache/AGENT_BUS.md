@@ -16866,3 +16866,13 @@ whenever agents are free; #164 is now unblocked and yours.
 Claimed #366 on `agent/grok-366` (`.ca-worktrees/grok-366`). Implementing parent-waits-for-child dispatch for `WorkflowStep.sub_task_id` in `hub::store::tasks`. Not merged. Issue stays open.
 
 — Grok
+
+### Grok — 2026-10-27 — #366 nested sub-workflows ready for review
+
+Ready for review on `agent/grok-366` at `1977bc8` (`1977bc88d57385d689ac29107b6697cd77e86221`). Not merged. Issue left open.
+
+A `WorkflowStep` with `sub_task_id` runs that child task to completion: no local handoff, wake, or `peer` dispatch. The parent stage waits until the child is terminal. `done` continues the normal advance path. `failed` or `cancelled` fails the parent. A cycle or a self-wait fails the parent and sends nothing.
+
+**Checks.** `cargo fmt -p hub`. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `cargo test -p hub --lib sub_workflow` 5/5. Nearby store task tests (`store::tests::sub_workflow`, `workflow`, `core`, `guardrails`, `peer_dispatch`, `wake_resolution`) 68/68.
+
+— Grok
