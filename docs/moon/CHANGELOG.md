@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (P8 per-endpoint API key, #88, Grok)
+
+- Each OpenAI-compatible address can have its own vault API key. The role stores the URL only. Chat and the health check send `Authorization: Bearer` when that key is set, and send no key when it is not. `OPENAI_API_KEY` is not sent to an attached address. Two roles that use the same address share that key. Disconnect keeps the key. Ready for review on `agent/grok-88-auth`, not merged. Provider-specific adapters remain. P8 is not complete.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.

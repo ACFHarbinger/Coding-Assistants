@@ -14,6 +14,10 @@ interface EndpointHealth {
   message: string;
 }
 
+interface EndpointCredentialStatus {
+  is_set: boolean;
+}
+
 export function EndpointLinkField({
   index,
   config,
@@ -26,14 +30,35 @@ export function EndpointLinkField({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
   const [health, setHealth] = useState<EndpointHealth | null>(null);
   const [draft, setDraft] = useState(config.endpoint || "");
+  const [apiKey, setApiKey] = useState("");
+  const [keySet, setKeySet] = useState(false);
   useEffect(() => {
     setDraft(config.endpoint || "");
   }, [config.endpoint]);
   const trimmed = draft.trim();
   const connected = Boolean(trimmed) && config.endpoint_state !== "disconnected";
-  const busy = pending || checking;
+  const busy = pending || checking || savingKey;
+
+  useEffect(() => {
+    if (!trimmed) {
+      setKeySet(false);
+      return;
+    }
+    let cancelled = false;
+    invoke<EndpointCredentialStatus>("endpoint_credential_status", { endpoint: trimmed })
+      .then((status) => {
+        if (!cancelled) setKeySet(status.is_set);
+      })
+      .catch(() => {
+        if (!cancelled) setKeySet(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trimmed]);
 
   const writeDraft = (value: string) => {
     if (busy) return;
@@ -98,6 +123,39 @@ export function EndpointLinkField({
     }
   };
 
+  const saveKey = async () => {
+    setSavingKey(true);
+    setError("");
+    try {
+      const status = await invoke<EndpointCredentialStatus>("endpoint_credential_set", {
+        endpoint: trimmed,
+        apiKey,
+      });
+      setKeySet(status.is_set);
+      setApiKey("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the API key.");
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const clearKey = async () => {
+    setSavingKey(true);
+    setError("");
+    try {
+      const status = await invoke<EndpointCredentialStatus>("endpoint_credential_clear", {
+        endpoint: trimmed,
+      });
+      setKeySet(status.is_set);
+      setApiKey("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not clear the API key.");
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
   const help = !trimmed
     ? "Leave blank to let Coding Assistants start the provider."
     : !connected
@@ -105,6 +163,11 @@ export function EndpointLinkField({
       : health
         ? health.message
         : "Connected. Chat completions use this address. Reachability is not checked.";
+  const keyHelp = !trimmed
+    ? "An API key can be saved after an address is entered."
+    : keySet
+      ? "A key is saved for this address. Every role that uses it sends that key."
+      : "No key is saved for this address. The request is sent without one.";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -130,6 +193,28 @@ export function EndpointLinkField({
           {checking ? "Checking…" : "Check"}
         </button>
         <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{help}</span>
+      </div>
+      <label className="label">
+        Endpoint API key <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional, for this address)</span>
+      </label>
+      <input
+        disabled={busy || !trimmed}
+        type="password"
+        autoComplete="off"
+        value={apiKey}
+        onChange={(event) => setApiKey(event.target.value)}
+        placeholder="Not stored on the role"
+        aria-label="Endpoint API key"
+        style={{ padding: "0.5rem", borderRadius: "6px", background: "rgba(0,0,0,0.3)", color: "white", border: "1px solid var(--border-color)", outline: "none" }}
+      />
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <button type="button" className="btn-secondary" onClick={saveKey} disabled={busy || !trimmed || !apiKey.trim()}>
+          Save key
+        </button>
+        <button type="button" className="btn-secondary" onClick={clearKey} disabled={busy || !trimmed || !keySet}>
+          Clear key
+        </button>
+        <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{keyHelp}</span>
       </div>
       {error && <span style={{ color: "#f59e0b", fontSize: "0.75rem" }}>{error}</span>}
     </div>

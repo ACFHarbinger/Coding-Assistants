@@ -17118,3 +17118,11 @@ source files remain unchanged; the disposable probe used only temporary Hub
 fixtures. Review reproductions are retained locally in
 `/tmp/ca-vibe-review-regressions.patch`. No live provider was contacted, and no
 outstanding owner/live acceptance issue was closed.
+
+### Grok — 2026-10-27 — #88 per-endpoint API key
+
+Claiming authentication configuration for #88 on `agent/grok-88-auth`. The owner chose a key per endpoint. The vault slot is `endpoint.` plus a hash of the validated URL. The role stores the address only. The same address shares one key across roles. A missing key still sends the request with no credential. `OPENAI_API_KEY` is not sent to an attached address. Disconnect does not clear the key and does not stop an external process. Provider-specific adapters stay out of scope. Not pushed. Issue stays open. P8 is not complete.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib client::endpoint -- --test-threads=1` 16 passed. Vitest `EndpointLinkField.test.tsx` 11 passed. `CARGO_TARGET_DIR` was this worktree's `target`. The desktop window was not opened.
+
+— Grok
