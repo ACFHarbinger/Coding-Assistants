@@ -130,4 +130,76 @@ describe("EndpointLinkField", () => {
     expect(onConfigChange).toHaveBeenCalledWith(0, "endpoint_state", "disconnected");
   });
 
+  it("disables Check until the role is connected", () => {
+    renderField({
+      provider: "ollama",
+      model: "llama3",
+      endpoint: "http://127.0.0.1:1234/v1",
+      endpoint_state: "disconnected",
+    });
+    expect(screen.getByRole("button", { name: "Check" })).toBeDisabled();
+  });
+
+  it("shows a reachable health result", async () => {
+    mockedInvoke.mockResolvedValue({
+      kind: "reachable",
+      status: 200,
+      message: "Reachable.",
+    });
+    renderField({
+      provider: "ollama",
+      model: "llama3",
+      endpoint: "http://127.0.0.1:1234/v1",
+      endpoint_state: "connected",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => {
+      expect(screen.getByText("Reachable.")).toBeInTheDocument();
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("endpoint_link_health", {
+      endpoint: "http://127.0.0.1:1234/v1",
+      endpointState: "connected",
+    });
+  });
+
+  it("disables Check while the probe is pending", async () => {
+    let finish: (value: unknown) => void = () => {};
+    mockedInvoke.mockReturnValue(new Promise((resolve) => {
+      finish = resolve;
+    }));
+    renderField({
+      provider: "ollama",
+      model: "llama3",
+      endpoint: "http://127.0.0.1:1234/v1",
+      endpoint_state: "connected",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    const pending = await screen.findByRole("button", { name: "Checking…" });
+    expect(pending).toBeDisabled();
+    const input = screen.getByLabelText("Existing process endpoint");
+    expect(input).toBeDisabled();
+    fireEvent.change(input, { target: { value: "http://127.0.0.1:5678/v1" } });
+    expect(input).toHaveValue("http://127.0.0.1:1234/v1");
+    finish({ kind: "reachable", status: 200, message: "Reachable." });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+      expect(input).toBeEnabled();
+    });
+  });
+
+  it("shows a failed health invoke as the error string", async () => {
+    mockedInvoke.mockRejectedValue(new Error("probe failed"));
+    renderField({
+      provider: "ollama",
+      model: "llama3",
+      endpoint: "http://127.0.0.1:1234/v1",
+      endpoint_state: "connected",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => {
+      expect(screen.getByText("probe failed")).toBeInTheDocument();
+    });
+  });
 });

@@ -2,7 +2,7 @@
 //! OpenAI-compatible HTTP service (P8 / U9, issue #88).
 //!
 //! "Connected" means this role will send chat completions to the saved URL.
-//! It does not mean a TCP probe succeeded. Health checks are a later slice.
+//! It does not mean a TCP probe succeeded. Reachability is `endpoint_link_health`.
 //! Disconnect keeps the URL draft, stores no process id, and never signals
 //! an external server.
 
