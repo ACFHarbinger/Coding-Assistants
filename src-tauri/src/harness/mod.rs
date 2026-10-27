@@ -6,6 +6,7 @@ pub mod blocking;
 pub mod capture_commands;
 pub mod claude;
 pub mod codex;
+mod codex_spend;
 pub mod commands;
 pub mod cursor;
 pub mod gemini;

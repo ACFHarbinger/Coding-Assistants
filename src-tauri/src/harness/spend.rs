@@ -12,8 +12,8 @@
 //! no-op without a measurement), so the scorecard reads `unknown`, never
 //! an invented zero.
 //!
-//! First slice (#84): Claude Code. Later harnesses reuse
-//! [`HarnessTurnUsage`] and [`record_harness_turn_usage`].
+//! First slice (#84): Claude Code. Codex (`codex_spend`) is the second.
+//! Later harnesses reuse [`HarnessTurnUsage`] and [`record_harness_turn_usage`].
 
 use hub::{HubStore, ProviderUsage, SliceStamp};
 use std::fs;
