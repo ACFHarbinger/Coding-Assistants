@@ -50,6 +50,40 @@ fn claude_spawn_gate(store: &crate::HubStore) -> Result<Option<HarnessInjectResu
     }
 }
 
+/// Same pre-spawn decision as [`claude_spawn_gate`], for a Codex one-shot
+/// (`HarnessId::Chat`). The budget agent id is `codex`, not the harness
+/// name `chat`. Task-only delivery returns before this runs.
+fn codex_spawn_gate(store: &crate::HubStore) -> Result<Option<HarnessInjectResult>, HubError> {
+    let stamp = SliceStamp::registered(None, None, Some("codex".to_string()));
+    match store.gate_provider_call(
+        "codex",
+        DEFAULT_PROVIDER_CALL_UNITS,
+        &stamp,
+        "Codex one-shot harness run",
+        "Codex one-shot harness runs completed so far.",
+        "Further Codex one-shot runs.",
+        None,
+    )? {
+        ProviderCallGate::Unmetered | ProviderCallGate::Reserved { .. } => Ok(None),
+        ProviderCallGate::Stopped { status, handoff } => Ok(Some(HarnessInjectResult {
+            harness: "chat".into(),
+            pid: None,
+            status: "stopped".into(),
+            detail: if handoff.is_some() {
+                format!(
+                    "Codex reached its budget ({}/{} units); handoff written; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            } else {
+                format!(
+                    "Codex is budget-paused ({}/{} units); resume_agent required; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            },
+        })),
+    }
+}
+
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
     inject_harness_inner(None, request)
 }
@@ -174,6 +208,13 @@ fn inject_harness_inner(
     if harness == HarnessId::Claude {
         if let Some(store) = store {
             if let Some(stopped) = claude_spawn_gate(store)? {
+                return Ok(stopped);
+            }
+        }
+    }
+    if harness == HarnessId::Chat {
+        if let Some(store) = store {
+            if let Some(stopped) = codex_spawn_gate(store)? {
                 return Ok(stopped);
             }
         }
@@ -335,5 +376,63 @@ mod tests {
         // No budget row for claude: the gate must allow (None) without
         // reserving anything, and without touching the spawn path.
         assert!(claude_spawn_gate(&store).unwrap().is_none());
+    }
+
+    #[test]
+    fn codex_wake_spawn_stops_before_the_call_when_the_budget_would_be_exceeded() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        store.set_agent_budget("codex", 0.5).unwrap();
+        let result = crate::inject_harness_with_store(
+            &store,
+            &HarnessInjectRequest {
+                harness: "chat".into(),
+                workspace: PathBuf::from("/tmp/workspace-codex-budget"),
+                body: "wake up".into(),
+                is_task: false,
+                is_wake: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(result.harness, "chat");
+        assert_eq!(result.status, "stopped");
+        assert_eq!(result.pid, None);
+        assert!(result.detail.contains("Codex"), "{}", result.detail);
+        assert!(result.detail.contains("handoff"), "{}", result.detail);
+        let status = store.get_budget("codex").unwrap().unwrap();
+        assert!(status.paused);
+    }
+
+    #[test]
+    fn codex_spawn_gate_allows_an_unmetered_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        assert!(codex_spawn_gate(&store).unwrap().is_none());
+    }
+
+    #[test]
+    fn codex_task_delivery_is_not_spawn_gated() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::HubStore::open(dir.path()).unwrap();
+        store.set_agent_budget("codex", 0.5).unwrap();
+        let result = crate::inject_harness_with_store(
+            &store,
+            &HarnessInjectRequest {
+                harness: "chat".into(),
+                workspace: PathBuf::from("/tmp/workspace-codex-task-not-gated"),
+                session_id: Some("session-1".into()),
+                message_id: Some("message-1".into()),
+                body: "review this".into(),
+                is_task: true,
+                is_wake: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(result.status, "unavailable");
+        assert_eq!(result.pid, None);
+        let status = store.get_budget("codex").unwrap().unwrap();
+        assert!(!status.paused);
     }
 }

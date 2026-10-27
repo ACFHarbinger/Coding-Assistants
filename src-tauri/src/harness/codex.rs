@@ -193,6 +193,11 @@ pub(crate) fn capture_codex_session_from(
             captured.push(record);
         }
     }
+    // Spend follows the token_count sibling line, not chat-text dedup.
+    // A repeated poll of the same event is a no-op via usage_key.
+    for turn in super::codex_spend::codex_measured_turns(&path, 500) {
+        super::spend::record_harness_turn_usage(store, hub_session_id, &turn);
+    }
     Ok(CodexCaptureOutcome {
         transcript_found: true,
         scanned: texts.len(),
