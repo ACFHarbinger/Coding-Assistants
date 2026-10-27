@@ -66,7 +66,16 @@ fn session_turns(path: &Path, session_id: &str) -> Vec<HarnessTurnUsage> {
             Some(previous) => measured.counts.increase_over(previous),
             None => measured.counts,
         };
-        previous = Some(measured.counts);
+        // A partial snapshot does not reset counters it omitted. Preserve
+        // the last known totals so reappearing buckets are not billed twice.
+        previous = Some(match previous {
+            Some(prior) => TokenCounts {
+                prompt: measured.counts.prompt.or(prior.prompt),
+                completion: measured.counts.completion.or(prior.completion),
+                cache: measured.counts.cache.or(prior.cache),
+            },
+            None => measured.counts,
+        });
         if !recorded.any() {
             continue;
         }
@@ -369,5 +378,26 @@ mod tests {
         let dir = tempdir().unwrap();
         let missing = dir.path().join("nope.jsonl");
         assert!(usage_rows(&record(dir.path(), &missing, "S")).is_empty());
+    }
+    #[test]
+    fn missing_bucket_does_not_erase_its_previous_total() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("usage_record.jsonl");
+        write(
+            &path,
+            concat!(
+                r#"{"sessionId":"S","timestamp":1,"models":{"m":{"inputTokens":12,"outputTokens":4}}}"#,
+                "\n",
+                r#"{"sessionId":"S","timestamp":2,"models":{"m":{"outputTokens":5}}}"#,
+                "\n",
+                r#"{"sessionId":"S","timestamp":3,"models":{"m":{"inputTokens":12,"outputTokens":6}}}"#,
+                "\n",
+            ),
+        );
+        let rows = usage_rows(&record(dir.path(), &path, "S"));
+        assert_eq!(rows.len(), 3);
+        assert!(rows[1].get("prompt_tokens").is_none());
+        assert!(rows[2].get("prompt_tokens").is_none());
+        assert_eq!(rows[2]["completion_tokens"], 1);
     }
 }

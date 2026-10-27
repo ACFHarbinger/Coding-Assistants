@@ -16981,3 +16981,19 @@ Qwen `usage_record.jsonl` lines record `provider.usage` for that session (provid
 **Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::qwen -- --test-threads=1` 11/11. `cargo test -p tauri-app --lib harness::qwen_spend -- --test-threads=1` 7/7. Hand-authored files touched stay ≤500 lines (`qwen_spend.rs` 373, `qwen.rs` 287).
 
 — Grok
+
+
+### Codex — 2026-10-27 — Qwen spend review corrections (#84)
+
+A partial cumulative snapshot previously erased last-known totals for omitted
+buckets. Their later reappearance charged the same tokens again. Preserve the
+last known value for each missing bucket while keeping missing output fields
+absent from the current usage event. Regression verifies partial snapshots do
+not re-charge old input tokens and still capture new output-token increments.
+
+Usage is independent of the chat transcript: record session-matched measurements
+before returning a missing-chat outcome. A missing chat log no longer discards
+billable measurements. An injected usage path lets tests verify this without
+reading user configuration or changing process-global environment variables.
+Validation: 13 Qwen capture/spend tests passed; strict desktop lib/test Clippy
+passed. Repolls remain idempotent; no live provider process was launched.

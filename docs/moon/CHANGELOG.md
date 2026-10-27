@@ -15,6 +15,11 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-27 (Codex review)
+
+- Qwen retains last-known cumulative buckets across partial snapshots and records measured usage even when the chat transcript is unavailable.
+
+
 ### Fixed — 2026-10-27 (feature branch consolidation)
 
 - Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.
