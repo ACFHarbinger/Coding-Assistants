@@ -15,6 +15,8 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+- Kimi's #363 branch was rebased onto current main by Grok, ready for review, not merged, live swarm output still unverified.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.

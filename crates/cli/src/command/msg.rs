@@ -56,6 +56,7 @@ pub(super) fn run(store: &HubStore, action: MsgCommand) -> anyhow::Result<()> {
             task_id,
             session,
             dispatch,
+            kimi_mode,
             body,
         } => {
             let dispatch_workspace = tagged_dispatch_workspace(dispatch, workspace.as_deref())?;
@@ -75,13 +76,24 @@ pub(super) fn run(store: &HubStore, action: MsgCommand) -> anyhow::Result<()> {
                 // Load and parse them once rather than once per accepted
                 // recipient, which matters for a team-wide wake.
                 let settings = hub::SettingsStore::open(hub::default_hub_home());
+                // #363: an explicit --kimi-mode flag wins over the
+                // workspace's `kimi_mode` override.
+                let per_task_kimi_mode = kimi_mode
+                    .as_deref()
+                    .map(hub::KimiTaskMode::parse)
+                    .transpose()
+                    .map_err(anyhow::Error::msg)?;
                 let ws_str = workspace.to_string_lossy();
                 for outcome in outcomes.iter().filter(|outcome| outcome.accepted) {
-                    let (model, effort) = match settings
+                    let (model, effort, workspace_kimi_mode) = match settings
                         .effective_harness(Some(ws_str.as_ref()), &outcome.to_agent)
                     {
-                        Ok(eff) => (eff.selected_model, eff.selected_effort),
-                        Err(_) => (None, None),
+                        Ok(eff) => (
+                            eff.selected_model,
+                            eff.selected_effort,
+                            eff.selected_kimi_mode,
+                        ),
+                        Err(_) => (None, None, None),
                     };
                     let dispatch_result = inject_harness_with_store(
                         store,
@@ -95,6 +107,10 @@ pub(super) fn run(store: &HubStore, action: MsgCommand) -> anyhow::Result<()> {
                             is_wake: wake,
                             model,
                             effort,
+                            kimi_mode: hub::resolve_kimi_task_mode(
+                                per_task_kimi_mode,
+                                workspace_kimi_mode,
+                            ),
                         },
                     );
                     let dispatch_event = match dispatch_result {

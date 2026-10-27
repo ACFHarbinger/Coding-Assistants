@@ -74,6 +74,9 @@ export interface EffectiveHarnessSettings {
   selected_model_status?: SettingsFieldStatus;
   selected_effort?: string | null;
   selected_effort_status?: SettingsFieldStatus;
+  /** Kimi-only (#363): workspace slash-command mode, default off. */
+  selected_kimi_mode?: "swarm" | "goal" | null;
+  selected_kimi_mode_status?: SettingsFieldStatus;
 }
 
 export interface HarnessModelCatalog {

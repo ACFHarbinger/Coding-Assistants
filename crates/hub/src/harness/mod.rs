@@ -165,6 +165,12 @@ pub struct HarnessInjectRequest {
     pub model: Option<String>,
     #[serde(default)]
     pub effort: Option<String>,
+    /// Per-task Kimi slash-command mode (#363). Kimi-only: when set, the
+    /// Kimi bridge prefixes a plain-language `body` with `/swarm ` or
+    /// `/goal ` before delivery; other harnesses ignore it. `None` (the
+    /// default) delivers the body unchanged.
+    #[serde(default)]
+    pub kimi_mode: Option<crate::KimiTaskMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

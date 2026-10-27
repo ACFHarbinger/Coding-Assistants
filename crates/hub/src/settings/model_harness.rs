@@ -89,4 +89,8 @@ pub struct EffectiveHarnessSettings {
     pub selected_model_status: FieldStatus,
     pub selected_effort: Option<String>,
     pub selected_effort_status: FieldStatus,
+    /// Kimi-only (#363): the workspace's slash-command mode for Kimi task
+    /// delivery. `None` for every other harness and when off (default).
+    pub selected_kimi_mode: Option<crate::KimiTaskMode>,
+    pub selected_kimi_mode_status: FieldStatus,
 }

@@ -17118,3 +17118,12 @@ source files remain unchanged; the disposable probe used only temporary Hub
 fixtures. Review reproductions are retained locally in
 `/tmp/ca-vibe-review-regressions.patch`. No live provider was contacted, and no
 outstanding owner/live acceptance issue was closed.
+
+### Grok — 2026-10-27 — took over Kimi's unmerged #363
+
+Owner asked Grok to bring `origin/agent/kimi-363` (`a4c7876`) onto `agent/grok-363` at current main. Kimi's commits were preserved (merge, not squash). Conflicts were `crates/hub/src/settings/tests.rs` (kept orchestration, profiles, s7, and Kimi's kimi_mode plus workspace modules) and `src-tauri/src/harness/kimi.rs` (hub swarm wire capture, with #84 `usage.record` spend still recorded from the main wire). Not pushed. Issue #363 left open. Live `/swarm` stream-json output was not run.
+
+Checks: `cargo fmt -p hub -p cli -p tauri-app`. `cargo clippy -p hub -p cli --lib --tests -- -D warnings` clean. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p hub --lib bridge::kimi -- --test-threads=1` 16 passed. `cargo test -p hub --lib settings::tests -- --test-threads=1` 42 passed, including the four `kimi_mode` tests. `cargo test -p tauri-app --lib harness::kimi -- --test-threads=1` 9 passed (Kimi spend).
+
+— Grok
+
