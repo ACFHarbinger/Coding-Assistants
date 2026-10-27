@@ -16982,3 +16982,14 @@ Ready for review on `agent/grok-84-kimi`. Not pushed.
 
 — Grok
 
+
+
+### Codex — 2026-10-27 — Kimi spend identity review correction (#84)
+
+A managed-session alias and its disk/session-prefix aliases resolve to the same
+wire transcript but previously generated different spend keys. Derive the
+identity from the resolved transcript directory, falling back to normalized
+capture identity only when that directory cannot be determined. Regression
+captures the same measured event with three aliases and verifies one usage row.
+Validation: 11 Kimi capture/spend tests passed; strict desktop lib/test Clippy
+passed. Chat-text capture and missing-field semantics are unchanged.

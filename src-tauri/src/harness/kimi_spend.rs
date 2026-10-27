@@ -40,11 +40,10 @@ pub(crate) fn kimi_measured_turns(
 }
 
 fn usage_session(path: &Path, capture_session_id: Option<&str>) -> String {
-    capture_session_id
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .map(str::to_string)
-        .or_else(|| session_directory_name(path))
+    // The resolved transcript directory is stable across managed/disk-id
+    // aliases and capture registration changes. Prefer it to caller labels.
+    session_directory_name(path)
+        .or_else(|| capture_session_id.and_then(hub::kimi_disk_session_id))
         .unwrap_or_else(|| "unknown".to_string())
 }
 
@@ -370,7 +369,7 @@ mod tests {
         fs::write(&path, format!("{raw}\n")).unwrap();
 
         let turns = kimi_measured_turns(&path, 2000, Some("capture-sess"));
-        let expected = format!("capture-sess:10:{}", stable_line_id(raw));
+        let expected = format!("session_from_dir:10:{}", stable_line_id(raw));
         assert_eq!(turns[0].usage_key.as_deref(), Some(expected.as_str()));
 
         let no_time = r#"{"type":"usage.record","usage":{"output":2},"usageScope":"turn"}"#;
@@ -391,5 +390,15 @@ mod tests {
         let turns = kimi_measured_turns(&path, 1, Some("s"));
         assert_eq!(turns.len(), 1);
         assert_eq!(turns[0].completion_tokens, Some(2));
+    }
+    #[test]
+    fn managed_and_disk_aliases_share_one_usage_identity() {
+        let fix = fixture();
+        let session = "session_alias";
+        write_session(&fix.sessions, session, &format!("{LIVE}\n"));
+        capture(&fix, session, Some("hub-alias"));
+        capture(&fix, "managed-session_alias", Some("hub-alias"));
+        capture(&fix, "alias", Some("hub-alias"));
+        assert_eq!(usage_rows(&fix.store).len(), 1);
     }
 }

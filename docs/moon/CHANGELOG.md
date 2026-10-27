@@ -15,6 +15,11 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-27 (Codex review)
+
+- Kimi spend keys use the resolved disk-session identity so managed and disk aliases cannot double-count one event.
+
+
 ### Added — 2026-10-27 (C6 CLI-harness spend recording, Kimi slice, #84, Grok)
 
 - **Kimi `usage.record` turns record `provider.usage` once per session+time+line.** A wire.jsonl line with `type` `usage.record` and `usageScope` `turn`, or with no scope, records `inputOther` as prompt tokens, `output` as completion tokens, and `inputCacheRead` plus `inputCacheCreation` as cache tokens. Provider and actor are `kimi`. Cost stays absent. A re-poll of the same line does not insert another row. Two records with the same time but different bytes record twice. Any other scope, a non-usage line, or a record with no measured field writes nothing. A missing token key stays absent. A tool-only turn with a `usage.record` still records, and chat-text capture is unchanged. Ready for review on `agent/grok-84-kimi`. Not merged. Other harnesses are unchanged.
