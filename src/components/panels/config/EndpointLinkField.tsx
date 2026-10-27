@@ -27,6 +27,7 @@ export function EndpointLinkField({
   const connected = Boolean(trimmed) && config.endpoint_state !== "disconnected";
 
   const writeDraft = (value: string) => {
+    if (pending) return;
     setDraft(value);
     onConfigChange(index, "endpoint", value);
     onConfigChange(index, "endpoint_state", "disconnected");
@@ -74,6 +75,7 @@ export function EndpointLinkField({
         Existing process endpoint <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
       </label>
       <input
+        disabled={pending}
         value={draft}
         onChange={(event) => writeDraft(event.target.value)}
         placeholder="http://127.0.0.1:1234/v1"
