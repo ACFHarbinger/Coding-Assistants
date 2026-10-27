@@ -56,6 +56,43 @@ impl ProviderUsage {
 }
 
 impl HubStore {
+    fn ensure_harness_spend_keys(&self) -> Result<(), HubError> {
+        self.conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS harness_spend_keys (
+                usage_key TEXT PRIMARY KEY NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+        )?;
+        Ok(())
+    }
+
+    /// Latest durable key for one session's absolute usage snapshots.
+    ///
+    /// Vibe `meta.json` stores each cumulative sighting as
+    /// `{session_id}:abs:{prompt}:{completion}:{cache}`. The audit row
+    /// holds only the increase, so the next poll needs the previous
+    /// absolute. `created_at` then `rowid` picks the newest insert when
+    /// two snapshots share a timestamp. An empty id matches nothing.
+    pub fn latest_absolute_spend_key(&self, session_id: &str) -> Result<Option<String>, HubError> {
+        let session_id = session_id.trim();
+        if session_id.is_empty() {
+            return Ok(None);
+        }
+        self.ensure_harness_spend_keys()?;
+        let prefix = format!("{session_id}:abs:");
+        self.conn
+            .query_row(
+                "SELECT usage_key FROM harness_spend_keys
+                 WHERE substr(usage_key, 1, length(?1)) = ?1
+                 ORDER BY created_at DESC, rowid DESC
+                 LIMIT 1",
+                [prefix.as_str()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(HubError::from)
+    }
+
     /// No-op when nothing was measured, so CLI/harness paths without usage
     /// do not invent empty cost rows.
     pub fn record_provider_usage(
@@ -116,12 +153,7 @@ impl HubStore {
         if usage_key.is_empty() {
             return self.record_provider_usage(usage);
         }
-        self.conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS harness_spend_keys (
-                usage_key TEXT PRIMARY KEY NOT NULL,
-                created_at TEXT NOT NULL
-            )",
-        )?;
+        self.ensure_harness_spend_keys()?;
         let seen: Option<i64> = self
             .conn
             .query_row(
@@ -247,5 +279,51 @@ mod tests {
             .filter(|event| event.operation == "provider.usage")
             .collect();
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn latest_absolute_spend_key_is_newest_for_that_session_only() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let usage = ProviderUsage {
+            provider: "mistral".into(),
+            actor_agent: "mistral".into(),
+            prompt_tokens: Some(1),
+            completion_tokens: None,
+            cache_tokens: None,
+            cost: None,
+            via_gateway: None,
+            model: None,
+            stamp: SliceStamp::default(),
+        };
+        store
+            .record_provider_usage_once(&usage, "aaa:abs:1:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aaa:abs:2:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aaa-more:abs:9:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aa:abs:3:na:na")
+            .unwrap();
+        assert_eq!(
+            store.latest_absolute_spend_key("aaa").unwrap().as_deref(),
+            Some("aaa:abs:2:na:na")
+        );
+        assert_eq!(
+            store
+                .latest_absolute_spend_key("aaa-more")
+                .unwrap()
+                .as_deref(),
+            Some("aaa-more:abs:9:na:na")
+        );
+        assert_eq!(
+            store.latest_absolute_spend_key("aa").unwrap().as_deref(),
+            Some("aa:abs:3:na:na")
+        );
+        assert!(store.latest_absolute_spend_key("zzz").unwrap().is_none());
+        assert!(store.latest_absolute_spend_key("  ").unwrap().is_none());
     }
 }

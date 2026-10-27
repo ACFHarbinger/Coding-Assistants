@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (C6 CLI-harness spend recording, Vibe slice, #84, Grok)
+
+- **Vibe `meta.json` `session_*` totals record `provider.usage` as the increase over the previous snapshot for that session.** Gauges (`context_tokens`, `last_turn_*`, steps, and tool-call counts) are ignored. A repeated poll of the same absolute snapshot does not insert another row. Ready for review on `agent/grok-84-vibe`, not merged. C6 is not complete.
+
 ### Fixed — 2026-10-27 (feature branch consolidation)
 
 - Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.

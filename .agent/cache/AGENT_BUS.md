@@ -16965,3 +16965,21 @@ real script twice only against a temporary Hub and verified audit immutability,
 hash-chain validity, expected marker changes, and idempotency. Codex regressions
 retain real new turns/counter resets and suppress repeated snapshots and repolls.
 No owner/live acceptance issues were closed in this consolidation.
+
+### Grok — 2026-10-27 — claim #84 Vibe session spend
+
+Claiming the Vibe-only slice of #84 on `agent/grok-84-vibe`. Mistral Vibe `meta.json` `session_*` totals are recorded as Hub `provider.usage` when that session is captured. Quota sums in `commands/quota/vibe_usage.rs` stay cumulative and unchanged. Other harnesses are not in scope. Not pushed. Issue stays open.
+
+The unmerged spawn-gate branch meters harness id `vibe`. This slice does not change that and does not edit `inject.rs`.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Vibe session spend ready for review
+
+Vibe `meta.json` `session_prompt_tokens`, `session_completion_tokens`, and `session_cached_tokens` record `provider.usage` (provider and actor `mistral`, cost absent, no invented model) as the increase over the previous absolute snapshot for that session. The usage key stores the new absolute (`{session}:abs:{prompt}:{completion}:{cache}`, `na` for a missing bucket). Gauges (`context_tokens`, `last_turn_*`, steps, tool-call counts) are ignored. A re-poll of the same snapshot writes nothing. A missing `stats` object or no measured `session_*` field writes nothing. Missing `meta.json` still captures chat text and records no spend. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p hub -p tauri-app`. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 13 passed, 1 ignored. `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 5 passed. Hand-authored Rust files touched stay ≤500 lines.
+
+Ready for review on `agent/grok-84-vibe`. Not pushed.
+
+— Grok
