@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
+
+- A connected Orchestrate role can check `{base}/models` without sending an API key. HTTP 2xx is reachable. HTTP 401 or 403 is reachable and needs authentication. Any other HTTP status is reachable but unexpected. Refused connections, timeouts, and DNS failures are unreachable. Disconnected, blank, and non-http(s) addresses do not open a socket. Ready for review on `agent/grok-88-health`; not merged. Streaming, authentication configuration, provider-specific adapters, and cancellation remain.
+
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
 - **The Claude Code CLI harness now auto-records spend and is budget-gated like the in-process HTTP providers.** In-process providers (OpenRouter, Grok Bot, generic `llm.rs`) already wrote `provider.usage` per completion and gated calls through `gate_provider_call`; the CLI-subprocess swarm had no equivalent. First slice per the #84 delegation: (1) each Claude transcript response records measured tokens (input/output/cache read + creation) and model once per transcript session and provider message id (`message.id`, otherwise the transcript entry id), including tool-only responses — repeated polls do not double-count, and transcripts without usage figures invent no zero-cost rows; (2) a Claude one-shot spawn (wake/plain send) now reserves one budget unit through `claude_spawn_gate` before the process starts — a stopped agent gets a durable C6 handoff and `status: "stopped"` with no process spawned. Shared plumbing for later harnesses: `HarnessTurnUsage` + `record_harness_turn_usage` in `src-tauri/src/harness/spend.rs`.
@@ -29,7 +33,7 @@ project's GitHub Releases page.
 
 ### Added — 2026-10-26 (OpenAI-compatible endpoint connect/disconnect, #88)
 
-- Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Reachability checks, authentication configuration, and provider-specific adapters remain.
+- Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Authentication configuration and provider-specific adapters remained open after that slice.
 
 ### Fixed — 2026-10-26 (browser and CLIP STUDIO integration review)
 

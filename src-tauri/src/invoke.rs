@@ -26,6 +26,7 @@ macro_rules! invoke_handler {
             pty::pty_session_status,
             client::endpoint_link::endpoint_link_connect,
             client::endpoint_link::endpoint_link_disconnect,
+            client::endpoint_health::endpoint_link_health,
             browser_pane::browser_pane_open,
             browser_pane::browser_pane_place,
             browser_pane::browser_pane_navigate,
