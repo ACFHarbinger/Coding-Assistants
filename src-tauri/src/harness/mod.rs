@@ -14,6 +14,7 @@ pub mod grok;
 pub mod hermes;
 mod hermes_spend;
 pub mod kimi;
+mod kimi_spend;
 pub mod muse;
 pub mod presence;
 pub mod qwen;

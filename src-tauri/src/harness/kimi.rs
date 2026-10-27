@@ -249,6 +249,11 @@ pub fn capture_kimi_session_from(
             captured.push(record);
         }
     }
+    // Spend follows the usage.record line, not chat-text dedup.
+    // A repeated poll of the same line is a no-op via usage_key.
+    for turn in super::kimi_spend::kimi_measured_turns(&path, 2000, Some(session_id)) {
+        super::spend::record_harness_turn_usage(store, hub_session_id, &turn);
+    }
 
     Ok(KimiCaptureOutcome {
         transcript_found: true,

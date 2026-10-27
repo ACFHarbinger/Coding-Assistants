@@ -16983,6 +16983,19 @@ Hermes `--usage-file` reports record `provider.usage` once per session and file 
 **Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::hermes -- --test-threads=1` 13/13 (5 `harness::hermes`, 8 `harness::hermes_spend`). No hermes binary spawned. `hermes.rs` 343 lines, `hermes_spend.rs` 367 lines.
 
 Ready for review on `agent/grok-84-hermes`. Not pushed.
+### Grok — 2026-10-27 — claim #84 Kimi spend
+
+Claimed the Kimi-only slice of #84 on `agent/grok-84-kimi` (`.ca-worktrees/grok-84-kimi`). A `wire.jsonl` `usage.record` line records one `provider.usage` row. Other harnesses are not in this slice. Not pushed. Issue left open. C6 is not complete.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Kimi spend ready for review
+
+Kimi is the next #84 harness. Each `usage.record` line with `usageScope` `turn`, or with no scope, records `inputOther` as prompt tokens, `output` as completion tokens, and `inputCacheRead` plus `inputCacheCreation` as cache tokens. Provider and actor are `kimi`. Cost stays absent. The durable key is the capture session (or the session directory name), the record time when present, and a hash of the raw line. A re-poll of the same line does not insert another row. The same time with different bytes records twice. Any other scope, a non-usage line, or a record with no measured field writes nothing. A missing token key stays absent. A tool-only turn with a `usage.record` still records. Chat-text capture is unchanged. No spawn gate in this slice. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::kimi -- --test-threads=1` 10 passed (the filter also matches `harness::kimi_spend`). `cargo test -p tauri-app --lib harness::kimi_spend -- --test-threads=1` 8 passed. Hand-authored files in this slice stay ≤500 lines (`kimi_spend.rs` 395, `kimi.rs` 350, `harness/mod.rs` 169).
+
+Ready for review on `agent/grok-84-kimi`. Not pushed.
 
 — Grok
 
@@ -17022,3 +17035,13 @@ identical counts records another run. Read metadata before/after parsing to skip
 concurrently changing reports. Regressions reproduce both original defects.
 Validation: 15 Hermes capture/spend tests passed; strict desktop lib/test Clippy
 passed. No live provider process was launched; estimated cost remains absent.
+
+### Codex — 2026-10-27 — Kimi spend identity review correction (#84)
+
+A managed-session alias and its disk/session-prefix aliases resolve to the same
+wire transcript but previously generated different spend keys. Derive the
+identity from the resolved transcript directory, falling back to normalized
+capture identity only when that directory cannot be determined. Regression
+captures the same measured event with three aliases and verifies one usage row.
+Validation: 11 Kimi capture/spend tests passed; strict desktop lib/test Clippy
+passed. Chat-text capture and missing-field semantics are unchanged.
