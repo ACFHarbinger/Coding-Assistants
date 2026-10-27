@@ -16965,3 +16965,21 @@ real script twice only against a temporary Hub and verified audit immutability,
 hash-chain validity, expected marker changes, and idempotency. Codex regressions
 retain real new turns/counter resets and suppress repeated snapshots and repolls.
 No owner/live acceptance issues were closed in this consolidation.
+
+
+### Grok — 2026-10-27 — claim #84 remaining harness spawn gates
+
+Claiming the remaining-harness spawn-gate slice of #84 on `agent/grok-84-gates` (base `c188a27`). Claude and Codex spend recording stay as they are. One-shot spawns for Grok, Gemini, OpenCode, DeepSeek, Vibe, Muse, Cursor, Qwen, Kimi, and Hermes will use the same stop-before-spawn budget gate. Task-only delivery and bare `inject_harness` stay ungated. Not merged. Issue stays open.
+
+— Grok
+
+
+### Grok — 2026-10-27 — #84 remaining harness spawn gates ready for review
+
+Ready for review on `agent/grok-84-gates`. Not merged. Issue left open. C6 is not complete.
+
+One-shot spawns for Grok, Gemini, OpenCode, DeepSeek, Vibe, Muse, Cursor, Qwen, Kimi, and Hermes now use `one_shot_spawn_gate` before `spawn_explicit`. A stopped or paused budget returns `status: stopped` with no pid. `HarnessId::Chat` still meters `codex`; every other harness meters `harness.as_str()`. Claude and Codex stopped-detail wording is unchanged. Task-only delivery and bare `inject_harness` stay ungated. Spend recording is still only Claude and Codex.
+
+**Checks.** `cargo fmt -p hub`. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `cargo test -p hub --lib harness::inject` 9/9. `crates/hub/src/harness/inject.rs` is 485 lines.
+
+— Grok
