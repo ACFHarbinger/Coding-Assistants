@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (P19 nested sub-workflows, #366, Grok)
+
+- **A workflow step can run another task to completion (#366).** When `WorkflowStep.sub_task_id` is set, that step does not send a handoff, request a wake, or dispatch through `peer`. A pending child is started with `advance_task`. The parent stage stays open until the child is terminal (`open_agents` marker `\u{1f}sub:<id>`, not a roster agent). `done` continues the normal advance path, including branches, guardrails, and gates. `failed` or `cancelled` fails the parent. A cycle, a self-wait, or nesting deeper than 8 fails the parent and sends nothing. Ready for review on `agent/grok-366`; not merged.
+
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
 - **The Claude Code CLI harness now auto-records spend and is budget-gated like the in-process HTTP providers.** In-process providers (OpenRouter, Grok Bot, generic `llm.rs`) already wrote `provider.usage` per completion and gated calls through `gate_provider_call`; the CLI-subprocess swarm had no equivalent. First slice per the #84 delegation: (1) each Claude transcript response records measured tokens (input/output/cache read + creation) and model once per transcript session and provider message id (`message.id`, otherwise the transcript entry id), including tool-only responses — repeated polls do not double-count, and transcripts without usage figures invent no zero-cost rows; (2) a Claude one-shot spawn (wake/plain send) now reserves one budget unit through `claude_spawn_gate` before the process starts — a stopped agent gets a durable C6 handoff and `status: "stopped"` with no process spawned. Shared plumbing for later harnesses: `HarnessTurnUsage` + `record_harness_turn_usage` in `src-tauri/src/harness/spend.rs`.

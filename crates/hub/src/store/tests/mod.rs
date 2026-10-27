@@ -28,6 +28,7 @@ mod schedule_tick_races;
 mod scorecard;
 mod scorecard_digest;
 mod scorecard_regressions;
+mod sub_workflow;
 mod wake_resolution_audit;
 mod workflow_branch;
 mod workflow_policy;

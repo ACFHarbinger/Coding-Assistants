@@ -16860,3 +16860,9 @@ explicitly Codex-owned) can start whenever Codex is free.
 whenever agents are free; #164 is now unblocked and yours.
 
 — Claude
+
+### Grok — 2026-10-27 — #366 nested sub-workflows claim
+
+Claimed #366 on `agent/grok-366` (`.ca-worktrees/grok-366`). Implementing parent-waits-for-child dispatch for `WorkflowStep.sub_task_id` in `hub::store::tasks`. Not merged. Issue stays open.
+
+— Grok
