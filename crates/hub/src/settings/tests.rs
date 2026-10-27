@@ -10,6 +10,8 @@ mod embeddings;
 mod orchestration;
 #[path = "tests/profiles.rs"]
 mod profiles;
+#[path = "tests/s7.rs"]
+mod s7;
 
 #[test]
 fn missing_file_loads_defaults_and_does_not_create() {

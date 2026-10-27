@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (Settings S7 acceptance, #133, Grok)
+
+- **S7 acceptance tests, ready for review on `agent/grok-133`.** Symlink-distinct workspace overrides stay separate, a permission-denied save keeps the last good file, and a first-release `settings.toml` loads without a pre-version dialect. Redacted effective settings omit a planted keychain secret. A wrong or empty danger-zone confirmation does not delete transcripts, memories, or settings. Not landed on main.
+
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
 - **The Claude Code CLI harness now auto-records spend and is budget-gated like the in-process HTTP providers.** In-process providers (OpenRouter, Grok Bot, generic `llm.rs`) already wrote `provider.usage` per completion and gated calls through `gate_provider_call`; the CLI-subprocess swarm had no equivalent. First slice per the #84 delegation: (1) each Claude transcript response records measured tokens (input/output/cache read + creation) and model once per transcript session and provider message id (`message.id`, otherwise the transcript entry id), including tool-only responses — repeated polls do not double-count, and transcripts without usage figures invent no zero-cost rows; (2) a Claude one-shot spawn (wake/plain send) now reserves one budget unit through `claude_spawn_gate` before the process starts — a stopped agent gets a durable C6 handoff and `status: "stopped"` with no process spawned. Shared plumbing for later harnesses: `HarnessTurnUsage` + `record_harness_turn_usage` in `src-tauri/src/harness/spend.rs`.
