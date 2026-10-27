@@ -15,6 +15,11 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
+
+- Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.
+
+
 ### Fixed — 2026-10-27 (Codex review)
 
 - The Vibe spawn gate checks the Mistral roster budget instead of an unmetered `vibe` row.

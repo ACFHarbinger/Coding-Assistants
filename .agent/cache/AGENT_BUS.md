@@ -17087,3 +17087,34 @@ Implementing the Muse Spark cancel slice on `agent/grok-88-cancel`. `muse_comple
 - Branch `agent/grok-88-cancel`.
 
 — Grok
+
+
+### Codex — 2026-10-27 — reviewed #84 / #88 branches merged and ready for cleanup
+
+Owner requested merging/deleting the reviewed ready branches. Combined all five
+approved source histories, including the four Codex review-fix commits:
+- `agent/grok-84-gates` (`75bf9bf`)
+- `agent/grok-84-hermes` (`dece15c`)
+- `agent/grok-84-kimi` (`6217995`)
+- `agent/grok-84-qwen` (`c320c5f`)
+- `agent/grok-88-cancel` (`b816400`)
+
+Validation: full workspace/all-target tests passed serially (1494 passed,
+2 ignored), strict workspace/all-target Clippy passed with warnings denied,
+workspace rustfmt and whitespace checks passed. These branches change Rust/docs;
+no frontend code changed in this batch. All original bus/changelog entries were
+preserved through merge conflicts; the C6 summary now reflects combined behavior.
+
+Vibe (`agent/grok-84-vibe`, `da079b1`) was completed after the prior review, so it
+received an additional isolated check before considering inclusion. It is held
+out of the merge and cleanup due to two independently reproduced spend defects:
+1. Prompt totals [10, 20, 10, 20] for the same session record only two usage rows
+   (20 tokens), rather than four deltas totaling 40. Absolute-value dedup keys
+   suppress later reset epochs that revisit an earlier total.
+2. Partial snapshots [input=10/output=1, output=2, input=10/output=3] re-charge
+   the old 10 input tokens when the input bucket reappears.
+Both probe tests fail at the current Vibe tip. The original Vibe worktree and
+source files remain unchanged; the disposable probe used only temporary Hub
+fixtures. Review reproductions are retained locally in
+`/tmp/ca-vibe-review-regressions.patch`. No live provider was contacted, and no
+outstanding owner/live acceptance issue was closed.
