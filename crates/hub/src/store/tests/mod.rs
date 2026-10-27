@@ -6,6 +6,8 @@ mod consolidation;
 mod core;
 mod danger_purge;
 mod embeddings;
+#[cfg(unix)]
+mod goal_marker_migration;
 mod guardrails;
 mod guardrails_review;
 mod handoff_filter;

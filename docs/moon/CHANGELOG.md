@@ -17,7 +17,7 @@ project's GitHub Releases page.
 
 ### Changed — 2026-10-26 (chat Goal send, #380, Grok)
 
-- The chat Task intent is now Goal. A Goal still delivers only to an enrolled member and does not spawn. The stored body and the harness prompt start with `/goal [GOAL]`. `ca msg tag --goal` is an alias of `--task`. The Shared Hub overview keeps the Tasks name and counts accepted wakes and goals combined, plus each count on its own. Workflow task rows stay under Workflow tasks. `migrations/rename-task-marker-to-goal.sh` rewrites stored `[TASK]` markers to `[GOAL]` once per PC.
+- The chat Task intent is now Goal. A Goal still delivers only to an enrolled member and does not spawn. The stored body and the harness prompt start with `/goal [GOAL]`. `ca msg tag --goal` is an alias of `--task`. The Shared Hub overview keeps the Tasks name and counts accepted wakes and goals combined, plus each count on its own. Workflow task rows stay under Workflow tasks. `migrations/rename-task-marker-to-goal.sh` rewrites mutable chat `[TASK]` markers to `[GOAL]` once per PC. Historical audit metadata and hashes remain unchanged; display-label renaming must not alter hashed payloads.
 
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 

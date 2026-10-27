@@ -2,6 +2,8 @@
 # One-shot rewrite of the chat Task marker to Goal (#380).
 # Run once on each PC, with Coding Assistants quit, so hub.db is not open.
 # Safe to run again: rows that already say [GOAL] are left alone.
+# Historical audit records are hash-chained and must remain unchanged.
+# Any renamed audit labels belong in presentation, not the signed payload.
 #
 #   migrations/rename-task-marker-to-goal.sh
 #   migrations/rename-task-marker-to-goal.sh /path/to/.coding-assistants
@@ -35,10 +37,9 @@ statements = [
     "UPDATE tagged_send_outcomes SET subject = REPLACE(subject, ':kind:task', ':kind:goal') WHERE instr(subject, ':kind:task') > 0",
     "UPDATE tagged_send_outcomes SET subject = REPLACE(subject, '[TASK]', '[GOAL]') WHERE instr(subject, '[TASK]') > 0",
     "UPDATE tagged_send_outcomes SET reason = REPLACE(reason, '[TASK]', '[GOAL]') WHERE reason IS NOT NULL AND instr(reason, '[TASK]') > 0",
-    "UPDATE audit_events SET process_json = REPLACE(process_json, '[TASK]', '[GOAL]') WHERE instr(process_json, '[TASK]') > 0",
 ]
 present = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-needed = {"messages", "wake_requests", "tagged_send_outcomes", "audit_events"}
+needed = {"messages", "wake_requests", "tagged_send_outcomes"}
 missing = sorted(needed - present)
 if missing:
     raise SystemExit(f"hub.db is missing tables: {', '.join(missing)}")
@@ -83,4 +84,5 @@ for folder in ("journals", "markdown"):
 print(f"text files rewritten: {changed}")
 PY
 
-echo "Done. Remaining [TASK] counts are in the sqlite report above."
+echo "Done. Remaining chat [TASK] counts are in the sqlite report above."
+echo "Historical audit records were left unchanged to preserve their hash chain."
