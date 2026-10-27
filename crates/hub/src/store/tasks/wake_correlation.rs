@@ -155,12 +155,15 @@ impl HubStore {
     ) -> Result<(), HubError> {
         let now = Utc::now().to_rfc3339();
         if next == TaskStatus::Failed {
-            self.conn.execute(
+            let updated = self.conn.execute(
                 "UPDATE tasks SET status = ?1, updated_at = ?2, \
                  open_agents_json = '[]', pending_agents_json = '[]' \
                  WHERE id = ?3 AND status = ?4",
                 params![next.as_str(), now, task_id, previous],
             )?;
+            if updated > 0 {
+                self.reconcile_after_terminal(task_id)?;
+            }
         } else if next.as_str() != previous {
             self.conn.execute(
                 "UPDATE tasks SET status = ?1, updated_at = ?2 WHERE id = ?3 AND status = ?4",

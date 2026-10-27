@@ -484,15 +484,12 @@ impl HubStore {
     pub fn cancel_task(&self, id: &str) -> Result<TaskRecord, HubError> {
         let n = self.conn.execute(
             "UPDATE tasks SET status = ?1, updated_at = ?2, open_agents_json = '[]', pending_agents_json = '[]' WHERE id = ?3",
-            params![
-                TaskStatus::Cancelled.as_str(),
-                Utc::now().to_rfc3339(),
-                id
-            ],
+            params![TaskStatus::Cancelled.as_str(), Utc::now().to_rfc3339(), id],
         )?;
         if n == 0 {
             return Err(HubError::NotFound(id.into()));
         }
+        self.reconcile_after_terminal(id)?;
         self.get_task(id)?
             .ok_or_else(|| HubError::NotFound(id.into()))
     }

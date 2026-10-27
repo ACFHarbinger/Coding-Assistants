@@ -3,6 +3,7 @@ use super::*;
 mod branch;
 mod handoff;
 mod runtime;
+mod sub_workflow;
 mod wake_correlation;
 pub use branch::{BranchTarget, StepBranch};
 pub(crate) use handoff::render_filtered;
@@ -178,6 +179,10 @@ impl HubStore {
         note: Option<&str>,
         stage_label: &str,
     ) -> Result<String, HubError> {
+        if let Some(child_id) = sub_workflow::sub_task_ref(step) {
+            // P19: the child task is the work. No handoff, wake, or peer send.
+            return self.begin_sub_workflow(task_id, child_id);
+        }
         let prepared = self.prepare_handoff(task_id, step, note)?;
         self.dispatch_prepared_step(task_id, task, step, from_agent, note, stage_label, prepared)
     }
@@ -193,6 +198,9 @@ impl HubStore {
         stage_label: &str,
         prepared: handoff::PreparedHandoff,
     ) -> Result<String, HubError> {
+        if let Some(child_id) = sub_workflow::sub_task_ref(step) {
+            return self.begin_sub_workflow(task_id, child_id);
+        }
         // P16 (#360): input guardrails run before anything is sent — a
         // tripwire leaves no message, no wake, and no stage activation.
         self.enforce_guardrails(
@@ -323,8 +331,15 @@ impl HubStore {
     ) -> Result<(), HubError> {
         let now = Utc::now().to_rfc3339();
         let attempts_json = serde_json::to_string(attempts).unwrap_or_else(|_| "{}".into());
-        let open_json = serde_json::to_string(open_agents).unwrap_or_else(|_| "[]".into());
-        let pending_json = serde_json::to_string(pending_agents).unwrap_or_else(|_| "[]".into());
+        // P19: a sub-workflow dispatch returns a token, not a message id.
+        let last_message_id =
+            last_message_id.filter(|message_id| *message_id != sub_workflow::SUB_DISPATCH_TOKEN);
+        let output_watermark_id = output_watermark_id
+            .filter(|message_id| *message_id != sub_workflow::SUB_DISPATCH_TOKEN);
+        let (open_agents, pending_agents) =
+            self.adjusted_sub_wait_sets(id, status, stage_index, open_agents, pending_agents)?;
+        let open_json = serde_json::to_string(&open_agents).unwrap_or_else(|_| "[]".into());
+        let pending_json = serde_json::to_string(&pending_agents).unwrap_or_else(|_| "[]".into());
         self.conn.execute(
             r#"
             UPDATE tasks
@@ -345,6 +360,12 @@ impl HubStore {
                 id,
             ],
         )?;
+        if TaskStatus::parse(status)
+            .map(TaskStatus::is_terminal)
+            .unwrap_or(false)
+        {
+            self.reconcile_after_terminal(id)?;
+        }
         Ok(())
     }
 
@@ -370,6 +391,18 @@ impl HubStore {
             return Err(HubError::Invalid(
                 "approval gates are still unresolved".into(),
             ));
+        }
+        // P19: a finished child unblocks this stage; a live child refuses.
+        self.reconcile_sub_workflow_wait(id)?;
+        let task = self
+            .get_task(id)?
+            .ok_or_else(|| HubError::NotFound(id.into()))?;
+        let status = TaskStatus::parse(&task.status)?;
+        if status.is_terminal() {
+            return Err(HubError::Invalid(format!(
+                "task is already {}",
+                task.status
+            )));
         }
         if !task.open_agents.is_empty() {
             return Err(HubError::Invalid(format!(

@@ -21,6 +21,9 @@ project's GitHub Releases page.
 ### Added — 2026-10-27 (Settings S7 acceptance, #133, Grok)
 
 - **S7 acceptance tests, ready for review on `agent/grok-133`.** Symlink-distinct workspace overrides stay separate, a permission-denied save keeps the last good file, and a first-release `settings.toml` loads without a pre-version dialect. Redacted effective settings omit a planted keychain secret. A wrong or empty danger-zone confirmation does not delete transcripts, memories, or settings. Not landed on main.
+### Added — 2026-10-27 (P19 nested sub-workflows, #366, Grok)
+
+- **A workflow step can run another task to completion (#366).** When `WorkflowStep.sub_task_id` is set, that step does not send a handoff, request a wake, or dispatch through `peer`. A pending child is started with `advance_task`. The parent stage stays open until the child is terminal (`open_agents` marker `\u{1f}sub:<id>`, not a roster agent). `done` continues the normal advance path, including branches, guardrails, and gates. `failed` or `cancelled` fails the parent. A cycle, a self-wait, or nesting deeper than 8 fails the parent and sends nothing. Ready for review on `agent/grok-366`; not merged.
 
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 
