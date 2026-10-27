@@ -69,10 +69,11 @@ impl HubStore {
     /// Latest durable key for one session's absolute usage snapshots.
     ///
     /// Vibe `meta.json` stores each cumulative sighting as
-    /// `{session_id}:abs:{prompt}:{completion}:{cache}`. The audit row
-    /// holds only the increase, so the next poll needs the previous
-    /// absolute. `created_at` then `rowid` picks the newest insert when
-    /// two snapshots share a timestamp. An empty id matches nothing.
+    /// `{session_id}:abs:{generation}:{prompt}:{completion}:{cache}`.
+    /// The audit row holds only the increase, so the next poll needs the
+    /// previous absolute. Lookup is the `{session_id}:abs:` prefix.
+    /// `created_at` then `rowid` picks the newest insert when two snapshots
+    /// share a timestamp. An empty id matches nothing.
     pub fn latest_absolute_spend_key(&self, session_id: &str) -> Result<Option<String>, HubError> {
         let session_id = session_id.trim();
         if session_id.is_empty() {

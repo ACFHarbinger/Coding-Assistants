@@ -17,7 +17,7 @@ project's GitHub Releases page.
 
 ### Added — 2026-10-27 (C6 CLI-harness spend recording, Vibe slice, #84, Grok)
 
-- **Vibe `meta.json` `session_*` totals record `provider.usage` as the increase over the previous snapshot for that session.** Gauges (`context_tokens`, `last_turn_*`, steps, and tool-call counts) are ignored. A repeated poll of the same absolute snapshot does not insert another row. Ready for review on `agent/grok-84-vibe`, not merged. C6 is not complete.
+- **Vibe `meta.json` `session_*` totals record `provider.usage` as the increase over the previous snapshot for that session.** Gauges (`context_tokens`, `last_turn_*`, steps, and tool-call counts) are ignored. A repeated poll of the same absolute snapshot does not insert another row. A counter that returns to an earlier total is a new generation and is recorded again. A later snapshot that omits a bucket keeps the last known absolute, so that bucket is not billed again when it reappears. On `agent/grok-84-vibe`, not merged. C6 is not complete.
 
 ### Fixed — 2026-10-27 (feature branch consolidation)
 

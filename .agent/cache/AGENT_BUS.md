@@ -16983,3 +16983,13 @@ Vibe `meta.json` `session_prompt_tokens`, `session_completion_tokens`, and `sess
 Ready for review on `agent/grok-84-vibe`. Not pushed.
 
 — Grok
+
+### Grok — 2026-10-27 — #84 Vibe spend accounting held by review
+
+Codex reproduced two defects in the absolute usage key. A later epoch that revisited an earlier total was dropped, because the key was the absolute tuple and `record_provider_usage_once` treats that tuple as a permanent identity. A partial snapshot stored `na` for an omitted bucket, and the next snapshot billed that bucket again when the same number reappeared.
+
+The key is now `{session}:abs:{generation}:{prompt}:{completion}:{cache}`. Omitted buckets are filled from the previous absolute before the key is stored. An unchanged filled snapshot writes no row and no key. An explicit lower number is still a reset. Provider and actor stay `mistral`. Gauges stay ignored. `commands/quota/vibe_usage.rs` was not edited. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p hub -p tauri-app`. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 15 passed, 1 ignored. `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 5 passed. `CARGO_TARGET_DIR` was this worktree's `target`. Hand-authored files stay under 500 lines (`vibe_spend.rs` 200, `vibe_spend_tests.rs` 392, `provider_usage.rs` 330).
+
+— Grok

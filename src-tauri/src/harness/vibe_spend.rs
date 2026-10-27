@@ -2,9 +2,14 @@
 //!
 //! `meta.json` `stats.session_*_tokens` are session-cumulative counters.
 //! Each poll records the increase over the previous absolute snapshot for
-//! that session. `context_tokens`, `last_turn_*`, steps, and tool-call
-//! counts are gauges and are not recorded. A missing key stays `None`.
-//! The spawn gate on harness id `vibe` is unchanged by this slice.
+//! that session. A counter omitted from a later snapshot keeps its last
+//! known absolute, so a reappearing bucket is not billed again. An explicit
+//! lower number is a reset and records that new value. The usage key is
+//! `{session}:abs:{generation}:{prompt}:{completion}:{cache}` so a later
+//! epoch that revisits an earlier total is a new row. `context_tokens`,
+//! `last_turn_*`, steps, and tool-call counts are gauges and are not
+//! recorded. A missing key stays `None`. The spawn gate on harness id
+//! `vibe` is unchanged by this slice.
 
 use hub::{HubStore, ProviderUsage, SliceStamp};
 use std::fs;
@@ -14,9 +19,10 @@ use std::path::Path;
 /// beside `messages_path` reports any `session_*` counter.
 ///
 /// Missing meta, a missing `stats` object, or no measured counter writes
-/// nothing and does not fail chat capture. The usage key stores the new
-/// absolute (`{session}:abs:{prompt}:{completion}:{cache}`); the audit
+/// nothing and does not fail chat capture. The usage key stores the filled
+/// absolute (omitted buckets carried forward) and a generation. The audit
 /// row stores the delta, or the first absolute when nothing was stored.
+/// An unchanged filled snapshot writes no key and no row.
 pub(crate) fn record_vibe_session_spend(
     store: &HubStore,
     messages_path: &Path,
@@ -46,23 +52,27 @@ pub(crate) fn record_vibe_session_spend(
     let Some(session_id) = spend_session_id(&meta, capture_session_id) else {
         return;
     };
-    let key = absolute_key(&session_id, absolute);
     let Ok(previous_key) = store.latest_absolute_spend_key(&session_id) else {
         return;
     };
-    if previous_key.as_deref() == Some(key.as_str()) {
-        return;
-    }
-    let delta = match previous_key
+    let previous = previous_key
         .as_deref()
-        .and_then(|prior| parse_absolute(&session_id, prior))
-    {
-        Some(previous) => absolute.increase_over(previous),
+        .and_then(|prior| parse_absolute(&session_id, prior));
+    let filled = match previous {
+        Some(prior) => absolute.fill_from(prior.counts),
         None => absolute,
+    };
+    let delta = match previous {
+        Some(prior) => filled.increase_over(prior.counts),
+        None => filled,
     };
     if !delta.any() {
         return;
     }
+    let generation = previous
+        .map(|prior| prior.generation.saturating_add(1))
+        .unwrap_or(1);
+    let key = absolute_key(&session_id, generation, filled);
     let usage = ProviderUsage {
         provider: "mistral".to_string(),
         actor_agent: "mistral".to_string(),
@@ -110,6 +120,16 @@ impl TokenCounts {
         self.prompt.is_some() || self.completion.is_some() || self.cache.is_some()
     }
 
+    /// A missing bucket keeps the last known absolute. An explicit number,
+    /// including zero, replaces it.
+    fn fill_from(self, previous: Self) -> Self {
+        Self {
+            prompt: self.prompt.or(previous.prompt),
+            completion: self.completion.or(previous.completion),
+            cache: self.cache.or(previous.cache),
+        }
+    }
+
     fn increase_over(self, previous: Self) -> Self {
         Self {
             prompt: increase(previous.prompt, self.prompt),
@@ -136,25 +156,35 @@ fn bucket(value: Option<u32>) -> String {
     }
 }
 
-fn absolute_key(session_id: &str, counts: TokenCounts) -> String {
+fn absolute_key(session_id: &str, generation: u64, counts: TokenCounts) -> String {
     format!(
-        "{session_id}:abs:{}:{}:{}",
+        "{session_id}:abs:{generation}:{}:{}:{}",
         bucket(counts.prompt),
         bucket(counts.completion),
         bucket(counts.cache)
     )
 }
 
-fn parse_absolute(session_id: &str, key: &str) -> Option<TokenCounts> {
+#[derive(Clone, Copy)]
+struct ParsedAbsolute {
+    generation: u64,
+    counts: TokenCounts,
+}
+
+fn parse_absolute(session_id: &str, key: &str) -> Option<ParsedAbsolute> {
     let rest = key.strip_prefix(&format!("{session_id}:abs:"))?;
     let mut parts = rest.split(':');
+    let generation = parts.next()?.parse::<u64>().ok()?;
     let prompt = parse_bucket(parts.next()?)?;
     let completion = parse_bucket(parts.next()?)?;
     let cache = parse_bucket(parts.next()?)?;
-    parts.next().is_none().then_some(TokenCounts {
-        prompt,
-        completion,
-        cache,
+    parts.next().is_none().then_some(ParsedAbsolute {
+        generation,
+        counts: TokenCounts {
+            prompt,
+            completion,
+            cache,
+        },
     })
 }
 
@@ -166,334 +196,5 @@ fn parse_bucket(part: &str) -> Option<Option<u32>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use tempfile::tempdir;
-
-    const SAMPLE_STATS: &str = r#"{
-        "steps": 2,
-        "session_prompt_tokens": 4967,
-        "session_completion_tokens": 40,
-        "session_cached_tokens": 2048,
-        "context_tokens": 5007,
-        "tool_calls_agreed": 0,
-        "tool_calls_rejected": 0,
-        "tool_calls_hook_denied": 0,
-        "tool_calls_failed": 0,
-        "tool_calls_succeeded": 0,
-        "last_turn_prompt_tokens": 4967,
-        "last_turn_completion_tokens": 40
-    }"#;
-
-    fn write_meta(dir: &Path, body: &serde_json::Value) {
-        fs::create_dir_all(dir).unwrap();
-        fs::write(dir.join("meta.json"), body.to_string()).unwrap();
-    }
-
-    fn record(store: &HubStore, dir: &Path, capture: Option<&str>, hub: Option<&str>) {
-        record_vibe_session_spend(store, &dir.join("messages.jsonl"), capture, hub);
-    }
-
-    fn usage_rows(store: &HubStore) -> Vec<serde_json::Value> {
-        store
-            .list_audit_events(false)
-            .unwrap()
-            .into_iter()
-            .filter(|event| event.operation == "provider.usage")
-            .map(|event| serde_json::from_str(&event.process_json).unwrap())
-            .collect()
-    }
-
-    fn open_store() -> (tempfile::TempDir, HubStore) {
-        let dir = tempdir().unwrap();
-        let store = HubStore::open(dir.path()).unwrap();
-        (dir, store)
-    }
-
-    #[test]
-    fn documented_sample_records_session_totals_and_repoll_writes_nothing() {
-        let (_store_dir, store) = open_store();
-        let dir = tempdir().unwrap();
-        let stats: serde_json::Value = serde_json::from_str(SAMPLE_STATS).unwrap();
-        write_meta(
-            dir.path(),
-            &json!({"session_id": "sess-sample", "stats": stats}),
-        );
-        record(&store, dir.path(), Some("capture-ignored"), Some("hub-1"));
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0]["provider"], "mistral");
-        assert_eq!(rows[0]["actor_agent"], "mistral");
-        assert_eq!(rows[0]["prompt_tokens"], 4967);
-        assert_eq!(rows[0]["completion_tokens"], 40);
-        assert_eq!(rows[0]["cache_tokens"], 2048);
-        assert_eq!(rows[0]["currency"], "unknown");
-        assert_eq!(rows[0]["session_id"], "hub-1");
-        assert!(rows[0].get("cost").is_none());
-        assert!(rows[0].get("model").is_none());
-        assert!(rows[0].get("context_tokens").is_none());
-        assert!(rows[0].get("steps").is_none());
-        assert_eq!(
-            store
-                .latest_absolute_spend_key("sess-sample")
-                .unwrap()
-                .as_deref(),
-            Some("sess-sample:abs:4967:40:2048")
-        );
-        record(&store, dir.path(), Some("capture-ignored"), Some("hub-1"));
-        assert_eq!(usage_rows(&store).len(), 1);
-    }
-
-    #[test]
-    fn later_snapshot_records_only_the_increase() {
-        let (_store_dir, store) = open_store();
-        let dir = tempdir().unwrap();
-        let stats: serde_json::Value = serde_json::from_str(SAMPLE_STATS).unwrap();
-        write_meta(
-            dir.path(),
-            &json!({"session_id": "sess-delta", "stats": stats}),
-        );
-        record(&store, dir.path(), None, Some("hub-delta"));
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-delta",
-                "stats": {
-                    "steps": 4,
-                    "session_prompt_tokens": 5100,
-                    "session_completion_tokens": 90,
-                    "session_cached_tokens": 2048,
-                    "context_tokens": 9000,
-                    "last_turn_prompt_tokens": 200,
-                    "last_turn_completion_tokens": 15
-                }
-            }),
-        );
-        record(&store, dir.path(), None, Some("hub-delta"));
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0]["prompt_tokens"], 4967);
-        assert_eq!(rows[0]["cache_tokens"], 2048);
-        assert_eq!(rows[1]["prompt_tokens"], 133);
-        assert_eq!(rows[1]["completion_tokens"], 50);
-        assert!(rows[1].get("cache_tokens").is_none());
-        assert!(rows[1].get("context_tokens").is_none());
-        assert_eq!(
-            store
-                .latest_absolute_spend_key("sess-delta")
-                .unwrap()
-                .as_deref(),
-            Some("sess-delta:abs:5100:90:2048")
-        );
-    }
-
-    #[test]
-    fn dropped_prompt_counter_records_the_new_value() {
-        let (_store_dir, store) = open_store();
-        let dir = tempdir().unwrap();
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-reset",
-                "stats": {
-                    "session_prompt_tokens": 4967,
-                    "session_completion_tokens": 40,
-                    "session_cached_tokens": 2048
-                }
-            }),
-        );
-        record(&store, dir.path(), None, None);
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-reset",
-                "stats": {
-                    "session_prompt_tokens": 1000,
-                    "session_completion_tokens": 40,
-                    "session_cached_tokens": 2048
-                }
-            }),
-        );
-        record(&store, dir.path(), None, None);
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[1]["prompt_tokens"], 1000);
-        assert!(rows[1].get("completion_tokens").is_none());
-        assert!(rows[1].get("cache_tokens").is_none());
-        assert_ne!(rows[1]["prompt_tokens"], 5967);
-    }
-
-    #[test]
-    fn missing_prompt_stays_absent_and_no_stats_writes_nothing() {
-        let (_store_dir, store) = open_store();
-        let dir = tempdir().unwrap();
-        write_meta(dir.path(), &json!({"session_id": "sess-partial"}));
-        record(&store, dir.path(), Some("sess-partial"), None);
-        assert!(usage_rows(&store).is_empty());
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-partial",
-                "stats": {
-                    "steps": 1,
-                    "context_tokens": 99,
-                    "session_completion_tokens": 12,
-                    "last_turn_prompt_tokens": 4
-                }
-            }),
-        );
-        record(&store, dir.path(), Some("sess-partial"), None);
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 1);
-        assert!(rows[0].get("prompt_tokens").is_none());
-        assert_eq!(rows[0]["completion_tokens"], 12);
-        assert!(rows[0].get("cache_tokens").is_none());
-        assert!(rows[0].get("context_tokens").is_none());
-    }
-
-    #[test]
-    fn second_session_is_not_updated_by_the_first() {
-        let (_store_dir, store) = open_store();
-        let first = tempdir().unwrap();
-        let second = tempdir().unwrap();
-        write_meta(
-            first.path(),
-            &json!({
-                "session_id": "sess-a",
-                "stats": {"session_prompt_tokens": 10, "session_completion_tokens": 1}
-            }),
-        );
-        write_meta(
-            second.path(),
-            &json!({
-                "stats": {"session_prompt_tokens": 100, "session_completion_tokens": 4}
-            }),
-        );
-        record(&store, first.path(), Some("capture-a"), Some("hub-a"));
-        record(&store, second.path(), Some("capture-b"), Some("hub-b"));
-        record(&store, first.path(), Some("capture-a"), Some("hub-a"));
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0]["prompt_tokens"], 10);
-        assert_eq!(rows[0]["session_id"], "hub-a");
-        assert_eq!(rows[1]["prompt_tokens"], 100);
-        assert_eq!(rows[1]["completion_tokens"], 4);
-        assert_eq!(rows[1]["session_id"], "hub-b");
-        assert_eq!(
-            store
-                .latest_absolute_spend_key("sess-a")
-                .unwrap()
-                .as_deref(),
-            Some("sess-a:abs:10:1:na")
-        );
-        assert_eq!(
-            store
-                .latest_absolute_spend_key("capture-b")
-                .unwrap()
-                .as_deref(),
-            Some("capture-b:abs:100:4:na")
-        );
-    }
-
-    #[test]
-    fn explicit_zero_records_and_invalid_numbers_stay_absent() {
-        let (_store_dir, store) = open_store();
-        let dir = tempdir().unwrap();
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-zero",
-                "stats": {
-                    "session_prompt_tokens": 0,
-                    "session_completion_tokens": -3,
-                    "session_cached_tokens": 4294967296u64
-                }
-            }),
-        );
-        record(&store, dir.path(), None, None);
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0]["prompt_tokens"], 0);
-        assert!(rows[0].get("completion_tokens").is_none());
-        assert!(rows[0].get("cache_tokens").is_none());
-        write_meta(
-            dir.path(),
-            &json!({
-                "session_id": "sess-zero",
-                "stats": {
-                    "session_prompt_tokens": "12",
-                    "session_completion_tokens": 1.5,
-                    "session_cached_tokens": 2
-                }
-            }),
-        );
-        record(&store, dir.path(), None, None);
-        let rows = usage_rows(&store);
-        assert_eq!(rows.len(), 2);
-        assert!(rows[1].get("prompt_tokens").is_none());
-        assert!(rows[1].get("completion_tokens").is_none());
-        assert_eq!(rows[1]["cache_tokens"], 2);
-    }
-
-    #[test]
-    fn capture_records_meta_spend_and_missing_meta_writes_none() {
-        let root = tempdir().unwrap();
-        let (_store_dir, store) = open_store();
-        let workspace = Path::new("/tmp/c6-vibe-spend-hook");
-        let session_dir = root.path().join("session_20260909_120000_abc");
-        fs::create_dir_all(&session_dir).unwrap();
-        fs::write(
-            session_dir.join("messages.jsonl"),
-            "{\"role\":\"assistant\",\"content\":\"hello from vibe\"}\n",
-        )
-        .unwrap();
-        let stats: serde_json::Value = serde_json::from_str(SAMPLE_STATS).unwrap();
-        write_meta(
-            &session_dir,
-            &json!({"session_id": "sess-hook", "stats": stats}),
-        );
-        let first = super::super::vibe::capture_vibe_session_from(
-            root.path(),
-            &store,
-            workspace,
-            Some("sess-hook"),
-            Some("hub-hook"),
-        )
-        .unwrap();
-        assert_eq!(first.captured.len(), 1);
-        assert_eq!(first.captured[0].body, "hello from vibe");
-        assert_eq!(usage_rows(&store).len(), 1);
-        assert_eq!(usage_rows(&store)[0]["prompt_tokens"], 4967);
-        let second = super::super::vibe::capture_vibe_session_from(
-            root.path(),
-            &store,
-            workspace,
-            Some("sess-hook"),
-            Some("hub-hook"),
-        )
-        .unwrap();
-        assert!(second.captured.is_empty());
-        assert_eq!(usage_rows(&store).len(), 1);
-
-        let bare_name = "session_20260909_130000_bare";
-        let bare = root.path().join(bare_name);
-        fs::create_dir_all(&bare).unwrap();
-        fs::write(
-            bare.join("messages.jsonl"),
-            "{\"role\":\"assistant\",\"content\":\"no meta yet\"}\n",
-        )
-        .unwrap();
-        let bare_capture = super::super::vibe::capture_vibe_session_from(
-            root.path(),
-            &store,
-            workspace,
-            Some(bare_name),
-            Some("hub-bare"),
-        )
-        .unwrap();
-        assert_eq!(bare_capture.captured.len(), 1);
-        assert_eq!(bare_capture.captured[0].body, "no meta yet");
-        assert_eq!(usage_rows(&store).len(), 1);
-    }
-}
+#[path = "vibe_spend_tests.rs"]
+mod tests;
