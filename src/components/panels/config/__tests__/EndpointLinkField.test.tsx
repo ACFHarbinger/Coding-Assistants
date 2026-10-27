@@ -78,4 +78,56 @@ describe("EndpointLinkField", () => {
     });
     expect(onConfigChange).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["Connect", "success"],
+    ["Disconnect", "success"],
+    ["Connect", "failure"],
+    ["Disconnect", "failure"],
+  ] as const)("locks endpoint edits during %s and unlocks after %s", async (action, outcome) => {
+    const endpoint = "http://127.0.0.1:1234/v1";
+    const replacement = "http://127.0.0.1:5678/v1";
+    type Link = { endpoint: string; state: "connected" | "disconnected"; owns_process: boolean };
+    let resolve!: (link: Link) => void;
+    let reject!: (error: Error) => void;
+    mockedInvoke.mockReturnValueOnce(new Promise<Link>((accept, fail) => {
+      resolve = accept;
+      reject = fail;
+    }));
+    const onConfigChange = renderField({
+      provider: "ollama",
+      model: "llama3",
+      endpoint,
+      endpoint_state: action === "Connect" ? "disconnected" : "connected",
+    });
+    const input = screen.getByLabelText("Existing process endpoint");
+    fireEvent.click(screen.getByRole("button", { name: action }));
+    expect(input).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeDisabled();
+    // Even a late synthetic change event cannot save a different endpoint.
+    fireEvent.change(input, { target: { value: replacement } });
+    expect(input).toHaveValue(endpoint);
+    expect(onConfigChange).not.toHaveBeenCalled();
+
+    if (outcome === "success") {
+      resolve({ endpoint, state: action === "Connect" ? "connected" : "disconnected", owns_process: false });
+    } else {
+      reject(new Error("Endpoint command failed"));
+    }
+    await waitFor(() => expect(input).toBeEnabled());
+    if (outcome === "failure") {
+      expect(screen.getByText("Endpoint command failed")).toBeInTheDocument();
+      expect(onConfigChange).not.toHaveBeenCalled();
+    } else {
+      expect(onConfigChange).toHaveBeenCalledWith(0, "endpoint", endpoint);
+      expect(onConfigChange).toHaveBeenCalledWith(0, "endpoint_state", action === "Connect" ? "connected" : "disconnected");
+    }
+    onConfigChange.mockClear();
+    fireEvent.change(input, { target: { value: replacement } });
+    expect(input).toHaveValue(replacement);
+    expect(onConfigChange).toHaveBeenCalledWith(0, "endpoint", replacement);
+    expect(onConfigChange).toHaveBeenCalledWith(0, "endpoint_state", "disconnected");
+  });
+
 });
