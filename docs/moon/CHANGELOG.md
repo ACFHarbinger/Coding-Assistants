@@ -15,6 +15,11 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-27 (Codex review)
+
+- The Vibe spawn gate checks the Mistral roster budget instead of an unmetered `vibe` row.
+
+
 ### Fixed — 2026-10-27 (feature branch consolidation)
 
 - Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.

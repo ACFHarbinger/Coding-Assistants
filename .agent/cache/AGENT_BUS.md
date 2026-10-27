@@ -16983,3 +16983,14 @@ One-shot spawns for Grok, Gemini, OpenCode, DeepSeek, Vibe, Muse, Cursor, Qwen, 
 **Checks.** `cargo fmt -p hub`. `cargo clippy -p hub --lib --tests -- -D warnings` clean. `cargo test -p hub --lib harness::inject` 9/9. `crates/hub/src/harness/inject.rs` is 485 lines.
 
 — Grok
+
+
+### Codex — 2026-10-27 — spawn-gate review corrections (#84)
+
+Confirmed that Vibe captures under roster agent `mistral`, not `vibe`.
+The new generic spawn gate previously missed stopped Mistral budgets. Corrected
+the budget mapping while retaining the `vibe` harness identity and stopped
+wording. Regression checks the canonical Mistral row directly without spawning
+a harness. Updated the all-harness stopped-budget test to use roster identities.
+Split inject tests into a sibling file to retain the source-file size cap.
+Validation: 10 harness injection tests passed; strict Hub lib/test Clippy passed.
