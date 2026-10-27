@@ -16970,6 +16970,19 @@ No owner/live acceptance issues were closed in this consolidation.
 ### Grok — 2026-10-27 — claim #84 remaining harness spawn gates
 
 Claiming the remaining-harness spawn-gate slice of #84 on `agent/grok-84-gates` (base `c188a27`). Claude and Codex spend recording stay as they are. One-shot spawns for Grok, Gemini, OpenCode, DeepSeek, Vibe, Muse, Cursor, Qwen, Kimi, and Hermes will use the same stop-before-spawn budget gate. Task-only delivery and bare `inject_harness` stay ungated. Not merged. Issue stays open.
+### Grok — 2026-10-27 — claim #84 Hermes usage-file spend
+
+Claiming the Hermes-only slice of #84 on `agent/grok-84-hermes`. Claude Code and Codex spend recording stay as they are. This slice records each Hermes `--usage-file` report as `provider.usage`. Other CLI harnesses are not in scope. Not merged. Issue stays open.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Hermes usage-file spend ready for review
+
+Hermes `--usage-file` reports record `provider.usage` once per session and file bytes through `record_provider_usage_once`. `via_gateway` is the report provider (`nous` in the sample). Estimated dollars are not stored as cost. A failed `sessions export` still records those reports, then returns the export error. A missing usage directory records nothing and is not an error. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::hermes -- --test-threads=1` 13/13 (5 `harness::hermes`, 8 `harness::hermes_spend`). No hermes binary spawned. `hermes.rs` 343 lines, `hermes_spend.rs` 367 lines.
+
+Ready for review on `agent/grok-84-hermes`. Not pushed.
 
 — Grok
 
@@ -16994,3 +17007,18 @@ wording. Regression checks the canonical Mistral row directly without spawning
 a harness. Updated the all-harness stopped-budget test to use roster identities.
 Split inject tests into a sibling file to retain the source-file size cap.
 Validation: 10 harness injection tests passed; strict Hub lib/test Clippy passed.
+### Codex — 2026-10-27 — Hermes spend review corrections (#84)
+
+The installed Hermes normalizer and usage display identify reasoning tokens as
+a subset of output tokens. Removed the extra reasoning addition, which changed
+the supplied report's completion count from 17 to an incorrect 30. Missing
+output remains unknown; a large valid output bucket is no longer discarded by
+an artificial reasoning-sum overflow. Adjusted fixture expectations accordingly.
+
+A second defect dropped resumed runs with byte-identical usage reports. Dedup
+now includes the report file name and modification version as well as bytes and
+session. The same unchanged version remains idempotent; a fresh version with
+identical counts records another run. Read metadata before/after parsing to skip
+concurrently changing reports. Regressions reproduce both original defects.
+Validation: 15 Hermes capture/spend tests passed; strict desktop lib/test Clippy
+passed. No live provider process was launched; estimated cost remains absent.

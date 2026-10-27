@@ -12,6 +12,7 @@ pub mod cursor;
 pub mod gemini;
 pub mod grok;
 pub mod hermes;
+mod hermes_spend;
 pub mod kimi;
 pub mod muse;
 pub mod presence;
