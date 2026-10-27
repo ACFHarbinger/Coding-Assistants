@@ -324,9 +324,9 @@ export default function MessageComposer(props: any) {
                   onClick={() => setIsTaskTag(prev => !prev)}
                   aria-pressed={isTaskTag}
                   style={selectionStyle(isTaskTag, "amber")}
-                  title="Mark as Task execution request (targets existing team members only)"
+                  title="Mark as Goal (delivers /goal to existing team members only)"
                 >
-                  ⚡ [TASK]
+                  ⚡ [GOAL]
                 </button>
                 <button
                   type="button"
@@ -347,7 +347,7 @@ export default function MessageComposer(props: any) {
               </div>
               {!isTaskTag && !isWakeTag && (
                 <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.76rem", lineHeight: 1.4 }}>
-                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>TASK</strong> to request delivery to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
+                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>GOAL</strong> to deliver <code>/goal</code> to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
                 </p>
               )}
             </div>

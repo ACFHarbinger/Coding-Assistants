@@ -71,6 +71,16 @@ fn inject_harness_inner(
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
     }
+    let rewritten;
+    let request = if request.is_task {
+        rewritten = HarnessInjectRequest {
+            body: crate::store::goal_delivery_body(&request.body),
+            ..request.clone()
+        };
+        &rewritten
+    } else {
+        request
+    };
     if !request.workspace.is_absolute() {
         return Err(HubError::Invalid("workspace path must be absolute".into()));
     }
@@ -168,10 +178,8 @@ fn inject_harness_inner(
             }
         }
     }
-    let prompt = if request.is_task && request.is_wake {
-        format!("[TASK] [WAKE] {}", request.body)
-    } else if request.is_task {
-        format!("[TASK] {}", request.body)
+    let prompt = if request.is_task {
+        request.body.clone()
     } else if request.is_wake {
         format!("[WAKE] {}", request.body)
     } else {

@@ -1,8 +1,12 @@
 use super::*;
+mod goal;
 mod queries;
 mod read_markers;
 mod send;
 mod wakes;
+
+pub(crate) use goal::goal_delivery_body;
+pub use goal::TaggedSendCounts;
 
 impl HubStore {
     /// Fan out a team message while retaining one shared subject so clients
@@ -110,6 +114,13 @@ impl HubStore {
         if body.trim().is_empty() {
             return Err(HubError::Invalid("message body must not be empty".into()));
         }
+        let goal_body;
+        let body = if is_task {
+            goal_body = goal::goal_delivery_body(body);
+            goal_body.as_str()
+        } else {
+            body
+        };
         if !is_task && !is_wake {
             return Err(HubError::Invalid(
                 "send_tagged_message requires at least one of task/wake".into(),

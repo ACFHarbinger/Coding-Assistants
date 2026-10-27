@@ -53,6 +53,23 @@ interface WakeRecord {
   status: string;
   created_at: string;
 }
+interface TaggedSendCounts {
+  tasks: number;
+  wakes: number;
+  goals: number;
+}
+
+const EMPTY_SENDS: TaggedSendCounts = { tasks: 0, wakes: 0, goals: 0 };
+
+function readSendCounts(value: unknown): TaggedSendCounts {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY_SENDS;
+  const row = value as Partial<TaggedSendCounts>;
+  return {
+    tasks: Number(row.tasks) || 0,
+    wakes: Number(row.wakes) || 0,
+    goals: Number(row.goals) || 0,
+  };
+}
 
 const DASHBOARD_SUBTABS = [
   { id: "overview", label: "Telemetry & Overview" },
@@ -80,6 +97,7 @@ export default function DashboardPanel({
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [wakes, setWakes] = useState<WakeRecord[]>([]);
+  const [sends, setSends] = useState<TaggedSendCounts>(EMPTY_SENDS);
   const [error, setError] = useState("");
   const [updated, setUpdated] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -89,7 +107,7 @@ export default function DashboardPanel({
     setError("");
     setRefreshing(true);
     try {
-      const [nextMetrics, nextBudgets, nextTasks, nextMessages, nextWakes] =
+      const [nextMetrics, nextBudgets, nextTasks, nextMessages, nextWakes, nextSends] =
         await Promise.all([
           invoke<AgentMetrics[]>("hub_list_agent_metrics"),
           Promise.all(
@@ -100,12 +118,14 @@ export default function DashboardPanel({
           invoke<TaskRecord[]>("hub_list_tasks", { status: null }),
           invoke<MessageRecord[]>("hub_list_messages", { to: null, status: null }),
           invoke<WakeRecord[]>("hub_list_wakes", { target: null, pendingOnly: false }),
+          invoke<TaggedSendCounts>("hub_tagged_send_counts"),
         ]);
       setMetrics(nextMetrics);
       setBudgets(nextBudgets.filter((budget): budget is BudgetStatus => budget !== null));
       setTasks(nextTasks);
       setMessages(nextMessages);
       setWakes(nextWakes);
+      setSends(readSendCounts(nextSends));
       setUpdated(new Date().toLocaleTimeString());
     } catch (e) {
       setError(String(e));
@@ -233,9 +253,10 @@ export default function DashboardPanel({
               }}
             >
               {[
-                { label: "Tasks", count: tasks.length, color: NOC_COLORS.cyan },
+                { label: "Tasks", count: sends.tasks, color: NOC_COLORS.cyan },
+                { label: "Wakes", count: sends.wakes, color: NOC_COLORS.purple },
+                { label: "Goals", count: sends.goals, color: NOC_COLORS.ok },
                 { label: "Messages", count: messages.length, color: NOC_COLORS.indigo },
-                { label: "Wakes", count: wakes.length, color: NOC_COLORS.purple },
                 { label: "Pending Wakes", count: wakes.filter((w) => w.status === "pending").length, color: NOC_COLORS.warn },
               ].map((c) => (
                 <div key={c.label} style={{ ...nocCardDenseStyle, padding: "0.6rem 0.85rem" }}>
@@ -249,6 +270,7 @@ export default function DashboardPanel({
 
             {tasks.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", borderTop: "1px solid rgba(148, 163, 184, 0.14)", paddingTop: "0.75rem" }}>
+                <div style={{ fontSize: "0.74rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase" }}>Workflow tasks</div>
                 {tasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}

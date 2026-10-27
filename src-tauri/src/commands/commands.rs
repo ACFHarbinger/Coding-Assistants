@@ -25,6 +25,8 @@ pub mod external_mcp;
 pub mod github_board;
 #[path = "github/branches.rs"]
 pub mod github_branches;
+#[path = "messager/goal_counts.rs"]
+pub mod goal_counts;
 #[path = "settings/harness_models.rs"]
 pub mod harness_models;
 #[path = "health/health.rs"]

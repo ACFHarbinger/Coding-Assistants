@@ -222,7 +222,7 @@ mod tests {
         // Injected assistant message — skipped (app-injected task/wake).
         writeln!(
             file,
-            r#"{{"role":"assistant","injected":true,"content":"[TASK] do the thing"}}"#
+            r#"{{"role":"assistant","injected":true,"content":"/goal [GOAL] do the thing"}}"#
         )
         .unwrap();
         // Tool message — skipped (role != assistant).
@@ -383,7 +383,7 @@ mod tests {
         .unwrap();
         writeln!(
             file,
-            r#"{{"role":"assistant","content":"[TASK] injected prompt","injected":true}}"#
+            r#"{{"role":"assistant","content":"/goal [GOAL] injected prompt","injected":true}}"#
         )
         .unwrap();
 

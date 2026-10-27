@@ -24,6 +24,9 @@ project's GitHub Releases page.
 ### Added — 2026-10-27 (P19 nested sub-workflows, #366, Grok)
 
 - **A workflow step can run another task to completion (#366).** When `WorkflowStep.sub_task_id` is set, that step does not send a handoff, request a wake, or dispatch through `peer`. A pending child is started with `advance_task`. The parent stage stays open until the child is terminal (`open_agents` marker `\u{1f}sub:<id>`, not a roster agent). `done` continues the normal advance path, including branches, guardrails, and gates. `failed` or `cancelled` fails the parent. A cycle, a self-wait, or nesting deeper than 8 fails the parent and sends nothing. Ready for review on `agent/grok-366`; not merged.
+### Changed — 2026-10-26 (chat Goal send, #380, Grok)
+
+- The chat Task intent is now Goal. A Goal still delivers only to an enrolled member and does not spawn. The stored body and the harness prompt start with `/goal [GOAL]`. `ca msg tag --goal` is an alias of `--task`. The Shared Hub overview keeps the Tasks name and counts accepted wakes and goals combined, plus each count on its own. Workflow task rows stay under Workflow tasks. `migrations/rename-task-marker-to-goal.sh` rewrites mutable chat `[TASK]` markers to `[GOAL]` once per PC. Historical audit metadata and hashes remain unchanged; display-label renaming must not alter hashed payloads.
 
 ### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
 

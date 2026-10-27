@@ -69,7 +69,7 @@ export default function MessageStream(props: any) {
                       </span>
 
                       {/* Intent Badges */}
-                      {(msg.kind === "task" || msg.body.includes("[TASK]")) && (
+                      {(msg.body.startsWith("/goal") || msg.body.includes("[GOAL]")) && (
                         <span style={{
                           fontSize: "0.68rem",
                           padding: "0.1rem 0.45rem",
@@ -79,7 +79,7 @@ export default function MessageStream(props: any) {
                           border: "1px solid rgba(234, 179, 8, 0.4)",
                           fontWeight: 700
                         }}>
-                          ⚡ TASK
+                          ⚡ GOAL
                         </span>
                       )}
                       {(msg.kind === "wake" || msg.body.includes("[WAKE]")) && (

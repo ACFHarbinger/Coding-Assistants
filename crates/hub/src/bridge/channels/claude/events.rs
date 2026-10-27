@@ -209,7 +209,7 @@ mod tests {
                 "grok",
                 CLAUDE_AGENT_ID,
                 MessageKind::Message,
-                "[TASK] please do the thing",
+                "/goal [GOAL] please do the thing",
                 None,
                 None,
                 Some("task-1"),

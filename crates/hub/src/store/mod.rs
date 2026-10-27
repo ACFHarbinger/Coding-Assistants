@@ -45,6 +45,8 @@ mod guardrails;
 mod linked_accounts;
 pub use linked_accounts::*;
 mod messages;
+pub(crate) use messages::goal_delivery_body;
+pub use messages::TaggedSendCounts;
 mod models;
 pub use models::*;
 mod activity;
