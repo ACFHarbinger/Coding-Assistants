@@ -173,6 +173,17 @@ struct AppState {
 - `user_input_tx` -- Channel sender for passing user input to waiting agents
 - `tcp_server` -- Active TCP server instance for remote control
 
+### Workspace crates (`crates/`)
+
+These workspace crates sit beside `src/` and `src-tauri/`. They do not replace that layout.
+
+```
+crates/
+├── hub/    # shared store
+├── cli/    # ca
+└── tui/    # Ratatui
+```
+
 ---
 
 ## Data Flow

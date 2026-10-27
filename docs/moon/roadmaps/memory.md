@@ -103,21 +103,19 @@ described a different, incompatible `hub` schema that briefly coexisted
 after concurrent sessions; reconciled by wiring `store.rs` as the real
 implementation.
 
-**2026-08-14 (M7, Claude + Grok + Codex, #159):** memory-to-memory graph
-links landed — `memory_links`, depth-bounded traversal, and a dependency-free
-tag/token-Jaccard matcher behind a new `off`/`suggest`/`auto`
-`LinkSuggestionMode` setting. Backend (store, CLI, Tauri IPC) is done and
-`cargo build --workspace` clean; no frontend UI calls the new commands yet.
-Worth remembering: the auto-accept threshold started as a guessed 0.55 and
-had to be recalibrated to 0.35 after a real smoke test showed genuinely
-related memories scoring only 0.39-0.42 — a similarity threshold picked "by
-feel" without a real example is not a real threshold. See
-`docs/moon/CHANGELOG.md` for full detail.
-
-**2026-08-14 (M7 closed, Gemini + Codex):** frontend UI landed —
-`MemoryLinksSection` (per-memory expandable links panel with a "Find
-related" suggest-and-link action) and `TopicBrowsePanel` (a new "Browse by
-topic" mode in the Chat & Memory drawer, grouping search results by
-`agent_id` side by side). `cargo build --workspace` + `npm run build`
-(`tsc` + `vite build`) both clean. M7 is done end to end: schema, matcher,
-CLI, Tauri IPC, and desktop UI.
+**2026-08-14 (M7, Claude + Grok + Codex, then Gemini + Codex, #159):**
+memory-to-memory graph links landed — `memory_links`, depth-bounded
+traversal, and a dependency-free tag/token-Jaccard matcher behind a new
+`off`/`suggest`/`auto` `LinkSuggestionMode` setting. Backend (store, CLI,
+Tauri IPC) and the desktop UI are both in. The UI is `MemoryLinksSection`
+(per-memory expandable links panel with a "Find related" suggest-and-link
+action) and `TopicBrowsePanel` (a "Browse by topic" mode in the Chat &
+Memory drawer, grouping search results by `agent_id` side by side). An
+earlier same-day note that no frontend called the new commands was
+overtaken once that UI landed. `cargo build --workspace` and `npm run build`
+(`tsc` + `vite build`) were clean. M7 is done end to end: schema, matcher,
+CLI, Tauri IPC, and desktop UI. Worth remembering: the auto-accept
+threshold started as a guessed 0.55 and had to be recalibrated to 0.35
+after a real smoke test showed genuinely related memories scoring only
+0.39-0.42 — a similarity threshold picked "by feel" without a real example
+is not a real threshold. See `docs/moon/CHANGELOG.md` for full detail.

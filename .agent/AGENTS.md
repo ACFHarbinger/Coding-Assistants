@@ -45,6 +45,10 @@ Coding-Assistants/
 │   ├── Cargo.toml          # Rust dependencies
 │   ├── tauri.conf.json     # Tauri configuration
 │   └── capabilities/       # Permission capabilities
+├── crates/
+│   ├── hub/                # Shared store
+│   ├── cli/                # `ca` CLI
+│   └── tui/                # Ratatui TUI
 ├── android/                # Android remote control app
 ├── .agent/                 # Agent resources (prompts, rules, workflows)
 ├── env/                    # Environment variable templates

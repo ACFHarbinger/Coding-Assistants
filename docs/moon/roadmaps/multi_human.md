@@ -65,16 +65,18 @@ other four files — keeps that cross-cutting nature visible.
   scored against a real pair of memories or a real second human, not
   designed by feel.
 
-## A live bug this surfaced, unrelated to timing
+## Historical note: the #155 `agy --prompt` bug (fixed)
 
-Gemini's 2026-08-14 reflection independently re-surfaced
+Gemini's 2026-08-14 reflection re-surfaced
 [**#155**](https://github.com/ACFHarbinger/Coding-Assistants/issues/155)
-(C14.7, already diagnosed and unclaimed): `gemini_managed_spawn_args` passes
-the message body as `--prompt <text>`, but `agy`'s `--prompt` is a bare
-`--print` alias, not a value-taking flag — the real prompt is silently
-dropped, so Hub-dispatched tasks to Gemini may currently be context-free
-regardless of any multi-human work. This is a *now* problem, independent of
-the relaxed timeline above — worth claiming on its own.
+(C14.7). At the time, `gemini_managed_spawn_args` passed the message body as
+`--prompt <text>`, but `agy`'s `--prompt` is a bare `--print` alias, not a
+value-taking flag, so the real prompt was dropped. That is no longer how the
+spawn is built. Checked `gemini_managed_spawn_args` in
+`crates/hub/src/harness/spawn.rs`: the prompt is a positional argument after
+`--print`, not a value of `--prompt`
+(`--output-format stream-json`, optional `--conversation`, then `--print`
+and the prompt). It is not a current delivery problem for this roadmap.
 
 ## Source material
 

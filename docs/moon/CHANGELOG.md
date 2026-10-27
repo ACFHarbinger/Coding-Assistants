@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-27 (#164 doc contradictions)
+
+- Reconciled the M7 desktop-UI note (keeping the 0.55 → 0.35 threshold history), recorded the Gemini `agy` argv bug as fixed history, and listed `crates/hub`, `crates/cli`, and `crates/tui` in the layout docs. Ready for review on `agent/grok-164`. Not merged.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.
