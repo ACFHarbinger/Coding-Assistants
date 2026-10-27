@@ -150,7 +150,28 @@ pub fn capture_hermes_session_from(
             .map_err(|error| error.to_string())?;
     }
 
-    let text = export_session_text(session_id)?;
+    // `--usage-file` JSON is already on disk. Record it even when export fails,
+    // then return that error. A missing usage directory records nothing.
+    capture_with_export(
+        store,
+        workspace,
+        session_id,
+        hub_session_id,
+        &hub::hermes_usage_dir(),
+        export_session_text(session_id),
+    )
+}
+
+fn capture_with_export(
+    store: &HubStore,
+    workspace: &Path,
+    session_id: &str,
+    hub_session_id: Option<&str>,
+    usage_dir: &Path,
+    export: Result<String, String>,
+) -> Result<HermesCaptureOutcome, String> {
+    super::hermes_spend::record_hermes_session_usage(store, hub_session_id, usage_dir, session_id);
+    let text = export?;
     capture_hermes_export_text(store, workspace, session_id, hub_session_id, &text)
 }
 
@@ -238,5 +259,85 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out2.captured.len(), 0);
+    }
+
+    const SESSION: &str = "20260912_232548_916eae";
+
+    fn usage_rows(store: &HubStore) -> Vec<serde_json::Value> {
+        store
+            .list_audit_events(false)
+            .unwrap()
+            .into_iter()
+            .filter(|event| event.operation == "provider.usage")
+            .map(|event| serde_json::from_str(&event.process_json).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn export_failure_still_records_usage_then_returns_the_error() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path().join("hub")).unwrap();
+        let usage = dir.path().join("usage");
+        fs::create_dir(&usage).unwrap();
+        fs::write(
+            usage.join(format!("{SESSION}.json")),
+            r#"{"input_tokens":3,"output_tokens":4,"provider":"nous","session_id":"20260912_232548_916eae","estimated_cost_usd":1.5}"#,
+        )
+        .unwrap();
+        let err = capture_with_export(
+            &store,
+            Path::new("/tmp/ws"),
+            SESSION,
+            Some("hub-hermes"),
+            &usage,
+            Err("hermes sessions export failed".into()),
+        )
+        .unwrap_err();
+        assert!(err.contains("export failed"));
+        let rows = usage_rows(&store);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["provider"], "hermes");
+        assert_eq!(rows[0]["prompt_tokens"], 3);
+        assert_eq!(rows[0]["via_gateway"], "nous");
+        assert!(rows[0].get("cost").is_none());
+
+        let empty = HubStore::open(dir.path().join("hub-empty")).unwrap();
+        let missing = dir.path().join("no-such-hermes-usage");
+        let err = capture_with_export(
+            &empty,
+            Path::new("/tmp/ws"),
+            SESSION,
+            None,
+            &missing,
+            Err("hermes sessions export failed".into()),
+        )
+        .unwrap_err();
+        assert!(err.contains("export failed"));
+        assert!(usage_rows(&empty).is_empty());
+    }
+
+    #[test]
+    fn export_success_records_usage_before_capture() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path().join("hub")).unwrap();
+        let usage = dir.path().join("usage");
+        fs::create_dir(&usage).unwrap();
+        fs::write(
+            usage.join(format!("{SESSION}.json")),
+            r#"{"input_tokens":8,"output_tokens":1,"provider":"nous","session_id":"20260912_232548_916eae"}"#,
+        )
+        .unwrap();
+        let out = capture_with_export(
+            &store,
+            Path::new("/tmp/ws"),
+            SESSION,
+            None,
+            &usage,
+            Ok(EXPORT.to_string()),
+        )
+        .unwrap();
+        assert_eq!(out.captured.len(), 2);
+        assert_eq!(usage_rows(&store).len(), 1);
+        assert_eq!(usage_rows(&store)[0]["prompt_tokens"], 8);
     }
 }

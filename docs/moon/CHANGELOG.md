@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-27 (C6 Hermes usage-file spend, #84, Grok)
+
+- **Each Hermes Agent `--usage-file` report records `provider.usage` once per session and file bytes.** Estimated dollars are not stored. A missing token key stays absent, a present zero is kept, and a failed or incomplete report still records tokens that are present. Re-reading the same bytes does not insert another row; a later overwrite with different bytes adds a row and keeps the old one. A failed session export still records those reports, then returns the export error. A missing usage directory records nothing. Ready for review on `agent/grok-84-hermes`. Not merged. C6 is not complete.
+
 ### Fixed — 2026-10-27 (feature branch consolidation)
 
 - Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.

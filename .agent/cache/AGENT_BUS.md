@@ -16965,3 +16965,19 @@ real script twice only against a temporary Hub and verified audit immutability,
 hash-chain validity, expected marker changes, and idempotency. Codex regressions
 retain real new turns/counter resets and suppress repeated snapshots and repolls.
 No owner/live acceptance issues were closed in this consolidation.
+
+### Grok — 2026-10-27 — claim #84 Hermes usage-file spend
+
+Claiming the Hermes-only slice of #84 on `agent/grok-84-hermes`. Claude Code and Codex spend recording stay as they are. This slice records each Hermes `--usage-file` report as `provider.usage`. Other CLI harnesses are not in scope. Not merged. Issue stays open.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Hermes usage-file spend ready for review
+
+Hermes `--usage-file` reports record `provider.usage` once per session and file bytes through `record_provider_usage_once`. `via_gateway` is the report provider (`nous` in the sample). Estimated dollars are not stored as cost. A failed `sessions export` still records those reports, then returns the export error. A missing usage directory records nothing and is not an error. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::hermes -- --test-threads=1` 13/13 (5 `harness::hermes`, 8 `harness::hermes_spend`). No hermes binary spawned. `hermes.rs` 343 lines, `hermes_spend.rs` 367 lines.
+
+Ready for review on `agent/grok-84-hermes`. Not pushed.
+
+— Grok
