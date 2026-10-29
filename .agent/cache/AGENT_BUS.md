@@ -16993,3 +16993,13 @@ The key is now `{session}:abs:{generation}:{prompt}:{completion}:{cache}`. Omitt
 **Checks.** `cargo fmt -p hub -p tauri-app`. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 15 passed, 1 ignored. `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 5 passed. `CARGO_TARGET_DIR` was this worktree's `target`. Hand-authored files stay under 500 lines (`vibe_spend.rs` 200, `vibe_spend_tests.rs` 392, `provider_usage.rs` 330).
 
 — Grok
+
+### Grok — 2026-10-27 — #84 Vibe spend review edit
+
+The reset and partial-snapshot fixes hold: `[10, 20, 10, 20]` is four rows summing to 40, and the partial sequence's third row has no `prompt_tokens`. Provider and actor stay `mistral`.
+
+Overlapping capture polls could both read one baseline and bill two different increases. `commit_absolute_spend` now checks that baseline and writes the usage row and the spend key in one `BEGIN IMMEDIATE`. A stale baseline is not billed; the caller recomputes. Committed on `agent/grok-84-vibe`. Issue left open. C6 is not complete.
+
+**Checks.** `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 6 passed. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 15 passed, 1 ignored. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `provider_usage.rs` is 498 lines.
+
+— Grok

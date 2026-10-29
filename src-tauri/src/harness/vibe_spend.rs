@@ -11,7 +11,7 @@
 //! recorded. A missing key stays `None`. The spawn gate on harness id
 //! `vibe` is unchanged by this slice.
 
-use hub::{HubStore, ProviderUsage, SliceStamp};
+use hub::{AbsoluteSpendCommit, HubStore, ProviderUsage, SliceStamp};
 use std::fs;
 use std::path::Path;
 
@@ -52,43 +52,52 @@ pub(crate) fn record_vibe_session_spend(
     let Some(session_id) = spend_session_id(&meta, capture_session_id) else {
         return;
     };
-    let Ok(previous_key) = store.latest_absolute_spend_key(&session_id) else {
-        return;
-    };
-    let previous = previous_key
-        .as_deref()
-        .and_then(|prior| parse_absolute(&session_id, prior));
-    let filled = match previous {
-        Some(prior) => absolute.fill_from(prior.counts),
-        None => absolute,
-    };
-    let delta = match previous {
-        Some(prior) => filled.increase_over(prior.counts),
-        None => filled,
-    };
-    if !delta.any() {
-        return;
+    // Overlapping capture polls (the desktop refresh does not wait) must not
+    // both bill from the same baseline. A stale commit means the other poll
+    // won; recompute against the key it stored.
+    for _ in 0..8 {
+        let Ok(previous_key) = store.latest_absolute_spend_key(&session_id) else {
+            return;
+        };
+        let previous = previous_key
+            .as_deref()
+            .and_then(|prior| parse_absolute(&session_id, prior));
+        let filled = match previous {
+            Some(prior) => absolute.fill_from(prior.counts),
+            None => absolute,
+        };
+        let delta = match previous {
+            Some(prior) => filled.increase_over(prior.counts),
+            None => filled,
+        };
+        if !delta.any() {
+            return;
+        }
+        let generation = previous
+            .map(|prior| prior.generation.saturating_add(1))
+            .unwrap_or(1);
+        let key = absolute_key(&session_id, generation, filled);
+        let usage = ProviderUsage {
+            provider: "mistral".to_string(),
+            actor_agent: "mistral".to_string(),
+            prompt_tokens: delta.prompt,
+            completion_tokens: delta.completion,
+            cache_tokens: delta.cache,
+            cost: None,
+            via_gateway: None,
+            model: None,
+            stamp: SliceStamp::registered(
+                None,
+                hub_session_id.map(str::to_string),
+                Some("mistral".to_string()),
+            ),
+        };
+        match store.commit_absolute_spend(&session_id, previous_key.as_deref(), &usage, &key) {
+            Ok(AbsoluteSpendCommit::Committed | AbsoluteSpendCommit::Duplicate) => return,
+            Ok(AbsoluteSpendCommit::Stale) => continue,
+            Err(_) => return,
+        }
     }
-    let generation = previous
-        .map(|prior| prior.generation.saturating_add(1))
-        .unwrap_or(1);
-    let key = absolute_key(&session_id, generation, filled);
-    let usage = ProviderUsage {
-        provider: "mistral".to_string(),
-        actor_agent: "mistral".to_string(),
-        prompt_tokens: delta.prompt,
-        completion_tokens: delta.completion,
-        cache_tokens: delta.cache,
-        cost: None,
-        via_gateway: None,
-        model: None,
-        stamp: SliceStamp::registered(
-            None,
-            hub_session_id.map(str::to_string),
-            Some("mistral".to_string()),
-        ),
-    };
-    let _ = store.record_provider_usage_once(&usage, &key);
 }
 
 fn spend_session_id(meta: &serde_json::Value, capture_session_id: Option<&str>) -> Option<String> {

@@ -62,7 +62,7 @@ pub use tasks::{BranchTarget, StepBranch};
 mod tests;
 mod workspaces;
 pub use activity::*;
-pub use policies::{Attribution, ProviderUsage, QuotaSnapshot, SliceStamp};
+pub use policies::{AbsoluteSpendCommit, Attribution, ProviderUsage, QuotaSnapshot, SliceStamp};
 pub mod scorecard;
 pub use scorecard::*;
 pub struct HubStore {

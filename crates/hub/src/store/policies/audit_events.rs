@@ -6,7 +6,7 @@ use super::super::*;
 /// rolls back everything. Validation errors return before touching the
 /// transaction, so they never poison it.
 pub(crate) fn insert_audit_event(
-    tx: &rusqlite::Transaction,
+    tx: &rusqlite::Connection,
     root_path: &str,
     path: &str,
     operation: &str,
