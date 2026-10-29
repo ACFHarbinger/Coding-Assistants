@@ -75,8 +75,9 @@ value-taking flag, so the real prompt was dropped. That is no longer how the
 spawn is built. Checked `gemini_managed_spawn_args` in
 `crates/hub/src/harness/spawn.rs`: the prompt is a positional argument after
 `--print`, not a value of `--prompt`
-(`--output-format stream-json`, optional `--conversation`, then `--print`
-and the prompt). It is not a current delivery problem for this roadmap.
+(`--output-format stream-json`, optional `--conversation`, optional
+`--model` and `--effort`, then `--print` and the prompt). It is not a
+current delivery problem for this roadmap.
 
 ## Source material
 

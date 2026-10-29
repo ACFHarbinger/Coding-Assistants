@@ -18,6 +18,7 @@ project's GitHub Releases page.
 ### Fixed — 2026-10-27 (#164 doc contradictions)
 
 - Reconciled the M7 desktop-UI note (keeping the 0.55 → 0.35 threshold history), recorded the Gemini `agy` argv bug as fixed history, and listed `crates/hub`, `crates/cli`, and `crates/tui` in the layout docs. Ready for review on `agent/grok-164`. Not merged.
+- Follow-up: the layout also lists `crates/claude` and `crates/mcp`. Topic browse is the Memory subtab of Chat & Memory. The `agy` argv note includes optional `--model` and `--effort`, and the priority note points at the landed C14.7 row.
 
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 

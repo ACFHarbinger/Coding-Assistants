@@ -17,6 +17,8 @@ communication is reliable.
 > spending time reverse-engineering a CLI contract nobody being onboarded is
 > using yet.
 
+#155's `--prompt` bug later landed (positional prompt after `--print`; see the C14.7 row).
+
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
 | C1 | Agent identities, attribution headers, durable inbox/outbox messages, and handoff records | Every message records sender, receiver, task, workspace, timestamp, and status | ✅ **Done** · `ca msg send/poll/list/status` + seeded agents + handoff kind in MD export |
