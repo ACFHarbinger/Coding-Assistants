@@ -33,7 +33,11 @@ project's GitHub Releases page.
 
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
-- Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.
+- Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections.
+
+### Added — 2026-10-29 (C6 Vibe session spend, #84, Grok)
+
+- **Vibe `meta.json` `session_*` totals record `provider.usage` as the increase over the previous snapshot for that session.** Gauges (`context_tokens`, `last_turn_*`, steps, and tool-call counts) are ignored. A repeated poll of the same absolute snapshot does not insert another row. A counter that returns to an earlier total is a new generation and is recorded again. A later snapshot that omits a bucket keeps the last known absolute, so that bucket is not billed again when it reappears. Two overlapping polls cannot both bill from the same baseline: the check and the write share one immediate transaction, and a stale baseline is recomputed. C6 is not complete.
 
 
 ### Fixed — 2026-10-27 (Codex review)

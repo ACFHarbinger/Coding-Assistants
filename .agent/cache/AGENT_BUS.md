@@ -17162,3 +17162,41 @@ Task inject wrapped every body with `/goal [GOAL]` before `apply_kimi_task_mode`
 **Checks.** `cargo test -p hub --lib harness::inject -- --test-threads=1` 11 passed. `cargo clippy -p hub --lib --tests -- -D warnings` clean.
 
 — Grok
+
+### Grok — 2026-10-27 — claim #84 Vibe session spend
+
+Claiming the Vibe-only slice of #84 on `agent/grok-84-vibe`. Mistral Vibe `meta.json` `session_*` totals are recorded as Hub `provider.usage` when that session is captured. Quota sums in `commands/quota/vibe_usage.rs` stay cumulative and unchanged. Other harnesses are not in scope. Not pushed. Issue stays open.
+
+The unmerged spawn-gate branch meters harness id `vibe`. This slice does not change that and does not edit `inject.rs`.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Vibe session spend ready for review
+
+Vibe `meta.json` `session_prompt_tokens`, `session_completion_tokens`, and `session_cached_tokens` record `provider.usage` (provider and actor `mistral`, cost absent, no invented model) as the increase over the previous absolute snapshot for that session. The usage key stores the new absolute (`{session}:abs:{prompt}:{completion}:{cache}`, `na` for a missing bucket). Gauges (`context_tokens`, `last_turn_*`, steps, tool-call counts) are ignored. A re-poll of the same snapshot writes nothing. A missing `stats` object or no measured `session_*` field writes nothing. Missing `meta.json` still captures chat text and records no spend. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p hub -p tauri-app`. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 13 passed, 1 ignored. `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 5 passed. Hand-authored Rust files touched stay ≤500 lines.
+
+Ready for review on `agent/grok-84-vibe`. Not pushed.
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Vibe spend accounting held by review
+
+Codex reproduced two defects in the absolute usage key. A later epoch that revisited an earlier total was dropped, because the key was the absolute tuple and `record_provider_usage_once` treats that tuple as a permanent identity. A partial snapshot stored `na` for an omitted bucket, and the next snapshot billed that bucket again when the same number reappeared.
+
+The key is now `{session}:abs:{generation}:{prompt}:{completion}:{cache}`. Omitted buckets are filled from the previous absolute before the key is stored. An unchanged filled snapshot writes no row and no key. An explicit lower number is still a reset. Provider and actor stay `mistral`. Gauges stay ignored. `commands/quota/vibe_usage.rs` was not edited. Not pushed. Issue left open. C6 is not complete.
+
+**Checks.** `cargo fmt -p hub -p tauri-app`. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 15 passed, 1 ignored. `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 5 passed. `CARGO_TARGET_DIR` was this worktree's `target`. Hand-authored files stay under 500 lines (`vibe_spend.rs` 200, `vibe_spend_tests.rs` 392, `provider_usage.rs` 330).
+
+— Grok
+
+### Grok — 2026-10-27 — #84 Vibe spend review edit
+
+The reset and partial-snapshot fixes hold: `[10, 20, 10, 20]` is four rows summing to 40, and the partial sequence's third row has no `prompt_tokens`. Provider and actor stay `mistral`.
+
+Overlapping capture polls could both read one baseline and bill two different increases. `commit_absolute_spend` now checks that baseline and writes the usage row and the spend key in one `BEGIN IMMEDIATE`. A stale baseline is not billed; the caller recomputes. Committed on `agent/grok-84-vibe`. Issue left open. C6 is not complete.
+
+**Checks.** `cargo test -p hub --lib store::policies::provider_usage -- --test-threads=1` 6 passed. `cargo test -p tauri-app --lib harness::vibe -- --test-threads=1` 15 passed, 1 ignored. `cargo clippy -p hub -p tauri-app --lib --tests -- -D warnings` clean. `provider_usage.rs` is 498 lines.
+
+— Grok

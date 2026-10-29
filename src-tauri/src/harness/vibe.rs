@@ -185,6 +185,8 @@ pub fn capture_vibe_session_from(
             captured.push(record);
         }
     }
+    // Spend is the sibling meta.json snapshot, not the chat-text dedup.
+    super::vibe_spend::record_vibe_session_spend(store, &path, vibe_session_id, hub_session_id);
     Ok(VibeCaptureOutcome {
         transcript_found: true,
         scanned: texts.len(),

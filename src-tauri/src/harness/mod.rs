@@ -22,6 +22,7 @@ mod qwen_spend;
 pub mod spend;
 pub mod stop;
 pub mod vibe;
+mod vibe_spend;
 
 use hub::HubStore;
 use std::path::Path;

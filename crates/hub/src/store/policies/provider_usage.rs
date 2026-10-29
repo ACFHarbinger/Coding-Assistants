@@ -56,6 +56,44 @@ impl ProviderUsage {
 }
 
 impl HubStore {
+    fn ensure_harness_spend_keys(&self) -> Result<(), HubError> {
+        self.conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS harness_spend_keys (
+                usage_key TEXT PRIMARY KEY NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+        )?;
+        Ok(())
+    }
+
+    /// Latest durable key for one session's absolute usage snapshots.
+    ///
+    /// Vibe `meta.json` stores each cumulative sighting as
+    /// `{session_id}:abs:{generation}:{prompt}:{completion}:{cache}`.
+    /// The audit row holds only the increase, so the next poll needs the
+    /// previous absolute. Lookup is the `{session_id}:abs:` prefix.
+    /// `created_at` then `rowid` picks the newest insert when two snapshots
+    /// share a timestamp. An empty id matches nothing.
+    pub fn latest_absolute_spend_key(&self, session_id: &str) -> Result<Option<String>, HubError> {
+        let session_id = session_id.trim();
+        if session_id.is_empty() {
+            return Ok(None);
+        }
+        self.ensure_harness_spend_keys()?;
+        let prefix = format!("{session_id}:abs:");
+        self.conn
+            .query_row(
+                "SELECT usage_key FROM harness_spend_keys
+                 WHERE substr(usage_key, 1, length(?1)) = ?1
+                 ORDER BY created_at DESC, rowid DESC
+                 LIMIT 1",
+                [prefix.as_str()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(HubError::from)
+    }
+
     /// No-op when nothing was measured, so CLI/harness paths without usage
     /// do not invent empty cost rows.
     pub fn record_provider_usage(
@@ -116,12 +154,7 @@ impl HubStore {
         if usage_key.is_empty() {
             return self.record_provider_usage(usage);
         }
-        self.conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS harness_spend_keys (
-                usage_key TEXT PRIMARY KEY NOT NULL,
-                created_at TEXT NOT NULL
-            )",
-        )?;
+        self.ensure_harness_spend_keys()?;
         let seen: Option<i64> = self
             .conn
             .query_row(
@@ -142,6 +175,127 @@ impl HubStore {
         }
         Ok(recorded)
     }
+
+    /// Insert one absolute-snapshot delta only while `expected_previous` is
+    /// still the newest `{session}:abs:` key.
+    ///
+    /// The check and both writes share one immediate transaction, so a second
+    /// connection capturing the same session either waits and then sees
+    /// `Stale`, or no-ops on the same key. Callers recompute the delta from
+    /// the new baseline.
+    pub fn commit_absolute_spend(
+        &self,
+        session_id: &str,
+        expected_previous: Option<&str>,
+        usage: &ProviderUsage,
+        usage_key: &str,
+    ) -> Result<AbsoluteSpendCommit, HubError> {
+        let session_id = session_id.trim();
+        let usage_key = usage_key.trim();
+        if session_id.is_empty() || usage_key.is_empty() || !usage.has_measurement() {
+            return Err(HubError::Invalid(
+                "absolute spend needs a session, a key, and a measurement".into(),
+            ));
+        }
+        self.ensure_mutable()?;
+        self.ensure_harness_spend_keys()?;
+        let prefix = format!("{session_id}:abs:");
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let outcome = self.insert_absolute_spend(&prefix, expected_previous, usage, usage_key);
+        let ended = match &outcome {
+            Ok(AbsoluteSpendCommit::Committed) => self.conn.execute_batch("COMMIT"),
+            _ => self.conn.execute_batch("ROLLBACK"),
+        };
+        match (outcome, ended) {
+            (Ok(kind), Ok(())) => Ok(kind),
+            (Err(error), _) => Err(error),
+            (_, Err(error)) => Err(error.into()),
+        }
+    }
+
+    fn insert_absolute_spend(
+        &self,
+        prefix: &str,
+        expected_previous: Option<&str>,
+        usage: &ProviderUsage,
+        usage_key: &str,
+    ) -> Result<AbsoluteSpendCommit, HubError> {
+        let current: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT usage_key FROM harness_spend_keys
+                 WHERE substr(usage_key, 1, length(?1)) = ?1
+                 ORDER BY created_at DESC, rowid DESC
+                 LIMIT 1",
+                [prefix],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if current.as_deref() != expected_previous {
+            return Ok(AbsoluteSpendCommit::Stale);
+        }
+        let seen: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM harness_spend_keys WHERE usage_key = ?1",
+                [usage_key],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if seen.is_some() {
+            return Ok(AbsoluteSpendCommit::Duplicate);
+        }
+        let mut process = json!({
+            "kind": "provider.usage",
+            "provider": usage.provider,
+            "actor_agent": usage.actor_agent,
+            "currency": usage.currency_status(),
+        });
+        let object = process.as_object_mut().expect("object");
+        if let Some(tokens) = usage.prompt_tokens {
+            object.insert("prompt_tokens".into(), json!(tokens));
+        }
+        if let Some(tokens) = usage.completion_tokens {
+            object.insert("completion_tokens".into(), json!(tokens));
+        }
+        if let Some(tokens) = usage.cache_tokens {
+            object.insert("cache_tokens".into(), json!(tokens));
+        }
+        if let Some(cost) = usage.cost {
+            object.insert("cost".into(), json!(cost));
+        }
+        if let Some(gateway) = usage.via_gateway.as_deref() {
+            object.insert("via_gateway".into(), json!(gateway));
+        }
+        if let Some(model) = usage.model.as_deref() {
+            object.insert("model".into(), json!(model));
+        }
+        usage.stamp.apply(&mut process);
+        let root = self.data_dir.to_string_lossy().into_owned();
+        super::insert_audit_event(
+            &self.conn,
+            &root,
+            &root,
+            "provider.usage",
+            &process.to_string(),
+            None,
+        )?;
+        self.conn.execute(
+            "INSERT INTO harness_spend_keys (usage_key, created_at) VALUES (?1, ?2)",
+            params![usage_key, Utc::now().to_rfc3339()],
+        )?;
+        Ok(AbsoluteSpendCommit::Committed)
+    }
+}
+
+/// Result of [`HubStore::commit_absolute_spend`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbsoluteSpendCommit {
+    Committed,
+    /// Another snapshot landed after the caller read the baseline.
+    Stale,
+    /// This exact key is already stored. No second usage row.
+    Duplicate,
 }
 
 #[cfg(test)]
@@ -247,5 +401,98 @@ mod tests {
             .filter(|event| event.operation == "provider.usage")
             .collect();
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn latest_absolute_spend_key_is_newest_for_that_session_only() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let usage = ProviderUsage {
+            provider: "mistral".into(),
+            actor_agent: "mistral".into(),
+            prompt_tokens: Some(1),
+            completion_tokens: None,
+            cache_tokens: None,
+            cost: None,
+            via_gateway: None,
+            model: None,
+            stamp: SliceStamp::default(),
+        };
+        store
+            .record_provider_usage_once(&usage, "aaa:abs:1:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aaa:abs:2:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aaa-more:abs:9:na:na")
+            .unwrap();
+        store
+            .record_provider_usage_once(&usage, "aa:abs:3:na:na")
+            .unwrap();
+        assert_eq!(
+            store.latest_absolute_spend_key("aaa").unwrap().as_deref(),
+            Some("aaa:abs:2:na:na")
+        );
+        assert_eq!(
+            store
+                .latest_absolute_spend_key("aaa-more")
+                .unwrap()
+                .as_deref(),
+            Some("aaa-more:abs:9:na:na")
+        );
+        assert_eq!(
+            store.latest_absolute_spend_key("aa").unwrap().as_deref(),
+            Some("aa:abs:3:na:na")
+        );
+        assert!(store.latest_absolute_spend_key("zzz").unwrap().is_none());
+        assert!(store.latest_absolute_spend_key("  ").unwrap().is_none());
+    }
+
+    #[test]
+    fn commit_absolute_spend_rejects_a_stale_baseline() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path()).unwrap();
+        let usage = |prompt| ProviderUsage {
+            provider: "mistral".into(),
+            actor_agent: "mistral".into(),
+            prompt_tokens: Some(prompt),
+            completion_tokens: None,
+            cache_tokens: None,
+            cost: None,
+            via_gateway: None,
+            model: None,
+            stamp: SliceStamp::default(),
+        };
+        assert_eq!(
+            store
+                .commit_absolute_spend("sess", None, &usage(10), "sess:abs:1:10:na:na")
+                .unwrap(),
+            AbsoluteSpendCommit::Committed
+        );
+        assert_eq!(
+            store
+                .commit_absolute_spend("sess", None, &usage(20), "sess:abs:1:20:na:na")
+                .unwrap(),
+            AbsoluteSpendCommit::Stale
+        );
+        assert_eq!(
+            store
+                .commit_absolute_spend(
+                    "sess",
+                    Some("sess:abs:1:10:na:na"),
+                    &usage(10),
+                    "sess:abs:1:10:na:na"
+                )
+                .unwrap(),
+            AbsoluteSpendCommit::Duplicate
+        );
+        let rows: Vec<_> = store
+            .list_audit_events(false)
+            .unwrap()
+            .into_iter()
+            .filter(|event| event.operation == "provider.usage")
+            .collect();
+        assert_eq!(rows.len(), 1);
     }
 }

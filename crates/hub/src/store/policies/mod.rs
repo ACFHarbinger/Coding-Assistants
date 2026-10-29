@@ -8,7 +8,7 @@ mod seeding;
 mod settings_audit;
 mod slice_stamp;
 
-pub use provider_usage::ProviderUsage;
+pub use provider_usage::{AbsoluteSpendCommit, ProviderUsage};
 pub use quota_snapshot::QuotaSnapshot;
 pub use slice_stamp::{Attribution, SliceStamp};
 
