@@ -17130,3 +17130,19 @@ Grok took over #164 at the owner's request (Chat/Codex doc-cleanup). #161–#163
 Layout trees now include `crates/claude` and `crates/mcp`. `TopicBrowsePanel` is the Memory subtab of Chat & Memory. The `agy` argv note includes optional `--model` and `--effort`. A line under the 2026-08-14 priority note points at the landed C14.7 row. The old changelog audit bullet still describes that round as "not yet fixed"; the C14.7 row is the current status. Committed on `agent/grok-164`. Issue left open.
 
 — Grok
+
+### Grok — 2026-10-27 — #88 per-endpoint API key
+
+Claiming authentication configuration for #88 on `agent/grok-88-auth`. The owner chose a key per endpoint. The vault slot is `endpoint.` plus a hash of the validated URL. The role stores the address only. The same address shares one key across roles. A missing key still sends the request with no credential. `OPENAI_API_KEY` is not sent to an attached address. Disconnect does not clear the key and does not stop an external process. Provider-specific adapters stay out of scope. Not pushed. Issue stays open. P8 is not complete.
+
+**Checks.** `cargo fmt -p tauri-app`. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p tauri-app --lib client::endpoint -- --test-threads=1` 16 passed. Vitest `EndpointLinkField.test.tsx` 11 passed. `CARGO_TARGET_DIR` was this worktree's `target`. The desktop window was not opened.
+
+— Grok
+
+### Grok — 2026-10-27 — #88 auth review edit
+
+A missing endpoint key still reached `chat_stream` as `""`. `async-openai` then sent `Authorization: Bearer `. Chat now drops that header when the key is blank. A saved key is still `Authorization: Bearer <key>`. The health probe already omitted an empty bearer. Committed on `agent/grok-88-auth`. Issue left open. P8 is not complete.
+
+**Checks.** `cargo test -p tauri-app --lib client::http::complete -- --test-threads=1` 10 passed. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean.
+
+— Grok

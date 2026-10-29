@@ -1,4 +1,5 @@
 use crate::agent::AgentEvent;
+use crate::client::endpoint_auth::http_api_key;
 use crate::client::endpoint_link::{attached_endpoint, AttachedEndpoint, EndpointLinkState};
 use crate::client::events::emit_http_result;
 use crate::client::grok_bot_turn::grok_bot_completion;
@@ -159,16 +160,8 @@ impl LLMClient {
         }
 
         if let AttachedEndpoint::Ready(endpoint) = attached {
-            return direct_http_completion(
-                endpoint,
-                is_openai_provider(&config.provider),
-                config,
-                prompt,
-                bus,
-                source,
-                token,
-            )
-            .await;
+            return direct_http_completion(endpoint, false, config, prompt, bus, source, token)
+                .await;
         }
 
         if config.provider == "ollama" {
@@ -302,11 +295,8 @@ async fn direct_http_completion(
     token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
     // Only the hosted OpenAI provider may receive the OpenAI credential.
-    // Attached endpoints and LM Studio can be user-controlled or local; do
-    // not leak a hosted-provider key to them just because it is configured.
-    let api_key_secret = require_key
-        .then(|| hub::secret::resolve("OPENAI_API_KEY"))
-        .flatten();
+    // Attached endpoints and LM Studio use the key saved for that address.
+    let api_key_secret = http_api_key(require_key, api_base);
     if require_key && !openai_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
         return Err(openai_unavailable_unauthenticated());
     }

@@ -1,6 +1,7 @@
 //! Reachability probe for a connected OpenAI-compatible endpoint (#88).
 //!
-//! GET `{base}/models` with a short timeout. No API key is read or sent.
+//! GET `{base}/models` with a short timeout. A key saved for this address
+//! is sent as `Authorization: Bearer`. No key sends no credential.
 //! A disconnected, blank, or non-http(s) address returns a result and does
 //! not open a socket. This never starts or signals a process.
 
@@ -8,6 +9,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::client::endpoint_auth::http_api_key;
 use crate::client::endpoint_link::{
     validate_openai_compatible_endpoint, EndpointLinkState, ENDPOINT_URL_ERROR,
 };
@@ -60,7 +62,9 @@ pub async fn check_endpoint_health_within(
     let Some(url) = models_url(&endpoint) else {
         return not_probed(ENDPOINT_URL_ERROR);
     };
-    match send_models_get(&url, timeout).await {
+    let secret = http_api_key(false, &endpoint);
+    let bearer = secret.as_ref().map(|value| value.expose());
+    match send_models_get(&url, bearer, timeout).await {
         Ok(status) => classify_status(status),
         Err(ProbeFailure::Local) => unreachable_message("could not reach the endpoint"),
         Err(ProbeFailure::Transport(error)) => classify_transport(&error),
@@ -168,18 +172,23 @@ enum ProbeFailure {
     Transport(reqwest::Error),
 }
 
-async fn send_models_get(url: &str, timeout: Duration) -> Result<u16, ProbeFailure> {
+async fn send_models_get(
+    url: &str,
+    bearer: Option<&str>,
+    timeout: Duration,
+) -> Result<u16, ProbeFailure> {
     let client = reqwest::Client::builder()
         .timeout(timeout)
         .connect_timeout(timeout)
         .redirect(reqwest::redirect::Policy::limited(2))
         .build()
         .map_err(|_| ProbeFailure::Local)?;
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(ProbeFailure::Transport)?;
+    let request = client.get(url);
+    let request = match bearer.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(bearer) => request.bearer_auth(bearer),
+        None => request,
+    };
+    let response = request.send().await.map_err(ProbeFailure::Transport)?;
     Ok(response.status().as_u16())
 }
 
@@ -379,5 +388,33 @@ mod tests {
         .expect("health timeout must follow the caller timeout");
         assert_eq!(health.kind, EndpointHealthKind::Unreachable);
         assert!(health.message.contains("timed out"), "{}", health.message);
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn saved_key_is_sent_as_bearer_and_omitted_from_the_result() {
+        let _lock = super::super::endpoint_auth::tests_env_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let previous_home = std::env::var_os("CA_HOME");
+        let previous_backend = std::env::var_os("CA_SECRET_BACKEND");
+        std::env::set_var("CA_HOME", dir.path());
+        std::env::set_var("CA_SECRET_BACKEND", "file");
+        let (url, request) = spawn_status(200);
+        let key = "endpoint-bearer-token";
+        super::super::endpoint_auth::save_endpoint_api_key(&url, key).unwrap();
+        let health = check_endpoint_health(&url, EndpointLinkState::Connected).await;
+        let captured = request.recv_timeout(Duration::from_secs(2)).unwrap();
+        let lower = captured.to_ascii_lowercase();
+        assert!(lower.contains("authorization: bearer endpoint-bearer-token"));
+        assert_eq!(health.kind, EndpointHealthKind::Reachable);
+        assert!(!health.message.contains(key));
+        match previous_home {
+            Some(value) => std::env::set_var("CA_HOME", value),
+            None => std::env::remove_var("CA_HOME"),
+        }
+        match previous_backend {
+            Some(value) => std::env::set_var("CA_SECRET_BACKEND", value),
+            None => std::env::remove_var("CA_SECRET_BACKEND"),
+        }
     }
 }

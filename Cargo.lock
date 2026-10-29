@@ -5676,6 +5676,7 @@ dependencies = [
  "hub",
  "portable-pty",
  "reqwest 0.12.28",
+ "secrecy",
  "serde",
  "serde_json",
  "sysinfo",
