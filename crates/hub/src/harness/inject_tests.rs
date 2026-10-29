@@ -211,6 +211,70 @@ fn grok_task_delivery_is_not_spawn_gated() {
 }
 
 #[test]
+fn kimi_task_slash_bodies_skip_the_hub_goal_wrapper() {
+    let swarm = HarnessInjectRequest {
+        harness: "kimi".into(),
+        body: "map the repo".into(),
+        is_task: true,
+        kimi_mode: Some(crate::KimiTaskMode::Swarm),
+        ..Default::default()
+    };
+    assert_eq!(
+        task_delivery_body(HarnessId::Kimi, &swarm),
+        "map the repo",
+        "swarm mode must see the plain body so delivery can prefix /swarm"
+    );
+    let status = HarnessInjectRequest {
+        body: "/goal status".into(),
+        ..swarm.clone()
+    };
+    assert_eq!(task_delivery_body(HarnessId::Kimi, &status), "/goal status");
+    let plain = HarnessInjectRequest {
+        body: "map the repo".into(),
+        kimi_mode: None,
+        ..swarm.clone()
+    };
+    assert_eq!(
+        task_delivery_body(HarnessId::Kimi, &plain),
+        "/goal [GOAL] map the repo"
+    );
+    assert_eq!(
+        task_delivery_body(HarnessId::Grok, &swarm),
+        "/goal [GOAL] map the repo"
+    );
+    assert_eq!(
+        crate::apply_kimi_task_mode(
+            swarm.kimi_mode,
+            &task_delivery_body(HarnessId::Kimi, &swarm)
+        ),
+        "/swarm map the repo"
+    );
+    assert_eq!(
+        crate::apply_kimi_task_mode(
+            status.kimi_mode,
+            &task_delivery_body(HarnessId::Kimi, &status)
+        ),
+        "/goal status"
+    );
+    let goal = HarnessInjectRequest {
+        body: "keep CI green".into(),
+        kimi_mode: Some(crate::KimiTaskMode::Goal),
+        ..swarm.clone()
+    };
+    assert_eq!(
+        crate::apply_kimi_task_mode(goal.kimi_mode, &task_delivery_body(HarnessId::Kimi, &goal)),
+        "/goal keep CI green"
+    );
+    assert_eq!(
+        crate::apply_kimi_task_mode(
+            swarm.kimi_mode,
+            &task_delivery_body(HarnessId::Grok, &swarm)
+        ),
+        "/goal [GOAL] map the repo"
+    );
+}
+
+#[test]
 fn vibe_spawn_checks_the_mistral_roster_budget() {
     let dir = tempfile::tempdir().unwrap();
     let store = crate::HubStore::open(dir.path()).unwrap();

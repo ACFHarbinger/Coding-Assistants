@@ -85,6 +85,21 @@ pub fn inject_harness_with_store(
     inject_harness_inner(Some(store), request)
 }
 
+/// Hub tasks are delivered as `/goal [GOAL] …`. A Kimi slash command has to
+/// stay the first token, so a set `kimi_mode` or a body that already starts
+/// with `/` skips that wrapper. `deliver_kimi_task` then applies `/swarm` or
+/// `/goal` itself. Wakes keep the Hub marker.
+fn task_delivery_body(harness: HarnessId, request: &HarnessInjectRequest) -> String {
+    let slash = request.body.trim().starts_with('/');
+    let kimi_command =
+        harness == HarnessId::Kimi && !request.is_wake && (request.kimi_mode.is_some() || slash);
+    if kimi_command {
+        request.body.clone()
+    } else {
+        crate::store::goal_delivery_body(&request.body)
+    }
+}
+
 fn inject_harness_inner(
     store: Option<&crate::HubStore>,
     request: &HarnessInjectRequest,
@@ -96,7 +111,7 @@ fn inject_harness_inner(
     let rewritten;
     let request = if request.is_task {
         rewritten = HarnessInjectRequest {
-            body: crate::store::goal_delivery_body(&request.body),
+            body: task_delivery_body(harness, request),
             ..request.clone()
         };
         &rewritten

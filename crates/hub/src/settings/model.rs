@@ -155,6 +155,11 @@ pub struct WorkspaceOverride {
     pub default_efforts: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub orchestration: OrchestrationOverride,
+    /// Kimi-only (#363): slash-command mode applied to plain-language task
+    /// bodies delivered into this workspace's managed Kimi session.
+    /// `None` (the default) means off — bodies are delivered unchanged.
+    #[serde(default)]
+    pub kimi_mode: Option<crate::KimiTaskMode>,
 }
 
 impl WorkspaceOverride {
@@ -165,6 +170,7 @@ impl WorkspaceOverride {
             && self.default_models.is_empty()
             && self.default_efforts.is_empty()
             && self.orchestration.is_empty()
+            && self.kimi_mode.is_none()
     }
 
     pub fn validate(&self) -> Result<(), SettingsError> {

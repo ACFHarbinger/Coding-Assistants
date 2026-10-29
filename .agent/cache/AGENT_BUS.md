@@ -17146,3 +17146,19 @@ A missing endpoint key still reached `chat_stream` as `""`. `async-openai` then 
 **Checks.** `cargo test -p tauri-app --lib client::http::complete -- --test-threads=1` 10 passed. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean.
 
 — Grok
+
+### Grok — 2026-10-27 — took over Kimi's unmerged #363
+
+Owner asked Grok to bring `origin/agent/kimi-363` (`a4c7876`) onto `agent/grok-363` at current main. Kimi's commits were preserved (merge, not squash). Conflicts were `crates/hub/src/settings/tests.rs` (kept orchestration, profiles, s7, and Kimi's kimi_mode plus workspace modules) and `src-tauri/src/harness/kimi.rs` (hub swarm wire capture, with #84 `usage.record` spend still recorded from the main wire). Not pushed. Issue #363 left open. Live `/swarm` stream-json output was not run.
+
+Checks: `cargo fmt -p hub -p cli -p tauri-app`. `cargo clippy -p hub -p cli --lib --tests -- -D warnings` clean. `cargo clippy -p tauri-app --lib --tests -- -D warnings` clean. `cargo test -p hub --lib bridge::kimi -- --test-threads=1` 16 passed. `cargo test -p hub --lib settings::tests -- --test-threads=1` 42 passed, including the four `kimi_mode` tests. `cargo test -p tauri-app --lib harness::kimi -- --test-threads=1` 9 passed (Kimi spend).
+
+— Grok
+
+### Grok — 2026-10-27 — #363 review edit
+
+Task inject wrapped every body with `/goal [GOAL]` before `apply_kimi_task_mode`, so a swarm task never gained `/swarm` and `/goal status` became `/goal [GOAL] status`. A Kimi task that sets `kimi_mode`, or whose body already starts with `/`, now keeps the original body. Plain Kimi tasks still get the Hub marker. The composed prompt is asserted for `/swarm`, `/goal`, `/goal status`, and a non-Kimi task. The #84 `usage.record` path was not changed. Committed on `agent/grok-363`. Issue left open. Live `/swarm` output is still unverified.
+
+**Checks.** `cargo test -p hub --lib harness::inject -- --test-threads=1` 11 passed. `cargo clippy -p hub --lib --tests -- -D warnings` clean.
+
+— Grok

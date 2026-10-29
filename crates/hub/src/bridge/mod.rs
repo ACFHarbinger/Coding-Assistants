@@ -8,6 +8,8 @@ pub mod grok;
 pub mod hermes;
 pub mod hermes_acp;
 pub mod kimi;
+pub mod kimi_mode;
+pub mod kimi_wire;
 pub mod muse;
 pub mod presence;
 pub mod qwen;

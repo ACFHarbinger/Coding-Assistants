@@ -27,6 +27,10 @@ project's GitHub Releases page.
 
 - Each OpenAI-compatible address can have its own vault API key. The role stores the URL only. Chat and the health check send `Authorization: Bearer` when that key is set, and send no key when it is not. A blank key does not send an `Authorization` header. `OPENAI_API_KEY` is not sent to an attached address. Two roles that use the same address share that key. Disconnect keeps the key. Provider-specific adapters remain. P8 is not complete.
 
+### Added — 2026-10-29 (Kimi task mode, #363)
+
+- A Kimi task can be delivered with `/swarm` or `/goal`. A body that already starts with `/` stays intact, and a plain Kimi task still gets the Hub `/goal [GOAL]` marker. Live `/swarm` output is still unverified.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.

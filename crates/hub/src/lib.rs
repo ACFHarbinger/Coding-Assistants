@@ -76,6 +76,11 @@ pub use bridge::kimi::{
     deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
     latest_kimi_session_id_from, start_kimi_managed_harness,
 };
+pub use bridge::kimi_mode::{apply_kimi_task_mode, resolve_kimi_task_mode, KimiTaskMode};
+pub use bridge::kimi_wire::{
+    capture_kimi_session_from, kimi_capture_agent_id, kimi_session_log_path,
+    kimi_session_wire_logs, recent_kimi_wire_texts, KimiCaptureOutcome, KimiWireCapture,
+};
 pub use bridge::muse::{
     deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
     muse_sessions_root,
