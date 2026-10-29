@@ -179,9 +179,11 @@ These workspace crates sit beside `src/` and `src-tauri/`. They do not replace t
 
 ```
 crates/
-├── hub/    # shared store
-├── cli/    # ca
-└── tui/    # Ratatui
+├── hub/     # shared store
+├── cli/     # ca
+├── tui/     # Ratatui
+├── claude/  # Claude Channel binary
+└── mcp/     # MCP sidecars
 ```
 
 ---

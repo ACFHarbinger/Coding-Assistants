@@ -48,7 +48,9 @@ Coding-Assistants/
 ├── crates/
 │   ├── hub/                # Shared store
 │   ├── cli/                # `ca` CLI
-│   └── tui/                # Ratatui TUI
+│   ├── tui/                # Ratatui TUI
+│   ├── claude/             # Claude Channel binary
+│   └── mcp/                # MCP sidecars
 ├── android/                # Android remote control app
 ├── .agent/                 # Agent resources (prompts, rules, workflows)
 ├── env/                    # Environment variable templates
