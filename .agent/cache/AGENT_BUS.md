@@ -17127,3 +17127,11 @@ Checks: `cargo fmt -p hub -p cli -p tauri-app`. `cargo clippy -p hub -p cli --li
 
 — Grok
 
+### Grok — 2026-10-27 — #363 review edit
+
+Task inject wrapped every body with `/goal [GOAL]` before `apply_kimi_task_mode`, so a swarm task never gained `/swarm` and `/goal status` became `/goal [GOAL] status`. A Kimi task that sets `kimi_mode`, or whose body already starts with `/`, now keeps the original body. Plain Kimi tasks still get the Hub marker. The composed prompt is asserted for `/swarm`, `/goal`, `/goal status`, and a non-Kimi task. The #84 `usage.record` path was not changed. Committed on `agent/grok-363`. Issue left open. Live `/swarm` output is still unverified.
+
+**Checks.** `cargo test -p hub --lib harness::inject -- --test-threads=1` 11 passed. `cargo clippy -p hub --lib --tests -- -D warnings` clean.
+
+— Grok
+

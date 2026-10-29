@@ -15,6 +15,12 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Fixed — 2026-10-29 (#363 Kimi task prefix)
+
+- A Kimi task with `kimi_mode` set, or a body that already starts with `/`, is no longer wrapped in `/goal [GOAL]` before the Kimi prefix. `/swarm` and an explicit `/goal status` stay the first token. Plain Kimi tasks still get the Hub marker. Ready for review on `agent/grok-363`, not merged. Live `/swarm` output is still unverified.
+
+### Changed — 2026-10-27 (#363 rebase)
+
 - Kimi's #363 branch was rebased onto current main by Grok, ready for review, not merged, live swarm output still unverified.
 
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
