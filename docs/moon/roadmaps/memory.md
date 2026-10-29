@@ -109,8 +109,8 @@ traversal, and a dependency-free tag/token-Jaccard matcher behind a new
 `off`/`suggest`/`auto` `LinkSuggestionMode` setting. Backend (store, CLI,
 Tauri IPC) and the desktop UI are both in. The UI is `MemoryLinksSection`
 (per-memory expandable links panel with a "Find related" suggest-and-link
-action) and `TopicBrowsePanel` (a "Browse by topic" mode in the Chat &
-Memory drawer, grouping search results by `agent_id` side by side). An
+action) and `TopicBrowsePanel` (the "Browse by topic" mode on the Memory
+subtab of Chat & Memory, grouping search results by `agent_id` side by side). An
 earlier same-day note that no frontend called the new commands was
 overtaken once that UI landed. `cargo build --workspace` and `npm run build`
 (`tsc` + `vite build`) were clean. M7 is done end to end: schema, matcher,
