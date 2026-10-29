@@ -2,6 +2,8 @@
 
 Status: **tracked for implementation — owner decisions locked 2026-10-23; synthesized into `docs/moon/roadmaps/ui_polish.md` and `docs/moon/roadmaps/ui.md` (U26).** Parent epic [#371](https://github.com/ACFHarbinger/Coding-Assistants/issues/371), children `V1`–`V8` = [#372](https://github.com/ACFHarbinger/Coding-Assistants/issues/372)–[#379](https://github.com/ACFHarbinger/Coding-Assistants/issues/379) (opened 2026-10-23, linked as native sub-issues). Available for the candidate owners listed in `ui_polish.md` to pick up.
 
+The 2026-10-29 interactive-chart decisions (live Orion data, ribbons, mirrored bars, replay, workspace hex map, and one 3D template) are locked on `docs/moon/roadmaps/dashboard.md` as D6 and D8–D12, epic [#381](https://github.com/ACFHarbinger/Coding-Assistants/issues/381). They do not reopen the V1–V8 polish rules above.
+
 ## The ask (owner, 2026-10-19)
 
 1. **Chat & Memory** (`mainView === "messager"`, `MessagerPanel.tsx`) is

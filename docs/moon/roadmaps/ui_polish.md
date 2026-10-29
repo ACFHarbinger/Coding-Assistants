@@ -71,3 +71,7 @@ Every slice (`V1`–`V8`) must pass before Ready-for-Review:
 2. `npx tsc --noEmit` and `npm run build` clean.
 3. Visual/layout check at **1440px, 1024px, and 800px** widths + **200% zoom** (no page-level horizontal scroll, no truncated actions).
 4. Every touched file strictly **≤ 500 LoC** (`wc -l`).
+
+## Follow-on (not a V9)
+
+Interactive 2D charts and the one 3D template are **U27** / `dashboard.md` D6 and D8–D12, epic [#381](https://github.com/ACFHarbinger/Coding-Assistants/issues/381), locked by the owner on 2026-10-29. They do not reopen V1–V8. This file's zero-new-dependency and zero-new-timer rules still bind the polish slices. The D6 `three` canvas is the only approved dependency exception, and it is specified on the dashboard roadmap rather than here.

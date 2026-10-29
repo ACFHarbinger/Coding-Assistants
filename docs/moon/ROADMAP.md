@@ -18,7 +18,7 @@ by capability rather than programming language. Research remains under
 5. A2A interoperability (next major milestone)
 6. Daemon/multi-client extraction when justified by a second client
 7. Android monitoring and approval
-8. Someday/research: 3D visualization, GraphQL, and actor frameworks
+8. Someday/research: further 3D visualization, GraphQL, and actor frameworks. One 3D collaboration template is scheduled (`roadmaps/dashboard.md` D6, #387). The old "no 3D until a 2D gap shows up" rule still applies to any scene after that one.
 9. Someday/research: multi-human, multi-team coordination (not started — see
    [`roadmaps/multi_human.md`](roadmaps/multi_human.md); explicitly not
    urgent as of 2026-08-14, revisit once a second developer approaches

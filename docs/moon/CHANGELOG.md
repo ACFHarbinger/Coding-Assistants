@@ -15,6 +15,10 @@ project's GitHub Releases page.
 
 ## [Unreleased]
 
+### Added — 2026-10-29 (interactive visualization roadmap)
+
+- Scheduled the interactive chart epic [#381](https://github.com/ACFHarbinger/Coding-Assistants/issues/381): live Orion data and interaction ([#382](https://github.com/ACFHarbinger/Coding-Assistants/issues/382)), ribbon flow ([#383](https://github.com/ACFHarbinger/Coding-Assistants/issues/383)), mirrored bars ([#384](https://github.com/ACFHarbinger/Coding-Assistants/issues/384)), timeline replay ([#385](https://github.com/ACFHarbinger/Coding-Assistants/issues/385)), workspace hex map ([#386](https://github.com/ACFHarbinger/Coding-Assistants/issues/386)), and one 3D collaboration template ([#387](https://github.com/ACFHarbinger/Coding-Assistants/issues/387)). The old D6 research gate is lifted for that single 3D view. No chart code in this change.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.
