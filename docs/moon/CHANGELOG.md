@@ -19,6 +19,10 @@ project's GitHub Releases page.
 
 - Scheduled the interactive chart epic [#381](https://github.com/ACFHarbinger/Coding-Assistants/issues/381): live Orion data and interaction ([#382](https://github.com/ACFHarbinger/Coding-Assistants/issues/382)), ribbon flow ([#383](https://github.com/ACFHarbinger/Coding-Assistants/issues/383)), mirrored bars ([#384](https://github.com/ACFHarbinger/Coding-Assistants/issues/384)), timeline replay ([#385](https://github.com/ACFHarbinger/Coding-Assistants/issues/385)), workspace hex map ([#386](https://github.com/ACFHarbinger/Coding-Assistants/issues/386)), and one 3D collaboration template ([#387](https://github.com/ACFHarbinger/Coding-Assistants/issues/387)). The old D6 research gate is lifted for that single 3D view. Replay runs only while the user plays or scrubs. Cinematic orbit is a toggle on that 3D view, and while the toggle is off its animation cost is zero. No chart code in this change.
 
+### Fixed — 2026-10-29 (#164 doc contradictions)
+
+- Reconciled the M7 desktop-UI note (keeping the 0.55 → 0.35 threshold history), recorded the Gemini `agy` argv bug as fixed history, and listed `crates/hub`, `crates/cli`, `crates/tui`, `crates/claude`, and `crates/mcp` in the layout docs. Topic browse is the Memory subtab of Chat & Memory. The `agy` argv note includes optional `--model` and `--effort`, and the priority note points at the landed C14.7 row.
+
 ### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
 
 - Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections. Vibe spend remains pending reset and partial-snapshot fixes.

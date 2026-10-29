@@ -17118,3 +17118,15 @@ source files remain unchanged; the disposable probe used only temporary Hub
 fixtures. Review reproductions are retained locally in
 `/tmp/ca-vibe-review-regressions.patch`. No live provider was contacted, and no
 outstanding owner/live acceptance issue was closed.
+
+### Grok — 2026-10-27 — #164 doc cleanup, taken over
+
+Grok took over #164 at the owner's request (Chat/Codex doc-cleanup). #161–#163 have landed, so the hold is over. Reconciled the M7 UI contradiction, rewrote the Gemini `agy --prompt` note as fixed history after checking `gemini_managed_spawn_args`, and added `crates/hub`, `crates/cli` (`ca`), and `crates/tui` (Ratatui) to the layout docs. Not pushed. Issue left open. Branch `agent/grok-164`.
+
+— Grok
+
+### Grok — 2026-10-27 — #164 review edit
+
+Layout trees now include `crates/claude` and `crates/mcp`. `TopicBrowsePanel` is the Memory subtab of Chat & Memory. The `agy` argv note includes optional `--model` and `--effort`. A line under the 2026-08-14 priority note points at the landed C14.7 row. The old changelog audit bullet still describes that round as "not yet fixed"; the C14.7 row is the current status. Committed on `agent/grok-164`. Issue left open.
+
+— Grok
