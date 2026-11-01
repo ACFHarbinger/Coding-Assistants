@@ -2,7 +2,7 @@ import React from "react";
 import EmbeddedTerminal from "../harness/EmbeddedTerminal";
 import TerminalPaneErrorBoundary from "../harness/TerminalPaneErrorBoundary";
 import type { LeafNode, Rect } from "./layoutTree";
-import { DISPLAY_NAMES } from "./gridConstants";
+import { DISPLAY_NAMES, llamaCppBaseUrl } from "./gridConstants";
 import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export interface TerminalPaneProps {
@@ -41,6 +41,12 @@ export default function TerminalPane({
   onError,
 }: TerminalPaneProps) {
   const title = DISPLAY_NAMES[node.harness] || node.harness;
+  const isLlama = node.harness === "llamacpp";
+  const llamaUrl =
+    isLlama && typeof node.port === "number" && Number.isInteger(node.port) && node.port >= 1 && node.port <= 65535
+      ? llamaCppBaseUrl(node.port)
+      : null;
+  const modelLabel = isLlama ? node.modelPath?.split(/[/\\]/).filter(Boolean).pop() : undefined;
 
   return (
     <div
@@ -107,12 +113,27 @@ export default function TerminalPane({
               flexShrink: 0,
             }}
           >
-            {node.id.slice(0, 6)}
+            {llamaUrl ?? node.id.slice(0, 6)}
           </code>
+          {modelLabel && (
+            <span
+              title={node.modelPath}
+              style={{
+                fontSize: "0.68rem",
+                color: NOC_SURFACES.textMuted,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              {modelLabel}
+            </span>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", flexShrink: 0 }}>
-          {!sessionId && (
+          {!sessionId && !isLlama && (
             <button
               type="button"
               className="btn-secondary noc-focusable"
@@ -175,8 +196,8 @@ export default function TerminalPane({
             />
           ) : (
             <div style={{ display: "flex", height: "100%", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-              <span>{isBusy ? `Starting ${title}…` : "Session idle"}</span>
-              {!isBusy && (
+              <span>{isBusy ? `Starting ${title}…` : isLlama ? "llama.cpp server is not running" : "Session idle"}</span>
+              {!isBusy && !isLlama && (
                 <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.78rem" }} onClick={onConnect}>
                   Connect CLI
                 </button>

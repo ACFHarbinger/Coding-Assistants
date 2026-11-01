@@ -6,6 +6,7 @@ mod commands;
 mod core;
 mod harness;
 mod invoke;
+mod llamacpp;
 mod pty;
 mod server;
 mod tray;

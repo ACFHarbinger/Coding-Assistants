@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionStatus } from "../harness/types";
 import {
@@ -16,6 +16,10 @@ import {
 import {
   canvasSizeKey,
   DISPLAY_NAMES,
+  LLAMA_SERVER_BIN,
+  LLAMACPP_HARNESS,
+  llamaCppBaseUrl,
+  llamaServerLaunchArgs,
   maxKey,
   storageKey,
   terminalSessionId,
@@ -59,6 +63,7 @@ export function useTerminalGridSessions({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [statusMsg, setStatusMsg] = useState<string>("");
+  const llamaLaunching = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -235,6 +240,55 @@ export function useTerminalGridSessions({
     [workspace, layout],
   );
 
+  const launchLlamaCpp = useCallback(
+    async (modelPath: string, port: number): Promise<boolean> => {
+      if (llamaLaunching.current) return false;
+      llamaLaunching.current = true;
+      const leafId = generateNodeId(`leaf-${LLAMACPP_HARNESS}`);
+      const sessionId = terminalSessionId(LLAMACPP_HARNESS, workspace, leafId);
+      setBusyId(leafId);
+      setError("");
+      setStatusMsg("Starting llama.cpp server…");
+      try {
+        const outcome = await invoke<{
+          sessionId?: string;
+          session_id?: string;
+          baseUrl?: string;
+          base_url?: string;
+        }>("launch_llamacpp_server", {
+          sessionId,
+          modelPath,
+          port,
+          workspace,
+          program: LLAMA_SERVER_BIN,
+          args: llamaServerLaunchArgs(port, modelPath),
+          rows: 24,
+          cols: 80,
+        });
+        const sid = outcome?.sessionId ?? outcome?.session_id;
+        if (!sid || sid !== sessionId) {
+          throw new Error("llama.cpp launch did not return a terminal session id.");
+        }
+        setTerminals((prev) => ({ ...prev, [leafId]: sid }));
+        setLayout((prev) => {
+          const { tree } = insertLeaf(prev, LLAMACPP_HARNESS, undefined, undefined, leafId);
+          return stampLeaf(tree, leafId, { port, modelPath });
+        });
+        const baseUrl = outcome?.baseUrl ?? outcome?.base_url ?? llamaCppBaseUrl(port);
+        setStatusMsg(`llama.cpp listening at ${baseUrl}`);
+        return true;
+      } catch (cause) {
+        setError(String(cause).replace(/^Error:\s*/, ""));
+        setStatusMsg("");
+        return false;
+      } finally {
+        llamaLaunching.current = false;
+        setBusyId(null);
+      }
+    },
+    [workspace],
+  );
+
   const closePane = useCallback(
     async (leafId: string) => {
       const sid = terminals[leafId];
@@ -324,6 +378,7 @@ export function useTerminalGridSessions({
     statusMsg,
     setStatusMsg,
     launchHarness,
+    launchLlamaCpp,
     addBrowserPane,
     setBrowserUrl,
     closePane,

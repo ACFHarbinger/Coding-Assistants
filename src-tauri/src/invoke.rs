@@ -21,6 +21,7 @@ macro_rules! invoke_handler {
             // Embedded PTY terminals (in-app "Resume in terminal")
             pty::pty_spawn,
             pty::pty_write,
+            llamacpp::launch_llamacpp_server,
             pty::pty_resize,
             pty::pty_kill,
             pty::pty_session_status,

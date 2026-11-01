@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import HarnessTerminalGrid from "../HarnessTerminalGrid";
-import { parseCanvasSize } from "../gridConstants";
+import { ALL_HARNESSES, parseCanvasSize } from "../gridConstants";
 
 const defaultInvokeHandler = (cmd: string, args?: any) => {
   if (cmd === "hub_list_harness_sessions") {
@@ -479,5 +479,89 @@ describe("HarnessTerminalGrid", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close grok pane" }));
     expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
     expect(screen.getByText("+ Grok")).toBeInTheDocument();
+  });
+
+  it("shows a llama.cpp control that is not counted as a harness", () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    expect(ALL_HARNESSES).toHaveLength(9);
+    expect(ALL_HARNESSES).not.toContain("llamacpp");
+    expect(screen.getByText(/9 supported harness CLIs/)).toBeInTheDocument();
+    expect(screen.getByText("+ llama.cpp")).toBeInTheDocument();
+    expect(screen.getByText("Launch llama.cpp")).toBeInTheDocument();
+  });
+
+  it("starts llama-server from the grid form with an explicit argv", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "launch_llamacpp_server") {
+        return Promise.resolve({
+          sessionId: args.sessionId,
+          baseUrl: `http://127.0.0.1:${args.port}`,
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByText("+ llama.cpp"));
+    fireEvent.change(screen.getByLabelText("llama.cpp model file"), {
+      target: { value: "/models/demo.gguf" },
+    });
+    fireEvent.change(screen.getByLabelText("llama.cpp port"), { target: { value: "8080" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start llama-server" }));
+
+    expect(await screen.findByText("http://127.0.0.1:8080")).toBeInTheDocument();
+    expect(screen.getByText("llama.cpp")).toBeInTheDocument();
+    expect(screen.getByTitle("/models/demo.gguf")).toBeInTheDocument();
+    expect(screen.getByText("+ llama.cpp · 1")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("launch_llamacpp_server", {
+      sessionId: expect.stringMatching(/^harness-terminal:llamacpp:\/test\/workspace:leaf-llamacpp-/),
+      modelPath: "/models/demo.gguf",
+      port: 8080,
+      workspace: "/test/workspace",
+      program: "llama-server",
+      args: ["--host", "127.0.0.1", "--port", "8080", "-m", "/models/demo.gguf"],
+      rows: 24,
+      cols: 80,
+    });
+    expect(tauriCore.invoke).not.toHaveBeenCalledWith("hub_relaunch_harness_embedded", expect.anything());
+    expect(tauriCore.invoke).not.toHaveBeenCalledWith("pty_spawn", expect.anything());
+
+    const launch = vi.mocked(tauriCore.invoke).mock.calls.find((call) => call[0] === "launch_llamacpp_server");
+    const launched = launch?.[1] as { sessionId?: string } | undefined;
+    fireEvent.click(screen.getByRole("button", { name: "Close llamacpp pane" }));
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: launched?.sessionId });
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+  });
+
+  it("does not leave a llama.cpp pane when launch fails", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "launch_llamacpp_server") {
+        return Promise.reject(new Error("llama-server was not found on PATH. Install llama.cpp's llama-server and try again."));
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByText("Launch llama.cpp"));
+    fireEvent.change(screen.getByLabelText("llama.cpp model file"), {
+      target: { value: "/models/demo.gguf" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start llama-server" }));
+
+    expect(
+      await screen.findByText("llama-server was not found on PATH. Install llama.cpp's llama-server and try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close llamacpp pane" })).not.toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith(
+      "launch_llamacpp_server",
+      expect.objectContaining({
+        program: "llama-server",
+        args: ["--host", "127.0.0.1", "--port", "8080", "-m", "/models/demo.gguf"],
+      }),
+    );
   });
 });
