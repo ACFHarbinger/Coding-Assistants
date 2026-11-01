@@ -12,7 +12,7 @@ export function isBrowserLeaf(node: LeafNode): boolean {
 export function stampLeaf(
   root: LayoutNode,
   leafId: string,
-  patch: Partial<Pick<LeafNode, "kind" | "url" | "harness" | "cwd">>,
+  patch: Partial<Pick<LeafNode, "kind" | "url" | "harness" | "cwd" | "port" | "modelPath">>,
 ): LayoutNode {
   if (root.type === "leaf") {
     return root.id === leafId ? { ...root, ...patch } : root;

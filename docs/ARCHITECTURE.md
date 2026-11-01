@@ -206,6 +206,7 @@ crates/
    │    ├── LLMClient.chat_completion() - spawns process
    │    │   └── Streams stdout line-by-line via emit("agent-event")
    │    ├── interactive_completion() - parses response for markers
+   │    │   ├── [[WRITE]] / [[APPEND]] / [[EDIT]] → sandbox write, read back, loop
    │    │   ├── [[ASK_USER]] → emit question, await user_input_rx
    │    │   └── [[ASK_AGENT:X]] → emit auth request, call role X
    │    └── Save output for next role's context

@@ -19,6 +19,10 @@ export interface LeafNode {
   kind?: "terminal" | "browser";
   /** Public https URL shown by a browser pane. */
   url?: string;
+  /** llama.cpp listen port. A dead server is not restarted on restore. */
+  port?: number;
+  /** Absolute model file for a llama.cpp pane. Not executed. */
+  modelPath?: string;
 }
 
 export interface SplitNode {
@@ -351,7 +355,9 @@ export function isValidLayoutNode(node: unknown): node is LayoutNode {
       typeof anyNode.harness === "string" &&
       (anyNode.cwd === undefined || typeof anyNode.cwd === "string") &&
       (anyNode.kind === undefined || anyNode.kind === "terminal" || anyNode.kind === "browser") &&
-      (anyNode.url === undefined || typeof anyNode.url === "string")
+      (anyNode.url === undefined || typeof anyNode.url === "string") &&
+      (anyNode.port === undefined || typeof anyNode.port === "number") &&
+      (anyNode.modelPath === undefined || typeof anyNode.modelPath === "string")
     );
   }
 

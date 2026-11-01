@@ -18,8 +18,10 @@ import { isBrowserLeaf } from "./browserUrl";
 import {
   ALL_HARNESSES,
   DISPLAY_NAMES,
+  LLAMACPP_HARNESS,
   type CanvasSize,
 } from "./gridConstants";
+import LlamaCppLaunchForm from "./LlamaCppLaunchForm";
 
 export interface HarnessTerminalGridProps {
   workspace: string;
@@ -61,6 +63,7 @@ export default function HarnessTerminalGrid({
     statusMsg,
     setStatusMsg,
     launchHarness,
+    launchLlamaCpp,
     addBrowserPane,
     setBrowserUrl,
     closePane,
@@ -76,6 +79,27 @@ export default function HarnessTerminalGrid({
   });
 
   const { dragState, startPaneDrag } = useTerminalGridDrag();
+  const [llamaFormOpen, setLlamaFormOpen] = useState(false);
+  const [llamaModelPath, setLlamaModelPath] = useState("");
+  const [llamaPort, setLlamaPort] = useState("8080");
+
+  const openLlamaForm = () => setLlamaFormOpen(true);
+
+  const confirmLlamaCpp = () => {
+    const modelPath = llamaModelPath.trim();
+    if (!modelPath) {
+      setError("A model file path is required.");
+      return;
+    }
+    const port = Number(llamaPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setError("Port must be an integer from 1 to 65535.");
+      return;
+    }
+    void launchLlamaCpp(modelPath, port).then((started) => {
+      if (started) setLlamaFormOpen(false);
+    });
+  };
 
   useEffect(() => {
     const el = containerRef.current;
@@ -168,6 +192,15 @@ export default function HarnessTerminalGrid({
           >
             + DeepSeek GUI{(harnessCounts.browser || 0) > 0 ? ` · ${harnessCounts.browser}` : ""}
           </button>
+          <button
+            type="button"
+            className="btn-secondary noc-focusable"
+            style={{ marginTop: 0, padding: "0.3rem 0.65rem", fontSize: "0.8rem" }}
+            disabled={busyId !== null}
+            onClick={openLlamaForm}
+          >
+            + {DISPLAY_NAMES.llamacpp}{(harnessCounts[LLAMACPP_HARNESS] || 0) > 0 ? ` · ${harnessCounts[LLAMACPP_HARNESS]}` : ""}
+          </button>
           {maxLabel && (
             <span style={{ fontSize: "0.78rem", color: "#93c5fd", fontWeight: 600, background: "rgba(59, 130, 246, 0.18)", padding: "0.2rem 0.5rem", borderRadius: "6px", border: "1px solid rgba(59, 130, 246, 0.35)" }}>
               Maximized: {maxLabel} (Esc to restore)
@@ -217,6 +250,18 @@ export default function HarnessTerminalGrid({
         </div>
       </div>
 
+      {llamaFormOpen && (
+        <LlamaCppLaunchForm
+          modelPath={llamaModelPath}
+          port={llamaPort}
+          busy={busyId !== null}
+          onModelPath={setLlamaModelPath}
+          onPort={setLlamaPort}
+          onSubmit={confirmLlamaCpp}
+          onCancel={() => setLlamaFormOpen(false)}
+        />
+      )}
+
       {error && (
         <div style={{ padding: "0.5rem 0.75rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(248, 113, 113, 0.5)", color: "#fecaca", fontSize: "0.82rem" }}>
           {error}
@@ -248,7 +293,7 @@ export default function HarnessTerminalGrid({
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", padding: "2rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-main)" }}>No active harness terminals in grid</div>
             <p style={{ maxWidth: "440px", color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Launch any of the {ALL_HARNESSES.length} supported harness CLIs in an in-app interactive terminal pane, or open the DeepSeek web GUI in a browser pane. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
+              Launch any of the {ALL_HARNESSES.length} supported harness CLIs in an in-app interactive terminal pane, open the DeepSeek web GUI, or start llama.cpp's server. Drag title bars to rearrange or swap panes; drag splitters or borders to resize.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginTop: "0.5rem" }}>
               {ALL_HARNESSES.map((h) => (
@@ -270,6 +315,15 @@ export default function HarnessTerminalGrid({
                 onClick={addBrowserPane}
               >
                 Open DeepSeek GUI
+              </button>
+              <button
+                type="button"
+                className="btn-secondary noc-focusable"
+                style={{ marginTop: 0, padding: "0.45rem 0.85rem", fontSize: "0.85rem" }}
+                disabled={busyId !== null}
+                onClick={openLlamaForm}
+              >
+                Launch {DISPLAY_NAMES.llamacpp}
               </button>
             </div>
           </div>
@@ -322,7 +376,9 @@ export default function HarnessTerminalGrid({
                       startPaneDrag(e, node.harness, node.id, () => leaves, containerRef.current, handleDrop);
                     }
                   }}
-                  onConnect={() => void launchHarness(node.harness, node.id)}
+                  onConnect={() => {
+                    if (node.harness !== LLAMACPP_HARNESS) void launchHarness(node.harness, node.id);
+                  }}
                   onToggleMaximize={() => setMaximizedId(isMaximized ? null : node.id)}
                   onClose={() => void closePane(node.id)}
                   onExit={(detail) => setStatusMsg(`${DISPLAY_NAMES[node.harness] || node.harness} exit: ${detail}`)}

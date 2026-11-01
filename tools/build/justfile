@@ -12,6 +12,12 @@ frontend:
 
 [no-cd]
 backend:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash tools/dev/ensure-linux-dev-libs.sh
+    # shellcheck disable=SC1091
+    source "${HOME}/.local/share/coding-assistants/dev-env.sh"
+    bash tools/dev/stage-sidecars.sh release
     cd src-tauri && cargo build --release
 
 [no-cd]

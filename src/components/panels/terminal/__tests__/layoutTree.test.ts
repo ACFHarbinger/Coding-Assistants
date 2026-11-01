@@ -293,6 +293,20 @@ describe("layoutTree - pure tree operations", () => {
       expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: 42 })).toBe(false);
       expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: null })).toBe(false);
     });
+
+    it("round-trips a llama.cpp pane port and model path", () => {
+      const leaf: LayoutNode = {
+        type: "leaf",
+        id: "llama-1",
+        harness: "llamacpp",
+        port: 8080,
+        modelPath: "/models/demo.gguf",
+      };
+      expect(isValidLayoutNode(leaf)).toBe(true);
+      expect(deserializeLayout(serializeLayout(leaf))).toEqual(leaf);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "llamacpp", port: "8080" })).toBe(false);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "llamacpp", modelPath: 1 })).toBe(false);
+    });
   });
 
   describe("swapLeaves", () => {

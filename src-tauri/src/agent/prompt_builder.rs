@@ -48,8 +48,9 @@ pub async fn construct_prompt(
         roles.join(", "), roles.first().unwrap_or(&fallback)
     ));
     prompt.push_str(
-        "IMPORTANT: To call a cheap in-process specialist (P4 direct HTTP role only), output `[[SUBORCH:Role]]` followed by a short instruction. Do not use SUBORCH for CLI harnesses.\n\n",
+        "IMPORTANT: To call a cheap in-process specialist (P4 direct HTTP role only), output `[[SUBORCH:Role]]` followed by a short instruction. Do not use SUBORCH for CLI harnesses.\n",
     );
+    prompt.push_str(super::write_bridge::instructions());
     prompt.push_str(context);
     Ok((prompt, recalled))
 }
