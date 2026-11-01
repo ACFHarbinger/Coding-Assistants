@@ -7,6 +7,7 @@ mod periodic_consolidation;
 mod prompt_builder;
 mod suborch;
 mod task_state;
+mod write_bridge;
 
 pub use orchestrator::{AgentConfig, AgentEvent, AgentSystem};
 pub use task_state::{
