@@ -56,9 +56,8 @@ export default function ActivityPanel({
   recipient,
   setRecipient
 }: ActivityPanelProps) {
-  const agentName = (id: string) => id === "human"
-    ? "Harbinger"
-    : hubAgents.find(agent => agent.id === id)?.display_name || id;
+  const agentName = (id: string) =>
+    hubAgents.find(agent => agent.id === id)?.display_name || (id === "human" ? "Human" : id);
   const agentAvatarId = (id: string) =>
     hubAgents.find(agent => agent.id === id)?.avatar_attachment_id ?? null;
   return (

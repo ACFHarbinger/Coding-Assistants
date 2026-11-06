@@ -106,11 +106,7 @@ impl SettingsStore {
             .values()
             .map(ProviderProfile::snapshot)
             .collect();
-        let harnesses = effective_harnesses(
-            &self.harnesses,
-            &self.profiles,
-            over.map(|o| &o.default_profiles),
-        );
+        let harnesses = effective_harnesses(&self.harnesses, &self.profiles, over);
         let orchestration =
             effective_orchestration(&self.snapshot.orchestration, over.map(|o| &o.orchestration));
         EffectiveSettings {
@@ -156,6 +152,11 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn set_embedding_provider(&mut self, provider: EmbeddingProvider) {
+        self.snapshot.embedding_provider = provider;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+    }
+
     pub fn set_confirm_new_enrollment(&mut self, value: bool) -> Result<(), SettingsError> {
         self.snapshot.orchestration.confirm_new_enrollment = value;
         write_snapshot_fields(&mut self.document, &self.snapshot);
@@ -194,6 +195,64 @@ impl SettingsStore {
 
     pub fn set_export_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
         self.snapshot.orchestration.export_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_memory_recall_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.memory_recall_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Global-only (see [`OrchestrationPolicy::allow_metered_quota_probes`]).
+    pub fn set_allow_metered_quota_probes(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.allow_metered_quota_probes = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Global-only. Off by default — see [`OrchestrationPolicy::a2a_enabled`].
+    pub fn set_a2a_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.a2a_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Global-only. Off by default — see
+    /// [`OrchestrationPolicy::quota_auto_refresh_enabled`].
+    pub fn set_quota_auto_refresh_enabled(&mut self, value: bool) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.quota_auto_refresh_enabled = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Global-only. Rejects a cadence outside the `MIN_QUOTA_AUTO_REFRESH_SECS`
+    /// ..= `MAX_QUOTA_AUTO_REFRESH_SECS` range via `OrchestrationPolicy::validate`.
+    pub fn set_quota_auto_refresh_interval_secs(&mut self, secs: u32) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.orchestration.clone();
+        next.quota_auto_refresh_interval_secs = secs;
+        next.validate()?;
+        self.snapshot.orchestration = next;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    /// Global-only. Sets scorecard visibility (T3 / #343).
+    pub fn set_scorecard_visibility(
+        &mut self,
+        value: ScorecardVisibility,
+    ) -> Result<(), SettingsError> {
+        self.snapshot.orchestration.scorecard_visibility = value;
+        write_snapshot_fields(&mut self.document, &self.snapshot);
+        Ok(())
+    }
+
+    pub fn set_memory_recall_limit(&mut self, limit: u8) -> Result<(), SettingsError> {
+        let mut next = self.snapshot.orchestration.clone();
+        next.memory_recall_limit = limit;
+        next.validate()?;
+        self.snapshot.orchestration = next;
         write_snapshot_fields(&mut self.document, &self.snapshot);
         Ok(())
     }

@@ -7,32 +7,98 @@
 //! `commands::quotas`, etc.) are unchanged for callers — only the on-disk
 //! file layout moved.
 
+#[path = "hub/activity.rs"]
+pub mod activity;
 #[path = "messager/attachments.rs"]
 pub mod attachments;
 #[path = "hub/avatar.rs"]
 pub mod avatar;
+#[path = "settings/creative_tools.rs"]
+pub mod creative_tools;
+#[path = "settings/credentials.rs"]
+pub mod credentials;
+#[path = "settings/danger.rs"]
+pub mod danger;
+#[path = "settings/external_mcp.rs"]
+pub mod external_mcp;
+#[path = "github/board.rs"]
+pub mod github_board;
+#[path = "github/branches.rs"]
+pub mod github_branches;
+#[path = "messager/goal_counts.rs"]
+pub mod goal_counts;
+#[path = "settings/harness_models.rs"]
+pub mod harness_models;
+#[path = "health/health.rs"]
+pub mod health;
+#[path = "mcp_invoke.rs"]
+pub mod mcp_invoke;
 #[path = "messager/memory.rs"]
 pub mod memory;
 #[path = "messager/messaging.rs"]
 pub mod messaging;
+#[path = "os_tool.rs"]
+pub mod os_tool;
+#[path = "hub/oversight.rs"]
+pub mod oversight;
 #[path = "quota/claude.rs"]
 mod quota_claude;
 #[path = "quota/codex.rs"]
 mod quota_codex;
+#[path = "quota/cursor.rs"]
+pub(crate) mod quota_cursor;
+#[path = "quota/deepseek.rs"]
+mod quota_deepseek;
 #[path = "quota/gemini.rs"]
 mod quota_gemini;
 #[path = "quota/grok.rs"]
 mod quota_grok;
+#[path = "quota/hermes.rs"]
+mod quota_hermes;
+#[path = "quota/kimi.rs"]
+pub(crate) mod quota_kimi;
+#[path = "quota/kimi_usage.rs"]
+pub(crate) mod quota_kimi_usage;
+#[path = "quota/mistral.rs"]
+mod quota_mistral;
+#[path = "quota/muse.rs"]
+mod quota_muse;
+#[path = "quota/opencode.rs"]
+mod quota_opencode;
+#[path = "quota/qwen.rs"]
+mod quota_qwen;
+#[path = "quota/vibe_usage.rs"]
+pub(crate) mod quota_vibe_usage;
 #[path = "quota/quotas.rs"]
 pub mod quotas;
 #[path = "settings/roles.rs"]
 pub mod roles;
+#[path = "hub/schedule.rs"]
+pub mod schedule;
+#[path = "hub/schedule_poller.rs"]
+pub mod schedule_poller;
+#[path = "quota/schedule_probe.rs"]
+pub(crate) mod schedule_probe;
+#[path = "settings/schedule_trigger.rs"]
+pub mod schedule_trigger;
+#[path = "hub/scorecard.rs"]
+pub mod scorecard;
 #[path = "settings/settings.rs"]
 pub mod settings;
 #[path = "hub/store.rs"]
 pub mod store;
+#[path = "hub/sync.rs"]
+pub mod sync;
+#[path = "system/mod.rs"]
+pub mod system;
+#[path = "terminal_grid.rs"]
+pub mod terminal_grid;
+#[path = "hub/vtuber.rs"]
+pub mod vtuber;
 #[path = "hub/workflow.rs"]
 pub mod workflow;
+#[path = "hub/workspaces.rs"]
+pub mod workspaces;
 
 #[cfg(test)]
 #[path = "tests/mod.rs"]

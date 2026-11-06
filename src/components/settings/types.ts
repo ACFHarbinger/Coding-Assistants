@@ -13,7 +13,10 @@ export type SettingsField =
   | "auto_enrollment_allowed"
   | "sandbox_strictness"
   | "retention_days"
-  | "export_enabled";
+  | "export_enabled"
+  | "link_suggestion_mode"
+  | "memory_recall_enabled"
+  | "memory_recall_limit";
 
 // Mirrors `hub::SandboxStrictness`.
 export type SandboxStrictness = "strict" | "standard" | "permissive";
@@ -53,6 +56,8 @@ export interface HarnessSettings {
   workdir: string | null;
   capture_polling: boolean;
   inject_permission: boolean;
+  default_model?: string | null;
+  default_effort?: string | null;
 }
 
 // Mirrors `hub::EffectiveHarnessSettings`.
@@ -65,6 +70,19 @@ export interface EffectiveHarnessSettings {
   default_profile: string | null;
   default_profile_status: SettingsFieldStatus;
   default_profile_badge: string | null;
+  selected_model?: string | null;
+  selected_model_status?: SettingsFieldStatus;
+  selected_effort?: string | null;
+  selected_effort_status?: SettingsFieldStatus;
+  /** Kimi-only (#363): workspace slash-command mode, default off. */
+  selected_kimi_mode?: "swarm" | "goal" | null;
+  selected_kimi_mode_status?: SettingsFieldStatus;
+}
+
+export interface HarnessModelCatalog {
+  harness: string;
+  models: string[];
+  effort_options: string[];
 }
 
 // Mirrors `hub::EffectiveSettings`. Global defaults merged with an optional
@@ -97,6 +115,16 @@ export interface EffectiveOrchestrationPolicy {
   retention_days_status: SettingsFieldStatus;
   export_enabled: boolean;
   export_enabled_status: SettingsFieldStatus;
+  memory_recall_enabled: boolean;
+  memory_recall_enabled_status: SettingsFieldStatus;
+  memory_recall_limit: number;
+  memory_recall_limit_status: SettingsFieldStatus;
+  // Global-only, so no paired `_status`: there is no workspace override.
+  allow_metered_quota_probes: boolean;
+  // Global-only. Background usage-refresh timer; off by default.
+  quota_auto_refresh_enabled: boolean;
+  // Global-only. Cadence in seconds when the timer is on.
+  quota_auto_refresh_interval_secs: number;
 }
 
 // Partial update sent to `settings_update_orchestration`. `retention_days`
@@ -107,6 +135,13 @@ export interface OrchestrationPatch {
   auto_enrollment_allowed?: boolean;
   sandbox_strictness?: SandboxStrictness;
   export_enabled?: boolean;
+  memory_recall_enabled?: boolean;
+  memory_recall_limit?: number;
+  allow_metered_quota_probes?: boolean;
+  // Global-only. Gates the public A2A wire listener (P11b / #335); off by default.
+  a2a_enabled?: boolean;
+  quota_auto_refresh_enabled?: boolean;
+  quota_auto_refresh_interval_secs?: number;
 }
 
 // Composes the orchestration policy above with the Hub's existing
@@ -144,3 +179,89 @@ export type SettingsLoadStatus =
 // Redacted settings audit row. Same shape as the Hub's `AuditEvent`; the
 // dedicated settings stream is a `root_path === "settings"` filter over it.
 export type SettingsAuditEvent = AuditEvent;
+
+// Mirrors Rust `CreativeToolStatus`.
+export interface CreativeToolStatus {
+  key: string;
+  displayName: string;
+  transport: "socket" | "subprocess" | "file-parse" | string;
+  port: number | null;
+  gatedFlag: string | null;
+  binaryFound: boolean;
+  binaryPath: string | null;
+  appRunning: boolean;
+  enabled: boolean;
+}
+
+// Mirrors Rust `CreativeToolsStatus`.
+export interface CreativeToolsStatus {
+  workspace: string;
+  tools: CreativeToolStatus[];
+  writtenConfigs: string[];
+}
+
+// Mirrors Rust `hub::mcp::external::AuthKind`.
+export type ExternalServerAuth =
+  | { kind: "none" }
+  | { kind: "api_key"; env_var: string }
+  | { kind: "session_login"; setup_cmd: string };
+
+// Mirrors Rust `ExternalServerStatus` from `src-tauri/src/commands/settings/external_mcp.rs`.
+export interface ExternalServerStatus {
+  key: string;
+  displayName: string;
+  docsUrl: string;
+  auth: ExternalServerAuth | { kind: string; [key: string]: unknown };
+  authConfigured: boolean | null;
+  notes?: string | null;
+  launcherFound: boolean;
+  launcherPath: string | null;
+  enabled: boolean;
+}
+
+// Mirrors Rust `ExternalMcpStatus`.
+export interface ExternalMcpStatus {
+  workspace: string;
+  servers: ExternalServerStatus[];
+  writtenConfigs: string[];
+}
+
+// Mirrors `hub::secret::SecretSource`. Never a credential value.
+export type SecretSource = "keychain" | "file" | "env_var" | "none";
+
+// Mirrors `hub::secret::SecretStatus`. The credential value never crosses IPC.
+export interface SecretStatus {
+  key: string;
+  source: SecretSource;
+  isSet: boolean;
+  updatedAt: number | null; // Unix seconds; null for env-var-backed or unset slots
+}
+
+// Mirrors `hub::secret::catalog::OwnerKind`.
+export type OwnerKind = "harness" | "provider" | "tool" | "mcp";
+
+// Mirrors `hub::secret::catalog::Scope`.
+export type CatalogScope = "global" | "workspace";
+
+// Mirrors `hub::secret::catalog::FieldSpec` (camelCase from serde).
+export interface FieldSpec {
+  id: string;
+  displayName: string;
+  ownerKind: OwnerKind;
+  ownerKey: string;
+  envVar: string | null;
+  secret: boolean;
+  scope: CatalogScope;
+  docsUrl: string | null;
+  notes: string | null;
+}
+
+// Mirrors `hub::LinkedAccountStatus` (#286 / H7). The token value never crosses IPC.
+export interface LinkedAccountStatus {
+  provider: string;
+  externalLabel: string | null;
+  connectionKind: "oauth_device" | "vendor_cli_login" | string;
+  isLinked: boolean;
+  linkedAt: number | null; // epoch seconds
+  source: "vault" | "vendor_cli" | "none" | string;
+}

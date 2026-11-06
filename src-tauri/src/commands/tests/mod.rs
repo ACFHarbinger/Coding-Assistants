@@ -9,6 +9,9 @@ use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
 mod quota;
+mod schedule;
+mod schedule_poller;
+mod vector_memory;
 
 #[test]
 fn tagged_and_session_send_args_accept_tauri_camel_case_payloads() {
@@ -346,6 +349,8 @@ fn settings_profile_and_harness_commands_are_redacted_and_durable() {
         workdir: Some("/abs/ws".into()),
         capture_polling: false,
         inject_permission: true,
+        default_model: None,
+        default_effort: None,
     })
     .expect("update harness");
     assert_eq!(harness.executable, "/usr/bin/grok");
@@ -377,6 +382,8 @@ fn settings_profile_and_harness_commands_are_redacted_and_durable() {
         workdir: None,
         capture_polling: true,
         inject_permission: true,
+        default_model: None,
+        default_effort: None,
     });
     assert!(rejected_shell.is_err(), "{rejected_shell:?}");
 
@@ -405,17 +412,26 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             auto_enrollment_allowed: None,
             sandbox_strictness: None,
             export_enabled: Some(false),
+            memory_recall_enabled: None,
+            memory_recall_limit: None,
+            allow_metered_quota_probes: None,
+            a2a_enabled: None,
+            quota_auto_refresh_enabled: None,
+            quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("disable export via Settings");
 
-    let blocked = hub_export_markdown();
+    // The `#[tauri::command]` wrappers are async (spawn_blocking, #163); the
+    // policy logic under test lives in the `_blocking` bodies.
+    let blocked = hub_export_markdown_blocking();
     assert!(blocked.is_err(), "{blocked:?}");
     assert!(blocked
         .unwrap_err()
         .contains("disabled by orchestration policy"));
 
-    let blocked_git = hub_export_markdown_git(None);
+    let blocked_git = hub_export_markdown_git_blocking(None);
     assert!(blocked_git.is_err(), "{blocked_git:?}");
 
     settings_update_orchestration(
@@ -426,11 +442,18 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             auto_enrollment_allowed: None,
             sandbox_strictness: None,
             export_enabled: Some(true),
+            memory_recall_enabled: None,
+            memory_recall_limit: None,
+            allow_metered_quota_probes: None,
+            a2a_enabled: None,
+            quota_auto_refresh_enabled: None,
+            quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("re-enable export via Settings");
 
-    hub_export_markdown().expect("export must succeed once re-enabled");
+    hub_export_markdown_blocking().expect("export must succeed once re-enabled");
 
     std::env::remove_var("CA_HOME");
     let _ = std::fs::remove_dir_all(&dir);

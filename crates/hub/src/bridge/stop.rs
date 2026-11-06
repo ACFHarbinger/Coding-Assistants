@@ -36,7 +36,16 @@ fn aliases(harness: HarnessId) -> &'static [&'static str] {
         HarnessId::Grok => &["grok"],
         HarnessId::Claude => &["claude"],
         HarnessId::OpenCode => &["opencode"],
+        HarnessId::DeepSeek => &["deepseek"],
         HarnessId::Vibe => &["vibe"],
+        HarnessId::Muse => &["muse"],
+        // Registrations always key on `HarnessId::as_str()` ("cursor"); the CLI
+        // being named `agent` is irrelevant here. #275 adds an alternate key only
+        // if capture ever persists rows under a different name.
+        HarnessId::Cursor => &["cursor"],
+        HarnessId::Qwen => &["qwen"],
+        HarnessId::Kimi => &["kimi"],
+        HarnessId::Hermes => &["hermes"],
     }
 }
 

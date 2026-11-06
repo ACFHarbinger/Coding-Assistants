@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
@@ -20,6 +21,12 @@ import java.net.Socket
 
 @Serializable
 sealed class ClientRequest {
+    @Serializable
+    @SerialName("Authenticate")
+    data class Authenticate(
+        val token: String,
+    ) : ClientRequest()
+
     @Serializable
     @SerialName("GetModels")
     class GetModels : ClientRequest()
@@ -55,6 +62,10 @@ sealed class ClientRequest {
         val wake_id: String,
         val approve: Boolean,
     ) : ClientRequest()
+
+    @Serializable
+    @SerialName("GetAgentResources")
+    class GetAgentResources : ClientRequest()
 }
 
 @Serializable
@@ -77,6 +88,7 @@ data class ModelConfig(
     val prompt_file: String? = null,
     val rule_file: String? = null,
     val workflow_file: String? = null,
+    val skill_file: String? = null,
 )
 
 @Serializable
@@ -129,7 +141,25 @@ sealed class ServerResponse {
     data class WakeResolved(
         val wake_id: String,
     ) : ServerResponse()
+
+    @Serializable
+    @SerialName("AgentResourcesList")
+    data class AgentResourcesList(
+        val work_dir: String,
+        val prompts: List<String> = emptyList(),
+        val rules: List<String> = emptyList(),
+        val workflows: List<String> = emptyList(),
+        val skills: List<String> = emptyList(),
+    ) : ServerResponse()
 }
+
+@Serializable
+data class AgentResources(
+    val prompts: List<String> = emptyList(),
+    val rules: List<String> = emptyList(),
+    val workflows: List<String> = emptyList(),
+    val skills: List<String> = emptyList(),
+)
 
 @Serializable
 data class WakeRecord(
@@ -152,23 +182,68 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
     private val _messages = MutableSharedFlow<ServerResponse>()
     val messages = _messages.asSharedFlow()
 
+    private var onConnectionLostListener: (() -> Unit)? = null
+    private var userInitiatedDisconnect = false
+
     private val json =
         Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
         }
 
-    suspend fun connect(): Result<Unit> =
+    fun setOnConnectionLostListener(listener: () -> Unit) {
+        onConnectionLostListener = listener
+    }
+
+    suspend fun connect(token: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
+                if (token.isBlank()) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("authentication token required"),
+                    )
+                }
+                userInitiatedDisconnect = false
                 socket = Socket(host, port)
                 writer = PrintWriter(socket!!.getOutputStream(), true)
                 reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
 
+                val handshake = json.encodeToString<ClientRequest>(ClientRequest.Authenticate(token))
+                writer?.println(handshake)
+                if (writer?.checkError() == true) {
+                    disconnectInternal()
+                    return@withContext Result.failure(java.io.IOException("Socket write error"))
+                }
+                val reply =
+                    reader?.readLine()
+                        ?: return@withContext Result.failure(java.io.IOException("No handshake response"))
+                when (val response = json.decodeFromString<ServerResponse>(reply)) {
+                    is ServerResponse.Error -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(IllegalStateException(response.message))
+                    }
+                    is ServerResponse.Status -> {
+                        if (response.message != "Authenticated") {
+                            disconnectInternal()
+                            return@withContext Result.failure(
+                                IllegalStateException("authentication required"),
+                            )
+                        }
+                    }
+                    else -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(
+                            IllegalStateException("authentication required"),
+                        )
+                    }
+                }
+
                 startListening()
+                startHeartbeat()
 
                 Result.success(Unit)
             } catch (e: Exception) {
+                disconnectInternal()
                 Result.failure(e)
             }
         }
@@ -190,8 +265,36 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                disconnect()
+                handleSocketClosed()
             }
+        }
+    }
+
+    private fun startHeartbeat() {
+        scope.launch {
+            while (isActive && isConnected()) {
+                delay(5000)
+                if (!isActive || !isConnected()) break
+                try {
+                    val jsonString = json.encodeToString<ClientRequest>(ClientRequest.GetStatus())
+                    writer?.println(jsonString)
+                    if (writer?.checkError() == true) {
+                        handleSocketClosed()
+                        break
+                    }
+                } catch (e: Exception) {
+                    handleSocketClosed()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun handleSocketClosed() {
+        val wasExplicit = userInitiatedDisconnect
+        disconnectInternal()
+        if (!wasExplicit) {
+            onConnectionLostListener?.invoke()
         }
     }
 
@@ -200,13 +303,21 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
             try {
                 val jsonString = json.encodeToString(request)
                 writer?.println(jsonString)
-                Result.success(Unit)
+                if (writer?.checkError() == true) {
+                    handleSocketClosed()
+                    Result.failure(java.io.IOException("Socket write error"))
+                } else {
+                    Result.success(Unit)
+                }
             } catch (e: Exception) {
+                handleSocketClosed()
                 Result.failure(e)
             }
         }
 
     suspend fun getModels(): Result<Unit> = sendRequest(ClientRequest.GetModels())
+
+    suspend fun getAgentResources(): Result<Unit> = sendRequest(ClientRequest.GetAgentResources())
 
     suspend fun startTask(
         config: AgentConfig,
@@ -234,6 +345,11 @@ class TcpClient(private val host: String, private val port: Int = 5555) {
     suspend fun submitInput(input: String): Result<Unit> = sendRequest(ClientRequest.SubmitInput(input = input))
 
     fun disconnect() {
+        userInitiatedDisconnect = true
+        disconnectInternal()
+    }
+
+    private fun disconnectInternal() {
         try {
             scope.coroutineContext.cancelChildren()
             writer?.close()

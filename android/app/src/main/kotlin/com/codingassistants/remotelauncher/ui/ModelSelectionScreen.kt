@@ -1,5 +1,6 @@
 package com.codingassistants.remotelauncher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -38,8 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.codingassistants.remotelauncher.network.AgentResources
+import com.codingassistants.remotelauncher.network.ProviderCatalog
 import com.codingassistants.remotelauncher.network.RoleConfig
 import com.codingassistants.remotelauncher.viewmodel.AppState
 
@@ -53,13 +55,17 @@ fun ModelSelectionScreen(
     onNext: () -> Unit,
     onBack: () -> Unit,
 ) {
+    BackHandler {
+        onBack()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Configure Agents") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
             )
@@ -91,7 +97,7 @@ fun ModelSelectionScreen(
                     ) {
                         Text("Next")
                         Spacer(Modifier.width(8.dp))
-                        Icon(Icons.Default.ArrowForward, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                     }
                 }
             }
@@ -113,6 +119,7 @@ fun ModelSelectionScreen(
                 RoleCard(
                     role = role,
                     availableModels = state.availableModels,
+                    resources = state.agentResources,
                     onUpdate = { onUpdateRole(index, it) },
                     onRemove = { onRemoveRole(index) },
                 )
@@ -130,21 +137,20 @@ fun ModelSelectionScreen(
 fun RoleCard(
     role: RoleConfig,
     availableModels: Map<String, List<String>>,
+    resources: AgentResources,
     onUpdate: (RoleConfig) -> Unit,
     onRemove: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
-    val providerNames =
-        mapOf(
-            "opencode" to "OpenCode Zen",
-            "google" to "Google",
-            "anthropic" to "Anthropic",
-            "openai" to "OpenAI",
-            "github_copilot" to "GitHub Copilot",
-        )
+    val providerOptions =
+        remember(availableModels, role.config.provider) {
+            (availableModels.keys + ProviderCatalog.labels.keys + role.config.provider)
+                .filter { it.isNotBlank() }
+                .toSortedSet()
+                .toList()
+        }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -157,10 +163,11 @@ fun RoleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = role.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                OutlinedTextField(
+                    value = role.name,
+                    onValueChange = { onUpdate(role.copy(name = it)) },
+                    label = { Text("Role name") },
+                    singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onRemove) {
@@ -180,7 +187,7 @@ fun RoleCard(
                 onExpandedChange = { providerExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = providerNames[role.config.provider] ?: role.config.provider,
+                    value = ProviderCatalog.displayName(role.config.provider),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Provider") },
@@ -194,17 +201,21 @@ fun RoleCard(
                     expanded = providerExpanded,
                     onDismissRequest = { providerExpanded = false },
                 ) {
-                    availableModels.keys.forEach { provider ->
+                    providerOptions.forEach { provider ->
                         DropdownMenuItem(
-                            text = { Text(providerNames[provider] ?: provider) },
+                            text = { Text(ProviderCatalog.displayName(provider)) },
                             onClick = {
                                 val models = availableModels[provider] ?: emptyList()
+                                val keepModel =
+                                    role.config.model.takeIf { model ->
+                                        model.isNotBlank() && (models.isEmpty() || model in models)
+                                    }
                                 onUpdate(
                                     role.copy(
                                         config =
                                             role.config.copy(
                                                 provider = provider,
-                                                model = models.firstOrNull() ?: "",
+                                                model = keepModel ?: models.firstOrNull() ?: role.config.model,
                                             ),
                                     ),
                                 )
@@ -225,9 +236,12 @@ fun RoleCard(
             ) {
                 OutlinedTextField(
                     value = role.config.model,
-                    onValueChange = {},
-                    readOnly = true,
+                    onValueChange = { typed ->
+                        onUpdate(role.copy(config = role.config.copy(model = typed)))
+                    },
+                    readOnly = false,
                     label = { Text("Model") },
+                    placeholder = { Text("Type a model name") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                     modifier =
                         Modifier
@@ -249,6 +263,14 @@ fun RoleCard(
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+
+            RoleResourcePickers(
+                role = role,
+                resources = resources,
+                onUpdate = onUpdate,
+            )
         }
     }
 }

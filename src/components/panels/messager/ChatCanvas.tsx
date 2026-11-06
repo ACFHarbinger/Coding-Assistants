@@ -4,11 +4,18 @@ import MessageStream from "./MessageStream";
 import MessageComposer from "./MessageComposer";
 import HarnessSessionStrip from "../harness/HarnessSessionStrip";
 import HarnessDeliveryBanner from "../harness/HarnessDeliveryBanner";
+import VTuberPresenceDock from "./VTuberPresenceDock";
 
 export default function ChatCanvas(props: any) {
   return (
     <div className="glass-card" style={{ padding: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <ChatHeader {...props} />
+      <VTuberPresenceDock
+        hubAgents={props.hubAgents ?? []}
+        lastNotice={props.vtuberNotice ?? null}
+        onDismissNotice={props.onDismissVtuberNotice}
+        baseUrl={props.vtuberBaseUrl}
+      />
       <HarnessSessionStrip sessions={props.harnessSessions ?? []} workspace={props.workspacePath ?? ""} />
       <HarnessDeliveryBanner
         notices={props.deliveryNotices ?? []}

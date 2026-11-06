@@ -59,54 +59,84 @@ key `apksigner verify` passed). Durable copies:
 
 ---
 
-## What's next (do these in order)
+## PROGRESS UPDATE — session `session_01RrZbBjc6u8x5yrEhdis6Zx` (2026-08-29 afternoon)
 
-### 1. Land PR #168
+Steps 1–2 below are **DONE**. Pipeline phase complete; Phase 2 (bugs) started.
 
-Failing checks on the PR are **all pre-existing on `main`**, none introduced
-by this branch:
-- `lint-test-rust` — `cargo clippy --all-targets -- -D warnings` pedantry.
-  Red on `main` already. The release workflow deliberately does not run clippy.
-- `cargo-audit`, `pip-audit` — dependency advisory failures. Confirm they're
-  also red on `main` (they almost certainly are) before dismissing.
-- `lint-test-android` now **passes** thanks to WS-C's ktlint plugin.
-- `build`, `lint-test-frontend`, `npm-audit` pass.
+- **PR #168 MERGED** (`7d338b8`) — pipeline on `main`.
+- **PR #169 MERGED** (`093e647`) — `tauri-action@v0` has **no** `uploadWorkflowArtifacts`
+  input (the pipeline assumed it did); on dispatch it logs "No releaseId or
+  tagName provided, skipping all uploads". Added an explicit
+  `actions/upload-artifact@v4` step to the desktop job, guarded
+  `if: github.ref_type != 'tag'`.
+- **Dry run GREEN** (run 33258273556) — `desktop-ubuntu-22.04` (deb+AppImage,
+  96 MB), `desktop-windows-latest` (msi+nsis, 12 MB), `android` (apk+aab, 21 MB)
+  all returned as run artifacts.
+- **RC tag `v0.1.1-rc1` pushed → full E2E GREEN.** Draft Release `v0.1.1-rc1`
+  built with all 6 assets. **The draft + tag still exist** — delete both before
+  cutting v1.0.0 (`gh release delete v0.1.1-rc1 --cleanup-tag`).
+- **PR #170 MERGED** (`822b4c8`) — the pre-existing `lint-test-rust` red was
+  **not a lint issue**: the CI job never installed the GTK/WebKit system libs,
+  so `glib-sys`'s build script died at `pkg-config` and clippy/test never ran.
+  Added the apt set `release.yml` already uses + `swatinem/rust-cache`. Also
+  deflaked a `$HOME` test-isolation race in `src-tauri/src/harness/claude.rs`
+  (two capture-gate tests each had their own function-local `static HOME_LOCK`
+  → didn't mutually exclude). `lint-test-rust` is **now green on `main`**.
+- **PR #171 OPEN** — #163 batch 1: `hub_export_markdown` + `hub_export_markdown_git`
+  moved off the IPC thread (`async` + `spawn_blocking`; `git` subprocess was
+  freezing the whole window). Audit of remaining freeze candidates in
+  `.agent/reports/chat/163_ui_freeze_audit_2026-08-29.md`.
 
-Decision for Harbinger: merge PR #168 despite the pre-existing red (they're
-tracked for the *bugs* phase), or fix `clippy -D warnings` + the audits
-first. Recommend **merge now** — the pipeline is orthogonal to those, and
-`release.yml` can't be dispatched until it's on `main` (see next).
+### Still red on `main` (deferred): `cargo-audit`, `pip-audit`
+Dependency-advisory failures, unrelated to `lint-test-rust`. Weekly-scheduled
+`Security Audit` workflow. Not yet triaged.
 
-### 2. Validate the pipeline (needs #168 merged first)
+### BLOCKS v1.0.0 — asset naming
+The `v0.1.1-rc1` draft shipped desktop bundles named `Coding.Assistants_0.1.0_*`
+(package.json is still `0.1.0` — the RC tag was just a probe) and Android assets
+named `app-release.apk` / `app-release.aab` with **no version**. Before the real
+`v1.0.0` tag: (a) `just release::bump 1.0.0` fixes the desktop version string,
+(b) fix the Android Gradle output so the APK/AAB carry the version (rename in
+the `release.yml` android job, or `archivesName` / `setProperty("archivesBaseName", …)`
+in `android/app/build.gradle.kts`).
 
-`release.yml` currently 404s from the Actions API because
-`workflow_dispatch` requires the workflow file on the **default branch**. Once
-#168 is merged into `main`:
+### #143 is already done
+Top-level `AppErrorBoundary` implemented in `2ba53a5` and wired in `main.tsx`;
+roadmap `ui.md` marks U14 "In Review". Only open item: a forced-throw boundary
+test, which needs a root frontend test harness that **does not exist** (the main
+app has zero vitest — only `docs/website` has one). Either stand up vitest for
+`src/` (also serves #167) as its own task, or document the test strategy and
+close #143.
 
-a. **Dry run:** Actions → Release → Run workflow → `dry_run: true`. Confirms
-   the desktop bundles build on both runners and the Android job signs. No
-   tag/Release created; bundles come back as run artifacts.
-b. **RC tag:** `git tag v0.1.1-rc1 && git push origin v0.1.1-rc1` → full
-   end-to-end: draft Release with all 6 artifacts (`.deb`, `.AppImage`,
-   `.msi`, NSIS `-setup.exe`, `.apk`, `.aab`). Iterate `release.yml` if
-   anything is missing.
-c. **v1.0.0:** `just release::bump 1.0.0`, freeze `docs/moon/CHANGELOG.md`
-   (`[1.0.0] - Unreleased` → dated), commit, `git tag v1.0.0 && git push`.
-   Follow `docs/RELEASE_CHECKLIST.md`.
+## What's next (current, as of session `session_01RrZbBjc6u8x5yrEhdis6Zx`)
 
-Known unverified: `cargo update -p tauri-app --precise <ver>` inside `just
-release::bump` — Codex claimed it works on a workspace member; only exercised
-with an unchanged 0.1.0 so far. Watch it on the real 1.0.0 bump.
+**Steps 1–2 of the original plan are DONE** (pipeline merged, dry-run + RC
+E2E both green, RC deleted). What remains for v1.0.0:
 
-### 3. Phase 2 — bugs
+### A. In flight — four parallel work items, not yet merged
 
-`#163` (UI freezes several seconds, no feedback), `#165` (resume duplicates
-sessions / Claude reroutes live chat / Gemini messages while inactive),
-`#167` (terminal scroll/resize — partially fixed already, commit `dfb518f`),
-`#143` (no frontend crash-recovery boundary). Also fold in the pre-existing
-CI red (`clippy -D warnings`, `cargo-audit`, `pip-audit`) here.
+| Slice | Owner | Branch (expected) |
+|---|---|---|
+| #165 resume-vs-fresh-session (grok/gemini discovery in `crates/hub/src/bridge/relaunch/`) | `deepseek` (Harbinger's persistent session) | — |
+| `cargo-audit` + `pip-audit` → green (dep bumps: `src-tauri`, `git/pyproject.toml`+`uv.lock`) | `codex/chat` (persistent session) | — |
+| Android versioned APK/AAB filenames (`android/app/build.gradle.kts` archivesName + `release.yml`) | `gemini/Agy` (persistent session) | — |
+| #163 batch 2 (avatar/attachment base64 → `spawn_blocking`) + more | parallel `coding-assistants-c1` session — large uncommitted tree touching `crates/hub/src/bridge/`, `crates/tui/`, settings tabs, `relaunch/mod.rs` (**overlaps #165 — reconcile**) | — |
 
-### 4. Phase 3 — features
+Review each PR as it lands. Watch for #165 collision between `deepseek` and
+`coding-assistants-c1` (both editing `relaunch/mod.rs`).
+
+### B. Then — cut v1.0.0
+
+1. `just release::bump 1.0.0` — **verified working** this session on a scratch
+   worktree: syncs `package.json` + `src-tauri/Cargo.toml` + root `Cargo.lock`
+   (the `cargo update -p tauri-app --precise` step) + gradle
+   `versionName=1.0.0`/`versionCode=10000`; `cargo metadata` stays consistent.
+2. Freeze `docs/moon/CHANGELOG.md` `[1.0.0]` → dated.
+3. `git commit`, `git tag v1.0.0 && git push origin v1.0.0`.
+4. `release.yml` fires on the tag → draft Release with all 6 artifacts. Review,
+   then publish. Follow `docs/RELEASE_CHECKLIST.md`.
+
+### Phase 3 — features
 
 **[Settings]** epic: #126, #131, #132, #133 (persistent local config,
 migration/recovery, danger-zone actions). **[C14]** provider-native managed

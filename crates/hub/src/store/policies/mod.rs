@@ -1,7 +1,21 @@
 use super::*;
 
 mod audit;
+mod budget_gate;
+mod provider_usage;
+mod quota_snapshot;
+mod seeding;
 mod settings_audit;
+mod slice_stamp;
+
+pub use provider_usage::{AbsoluteSpendCommit, ProviderUsage};
+pub use quota_snapshot::QuotaSnapshot;
+pub use slice_stamp::{Attribution, SliceStamp};
+
+// Re-exported for the S6 danger purges (`store::danger`, message/memory
+// stores): one transaction must span deletes and their audit row.
+pub(crate) use audit::audit_events::insert_audit_event;
+pub(crate) use settings_audit::SETTINGS_AUDIT_ROOT;
 impl HubStore {
     pub fn get_wake_policy(&self) -> Result<WakePolicy, HubError> {
         let raw: Option<String> = self
@@ -291,6 +305,8 @@ impl HubStore {
     }
 
     /// Persist a cancellation/shutdown handoff so interrupted work is not lost.
+    /// If a budget exists for `agent_id`, it is paused so further provider
+    /// calls and wakes stay blocked until a human `resume_agent`s (P10).
     pub fn record_shutdown(
         &self,
         agent_id: &str,
@@ -299,6 +315,10 @@ impl HubStore {
         reason: &str,
         delegate_to: Option<&str>,
     ) -> Result<ShutdownOutcome, HubError> {
+        let _ = self.conn.execute(
+            "UPDATE agent_budgets SET paused = 1, updated_at = ?1 WHERE agent_id = ?2",
+            params![Utc::now().to_rfc3339(), agent_id],
+        )?;
         let delegate = delegate_to.unwrap_or("human");
         let now = Utc::now().to_rfc3339();
         let summary = format!(

@@ -96,8 +96,11 @@ pub(crate) enum BudgetCommand {
 #[derive(Subcommand)]
 pub(crate) enum TaskCommand {
     /// Create a workflow. --steps is JSON array of
-    /// {agent, instruction, role?, max_retries?, parallel_group?} objects.
-    /// Consecutive steps sharing parallel_group form a bounded parallel stage.
+    /// {agent, instruction, role?, max_retries?, parallel_group?, peer?, branch?}
+    /// objects. Consecutive steps sharing parallel_group form a bounded parallel
+    /// stage. branch = {criteria: [GateCriterion], combinator?: all|any,
+    /// on_pass: {kind: next|stage|done|fail, index?}, on_fail?: same} picks the
+    /// next stage with Schedule's gate evaluator (needs --workspace).
     Create {
         #[arg(long)]
         title: String,
@@ -135,7 +138,7 @@ pub(crate) enum TaskCommand {
         #[arg(long)]
         note: Option<String>,
     },
-    /// Re-dispatch the current stage (honours max_retries; may mark task failed).
+    /// Wake queued parallel members, or re-dispatch the stage (honours max_retries).
     Retry {
         id: String,
         #[arg(long)]
@@ -251,6 +254,32 @@ pub(crate) enum MemoryCommand {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
+    /// Semantic vector search across memories using cosine distance.
+    SemanticSearch {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long)]
+        tier: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+    /// Hybrid search blending lexical and semantic retrieval (RRF).
+    HybridSearch {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long)]
+        tier: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+    /// Backfill embedding vectors for all memories lacking one.
+    Reindex,
 }
 
 #[derive(Subcommand)]
@@ -270,17 +299,18 @@ pub(crate) enum MsgCommand {
         task: Option<String>,
         body: String,
     },
-    /// C11: send a task- and/or wake-tagged message, enforcing the same
-    /// rules as the Chat & Memory composer — task targets must already be
-    /// present team/session members (rejected otherwise, no spawn); wake
-    /// may enroll a new identity before delivery, subject to wake policy.
+    /// Send a Goal and/or wake. Goal keeps the task contract: the recipient
+    /// must already be a team or session member (rejected otherwise, no
+    /// spawn) and the stored body starts with `/goal`. `--goal` is an alias
+    /// of `--task`. Wake may enroll a new identity, subject to wake policy.
     Tag {
         #[arg(long)]
         from: String,
         /// Comma-separated recipient agent ids.
         #[arg(long, value_delimiter = ',')]
         to: Vec<String>,
-        #[arg(long, default_value_t = false)]
+        /// Goal send. `--goal` is the same flag.
+        #[arg(long, visible_alias = "goal", default_value_t = false)]
         task: bool,
         #[arg(long, default_value_t = false)]
         wake: bool,
@@ -297,6 +327,13 @@ pub(crate) enum MsgCommand {
         /// --workspace; rejected targets are never dispatched.
         #[arg(long, requires = "workspace", default_value_t = false)]
         dispatch: bool,
+        /// Kimi-only (#363): prefix a plain-language task body with
+        /// `/swarm ` or `/goal ` for this dispatch. Wins over the
+        /// workspace's `kimi_mode` settings.toml override; a body that
+        /// already starts with `/` (e.g. `/goal status`) passes through
+        /// unchanged.
+        #[arg(long, value_parser = ["swarm", "goal"])]
+        kimi_mode: Option<String>,
         body: String,
     },
     Poll {

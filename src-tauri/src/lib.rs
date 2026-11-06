@@ -1,117 +1,154 @@
 mod agent;
+mod browser_pane;
+mod bus;
 mod client;
 mod commands;
 mod core;
 mod harness;
+mod invoke;
+mod llamacpp;
 mod pty;
 mod server;
+mod tray;
 
-use agent::{AgentConfig, AgentSystem};
+use agent::{
+    is_valid_task_id, next_task_id, remove_task_mcp_dir, AgentConfig, AgentSystem, TaskHandles,
+    TaskLifecycleEvent, TaskRegistry,
+};
+use core::agent_resources::AgentResources;
+use hub::bus::TOPIC_TASK_LIFECYCLE;
+use hub::InProcessBus;
+use server::a2a::{A2aServer, DEFAULT_A2A_PORT, DEFAULT_BIND};
 use server::tcp_server::TcpServer;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use tauri::{Manager, State};
 use tokio::sync::mpsc;
 
-struct AppState {
+pub(crate) struct AppState {
     agents: Mutex<Option<AgentSystem>>,
-    cancellation_token: Mutex<Option<Arc<AtomicBool>>>,
-    user_input_tx: Mutex<Option<mpsc::Sender<String>>>,
+    /// Per-task handles keyed by task id (P2 / #331): concurrent tasks no
+    /// longer share one cancellation flag or input channel.
+    tasks: TaskRegistry,
     tcp_server: Mutex<Option<TcpServer>>,
+    a2a_server: Mutex<Option<A2aServer>>,
 }
 
+/// Outcome of `run_agent_task`: the caller routes later `submit_user_input`
+/// / `cancel_task` calls with `task_id`, and follows progress on the
+/// `task-lifecycle` bus topic.
 #[derive(serde::Serialize)]
-struct AgentResources {
-    prompts: Vec<String>,
-    rules: Vec<String>,
-    workflows: Vec<String>,
+pub(crate) struct RunTaskOutcome {
+    pub(crate) task_id: String,
+    pub(crate) result: String,
 }
 
 #[tauri::command]
 async fn run_agent_task(
     config: AgentConfig,
     task: String,
+    task_id: Option<String>,
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
-) -> Result<String, String> {
+    bus: State<'_, InProcessBus>,
+) -> Result<RunTaskOutcome, String> {
+    let task_id = match task_id.map(|id| id.trim().to_string()) {
+        Some(id) if !id.is_empty() => {
+            if !is_valid_task_id(&id) {
+                return Err("task_id must match [A-Za-z0-9_-]+".into());
+            }
+            id
+        }
+        _ => next_task_id(),
+    };
+    if hub::sync::is_held(&hub::default_hub_home()) {
+        return Err(hub::sync::LOCKED_MESSAGE.to_string());
+    }
     let token = Arc::new(AtomicBool::new(false));
-
     let (input_tx, input_rx) = mpsc::channel(1);
-
-    // Store token and input_tx in state
-    {
-        let mut cancel_guard = state.cancellation_token.lock().unwrap();
-        *cancel_guard = Some(token.clone());
-        let mut input_guard = state.user_input_tx.lock().unwrap();
-        *input_guard = Some(input_tx);
+    if !state.tasks.register(
+        &task_id,
+        TaskHandles {
+            cancellation: token.clone(),
+            input_tx,
+        },
+    ) {
+        return Err(format!("task_id '{task_id}' is already active"));
     }
 
     let system = AgentSystem::new(config);
-    // run_task will now consume input_rx
-    let result = system.run_task(&task, &app_handle, token, input_rx).await?;
+    let bus_handle = bus.inner().clone();
+    bus_handle.emit(
+        TOPIC_TASK_LIFECYCLE,
+        TaskLifecycleEvent::new(&task_id, "started", None),
+    );
+    let outcome = system
+        .run_task(&task_id, &task, &app_handle, &bus_handle, token, input_rx)
+        .await;
+    state.tasks.remove(&task_id);
+    remove_task_mcp_dir(&hub::default_hub_home(), &task_id);
 
     let mut state_agents = state.agents.lock().unwrap();
     *state_agents = Some(system);
 
-    Ok(result)
-}
-
-#[tauri::command]
-async fn submit_user_input(state: State<'_, AppState>, input: String) -> Result<(), String> {
-    let tx = {
-        let tx_guard = state.user_input_tx.lock().unwrap();
-        tx_guard.clone()
-    };
-
-    if let Some(tx) = tx {
-        tx.send(input).await.map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("No active agent waiting for input".to_string())
+    match outcome {
+        Ok(result) => {
+            bus_handle.emit(
+                TOPIC_TASK_LIFECYCLE,
+                TaskLifecycleEvent::new(&task_id, "finished", None),
+            );
+            Ok(RunTaskOutcome { task_id, result })
+        }
+        Err(error) => {
+            bus_handle.emit(
+                TOPIC_TASK_LIFECYCLE,
+                TaskLifecycleEvent::new(&task_id, "failed", Some(error.clone())),
+            );
+            Err(error)
+        }
     }
 }
 
 #[tauri::command]
-fn cancel_task(state: State<'_, AppState>) -> Result<(), String> {
-    let token_guard = state.cancellation_token.lock().unwrap();
-    if let Some(token) = token_guard.as_ref() {
-        token.store(true, Ordering::SeqCst);
+async fn submit_user_input(
+    state: State<'_, AppState>,
+    task_id: String,
+    input: String,
+) -> Result<(), String> {
+    let handles = state.tasks.get(&task_id).ok_or_else(|| {
+        format!("No active task '{task_id}' waiting for input (it may have finished)")
+    })?;
+    handles
+        .input_tx
+        .send(input)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    bus: State<'_, InProcessBus>,
+) -> Result<(), String> {
+    // Idempotent: an unknown or finished id is already in the desired state.
+    if let Some(handles) = state.tasks.get(&task_id) {
+        handles.cancellation.store(true, Ordering::SeqCst);
+        bus.inner().clone().emit(
+            TOPIC_TASK_LIFECYCLE,
+            TaskLifecycleEvent::new(&task_id, "cancelled", None),
+        );
     }
     Ok(())
 }
 
 #[tauri::command]
 async fn get_agent_resources(work_dir: String) -> Result<AgentResources, String> {
-    // Note: tools variable is unused in this logic but keeping structure for potential future use or removing if completely unneeded.
-    // For now we just scan directories.
-
-    let base_path = std::path::Path::new(&work_dir).join(".agent");
-    let prompts_dir = base_path.join("prompts");
-    let rules_dir = base_path.join("rules");
-    let workflows_dir = base_path.join("workflows");
-
-    async fn list_files(dir: &std::path::Path, prefix: &str) -> Vec<String> {
-        let mut out = Vec::new();
-        let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
-            return out;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            if entry.path().is_file() {
-                let filename = entry.file_name().to_string_lossy().to_string();
-                out.push(format!("{}/{}", prefix, filename));
-            }
-        }
-        out
-    }
-
-    Ok(AgentResources {
-        prompts: list_files(&prompts_dir, ".agent/prompts").await,
-        rules: list_files(&rules_dir, ".agent/rules").await,
-        workflows: list_files(&workflows_dir, ".agent/workflows").await,
-    })
+    Ok(core::agent_resources::list_agent_resources(&work_dir))
 }
 
 /// `ps` process-table scan — offload so Orchestrate discovery does not
@@ -141,52 +178,26 @@ async fn get_resource_content(work_dir: String, path: String) -> Result<String, 
 
 #[tauri::command]
 async fn read_file_absolute(path: String) -> Result<String, String> {
-    tokio::fs::read_to_string(path)
+    let expanded = core::workspace::expand_tilde(&path);
+    tokio::fs::read_to_string(expanded)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn bootstrap_workspace(work_dir: String) -> Result<(), String> {
-    let base = std::path::Path::new(&work_dir).join(".agent");
-    if base.exists() {
-        return Err("Workspace is already bootstrapped (.agent directory exists)".to_string());
-    }
+async fn validate_workspace_path(
+    path: String,
+) -> Result<core::workspace::WorkspaceValidation, String> {
+    let expanded = core::workspace::expand_tilde(&path);
+    Ok(core::workspace::validate_workspace(
+        &expanded.to_string_lossy(),
+    ))
+}
 
-    tokio::fs::create_dir_all(base.join("rules"))
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(base.join("prompts"))
-        .await
-        .map_err(|e| e.to_string())?;
-    tokio::fs::create_dir_all(base.join("workflows"))
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mcp_config = r#"{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-    }
-  }
-}"#;
-
-    tokio::fs::write(base.join("mcp_config.json"), mcp_config)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let agents_md = r#"# AGENTS.md
-
-Welcome to your new Coding Assistants workspace!
-Place your instructions in this file or under the `rules/` directory.
-"#;
-
-    tokio::fs::write(base.join("AGENTS.md"), agents_md)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+#[tauri::command]
+async fn bootstrap_workspace(work_dir: String, create_dir: Option<bool>) -> Result<(), String> {
+    let expanded = core::workspace::expand_tilde(&work_dir);
+    core::workspace::bootstrap_workspace_core(&expanded.to_string_lossy(), create_dir).await
 }
 
 #[tauri::command]
@@ -221,26 +232,59 @@ async fn get_available_models() -> Result<HashMap<String, Vec<String>>, String> 
 async fn start_tcp_server(
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
+    bus: State<'_, InProcessBus>,
 ) -> Result<String, String> {
-    let mut server = TcpServer::new(app_handle.clone(), 5555);
+    let mut server = TcpServer::new(app_handle.clone(), bus.inner().clone(), 5555);
     let address = server.start().await?;
 
     // Start accepting connections in background
     server.accept_connections().await?;
 
-    // Store server instance in state
-    {
-        let mut server_guard = state.tcp_server.lock().unwrap();
-        *server_guard = Some(server);
-    }
-
+    *state.tcp_server.lock().unwrap() = Some(server);
     Ok(address)
 }
 
 #[tauri::command]
 async fn stop_tcp_server(state: State<'_, AppState>) -> Result<(), String> {
-    let mut server_guard = state.tcp_server.lock().unwrap();
-    if let Some(mut server) = server_guard.take() {
+    if let Some(mut server) = state.tcp_server.lock().unwrap().take() {
+        server.stop();
+    }
+    Ok(())
+}
+
+/// Start the public A2A wire listener (P11b / #335). Refuses unless the
+/// owner enabled `orchestration.a2a_enabled` (default-off) and returns the
+/// bound address. `bind` defaults to loopback; the owner opts into LAN
+/// explicitly. Idempotent: returns the current address when already running.
+#[tauri::command]
+async fn start_a2a_server(
+    state: State<'_, AppState>,
+    bind: Option<String>,
+    port: Option<u16>,
+) -> Result<String, String> {
+    if let Some(server) = state.a2a_server.lock().unwrap().as_ref() {
+        return Ok(server.address().to_string());
+    }
+    let enabled = hub::SettingsStore::open(hub::default_hub_home())
+        .snapshot()
+        .orchestration
+        .a2a_enabled;
+    if !enabled {
+        return Err("A2A listener is disabled (orchestration.a2a_enabled)".into());
+    }
+    let bind = bind.unwrap_or_else(|| DEFAULT_BIND.to_string());
+    bind.parse::<std::net::IpAddr>()
+        .map_err(|_| "bind must be an IP address".to_string())?;
+    let port = port.unwrap_or(DEFAULT_A2A_PORT);
+    let server = A2aServer::start(&bind, port)?;
+    let address = server.address().to_string();
+    *state.a2a_server.lock().unwrap() = Some(server);
+    Ok(address)
+}
+
+#[tauri::command]
+async fn stop_a2a_server(state: State<'_, AppState>) -> Result<(), String> {
+    if let Some(mut server) = state.a2a_server.lock().unwrap().take() {
         server.stop();
     }
     Ok(())
@@ -279,44 +323,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(InProcessBus::new())
         .manage(AppState {
             agents: Mutex::new(None),
-            cancellation_token: Mutex::new(None),
-            user_input_tx: Mutex::new(None),
+            tasks: TaskRegistry::new(),
             tcp_server: Mutex::new(None),
+            a2a_server: Mutex::new(None),
         })
         .manage(pty::PtySessions::default())
         .setup(|app| {
-            let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
-            let menu = MenuBuilder::new(app).item(&show_i).item(&quit_i).build()?;
-
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
-
+            tray::setup_tray(app)?;
+            let bus = app.state::<InProcessBus>().inner().clone();
+            bus::spawn_tauri_forwarder(bus, app.handle().clone());
+            commands::commands::schedule_poller::spawn_in_app();
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -335,165 +354,7 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            run_agent_task,
-            cancel_task,
-            submit_user_input,
-            get_agent_resources,
-            detect_agent_processes,
-            get_resource_content,
-            read_file_absolute,
-            bootstrap_workspace,
-            get_available_models,
-            start_tcp_server,
-            stop_tcp_server,
-            get_server_ip,
-            // Embedded PTY terminals (in-app "Resume in terminal")
-            pty::pty_spawn,
-            pty::pty_write,
-            pty::pty_resize,
-            pty::pty_kill,
-            pty::pty_session_status,
-            // Shared hub (`hub`) — same store as the `ca` CLI
-            commands::commands::store::hub_init,
-            commands::commands::store::hub_get_data_dir,
-            commands::commands::messaging::hub_data_dir,
-            commands::commands::store::hub_list_agents,
-            commands::commands::store::hub_upsert_agent_card,
-            commands::commands::memory::hub_write_memory,
-            commands::commands::memory::hub_update_memory,
-            commands::commands::memory::hub_list_memories,
-            commands::commands::memory::hub_search_memories,
-            commands::commands::memory::hub_mark_memory_stale,
-            commands::commands::memory::hub_delete_memory,
-            commands::commands::memory::hub_promote_memory,
-            commands::commands::memory::hub_compact_short_term,
-            commands::commands::memory::hub_link_memories,
-            commands::commands::memory::hub_unlink_memories,
-            commands::commands::memory::hub_list_memory_links,
-            commands::commands::memory::hub_related_memories,
-            commands::commands::memory::hub_memories_for_topic,
-            commands::commands::memory::hub_suggest_links_for_memory,
-            commands::commands::memory::hub_apply_link_suggestions,
-            commands::commands::messaging::hub_send_message,
-            commands::commands::messaging::hub_send_session_message,
-            commands::commands::messaging::hub_send_tagged_message,
-            commands::commands::messaging::hub_list_tagged_send_outcomes,
-            commands::commands::messaging::hub_poll_messages,
-            commands::commands::messaging::hub_list_messages,
-            commands::commands::messaging::hub_mark_read,
-            commands::commands::messaging::hub_list_read_markers,
-            commands::commands::messaging::hub_list_channels,
-            commands::commands::messaging::hub_create_channel,
-            commands::commands::messaging::hub_delete_channel,
-            commands::commands::messaging::hub_list_channel_messages,
-            commands::commands::messaging::hub_list_message_memories,
-            commands::commands::messaging::hub_request_wake,
-            commands::commands::messaging::hub_request_team_wakes,
-            commands::commands::messaging::hub_list_team_members,
-            commands::commands::messaging::hub_set_team_member,
-            commands::commands::messaging::hub_create_work_session,
-            commands::commands::messaging::hub_list_work_sessions,
-            commands::commands::messaging::hub_add_work_session_member,
-            harness::commands::hub_start_harness,
-            // Moved to the relaunch submodule when commands/ split (#158);
-            // the tauri macro-generated __cmd__ items live there too.
-            harness::commands::relaunch::hub_start_managed_harness,
-            harness::commands::relaunch::hub_relaunch_harness_in_terminal,
-            harness::commands::relaunch::hub_relaunch_harness_embedded,
-            harness::stop::hub_stop_managed_harness,
-            harness::commands::hub_inject_harness,
-            harness::commands::hub_register_harness_session,
-            harness::commands::hub_list_harness_sessions,
-            harness::presence::hub_workspace_agent_presence,
-            harness::commands::hub_register_managed_harness_session,
-            harness::commands::hub_record_harness_capture,
-            harness::capture_commands::hub_capture_claude_session,
-            harness::capture_commands::hub_capture_codex_session,
-            harness::capture_commands::hub_capture_gemini_session,
-            harness::capture_commands::hub_capture_grok_session,
-            harness::commands::claude_channel_list_workspaces,
-            harness::commands::claude_channel_rename_workspace,
-            harness::commands::claude_channel_delete_workspace,
-            harness::commands::claude_channel_is_connected,
-            harness::commands::claude_channel_connect,
-            harness::commands::hub_grok_leader_status,
-            harness::commands::hub_grok_list_live_sessions,
-            harness::commands::hub_grok_connect,
-            commands::commands::messaging::hub_list_wakes,
-            commands::commands::messaging::hub_export_markdown,
-            commands::commands::messaging::hub_export_markdown_git,
-            commands::commands::messaging::hub_append_journal,
-            commands::commands::messaging::hub_purge_stale_memories,
-            commands::commands::messaging::hub_age_out_short_term,
-            commands::commands::messaging::hub_set_message_status,
-            commands::commands::messaging::hub_update_message,
-            commands::commands::messaging::hub_delete_message,
-            commands::commands::messaging::hub_resolve_wake,
-            commands::commands::messaging::hub_list_audit_events,
-            commands::commands::messaging::hub_approve_audit,
-            commands::commands::messaging::hub_quarantine_audit,
-            commands::commands::messaging::hub_get_wake_policy,
-            commands::commands::messaging::hub_set_wake_policy,
-            commands::commands::workflow::hub_create_task,
-            commands::commands::workflow::hub_list_tasks,
-            commands::commands::workflow::hub_get_task,
-            commands::commands::workflow::hub_advance_task,
-            commands::commands::workflow::hub_cancel_task,
-            commands::commands::workflow::hub_complete_parallel_member,
-            commands::commands::workflow::hub_retry_task,
-            commands::commands::workflow::hub_set_agent_budget,
-            commands::commands::workflow::hub_get_budget,
-            commands::commands::workflow::hub_list_agent_metrics,
-            commands::commands::workflow::hub_record_agent_metrics,
-            commands::commands::quotas::hub_get_provider_quotas,
-            commands::commands::quotas::hub_refresh_provider_quota,
-            commands::commands::workflow::hub_record_budget_usage,
-            commands::commands::workflow::hub_consume_budget,
-            commands::commands::workflow::hub_resume_agent,
-            commands::commands::workflow::hub_pause_for_budget,
-            commands::commands::workflow::hub_record_shutdown,
-            commands::commands::settings::settings_get_effective,
-            commands::commands::settings::settings_get_load_status,
-            commands::commands::settings::settings_update,
-            commands::commands::settings::settings_reset_field,
-            commands::commands::settings::settings_set_default_workspace,
-            commands::commands::settings::settings_set_default_session,
-            commands::commands::settings::settings_list_audit_events,
-            commands::commands::settings::settings_list_profiles,
-            commands::commands::settings::settings_upsert_profile,
-            commands::commands::settings::settings_rename_profile,
-            commands::commands::settings::settings_remove_profile,
-            commands::commands::settings::settings_set_workspace_default_profile,
-            commands::commands::settings::settings_reset_workspace_default_profile,
-            commands::commands::settings::settings_list_harnesses,
-            commands::commands::settings::settings_update_harness,
-            commands::commands::settings::settings_update_orchestration,
-            commands::commands::settings::settings_set_retention_days,
-            commands::commands::settings::settings_get_standing_policy,
-            commands::commands::settings::settings_set_confirm_wakes,
-            commands::commands::settings::settings_set_allow_auto_wake,
-            commands::commands::settings::settings_list_agent_budgets,
-            commands::commands::settings::settings_set_agent_budget,
-            commands::commands::roles::hub_upsert_role,
-            commands::commands::roles::hub_get_role,
-            commands::commands::roles::hub_list_roles,
-            commands::commands::roles::hub_delete_role,
-            commands::commands::roles::hub_assign_agent_role,
-            commands::commands::roles::hub_unassign_agent_role,
-            commands::commands::roles::hub_list_agent_roles,
-            commands::commands::roles::hub_effective_agent_permissions,
-            commands::commands::roles::hub_gate_quota_used_today,
-            commands::commands::roles::hub_set_role_provider_default,
-            commands::commands::roles::hub_list_role_provider_defaults,
-            commands::commands::roles::hub_list_pending_gate_approvals,
-            commands::commands::roles::hub_resolve_gate_approval,
-            commands::commands::attachments::hub_save_attachment,
-            commands::commands::attachments::hub_get_attachment,
-            commands::commands::avatar::hub_set_agent_avatar,
-            commands::commands::avatar::hub_clear_agent_avatar,
-            commands::commands::avatar::hub_read_avatar_preview,
-        ])
+        .invoke_handler(invoke::invoke_handler!())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

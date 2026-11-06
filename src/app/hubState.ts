@@ -1,4 +1,26 @@
-export const PROVIDERS = {
+import { invoke } from "../lib/tauri";
+
+/**
+ * Display-name labels for known providers. This is only a label map — the
+ * actual list of selectable providers is driven by what
+ * `get_available_models` returns (see `providerOptions` in ModelSelect).
+ */
+export const PROVIDERS: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  claude: "Claude",
+  gemini: "Gemini",
+  google: "Google",
+  grok: "Grok",
+  muse: "Muse",
+  opencode: "OpenCode",
+  deepseek: "DeepSeek",
+  vibe: "Vibe",
+  qwen: "Qwen",
+  kimi: "Kimi",
+  chat: "Chat",
+  codex: "Codex",
+  github_copilot: "GitHub Copilot",
 };
 
 export interface HubMessage {
@@ -18,6 +40,16 @@ export interface HubAgent {
   team_member?: boolean;
   /** Attachment id of the agent's profile image, when set. */
   avatar_attachment_id?: string | null;
+  /** Descriptive team role (U21 / #315), e.g. "lead", "reviewer", or custom. */
+  role?: string | null;
+  /** Standing oversight role (#342). Separate from `role`. */
+  oversight_role?: string | null;
+  /** Latest unexpired exception, otherwise `oversight_role`. */
+  effective_oversight_role?: string | null;
+  /** Whether the identity opted into an animated V-Tuber avatar presence (U17 / #307). */
+  animated_avatar?: boolean;
+  /** Optional character name/ID configured in Open-LLM-VTuber (U17 / #307). */
+  vtuber_character?: string | null;
 }
 
 export interface WorkSession {
@@ -25,6 +57,16 @@ export interface WorkSession {
   name: string;
   created_at: string;
   member_ids: string[];
+  workspace_id?: string | null;
+}
+
+export interface SavedWorkspace {
+  id: string;
+  name: string;
+  path: string;
+  created_at: string;
+  linked_session_id?: string | null;
+  linked_session_name?: string | null;
 }
 
 /** Chat refresh. Capture is the four-provider on-disk transcript scan. */
@@ -60,4 +102,23 @@ export function loadWorkspaceRoot(): string {
   } catch {
     return "./workspace";
   }
+}
+
+/** Last path segment, for the workspace chip. */
+export function workspaceBasename(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  return parts[parts.length - 1] || trimmed || "workspace";
+}
+
+export async function persistWorkSession(name: string, workDir: string): Promise<WorkSession> {
+  let workspaceId: string | null = null;
+  try {
+    const saved = await invoke<SavedWorkspace[]>("hub_list_workspaces");
+    const needle = workDir.trim().replace(/\/+$/, "") || workDir.trim();
+    workspaceId = saved.find((row) => row.path === needle || row.path === workDir.trim())?.id ?? null;
+  } catch {
+    workspaceId = null;
+  }
+  return invoke<WorkSession>("hub_create_work_session", { name, workspaceId });
 }

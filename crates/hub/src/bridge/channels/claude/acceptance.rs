@@ -43,6 +43,7 @@ mod tests {
         // gate checked inside `poll_channel_events` / `poll_quiet_channel_events`.
         // `set_team_member(..., true)` is the same call the unit tests in
         // events.rs use to establish enrollment.
+        store.upsert_agent("orchestrator", "Orchestrator").unwrap();
         store.set_team_member("orchestrator", true).unwrap();
         assert!(
             store.is_team_member("orchestrator").unwrap(),

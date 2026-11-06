@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=coding_assistants_bridge
+X-Python-2-Compatible=false
+X-Krita-Manual=README.md
+Name=Coding-Assistants Bridge
+Comment=Line-JSON TCP bridge for the coding-assistants-mcp-krita MCP server

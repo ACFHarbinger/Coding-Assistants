@@ -148,6 +148,22 @@ pub fn capture_gemini_session(
     gemini_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<GeminiCaptureOutcome, String> {
+    capture_gemini_session_at(
+        &gemini_brain_dir(),
+        store,
+        workspace,
+        gemini_session_id,
+        hub_session_id,
+    )
+}
+
+fn capture_gemini_session_at(
+    brain_dir: &Path,
+    store: &HubStore,
+    workspace: &Path,
+    gemini_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
+) -> Result<GeminiCaptureOutcome, String> {
     // #165 capture-identity gate (see claude.rs): only registered or
     // explicitly named sessions are captured.
     let Some(session_id) =
@@ -160,7 +176,7 @@ pub fn capture_gemini_session(
         });
     };
     capture_gemini_session_from(
-        &gemini_brain_dir(),
+        brain_dir,
         store,
         workspace,
         Some(&session_id),
@@ -280,6 +296,44 @@ mod tests {
         let second =
             capture_gemini_session_from(brain_dir.path(), &store, workspace, None, None).unwrap();
         assert!(second.captured.is_empty(), "identical poll must dedup");
+    }
+
+    #[test]
+    fn unarmed_managed_start_ignores_preexisting_global_transcript() {
+        let ca_home = tempdir().unwrap();
+        let global_history = tempdir().unwrap();
+
+        let workspace = Path::new("/tmp/isolated-managed-workspace");
+        let store = HubStore::open(ca_home.path()).unwrap();
+        write_transcript(
+            global_history.path(),
+            "global-history",
+            &[r#"{"source":"MODEL","content":"private prior work report"}"#],
+        );
+        store
+            .register_managed_harness_session_with_state(
+                "gemini",
+                &workspace.to_string_lossy(),
+                "managed-fresh-id",
+                None,
+                hub::HarnessSessionState::Queued,
+            )
+            .unwrap();
+
+        let outcome = capture_gemini_session_at(
+            global_history.path(),
+            &store,
+            workspace,
+            None,
+            Some("work-session"),
+        )
+        .unwrap();
+        assert!(!outcome.transcript_found);
+        assert!(outcome.captured.is_empty());
+        assert!(store
+            .list_channel_messages("channel:session:work-session", 20)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

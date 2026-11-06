@@ -179,7 +179,16 @@ impl HubStore {
                 id, harness, agent_id, session_id, content_hash, message_id, body, created_at
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             "#,
-            params![id, harness, agent_id, session_id, content_hash, message_id, body, now],
+            params![
+                id,
+                harness,
+                agent_id,
+                session_id,
+                content_hash,
+                message_id,
+                body,
+                now
+            ],
         )?;
         Ok(())
     }

@@ -33,16 +33,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          # ubuntu-24.04 (was 22.04): linuxdeploy-plugin-gtk bundles the build
+          # box's libwebkit2gtk-4.1 into the AppImage, and 22.04's WebKitGTK
+          # (~2.44) scrolls a maximized window an order of magnitude slower than
+          # the .deb, which links the user's system WebKit. 24.04 ships a much
+          # newer WebKitGTK; the .deb is unaffected either way (#213 follow-up).
+          - os: ubuntu-24.04
             bundles: "deb,appimage"
           - os: windows-latest
             bundles: "msi,nsis"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux bundling dependencies
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -54,7 +59,7 @@ jobs:
             build-essential \
             curl wget file
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -67,11 +72,19 @@ jobs:
 
       - run: npm ci
 
+      # Tauri's externalBin entries expect target-qualified files. Shared with
+      # ci.yml `lint-test-rust` so the sidecar crate list cannot drift (#201).
+      - name: Build Creative Tools MCP sidecars
+        uses: ./.github/actions/stage-mcp-sidecars
+
       # tauri-action creates/updates a Release ONLY when `tagName` is non-empty.
       # On a real `v*` tag push that is the tag name → a draft Release. On
-      # `workflow_dispatch` (dry run) `tagName` is empty → it just builds and,
-      # with `uploadWorkflowArtifacts`, attaches the bundles as run artifacts
-      # without creating any tag or Release.
+      # `workflow_dispatch` (dry run) `tagName` is empty → tauri-action just
+      # builds and, seeing no releaseId/tagName, "skips all uploads". The
+      # explicit upload-artifact step below then attaches the bundles as run
+      # artifacts so a dry run is actually inspectable. On a real `v*` tag,
+      # tauri-action uploads the bundles to the draft Release instead and this
+      # step is skipped.
       - name: Build and bundle (tauri-action)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -84,15 +97,25 @@ jobs:
           releaseName: ${{ github.ref_type == 'tag' && format('Coding Assistants {0}', github.ref_name) || '' }}
           releaseDraft: true
           prerelease: false
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: "desktop-${{ matrix.os }}"
+
+      - name: Upload desktop bundles as run artifacts (dry run only)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*-setup.exe
 
   android:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"

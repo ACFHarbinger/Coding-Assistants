@@ -9,100 +9,13 @@
 
 mod managed;
 pub use managed::start_managed_harness;
+mod process;
+use process::{hold_open_after_exit, terminal_exec_prefix, TERMINAL_CANDIDATES};
+pub use process::{is_pid_running, kill_pid};
 
 use crate::harness::HarnessId;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-/// Terminal emulators to try, in order. Duplicated from
-/// `bridge::channels::claude::terminal` rather than shared — that module is
-/// Claude-Channel-specific and reserved to Claude's ownership; this one is
-/// generic across all four harnesses.
-const TERMINAL_CANDIDATES: &[&str] = &["x-terminal-emulator", "konsole", "gnome-terminal", "xterm"];
-
-fn terminal_exec_prefix(terminal: &str) -> &'static [&'static str] {
-    if terminal == "gnome-terminal" {
-        &["--"]
-    } else {
-        &["-e"]
-    }
-}
-
-/// Wraps `program`/`args` so the launched terminal stays open and shows
-/// the exit status after the harness process exits, whatever that status
-/// is. Without this, a command that fails immediately — confirmed live,
-/// 2026-08-14: `codex resume <a stale/invalid thread id>` prints a real
-/// error and exits in well under a second — makes the terminal window
-/// flash and close before its error is ever readable, indistinguishable
-/// from the terminal itself crashing. Terminal emulators disagree on a
-/// "hold open" flag (`konsole --hold`, `xterm -hold`, no equivalent for
-/// `gnome-terminal` or whatever `x-terminal-emulator` resolves to), so
-/// this wraps the command in a small `sh` script instead, uniform across
-/// all four.
-///
-/// `program`/`args` are passed to `sh` as trailing positional arguments
-/// (`$0`/`"$@"`), never interpolated into the script string itself — `sh`
-/// treats them as opaque values, not re-parsed shell syntax, so this stays
-/// exactly as injection-safe as passing them directly to `Command::args`.
-fn hold_open_after_exit(program: &str, args: &[String]) -> (&'static str, Vec<String>) {
-    const SCRIPT: &str = r#"
-"$0" "$@"
-status=$?
-echo
-echo "[$0 exited $status] Press Enter to close this terminal."
-read -r _ignored
-exit "$status"
-"#;
-    let mut sh_args = vec!["-c".to_string(), SCRIPT.to_string(), program.to_string()];
-    sh_args.extend(args.iter().cloned());
-    ("sh", sh_args)
-}
-
-/// True if a process with this pid currently exists and is not a zombie.
-pub fn is_pid_running(pid: u32) -> bool {
-    if pid == 0 || pid > (i32::MAX as u32) {
-        return false;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(status) = std::fs::read_to_string(format!("/proc/{pid}/status")) {
-            for line in status.lines() {
-                if let Some(state) = line.strip_prefix("State:") {
-                    let s = state.trim();
-                    return !s.starts_with('Z') && !s.starts_with('X');
-                }
-            }
-            true
-        } else {
-            false
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .output()
-            .map(|out| out.status.success())
-            .unwrap_or(false)
-    }
-}
-
-/// SIGTERM, then SIGKILL if it's still alive after a short grace period.
-/// Returns `false` when the pid was already gone (nothing to kill).
-pub fn kill_pid(pid: u32) -> bool {
-    if !is_pid_running(pid) {
-        return false;
-    }
-    let _ = Command::new("kill")
-        .args(["-15", &pid.to_string()])
-        .output();
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    if is_pid_running(pid) {
-        let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    true
-}
 
 /// The most recent on-disk session/thread/conversation id this harness has
 /// for `workspace`, read from each harness's own C12 capture bridge —
@@ -122,7 +35,13 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
-        HarnessId::OpenCode | HarnessId::Vibe => None,
+        HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
+        HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
+        HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
+        HarnessId::Qwen => crate::bridge::qwen::latest_qwen_session_id(workspace),
+        HarnessId::Kimi => crate::bridge::kimi::latest_kimi_session_id(workspace),
+        HarnessId::Hermes => crate::bridge::hermes::latest_hermes_session_id(workspace),
+        HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
 
@@ -184,7 +103,29 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Chat, None) => vec![],
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
-        (HarnessId::OpenCode, _) | (HarnessId::Vibe, _) => vec![],
+        // `muse resume <session-uuid>` resumes directly; bare `muse resume`
+        // opens an interactive picker (verified #273 spike), so a fresh
+        // launch passes no resume flag rather than hanging on a picker.
+        (HarnessId::Muse, Some(id)) => vec!["resume".into(), id.into()],
+        (HarnessId::Muse, None) => vec![],
+        (HarnessId::Cursor, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Cursor, None) => vec![],
+        (HarnessId::Vibe, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Vibe, None) => vec![],
+        // `--chat-recording` must be set or `-c`/`-r` are no-ops (qwen 0.23.2).
+        (HarnessId::Qwen, Some(id)) => {
+            vec!["--resume".into(), id.into(), "--chat-recording".into()]
+        }
+        (HarnessId::Qwen, None) => vec!["--chat-recording".into()],
+        (HarnessId::Kimi, Some(id)) => vec!["--session".into(), id.into()],
+        (HarnessId::Kimi, None) => vec![],
+        // `hermes --resume <session-id>` is the documented resume convention
+        // (verified #322: `--resume SESSION`, workspace-scoped disk ids).
+        (HarnessId::Hermes, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Hermes, None) => vec![],
+        // OpenCode resume flags are not wired for interactive relaunch yet.
+        (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
+        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
     }
 }
 
@@ -267,7 +208,13 @@ pub fn resolve_interactive_relaunch(
             "server:coding-assistants-channel".into(),
         ]);
     }
-    let program = harness.executable();
+    let program = if harness == HarnessId::Cursor {
+        crate::harness::cursor_executable()
+    } else if harness == HarnessId::Kimi {
+        crate::harness::kimi_executable()
+    } else {
+        harness.executable()
+    };
     Ok(ResolvedRelaunch {
         harness,
         killed_pid,
@@ -362,35 +309,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hold_open_after_exit_wraps_in_sh_with_program_and_args_as_positionals() {
-        let (program, args) = hold_open_after_exit("codex", &["resume".into(), "abc".into()]);
-        assert_eq!(program, "sh");
-        assert_eq!(args[0], "-c");
-        assert!(
-            args[1].contains("\"$0\" \"$@\""),
-            "script must exec via positionals, not interpolate"
-        );
-        assert_eq!(&args[2..], &["codex", "resume", "abc"]);
-    }
-
-    #[test]
-    fn hold_open_after_exit_script_actually_propagates_the_exit_status() {
-        // Regression: a wrapper that "holds the window open" but silently
-        // swallows the real exit code would break anything reading
-        // RelaunchOutcome's success/failure the same way a flashing
-        // window broke reading the error message.
-        let (program, args) = hold_open_after_exit("/bin/false", &[]);
-        let status = std::process::Command::new(program)
-            .args(&args)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .unwrap();
-        assert_eq!(status.code(), Some(1));
-    }
-
-    #[test]
     fn interactive_resume_args_match_each_harness_documented_flag() {
         assert_eq!(
             interactive_resume_args(HarnessId::Grok, Some("abc")),
@@ -413,6 +331,34 @@ mod tests {
             interactive_resume_args(HarnessId::Gemini, Some("abc")),
             vec!["--conversation", "abc"]
         );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Muse, Some("abc")),
+            vec!["resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Muse, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Cursor, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Cursor, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Vibe, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Vibe, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, Some("abc")),
+            vec!["--resume", "abc", "--chat-recording"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, None),
+            vec!["--chat-recording"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Kimi, Some("abc")),
+            vec!["--session", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Kimi, None).is_empty());
     }
 
     #[test]
@@ -425,16 +371,6 @@ mod tests {
         assert_eq!(args.iter().filter(|a| *a == "--minimal").count(), 1);
         let claude = interactive_resume_args(HarnessId::Claude, Some("abc"));
         assert!(!claude.iter().any(|a| a == "--no-alt-screen"));
-    }
-
-    #[test]
-    fn is_pid_running_is_false_for_an_implausible_pid() {
-        assert!(!is_pid_running(u32::MAX));
-    }
-
-    #[test]
-    fn kill_pid_is_a_harmless_noop_for_an_already_dead_pid() {
-        assert!(!kill_pid(u32::MAX));
     }
 
     #[test]

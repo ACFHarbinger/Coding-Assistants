@@ -14,19 +14,16 @@ use hub::{
 };
 use std::path::{Path, PathBuf};
 
-/// S5 / #131: `vibe` unconditionally passes `--trust`/`--auto-approve`
-/// (`crates/hub/src/harness/mod.rs::vibe_spawn_args`) — the one harness
-/// identity that cannot run without bypassing approval. Strict sandbox
-/// policy for the target workspace refuses to start or inject it; Standard
-/// and Permissive are unchanged from today's behavior. This gates at the
-/// shared C12 dispatch boundary rather than the adapter itself, so no
-/// harness adapter file is touched.
+/// S5 / #131: Vibe, Qwen, and Hermes belong to the approval-bypass harness
+/// class. Strict sandbox policy for the target workspace refuses to start or
+/// inject them; Standard and Permissive are unchanged. This gates at the
+/// shared C12 dispatch boundary rather than the adapter itself.
 fn sandbox_strictness_blocks(harness: &str, workspace: &str) -> bool {
     let strictness = SettingsStore::open(hub::default_hub_home())
         .effective(Some(workspace))
         .orchestration
         .sandbox_strictness;
-    harness == "vibe" && strictness == SandboxStrictness::Strict
+    matches!(harness, "vibe" | "qwen" | "hermes") && strictness == SandboxStrictness::Strict
 }
 
 fn hub_start_harness_blocking(
@@ -40,11 +37,18 @@ fn hub_start_harness_blocking(
             "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
         ));
     }
+    let settings = hub::SettingsStore::open(hub::default_hub_home());
+    let (model, effort) = match settings.effective_harness(Some(&workspace), &harness) {
+        Ok(eff) => (eff.selected_model, eff.selected_effort),
+        Err(_) => (None, None),
+    };
     start_harness(&HarnessStartRequest {
         harness,
         workspace: PathBuf::from(workspace),
         session_id,
         prompt,
+        model,
+        effort,
     })
     .map_err(|error| error.to_string())
 }
@@ -80,6 +84,15 @@ fn hub_inject_harness_blocking(
             "{harness} requires bypassing approval and is blocked by this workspace's strict sandbox policy"
         ));
     }
+    let settings = hub::SettingsStore::open(hub::default_hub_home());
+    let (model, effort, kimi_mode) = match settings.effective_harness(Some(&workspace), &harness) {
+        Ok(eff) => (
+            eff.selected_model,
+            eff.selected_effort,
+            eff.selected_kimi_mode,
+        ),
+        Err(_) => (None, None, None),
+    };
     inject_harness_with_store(
         &open_store()?,
         &HarnessInjectRequest {
@@ -90,6 +103,10 @@ fn hub_inject_harness_blocking(
             body,
             is_task,
             is_wake,
+            model,
+            effort,
+            // #363: the workspace's Kimi slash-command mode (default off).
+            kimi_mode,
         },
     )
     .map_err(|error| error.to_string())
@@ -283,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn strict_sandbox_policy_blocks_only_vibe() {
+    fn strict_sandbox_policy_blocks_approval_bypass_harnesses() {
         with_ca_home("strict-blocks-vibe", || {
             let mut settings = SettingsStore::open(hub::default_hub_home());
             settings
@@ -292,6 +309,8 @@ mod tests {
             settings.save().unwrap();
 
             assert!(sandbox_strictness_blocks("vibe", "/abs/repo"));
+            assert!(sandbox_strictness_blocks("qwen", "/abs/repo"));
+            assert!(sandbox_strictness_blocks("hermes", "/abs/repo"));
             assert!(!sandbox_strictness_blocks("claude", "/abs/repo"));
             assert!(!sandbox_strictness_blocks("grok", "/abs/repo"));
         });

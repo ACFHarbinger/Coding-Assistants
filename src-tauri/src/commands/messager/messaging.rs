@@ -259,9 +259,17 @@ pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<hub::AgentRecor
 }
 
 #[tauri::command]
-pub fn hub_create_work_session(name: String) -> Result<hub::WorkSessionRecord, String> {
+pub fn hub_create_work_session(
+    name: String,
+    member_ids: Option<Vec<String>>,
+    workspace_id: Option<String>,
+) -> Result<hub::WorkSessionRecord, String> {
     open_store()?
-        .create_work_session(&name)
+        .create_work_session_with_members_in_workspace(
+            &name,
+            member_ids.as_deref(),
+            workspace_id.as_deref(),
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -327,7 +335,15 @@ pub fn hub_list_wakes(
 }
 
 #[tauri::command]
-pub fn hub_export_markdown() -> Result<String, String> {
+pub async fn hub_export_markdown() -> Result<String, String> {
+    // Serializes the whole store to a markdown tree on disk; keep it off the
+    // IPC thread so a large export never freezes the window (#163).
+    tauri::async_runtime::spawn_blocking(hub_export_markdown_blocking)
+        .await
+        .map_err(|error| format!("hub_export_markdown task panicked: {error}"))?
+}
+
+pub(crate) fn hub_export_markdown_blocking() -> Result<String, String> {
     if !export_enabled() {
         return Err("export is disabled by orchestration policy".to_string());
     }
@@ -340,7 +356,18 @@ pub fn hub_export_markdown() -> Result<String, String> {
 /// Export + `git add`/`git commit` if the markdown dir is inside a work tree
 /// (M3). Never fails solely because there's no repo there — see `detail`.
 #[tauri::command]
-pub fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+pub async fn hub_export_markdown_git(message: Option<String>) -> Result<GitExportOutcome, String> {
+    // `export_markdown_git` shells out to `git rev-parse`/`add`/`commit`
+    // (three blocking subprocesses); on the IPC thread that's a multi-second
+    // window freeze with no feedback (#163).
+    tauri::async_runtime::spawn_blocking(move || hub_export_markdown_git_blocking(message))
+        .await
+        .map_err(|error| format!("hub_export_markdown_git task panicked: {error}"))?
+}
+
+pub(crate) fn hub_export_markdown_git_blocking(
+    message: Option<String>,
+) -> Result<GitExportOutcome, String> {
     if !export_enabled() {
         return Err("export is disabled by orchestration policy".to_string());
     }

@@ -1,10 +1,15 @@
+export type EndpointLinkState = "connected" | "disconnected";
+
 export interface ModelConfig {
   provider: string;
   model: string;
   endpoint?: string;
+  /** Omitted on older saved roles, which stay connected. */
+  endpoint_state?: EndpointLinkState;
   prompt_file?: string;
   rule_file?: string;
   workflow_file?: string;
+  skill_file?: string;
 }
 
 export interface RoleConfig {
@@ -24,6 +29,7 @@ export interface AgentResources {
   prompts: string[];
   rules: string[];
   workflows: string[];
+  skills?: string[];
 }
 
 export interface TeamMember {
@@ -40,6 +46,7 @@ export interface WorkSession {
   name: string;
   created_at: string;
   member_ids: string[];
+  workspace_id?: string | null;
 }
 
 export interface DetectedProcess {
@@ -57,4 +64,28 @@ export function processTargetId(process: Pick<DetectedProcess, "agent" | "pid">)
   if (normalized === "gemini") return "gemini";
   if (normalized === "grok") return "grok";
   return `process:${process.pid}`;
+}
+
+export function spawnedRoleTeamMember(index: number, role: RoleConfig): TeamMember {
+  return {
+    id: role.process_pid ? `process:${role.process_pid}` : `role:${index}`,
+    target_id: role.process_pid
+      ? processTargetId({ agent: role.name.split(" · ")[0], pid: role.process_pid })
+      : `role:${index}`,
+    name: role.name,
+    provider: role.config.provider,
+    model: role.config.model,
+    origin: role.origin || "spawned",
+  };
+}
+
+export interface WorkspaceValidation {
+  path: string;
+  valid: boolean;
+  exists: boolean;
+  is_dir: boolean;
+  is_bootstrapped: boolean;
+  parent_exists: boolean;
+  is_system_dir: boolean;
+  error?: string | null;
 }

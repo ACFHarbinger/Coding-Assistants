@@ -12,6 +12,10 @@ export interface MemoryRecord {
   stale: boolean;
 }
 
+export interface ScoredMemoryRecord extends MemoryRecord {
+  score: number;
+}
+
 export interface MessageRecord {
   id: string;
   from_agent: string;
@@ -68,6 +72,35 @@ export interface ProviderQuotaWindow {
   window_minutes?: number | null;
 }
 
+export interface ProviderQuotaBalance {
+  currency: string;
+  total: number;
+  kind?: "balance" | "spend" | null;
+  spent?: number | null;
+  granted?: number | null;
+  topped_up?: number | null;
+  paid?: number | null;
+  gift?: number | null;
+  /** Spend-kind: `"uncapped"` vs `"unknown"`. Omitted when `total` is a real cap. */
+  spend_cap?: "uncapped" | "unknown" | null;
+}
+
+// Raw counts a harness recorded locally (Mistral Vibe `meta.json` stats,
+// Qwen Code `usage_record.jsonl`). Neither a percentage nor a currency — there is no
+// cap to divide by — so it is its own field rather than being forced into
+// `windows` or `balance_info`.
+export interface ProviderQuotaLocalUsage {
+  sessions: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_tokens: number;
+  tool_calls_succeeded: number;
+  tool_calls_failed: number;
+  tool_calls_rejected: number;
+  /** UNIX seconds of the oldest session counted. */
+  since?: number | null;
+}
+
 export interface ProviderQuota {
   agent_id: string;
   provider: string;
@@ -76,9 +109,144 @@ export interface ProviderQuota {
   detail?: string | null;
   windows: ProviderQuotaWindow[];
   fetched_at: number;
+  balance?: string | null;
+  balance_info?: ProviderQuotaBalance | null;
+  local_usage?: ProviderQuotaLocalUsage | null;
 }
 
-export type HubTab = "dashboard" | "memory" | "inbox" | "wakes" | "tasks" | "usage" | "journal" | "channels";
+export type FigureProvenance = "measured" | "estimated" | "unknown";
+export type HarnessCoverage = "managed" | "observed" | "unregistered";
+
+export interface ScorecardFigure {
+  coverage?: { measured_requests: number; total_requests: number } | null;
+  value: number | null;
+  provenance: FigureProvenance;
+  unit: string;
+}
+
+export interface ScorecardSecurityEvent {
+  id: string;
+  operation: string;
+  observed_at: string;
+  status: string;
+  task_id?: string | null;
+  work_session_id?: string | null;
+  provenance: FigureProvenance;
+}
+
+export interface AgentScorecardRow {
+  agent_id: string;
+  display_name: string;
+  oversight_role?: string | null;
+  open_security_events: ScorecardSecurityEvent[];
+  oldest_pending_human_decision?: string | null;
+  tokens: ScorecardFigure;
+  cost: ScorecardFigure;
+  measured_cost_units?: number | null;
+  estimated_cost_units?: number | null;
+  budget_spent?: number | null;
+  budget_limit?: number | null;
+  budget_paused: boolean;
+  provenance: string;
+  task_count: ScorecardFigure;
+  /** Unresolved `scorecard.disagreement` rows naming this agent (T7 / #347). */
+  unresolved_disagreements?: number;
+}
+
+export interface HarnessScorecardRow {
+  harness: string;
+  workspace: string;
+  coverage: HarnessCoverage;
+  linked_agent_id?: string | null;
+  disk_session_id?: string | null;
+  state?: string | null;
+  session_count: ScorecardFigure;
+}
+
+export interface ProviderScorecardRow {
+  provider: string;
+  via_gateway?: string | null;
+  tokens: ScorecardFigure;
+  cost: ScorecardFigure;
+  request_count: ScorecardFigure;
+}
+
+export interface DigestResolutionCounts {
+  desktop: number;
+  telegram: number;
+  tcp: number;
+  total: number;
+}
+
+export interface DigestPendingDecision {
+  id: string;
+  kind: "wake" | "gate_approval" | "os_tool";
+  subject: string;
+  agent?: string | null;
+  created_at: string;
+  age_seconds?: number | null;
+  task_id?: string | null;
+  github_issue?: string | null;
+}
+
+export interface DigestSessionGroup {
+  work_session_id?: string | null;
+  work_session_name?: string | null;
+  workspace_id?: string | null;
+  pending: DigestPendingDecision[];
+  unresolved_findings: number;
+  resolved_window: DigestResolutionCounts;
+}
+
+export interface DigestSummary {
+  pending_count: number;
+  oldest_pending_at?: string | null;
+  unresolved_findings: number;
+  resolved_window: DigestResolutionCounts;
+}
+
+export interface OwnerDigest {
+  groups: DigestSessionGroup[];
+  summary: DigestSummary;
+  window_days: number;
+}
+
+export interface ScorecardView {
+  agents: AgentScorecardRow[];
+  harnesses: HarnessScorecardRow[];
+  providers: ProviderScorecardRow[];
+  digest?: OwnerDigest | null;
+  aggregation_version: number;
+  generated_at: string;
+  /** Advisory consistency probes (T7 / #347). Owner-only payload. */
+  probes?: ScorecardProbe[];
+  /** Reviewer-side oversight signature (T7 / #347). Owner-private. */
+  reviewers?: ReviewerSignatureRow[];
+}
+
+export type ProbeState = "ok" | "disagreement" | "unknown";
+
+export interface ScorecardProbe {
+  probe: string;
+  subject: string;
+  state: ProbeState;
+  reason?: string | null;
+  source_event_ids: string[];
+  linked_agents?: string[];
+}
+
+export interface ReviewerSignatureRow {
+  reviewer_id: string;
+  display_name: string;
+  findings_recorded: ScorecardFigure;
+  findings_corrected_by_owner: ScorecardFigure;
+  /** Findings per task WITH a documented finding — not a rate across all reviewed tasks. */
+  findings_per_task: ScorecardFigure;
+  owner_override_reversal_rate: ScorecardFigure;
+  /** Always `unknown` until gate decisions record reviewer identity and evidence signals exist. */
+  zero_evidence_approvals: ScorecardFigure;
+  review_dwell: ScorecardFigure;
+}
 
 // Mirrors `hub::ChannelWorkspace` (C14.3 / #150).
 export interface ChannelWorkspace {

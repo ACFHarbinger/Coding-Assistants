@@ -144,6 +144,7 @@ cargo test
 | `tcp_server.rs` | Integration | TCP client connection and protocol exchange            |
 | `file_tools.rs` | Unit        | Read/write relative to workspace                      |
 | `file_tools.rs` | Unit        | Path traversal prevention                             |
+| `write_bridge.rs` | Unit      | WRITE, APPEND, and EDIT parsing and apply             |
 | `lib.rs`        | Unit        | Resource path validation                              |
 
 ### Example Test Structure

@@ -238,19 +238,19 @@ before the first upload.
 
 | # | Capability | Exit criteria | Status |
 | --- | --- | --- | --- |
-| S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | 📋 Planned |
-| S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | 📋 Planned |
-| S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | 📋 Planned |
-| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | 📋 Planned |
-| S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 📋 Planned |
-| S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 📋 Planned |
-| S7 | Conflict review and preservation | Desktop (and CLI list/apply) queue: local / remote / keep-both / manual; both versions and the owner decision are audit-recorded and recoverable under `sync/conflicts/` | 📋 Planned |
-| S8 | Deletion / tombstone policy | v1 **default is confirm-only**; settings may later add no-propagate and auto-propagate; tombstones and `sync/conflicts/` preserved copies expire after a **30-day** default retention window (manual cleanup only, never automatic deletion) | 📋 Planned |
-| S9 | Reliability, device trust, observability | Device register/trust/**revoke** (trust list — who may sync going forward, *not* rotating an already-shared `cloud-sync.key` after compromise, which stays a manual owner action / v1 non-goal), resumable transfers, offline retry of **owner-started** runs, bandwidth/concurrency limits, quotas, sync history, exportable diagnostics | 📋 Planned |
-| S10 | Firebase Auth + private Storage | Firebase Auth supports an owner-approved account identity alongside Drive OAuth/manual credentials. Firebase Storage writes only authenticated, encrypted hashed blobs to an app-private bucket/prefix under restrictive Security Rules; it passes the shared storage conformance suite and is the first post-Drive integration. `cloud-sync.key` remains manual in v1, but the identity/key-envelope interfaces are reserved for a future owner-approved recovery/key-sharing feature | 📋 Planned · after S5 |
-| S11 | Supabase Auth + private Storage | Supabase Auth supports the same trusted-account identity contract. Supabase Storage uses a private bucket/prefix with RLS policies that allow only the authenticated owner to access encrypted hashed blobs; it passes the Firebase/Drive conformance suite without changing reconciliation semantics | 📋 Planned · after S10 |
-| S12 | Additional drive adapters | OneDrive and Dropbox pass the same storage and identity conformance suite after Firebase and Supabase | 📋 Planned |
-| S13 | Android download-only (later) | Companion app restores a verified snapshot for monitoring; no journal merge, no Hub lock on-device, no upload from the phone until a later owner lock | 📋 Planned · after S5 |
+| S1 | Sync domain model and provider abstraction | Typed `DriveClient`, account/config, **hashed blob ids**, **per-device folder + replica** layout, device identity, category policy, manifest, snapshot, and sync-result contracts are unit-tested without a live provider | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#91](https://github.com/ACFHarbinger/Coding-Assistants/issues/91) (Cursor). `hub::sync` types + FakeDrive + policy unit-tested. Owner live check still open. |
+| S2 | Local key management and encrypted object format | Install creates/imports `cloud-sync.key`; uploads use authenticated encryption and versioned encrypted manifests/blobs; journal Fernet blocks are wrapped as opaque file bytes; plaintext and all keys fail a fake-provider test if they would leak | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#92](https://github.com/ACFHarbinger/Coding-Assistants/issues/92) (Cursor). `CAS1` + FakeDrive leak tests. Owner live check still open. |
+| S3 | Google Drive authentication and storage adapter | Owner connects/disconnects via OAuth or manual credentials, scoped to `drive.appdata` (hidden App Data folder, never a visible "My Drive" folder); adapter creates/lists/reads/writes **conditional** objects only as hashed names under `devices/<id>/` and `replica/`; `devices/<id>/` is pruned after a successful replica merge; credentials redacted from logs and audit UI | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#93](https://github.com/ACFHarbinger/Coding-Assistants/issues/93) (Cursor). Scripted Drive v3 adapter; browser OAuth is S4; live account is S5. |
+| S4 | Explicit desktop controls, **CLI parity**, and Hub lock | Sync tab **and** `ca sync preview\|up\|down\|sync` show account, policy, last verified base, plan, progress, cancel, errors; **no** transfer without owner action; a run takes the Hub pause/lock and rejects concurrent **mutating** Hub work while leaving the desktop UI and CLI usable **read-only**; `ca sync preview` warns (does not refuse) on a cross-device `hub` schema-version mismatch | ✅ **Landed** (2026-09-20; live Drive verify owed) · [#94](https://github.com/ACFHarbinger/Coding-Assistants/issues/94) (Cursor). Lock + shared plan + CLI + Settings tab. Snapshot transfer remains S5. |
+| S5 | **First gate:** consistent snapshot upload/download | Two devices: encrypt/upload every configured category; second device downloads to staging, verifies, restores without corrupting a live `hub.db`; hashed names only; no auto-merge required; **exit criteria include one real (non-mocked) run against a dedicated test Google Drive account**, not fake-provider coverage alone | 🛠️ **Code landed** (2026-09-20; live Drive owner-owed) · [#95](https://github.com/ACFHarbinger/Coding-Assistants/issues/95) (Cursor). FakeDrive two-home + `FsDrive` rehearsal. Live `hub.db` never replaced. Do not close until owner Drive check. |
+| S6 | **Second gate:** journal-backed three-way + fork-aware rebase | Coordinator auto-merges only independent paths and proven-ancestry journal/audit appends; a test covers Device A and Device B both ahead of replica; unclean forks and `hub.db` divergence stay in review | 🛠️ **Code landed** (2026-09-22) · [#96](https://github.com/ACFHarbinger/Coding-Assistants/issues/96) (Cursor). Three-way `reconcile` + fork-aware rebase. Live `hub.db` never replaced. Do not close until Codex review. |
+| S7 | Conflict review and preservation | Desktop (and CLI list/apply) queue: local / remote / keep-both / manual; both versions and the owner decision are audit-recorded and recoverable under `sync/conflicts/` | 🛠️ **Code landed** (2026-09-22) · [#97](https://github.com/ACFHarbinger/Coding-Assistants/issues/97) (Cursor). Owner list/apply; live `hub.db` never replaced. Codex PASS. Owner live verify owed. |
+| S8 | Deletion / tombstone policy | v1 **default is confirm-only**; settings may later add no-propagate and auto-propagate; tombstones and `sync/conflicts/` preserved copies expire after a **30-day** default retention window (manual cleanup only, never automatic deletion) | 🛠️ **Code landed** (2026-09-22) · [#98](https://github.com/ACFHarbinger/Coding-Assistants/issues/98) (Cursor). Confirm-only tombstones; 30-day manual purge. Live `hub.db` never deleted. Codex PASS. Owner live verify owed. |
+| S9 | Reliability, device trust, observability | Device register/trust/**revoke** (trust list — who may sync going forward, *not* rotating an already-shared `cloud-sync.key` after compromise, which stays a manual owner action / v1 non-goal), resumable transfers, offline retry of **owner-started** runs, bandwidth/concurrency limits, quotas, sync history, exportable diagnostics | 🛠️ **Code landed** (2026-09-23) · [#99](https://github.com/ACFHarbinger/Coding-Assistants/issues/99) (Cursor). Trust list + resume + redacted diagnostics. Key rotation still manual. Live `hub.db` never replaced. Do not close until owner live verify. |
+| S10 | Firebase Auth + private Storage | Firebase Auth supports an owner-approved account identity alongside Drive OAuth/manual credentials. Firebase Storage writes only authenticated, encrypted hashed blobs to an app-private bucket/prefix under restrictive Security Rules; it passes the shared storage conformance suite and is the first post-Drive integration. `cloud-sync.key` remains manual in v1, but the identity/key-envelope interfaces are reserved for a future owner-approved recovery/key-sharing feature | 🛠️ **Code landed** (2026-09-24; live Firebase owner-owed) · [#100](https://github.com/ACFHarbinger/Coding-Assistants/issues/100) (Cursor). Identity Toolkit parse + scripted Storage adapter + restrictive rules. Key-envelope unused. Live `hub.db` never replaced. Do not close until owner live verify. |
+| S11 | Supabase Auth + private Storage | Supabase Auth supports the same trusted-account identity contract. Supabase Storage uses a private bucket/prefix with RLS policies that allow only the authenticated owner to access encrypted hashed blobs; it passes the Firebase/Drive conformance suite without changing reconciliation semantics | 🛠️ **Code landed** (2026-10-01; live Supabase owner-owed) · [#101](https://github.com/ACFHarbinger/Coding-Assistants/issues/101) (Codex). Scripted Storage adapter, secret catalog and restrictive RLS template. Drive remains primary; key-envelope unused; live `hub.db` never replaced. Do not close until owner live verify. |
+| S12 | Additional drive adapters | OneDrive and Dropbox pass the same storage and identity conformance suite after Firebase and Supabase | 🛠️ **Code landed** (2026-10-01; live OneDrive/Dropbox owner-owed) · [#102](https://github.com/ACFHarbinger/Coding-Assistants/issues/102) (Grok). Graph `approot` + Dropbox app folder; hashed names; Drive remains primary; key-envelope unused; live `hub.db` never replaced. Do not close until owner live verify. |
+| S13 | Android download-only (later) | Companion app restores a verified snapshot for monitoring; no journal merge, no Hub lock on-device, no upload from the phone until a later owner lock | 🛠️ **Code landed** (2026-10-01; owner Android verify owed) · [#103](https://github.com/ACFHarbinger/Coding-Assistants/issues/103) (Grok). CAS1 decrypt + hashed inbox restore into `sync/staging/restore/`. No upload, no journal merge, no Hub lock, live `hub.db` never replaced. Do not close until owner live verify. |
 
 Implementation order is S1 → S4 (contracts, crypto, Drive, UI/CLI/lock), then
 **S5 acceptance**, then S6–S8, then S9. S10 (Firebase) follows S5, S11
@@ -376,9 +376,174 @@ Two implementation caveats for whoever picks up S6/S10 — not owner overrides:
 2. **S10/S11 must not grow a key-envelope by accident.** The reserved
    identity/key-envelope interfaces stay unused in v1. A Firebase Auth
    session must not upload or wrap `cloud-sync.key`. Prune of
-   `devices/<id>/` must be the same transaction as advancing `replica/`;
-   an interrupted merge must leave the device folder in place.
+  `devices/<id>/` must be the same transaction as advancing `replica/`;
+  an interrupted merge must leave the device folder in place.
 
 ### Gemini — 2026-08-13
 
 **Fully agree** with the approved design. The local-first encrypted replica model, mutation-only Hub lock during sync runs (keeping read-only UI/CLI responsive), hashed content-addressed blob naming in hidden `drive.appdata` scope, 30-day manual conflict retention, and Firebase/Supabase post-Drive identity integration provide a robust, zero-trust cloud sync architecture with strong privacy and security boundaries.
+
+### Cursor — 2026-09-20 — S1–S3 implementation spike (#91/#92/#93)
+
+Owner-directed. Does **not** change locked product decisions. This is the
+code shape for S1 → S2 → S3. S4 UI/CLI/lock, S5 real Drive, and S6 merge
+stay out.
+
+**Where.** New `hub::sync` module (not a crate, not Terraform I2). Desktop
+and `ca sync` (S4) will call it later. `infra/terraform/` stays unused:
+Drive App Data is the user's account, not a provisioned bucket.
+
+**Blob ids.** `BlobId` = lowercase hex SHA-256 of the **encrypted object
+bytes**. Remote names are only that id. The encrypted manifest maps
+`BlobId` → relative path, category, plaintext content hash, size, kind.
+Hashing ciphertext (unique nonce per write) avoids a plaintext
+identical-content oracle in the Drive listing.
+
+**Device id.** 128-bit random UUID in `sync/device.json`. Remote folder
+name is `sha256(uuid)` hex (truncated to 32 chars). No hostname, no
+username.
+
+**Remote prefixes** (inside `drive.appdata`, never My Drive):
+
+- `devices/<hashed-device-id>/`
+- `replica/`
+- `manifests/`
+
+**`DriveClient` (S1).** Provider-neutral; FakeDrive is the first impl:
+
+- `list(prefix) -> [{blob_id, etag, size}]`
+- `get(blob_id) -> bytes`
+- `put_if_unmodified(blob_id, bytes, expected_etag: Option<ETag>) -> ETag`
+- `delete_if_match(blob_id, etag)`
+- `advance_replica { puts, device_prefix_to_prune }` — FakeDrive applies
+  atomically. Google Drive has no multi-object transaction: upload new
+  replica objects, then **if-match** the replica manifest (the commit
+  point), then prune `devices/<id>/`. If prune fails, the device folder
+  stays (Grok 2026-08-13 caveat). Interrupted merge must not drop the
+  device folder.
+
+**Category policy (S1).** Classify relative paths from
+`.coding-assistants/` using the locked table. Mandatory exclude:
+`keys/cloud-sync.key`, `keys/journals/*`, `sync/lock`, `sync/staging/`.
+Defaults: caches/wakes exclude; secrets local-only; hub.db snapshot;
+journals include as opaque files.
+
+**Types (S1, unit-tested, no network).** `SyncConfig` (provider, account
+ref, policy map), `DeviceIdentity`, `Manifest` (versioned, encrypted
+payload after S2), `Snapshot`, `SyncResult` (counts, errors, **no
+secrets**), `TrustedAccount` (identity handle only — token stays in P12).
+No Firebase/Supabase merge type.
+
+**Crypto (S2).** Do **not** reuse `secret/file_crypto.rs` `CAVT` (PBKDF2
+is OS-user-scoped and not portable). New object format, already-vendored
+`ring` ChaCha20-Poly1305:
+
+```
+magic "CAS1" (4) | version 0x01 (1) | kind (1) | nonce (12) | ciphertext | tag (16)
+AAD = magic || version || kind
+```
+
+`cloud-sync.key` is 32 random bytes at `keys/cloud-sync.key` mode `0600`
+(create or import). Same key on every trusted device; owner copies it.
+Journal files are encrypted as whole-file bytes; `<!--ENC-->` Fernet
+blocks are not re-parsed. Fake-provider leak test fails if stored bytes
+contain the raw key, a fixture plaintext path, a refresh token, or
+`cloud-sync.key` / journal-key filenames.
+
+**Google adapter (S3).** `ureq` Drive v3, scope
+`https://www.googleapis.com/auth/drive.appdata`. Refresh token in P12
+`tool.sync.google_refresh_token` / `GOOGLE_DRIVE_REFRESH_TOKEN` (vault
+wins). Client id/secret are OAuth app config, not the replica key.
+S3 implements token refresh + hashed CRUD + conformance against
+`DriveClient`. Browser OAuth loopback is S4; S3 accepts a stored refresh
+token (manual paste now, Settings/CLI write later). Credentials never in
+`Debug`, logs, or audit JSON. Live account run is **S5**, not S3.
+
+**Sequence.** S1 FakeDrive + types + policy → S2 key + CAS1 + leak test →
+S3 Google adapter on the same trait. One branch `agent/cursor-91`,
+sequential commits, ≤500 LoC/file. Two open branches max.
+
+**Out of scope here.** Hub mutation lock, `ca sync` CLI, desktop Sync tab,
+three-way merge, real Drive acceptance, key escrow, I2 terraform,
+Firebase/Supabase (S10/S11).
+
+### Cursor — 2026-09-20 — S3 Google Drive adapter (#93)
+
+`GoogleDrive` implements `DriveClient` on Drive v3 `spaces=appDataFolder`.
+Remote names are BlobIds only; non-hex names such as `journals/claude.md`
+are skipped. Refresh token is P12 `tool.sync.google_refresh_token` /
+`GOOGLE_DRIVE_REFRESH_TOKEN`. `UreqTransport` attaches Authorization and
+maps 404/412; `Debug` and errors omit tokens. Tests use
+`ScriptedTransport` (no network). Browser OAuth loopback is S4. Live
+Drive is S5. Prune-after replica advance is still not a multi-object
+transaction.
+
+### Cursor — 2026-09-20 — S4 lock, CLI, and Sync tab (#94)
+
+`sync/lock` is pid-scoped JSON with no secrets. Preview never locks.
+`ca sync preview|up|down|sync` and the Settings Sync tab share `SyncPlan`
+(account presence, schema warning, category counts, hashed last base).
+up/down/sync take the lock; they do not copy `hub.db` or run the S5
+snapshot transfer. `ca sync cancel` / Cancel releases. Browser OAuth
+loopback is still later; connect is P12 Credentials.
+
+### Cursor — 2026-09-20 — S5 encrypted snapshot (#95)
+
+`upload_home` / `download_home` over `DriveClient`. Tests use FakeDrive
+(two temp homes). CLI/desktop use `FsDrive` at `CA_SYNC_FAKE_ROOT` or
+`{hub}/sync/remote`. Classify + skip local-only/exclude/`hub.db-wal|shm`.
+Copy `hub.db` to `sync/staging/source/` before encrypt. Remote names are
+hashed BlobIds. Encrypted Manifest is the commit point; stale replica
+objects are pruned afterward. Download decrypts the Manifest, verifies
+content hashes into `sync/staging/restore/`, then applies every file
+except live `hub.db*`. Tamper / missing entry / extra garbage fail
+closed. Live Google Drive HTTP is not invoked here (owner-run). S6 now
+reconciles that staging tree instead of a blind apply.
+
+### Cursor — 2026-09-22 — S6 three-way merge + fork-aware rebase (#96)
+
+`reconcile(local, base, remote)` auto-applies independent paths and
+prefix-proven journal/markdown appends. Conflicts (`hub.db`, same-path
+edits, journal rewrite, delete-confirm) go to `sync/conflicts/` without
+touching the live path. `decide_fork` rebases only disjoint observed
+paths; the `sync-resolution` event names both heads. Inserts use
+`record_audit_for_sync` while `sync/lock` is held. Download calls
+reconcile then optional rebase. S7 review UI is out of scope.
+
+### Cursor — 2026-09-22 — S7 owner conflict review (#97)
+
+`list_conflicts` / `apply_choice` on S6's `sync/conflicts/<slug>/` queue.
+Choices: local / remote / keep-both / manual. `remote` on `hub.db` fails
+closed. keep-both writes `<stem>.remote<ext>` beside non-db live files.
+`decision.json` and `sync-conflict-decision` audit JSON are hashes +
+choice only. Atomic `*.tmp` then rename. CLI/desktop parity. S8/S9 stay
+out. Does not change locked product decisions.
+
+### Cursor — 2026-09-22 — S8 confirm-only tombstones (#98)
+
+`confirm_delete` is owner-started. Remote + missing remote copy is the
+confirm click. Tombstones use `policy: confirm-only` and a 30-day
+`expires_at`. `expired_cleanup_candidates` lists only; `purge_expired`
+requires explicit slugs or `confirm_all_expired`. Never called from
+`ca sync up|down|sync`. Live `hub.db` is never deleted. S9 stays out.
+Does not change locked product decisions.
+
+### Cursor — 2026-09-23 — S9 trust, resume, diagnostics (#99)
+
+Local `sync/trust.json` is who may sync going forward. `revoke` never
+rotates `cloud-sync.key` (manual owner action / v1 non-goal). Download
+rejects unknown/revoked devices fail-closed. Resume records each
+successful put; quota stop happens before Manifest/prune. Retry is
+owner-started only. History and diagnostics omit tokens, keys, and
+journal plaintext. Remote names stay hashed BlobIds / hashed device
+folders. S10 stays out. Does not change locked product decisions.
+
+### Grok — 2026-10-01 — S13 Android download-only restore (#103)
+
+Companion CAS1 decrypt (BouncyCastle IETF ChaCha20-Poly1305) plus a
+hashed `sync/inbox/` restore into `sync/staging/restore/`. Owner copies
+`keys/cloud-sync.key` and 64-hex objects onto the phone. One Manifest,
+content-hash + kind checks, path-traversal refuse. No DriveClient, no
+upload, no journal merge, no Hub lock. Live `hub.db` stays put. Owner
+device check is still owed.
+

@@ -264,6 +264,7 @@ mod tests {
             body: "review the adapter".into(),
             is_task: true,
             is_wake: false,
+            ..Default::default()
         }
     }
 
@@ -452,6 +453,7 @@ mod tests {
     fn a_captured_reply_is_routed_back_into_the_hub_addressed_to_the_sender() {
         let dir = tempdir().unwrap();
         let store = HubStore::open(dir.path()).unwrap();
+        store.upsert_agent("orchestrator", "Orchestrator").unwrap();
         store.set_team_member("orchestrator", true).unwrap();
         let task_msg = store
             .send_message(

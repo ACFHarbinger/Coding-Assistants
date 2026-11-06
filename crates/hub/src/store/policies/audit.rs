@@ -1,6 +1,7 @@
 use super::super::*;
+use crate::store::models::embeddings::embedding_model;
 #[path = "audit_events.rs"]
-mod audit_events;
+pub(crate) mod audit_events;
 
 impl HubStore {
     pub fn open(data_dir: impl AsRef<Path>) -> Result<Self, HubError> {
@@ -11,6 +12,7 @@ impl HubStore {
         fs::create_dir_all(data_dir.join("wake"))?;
         fs::create_dir_all(data_dir.join("attachments"))?;
 
+        register_sqlite_vec();
         let db_path = data_dir.join("hub.db");
         let conn = Connection::open(&db_path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
@@ -30,6 +32,7 @@ impl HubStore {
                 data_dir.display()
             )));
         }
+        register_sqlite_vec();
         let conn = Connection::open_with_flags(
             &db_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -56,7 +59,11 @@ impl HubStore {
                 display_name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 card_json TEXT,
-                team_member INTEGER NOT NULL DEFAULT 0
+                team_member INTEGER NOT NULL DEFAULT 0,
+                role TEXT,
+                custom_display_name INTEGER NOT NULL DEFAULT 0,
+                animated_avatar INTEGER NOT NULL DEFAULT 0,
+                vtuber_character TEXT
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -71,7 +78,8 @@ impl HubStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 stale INTEGER NOT NULL DEFAULT 0,
-                source_event_id TEXT
+                source_event_id TEXT,
+                tool TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_memories_scope_tier
@@ -151,6 +159,7 @@ impl HubStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 last_message_id TEXT,
+                output_watermark_id TEXT,
                 attempts_json TEXT NOT NULL DEFAULT '{}',
                 open_agents_json TEXT NOT NULL DEFAULT '[]',
                 pending_agents_json TEXT NOT NULL DEFAULT '[]',
@@ -337,27 +346,82 @@ impl HubStore {
                 writer_acquired_at TEXT,
                 PRIMARY KEY (harness, workspace)
             );
+
+            CREATE TABLE IF NOT EXISTS linked_account (
+                owner TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                external_label TEXT,
+                connection_kind TEXT NOT NULL CHECK (connection_kind IN ('oauth_device', 'vendor_cli_login')),
+                linked_at INTEGER NOT NULL,
+                token_ref TEXT,
+                PRIMARY KEY (owner, provider)
+            );
             "#,
         )?;
+        self.ensure_board_tables()?;
+        self.ensure_branch_link_table()?;
+        self.ensure_workspaces_table()?;
+        self.ensure_bus_entries_table()?;
+        self.ensure_schedule_tables()?;
+        self.ensure_guardrail_table()?;
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
+            "ALTER TABLE messages ADD COLUMN context_body TEXT",
             "ALTER TABLE agents ADD COLUMN card_json TEXT",
             "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",
+            "ALTER TABLE agents ADD COLUMN role TEXT",
+            "ALTER TABLE agents ADD COLUMN oversight_role TEXT",
+            "ALTER TABLE agents ADD COLUMN custom_display_name INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE agents ADD COLUMN animated_avatar INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE agents ADD COLUMN vtuber_character TEXT",
             "ALTER TABLE tasks ADD COLUMN attempts_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE tasks ADD COLUMN open_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
             "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE tasks ADD COLUMN output_watermark_id TEXT",
             "ALTER TABLE tagged_send_outcomes ADD COLUMN policy_decision TEXT",
             "ALTER TABLE harness_session_registrations ADD COLUMN mode TEXT NOT NULL DEFAULT 'observed'",
             "ALTER TABLE harness_session_registrations ADD COLUMN state TEXT NOT NULL DEFAULT 'ready'",
             "ALTER TABLE harness_session_registrations ADD COLUMN managed_pid INTEGER",
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_owner TEXT",
             "ALTER TABLE harness_session_registrations ADD COLUMN writer_acquired_at TEXT",
+            "ALTER TABLE memories ADD COLUMN tool TEXT",
+            "ALTER TABLE work_sessions ADD COLUMN workspace_id TEXT",
         ] {
             let _ = self.conn.execute(ddl, []);
+        }
+
+        let _ = self.conn.execute(
+            "UPDATE agents SET custom_display_name = 1
+             WHERE id IN (
+                 SELECT substr(path, 7, length(path) - 19)
+                 FROM audit_events
+                 WHERE path LIKE 'agent.%.display_name' AND operation LIKE 'rename:%'
+             )",
+            [],
+        );
+
+        let vector_table_sql: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_vectors'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if !vector_table_sql.is_some_and(|sql| sql.contains("VIRTUAL TABLE")) {
+            self.conn.execute_batch(
+                r#"
+                DROP TABLE IF EXISTS memory_vectors;
+                CREATE VIRTUAL TABLE memory_vectors USING vec0(
+                    embedding float[384] distance_metric=cosine,
+                    +memory_id TEXT
+                );
+                "#,
+            )?;
         }
 
         let version: Option<i64> = self
@@ -375,76 +439,52 @@ impl HubStore {
                 "INSERT INTO meta(key, value) VALUES ('schema_version', ?1)",
                 params![SCHEMA_VERSION.to_string()],
             )?;
+        } else if version.is_some_and(|value| value < SCHEMA_VERSION) {
+            self.conn.execute(
+                "UPDATE meta SET value = ?1 WHERE key = 'schema_version'",
+                params![SCHEMA_VERSION.to_string()],
+            )?;
         }
 
-        // Seed well-known agents if empty.
-        let count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0))?;
-        if count == 0 {
-            for (id, name) in [
-                ("human", "Human"),
-                ("claude", "Claude Code"),
-                ("chat", "Codex / Chat"),
-                ("gemini", "Gemini / Antigravity"),
-                ("grok", "Grok Build"),
-                ("opencode", "OpenCode"),
-                ("ollama", "Ollama"),
-                ("llamacpp", "llama.cpp"),
-                ("system", "System"),
-            ] {
-                self.upsert_agent(id, name)?;
-            }
-        }
-
-        // Team membership is an explicit user action. A fresh Hub starts with
-        // only its human owner; agents become session members through the
-        // Orchestrate "Add to team" control or an explicit wake.
-        let roster_seeded: Option<String> = self
+        let stored_embedding_model: Option<String> = self
             .conn
             .query_row(
-                "SELECT value FROM meta WHERE key = 'team_roster_seeded'",
+                "SELECT value FROM meta WHERE key = 'embedding_model'",
                 [],
-                |r| r.get(0),
+                |row| row.get(0),
             )
             .optional()?;
-        if roster_seeded.is_none() {
-            self.conn.execute(
-                "UPDATE agents SET team_member = CASE WHEN id = 'human' THEN 1 ELSE 0 END",
-                [],
-            )?;
-            self.conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '2')",
-                [],
-            )?;
-        } else if roster_seeded.as_deref() == Some("1") {
-            // Version 1 silently seeded every primary agent. Migrate only the
-            // exact untouched legacy default, preserving any roster that a
-            // user has actually changed.
-            let legacy_default_count: i64 = self.conn.query_row(
-                "SELECT COUNT(*) FROM agents
-                 WHERE team_member = 1 AND id IN ('human', 'claude', 'chat', 'gemini', 'grok')",
-                [],
-                |row| row.get(0),
-            )?;
-            let custom_member_count: i64 = self.conn.query_row(
-                "SELECT COUNT(*) FROM agents
-                 WHERE team_member = 1 AND id NOT IN ('human', 'claude', 'chat', 'gemini', 'grok')",
-                [],
-                |row| row.get(0),
-            )?;
-            if legacy_default_count == 5 && custom_member_count == 0 {
-                self.conn.execute(
-                    "UPDATE agents SET team_member = CASE WHEN id = 'human' THEN 1 ELSE 0 END",
-                    [],
-                )?;
-            }
-            self.conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('team_roster_seeded', '2')",
-                [],
-            )?;
+        let current_embedding_model = embedding_model(self.data_dir());
+        if stored_embedding_model.as_deref() != Some(current_embedding_model) {
+            // An embedding-space change invalidates every old nearest-neighbor
+            // distance. Rebuild best-effort: offline model loading must not
+            // make Hub open fail, and leaving the marker unchanged retries on
+            // the next open after the model becomes available.
+            self.conn.execute("DELETE FROM memory_vectors", [])?;
+            self.conn
+                .execute("DELETE FROM meta WHERE key = 'embedding_model'", [])?;
+            match self.reindex_memory_vectors() {
+                Ok(_) => {
+                    let fallback_marker: Option<String> = self
+                        .conn
+                        .query_row(
+                            "SELECT value FROM meta WHERE key = 'embedding_model'",
+                            [],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if fallback_marker.as_deref() != Some("mixed") {
+                        self.conn.execute(
+                            "INSERT INTO meta(key, value) VALUES ('embedding_model', ?1) \
+                             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                            params![current_embedding_model],
+                        )?;
+                    }
+                }
+                Err(error) => eprintln!("Memory vector rebuild skipped: {error}"),
+            };
         }
-
+        self.seed_identities_and_roster()?;
         self.seed_default_channels()?;
         self.ensure_builtin_roles()?;
         self.ensure_starter_role_defaults()?;

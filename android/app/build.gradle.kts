@@ -9,6 +9,15 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+// Single source of truth for the Android version; `just release::bump` keeps
+// these in sync with package.json (see tools/release/justfile).
+val releaseVersionName = "1.0.0"
+val releaseVersionCode = 10000
+
+base {
+    archivesName.set("coding-assistants-companion-$releaseVersionName")
+}
+
 android {
     namespace = "com.codingassistants.remotelauncher"
     compileSdk = 34
@@ -18,9 +27,9 @@ android {
         minSdk = 24
         targetSdk = 34
         // Monotonically derived: major*10000 + minor*100 + patch; set by just release::bump
-        versionCode = 100
+        versionCode = releaseVersionCode
         // Semver string; set by just release::bump
-        versionName = "0.1.0"
+        versionName = releaseVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -159,14 +168,18 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // JSON
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Networking (for TCP communication)
     implementation("io.ktor:ktor-network:2.3.7")
 
+    // CAS1 ChaCha20-Poly1305 on minSdk 24 (API 28+ has a platform cipher)
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.78.1")
+
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

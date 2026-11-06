@@ -189,6 +189,43 @@ Common issues and their solutions when developing or running Coding Assistants.
 3. Try a simpler task to isolate whether it's a model or configuration issue
 4. Use the Cancel button and try again
 
+### “Start managed” immediately reports that a worker exited
+
+**Symptom**: Orchestrate shows an error such as “managed worker exited
+immediately (exit code N)” after clicking **Start managed** for Codex or
+Gemini.
+
+**Solutions**:
+
+1. The app has reaped the failed child process; no restart or manual zombie
+   cleanup is needed. Use **Start managed** to retry after correcting the
+   underlying CLI problem.
+2. Verify the selected harness executable works from the same workspace and
+   account as the desktop app:
+   ```bash
+   codex --version
+   agy --version
+   ```
+3. Confirm that the workspace path is absolute and that the supplied real
+   thread/conversation ID belongs to that harness. Do not use a placeholder.
+4. If it continues to exit, use **Resume in terminal** from Orchestrate. The
+   interactive terminal keeps the CLI output visible so provider login,
+   configuration, and argument errors can be diagnosed.
+
+### Managed worker stopped after it had started
+
+**Symptom**: A Live terminals card disappears and Harness interfaces shows the
+session as **unavailable** or **stopped**.
+
+**Solutions**:
+
+1. This means the managed process exited and was reaped; it is not a live
+   session and should not be treated as one.
+2. Review the harness CLI in **Resume in terminal** if the exit was
+   unexpected, then use **Start managed** to create a fresh managed worker.
+3. Repeated exits generally indicate a provider authentication, workspace,
+   or harness-session configuration problem rather than an app freeze.
+
 ---
 
 ## Remote Control Issues

@@ -42,7 +42,13 @@ fn avatar_bytes(args: &SetAgentAvatarArgs) -> Result<(String, Vec<u8>), String> 
 }
 
 #[tauri::command]
-pub fn hub_set_agent_avatar(args: SetAgentAvatarArgs) -> Result<AgentRecord, String> {
+pub async fn hub_set_agent_avatar(args: SetAgentAvatarArgs) -> Result<AgentRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || hub_set_agent_avatar_blocking(args))
+        .await
+        .map_err(|e| format!("hub_set_agent_avatar worker panic: {e}"))?
+}
+
+pub fn hub_set_agent_avatar_blocking(args: SetAgentAvatarArgs) -> Result<AgentRecord, String> {
     let (filename, data) = avatar_bytes(&args)?;
     open_store()?
         .set_agent_avatar(&args.agent_id, &filename, &args.mime, &data)
@@ -50,7 +56,13 @@ pub fn hub_set_agent_avatar(args: SetAgentAvatarArgs) -> Result<AgentRecord, Str
 }
 
 #[tauri::command]
-pub fn hub_clear_agent_avatar(agent_id: String) -> Result<AgentRecord, String> {
+pub async fn hub_clear_agent_avatar(agent_id: String) -> Result<AgentRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || hub_clear_agent_avatar_blocking(agent_id))
+        .await
+        .map_err(|e| format!("hub_clear_agent_avatar worker panic: {e}"))?
+}
+
+pub fn hub_clear_agent_avatar_blocking(agent_id: String) -> Result<AgentRecord, String> {
     open_store()?
         .clear_agent_avatar(&agent_id)
         .map_err(|e| e.to_string())
@@ -84,7 +96,13 @@ fn guess_image_mime(path: &std::path::Path) -> String {
 }
 
 #[tauri::command]
-pub fn hub_read_avatar_preview(path: String) -> Result<AvatarPreview, String> {
+pub async fn hub_read_avatar_preview(path: String) -> Result<AvatarPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || hub_read_avatar_preview_blocking(path))
+        .await
+        .map_err(|e| format!("hub_read_avatar_preview worker panic: {e}"))?
+}
+
+pub fn hub_read_avatar_preview_blocking(path: String) -> Result<AvatarPreview, String> {
     let path = std::path::Path::new(&path);
     if !path.is_file() {
         return Err(format!("avatar preview file not found: {}", path.display()));
@@ -100,7 +118,7 @@ pub fn hub_read_avatar_preview(path: String) -> Result<AvatarPreview, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::commands::attachments::hub_get_attachment;
+    use crate::commands::commands::attachments::hub_get_attachment_blocking;
     use crate::commands::commands::tests::CA_HOME_ENV_LOCK;
 
     fn with_ca_home<T>(prefix: &str, run: impl FnOnce() -> T) -> T {
@@ -123,7 +141,7 @@ mod tests {
     #[test]
     fn set_and_clear_avatar_round_trips_through_base64() {
         with_ca_home("roundtrip", || {
-            let updated = hub_set_agent_avatar(SetAgentAvatarArgs {
+            let updated = hub_set_agent_avatar_blocking(SetAgentAvatarArgs {
                 agent_id: "claude".into(),
                 filename: "avatar.png".into(),
                 mime: "image/png".into(),
@@ -135,7 +153,7 @@ mod tests {
                 .clone()
                 .expect("avatar_attachment_id must be set");
 
-            let fetched = hub_get_attachment(attachment_id)
+            let fetched = hub_get_attachment_blocking(attachment_id)
                 .expect("fetch")
                 .expect("present");
             assert_eq!(
@@ -143,7 +161,7 @@ mod tests {
                 b"pretend-png-bytes"
             );
 
-            let cleared = hub_clear_agent_avatar("claude".into()).expect("clear");
+            let cleared = hub_clear_agent_avatar_blocking("claude".into()).expect("clear");
             assert_eq!(cleared.avatar_attachment_id, None);
         });
     }
@@ -151,7 +169,7 @@ mod tests {
     #[test]
     fn invalid_base64_is_rejected_before_touching_the_store() {
         with_ca_home("bad-b64", || {
-            let result = hub_set_agent_avatar(SetAgentAvatarArgs {
+            let result = hub_set_agent_avatar_blocking(SetAgentAvatarArgs {
                 agent_id: "claude".into(),
                 filename: "x.png".into(),
                 mime: "image/png".into(),
@@ -169,7 +187,7 @@ mod tests {
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(&image, b"from-disk").unwrap();
 
-            let updated = hub_set_agent_avatar(SetAgentAvatarArgs {
+            let updated = hub_set_agent_avatar_blocking(SetAgentAvatarArgs {
                 agent_id: "grok".into(),
                 filename: image.to_string_lossy().into(),
                 mime: "image/png".into(),
@@ -177,7 +195,7 @@ mod tests {
             })
             .expect("set from path");
             let attachment_id = updated.avatar_attachment_id.expect("pointer set");
-            let fetched = hub_get_attachment(attachment_id)
+            let fetched = hub_get_attachment_blocking(attachment_id)
                 .expect("fetch")
                 .expect("present");
             assert_eq!(STANDARD.decode(fetched.data_base64).unwrap(), b"from-disk");
@@ -187,14 +205,14 @@ mod tests {
     #[test]
     fn unknown_agent_is_not_found() {
         with_ca_home("missing", || {
-            let result = hub_set_agent_avatar(SetAgentAvatarArgs {
+            let result = hub_set_agent_avatar_blocking(SetAgentAvatarArgs {
                 agent_id: "does-not-exist".into(),
                 filename: "x.png".into(),
                 mime: "image/png".into(),
                 data_base64: STANDARD.encode(b"x"),
             });
             assert!(result.is_err());
-            assert!(hub_clear_agent_avatar("does-not-exist".into()).is_err());
+            assert!(hub_clear_agent_avatar_blocking("does-not-exist".into()).is_err());
         });
     }
 
@@ -206,7 +224,8 @@ mod tests {
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(&image, b"preview-bytes").unwrap();
 
-            let preview = hub_read_avatar_preview(image.to_string_lossy().into()).expect("read");
+            let preview =
+                hub_read_avatar_preview_blocking(image.to_string_lossy().into()).expect("read");
             assert_eq!(
                 STANDARD.decode(preview.data_base64).unwrap(),
                 b"preview-bytes"
@@ -218,7 +237,7 @@ mod tests {
     #[test]
     fn read_preview_missing_file_is_an_error() {
         with_ca_home("preview-missing", || {
-            let result = hub_read_avatar_preview("/no/such/avatar-preview.png".into());
+            let result = hub_read_avatar_preview_blocking("/no/such/avatar-preview.png".into());
             assert!(result.is_err());
         });
     }

@@ -277,6 +277,7 @@ mod tests {
                 body: "review the hub".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -308,6 +309,7 @@ mod tests {
                 body: "hello".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -341,6 +343,7 @@ mod tests {
                 body: "do the task".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -363,6 +366,7 @@ mod tests {
                 body: "   ".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         );
         assert!(empty_body.is_err());
@@ -378,6 +382,7 @@ mod tests {
                 body: "do the task".into(),
                 is_task: true,
                 is_wake: false,
+                ..Default::default()
             },
         );
         assert!(relative_workspace.is_err());
