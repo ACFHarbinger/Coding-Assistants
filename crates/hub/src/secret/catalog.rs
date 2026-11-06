@@ -6,12 +6,18 @@
 //! Mirrors [`hub::mcp::external::CATALOG`](crate::mcp::external::CATALOG). Pure data + accessors,
 //! no I/O, no secret reads.
 
+#[path = "catalog_sync.rs"]
+mod catalog_sync;
+#[path = "catalog_tools.rs"]
+mod catalog_tools;
 #[path = "catalog_types.rs"]
 mod types;
+use std::sync::LazyLock;
 pub use types::{FieldSpec, OwnerKind, Scope};
 
 /// Static registry of known credential and configuration fields across all providers,
-pub const CATALOG: &[FieldSpec] = &[
+pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
+    let mut catalog = vec![
     // --- Providers ---
     FieldSpec {
         id: "provider.deepseek.api_key",
@@ -316,6 +322,19 @@ pub const CATALOG: &[FieldSpec] = &[
             "Interactive session login for Perplexity subscription (`pwm login`). Token stored at ~/.config/perplexity-web-mcp/token.",
         ),
     },
+    FieldSpec {
+        id: "mcp.steam.api_key",
+        display_name: "Steam API Key",
+        owner_kind: OwnerKind::Mcp,
+        owner_key: "steam",
+        env_var: Some("STEAM_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://github.com/dsp/mcp-server-steam"),
+        notes: Some(
+            "API key for the Docker-based Steam MCP server. Also requires STEAM_ID (the numeric SteamID64 to query), exported alongside this key; STEAM_ID is not itself a secret.",
+        ),
+    },
     // --- Harnesses ---
     FieldSpec {
         id: "harness.cursor.login_token",
@@ -352,100 +371,13 @@ pub const CATALOG: &[FieldSpec] = &[
             "Model API key shared between Muse Spark provider and Muse Code harness.",
         ),
     },
-    // --- Tools ---
-    FieldSpec {
-        id: "tool.memory.embedding_provider",
-        display_name: "Memory Embedding Provider",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "memory",
-        env_var: Some("CA_MEMORY_EMBEDDING_PROVIDER"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some(
-            "Embedding model provider for semantic memory recall (e.g. fastembed, openai).",
-        ),
-    },
-    FieldSpec {
-        id: "tool.memory.embedding_api_base",
-        display_name: "Memory Embedding API Base",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "memory",
-        env_var: Some("CA_MEMORY_EMBEDDING_API_BASE"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some("Custom endpoint URL when using OpenAI-compatible embeddings."),
-    },
-    FieldSpec {
-        id: "tool.telegram.bot_token",
-        display_name: "Telegram Bot Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "telegram",
-        env_var: Some("TELEGRAM_BOT_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://core.telegram.org/bots/tutorial"),
-        notes: Some(
-            "BotFather token for the U25 Telegram remote client. Vault wins; env is the fallback.",
-        ),
-    },
-    FieldSpec {
-        id: "tool.tcp.auth_token",
-        display_name: "LAN TCP Auth Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "tcp",
-        env_var: Some("CA_TCP_AUTH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: None,
-        notes: Some("LAN TCP pairing secret. Vault wins; env fallback. Never logged."),
-    },
-    FieldSpec {
-        id: "tool.sync.google_refresh_token",
-        display_name: "Google Drive Refresh Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("GOOGLE_DRIVE_REFRESH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://developers.google.com/drive/api/guides/api-specific-auth"),
-        notes: Some("Drive appdata refresh. Vault wins. Never logged. Not the replica key."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_refresh_token",
-        display_name: "Firebase Refresh Token",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_REFRESH_TOKEN"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/auth"),
-        notes: Some("Identity Toolkit refresh. Vault wins. Never logged. Not the replica key."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_api_key",
-        display_name: "Firebase API Key",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_API_KEY"),
-        secret: true,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/projects/api-keys"),
-        notes: Some("Identity Toolkit query key. Vault wins. Never logged."),
-    },
-    FieldSpec {
-        id: "tool.sync.firebase_storage_bucket",
-        display_name: "Firebase Storage Bucket",
-        owner_kind: OwnerKind::Tool,
-        owner_key: "sync",
-        env_var: Some("FIREBASE_STORAGE_BUCKET"),
-        secret: false,
-        scope: Scope::Global,
-        docs_url: Some("https://firebase.google.com/docs/storage"),
-        notes: Some("Private bucket hostname only. Not a secret."),
-    },
-];
+    ];
+    catalog.extend_from_slice(catalog_tools::TOOL_FIELDS);
+    catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::ONEDRIVE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::DROPBOX_FIELDS);
+    catalog
+});
 
 /// Look up a field in the catalog by its unique id.
 pub fn field(id: &str) -> Option<&'static FieldSpec> {

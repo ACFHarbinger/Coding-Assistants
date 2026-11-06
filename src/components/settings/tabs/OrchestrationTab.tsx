@@ -1,5 +1,6 @@
 import type { BudgetStatus, EffectiveSettings, SandboxStrictness, SettingsField } from "../types";
 import { FieldRow, StatusPill, ToggleRow, inputStyle, shortenPath } from "./shared";
+import ScheduleTriggerSection from "./ScheduleTriggerSection";
 
 const SANDBOX_LEVELS: SandboxStrictness[] = ["strict", "standard", "permissive"];
 
@@ -341,6 +342,8 @@ export default function OrchestrationTab({
           </button>
         </div>
       </div>
+
+      <ScheduleTriggerSection workspaceRoot={workspaceRoot} busy={busy} />
     </>
   );
 }

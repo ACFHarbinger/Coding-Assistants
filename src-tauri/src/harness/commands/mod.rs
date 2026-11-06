@@ -85,9 +85,13 @@ fn hub_inject_harness_blocking(
         ));
     }
     let settings = hub::SettingsStore::open(hub::default_hub_home());
-    let (model, effort) = match settings.effective_harness(Some(&workspace), &harness) {
-        Ok(eff) => (eff.selected_model, eff.selected_effort),
-        Err(_) => (None, None),
+    let (model, effort, kimi_mode) = match settings.effective_harness(Some(&workspace), &harness) {
+        Ok(eff) => (
+            eff.selected_model,
+            eff.selected_effort,
+            eff.selected_kimi_mode,
+        ),
+        Err(_) => (None, None, None),
     };
     inject_harness_with_store(
         &open_store()?,
@@ -101,6 +105,8 @@ fn hub_inject_harness_blocking(
             is_wake,
             model,
             effort,
+            // #363: the workspace's Kimi slash-command mode (default off).
+            kimi_mode,
         },
     )
     .map_err(|error| error.to_string())

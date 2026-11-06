@@ -8,8 +8,12 @@ use std::path::PathBuf;
 
 mod agent;
 mod commands;
+mod discord;
+mod guardrail;
 mod harness;
 mod journal;
+mod review;
+mod schedule;
 mod sync;
 mod telegram;
 mod tool;
@@ -18,8 +22,12 @@ pub(crate) use agent::AgentCommand;
 pub(crate) use commands::{
     AuditCommand, BudgetCommand, InboxCommand, MemoryCommand, MsgCommand, TaskCommand, WakeCommand,
 };
+pub(crate) use discord::DiscordCommand;
+pub(crate) use guardrail::GuardrailCommand;
 pub(crate) use harness::HarnessCommand;
 pub(crate) use journal::JournalCommand;
+pub(crate) use review::ReviewCommand;
+pub(crate) use schedule::{ScheduleCommand, ScheduleCreateArgs};
 pub(crate) use sync::SyncCommand;
 pub(crate) use telegram::TelegramCommand;
 pub(crate) use tool::ToolCommand;
@@ -94,6 +102,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: AuditCommand,
     },
+    /// Classified review findings and owner corrections (Team Scorecard T7).
+    Review {
+        #[command(subcommand)]
+        action: ReviewCommand,
+    },
     /// Run a long-lived adapter-facing inbox consumer.
     Inbox {
         #[command(subcommand)]
@@ -137,6 +150,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: TelegramCommand,
     },
+    /// Discord remote-control bot (U25). Opt-in; outbound channel poll only.
+    Discord {
+        #[command(subcommand)]
+        action: DiscordCommand,
+    },
     /// Cloud Drive sync (S4). Owner-started only; preview never transfers.
     Sync {
         #[command(subcommand)]
@@ -146,6 +164,20 @@ pub(crate) enum Command {
     Tool {
         #[command(subcommand)]
         action: ToolCommand,
+    },
+    /// Scheduled Goals: list/create/get/cancel plus the headless tick OS
+    /// triggers invoke (S4 / #354). Thin wrapper over the shared Hub API —
+    /// dispatch, gates, budget, and wake policy all live in `hub`.
+    Schedule {
+        #[command(subcommand)]
+        action: ScheduleCommand,
+    },
+    /// Guardrails (P16 / #360): content tripwires screened before a task
+    /// step or scheduled prompt is dispatched, and before a reply is
+    /// accepted. Not an approval gate — sits before P5 and Schedule gates.
+    Guardrail {
+        #[command(subcommand)]
+        action: GuardrailCommand,
     },
     /// Read-only C13 owner-run inspector. Never writes Hub, settings, or `.agent/**`.
     Preflight {

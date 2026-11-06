@@ -67,6 +67,57 @@ fn catalog_launchers_match_the_spiked_packages() {
 }
 
 #[test]
+fn catalog_steam_launches_the_docker_image_with_passthrough_env() {
+    let steam = server("steam").unwrap();
+    assert_eq!(steam.command, "docker");
+    assert_eq!(
+        steam.default_args,
+        &[
+            "run",
+            "--rm",
+            "-i",
+            "-e",
+            "STEAM_API_KEY",
+            "-e",
+            "STEAM_ID",
+            "ghcr.io/dsp/mcp-server-steam:latest",
+        ]
+    );
+    assert!(matches!(
+        steam.auth,
+        AuthKind::ApiKey {
+            env_var: "STEAM_API_KEY"
+        }
+    ));
+    assert!(steam.notes.contains("STEAM_ID"));
+    assert!(steam.notes.contains("STEAM_API_KEY"));
+    assert!(steam.auth_token_relpath.is_none());
+    assert!(steam.launcher_aliases.is_empty());
+    assert_eq!(steam.docs_url, "https://github.com/dsp/mcp-server-steam");
+}
+
+#[test]
+fn steam_entry_never_writes_the_api_key_value_into_args() {
+    let e = entry("steam");
+    // The literal strings "-e", "STEAM_API_KEY", "-e", "STEAM_ID" are
+    // passthrough *names*, never a secret value — docker resolves them
+    // from its own caller's environment at spawn time.
+    assert_eq!(
+        e.args,
+        vec![
+            "run",
+            "--rm",
+            "-i",
+            "-e",
+            "STEAM_API_KEY",
+            "-e",
+            "STEAM_ID",
+            "ghcr.io/dsp/mcp-server-steam:latest",
+        ]
+    );
+}
+
+#[test]
 fn auth_configured_reports_presence_and_unknown() {
     assert_eq!(AuthKind::None.configured(), Some(true));
     assert_eq!(AuthKind::SessionLogin { setup_cmd: "x" }.configured(), None);
@@ -159,7 +210,7 @@ fn apply_adds_then_removes_only_its_own_keys() {
 /// removes exactly that entry and leaves a hand-added server alone.
 #[test]
 fn apply_enables_then_disables_each_perplexity_server_and_spares_hand_added() {
-    for key in ["perplexity", "perplexity-web"] {
+    for key in ["perplexity", "perplexity-web", "steam"] {
         let tmp = tempdir().unwrap();
         let ws = tmp.path();
         apply_to_workspace(ws, &[entry(key)]).unwrap();

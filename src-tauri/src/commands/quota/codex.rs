@@ -29,6 +29,12 @@ pub struct ProviderQuotaBalance {
     pub paid: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gift: Option<f64>,
+    /// Spend-kind only. `"uncapped"` means the workspace has no period
+    /// cap; `"unknown"` means the cap could not be read. Omitted when
+    /// `total` is a real cap. Do not treat `total: 0` as uncapped without
+    /// this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spend_cap: Option<String>,
 }
 
 /// Locally-observed usage for a harness that writes its own session

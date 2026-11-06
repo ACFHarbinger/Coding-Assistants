@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProviderQuota, ProviderQuotaBalance } from "./types";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export interface BalanceSnapshot {
   timestamp: number;
@@ -130,26 +132,25 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
       >
         <div
           style={{
-            background: isSpend ? "rgba(56, 189, 248, 0.08)" : "rgba(34, 197, 94, 0.08)",
-            border: `1px solid ${isSpend ? "rgba(56, 189, 248, 0.25)" : "rgba(34, 197, 94, 0.25)"}`,
-            borderRadius: "10px",
+            ...nocCardDenseStyle,
+            borderLeft: `3px solid ${isSpend ? NOC_COLORS.cyan : NOC_COLORS.ok}`,
             padding: "0.85rem 1rem",
             display: "grid",
             gap: "0.25rem",
           }}
         >
-          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+          <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
             {isSpend ? "Period Spend" : "Available Balance"}
           </span>
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
-            <span style={{ fontSize: "1.45rem", fontWeight: 700, color: isSpend ? "#38bdf8" : "#22c55e" }}>
+            <span className="tabular-nums" style={{ fontSize: "1.45rem", fontWeight: 800, color: isSpend ? NOC_COLORS.cyan : NOC_COLORS.ok }}>
               ${total.toFixed(2)}
             </span>
-            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
+            <span style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted, fontWeight: 600 }}>
               {currency}
             </span>
           </div>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+          <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>
             {isSpend ? "Total period spend" : "Current API balance"}
           </span>
         </div>
@@ -157,26 +158,25 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
         {paid !== null && (
           <div
             style={{
-              background: "rgba(56, 189, 248, 0.08)",
-              border: "1px solid rgba(56, 189, 248, 0.25)",
-              borderRadius: "10px",
+              ...nocCardDenseStyle,
+              borderLeft: `3px solid ${NOC_COLORS.cyan}`,
               padding: "0.85rem 1rem",
               display: "grid",
               gap: "0.25rem",
             }}
           >
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+            <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
               Paid / Topped-up
             </span>
             <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
-              <span style={{ fontSize: "1.45rem", fontWeight: 700, color: "#38bdf8" }}>
+              <span className="tabular-nums" style={{ fontSize: "1.45rem", fontWeight: 800, color: NOC_COLORS.cyan }}>
                 ${paid.toFixed(2)}
               </span>
-              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
+              <span style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted, fontWeight: 600 }}>
                 {currency}
               </span>
             </div>
-            <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+            <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>
               {hasBreakdown ? `${paidPercent.toFixed(1)}% of total funds` : "Purchased credits"}
             </span>
           </div>
@@ -185,26 +185,25 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
         {gift !== null && (
           <div
             style={{
-              background: "rgba(52, 211, 153, 0.08)",
-              border: "1px solid rgba(52, 211, 153, 0.25)",
-              borderRadius: "10px",
+              ...nocCardDenseStyle,
+              borderLeft: `3px solid ${NOC_COLORS.ok}`,
               padding: "0.85rem 1rem",
               display: "grid",
               gap: "0.25rem",
             }}
           >
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+            <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
               Free / Gift Grant
             </span>
             <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
-              <span style={{ fontSize: "1.45rem", fontWeight: 700, color: "#34d399" }}>
+              <span className="tabular-nums" style={{ fontSize: "1.45rem", fontWeight: 800, color: "#34d399" }}>
                 ${gift.toFixed(2)}
               </span>
-              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
+              <span style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted, fontWeight: 600 }}>
                 {currency}
               </span>
             </div>
-            <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+            <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>
               {hasBreakdown ? `${giftPercent.toFixed(1)}% of total funds` : "Promotional credits"}
             </span>
           </div>
@@ -275,9 +274,7 @@ export function PaygQuotaMeter({ quota }: { quota: ProviderQuota }) {
       {!isSpend && (
       <div
         style={{
-          border: "1px solid var(--border-color)",
-          borderRadius: "10px",
-          background: "rgba(0,0,0,0.25)",
+          ...nocCardDenseStyle,
           padding: "1rem",
           display: "grid",
           gap: "0.85rem",

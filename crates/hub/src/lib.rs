@@ -5,16 +5,20 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+pub mod a2a;
 mod bridge;
 pub mod bus;
 pub mod github;
+pub mod guardrails;
 mod harness;
 pub mod mcp;
+pub mod net_samples;
 pub mod os_tool;
 mod paths;
 pub mod peer;
 pub mod proc;
 pub mod remote;
+pub mod schedule_trigger;
 pub mod secret;
 mod settings;
 mod store;
@@ -72,6 +76,11 @@ pub use bridge::kimi::{
     deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
     latest_kimi_session_id_from, start_kimi_managed_harness,
 };
+pub use bridge::kimi_mode::{apply_kimi_task_mode, resolve_kimi_task_mode, KimiTaskMode};
+pub use bridge::kimi_wire::{
+    capture_kimi_session_from, kimi_capture_agent_id, kimi_session_log_path,
+    kimi_session_wire_logs, recent_kimi_wire_texts, KimiCaptureOutcome, KimiWireCapture,
+};
 pub use bridge::muse::{
     deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
     muse_sessions_root,
@@ -97,6 +106,10 @@ pub use github::{
     parse_agent_issue_branch, set_project_item_status, BoardCard, BoardColumn, BranchList,
     GitBranch, ProjectBoard, DEFAULT_BOARD_COLUMNS,
 };
+pub use guardrails::{
+    Guardrail, GuardrailMode, GuardrailResult, GuardrailRule, GuardrailSpec, GuardrailStage,
+    GuardrailTrip, GuardrailVerdict,
+};
 pub use harness::{
     claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
     cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
@@ -116,20 +129,30 @@ pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
 pub use settings::{
     EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
     FieldStatus, HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride,
-    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference,
-    SecretSourceKind, SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore,
-    WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION,
-    MIN_BACKUP_RETENTION,
+    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, ScorecardVisibility,
+    SecretReference, SecretSourceKind, SettingsError, SettingsField, SettingsLoad,
+    SettingsSnapshot, SettingsStore, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
+    DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
-    parse_memory_references, ActivityCommandRun, ActivityFileTouch, ActivityFilter, ActivityItem,
-    AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent, BudgetPauseOutcome,
+    parse_memory_references, AbsoluteSpendCommit, ActivityCommandRun, ActivityFileTouch,
+    ActivityFilter, ActivityItem, AgentCard, AgentMetrics, AgentRecord, AgentScorecardRow,
+    AttachmentRecord, Attribution, AuditEvent, BranchTarget, BudgetPauseOutcome, BudgetPolicy,
     BudgetStatus, BusEntryFilter, BusEntryRecord, ChannelRecord, CompactReport,
-    ConsolidationCluster, ConsolidationReport, EffectiveAgentPermissions, GateVerdict,
-    GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
+    ConsolidationCluster, ConsolidationReport, CriterionOutcome, DigestDecisionKind,
+    DigestPendingDecision, DigestResolutionCounts, DigestSessionGroup, DigestSummary,
+    EffectiveAgentPermissions, FigureProvenance, GateCheck, GateCheckResult, GateCombinator,
+    GateCriterion, GateSubject, GateVerdict, GitExportOutcome, HarnessCoverage,
+    HarnessScorecardRow, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
     HubError, HubStore, LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord,
     MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
-    PendingGateApproval, ProviderCallGate, ReadMarker, Role, RoleProviderDefault, SendOutcome,
-    ShutdownOutcome, TaskRecord, TaskStatus, WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord,
-    WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS, UNATTRIBUTED_AUTHOR,
+    OversightExceptionRequest, OversightExceptionScope, OwnerDigest, PendingGateApproval,
+    PendingGateEntry, ProbeState, ProviderCallGate, ProviderScorecardRow, ProviderUsage,
+    QuotaSnapshot, ReadMarker, ReviewFinding, ReviewerSignatureRow, Role, RoleProviderDefault,
+    ScheduleStatus, ScheduleTarget, ScheduledTask, ScorecardFigure, ScorecardProbe,
+    ScorecardSecurityEvent, ScorecardView, SendOutcome, ShutdownOutcome, SliceStamp, StepBranch,
+    TaggedSendCounts, TaskRecord, TaskStatus, TaskTimelineEvent, TaskTimelineView, TickOutcome,
+    TickSummary, TimelineEventStatus, TimelineEventType, TimelineFilter, WakePolicy, WakeRecord,
+    WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS,
+    DIGEST_WINDOW_DAYS, FINDING_ORIGINS, FINDING_SEVERITIES, UNATTRIBUTED_AUTHOR,
 };

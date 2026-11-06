@@ -1,4 +1,6 @@
 use crate::agent::AgentEvent;
+use crate::client::endpoint_auth::http_api_key;
+use crate::client::endpoint_link::{attached_endpoint, AttachedEndpoint, EndpointLinkState};
 use crate::client::events::emit_http_result;
 use crate::client::grok_bot_turn::grok_bot_completion;
 use crate::client::http::{
@@ -7,9 +9,10 @@ use crate::client::http::{
     openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
     OPENAI_DEFAULT_MODEL, OPENAI_REQUEST_TIMEOUT_SECS,
 };
+use crate::client::muse_http::muse_chat_turn;
 use crate::client::openrouter_turn::openrouter_completion;
 use crate::client::providers::{
-    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider, muse_chat_request,
+    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider,
     muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
     parse_opencode_models, vibe_home_from_env, vibe_is_authenticated, vibe_programmatic_supported,
     vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
@@ -24,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::process::Command;
 
@@ -66,9 +69,13 @@ pub struct ModelConfig {
     pub provider: String,
     pub model: String,
     /// Optional OpenAI-compatible endpoint for an already-running model
-    /// service. When set, the app sends requests to that service and never
-    /// spawns or terminates a child process for this role.
+    /// service. A connected value sends chat completions there and never
+    /// spawns or terminates a child. A disconnected value keeps the draft
+    /// and refuses the call instead of falling through to a process spawn.
     pub endpoint: Option<String>,
+    /// Absent on older saved roles, which stay connected.
+    #[serde(default)]
+    pub endpoint_state: EndpointLinkState,
     pub prompt_file: Option<String>,
     pub rule_file: Option<String>,
     pub workflow_file: Option<String>,
@@ -82,6 +89,7 @@ impl Default for ModelConfig {
             provider: "opencode".to_string(),
             model: "big-pickle".to_string(),
             endpoint: None,
+            endpoint_state: EndpointLinkState::Connected,
             prompt_file: None,
             rule_file: None,
             workflow_file: None,
@@ -118,6 +126,15 @@ impl LLMClient {
         // both hit the Model API); every other provider keys on itself.
         wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
 
+        // A disconnected or invalid saved endpoint blocks every provider,
+        // including OpenRouter and Grok Bot. Those branches accept the
+        // endpoint as an API-base override and would otherwise send a paid
+        // request before the generic attach check.
+        let attached = attached_endpoint(config.endpoint.as_deref(), config.endpoint_state);
+        if let AttachedEndpoint::Blocked(message) = &attached {
+            return Err((*message).to_string());
+        }
+
         if is_openrouter_provider(&config.provider) {
             return openrouter_completion(
                 config.endpoint.as_deref(),
@@ -142,22 +159,9 @@ impl LLMClient {
             .await;
         }
 
-        if let Some(endpoint) = config
-            .endpoint
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return direct_http_completion(
-                endpoint,
-                is_openai_provider(&config.provider),
-                config,
-                prompt,
-                bus,
-                source,
-                token,
-            )
-            .await;
+        if let AttachedEndpoint::Ready(endpoint) = attached {
+            return direct_http_completion(endpoint, false, config, prompt, bus, source, token)
+                .await;
         }
 
         if config.provider == "ollama" {
@@ -291,11 +295,8 @@ async fn direct_http_completion(
     token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
     // Only the hosted OpenAI provider may receive the OpenAI credential.
-    // Attached endpoints and LM Studio can be user-controlled or local; do
-    // not leak a hosted-provider key to them just because it is configured.
-    let api_key_secret = require_key
-        .then(|| hub::secret::resolve("OPENAI_API_KEY"))
-        .flatten();
+    // Attached endpoints and LM Studio use the key saved for that address.
+    let api_key_secret = http_api_key(require_key, api_base);
     if require_key && !openai_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
         return Err(openai_unavailable_unauthenticated());
     }
@@ -331,7 +332,7 @@ async fn direct_http_completion(
         },
     )
     .await?;
-    emit_http_result(bus, source, &result, false);
+    emit_http_result(bus, source, &result, false, &config.provider, None);
     Ok(result.text)
 }
 
@@ -339,16 +340,22 @@ async fn direct_http_completion(
 /// per the official cookbook). The key comes from `MODEL_API_KEY` at call
 /// time and travels only in the `Authorization` header — it is never
 /// stored, logged, or placed in argv. An empty configured model falls back
-/// to the cookbook default. `work_dir`/`token` are dispatch-parity
-/// parameters the workspace-free API ignores.
+/// to the cookbook default. `work_dir` is unused. A set `token` cancels
+/// the Model API call and does not publish the assistant text.
 async fn muse_completion(
     config: &ModelConfig,
     prompt: &str,
     _work_dir: Option<&str>,
     bus: &InProcessBus,
     source: &str,
-    _token: Option<Arc<AtomicBool>>,
+    token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
+    if token
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    {
+        return Err("Task cancelled".to_string());
+    }
     // Resolved from the vault (keychain / file) or env as fallback via
     // hub::secret::resolve — never stored, logged, or placed in argv. The
     // key travels only in the outbound `Authorization` header.
@@ -369,16 +376,7 @@ async fn muse_completion(
     } else {
         model
     };
-    let output = muse_chat_request(api_key, model, prompt).await?;
-    bus.emit(
-        TOPIC_AGENT_EVENT,
-        AgentEvent {
-            source: source.to_string(),
-            event_type: "response".to_string(),
-            content: output.clone(),
-        },
-    );
-    Ok(output)
+    muse_chat_turn(api_key, model, prompt, bus, source, token).await
 }
 
 async fn vibe_completion(

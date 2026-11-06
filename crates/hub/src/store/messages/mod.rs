@@ -1,52 +1,14 @@
 use super::*;
-
+mod goal;
 mod queries;
 mod read_markers;
+mod send;
 mod wakes;
-#[allow(clippy::too_many_arguments)]
+
+pub(crate) use goal::goal_delivery_body;
+pub use goal::TaggedSendCounts;
+
 impl HubStore {
-    pub fn send_message(
-        &self,
-        from_agent: &str,
-        to_agent: &str,
-        kind: MessageKind,
-        body: &str,
-        subject: Option<&str>,
-        workspace_path: Option<&str>,
-        task_id: Option<&str>,
-    ) -> Result<MessageRecord, HubError> {
-        self.ensure_mutable()?;
-        if body.trim().is_empty() {
-            return Err(HubError::Invalid("message body must not be empty".into()));
-        }
-        self.upsert_agent(from_agent, from_agent)?;
-        self.upsert_agent(to_agent, to_agent)?;
-
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
-        self.conn.execute(
-            r#"
-            INSERT INTO messages(
-                id, from_agent, to_agent, workspace_path, task_id,
-                kind, status, subject, body, created_at, acked_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL)
-            "#,
-            params![
-                id,
-                from_agent,
-                to_agent,
-                workspace_path,
-                task_id,
-                kind.as_str(),
-                MessageStatus::Pending.as_str(),
-                subject,
-                body,
-                now,
-            ],
-        )?;
-        self.get_message(&id)?.ok_or_else(|| HubError::NotFound(id))
-    }
-
     /// Fan out a team message while retaining one shared subject so clients
     /// can render the broadcast once instead of once per recipient.
     pub fn send_message_to_team(
@@ -152,6 +114,13 @@ impl HubStore {
         if body.trim().is_empty() {
             return Err(HubError::Invalid("message body must not be empty".into()));
         }
+        let goal_body;
+        let body = if is_task {
+            goal_body = goal::goal_delivery_body(body);
+            goal_body.as_str()
+        } else {
+            body
+        };
         if !is_task && !is_wake {
             return Err(HubError::Invalid(
                 "send_tagged_message requires at least one of task/wake".into(),
@@ -160,7 +129,6 @@ impl HubStore {
         let subject = subject
             .map(str::to_string)
             .unwrap_or_else(|| format!("tagged:{}", Uuid::new_v4()));
-        let subject = self.unique_recipient_subject(&subject)?;
 
         let mut recipients: Vec<String> = Vec::new();
         for id in to {
@@ -180,7 +148,7 @@ impl HubStore {
                 )));
             }
         }
-        self.record_recipient_set(&subject, session_id, &recipients)?;
+        let subject = self.reserve_recipient_subject(&subject, session_id, &recipients)?;
 
         // S5 / #131: a wake may only enroll a brand-new (not-yet-team-member)
         // identity when Settings' orchestration policy allows it. Resolved
@@ -284,6 +252,14 @@ impl HubStore {
             )?);
         }
 
+        let _ = self.record_tagged_send_audit(
+            from_agent,
+            &subject,
+            workspace_path,
+            task_id,
+            session_id,
+            outcomes.len(),
+        );
         Ok(outcomes)
     }
 
@@ -328,8 +304,7 @@ impl HubStore {
         let subject = subject
             .map(str::to_owned)
             .unwrap_or_else(|| format!("channel:session:{session_id}:{}", Uuid::new_v4()));
-        let subject = self.unique_recipient_subject(&subject)?;
-        self.record_recipient_set(&subject, Some(session_id), &recipients)?;
+        let subject = self.reserve_recipient_subject(&subject, Some(session_id), &recipients)?;
         recipients
             .iter()
             .map(|recipient| {
@@ -344,21 +319,6 @@ impl HubStore {
                 )
             })
             .collect()
-    }
-
-    fn record_recipient_set(
-        &self,
-        subject: &str,
-        session_id: Option<&str>,
-        recipients: &[String],
-    ) -> Result<(), HubError> {
-        let recipient_ids_json = serde_json::to_string(recipients)
-            .map_err(|error| HubError::Invalid(format!("recipient set serialize: {error}")))?;
-        self.conn.execute(
-            "INSERT INTO message_recipient_sets(subject, session_id, recipient_ids_json, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![subject, session_id, recipient_ids_json, Utc::now().to_rfc3339()],
-        )?;
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]

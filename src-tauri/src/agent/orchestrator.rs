@@ -4,6 +4,7 @@ use super::periodic_consolidation::maybe_consolidate;
 use super::prompt_builder::construct_prompt;
 use super::suborch;
 use super::task_state::task_mcp_file;
+use super::write_bridge::{self, ParseOutcome};
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
 use hub::bus::InProcessBus;
@@ -275,6 +276,7 @@ impl AgentSystem {
     ) -> Result<String, String> {
         let mut history = initial_prompt.to_string();
         let mut suborch_fanout: u8 = 0;
+        let mut bridge_steps: u8 = 0;
 
         loop {
             budget.deny_unless_allowed(source)?;
@@ -292,6 +294,40 @@ impl AgentSystem {
                 .await?;
             if budget.is_paused(source) {
                 return Ok(response);
+            }
+
+            match write_bridge::parse(&response) {
+                ParseOutcome::Action(action) => {
+                    if token.load(Ordering::SeqCst) {
+                        return Err("Task cancelled".into());
+                    }
+                    if bridge_steps >= write_bridge::MAX_STEPS {
+                        return Ok(format!(
+                            "{response}\n\nSystem: Write-bridge step limit ({}) reached. This action was not applied.",
+                            write_bridge::MAX_STEPS
+                        ));
+                    }
+                    bridge_steps += 1;
+                    let observation = write_bridge::apply(&self.file_tools, &action).await;
+                    record_bridge_turn(&mut history, &response, &observation);
+                    emit_agent(bus, source, "thought", observation);
+                    continue;
+                }
+                ParseOutcome::Malformed(error) => {
+                    if bridge_steps >= write_bridge::MAX_STEPS {
+                        return Ok(format!(
+                            "{response}\n\nSystem: Write-bridge step limit ({}) reached. {error}",
+                            write_bridge::MAX_STEPS
+                        ));
+                    }
+                    bridge_steps += 1;
+                    let observation =
+                        format!("Observed write-bridge: refused ({error}). No file was changed.");
+                    record_bridge_turn(&mut history, &response, &observation);
+                    emit_agent(bus, source, "thought", observation);
+                    continue;
+                }
+                ParseOutcome::None => {}
             }
 
             // Check for [[ASK_USER]]
@@ -446,6 +482,13 @@ impl AgentSystem {
             }
         }
     }
+}
+
+fn record_bridge_turn(history: &mut String, response: &str, observation: &str) {
+    history.push_str("\n\nAgent: ");
+    history.push_str(response);
+    history.push_str("\n\nSystem: ");
+    history.push_str(observation);
 }
 
 fn emit_agent(

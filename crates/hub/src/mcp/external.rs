@@ -31,6 +31,17 @@
 //! `uv tool install perplexity-web-mcp-cli` 0.14.13) and own the
 //! enable/disable apply tests plus Settings copy (`notes`, token-file
 //! presence). Config write is this registry, not `pwm setup add`.
+//!
+//! The Steam entry (`dsp/mcp-server-steam`) is a Java stdio server with no
+//! npm/`uv` package — it ships only as a Docker image
+//! (`ghcr.io/dsp/mcp-server-steam:latest`, confirmed against the upstream
+//! `Dockerfile`/`App.java`, which wires a `StdioServerTransport` behind
+//! `CMD ["java", "-jar", "app.jar"]`). `command` is therefore `docker`
+//! itself, not a package launcher — `default_args` run the image
+//! interactively (`-i`, required for stdio) and pass `STEAM_API_KEY` /
+//! `STEAM_ID` through from the invoking process's environment via bare
+//! `-e NAME` (no value in the arg list, so neither secret is ever written
+//! into a workspace config file).
 
 use crate::mcp::{render_replacing, ClientKind, McpServerEntry};
 use crate::{servers_dir, workspace_server_name, HubError, HubStore};
@@ -176,6 +187,28 @@ pub const CATALOG: &[ExternalServer] = &[
         notes: "Quota-limited Perplexity subscription; the session token lasts ~30 days and then `pwm login` must be re-run. Coding Assistants never reads the token. Install: `uv tool install perplexity-web-mcp-cli`.",
         auth_token_relpath: Some(".config/perplexity-web-mcp/token"),
         launcher_aliases: &["pwm"],
+    },
+    ExternalServer {
+        key: "steam",
+        display_name: "Steam",
+        command: "docker",
+        default_args: &[
+            "run",
+            "--rm",
+            "-i",
+            "-e",
+            "STEAM_API_KEY",
+            "-e",
+            "STEAM_ID",
+            "ghcr.io/dsp/mcp-server-steam:latest",
+        ],
+        auth: AuthKind::ApiKey {
+            env_var: "STEAM_API_KEY",
+        },
+        docs_url: "https://github.com/dsp/mcp-server-steam",
+        notes: "Also requires STEAM_ID (the numeric SteamID64 to query) exported alongside STEAM_API_KEY in the shell that starts Claude Code / Gemini CLI / opencode. Coding Assistants never stores either value — the bare `-e NAME` form passes them from that shell's environment into the container without writing them into this workspace's config. Requires Docker and pulls ghcr.io/dsp/mcp-server-steam:latest on first use.",
+        auth_token_relpath: None,
+        launcher_aliases: &[],
     },
 ];
 

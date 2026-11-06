@@ -180,30 +180,23 @@ pub struct AgentRecord {
     pub created_at: String,
     #[serde(default)]
     pub card_json: Option<String>,
-    /// Explicit Messager-like team enrollment. Process-discovered identities
-    /// and local model runtimes stay addressable but are not implicit members.
     #[serde(default)]
     pub team_member: bool,
-    /// References an [`AttachmentRecord`] holding the agent's profile image.
-    /// Any agent (human or otherwise) can set its own via `set_agent_avatar`
-    /// — there is no gate restricting an identity to only setting its own,
-    /// same trust model as the rest of the Hub's local SQLite store.
     #[serde(default)]
     pub avatar_attachment_id: Option<String>,
-    /// Descriptive team role assignment (U21 / #315). Nullable.
-    /// Can be a standard preset ("lead", "reviewer", "implementer", "observer")
-    /// or an arbitrary custom role string.
+    /// U21 display label. Separate from [`Self::oversight_role`].
     #[serde(default)]
     pub role: Option<String>,
-    /// Whether this identity has an intentional custom display name set by the
-    /// user via `set_agent_display_name` (U20 / #314).
+    /// Standing oversight role (#342): implementer, reviewer, lead, observer, trial.
+    #[serde(default)]
+    pub oversight_role: Option<String>,
+    /// Latest unexpired `oversight.exception` target, otherwise the standing role.
+    #[serde(default)]
+    pub effective_oversight_role: Option<String>,
     #[serde(default)]
     pub custom_display_name: bool,
-    /// Whether this identity has opted into an animated V-Tuber avatar presence
-    /// via Open-LLM-VTuber (U17 / #307). Defaults to false (static avatar).
     #[serde(default)]
     pub animated_avatar: bool,
-    /// Optional character/model identifier configured in Open-LLM-VTuber (U17 / #307).
     #[serde(default)]
     pub vtuber_character: Option<String>,
 }

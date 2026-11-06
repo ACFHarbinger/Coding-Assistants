@@ -130,7 +130,7 @@ pub async fn invoke(
         },
     );
     let prompt = format!(
-        "You are specialist {}.\nAnswer in a short classification or routing note. Do not emit ASK_USER, ASK_AGENT, or SUBORCH markers.\n\nParent ({parent}) said:\n{parent_response}\n\nInstruction:\n{}",
+        "You are specialist {}.\nAnswer in a short classification or routing note. Do not emit ASK_USER, ASK_AGENT, SUBORCH, WRITE, APPEND, or EDIT markers.\n\nParent ({parent}) said:\n{parent_response}\n\nInstruction:\n{}",
         target.name, invocation.instruction
     );
     match client

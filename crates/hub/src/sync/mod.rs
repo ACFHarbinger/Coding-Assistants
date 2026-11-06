@@ -1,8 +1,8 @@
-//! Cloud Drive synchronization domain (S1–S10 / #91–#100).
+//! Cloud Drive synchronization domain (S1–S12 / #91–#102).
 //!
 //! Provider-neutral contracts, local `cloud-sync.key`, CAS1 objects, a
-//! Google Drive `drive.appdata` adapter, optional Firebase Auth identity
-//! plus private Storage, owner-started CLI/UI, a mutation-only Hub lock,
+//! Google Drive `drive.appdata` adapter, optional Firebase/Supabase/OneDrive/
+//! Dropbox Auth identities plus private Storage, owner-started CLI/UI, a mutation-only Hub lock,
 //! encrypted snapshot transfer, three-way reconcile with fork-aware
 //! audit rebase, owner conflict review, confirm-only tombstones, device
 //! trust, resumable owner retry, and redacted diagnostics. Never uploads
@@ -11,6 +11,8 @@
 
 mod client;
 mod crypto;
+mod dropbox;
+mod dropbox_auth;
 mod firebase;
 mod firebase_auth;
 mod fs_drive;
@@ -23,6 +25,8 @@ mod key;
 mod layout;
 mod lock;
 mod merge;
+mod onedrive;
+mod onedrive_auth;
 mod ops;
 mod pack;
 mod plan;
@@ -30,12 +34,19 @@ pub mod policy;
 mod rebase;
 mod review;
 mod snapshot;
+mod supabase;
+mod supabase_auth;
 mod tombstone;
 mod trust;
 mod types;
 
 pub use client::{DriveClient, FakeDrive, RemoteObject, ReplicaAdvance, ReplicaPut};
 pub use crypto::{decrypt_object, encrypt_object};
+pub use dropbox::DropboxStorage;
+pub use dropbox_auth::{
+    dropbox_account, parse_access_token as parse_dropbox_access_token,
+    resolve_access_token as resolve_dropbox_access_token, DROPBOX_ACCESS_TOKEN_KEY,
+};
 pub use firebase::FirebaseStorage;
 pub use firebase_auth::{
     firebase_account, parse_id_token, resolve_api_key, resolve_bucket,
@@ -60,6 +71,15 @@ pub use layout::{device_prefix, manifests_prefix, replica_prefix};
 pub use lock::{
     acquire_persisted, is_held, read as read_lock, release, LockFile, SyncLockGuard, LOCKED_MESSAGE,
 };
+pub use onedrive::OneDriveStorage;
+pub use onedrive_auth::{
+    onedrive_account, parse_access_token as parse_onedrive_access_token,
+    resolve_client_id as resolve_onedrive_client_id,
+    resolve_refresh_token as resolve_onedrive_refresh_token,
+    token_request_form as onedrive_token_request_form,
+    APP_FOLDER_SCOPE as ONEDRIVE_APP_FOLDER_SCOPE, ONEDRIVE_CLIENT_ID_KEY,
+    ONEDRIVE_REFRESH_TOKEN_KEY, TOKEN_URL as ONEDRIVE_TOKEN_URL,
+};
 pub use ops::{
     begin_resume, clear_resume, ensure_limits, load_resume, pending_retry, write_limits,
     ResumeDone, ResumeState, SyncLimits, DEFAULT_MAX_BYTES, DEFAULT_MAX_CONCURRENT,
@@ -68,6 +88,13 @@ pub use ops::{
 pub use pack::seal_and_put;
 pub use plan::{build_plan, run_locked, start_persisted, SyncPlan, SyncSession};
 pub use review::{apply_choice, list_conflicts, ConflictChoice, ConflictDecision, ConflictItem};
+pub use supabase::SupabaseStorage;
+pub use supabase_auth::{
+    parse_access_token as parse_supabase_access_token, parse_project_url,
+    resolve_access_token as resolve_supabase_access_token,
+    resolve_bucket as resolve_supabase_bucket, resolve_url as resolve_supabase_url,
+    supabase_account, SUPABASE_ACCESS_TOKEN_KEY, SUPABASE_STORAGE_BUCKET_KEY, SUPABASE_URL_KEY,
+};
 pub use tombstone::{
     confirm_delete, expired_cleanup_candidates, list_tombstones, purge_expired, CleanupCandidate,
     PurgeReport, Tombstone, DEFAULT_RETENTION_DAYS,

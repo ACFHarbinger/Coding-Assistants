@@ -4,6 +4,8 @@ import type { ProviderQuota } from "../hub/types";
 import { ProviderHealthDot } from "../harness/ProviderHealthChip";
 import { useProviderHealth } from "../harness/useProviderHealth";
 import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 /**
  * Compact provider-quota read-out for the agents/status area (Messager
@@ -174,14 +176,13 @@ export function QuotaStatusStrip() {
             key={quota.agent_id}
             title={quota.detail || quota.harness_title}
             style={{
+              ...nocCardDenseStyle,
               display: "grid",
               gap: "0.35rem",
               padding: "0.45rem 0.65rem",
-              borderRadius: "8px",
-              background: "rgba(0,0,0,0.25)",
               fontSize: "0.78rem",
-              color: "var(--text-muted)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              color: NOC_SURFACES.textMuted,
+              borderLeft: `3px solid ${quota.status === "ok" ? NOC_COLORS.ok : NOC_COLORS.idle}`,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

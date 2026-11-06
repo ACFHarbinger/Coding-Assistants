@@ -9,6 +9,8 @@ use hub::{MemoryScope, MemoryTier, MessageKind};
 use std::sync::Mutex;
 
 mod quota;
+mod schedule;
+mod schedule_poller;
 mod vector_memory;
 
 #[test]
@@ -416,6 +418,7 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             a2a_enabled: None,
             quota_auto_refresh_enabled: None,
             quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("disable export via Settings");
@@ -445,6 +448,7 @@ fn export_commands_honor_the_persisted_export_enabled_policy() {
             a2a_enabled: None,
             quota_auto_refresh_enabled: None,
             quota_auto_refresh_interval_secs: None,
+            scorecard_visibility: None,
         },
     )
     .expect("re-enable export via Settings");

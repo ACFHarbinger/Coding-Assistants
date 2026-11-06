@@ -3,9 +3,9 @@
 //! merged effective shape returned to the frontend.
 
 use super::model::{
-    FieldStatus, LinkSuggestionMode, SandboxStrictness, SettingsError, DEFAULT_MEMORY_RECALL_LIMIT,
-    DEFAULT_QUOTA_AUTO_REFRESH_SECS, MAX_MEMORY_RECALL_LIMIT, MAX_QUOTA_AUTO_REFRESH_SECS,
-    MIN_QUOTA_AUTO_REFRESH_SECS,
+    FieldStatus, LinkSuggestionMode, SandboxStrictness, ScorecardVisibility, SettingsError,
+    DEFAULT_MEMORY_RECALL_LIMIT, DEFAULT_QUOTA_AUTO_REFRESH_SECS, MAX_MEMORY_RECALL_LIMIT,
+    MAX_QUOTA_AUTO_REFRESH_SECS, MIN_QUOTA_AUTO_REFRESH_SECS,
 };
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +59,9 @@ pub struct OrchestrationPolicy {
     /// `quota_auto_refresh_enabled` is on. Clamped to
     /// [`MIN_QUOTA_AUTO_REFRESH_SECS`, `MAX_QUOTA_AUTO_REFRESH_SECS`].
     pub quota_auto_refresh_interval_secs: u32,
+    /// Enforced visibility for the team scorecard (T3 / #343).
+    /// Global-only: access policy is set by the owner, not per-workspace.
+    pub scorecard_visibility: ScorecardVisibility,
 }
 
 impl Default for OrchestrationPolicy {
@@ -77,6 +80,7 @@ impl Default for OrchestrationPolicy {
             a2a_enabled: false,
             quota_auto_refresh_enabled: false,
             quota_auto_refresh_interval_secs: DEFAULT_QUOTA_AUTO_REFRESH_SECS,
+            scorecard_visibility: ScorecardVisibility::OwnerOnly,
         }
     }
 }
@@ -184,4 +188,6 @@ pub struct EffectiveOrchestrationPolicy {
     pub quota_auto_refresh_enabled: bool,
     /// Global-only (no `_status`).
     pub quota_auto_refresh_interval_secs: u32,
+    /// Global-only (no `_status`).
+    pub scorecard_visibility: ScorecardVisibility,
 }

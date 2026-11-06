@@ -1,10 +1,12 @@
 mod agent;
+mod browser_pane;
 mod bus;
 mod client;
 mod commands;
 mod core;
 mod harness;
 mod invoke;
+mod llamacpp;
 mod pty;
 mod server;
 mod tray;
@@ -333,6 +335,7 @@ pub fn run() {
             tray::setup_tray(app)?;
             let bus = app.state::<InProcessBus>().inner().clone();
             bus::spawn_tauri_forwarder(bus, app.handle().clone());
+            commands::commands::schedule_poller::spawn_in_app();
             Ok(())
         })
         .on_window_event(|window, event| {

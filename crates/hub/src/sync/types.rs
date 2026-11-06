@@ -133,6 +133,9 @@ pub enum ProviderKind {
     Fake,
     GoogleDrive,
     Firebase,
+    Supabase,
+    OneDrive,
+    Dropbox,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

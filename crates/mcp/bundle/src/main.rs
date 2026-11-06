@@ -4,7 +4,7 @@
 //!   coding-assistants-mcp <tool> [args...]
 //!
 //! Subcommands correspond to each tool bridge:
-//!   ableton, aseprite, blender, godot, krita, opentoonz, unity, unreal.
+//!   ableton, aseprite, blender, clipstudio, godot, krita, opentoonz, unity, unreal.
 
 const USAGE: &str = "\
 Usage: coding-assistants-mcp <tool> [args...]
@@ -13,6 +13,7 @@ Available tools:
   ableton     - Ableton Live LOM Remote Script bridge
   aseprite    - Aseprite batch-mode Lua bridge
   blender     - Blender TCP socket bridge
+  clipstudio  - CLIP STUDIO PAINT 5.1.2 profile bridge
   godot       - Godot 4 editor TCP socket bridge
   krita       - Krita TCP socket bridge
   opentoonz   - OpenToonz scene inspection & render bridge
@@ -25,6 +26,7 @@ pub enum ToolCommand {
     Ableton,
     Aseprite,
     Blender,
+    ClipStudio,
     Godot,
     Krita,
     OpenToonz,
@@ -38,6 +40,7 @@ impl ToolCommand {
             "ableton" => Some(Self::Ableton),
             "aseprite" => Some(Self::Aseprite),
             "blender" => Some(Self::Blender),
+            "clipstudio" => Some(Self::ClipStudio),
             "godot" => Some(Self::Godot),
             "krita" => Some(Self::Krita),
             "opentoonz" => Some(Self::OpenToonz),
@@ -52,6 +55,7 @@ impl ToolCommand {
             Self::Ableton => mcp_ableton::run(args),
             Self::Aseprite => mcp_aseprite::run(args),
             Self::Blender => mcp_blender::run(args),
+            Self::ClipStudio => mcp_clipstudio::run(args),
             Self::Godot => mcp_godot::run(args),
             Self::Krita => mcp_krita::run(args),
             Self::OpenToonz => mcp_opentoonz::run(args),
@@ -92,6 +96,10 @@ mod tests {
         assert_eq!(ToolCommand::parse("ableton"), Some(ToolCommand::Ableton));
         assert_eq!(ToolCommand::parse("aseprite"), Some(ToolCommand::Aseprite));
         assert_eq!(ToolCommand::parse("blender"), Some(ToolCommand::Blender));
+        assert_eq!(
+            ToolCommand::parse("clipstudio"),
+            Some(ToolCommand::ClipStudio)
+        );
         assert_eq!(ToolCommand::parse("godot"), Some(ToolCommand::Godot));
         assert_eq!(ToolCommand::parse("krita"), Some(ToolCommand::Krita));
         assert_eq!(

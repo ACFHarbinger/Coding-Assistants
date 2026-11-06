@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke, isTauriRuntime } from "../../../lib/tauri";
 import type { SavedWorkspace } from "../../../app/hubState";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS } from "../../common/telemetry/tokens";
 
 export interface SavedWorkspacesPanelProps {
   workDir: string;
@@ -24,6 +26,7 @@ export default function SavedWorkspacesPanel({
   const [rows, setRows] = useState<SavedWorkspace[]>([]);
   const [nameDraft, setNameDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -33,12 +36,15 @@ export default function SavedWorkspacesPanel({
       setRows([]);
       return;
     }
+    setLoadingList(true);
     try {
       const listed = await invoke<SavedWorkspace[]>("hub_list_workspaces");
       setRows(Array.isArray(listed) ? listed : []);
       setError("");
     } catch (err) {
       setError(String(err));
+    } finally {
+      setLoadingList(false);
     }
   }, []);
 
@@ -120,11 +126,15 @@ export default function SavedWorkspacesPanel({
       {error && (
         <div style={{ color: "#fca5a5", fontSize: "0.78rem", marginBottom: "0.4rem" }}>{error}</div>
       )}
-      {rows.length === 0 && (
+      {loadingList && rows.length === 0 ? (
+        <div style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginBottom: "0.5rem" }}>
+          Loading saved workspaces…
+        </div>
+      ) : rows.length === 0 ? (
         <div style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginBottom: "0.5rem" }}>
           None yet. Save the current path to reopen it later with its team chat.
         </div>
-      )}
+      ) : null}
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.35rem" }}>
         {rows.map((row) => {
           const active = row.path === workDir.trim() || `${row.path}/` === workDir.trim();
@@ -132,14 +142,14 @@ export default function SavedWorkspacesPanel({
             <li
               key={row.id}
               style={{
+                ...nocCardDenseStyle,
                 display: "flex",
                 gap: "0.45rem",
                 alignItems: "center",
                 flexWrap: "wrap",
-                padding: "0.4rem 0.55rem",
-                borderRadius: "8px",
-                border: active ? "1px solid rgba(16, 185, 129, 0.55)" : "1px solid var(--border-color)",
-                background: active ? "rgba(16, 185, 129, 0.12)" : "rgba(0,0,0,0.2)",
+                padding: "0.45rem 0.65rem",
+                borderLeft: active ? `3px solid ${NOC_COLORS.ok}` : `3px solid ${NOC_COLORS.idle}`,
+                background: active ? "rgba(16, 185, 129, 0.1)" : nocCardDenseStyle.background,
               }}
             >
               {renamingId === row.id ? (
@@ -191,7 +201,7 @@ export default function SavedWorkspacesPanel({
           style={{ flex: "1 1 180px", padding: "0.45rem 0.6rem", borderRadius: "8px", background: "rgba(0,0,0,0.3)", color: "white", border: "1px solid var(--border-color)" }}
         />
         <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void saveCurrent()} disabled={busy}>
-          Save current as…
+          {busy ? "Saving…" : "Save current as…"}
         </button>
       </div>
     </div>

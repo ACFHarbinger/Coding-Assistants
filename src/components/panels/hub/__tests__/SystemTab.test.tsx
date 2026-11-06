@@ -43,6 +43,9 @@ describe("SystemTab (U23 / #316)", () => {
     expect(screen.getByText(/nvidia-smi not found/)).toBeTruthy();
     expect(screen.getAllByText(/kimi/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/pid 123/)).toBeTruthy();
+    expect(screen.getByTestId("monitor-status-strip")).toBeTruthy();
+    expect(screen.getByTestId("kpi-metric-strip")).toBeTruthy();
+    expect(screen.getAllByTestId("telemetry-timeseries-card").length).toBe(3);
   });
 
   it("refreshes on demand without overlapping polls", async () => {

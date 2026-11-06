@@ -1,6 +1,14 @@
 use super::super::*;
 use tempfile::tempdir;
 
+fn approve_pending(store: &HubStore) {
+    for wake in store.list_wakes(None, true).unwrap() {
+        store
+            .set_wake_status(&wake.id, WakeStatus::Delivered)
+            .unwrap();
+    }
+}
+
 #[test]
 fn team_broadcast_uses_enrolled_roster_and_includes_human() {
     let dir = tempdir().unwrap();
@@ -261,6 +269,10 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "claude".into(),
@@ -269,6 +281,10 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -277,6 +293,10 @@ fn c5_sequential_task_advance_plan_code_review() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
     let task = store
@@ -286,12 +306,13 @@ fn c5_sequential_task_advance_plan_code_review() {
     assert_eq!(task.step_index, 0);
 
     let t1 = store.advance_task(&task.id, None, None).unwrap();
-    assert_eq!(t1.status, "running");
+    assert_eq!(t1.status, "input_required");
     assert_eq!(t1.step_index, 0);
     assert!(t1.last_message_id.is_some());
     let inbox = store.poll_messages("grok", true).unwrap();
     assert_eq!(inbox.len(), 1);
     assert_eq!(inbox[0].kind, "handoff");
+    approve_pending(&store);
 
     let t2 = store
         .advance_task(&task.id, Some("grok"), Some("plan ready"))
@@ -300,9 +321,11 @@ fn c5_sequential_task_advance_plan_code_review() {
     let for_claude = store.poll_messages("claude", true).unwrap();
     assert!(!for_claude.is_empty());
     assert!(for_claude[0].body.contains("Implement"));
+    approve_pending(&store);
 
     let t3 = store.advance_task(&task.id, Some("claude"), None).unwrap();
     assert_eq!(t3.step_index, 2);
+    approve_pending(&store);
 
     let done = store.advance_task(&task.id, Some("gemini"), None).unwrap();
     assert_eq!(done.status, "done");
@@ -323,6 +346,10 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_a".into(),
@@ -331,6 +358,10 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_b".into(),
@@ -339,6 +370,10 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "dev_c".into(),
@@ -347,6 +382,10 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 1,
             parallel_group: Some("impl".into()),
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "reviewer".into(),
@@ -355,6 +394,10 @@ fn c5_bounded_parallel_and_retry() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
     // max_parallel=2 → wake two of three implementers first
@@ -367,6 +410,7 @@ fn c5_bounded_parallel_and_retry() {
     let t1 = store.advance_task(&task.id, None, None).unwrap();
     assert_eq!(t1.step_index, 0); // sequential plan
     assert!(t1.open_agents.is_empty());
+    approve_pending(&store);
 
     let t2 = store.advance_task(&task.id, Some("planner"), None).unwrap();
     assert_eq!(t2.step_index, 1);
@@ -375,6 +419,7 @@ fn c5_bounded_parallel_and_retry() {
 
     // Cannot advance while parallel open
     assert!(store.advance_task(&task.id, None, None).is_err());
+    approve_pending(&store);
 
     let a = t2.open_agents[0].clone();
     let b = t2.open_agents[1].clone();
@@ -382,6 +427,7 @@ fn c5_bounded_parallel_and_retry() {
     // one free slot → pending agent wakes
     assert_eq!(mid.open_agents.len(), 2);
     assert!(mid.pending_agents.is_empty());
+    approve_pending(&store);
 
     let mid2 = store.complete_parallel_member(&task.id, &b, None).unwrap();
     let mid3 = store
@@ -408,6 +454,10 @@ fn c5_bounded_parallel_and_retry() {
     // Drain again
     let mut cur = retried;
     while !cur.open_agents.is_empty() || !cur.pending_agents.is_empty() {
+        if cur.status != "running" {
+            approve_pending(&store);
+            cur = store.get_task(&task.id).unwrap().unwrap();
+        }
         let agent = cur.open_agents[0].clone();
         cur = store
             .complete_parallel_member(&task.id, &agent, None)
@@ -416,6 +466,7 @@ fn c5_bounded_parallel_and_retry() {
 
     let done = store.advance_task(&task.id, Some("dev_a"), None).unwrap(); // review stage
     assert_eq!(done.step_index, 2);
+    approve_pending(&store);
     let finished = store
         .advance_task(&task.id, Some("reviewer"), None)
         .unwrap();

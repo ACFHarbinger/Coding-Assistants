@@ -3,7 +3,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { QuotaStatusStrip } from "./QuotaStatusStrip";
 import { TeamRoleBadge } from "../../common/TeamRoleBadge";
 export default function MessagerSidebar(props: any) {
-  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, memories, setShowMemoryDrawer, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, showMemoryDrawer, setMemorySearch, memorySearch, selectedTierFilter, setSelectedTierFilter, filteredMemories, insertMemoryLink, onRefresh } = props;
+  const { activeChannel, setActiveChannel, channels, creatingChannel, setCreatingChannel, newChannelName, setNewChannelName, channelActionError, channelActionPending, createChannel, deleteChannel, channelMessages, unreadPosts, lastReadAt, workSessions, activeWorkSessionId, onSelectWorkSession, hubAgents, rosterAgentIds, getAgentInfo, onOpenMemory, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, startReply, openMessageMenu, contextMenu, startEdit, deleteMessage, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, teamWakeTargets, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, filteredMemories, insertMemoryLink, onRefresh } = props;
   return (
       <div className="glass-card" style={{
         padding: "1.25rem 1rem",
@@ -55,8 +55,8 @@ export default function MessagerSidebar(props: any) {
                 placeholder="new-channel"
                 style={{ flex: 1, padding: "0.4rem 0.55rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)", outline: "none", fontSize: "0.8rem" }}
               />
-              <button className="btn-primary" onClick={() => void createChannel()} disabled={!newChannelName.trim()} style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem" }}>
-                Add
+              <button className="btn-primary" onClick={() => void createChannel()} disabled={!newChannelName.trim() || channelActionPending} style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem" }}>
+                {channelActionPending ? "Adding…" : "Add"}
               </button>
             </div>
           )}
@@ -96,14 +96,17 @@ export default function MessagerSidebar(props: any) {
                   >
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.name}</span>
                     {unreadCount > 0 && (
-                      <span style={{
-                        background: isActive ? "var(--primary)" : "rgba(255, 255, 255, 0.1)",
-                        color: "#fff",
-                        fontSize: "0.7rem",
-                        padding: "0.15rem 0.45rem",
-                        borderRadius: "10px",
-                        fontWeight: 600
-                      }}>
+                      <span
+                        className="tabular-nums"
+                        style={{
+                          background: isActive ? "var(--primary)" : "rgba(56, 189, 248, 0.2)",
+                          color: isActive ? "#fff" : "#38bdf8",
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "10px",
+                          fontWeight: 700,
+                        }}
+                      >
                         {unreadCount}
                       </span>
                     )}
@@ -112,6 +115,7 @@ export default function MessagerSidebar(props: any) {
                     <button
                       className="btn-secondary"
                       title={`Delete ${ch.name}`}
+                      disabled={channelActionPending}
                       onClick={() => void deleteChannel(ch)}
                       style={{ padding: "0.25rem 0.4rem", fontSize: "0.7rem" }}
                     >
@@ -202,10 +206,13 @@ export default function MessagerSidebar(props: any) {
                             : "Not connected to this workspace"
                       }
                       style={{
-                      width: "8px", height: "8px", borderRadius: "50%",
-                      background: agentId === "human" ? "#3b82f6" : info.isLive ? "#10b981" : "#64748b",
-                      flexShrink: 0
-                    }} />
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: agentId === "human" ? "#6366f1" : info.isLive ? "#10b981" : "#94a3b8",
+                        flexShrink: 0,
+                      }}
+                    />
                     <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                       {info.displayName}
                     </div>
@@ -222,15 +229,14 @@ export default function MessagerSidebar(props: any) {
         {/* Compact provider quota mirror (DeepSeek / OpenCode Go) */}
         <QuotaStatusStrip />
 
-        {/* Memory Hub Drawer Toggle Button */}
+        {/* Memory subtab shortcut */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--border-color)" }}>
           <button
-            className={showMemoryDrawer ? "btn-primary" : "btn-secondary"}
-            onClick={() => setShowMemoryDrawer(prev => !prev)}
+            className="btn-secondary"
+            onClick={onOpenMemory}
             style={{ width: "100%", padding: "0.6rem", fontSize: "0.85rem", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}
           >
             <span>🧠 Memory Hub</span>
-            <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>({memories.length})</span>
           </button>
         </div>
       </div>

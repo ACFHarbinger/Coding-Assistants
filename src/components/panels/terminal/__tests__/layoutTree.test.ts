@@ -277,6 +277,36 @@ describe("layoutTree - pure tree operations", () => {
       expect(deserializeLayout("invalid json {}")).toBeNull();
       expect(deserializeLayout(JSON.stringify({ type: "split", invalid: true }))).toBeNull();
     });
+
+    it("accepts optional per-pane cwd and round-trips it", () => {
+      const withCwd: LayoutNode = {
+        type: "split",
+        id: "s1",
+        direction: "row",
+        ratio: 0.5,
+        first: { type: "leaf", id: "l1", harness: "grok", cwd: "/tmp/project-a" },
+        second: { type: "leaf", id: "l2", harness: "claude" },
+      };
+      expect(isValidLayoutNode(withCwd)).toBe(true);
+      expect(deserializeLayout(serializeLayout(withCwd))).toEqual(withCwd);
+
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: 42 })).toBe(false);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "grok", cwd: null })).toBe(false);
+    });
+
+    it("round-trips a llama.cpp pane port and model path", () => {
+      const leaf: LayoutNode = {
+        type: "leaf",
+        id: "llama-1",
+        harness: "llamacpp",
+        port: 8080,
+        modelPath: "/models/demo.gguf",
+      };
+      expect(isValidLayoutNode(leaf)).toBe(true);
+      expect(deserializeLayout(serializeLayout(leaf))).toEqual(leaf);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "llamacpp", port: "8080" })).toBe(false);
+      expect(isValidLayoutNode({ type: "leaf", id: "1", harness: "llamacpp", modelPath: 1 })).toBe(false);
+    });
   });
 
   describe("swapLeaves", () => {

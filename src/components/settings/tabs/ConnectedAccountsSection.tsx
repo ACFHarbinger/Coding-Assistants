@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LinkedAccountStatus } from "../types";
 import { linkAccountCli, listLinkedAccounts, unlinkAccount } from "../api";
+import { NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
 
 interface ProviderMeta {
   displayName: string;
@@ -100,20 +102,20 @@ export default function ConnectedAccountsSection() {
 
   return (
     <section style={{ display: "grid", gap: "0.85rem" }}>
-      <div>
+      <div style={{ marginBottom: "0.85rem" }}>
         <h3
           style={{
             margin: "0 0 0.35rem",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
             fontWeight: 700,
             textTransform: "uppercase",
             letterSpacing: "0.06em",
-            color: "var(--text-muted)",
+            color: NOC_SURFACES.textMuted,
           }}
         >
           Connected Accounts (#286)
         </h3>
-        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.82rem", lineHeight: 1.55 }}>
+        <p style={{ margin: 0, color: NOC_SURFACES.textMuted, fontSize: "0.82rem", lineHeight: 1.55 }}>
           Link your external vendor accounts (ChatGPT, Claude, Google, etc.). Connecting records
           your vendor CLI or OAuth session under your single-user profile (provisional &ldquo;local&rdquo; key).
           This records the account association only. Authentication remains with the vendor's
@@ -125,9 +127,9 @@ export default function ConnectedAccountsSection() {
         <div
           style={{
             padding: "0.5rem 0.8rem",
-            borderRadius: "8px",
-            background: "rgba(239,68,68,0.12)",
-            border: "1px solid rgba(248,113,113,0.45)",
+            borderRadius: NOC_RADIUS.s,
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(248, 113, 113, 0.45)",
             color: "#fca5a5",
             fontSize: "0.82rem",
           }}
@@ -150,10 +152,9 @@ export default function ConnectedAccountsSection() {
             <div
               key={account.provider}
               style={{
-                padding: "0.85rem 1rem",
-                borderRadius: "10px",
-                border: `1px solid ${account.isLinked ? "rgba(16,185,129,0.35)" : "var(--border-color)"}`,
-                background: account.isLinked ? "rgba(16,185,129,0.05)" : "rgba(0,0,0,0.18)",
+                ...nocCardDenseStyle,
+                border: `1px solid ${account.isLinked ? "rgba(16, 185, 129, 0.4)" : NOC_SURFACES.border}`,
+                background: account.isLinked ? "rgba(16, 185, 129, 0.08)" : NOC_SURFACES.bgDeep,
                 display: "grid",
                 gap: "0.5rem",
               }}
@@ -168,7 +169,7 @@ export default function ConnectedAccountsSection() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-                  <strong style={{ fontSize: "0.92rem", color: "var(--text-main)" }}>
+                  <strong style={{ fontSize: "0.92rem", color: NOC_SURFACES.textPrimary }}>
                     {meta.displayName}
                   </strong>
                   <span
@@ -177,9 +178,9 @@ export default function ConnectedAccountsSection() {
                       fontWeight: 600,
                       padding: "0.1rem 0.45rem",
                       borderRadius: "999px",
-                      background: account.isLinked ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${account.isLinked ? "rgba(16,185,129,0.35)" : "var(--border-color)"}`,
-                      color: account.isLinked ? "#6ee7b7" : "var(--text-muted)",
+                      background: account.isLinked ? "rgba(16, 185, 129, 0.12)" : "rgba(15, 23, 42, 0.6)",
+                      border: `1px solid ${account.isLinked ? "rgba(16, 185, 129, 0.35)" : NOC_SURFACES.border}`,
+                      color: account.isLinked ? "#6ee7b7" : NOC_SURFACES.textMuted,
                     }}
                   >
                     {account.isLinked ? "Connected" : "Not Connected"}
@@ -190,8 +191,8 @@ export default function ConnectedAccountsSection() {
                         fontSize: "0.7rem",
                         padding: "0.1rem 0.45rem",
                         borderRadius: "999px",
-                        background: "rgba(99,102,241,0.12)",
-                        border: "1px solid rgba(99,102,241,0.35)",
+                        background: "rgba(99, 102, 241, 0.12)",
+                        border: "1px solid rgba(99, 102, 241, 0.35)",
                         color: "#a5b4fc",
                       }}
                     >
@@ -204,7 +205,7 @@ export default function ConnectedAccountsSection() {
                   {account.isLinked ? (
                     <button
                       type="button"
-                      className="btn-secondary"
+                      className="btn-secondary noc-focusable"
                       disabled={isBusy || loading}
                       onClick={() => void handleDisconnect(account.provider)}
                       style={{
@@ -212,7 +213,7 @@ export default function ConnectedAccountsSection() {
                         fontSize: "0.78rem",
                         marginTop: 0,
                         color: "#fca5a5",
-                        borderColor: "rgba(239,68,68,0.35)",
+                        borderColor: "rgba(239, 68, 68, 0.35)",
                       }}
                     >
                       {isBusy ? "Disconnecting…" : "Disconnect"}
@@ -227,19 +228,20 @@ export default function ConnectedAccountsSection() {
                           setLabels((prev) => ({ ...prev, [account.provider]: e.target.value }))
                         }
                         disabled={isBusy}
+                        className="noc-focusable"
                         style={{
                           padding: "0.3rem 0.55rem",
                           fontSize: "0.8rem",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "var(--text-main)",
+                          borderRadius: NOC_RADIUS.s,
+                          border: `1px solid ${NOC_SURFACES.border}`,
+                          background: "rgba(15, 23, 42, 0.6)",
+                          color: NOC_SURFACES.textPrimary,
                           width: "180px",
                         }}
                       />
                       <button
                         type="button"
-                        className="btn-primary"
+                        className="btn-primary noc-focusable"
                         disabled={isBusy}
                         onClick={() => void handleConnect(account.provider)}
                         style={{ padding: "0.3rem 0.65rem", fontSize: "0.78rem", marginTop: 0 }}
@@ -248,7 +250,7 @@ export default function ConnectedAccountsSection() {
                       </button>
                       <button
                         type="button"
-                        className="btn-secondary"
+                        className="btn-secondary noc-focusable"
                         disabled={isBusy}
                         onClick={() =>
                           setShowConnectInput((prev) => ({ ...prev, [account.provider]: false }))
@@ -261,7 +263,7 @@ export default function ConnectedAccountsSection() {
                   ) : (
                     <button
                       type="button"
-                      className="btn-primary"
+                      className="btn-primary noc-focusable"
                       disabled={isBusy || loading}
                       onClick={() =>
                         setShowConnectInput((prev) => ({ ...prev, [account.provider]: true }))
@@ -274,12 +276,12 @@ export default function ConnectedAccountsSection() {
                 </div>
               </div>
 
-              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted }}>
                 {account.isLinked ? (
                   <span>
-                    Account: <strong>{account.externalLabel ?? "Active session"}</strong>
+                    Account: <strong style={{ color: NOC_SURFACES.textPrimary }}>{account.externalLabel ?? "Active session"}</strong>
                     {account.linkedAt && (
-                      <span style={{ marginLeft: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+                      <span className="tabular-nums" style={{ marginLeft: "0.75rem", color: NOC_SURFACES.textMuted }}>
                         Linked {new Date(account.linkedAt * 1000).toLocaleDateString()}
                       </span>
                     )}

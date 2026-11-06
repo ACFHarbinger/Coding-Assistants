@@ -3,13 +3,15 @@
 //! Opens HubStore per decision so the orchestrator future stays `Send`
 //! (rusqlite connections cannot be held across `await`).
 
-use hub::{BudgetStatus, HubStore, ProviderCallGate, DEFAULT_PROVIDER_CALL_UNITS};
+use hub::{BudgetStatus, HubStore, ProviderCallGate, SliceStamp, DEFAULT_PROVIDER_CALL_UNITS};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 pub struct BudgetContext {
     task: String,
+    task_id: Option<String>,
+    work_session_id: Option<String>,
     home: Option<PathBuf>,
 }
 
@@ -17,8 +19,18 @@ impl BudgetContext {
     pub fn open(task: &str) -> Self {
         Self {
             task: task.to_string(),
+            task_id: None,
+            work_session_id: None,
             home: None,
         }
+    }
+
+    fn stamp(&self, agent_id: &str) -> SliceStamp {
+        SliceStamp::registered(
+            self.task_id.clone(),
+            self.work_session_id.clone(),
+            Some(agent_id.to_string()),
+        )
     }
 
     fn store(&self) -> Result<HubStore, String> {
@@ -32,7 +44,7 @@ impl BudgetContext {
             .gate_provider_call(
                 agent_id,
                 DEFAULT_PROVIDER_CALL_UNITS,
-                None,
+                &self.stamp(agent_id),
                 &self.task,
                 "Provider call completed and its output was captured.",
                 "Remaining workflow roles and further provider calls.",
@@ -138,6 +150,8 @@ mod tests {
         drop(store);
         let budget = BudgetContext {
             task: "p10".into(),
+            task_id: None,
+            work_session_id: None,
             home: Some(dir.path().to_path_buf()),
         };
         let err = budget.deny_unless_allowed("planner").unwrap_err();
@@ -154,6 +168,8 @@ mod tests {
         std::fs::write(&file_path, "not a directory").unwrap();
         let budget = BudgetContext {
             task: "p10".into(),
+            task_id: None,
+            work_session_id: None,
             home: Some(file_path),
         };
         assert!(budget.deny_unless_allowed("planner").is_err());

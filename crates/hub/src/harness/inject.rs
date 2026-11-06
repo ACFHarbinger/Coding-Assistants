@@ -5,6 +5,7 @@
 //! replacement process.
 
 use crate::HubError;
+use crate::{ProviderCallGate, SliceStamp, DEFAULT_PROVIDER_CALL_UNITS};
 
 use super::spawn::spawn_explicit;
 use super::{
@@ -12,6 +13,64 @@ use super::{
     muse_spawn_args, opencode_spawn_args, qwen_spawn_args, vibe_managed_spawn_args, HarnessId,
     HarnessInjectRequest, HarnessInjectResult,
 };
+
+/// C6 / #84: a one-shot spawn is a provider call, so the same pre-call
+/// budget decision the in-process path takes must run before the process
+/// starts. `Ok(None)` = allowed (unmetered or reserved); `Ok(Some)` =
+/// `status: stopped`, no pid, no process. Reserving consumes one unit.
+/// Budget keys follow roster identities: Chat is `codex`, Vibe is `mistral`.
+fn one_shot_spawn_gate(
+    store: &crate::HubStore,
+    harness: HarnessId,
+) -> Result<Option<HarnessInjectResult>, HubError> {
+    let (agent_id, shown, prose) = one_shot_budget_names(harness);
+    let stamp = SliceStamp::registered(None, None, Some(agent_id.to_string()));
+    match store.gate_provider_call(
+        agent_id,
+        DEFAULT_PROVIDER_CALL_UNITS,
+        &stamp,
+        &format!("{prose} one-shot harness run"),
+        &format!("{prose} one-shot harness runs completed so far."),
+        &format!("Further {prose} one-shot runs."),
+        None,
+    )? {
+        ProviderCallGate::Unmetered | ProviderCallGate::Reserved { .. } => Ok(None),
+        ProviderCallGate::Stopped { status, handoff } => {
+            let detail = if handoff.is_some() {
+                format!(
+                    "{shown} reached its budget ({}/{} units); handoff written; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            } else {
+                format!(
+                    "{shown} is budget-paused ({}/{} units); resume_agent required; no process was spawned",
+                    status.spent_units, status.limit_units
+                )
+            };
+            Ok(Some(HarnessInjectResult {
+                harness: harness.as_str().into(),
+                pid: None,
+                status: "stopped".into(),
+                detail,
+            }))
+        }
+    }
+}
+
+/// `(budget agent id, stopped-detail subject, handoff prose name)`.
+/// Claude and Codex keep their existing subject wording. Every other
+/// harness names itself with [`HarnessId::as_str`] in the same sentence.
+fn one_shot_budget_names(harness: HarnessId) -> (&'static str, &'static str, &'static str) {
+    match harness {
+        HarnessId::Claude => ("claude", "claude", "Claude"),
+        HarnessId::Chat => ("codex", "Codex", "Codex"),
+        HarnessId::Vibe => ("mistral", "vibe", "Vibe"),
+        other => {
+            let name = other.as_str();
+            (name, name, name)
+        }
+    }
+}
 
 pub fn inject_harness(request: &HarnessInjectRequest) -> Result<HarnessInjectResult, HubError> {
     inject_harness_inner(None, request)
@@ -26,6 +85,21 @@ pub fn inject_harness_with_store(
     inject_harness_inner(Some(store), request)
 }
 
+/// Hub tasks are delivered as `/goal [GOAL] …`. A Kimi slash command has to
+/// stay the first token, so a set `kimi_mode` or a body that already starts
+/// with `/` skips that wrapper. `deliver_kimi_task` then applies `/swarm` or
+/// `/goal` itself. Wakes keep the Hub marker.
+fn task_delivery_body(harness: HarnessId, request: &HarnessInjectRequest) -> String {
+    let slash = request.body.trim().starts_with('/');
+    let kimi_command =
+        harness == HarnessId::Kimi && !request.is_wake && (request.kimi_mode.is_some() || slash);
+    if kimi_command {
+        request.body.clone()
+    } else {
+        crate::store::goal_delivery_body(&request.body)
+    }
+}
+
 fn inject_harness_inner(
     store: Option<&crate::HubStore>,
     request: &HarnessInjectRequest,
@@ -34,6 +108,16 @@ fn inject_harness_inner(
     if request.body.trim().is_empty() {
         return Err(HubError::Invalid("inject body must not be empty".into()));
     }
+    let rewritten;
+    let request = if request.is_task {
+        rewritten = HarnessInjectRequest {
+            body: task_delivery_body(harness, request),
+            ..request.clone()
+        };
+        &rewritten
+    } else {
+        request
+    };
     if !request.workspace.is_absolute() {
         return Err(HubError::Invalid("workspace path must be absolute".into()));
     }
@@ -119,10 +203,16 @@ fn inject_harness_inner(
     if !request.workspace.is_absolute() {
         return Err(HubError::Invalid("workspace path must be absolute".into()));
     }
-    let prompt = if request.is_task && request.is_wake {
-        format!("[TASK] [WAKE] {}", request.body)
-    } else if request.is_task {
-        format!("[TASK] {}", request.body)
+    // C6 / #84: budget-stop every one-shot spawn before the process
+    // starts (wake and plain sends). Task-only delivery returned above.
+    // Bare `inject_harness` has no store and stays ungated.
+    if let Some(store) = store {
+        if let Some(stopped) = one_shot_spawn_gate(store, harness)? {
+            return Ok(stopped);
+        }
+    }
+    let prompt = if request.is_task {
+        request.body.clone()
     } else if request.is_wake {
         format!("[WAKE] {}", request.body)
     } else {
@@ -201,47 +291,5 @@ fn inject_harness_inner(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn task_injection_queues_without_spawning_a_new_harness() {
-        let result = inject_harness(&HarnessInjectRequest {
-            harness: "grok".into(),
-            workspace: PathBuf::from("/tmp/workspace-for-task-queue"),
-            session_id: Some("session-1".into()),
-            message_id: Some("message-1".into()),
-            body: "review this".into(),
-            is_task: true,
-            is_wake: false,
-            ..Default::default()
-        })
-        .unwrap();
-        assert_eq!(result.status, "queued");
-        assert_eq!(result.pid, None);
-    }
-
-    #[test]
-    fn chat_task_without_a_persisted_thread_is_unavailable_not_spawned() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = crate::HubStore::open(dir.path()).unwrap();
-        let result = crate::inject_harness_with_store(
-            &store,
-            &HarnessInjectRequest {
-                harness: "chat".into(),
-                workspace: PathBuf::from("/tmp/workspace-for-codex-queue"),
-                session_id: Some("session-1".into()),
-                message_id: Some("message-1".into()),
-                body: "review this".into(),
-                is_task: true,
-                is_wake: false,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(result.status, "unavailable");
-        assert_eq!(result.pid, None);
-        assert!(!result.detail.contains("spawned"));
-    }
-}
+#[path = "inject_tests.rs"]
+mod tests;

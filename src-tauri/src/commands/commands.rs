@@ -25,6 +25,8 @@ pub mod external_mcp;
 pub mod github_board;
 #[path = "github/branches.rs"]
 pub mod github_branches;
+#[path = "messager/goal_counts.rs"]
+pub mod goal_counts;
 #[path = "settings/harness_models.rs"]
 pub mod harness_models;
 #[path = "health/health.rs"]
@@ -37,6 +39,8 @@ pub mod memory;
 pub mod messaging;
 #[path = "os_tool.rs"]
 pub mod os_tool;
+#[path = "hub/oversight.rs"]
+pub mod oversight;
 #[path = "quota/claude.rs"]
 mod quota_claude;
 #[path = "quota/codex.rs"]
@@ -51,6 +55,8 @@ mod quota_gemini;
 mod quota_grok;
 #[path = "quota/hermes.rs"]
 mod quota_hermes;
+#[path = "quota/kimi.rs"]
+pub(crate) mod quota_kimi;
 #[path = "quota/kimi_usage.rs"]
 pub(crate) mod quota_kimi_usage;
 #[path = "quota/mistral.rs"]
@@ -67,6 +73,16 @@ pub(crate) mod quota_vibe_usage;
 pub mod quotas;
 #[path = "settings/roles.rs"]
 pub mod roles;
+#[path = "hub/schedule.rs"]
+pub mod schedule;
+#[path = "hub/schedule_poller.rs"]
+pub mod schedule_poller;
+#[path = "quota/schedule_probe.rs"]
+pub(crate) mod schedule_probe;
+#[path = "settings/schedule_trigger.rs"]
+pub mod schedule_trigger;
+#[path = "hub/scorecard.rs"]
+pub mod scorecard;
 #[path = "settings/settings.rs"]
 pub mod settings;
 #[path = "hub/store.rs"]

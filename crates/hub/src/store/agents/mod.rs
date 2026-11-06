@@ -2,6 +2,7 @@ use super::*;
 
 mod avatar;
 mod capture;
+pub(super) mod oversight;
 mod profile;
 mod role;
 mod sessions;
@@ -44,7 +45,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name, animated_avatar, vtuber_character
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name, animated_avatar, vtuber_character, oversight_role
              FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -59,9 +60,15 @@ impl HubStore {
                 custom_display_name: r.get::<_, i64>(7).unwrap_or(0) != 0,
                 animated_avatar: r.get::<_, i64>(8).unwrap_or(0) != 0,
                 vtuber_character: r.get(9)?,
+                oversight_role: r.get(10)?,
+                effective_oversight_role: None,
             })
         })?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+        let mut agents = rows.collect::<Result<Vec<_>, _>>()?;
+        for agent in &mut agents {
+            agent.effective_oversight_role = self.effective_oversight_role(&agent.id)?;
+        }
+        Ok(agents)
     }
 
     pub fn list_team_members(&self) -> Result<Vec<AgentRecord>, HubError> {

@@ -1,4 +1,14 @@
-export const ALL_HARNESSES = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
+export const ALL_HARNESSES = [
+  "grok",
+  "chat",
+  "claude",
+  "gemini",
+  "muse",
+  "cursor",
+  "qwen",
+  "kimi",
+  "hermes",
+] as const;
 export type HarnessName = (typeof ALL_HARNESSES)[number];
 
 export const DISPLAY_NAMES: Record<string, string> = {
@@ -10,7 +20,24 @@ export const DISPLAY_NAMES: Record<string, string> = {
   cursor: "Cursor",
   qwen: "Qwen",
   kimi: "Kimi",
+  hermes: "Hermes",
+  browser: "DeepSeek GUI",
+  // Not a harness. The grid starts llama-server itself.
+  llamacpp: "llama.cpp",
 };
+
+export const LLAMACPP_HARNESS = "llamacpp";
+export const LLAMA_SERVER_BIN = "llama-server";
+export const LLAMA_SERVER_HOST = "127.0.0.1";
+
+export function llamaCppBaseUrl(port: number): string {
+  return `http://${LLAMA_SERVER_HOST}:${port}`;
+}
+
+/** Argv after the program name. Rust spawns this exact list and no shell. */
+export function llamaServerLaunchArgs(port: number, modelPath: string): string[] {
+  return ["--host", LLAMA_SERVER_HOST, "--port", String(port), "-m", modelPath];
+}
 
 export function storageKey(workspace: string): string {
   return `ca.terminalGrid.layout.${workspace || "default"}`;

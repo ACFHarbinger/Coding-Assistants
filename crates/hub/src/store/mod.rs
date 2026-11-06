@@ -34,26 +34,37 @@ mod types;
 pub use types::*;
 
 mod agents;
+pub use agents::oversight::{OversightExceptionRequest, OversightExceptionScope};
 mod attachments;
 mod board;
 mod branch_links;
 mod bus_entries;
 mod danger;
 mod exports;
+mod guardrails;
 mod linked_accounts;
 pub use linked_accounts::*;
 mod messages;
+pub(crate) use messages::goal_delivery_body;
+pub use messages::TaggedSendCounts;
 mod models;
 pub use models::*;
 mod activity;
 mod policies;
 mod roles;
+pub mod schedule;
+pub use schedule::*;
+mod handoff_filter;
 mod sync_gate;
 mod tasks;
+pub use tasks::{BranchTarget, StepBranch};
 #[cfg(test)]
 mod tests;
 mod workspaces;
 pub use activity::*;
+pub use policies::{AbsoluteSpendCommit, Attribution, ProviderUsage, QuotaSnapshot, SliceStamp};
+pub mod scorecard;
+pub use scorecard::*;
 pub struct HubStore {
     conn: Connection,
     data_dir: PathBuf,

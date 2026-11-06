@@ -26,6 +26,8 @@ use serde::Serialize;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+mod network;
+
 const NVIDIA_TIMEOUT: Duration = Duration::from_secs(8);
 const TOP_PROCESSES: usize = 8;
 const MIB: u64 = 1024 * 1024;
@@ -350,7 +352,7 @@ fn collect_snapshot() -> Result<SystemSnapshot, String> {
         )
     };
 
-    Ok(SystemSnapshot {
+    let snapshot = SystemSnapshot {
         fetched_at: now_unix(),
         cpu_total_percent: cpu_total,
         cpus,
@@ -359,7 +361,11 @@ fn collect_snapshot() -> Result<SystemSnapshot, String> {
         disks,
         gpu: nvidia_status(),
         processes,
-    })
+    };
+    // T6 / #346: ride the U23 snapshot cadence for network samples.
+    // Best-effort — a sampling failure must not fail the snapshot.
+    network::sample_network_connections(now_unix());
+    Ok(snapshot)
 }
 
 /// Async + `spawn_blocking`: `collect_snapshot` blocks on sysinfo refreshes

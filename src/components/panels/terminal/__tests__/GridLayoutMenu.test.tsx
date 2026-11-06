@@ -8,6 +8,11 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  save: vi.fn(),
+  open: vi.fn(),
+}));
+
 describe("GridLayoutMenu", () => {
   const mockLayout: LayoutNode = {
     type: "split",
@@ -249,5 +254,152 @@ describe("GridLayoutMenu", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByText("Grid Layouts")).not.toBeInTheDocument();
+  });
+
+  it("exports the current layout to a user-chosen file", async () => {
+    const onStatus = vi.fn();
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(save).mockResolvedValue("/home/user/Templates/dual-coding.json");
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "hub_export_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "dual-coding",
+          savedAt: "2026-10-25T00:00:00Z",
+          canvas: null,
+          layout: null,
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(
+      <GridLayoutMenu
+        currentLayout={mockLayout}
+        currentCanvas={mockCanvas}
+        onLoadLayout={vi.fn()}
+        onStatus={onStatus}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Export to file/i }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("hub_export_terminal_grid_layout", {
+        path: "/home/user/Templates/dual-coding.json",
+        layout: mockLayout,
+        canvas: { width: 1200, height: 700 },
+      });
+      expect(onStatus).toHaveBeenCalledWith(
+        "Layout exported to /home/user/Templates/dual-coding.json.",
+      );
+    });
+  });
+
+  it("disables export when the grid is empty", async () => {
+    vi.mocked(invoke).mockImplementation(() => Promise.resolve([]));
+
+    render(
+      <GridLayoutMenu currentLayout={null} currentCanvas={null} onLoadLayout={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    expect(screen.getByRole("button", { name: /Export to file/i })).toBeDisabled();
+  });
+
+  it("imports a layout from a user-chosen Ubuntu-style file", async () => {
+    const onLoadLayout = vi.fn();
+    const onStatus = vi.fn();
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValue("/home/user/Templates/dark-star.json");
+    const importedLayout: LayoutNode = {
+      type: "split",
+      id: "split-import-1",
+      direction: "row",
+      ratio: 0.5,
+      first: { type: "leaf", id: "leaf-import-1", harness: "claude", cwd: "/tmp/project-a" },
+      second: { type: "leaf", id: "leaf-import-2", harness: "claude", cwd: "/tmp/project-a" },
+    };
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "hub_import_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "dark-star",
+          savedAt: "2026-10-25T00:00:00Z",
+          canvas: null,
+          layout: importedLayout,
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(
+      <GridLayoutMenu
+        currentLayout={null}
+        currentCanvas={null}
+        onLoadLayout={onLoadLayout}
+        onStatus={onStatus}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Import from file/i }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("hub_import_terminal_grid_layout", {
+        path: "/home/user/Templates/dark-star.json",
+      });
+      expect(onLoadLayout).toHaveBeenCalledWith(importedLayout, null);
+      expect(onStatus).toHaveBeenCalledWith(
+        'Layout "dark-star" imported from file (2 panes). Working directories: /tmp/project-a.',
+      );
+      expect(screen.queryByText("Grid Layouts")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reports an error when the imported layout is invalid", async () => {
+    const onLoadLayout = vi.fn();
+    const onError = vi.fn();
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValue("/home/user/broken.json");
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "hub_import_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "broken",
+          savedAt: "2026-10-25T00:00:00Z",
+          canvas: null,
+          layout: { type: "split", id: "missing-children" },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(
+      <GridLayoutMenu
+        currentLayout={null}
+        currentCanvas={null}
+        onLoadLayout={onLoadLayout}
+        onError={onError}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Import from file/i }));
+
+    await waitFor(() => {
+      expect(onLoadLayout).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining("invalid tree shape"));
+    });
   });
 });

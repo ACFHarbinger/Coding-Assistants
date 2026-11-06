@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import type { EmbeddedRelaunchOutcome, HarnessSessionRegistration, PtySessionStatus } from "../harness/types";
 import {
   collectLeaves,
   deserializeLayout,
+  findLeaf,
   generateNodeId,
   insertLeaf,
   moveLeaf,
@@ -15,12 +16,17 @@ import {
 import {
   canvasSizeKey,
   DISPLAY_NAMES,
+  LLAMA_SERVER_BIN,
+  LLAMACPP_HARNESS,
+  llamaCppBaseUrl,
+  llamaServerLaunchArgs,
   maxKey,
   storageKey,
   terminalSessionId,
   type CanvasSize,
 } from "./gridConstants";
 import type { DragTargetZone } from "./useTerminalGridDrag";
+import { DEEPSEEK_GUI_HOME, isBrowserLeaf, stampLeaf } from "./browserUrl";
 
 export interface UseTerminalGridSessionsOptions {
   workspace: string;
@@ -57,6 +63,7 @@ export function useTerminalGridSessions({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [statusMsg, setStatusMsg] = useState<string>("");
+  const llamaLaunching = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -85,7 +92,7 @@ export function useTerminalGridSessions({
 
       const leaves = collectLeaves(restored);
       const statuses = await Promise.all(
-        leaves.map(async (leaf) => {
+        leaves.filter((leaf) => !isBrowserLeaf(leaf)).map(async (leaf) => {
           const instanceSid = terminalSessionId(leaf.harness, workspace, leaf.id);
           const legacySid = terminalSessionId(leaf.harness, workspace);
           let foundSid: string | null = null;
@@ -110,7 +117,8 @@ export function useTerminalGridSessions({
       const live = statuses.flatMap((entry) => (entry ? [entry] : []));
       const liveLeafIds = new Set(live.map((entry) => entry.leafId));
       const pruned = leaves.reduce<LayoutNode | null>(
-        (tree, leaf) => (liveLeafIds.has(leaf.id) ? tree : removeLeaf(tree, leaf.id)),
+        (tree, leaf) =>
+          isBrowserLeaf(leaf) || liveLeafIds.has(leaf.id) ? tree : removeLeaf(tree, leaf.id),
         restored,
       );
 
@@ -120,10 +128,11 @@ export function useTerminalGridSessions({
       if (restoredMaximized) {
         // Layouts saved before #301 stored the harness name. Convert that
         // legacy value to the live leaf ID rather than hiding every pane.
+        const stillThere = collectLeaves(pruned).some((leaf) => leaf.id === restoredMaximized);
         const maximizedLeaf = live.find(
           (entry) => entry.leafId === restoredMaximized || entry.harness === restoredMaximized,
         );
-        setMaximizedId(maximizedLeaf?.leafId ?? null);
+        setMaximizedId(stillThere ? restoredMaximized : (maximizedLeaf?.leafId ?? null));
       } else {
         setMaximizedId(null);
       }
@@ -192,6 +201,10 @@ export function useTerminalGridSessions({
         return;
       }
       const leafId = existingLeafId ?? generateNodeId(`leaf-${harness}`);
+      // Imported layouts can pin a pane to its own working directory
+      // (Ubuntu-style alignment files); otherwise the PTY opens in the
+      // grid-wide workspace.
+      const cwd = existingLeafId ? (findLeaf(layout, existingLeafId)?.cwd ?? null) : null;
       setBusyId(leafId);
       setError("");
       setStatusMsg(`Starting ${DISPLAY_NAMES[harness] || harness} terminal…`);
@@ -209,6 +222,7 @@ export function useTerminalGridSessions({
           workspace,
           existingPid,
           instanceKey: leafId,
+          cwd,
         });
         const sid = outcome?.sessionId ?? (outcome as { session_id?: string })?.session_id;
         if (!sid) throw new Error("Relaunch did not return an in-app terminal session id.");
@@ -220,6 +234,55 @@ export function useTerminalGridSessions({
       } catch (cause) {
         setError(String(cause).replace(/^Error:\s*/, ""));
       } finally {
+        setBusyId(null);
+      }
+    },
+    [workspace, layout],
+  );
+
+  const launchLlamaCpp = useCallback(
+    async (modelPath: string, port: number): Promise<boolean> => {
+      if (llamaLaunching.current) return false;
+      llamaLaunching.current = true;
+      const leafId = generateNodeId(`leaf-${LLAMACPP_HARNESS}`);
+      const sessionId = terminalSessionId(LLAMACPP_HARNESS, workspace, leafId);
+      setBusyId(leafId);
+      setError("");
+      setStatusMsg("Starting llama.cpp server…");
+      try {
+        const outcome = await invoke<{
+          sessionId?: string;
+          session_id?: string;
+          baseUrl?: string;
+          base_url?: string;
+        }>("launch_llamacpp_server", {
+          sessionId,
+          modelPath,
+          port,
+          workspace,
+          program: LLAMA_SERVER_BIN,
+          args: llamaServerLaunchArgs(port, modelPath),
+          rows: 24,
+          cols: 80,
+        });
+        const sid = outcome?.sessionId ?? outcome?.session_id;
+        if (!sid || sid !== sessionId) {
+          throw new Error("llama.cpp launch did not return a terminal session id.");
+        }
+        setTerminals((prev) => ({ ...prev, [leafId]: sid }));
+        setLayout((prev) => {
+          const { tree } = insertLeaf(prev, LLAMACPP_HARNESS, undefined, undefined, leafId);
+          return stampLeaf(tree, leafId, { port, modelPath });
+        });
+        const baseUrl = outcome?.baseUrl ?? outcome?.base_url ?? llamaCppBaseUrl(port);
+        setStatusMsg(`llama.cpp listening at ${baseUrl}`);
+        return true;
+      } catch (cause) {
+        setError(String(cause).replace(/^Error:\s*/, ""));
+        setStatusMsg("");
+        return false;
+      } finally {
+        llamaLaunching.current = false;
         setBusyId(null);
       }
     },
@@ -254,7 +317,7 @@ export function useTerminalGridSessions({
     setTerminals({});
     setLayout(null);
     setMaximizedId(null);
-    setStatusMsg("All harness terminal panes closed.");
+    setStatusMsg("All grid panes closed.");
   }, [terminals]);
 
   const handleLoadLayout = useCallback(
@@ -275,6 +338,20 @@ export function useTerminalGridSessions({
     },
     [workspace, resetCanvasSize, setCanvasSize],
   );
+
+  const addBrowserPane = useCallback(() => {
+    const leafId = generateNodeId("leaf-browser");
+    setLayout((prev) => {
+      const { tree } = insertLeaf(prev, "browser", undefined, undefined, leafId);
+      return stampLeaf(tree, leafId, { kind: "browser", url: DEEPSEEK_GUI_HOME });
+    });
+    setStatusMsg("DeepSeek GUI pane added.");
+    setError("");
+  }, []);
+
+  const setBrowserUrl = useCallback((leafId: string, url: string) => {
+    setLayout((prev) => (prev ? stampLeaf(prev, leafId, { url }) : prev));
+  }, []);
 
   const handleDrop = useCallback(
     (sourceLeafId: string, targetLeafId: string, zone: DragTargetZone) => {
@@ -301,6 +378,9 @@ export function useTerminalGridSessions({
     statusMsg,
     setStatusMsg,
     launchHarness,
+    launchLlamaCpp,
+    addBrowserPane,
+    setBrowserUrl,
     closePane,
     resetGrid,
     handleLoadLayout,

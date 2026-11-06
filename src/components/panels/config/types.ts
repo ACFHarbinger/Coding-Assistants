@@ -1,7 +1,11 @@
+export type EndpointLinkState = "connected" | "disconnected";
+
 export interface ModelConfig {
   provider: string;
   model: string;
   endpoint?: string;
+  /** Omitted on older saved roles, which stay connected. */
+  endpoint_state?: EndpointLinkState;
   prompt_file?: string;
   rule_file?: string;
   workflow_file?: string;

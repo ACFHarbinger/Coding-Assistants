@@ -103,7 +103,10 @@ impl HubStore {
                     (Some(tw), ar) => workspace_paths_overlap(tw, ar),
                     _ => false,
                 };
-                let is_active = task.status == "pending" || task.status == "running";
+                let is_active = matches!(
+                    task.status.as_str(),
+                    "pending" | "running" | "input_required" | "auth_required"
+                );
                 let time_match = audit.observed_at >= task.created_at
                     && (is_active || audit.observed_at <= task.updated_at);
 

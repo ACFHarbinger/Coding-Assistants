@@ -10,9 +10,8 @@ pub use exec::{run, OsToolOutput, DEFAULT_TIMEOUT};
 pub use policy::{decide, program_basename, OsToolDecision, OsToolRequest};
 
 use crate::store::AuditEvent;
-use crate::HubStore;
-use crate::SandboxStrictness;
-use serde_json::json;
+use crate::{HubStore, SandboxStrictness, SliceStamp};
+use serde_json::{json, Value};
 use std::path::Path;
 use std::time::Duration;
 
@@ -38,8 +37,10 @@ fn process_json(
     decision: &str,
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
+    stamp: &SliceStamp,
+    metadata: Option<&Value>,
 ) -> String {
-    json!({
+    let mut value = json!({
         "kind": "os_tool",
         "cmdline": std::iter::once(request.program.clone())
             .chain(request.args.iter().cloned())
@@ -53,10 +54,19 @@ fn process_json(
         "stdout_preview": output.map(|out| out.stdout.as_str()).unwrap_or(""),
         "stderr_preview": output.map(|out| out.stderr.as_str()).unwrap_or(""),
         "proposed_id": proposed_id,
-    })
-    .to_string()
+    });
+    if let (Some(object), Some(extra)) =
+        (value.as_object_mut(), metadata.and_then(Value::as_object))
+    {
+        for (key, item) in extra {
+            object.entry(key.clone()).or_insert_with(|| item.clone());
+        }
+    }
+    stamp.apply(&mut value);
+    value.to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn record(
     store: &HubStore,
     request: &OsToolRequest,
@@ -64,6 +74,8 @@ fn record(
     decision: &str,
     output: Option<&OsToolOutput>,
     proposed_id: Option<&str>,
+    stamp: &SliceStamp,
+    metadata: Option<&Value>,
 ) -> Result<AuditEvent, String> {
     let root = request
         .workspace
@@ -75,7 +87,7 @@ fn record(
             Path::new(root),
             Path::new(&request.cwd),
             operation,
-            &process_json(request, decision, output, proposed_id),
+            &process_json(request, decision, output, proposed_id, stamp, metadata),
             None,
         )
         .map_err(|error| error.to_string())
@@ -100,16 +112,42 @@ fn outcome(
     }
 }
 
-/// Evaluate policy, maybe run, always audit.
+/// Evaluate policy, maybe run, always audit. `stamp` is T1 slice identity.
 pub fn submit(
     store: &HubStore,
     request: OsToolRequest,
     strictness: SandboxStrictness,
     timeout: Duration,
+    stamp: SliceStamp,
 ) -> Result<OsToolResult, String> {
+    submit_with_metadata(store, request, strictness, timeout, stamp, None)
+}
+
+/// Same as [`submit`], with extra caller metadata merged into the audit
+/// `process_json`. Existing reserved keys cannot be overwritten. Scheduled
+/// gates use this to link a proposal to its task/criterion without a schema
+/// change.
+pub fn submit_with_metadata(
+    store: &HubStore,
+    request: OsToolRequest,
+    strictness: SandboxStrictness,
+    timeout: Duration,
+    stamp: SliceStamp,
+    metadata: Option<Value>,
+) -> Result<OsToolResult, String> {
+    let metadata = metadata.as_ref();
     match decide(&request, strictness) {
         OsToolDecision::Deny { reason } => {
-            let audit = record(store, &request, "os_tool.denied", "deny", None, None)?;
+            let audit = record(
+                store,
+                &request,
+                "os_tool.denied",
+                "deny",
+                None,
+                None,
+                &stamp,
+                metadata,
+            )?;
             let _ = store.set_audit_status(&audit.id, "quarantined");
             Ok(outcome("denied", &audit, "deny", Some(reason), None))
         }
@@ -121,6 +159,8 @@ pub fn submit(
                 "needs_approval",
                 None,
                 None,
+                &stamp,
+                metadata,
             )?;
             Ok(outcome(
                 "needs_approval",
@@ -132,7 +172,16 @@ pub fn submit(
         }
         OsToolDecision::Allow => {
             let output = run(&request, timeout)?;
-            let audit = record(store, &request, "os_tool.ran", "allow", Some(&output), None)?;
+            let audit = record(
+                store,
+                &request,
+                "os_tool.ran",
+                "allow",
+                Some(&output),
+                None,
+                &stamp,
+                metadata,
+            )?;
             let _ = store.set_audit_status(&audit.id, "approved");
             Ok(outcome("ran", &audit, "allow", None, Some(&output)))
         }
@@ -191,6 +240,11 @@ pub fn approve(
         return Err("os_tool proposal is hard-denied and cannot be approved".into());
     }
     let output = run(&request, timeout)?;
+    let stamp = SliceStamp::from_json_str(&event.process_json);
+    let proposal: Value = serde_json::from_str(&event.process_json).unwrap_or(Value::Null);
+    let metadata = proposal
+        .get("schedule_gate")
+        .map(|gate| json!({ "schedule_gate": gate }));
     let ran = record(
         store,
         &request,
@@ -198,6 +252,8 @@ pub fn approve(
         "approved",
         Some(&output),
         Some(audit_id),
+        &stamp,
+        metadata.as_ref(),
     )?;
     let _ = store.set_audit_status(audit_id, "approved");
     let _ = store.set_audit_status(&ran.id, "approved");

@@ -38,7 +38,7 @@ Complete inventory of all project dependencies, their versions, purposes, and li
 
 | Crate                    | Version | Features     | Purpose                                    | License       |
 | ------------------------ | ------- | ------------ | ------------------------------------------ | ------------- |
-| `tauri`                  | 2       | `tray-icon`  | Desktop app framework with webview          | MIT/Apache    |
+| `tauri`                  | 2       | `tray-icon,unstable`  | Desktop app framework with webview          | MIT/Apache    |
 | `tauri-plugin-opener`    | 2       | --           | Open URLs and files from Rust               | MIT/Apache    |
 | `tauri-plugin-dialog`    | 2.5.0   | --           | Native dialog boxes from Rust               | MIT/Apache    |
 | `serde`                  | 1       | `derive`     | Serialization/deserialization framework      | MIT/Apache    |
@@ -50,6 +50,11 @@ Complete inventory of all project dependencies, their versions, purposes, and li
 | `dotenv`                 | 0.15    | --           | Load environment variables from `.env` files | MIT           |
 | `walkdir`                | 2       | --           | Recursive directory traversal                | Unlicense/MIT |
 | `toml_edit`              | 0.22    | --           | Comment-preserving `settings.toml` store     | MIT/Apache    |
+
+The `unstable` Tauri feature enables native child webviews for terminal-grid
+browser panes. CLIP STUDIO PAINT's MCP bridge uses target-specific `libc` 0.2
+(MIT/Apache-2.0) on Unix for descriptor-relative `openat` calls with no-follow
+flags; Windows handle checks use the system Win32 API without a new crate.
 
 ### Build Dependencies
 

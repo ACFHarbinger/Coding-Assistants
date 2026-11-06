@@ -149,6 +149,7 @@ pub async fn openrouter_chat_to(
         text: assistant_text(&payload)?,
         usage,
         cost,
+        model: Some(model.to_string()),
     })
 }
 

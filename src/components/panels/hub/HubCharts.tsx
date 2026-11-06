@@ -4,6 +4,9 @@ import { useProviderHealth } from "../harness/useProviderHealth";
 import { useOrchestrationPolicy } from "../harness/useOrchestrationPolicy";
 import { PaygQuotaMeter } from "./PaygQuotaMeter";
 import { LocalUsageMeter } from "./LocalUsageMeter";
+import { ConcentricArcGauge } from "../../common/telemetry/gauges";
+import { nocPanelStyle } from "../../common/telemetry/panel";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 
 /**
@@ -57,20 +60,33 @@ export function formatCurrency(amount: number, currency = "USD"): string {
 
 /**
  * Stacked horizontal breakdown bar showing spent vs budget vs free/bonus tokens.
+ *
+ * Spend-kind contract (`#303`): `total` is the period budget/cap, `spent`
+ * what was consumed against it, `gift`/`granted` provider-absorbed bonus.
+ * A provider that reports spend with no cap sends `total: 0` and
+ * `spend_cap`: `"uncapped"` when the workspace has none, `"unknown"`
+ * when the cap could not be read. The bar draws spend only in both
+ * cases — never a fabricated budget equal to the spend — but the
+ * legend must not call an unreadable cap “No spend cap”.
  */
 export function BalanceBreakdownBar({
   balance,
   balanceText,
+  capNote,
 }: {
   balance: ProviderQuotaBalance;
   balanceText?: string | null;
+  capNote?: string | null;
 }) {
   const currency = balance.currency || "USD";
   const spent = balance.spent ?? 0;
   const budget = balance.total;
   const free = balance.gift ?? balance.granted ?? 0;
+  const hasBudget = budget > 0;
+  const isSpend = balance.kind === "spend";
+  const capUnavailable = isSpend && !hasBudget && balance.spend_cap !== "uncapped";
   const remaining_budget = Math.max(0, budget - spent);
-  const isOverBudget = budget > 0 && spent > budget;
+  const isOverBudget = hasBudget && spent > budget;
 
   const totalCapacity = Math.max(budget, spent) + free;
   const spentPercent = totalCapacity > 0 ? Math.min(100, Math.max(0, (spent / totalCapacity) * 100)) : 0;
@@ -89,19 +105,27 @@ export function BalanceBreakdownBar({
 
   const displayBalance =
     balanceText ||
-    formatCurrency(remaining_budget + free, currency);
+    (isSpend && !hasBudget
+      ? formatCurrency(spent, currency)
+      : formatCurrency(remaining_budget + free, currency));
+  const headline = isSpend ? "Period spend" : "Account balance";
+  const headlineColor = isOverBudget ? "#ef4444" : isSpend ? "#38bdf8" : "#22c55e";
+  const capLegend = capUnavailable ? "spend cap unavailable" : "no spend cap";
+  const ariaLabel = hasBudget
+    ? `${headline}: ${formatCurrency(spent, currency)} spent of ${formatCurrency(budget, currency)} budget`
+    : `${headline}: ${formatCurrency(spent, currency)} spent, ${capLegend}`;
 
   return (
     <div style={{ display: "grid", gap: "0.35rem" }} data-testid="balance-breakdown-bar">
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem", flexWrap: "wrap" }}>
-        <span>Account balance</span>
-        <strong style={{ color: isOverBudget ? "#ef4444" : "#22c55e" }}>
+        <span>{headline}</span>
+        <strong style={{ color: headlineColor }}>
           {displayBalance}
         </strong>
       </div>
       <div
         role="progressbar"
-        aria-label="Balance breakdown"
+        aria-label={ariaLabel}
         style={{
           height: 12,
           background: "#334155",
@@ -155,12 +179,22 @@ export function BalanceBreakdownBar({
             Spent {formatCurrency(spent, currency)}
           </span>
         )}
-        {budget > 0 && (
+        {hasBudget ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: budgetColor, display: "inline-block" }} />
             Budget {formatCurrency(remaining_budget, currency)}
+            {isSpend ? ` of ${formatCurrency(budget, currency)}` : ""}
           </span>
-        )}
+        ) : isSpend ? (
+          <span
+            data-testid={capUnavailable ? "breakdown-cap-unavailable" : "breakdown-no-cap"}
+            title={capNote || undefined}
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+          >
+            <i style={{ width: 8, height: 8, borderRadius: 2, background: "#334155", display: "inline-block" }} />
+            {capUnavailable ? "Spend cap unavailable" : "No spend cap"}
+          </span>
+        ) : null}
         {free > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <i style={{ width: 8, height: 8, borderRadius: 2, background: "#34d399", display: "inline-block" }} />
@@ -173,23 +207,18 @@ export function BalanceBreakdownBar({
 }
 
 export const cardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-color)",
-  borderRadius: "12px",
-  padding: "1.5rem",
-  background: "rgba(0, 0, 0, 0.3)",
-  boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  /* Narrow to compositable properties only — avoids layout thrash on hover. */
-  transition: "border-color 0.2s ease, box-shadow 0.2s ease"
+  ...nocPanelStyle,
+  padding: "1.25rem 1.5rem",
 };
 
 export const inputStyle: React.CSSProperties = {
-  padding: '0.75rem',
-  borderRadius: '8px',
-  background: 'rgba(0,0,0,0.4)',
-  color: 'white',
-  border: '1px solid var(--border-color)',
-  outline: 'none',
-  transition: 'border-color 0.2s'
+  padding: "0.65rem 0.85rem",
+  borderRadius: "8px",
+  background: "rgba(9, 14, 26, 0.72)",
+  color: "white",
+  border: `1px solid ${NOC_SURFACES.border}`,
+  outline: "none",
+  transition: "border-color 0.2s ease",
 };
 
 export function UsageChart({ budgets }: { budgets: BudgetStatus[] }) {
@@ -319,7 +348,11 @@ export function QuotaChart({
                 </div>
               </div>
               {quota.balance_info?.kind === "spend" && quota.balance_info.spent != null ? (
-                <BalanceBreakdownBar balance={quota.balance_info} balanceText={quota.balance} />
+                <BalanceBreakdownBar
+                  balance={quota.balance_info}
+                  balanceText={quota.balance}
+                  capNote={quota.detail}
+                />
               ) : quota.balance && (quota.windows.length > 0 || quota.balance_info?.kind === "spend" || quota.balance.toLowerCase().startsWith("spent")) ? (
                 <div style={{ display: "grid", gap: "0.25rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
@@ -342,9 +375,27 @@ export function QuotaChart({
                 ) : (quota.balance || quota.balance_info) ? null : (
                   <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{quota.detail || "No provider quota windows returned."}</span>
                 )
-              ) : families.length > 0 ? (
+              ) : (
                 <>
-                  {families.map((family) => {
+                  {quota.windows.length >= 2 && (
+                    <div style={{ display: "flex", justifyContent: "center", padding: "0.4rem 0" }}>
+                      <ConcentricArcGauge
+                        title="Quota Windows"
+                        centerPrimary={`${quota.windows[0]?.remaining_percent ?? 0}%`}
+                        centerSecondary="rem"
+                        size={quota.windows.length >= 3 ? 132 : 110}
+                        rings={quota.windows.slice(0, 3).map((w, idx) => ({
+                          label: w.label,
+                          percent: w.remaining_percent,
+                          color: idx === 0 ? NOC_COLORS.cyan : idx === 1 ? NOC_COLORS.purple : NOC_COLORS.indigo,
+                          detail: `${w.remaining_percent}% rem`,
+                        }))}
+                      />
+                    </div>
+                  )}
+                  {families.length > 0 ? (
+                    <>
+                      {families.map((family) => {
                     const familyWindows = quota.windows.filter((w) => w.family === family);
                     return (
                       <div key={`${quota.agent_id}-${family}`} style={{ display: "grid", gap: "0.5rem", marginTop: "0.25rem" }}>
@@ -401,9 +452,11 @@ export function QuotaChart({
                   {quota.local_usage && <LocalUsageMeter usage={quota.local_usage} />}
                 </>
               )}
-            </div>
-          );
-        })}
+            </>
+          )}
+        </div>
+      );
+    })}
       </div>
     </div>
   );

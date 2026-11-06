@@ -1,7 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../../lib/tauri";
 import { parseCanvasSize, type CanvasSize } from "./gridConstants";
-import { deserializeLayout, type LayoutNode } from "./layoutTree";
+import { collectLeaves, deserializeLayout, type LayoutNode } from "./layoutTree";
+
+async function loadDialogPlugin() {
+  try {
+    return await import("@tauri-apps/plugin-dialog");
+  } catch {
+    throw new Error("File dialogs require the desktop app.");
+  }
+}
 
 export interface TerminalGridCanvas {
   width: number;
@@ -43,6 +51,8 @@ export default function GridLayoutMenu({
   const [savedLayouts, setSavedLayouts] = useState<TerminalGridLayoutSummary[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +151,68 @@ export default function GridLayoutMenu({
     }
   };
 
+  const handleExportToFile = async () => {
+    if (!currentLayout) {
+      onError?.("Cannot export empty layout. Open at least one harness pane first.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const { save } = await loadDialogPlugin();
+      const suggested = `${saveName.trim() || "terminal-grid"}.json`;
+      const targetPath = await save({
+        title: "Export terminal grid layout",
+        defaultPath: suggested,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!targetPath) return; // user cancelled
+      await invoke<TerminalGridLayoutFile>("hub_export_terminal_grid_layout", {
+        path: targetPath,
+        layout: currentLayout,
+        canvas: currentCanvas ? { width: currentCanvas.width, height: currentCanvas.height } : null,
+      });
+      const hasJsonExt = /\.json$/i.test(targetPath);
+      onStatus?.(`Layout exported to ${hasJsonExt ? targetPath : `${targetPath}.json`}.`);
+    } catch (e) {
+      onError?.(String(e).replace(/^Error:\s*/, ""));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportFromFile = async () => {
+    setIsImporting(true);
+    try {
+      const { open } = await loadDialogPlugin();
+      const sourcePath = await open({
+        title: "Import terminal grid layout",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (typeof sourcePath !== "string" || !sourcePath) return; // user cancelled
+      const data = await invoke<TerminalGridLayoutFile>("hub_import_terminal_grid_layout", {
+        path: sourcePath,
+      });
+      const layout = deserializeLayout(JSON.stringify(data.layout));
+      if (!layout) throw new Error("imported layout has an invalid tree shape");
+      const canvas = data.canvas ? parseCanvasSize(JSON.stringify(data.canvas)) : null;
+      onLoadLayout(layout, canvas);
+      const leaves = collectLeaves(layout);
+      const cwds = [
+        ...new Set(leaves.map((leaf) => leaf.cwd).filter((cwd): cwd is string => Boolean(cwd))),
+      ];
+      const cwdNote = cwds.length > 0 ? ` Working directories: ${cwds.join(", ")}.` : "";
+      onStatus?.(
+        `Layout "${data.name}" imported from file (${leaves.length} ${leaves.length === 1 ? "pane" : "panes"}).${cwdNote}`,
+      );
+      setIsOpen(false);
+    } catch (e) {
+      onError?.(String(e).replace(/^Error:\s*/, ""));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
       <button
@@ -220,6 +292,41 @@ export default function GridLayoutMenu({
               </button>
             </div>
           </form>
+
+          {/* Export/import layout files (e.g. ~/Templates/*.json) */}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.35rem",
+              borderTop: "1px solid rgba(148, 163, 184, 0.2)",
+              paddingTop: "0.5rem",
+            }}
+          >
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ marginTop: 0, padding: "0.3rem 0.6rem", fontSize: "0.8rem", flex: 1 }}
+              onClick={() => void handleExportToFile()}
+              disabled={isExporting || isImporting || !currentLayout}
+              title={
+                !currentLayout
+                  ? "Cannot export empty layout"
+                  : "Export current layout to a JSON file (e.g. ~/Templates)"
+              }
+            >
+              {isExporting ? "Exporting…" : "📤 Export to file…"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ marginTop: 0, padding: "0.3rem 0.6rem", fontSize: "0.8rem", flex: 1 }}
+              onClick={() => void handleImportFromFile()}
+              disabled={isExporting || isImporting}
+              title="Import a layout from a JSON file (Coding Assistants format or Ubuntu terminal alignment)"
+            >
+              {isImporting ? "Importing…" : "📥 Import from file…"}
+            </button>
+          </div>
 
           {/* List section */}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", borderTop: "1px solid rgba(148, 163, 184, 0.2)", paddingTop: "0.5rem" }}>

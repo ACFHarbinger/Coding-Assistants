@@ -42,6 +42,10 @@ export interface HubAgent {
   avatar_attachment_id?: string | null;
   /** Descriptive team role (U21 / #315), e.g. "lead", "reviewer", or custom. */
   role?: string | null;
+  /** Standing oversight role (#342). Separate from `role`. */
+  oversight_role?: string | null;
+  /** Latest unexpired exception, otherwise `oversight_role`. */
+  effective_oversight_role?: string | null;
   /** Whether the identity opted into an animated V-Tuber avatar presence (U17 / #307). */
   animated_avatar?: boolean;
   /** Optional character name/ID configured in Open-LLM-VTuber (U17 / #307). */
@@ -98,6 +102,13 @@ export function loadWorkspaceRoot(): string {
   } catch {
     return "./workspace";
   }
+}
+
+/** Last path segment, for the workspace chip. */
+export function workspaceBasename(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  return parts[parts.length - 1] || trimmed || "workspace";
 }
 
 export async function persistWorkSession(name: string, workDir: string): Promise<WorkSession> {

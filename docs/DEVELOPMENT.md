@@ -23,7 +23,9 @@ Everything you need to set up your development environment and start working on 
 
 Tauri 2 requires system dependencies that vary by platform. Follow the official guide:
 
-- **Linux**: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`
+- **Linux**: `sudo apt install pkgconf libdbus-1-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`
+
+`libdbus-1-dev` is required by the keyring crate (`just install-ca` builds it). `just setup` installs this set when sudo can run without a password prompt. Otherwise it downloads the same packages and unpacks them under `~/.local/share/coding-assistants/sysroot`. `just start` also builds the Claude channel and MCP sidecar binaries and copies them into `src-tauri/binaries/` with the host target triple, which Tauri requires before the desktop app compiles.
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 - **Windows**: Microsoft Visual Studio C++ Build Tools, WebView2
 

@@ -52,7 +52,7 @@ fn format_disturb_events(events: &[ChannelEvent]) -> Vec<String> {
     events
         .iter()
         .map(|event| {
-            let tag = if event.kind == "wake" { "WAKE" } else { "TASK" };
+            let tag = if event.kind == "wake" { "WAKE" } else { "GOAL" };
             let session = event.session_id.as_deref().unwrap_or("-");
             format!(
                 "⚡ [{tag}] {} (session {session}, msg {}): {}",
@@ -166,7 +166,7 @@ mod tests {
         assert!(!is_err);
         assert_eq!(
             text,
-            "⚡ [TASK] human (session sess-9, msg msg-task): do the thing\n[message] grok: fyi"
+            "⚡ [GOAL] human (session sess-9, msg msg-task): do the thing\n[message] grok: fyi"
         );
     }
 

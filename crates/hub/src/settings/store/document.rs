@@ -66,6 +66,7 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
         value(orch.quota_auto_refresh_enabled);
     document["orchestration"]["quota_auto_refresh_interval_secs"] =
         value(i64::from(orch.quota_auto_refresh_interval_secs));
+    document["orchestration"]["scorecard_visibility"] = value(orch.scorecard_visibility.as_str());
     if let Some(days) = orch.retention_days {
         document["orchestration"]["retention_days"] = value(i64::from(days));
     } else if document
@@ -112,6 +113,9 @@ pub(super) fn write_workspace_fields(
         write_default_models(&mut table, &over.default_models);
         write_default_efforts(&mut table, &over.default_efforts);
         write_orchestration_override(&mut table, &over.orchestration);
+        if let Some(mode) = over.kimi_mode {
+            table["kimi_mode"] = value(mode.as_str());
+        }
         array.push(table);
     }
     document["workspace"] = Item::ArrayOfTables(array);
@@ -193,6 +197,19 @@ pub(super) fn workspaces_from_document(
         let default_efforts = default_efforts_from_table(table)?;
         let orchestration = orchestration_override_from_table(table)
             .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
+        let kimi_mode = match table.get("kimi_mode") {
+            Some(item) => {
+                let raw = item.as_str().ok_or_else(|| {
+                    SettingsError::Invalid(format!("workspace {path} kimi_mode must be a string"))
+                })?;
+                Some(
+                    crate::KimiTaskMode::parse(raw).map_err(|err| {
+                        SettingsError::Invalid(format!("workspace {path}: {err}"))
+                    })?,
+                )
+            }
+            None => None,
+        };
         if map
             .insert(
                 path.clone(),
@@ -203,6 +220,7 @@ pub(super) fn workspaces_from_document(
                     default_models,
                     default_efforts,
                     orchestration,
+                    kimi_mode,
                 },
             )
             .is_some()

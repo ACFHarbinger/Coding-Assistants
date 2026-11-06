@@ -16,12 +16,15 @@ import androidx.compose.ui.graphics.Color
 import com.codingassistants.remotelauncher.ui.ConnectionScreen
 import com.codingassistants.remotelauncher.ui.DashboardScreen
 import com.codingassistants.remotelauncher.ui.ModelSelectionScreen
+import com.codingassistants.remotelauncher.ui.SnapshotScreen
 import com.codingassistants.remotelauncher.ui.TaskExecutionScreen
 import com.codingassistants.remotelauncher.viewmodel.MainViewModel
 import com.codingassistants.remotelauncher.viewmodel.Screen
+import com.codingassistants.remotelauncher.viewmodel.SnapshotRestoreViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
+    private val snapshotViewModel: SnapshotRestoreViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,12 +35,14 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     val state by viewModel.state.collectAsState()
+                    val snapshotState by snapshotViewModel.state.collectAsState()
 
                     when (state.currentScreen) {
                         is Screen.Connection ->
                             ConnectionScreen(
                                 state = state,
                                 onConnect = { host, token -> viewModel.connectToServer(host, token) },
+                                onOpenSnapshot = { viewModel.navigateTo(Screen.SnapshotRestore) },
                             )
                         is Screen.Dashboard ->
                             DashboardScreen(
@@ -47,6 +52,7 @@ class MainActivity : ComponentActivity() {
                                 onConfigureTask = { viewModel.fetchModelsAndNavigate() },
                                 onDisconnect = { viewModel.disconnect() },
                                 onReconnect = { viewModel.reconnect() },
+                                onOpenSnapshot = { viewModel.navigateTo(Screen.SnapshotRestore) },
                             )
                         is Screen.ModelSelection ->
                             ModelSelectionScreen(
@@ -65,6 +71,20 @@ class MainActivity : ComponentActivity() {
                                 onCancelTask = { viewModel.cancelTask() },
                                 onBack = { viewModel.navigateTo(Screen.ModelSelection) },
                                 onDisconnect = { viewModel.disconnect() },
+                            )
+                        is Screen.SnapshotRestore ->
+                            SnapshotScreen(
+                                state = snapshotState,
+                                onRestore = { snapshotViewModel.restore() },
+                                onBack = {
+                                    val back =
+                                        if (state.isConnected) {
+                                            Screen.Dashboard
+                                        } else {
+                                            Screen.Connection
+                                        }
+                                    viewModel.navigateTo(back)
+                                },
                             )
                     }
                 }

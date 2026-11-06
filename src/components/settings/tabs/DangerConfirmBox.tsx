@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NOC_COLORS, NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
 
 export type DangerTone = "red" | "amber";
 
@@ -38,31 +39,33 @@ export default function DangerConfirmBox({
   onError,
 }: DangerConfirmBoxProps) {
   const [typed, setTyped] = useState("");
-  const accent = tone === "red" ? "248, 113, 113" : "251, 191, 36";
+  const isRed = tone === "red";
+  const borderTone = isRed ? NOC_COLORS.crit : NOC_COLORS.amber;
   const matched = typed.trim() === targetName;
 
   return (
     <div
       style={{
         marginTop: "1rem",
-        padding: "0.85rem",
-        borderRadius: "8px",
-        background: `rgba(${tone === "red" ? "239, 68, 68" : "245, 158, 11"}, 0.08)`,
-        border: `1px solid rgba(${accent}, 0.5)`,
+        padding: "0.85rem 1rem",
+        borderRadius: NOC_RADIUS.s,
+        background: isRed ? "rgba(239, 68, 68, 0.10)" : "rgba(245, 158, 11, 0.10)",
+        border: `1px solid ${borderTone}`,
         display: "grid",
         gap: "0.6rem",
       }}
     >
-      <div style={{ fontSize: "0.82rem", color: tone === "red" ? "#fecaca" : "#fde68a" }}>{prompt}</div>
+      <div style={{ fontSize: "0.82rem", fontWeight: 600, color: isRed ? "#fecaca" : "#fde68a" }}>{prompt}</div>
       <input
         style={{
-          padding: "0.45rem 0.7rem",
-          borderRadius: "8px",
-          border: `1px solid rgba(${accent}, 0.6)`,
-          background: "rgba(0,0,0,0.4)",
-          color: "white",
+          padding: "0.45rem 0.75rem",
+          borderRadius: NOC_RADIUS.s,
+          border: `1px solid ${borderTone}`,
+          background: NOC_SURFACES.bgDeep,
+          color: NOC_SURFACES.textPrimary,
           fontSize: "0.85rem",
         }}
+        className="noc-focusable"
         placeholder={targetName}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
@@ -71,21 +74,22 @@ export default function DangerConfirmBox({
         <button
           type="button"
           autoFocus
-          className="btn-secondary"
-          style={{ marginTop: 0, padding: "0.35rem 0.8rem", fontSize: "0.78rem" }}
+          className="btn-secondary noc-focusable"
+          style={{ marginTop: 0, padding: "0.35rem 0.85rem", fontSize: "0.78rem" }}
           onClick={onCancel}
         >
           {cancelLabel}
         </button>
         <button
           type="button"
-          className="btn-primary"
+          className="btn-primary noc-focusable"
           style={{
             marginTop: 0,
-            padding: "0.35rem 0.8rem",
+            padding: "0.35rem 0.85rem",
             fontSize: "0.78rem",
-            background: tone === "red" ? "#dc2626" : "#b45309",
-            borderColor: tone === "red" ? "#ef4444" : "#f59e0b",
+            background: isRed ? NOC_COLORS.crit : NOC_COLORS.amber,
+            borderColor: borderTone,
+            color: isRed ? "#ffffff" : "#0f172a",
           }}
           disabled={busy || !matched}
           onClick={() => {

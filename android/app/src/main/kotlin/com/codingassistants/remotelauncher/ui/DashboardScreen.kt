@@ -48,6 +48,7 @@ fun DashboardScreen(
     onConfigureTask: () -> Unit,
     onDisconnect: () -> Unit,
     onReconnect: () -> Unit = {},
+    onOpenSnapshot: () -> Unit = {},
 ) {
     var showDisconnectDialog by remember { mutableStateOf(false) }
     val isLive = state.isConnected && !state.isConnectionLost
@@ -187,6 +188,13 @@ fun DashboardScreen(
                         enabled = isLive,
                     ) {
                         Text("Configure & Start Task")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onOpenSnapshot,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Restore snapshot")
                     }
                 }
             }

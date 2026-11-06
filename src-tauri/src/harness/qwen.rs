@@ -6,7 +6,9 @@
 //! Only final assistant **text** is captured: `type == "assistant"` text
 //! parts, skip `type == "system"`. `provenance` (`real_user` vs `system`)
 //! distinguishes injected user prompts, which this adapter already skips
-//! by type. Recorded as `("qwen", "qwen")` — no identity split.
+//! by type. Recorded as `("qwen", "qwen")` — no identity split. Chat
+//! transcripts carry no token counters; end-of-session totals come from
+//! `usage_record.jsonl` for this session id only.
 
 use hub::HubStore;
 use serde::Serialize;
@@ -116,6 +118,32 @@ pub fn capture_qwen_session_from(
     qwen_session_id: Option<&str>,
     hub_session_id: Option<&str>,
 ) -> Result<QwenCaptureOutcome, String> {
+    capture_with_usage(
+        projects_dir,
+        store,
+        workspace,
+        qwen_session_id,
+        hub_session_id,
+        &super::qwen_spend::usage_record_path(),
+    )
+}
+
+fn capture_with_usage(
+    projects_dir: &Path,
+    store: &HubStore,
+    workspace: &Path,
+    qwen_session_id: Option<&str>,
+    hub_session_id: Option<&str>,
+    usage_path: &Path,
+) -> Result<QwenCaptureOutcome, String> {
+    // Spend is a sibling file, not a chat-jsonl field. Missing file: still Ok.
+    if let Some(session_id) = qwen_session_id
+        .map(str::trim)
+        .filter(|session_id| !session_id.is_empty())
+    {
+        let disk_id = disk_session_id(session_id).unwrap_or_else(|| session_id.to_string());
+        super::qwen_spend::record_qwen_session_usage(store, usage_path, &disk_id, hub_session_id);
+    }
     let Some(path) = latest_session_log(projects_dir, workspace, qwen_session_id) else {
         return Ok(QwenCaptureOutcome {
             transcript_found: false,
@@ -268,5 +296,36 @@ mod tests {
             capture_qwen_session(&store, Path::new("/tmp/c14-qwen-capture"), None, None).unwrap();
         assert!(!gated.transcript_found);
         assert!(gated.captured.is_empty());
+    }
+    #[test]
+    fn measured_usage_is_recorded_even_when_the_chat_log_is_unavailable() {
+        let dir = tempdir().unwrap();
+        let store = HubStore::open(dir.path().join("hub")).unwrap();
+        let usage_path = dir.path().join("usage_record.jsonl");
+        std::fs::write(&usage_path, format!(
+            r#"{{"sessionId":"{SESSION_UUID}","models":{{"m":{{"inputTokens":12,"outputTokens":3}}}}}}"#
+        )).unwrap();
+        for _ in 0..2 {
+            let outcome = capture_with_usage(
+                &dir.path().join("missing-projects"),
+                &store,
+                Path::new(WS),
+                Some(SESSION_UUID),
+                Some("hub-s"),
+                &usage_path,
+            )
+            .unwrap();
+            assert!(!outcome.transcript_found);
+            let usage: Vec<_> = store
+                .list_audit_events(false)
+                .unwrap()
+                .into_iter()
+                .filter(|event| event.operation == "provider.usage")
+                .collect();
+            assert_eq!(usage.len(), 1);
+            let metadata: serde_json::Value = serde_json::from_str(&usage[0].process_json).unwrap();
+            assert_eq!(metadata["prompt_tokens"], 12);
+            assert_eq!(metadata["completion_tokens"], 3);
+        }
     }
 }

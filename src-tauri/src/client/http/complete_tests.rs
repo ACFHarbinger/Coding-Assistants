@@ -174,6 +174,47 @@ async fn chat_stream_concatenates_deltas_and_reads_usage() {
     assert_eq!(usage.total_tokens, 5);
 }
 
+fn serve_once_capturing(body: Vec<u8>) -> (String, std::sync::mpsc::Receiver<String>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = [0u8; 8192];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let _ = tx.send(String::from_utf8_lossy(&buf[..n]).into_owned());
+            let _ = stream.write_all(&body);
+        }
+    });
+    (format!("http://{address}"), rx)
+}
+
+#[tokio::test]
+async fn empty_key_omits_the_authorization_header() {
+    let (base, request) = serve_once_capturing(json_response("200 OK", OK_JSON));
+    chat(&base, "  ", "gpt-4o", "hi", Duration::from_secs(5))
+        .await
+        .unwrap();
+    let head = request.recv().unwrap().to_ascii_lowercase();
+    assert!(
+        !head.contains("authorization:"),
+        "blank key must not send a bearer token: {head}"
+    );
+}
+
+#[tokio::test]
+async fn saved_key_sends_a_bearer_token() {
+    let (base, request) = serve_once_capturing(json_response("200 OK", OK_JSON));
+    chat(&base, "role-key", "gpt-4o", "hi", Duration::from_secs(5))
+        .await
+        .unwrap();
+    let head = request.recv().unwrap().to_ascii_lowercase();
+    assert!(
+        head.contains("authorization: bearer role-key"),
+        "saved key must travel as a bearer token: {head}"
+    );
+}
+
 #[tokio::test]
 async fn chat_stream_honours_cancel_token() {
     let token = Arc::new(AtomicBool::new(true));

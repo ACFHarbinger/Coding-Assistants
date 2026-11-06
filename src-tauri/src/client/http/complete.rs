@@ -6,7 +6,7 @@
 //! only); connect/timeout errors are permanent.
 
 use super::error::{map_openai_error, DirectHttpError};
-use async_openai::config::OpenAIConfig;
+use async_openai::config::{Config, OpenAIConfig};
 #[cfg(test)]
 use async_openai::types::CreateChatCompletionResponse;
 use async_openai::types::{
@@ -15,6 +15,7 @@ use async_openai::types::{
 };
 use async_openai::Client;
 use futures_util::StreamExt;
+use secrecy::{ExposeSecret, Secret};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -76,6 +77,7 @@ pub struct ChatResult {
     pub text: String,
     pub usage: Option<TokenUsage>,
     pub cost: Option<f64>,
+    pub model: Option<String>,
 }
 
 impl ChatResult {
@@ -100,20 +102,53 @@ pub fn normalize_api_base(endpoint: &str) -> String {
     }
 }
 
+/// `async-openai` always writes `Authorization: Bearer <key>`. A blank key
+/// is a local endpoint with no credential, so that header is removed.
+#[derive(Clone)]
+struct ChatConfig(OpenAIConfig);
+
+impl Config for ChatConfig {
+    fn headers(&self) -> reqwest::header::HeaderMap {
+        let mut headers = self.0.headers();
+        if self.0.api_key().expose_secret().trim().is_empty() {
+            headers.remove(reqwest::header::AUTHORIZATION);
+        }
+        headers
+    }
+
+    fn url(&self, path: &str) -> String {
+        self.0.url(path)
+    }
+
+    fn query(&self) -> Vec<(&str, &str)> {
+        self.0.query()
+    }
+
+    fn api_base(&self) -> &str {
+        self.0.api_base()
+    }
+
+    fn api_key(&self) -> &Secret<String> {
+        self.0.api_key()
+    }
+}
+
 fn build_client(
     api_base: &str,
     api_key: &str,
     timeout: Duration,
-) -> Result<Client<OpenAIConfig>, DirectHttpError> {
+) -> Result<Client<ChatConfig>, DirectHttpError> {
     let http = reqwest::Client::builder()
         .timeout(timeout)
         .build()
         .map_err(|error| DirectHttpError::Transport {
             message: error.to_string(),
         })?;
-    let config = OpenAIConfig::new()
-        .with_api_base(normalize_api_base(api_base))
-        .with_api_key(api_key);
+    let config = ChatConfig(
+        OpenAIConfig::new()
+            .with_api_base(normalize_api_base(api_base))
+            .with_api_key(api_key),
+    );
     Ok(Client::with_config(config).with_http_client(http))
 }
 
@@ -170,6 +205,7 @@ pub async fn chat(
         text: text_from_response(&response)?,
         usage: response.usage.as_ref().map(TokenUsage::from_openai),
         cost: None,
+        model: Some(model.to_string()),
     })
 }
 
@@ -232,6 +268,7 @@ where
         text,
         usage,
         cost: None,
+        model: Some(model.to_string()),
     })
 }
 

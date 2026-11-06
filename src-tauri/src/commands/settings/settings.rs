@@ -7,7 +7,7 @@
 //! typed filter over the same Hub audit chain other commands already read.
 use hub::{
     EffectiveHarnessSettings, EffectiveSettings, HarnessSettings, LoadStatus, ProfileSnapshot,
-    ProviderProfile, SandboxStrictness, SettingsField, SettingsStore,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SettingsField, SettingsStore,
 };
 
 pub mod standing_policy;
@@ -34,6 +34,7 @@ fn settings_field_name(field: SettingsField) -> &'static str {
         SettingsField::LinkSuggestionMode => "orchestration.link_suggestion_mode",
         SettingsField::MemoryRecallEnabled => "orchestration.memory_recall_enabled",
         SettingsField::MemoryRecallLimit => "orchestration.memory_recall_limit",
+        SettingsField::ScorecardVisibility => "orchestration.scorecard_visibility",
     }
 }
 
@@ -318,6 +319,8 @@ pub struct OrchestrationPatch {
     pub a2a_enabled: Option<bool>,
     /// Global-only. Rejected by the store if outside its allowed range.
     pub quota_auto_refresh_interval_secs: Option<u32>,
+    /// Global-only. Sets scorecard visibility (T3 / #343).
+    pub scorecard_visibility: Option<ScorecardVisibility>,
 }
 
 /// `workspace: None` updates the global default; `Some(path)` sets a
@@ -426,6 +429,12 @@ pub fn settings_update_orchestration(
             .set_quota_auto_refresh_interval_secs(v)
             .map_err(|e| e.to_string())?;
         changed_fields.push("orchestration.quota_auto_refresh_interval_secs");
+    }
+    if let Some(v) = patch.scorecard_visibility {
+        store
+            .set_scorecard_visibility(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.scorecard_visibility");
     }
 
     if !changed_fields.is_empty() {

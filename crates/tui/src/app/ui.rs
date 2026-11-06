@@ -214,7 +214,7 @@ fn draw_help_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         Line::from("  / or Ctrl+P          : Open Command Palette Overlay"),
         Line::from("  T                    : Cycle Color Theme (Grok, Dracula, Solarized, Dark)"),
         Line::from("  r                    : Refresh Hub Read Model"),
-        Line::from("  c                    : Open Message Composer (All/Subset/One, [TASK], [WAKE])"),
+        Line::from("  c                    : Open Message Composer (All/Subset/One, [GOAL], [WAKE])"),
         Line::from("  s                    : Switch / Load Work Session"),
         Line::from("  n                    : Create New Work Session"),
         Line::from("  I                    : Cycle Stream / Human Inbox / Wake Gate Approvals / Memory"),

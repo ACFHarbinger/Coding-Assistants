@@ -9,6 +9,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[path = "terminal_grid_io.rs"]
+pub mod terminal_grid_io;
+
 const MAX_LAYOUT_BYTES: usize = 256 * 1024;
 
 fn layouts_dir() -> PathBuf {
@@ -114,35 +117,27 @@ fn validate_layout(
     Ok(())
 }
 
-pub fn hub_save_terminal_grid_layout_blocking(
-    name: String,
-    layout: serde_json::Value,
-    canvas: Option<TerminalGridCanvas>,
-) -> Result<TerminalGridLayoutFile, String> {
-    let valid_name = validate_layout_name(&name)?;
-    validate_layout(&layout, &canvas)?;
-    let dir = layouts_dir();
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("failed to create terminal-grids directory: {e}"))?;
-
-    let target_path = dir.join(format!("{valid_name}.json"));
+/// Writes `serialized` to `target_path` via a temp file + rename so readers
+/// never observe a partial layout. `private_perms` forces 0600 (named saves
+/// under CA_HOME); exports to user-chosen paths inherit the process umask.
+fn write_layout_file_atomic(
+    target_path: &std::path::Path,
+    serialized: &str,
+    private_perms: bool,
+) -> Result<(), String> {
+    let file_name = target_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "Layout file path has no file name".to_string())?;
+    let parent = target_path
+        .parent()
+        .ok_or_else(|| "Layout file path has no parent directory".to_string())?;
     let temp_name = format!(
-        ".{valid_name}.tmp.{}.{}",
+        ".{file_name}.tmp.{}.{}",
         std::process::id(),
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
     );
-    let temp_path = dir.join(temp_name);
-
-    let file_data = TerminalGridLayoutFile {
-        version: 1,
-        name: valid_name,
-        saved_at: chrono::Utc::now().to_rfc3339(),
-        canvas,
-        layout,
-    };
-
-    let serialized = serde_json::to_string_pretty(&file_data)
-        .map_err(|e| format!("failed to serialize layout JSON: {e}"))?;
+    let temp_path = parent.join(temp_name);
 
     let write_res = (|| -> Result<(), std::io::Error> {
         use std::io::Write;
@@ -151,7 +146,9 @@ pub fn hub_save_terminal_grid_layout_blocking(
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
+            if private_perms {
+                options.mode(0o600);
+            }
         }
         let mut f = options.open(&temp_path)?;
         f.write_all(serialized.as_bytes())?;
@@ -164,17 +161,48 @@ pub fn hub_save_terminal_grid_layout_blocking(
         return Err(format!("failed to write temporary layout file: {e}"));
     }
 
-    if let Err(e) = std::fs::rename(&temp_path, &target_path) {
+    if let Err(e) = std::fs::rename(&temp_path, target_path) {
         let _ = std::fs::remove_file(&temp_path);
         return Err(format!("failed to commit layout file: {e}"));
     }
 
     #[cfg(unix)]
-    {
+    if private_perms {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o600))
+        std::fs::set_permissions(target_path, std::fs::Permissions::from_mode(0o600))
             .map_err(|e| format!("failed to secure layout file permissions: {e}"))?;
     }
+
+    Ok(())
+}
+
+pub fn hub_save_terminal_grid_layout_blocking(
+    name: String,
+    layout: serde_json::Value,
+    canvas: Option<TerminalGridCanvas>,
+) -> Result<TerminalGridLayoutFile, String> {
+    let valid_name = validate_layout_name(&name)?;
+    validate_layout(&layout, &canvas)?;
+    let dir = layouts_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create terminal-grids directory: {e}"))?;
+
+    let file_data = TerminalGridLayoutFile {
+        version: 1,
+        name: valid_name,
+        saved_at: chrono::Utc::now().to_rfc3339(),
+        canvas,
+        layout,
+    };
+
+    let serialized = serde_json::to_string_pretty(&file_data)
+        .map_err(|e| format!("failed to serialize layout JSON: {e}"))?;
+
+    write_layout_file_atomic(
+        &dir.join(format!("{}.json", file_data.name)),
+        &serialized,
+        true,
+    )?;
 
     Ok(file_data)
 }

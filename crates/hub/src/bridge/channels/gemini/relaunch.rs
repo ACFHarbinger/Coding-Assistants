@@ -303,8 +303,8 @@ mod tests {
                 "human",
                 "gemini",
                 MessageKind::Message,
-                "[TASK] do the thing",
-                Some(&format!("channel:session:{}:abcd:kind:task", session.id)),
+                "/goal [GOAL] do the thing",
+                Some(&format!("channel:session:{}:abcd:kind:goal", session.id)),
                 None,
                 None,
             )

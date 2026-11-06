@@ -68,27 +68,22 @@ export function useSendMessage(params: {
         targetAgents = eligibleRecipients;
       }
 
-      // C11 Validation: Task-tagged messages MUST target existing team members
+      // Goal keeps the task contract: enrolled members only, no spawn.
       if (isTaskTag) {
         const nonTeamTargets = targetAgents.filter(id => !enrolledRoster.includes(id));
         if (nonTeamTargets.length > 0) {
-          alert(`Task-tagged messages must target existing team members. Target(s) not on team: ${nonTeamTargets.join(", ")}. Please enroll the agent or use [WAKE] tag to spawn a new instance.`);
+          alert(`Goal messages must target existing team members. Target(s) not on team: ${nonTeamTargets.join(", ")}. Please enroll the agent or use [WAKE] to spawn a new instance.`);
           setSending(false);
           return;
         }
       }
 
-      // Ensure tags are in body text
-      if (isTaskTag && !bodyText.startsWith("[TASK]")) {
-        bodyText = `[TASK] ${bodyText}`;
-      }
       if (isWakeTag && !bodyText.startsWith("[WAKE]")) {
         bodyText = `[WAKE] ${bodyText}`;
       }
 
-      // hub's MessageKind enum only knows message/handoff/wake/system — task
-      // intent rides in the `task` field, subject suffix, and [TASK] body
-      // prefix instead of a "task" kind, which the backend would reject.
+      // Hub MessageKind has no goal variant. The store prefixes `/goal [GOAL]`,
+      // and the subject suffix records the intent.
       const messageKind = isWakeTag ? "wake" : "message";
       let subject = dmTarget
         ? `private:${crypto.randomUUID()}`
@@ -96,7 +91,7 @@ export function useSendMessage(params: {
           ? `channel:${activeChannel}:thread:${replyTo.id}:${crypto.randomUUID()}`
         : `channel:${activeChannel}:${crypto.randomUUID()}`;
 
-      if (isTaskTag) subject += `:kind:task`;
+      if (isTaskTag) subject += `:kind:goal`;
       else if (isWakeTag) subject += `:kind:wake`;
 
       const toField = dmTarget

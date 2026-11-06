@@ -185,6 +185,8 @@ pub fn capture_vibe_session_from(
             captured.push(record);
         }
     }
+    // Spend is the sibling meta.json snapshot, not the chat-text dedup.
+    super::vibe_spend::record_vibe_session_spend(store, &path, vibe_session_id, hub_session_id);
     Ok(VibeCaptureOutcome {
         transcript_found: true,
         scanned: texts.len(),
@@ -222,7 +224,7 @@ mod tests {
         // Injected assistant message — skipped (app-injected task/wake).
         writeln!(
             file,
-            r#"{{"role":"assistant","injected":true,"content":"[TASK] do the thing"}}"#
+            r#"{{"role":"assistant","injected":true,"content":"/goal [GOAL] do the thing"}}"#
         )
         .unwrap();
         // Tool message — skipped (role != assistant).
@@ -383,7 +385,7 @@ mod tests {
         .unwrap();
         writeln!(
             file,
-            r#"{{"role":"assistant","content":"[TASK] injected prompt","injected":true}}"#
+            r#"{{"role":"assistant","content":"/goal [GOAL] injected prompt","injected":true}}"#
         )
         .unwrap();
 

@@ -1,5 +1,6 @@
 use super::super::*;
 use std::fs;
+use std::path::Path;
 use tempfile::tempdir;
 
 #[test]
@@ -17,6 +18,10 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
         WorkflowStep {
             agent: "gemini".into(),
@@ -25,6 +30,10 @@ fn activity_view_aggregates_tasks_with_agents_commands_and_files() {
             max_retries: 0,
             parallel_group: None,
             peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
         },
     ];
 
@@ -123,6 +132,10 @@ fn activity_view_filters_by_agent() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
     let steps_grok = vec![WorkflowStep {
         agent: "grok".into(),
@@ -131,6 +144,10 @@ fn activity_view_filters_by_agent() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     store
@@ -174,6 +191,10 @@ fn activity_view_filters_by_time_range_and_limit() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     let task1 = store.create_task("Old Task", None, &steps).unwrap();
@@ -213,6 +234,10 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
         max_retries: 0,
         parallel_group: None,
         peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
     }];
 
     let matching = store
@@ -239,4 +264,153 @@ fn activity_view_workspace_filter_excludes_unscoped_and_prefix_workspaces() {
     assert!(!items.iter().any(|item| item.id == prefixed.id));
     assert!(!items.iter().any(|item| item.id == unscoped.id));
     assert!(!items.iter().any(|item| item.id == session.id));
+}
+
+#[test]
+fn activity_view_matches_stamped_task_id_in_process_json() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let root = dir.path().join("workspace");
+    fs::create_dir_all(&root).unwrap();
+    let steps = vec![WorkflowStep {
+        agent: "cursor".into(),
+        role: Some("implementer".into()),
+        instruction: "Stamp T1".into(),
+        max_retries: 0,
+        parallel_group: None,
+        peer: None,
+        branch: None,
+        sub_task_id: None,
+        handoff_metadata: None,
+        context_filter: None,
+    }];
+    let task = store
+        .create_task("T1 stamps", Some(&root.to_string_lossy()), &steps)
+        .unwrap();
+    store
+        .record_stamped_audit(
+            &root,
+            Path::new("src/lib.rs"),
+            "os_tool.ran",
+            serde_json::json!({
+                "cmdline": ["echo", "t1"],
+                "exe": "echo"
+            }),
+            &SliceStamp::registered(
+                Some(task.id.clone()),
+                Some("sess-t1".into()),
+                Some("cursor".into()),
+            ),
+        )
+        .unwrap();
+
+    let items = store.get_activity_view(&ActivityFilter::default()).unwrap();
+    let task_item = items
+        .iter()
+        .find(|item| item.id == task.id)
+        .expect("stamped task");
+    assert!(task_item
+        .commands
+        .iter()
+        .any(|command| command.raw.contains("echo t1")));
+    assert!(task_item
+        .commands
+        .iter()
+        .any(|command| command.attribution.as_deref() == Some("cursor")));
+}
+
+#[test]
+fn task_timeline_orders_events_and_identifies_handoffs_and_transitions() {
+    let dir = tempdir().unwrap();
+    let store = HubStore::open(dir.path()).unwrap();
+    let root = dir.path().join("workspace");
+    fs::create_dir_all(&root).unwrap();
+
+    let steps = vec![
+        WorkflowStep {
+            agent: "claude".into(),
+            role: Some("architect".into()),
+            instruction: "Design system".into(),
+            max_retries: 1,
+            parallel_group: None,
+            peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
+        },
+        WorkflowStep {
+            agent: "gemini".into(),
+            role: Some("frontend".into()),
+            instruction: "Build timeline UI".into(),
+            max_retries: 0,
+            parallel_group: None,
+            peer: None,
+            branch: None,
+            sub_task_id: None,
+            handoff_metadata: None,
+            context_filter: None,
+        },
+    ];
+
+    let task = store
+        .create_task("Feature Timeline", Some(&root.to_string_lossy()), &steps)
+        .unwrap();
+
+    // Record a message and a handoff message
+    store
+        .send_message(
+            "claude",
+            "gemini",
+            MessageKind::Handoff,
+            "Handoff architecture spec to frontend",
+            None,
+            None,
+            Some(&task.id),
+        )
+        .unwrap();
+
+    // Record a tool audit event correlated with task
+    store
+        .record_audit_event(
+            &root,
+            Path::new("src/components/Timeline.tsx"),
+            "os_tool.executed",
+            &format!(
+                r#"{{"task_id": "{}", "agent": "gemini", "cmdline": ["npm", "test"]}}"#,
+                task.id
+            ),
+            Some("hash-timeline"),
+        )
+        .unwrap();
+
+    // Query task timeline
+    let timeline = store.get_task_timeline(&task.id).unwrap();
+
+    assert_eq!(timeline.task.id, task.id);
+    assert_eq!(timeline.task.title, "Feature Timeline");
+    assert!(timeline.involved_agents.contains(&"claude".to_string()));
+    assert!(timeline.involved_agents.contains(&"gemini".to_string()));
+    assert!(!timeline.events.is_empty());
+
+    // Check presence of creation, step, handoff, and tool events
+    assert!(timeline
+        .events
+        .iter()
+        .any(|e| matches!(e.event_type, TimelineEventType::TaskCreated)));
+    assert!(timeline
+        .events
+        .iter()
+        .any(|e| matches!(e.event_type, TimelineEventType::WorkflowStep)));
+    assert!(timeline
+        .events
+        .iter()
+        .any(|e| matches!(e.event_type, TimelineEventType::Handoff)));
+    assert!(timeline
+        .events
+        .iter()
+        .any(|e| matches!(e.event_type, TimelineEventType::Tool)));
+
+    // Unknown task returns error
+    assert!(store.get_task_timeline("nonexistent_task").is_err());
 }

@@ -110,6 +110,8 @@ fn task_states_map_to_a2a_states() {
         ("done", "completed"),
         ("cancelled", "canceled"),
         ("failed", "failed"),
+        ("input_required", "input-required"),
+        ("auth_required", "auth-required"),
         ("bogus", "failed"),
     ] {
         assert_eq!(a2a_task_state(hub), a2a);
@@ -134,10 +136,10 @@ fn message_send_creates_and_advances_a_task() {
     let response = send_result(&store);
     assert!(response.get("error").is_none(), "unexpected: {response}");
     let result = &response["result"];
-    assert_eq!(result["status"]["state"], "working");
+    assert_eq!(result["status"]["state"], "input-required");
     assert_eq!(result["contextId"], result["id"]);
     let fetched = handle_rpc(&store, "tasks/get", &json!({"id": result["id"]}), &json!(2));
-    assert_eq!(fetched["result"]["status"]["state"], "working");
+    assert_eq!(fetched["result"]["status"]["state"], "input-required");
     let cancelled = handle_rpc(
         &store,
         "tasks/cancel",

@@ -159,6 +159,7 @@ impl HubStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 last_message_id TEXT,
+                output_watermark_id TEXT,
                 attempts_json TEXT NOT NULL DEFAULT '{}',
                 open_agents_json TEXT NOT NULL DEFAULT '[]',
                 pending_agents_json TEXT NOT NULL DEFAULT '[]',
@@ -361,13 +362,17 @@ impl HubStore {
         self.ensure_branch_link_table()?;
         self.ensure_workspaces_table()?;
         self.ensure_bus_entries_table()?;
+        self.ensure_schedule_tables()?;
+        self.ensure_guardrail_table()?;
 
         // Soft-migrate columns for DBs created before C5 retries/parallel.
         for ddl in [
+            "ALTER TABLE messages ADD COLUMN context_body TEXT",
             "ALTER TABLE agents ADD COLUMN card_json TEXT",
             "ALTER TABLE agents ADD COLUMN team_member INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN avatar_attachment_id TEXT",
             "ALTER TABLE agents ADD COLUMN role TEXT",
+            "ALTER TABLE agents ADD COLUMN oversight_role TEXT",
             "ALTER TABLE agents ADD COLUMN custom_display_name INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN animated_avatar INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE agents ADD COLUMN vtuber_character TEXT",
@@ -376,6 +381,7 @@ impl HubStore {
             "ALTER TABLE tasks ADD COLUMN pending_agents_json TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE tasks ADD COLUMN max_parallel INTEGER NOT NULL DEFAULT 4",
             "ALTER TABLE tasks ADD COLUMN require_human_approval INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE tasks ADD COLUMN output_watermark_id TEXT",
             "ALTER TABLE tagged_send_outcomes ADD COLUMN policy_decision TEXT",
             "ALTER TABLE harness_session_registrations ADD COLUMN mode TEXT NOT NULL DEFAULT 'observed'",
             "ALTER TABLE harness_session_registrations ADD COLUMN state TEXT NOT NULL DEFAULT 'ready'",

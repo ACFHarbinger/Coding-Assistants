@@ -16,6 +16,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { FieldSpec, OwnerKind, SecretSource, SecretStatus } from "../types";
 import { clearCredential, getCredentialStatus, listCredentialFields, setCredential } from "../api";
 import ConnectedAccountsSection from "./ConnectedAccountsSection";
+import { NOC_COLORS, NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { nocCardDenseStyle } from "../../common/telemetry/panel";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,21 +42,21 @@ function sourceLabel(source: SecretSource): string {
 function sourceBadgeStyle(source: SecretSource, isSet: boolean): React.CSSProperties {
   if (!isSet) {
     return {
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid var(--border-color)",
-      color: "var(--text-muted)",
+      background: "rgba(15, 23, 42, 0.6)",
+      border: `1px solid ${NOC_SURFACES.border}`,
+      color: NOC_SURFACES.textMuted,
     };
   }
   if (source === "env_var") {
     return {
-      background: "rgba(245,158,11,0.12)",
-      border: "1px solid rgba(245,158,11,0.35)",
+      background: "rgba(245, 158, 11, 0.12)",
+      border: "1px solid rgba(245, 158, 11, 0.4)",
       color: "#fde68a",
     };
   }
   return {
-    background: "rgba(16,185,129,0.12)",
-    border: "1px solid rgba(16,185,129,0.35)",
+    background: "rgba(16, 185, 129, 0.12)",
+    border: "1px solid rgba(16, 185, 129, 0.4)",
     color: "#6ee7b7",
   };
 }
@@ -90,10 +92,9 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
   return (
     <div
       style={{
-        padding: "0.85rem 1rem",
-        borderRadius: "10px",
-        border: `1px solid ${isSet ? "rgba(99,102,241,0.35)" : "var(--border-color)"}`,
-        background: isSet ? "rgba(99,102,241,0.05)" : "rgba(0,0,0,0.18)",
+        ...nocCardDenseStyle,
+        border: `1px solid ${isSet ? "rgba(99, 102, 241, 0.45)" : NOC_SURFACES.border}`,
+        background: isSet ? "rgba(99, 102, 241, 0.08)" : NOC_SURFACES.bgDeep,
         display: "grid",
         gap: "0.5rem",
       }}
@@ -101,7 +102,7 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
       {/* Header row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", flexWrap: "wrap" }}>
-          <strong style={{ fontSize: "0.9rem", color: "var(--text-main)" }}>
+          <strong style={{ fontSize: "0.9rem", color: NOC_SURFACES.textPrimary }}>
             {spec.displayName}
           </strong>
           {/* Source badge */}
@@ -124,14 +125,14 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
               href={spec.docsUrl}
               target="_blank"
               rel="noreferrer"
-              style={{ fontSize: "0.72rem", color: "var(--primary-color, #60a5fa)", textDecoration: "none" }}
+              style={{ fontSize: "0.72rem", color: NOC_COLORS.cyan, textDecoration: "none" }}
             >
               Docs ↗
             </a>
           )}
         </div>
         {status?.updatedAt && (
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+          <span style={{ fontSize: "0.72rem", color: NOC_SURFACES.textMuted }}>
             {formatUpdatedAt(status.updatedAt)}
           </span>
         )}
@@ -139,12 +140,12 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
 
       {/* Notes */}
       {spec.notes && (
-        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{spec.notes}</div>
+        <div style={{ fontSize: "0.78rem", color: NOC_SURFACES.textMuted }}>{spec.notes}</div>
       )}
 
       {/* Env-var hint */}
       {spec.envVar && (
-        <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.35)" }}>
+        <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
           Env fallback: <code>{spec.envVar}</code>
           {status?.source === "env_var" && isSet
             ? " — active (no vault entry; set above to store in keychain)"
@@ -157,9 +158,9 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
         <div
           style={{
             padding: "0.4rem 0.7rem",
-            borderRadius: "6px",
-            background: "rgba(239,68,68,0.12)",
-            border: "1px solid rgba(248,113,113,0.4)",
+            borderRadius: NOC_RADIUS.s,
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(248, 113, 113, 0.4)",
             color: "#fca5a5",
             fontSize: "0.78rem",
           }}
@@ -178,20 +179,21 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
             disabled={saving}
+            className="noc-focusable"
             style={{
               flex: 1,
               minWidth: 0,
-              padding: "0.35rem 0.6rem",
+              padding: "0.35rem 0.65rem",
               fontSize: "0.82rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border-color)",
-              background: "rgba(0,0,0,0.25)",
-              color: "var(--text-main)",
+              borderRadius: NOC_RADIUS.s,
+              border: `1px solid ${NOC_SURFACES.border}`,
+              background: "rgba(15, 23, 42, 0.6)",
+              color: NOC_SURFACES.textPrimary,
             }}
           />
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary noc-focusable"
             disabled={saving || draft.trim().length === 0}
             onClick={onSet}
             style={{ padding: "0.35rem 0.75rem", fontSize: "0.78rem", marginTop: 0 }}
@@ -201,7 +203,7 @@ function CredentialRow({ spec, rowState, onDraftChange, onSet, onClear }: Creden
           {isSet && status?.source !== "env_var" && (
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary noc-focusable"
               disabled={saving}
               onClick={onClear}
               style={{ padding: "0.35rem 0.75rem", fontSize: "0.78rem", marginTop: 0 }}
@@ -299,9 +301,9 @@ export default function CredentialsTab() {
   })).filter((g) => g.specs.length > 0);
 
   return (
-    <div style={{ display: "grid", gap: "1.5rem" }}>
+    <div style={{ display: "grid", gap: "1.25rem" }}>
       <div>
-        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.82rem", lineHeight: 1.55 }}>
+        <p style={{ margin: 0, color: NOC_SURFACES.textMuted, fontSize: "0.82rem", lineHeight: 1.55 }}>
           Credentials are stored in the system keychain and are never written to disk as plain
           text, logged, or returned over IPC. Values entered here replace or supplement
           environment variables — the resolver prefers the vault entry when both are present.
@@ -312,9 +314,9 @@ export default function CredentialsTab() {
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            borderRadius: "8px",
-            background: "rgba(239,68,68,0.12)",
-            border: "1px solid rgba(248,113,113,0.45)",
+            borderRadius: NOC_RADIUS.s,
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(248, 113, 113, 0.45)",
             color: "#fca5a5",
             fontSize: "0.82rem",
           }}
@@ -331,11 +333,11 @@ export default function CredentialsTab() {
           <h3
             style={{
               margin: "0 0 0.65rem",
-              fontSize: "0.85rem",
+              fontSize: "0.82rem",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
-              color: "var(--text-muted)",
+              color: NOC_SURFACES.textMuted,
             }}
           >
             {label}

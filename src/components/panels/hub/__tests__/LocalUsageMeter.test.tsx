@@ -65,6 +65,12 @@ describe("LocalUsageMeter", () => {
     expect(screen.queryByText(/4,967%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$4,967/)).not.toBeInTheDocument();
     expect(screen.queryByText(/14%/)).not.toBeInTheDocument();
+
+    // Token distribution chart rendered for non-zero token totals
+    expect(screen.getByTestId("local-usage-token-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("local-usage-prompt-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("local-usage-cached-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("local-usage-completion-bar")).toBeInTheDocument();
   });
 
   it("exercises a local_usage-only Mistral quota in QuotaChart", () => {

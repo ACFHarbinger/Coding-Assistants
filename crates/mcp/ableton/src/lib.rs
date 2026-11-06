@@ -6,9 +6,13 @@
 //! server (port [`DEFAULT_PORT`]); this crate is the client via
 //! [`mcp_core::app_link`].
 //!
-//! **Not compiler-verified against Ableton** — Live is not on this machine
-//! or CI. The Remote Script is written for Live 11/12 (`_Framework`) and
-//! `python3 -m py_compile`s outside Live.
+//! **Not run against a live Ableton instance** — Live is not on this
+//! machine or CI. What *is* checked: the Remote Script is written for Live
+//! 11/12 (`_Framework`, with an `ableton.v2` fallback), every LOM
+//! attribute it touches is one the published Live Object Model documents
+//! (`plugins/ableton/smoke.py` enforces that allowlist offline), and the
+//! `tools_match_remote_script_ops` test below keeps this crate's tool names
+//! and the script's `_OPS` table in lockstep.
 
 use mcp_core::app_link::{result_to_text, AppLink, TcpAppLink};
 use mcp_core::{McpServer, MemoryProvider, MemoryTools, ServerInfo, ToolProvider, ToolResult};
@@ -243,6 +247,39 @@ mod tests {
         let (text, is_err) = outcome(p.call("run_lom", &json!({ "code": "result = 1" })));
         assert!(is_err);
         assert!(text.contains("--allow-run-lom"));
+    }
+
+    /// Every tool this bridge advertises must have a handler in the Remote
+    /// Script's `_OPS` table, and vice versa — a renamed op on either side
+    /// would otherwise only surface as "unknown op" inside Live.
+    #[test]
+    fn tools_match_remote_script_ops() {
+        const SCRIPT: &str = include_str!("../../../../plugins/ableton/__init__.py");
+        let ops_table = SCRIPT
+            .split("_OPS = {")
+            .nth(1)
+            .and_then(|rest| rest.split('}').next())
+            .expect("plugins/ableton/__init__.py defines _OPS");
+        let script_ops: std::collections::BTreeSet<String> = ops_table
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                let name = line.strip_prefix('"')?.split('"').next()?;
+                Some(name.to_string())
+            })
+            .collect();
+        let tool_names: std::collections::BTreeSet<String> =
+            AbletonProvider::new(MockLink::new(|_, _| Ok(Value::Null)), true)
+                .tools()
+                .iter()
+                .map(|tool| tool["name"].as_str().unwrap().to_string())
+                .collect();
+        assert_eq!(tool_names, script_ops);
+        assert!(SCRIPT.contains("def _op_get_song_summary"));
+        assert!(
+            !SCRIPT.contains("song.name"),
+            "Song has no `name` in the Live Object Model"
+        );
     }
 
     #[test]
