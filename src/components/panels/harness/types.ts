@@ -12,6 +12,7 @@ export interface HarnessSessionRegistration {
   managed_pid: number | null;
   writer_owner: string | null;
   writer_acquired_at: string | null;
+  pid_alive?: boolean | null;
 }
 
 // These two mirror src-tauri's RelaunchOutcome / EmbeddedRelaunchOutcome,
@@ -61,7 +62,7 @@ export interface StopManagedOutcome {
   detail: string;
 }
 
-export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok"] as const;
+export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok", "muse", "cursor", "qwen"] as const;
 export type LiveTerminalHarness = (typeof LIVE_TERMINAL_HARNESSES)[number];
 
 export function presenceLive(harness: string, presence: WorkspaceAgentPresence | null): boolean {
@@ -77,6 +78,9 @@ export function presenceLive(harness: string, presence: WorkspaceAgentPresence |
 export function sessionAliases(harness: string): string[] {
   if (harness === "chat" || harness === "codex") return ["chat", "codex"];
   if (harness === "gemini" || harness === "agy") return ["gemini", "agy"];
+  if (harness === "muse") return ["muse"];
+  if (harness === "cursor") return ["cursor"];
+  if (harness === "qwen") return ["qwen"];
   return [harness];
 }
 
@@ -96,6 +100,10 @@ export const HARNESS_PREREQUISITES: Record<string, string> = {
   chat: "Inject needs a persisted Codex thread id. If the writer is busy, retry later — do not start a second writer.",
   claude: "Two-way delivery needs a live Claude Channel session. Start managed opens that Channel-connected terminal. Without it this session is capture-only.",
   gemini: "Managed delivery needs an app-owned agy stream-json worker. Do not attach to an interactive TUI.",
+  muse: "Managed delivery re-enters `muse exec --session-id <uuid>` under writer lease. Interactive resume runs `muse resume <uuid>` in terminal.",
+  cursor: "Managed delivery runs `agent -p` stream-json continuation under writer lease. Interactive resume runs `agent --resume <id>` in terminal.",
+  qwen: "Managed delivery re-enters `qwen --session-id <uuid> --chat-recording -y` under writer lease. Interactive resume runs `qwen --resume <id> --chat-recording`.",
+  kimi: "Managed delivery re-enters `kimi -p --session <id> --output-format stream-json` under writer lease when a disk session id is known, else starts a fresh session. Interactive resume runs `kimi --session <id>`.",
 };
 
 export function harnessTone(mode: HarnessSessionMode, state: HarnessSessionState): { label: string; color: string; border: string; bg: string } {
@@ -133,6 +141,7 @@ export function isSuccessfulInject(status: string): boolean {
 export function injectNotice(status: string, _detail: string): { retryable: boolean; tone: "ok" | "warn" | "bad" } {
   const lowered = status.toLowerCase();
   if (isSuccessfulInject(lowered)) return { retryable: false, tone: "ok" };
-  if (lowered === "queued" || lowered === "busy") return { retryable: true, tone: "warn" };
+  if (lowered === "queued") return { retryable: false, tone: "ok" };
+  if (lowered === "busy") return { retryable: true, tone: "warn" };
   return { retryable: lowered === "unavailable", tone: "bad" };
 }

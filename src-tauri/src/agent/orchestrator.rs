@@ -1,10 +1,16 @@
+use super::budget::BudgetContext;
+use super::memory_recall::MemoryRecallEvent;
+use super::periodic_consolidation::maybe_consolidate;
+use super::prompt_builder::construct_prompt;
+use super::suborch;
+use super::task_state::task_mcp_file;
+use super::write_bridge::{self, ParseOutcome};
 use crate::client::llm::{LLMClient, ModelConfig};
 use crate::core::file_tools::FileTools;
-use hub::HubStore;
+use hub::bus::InProcessBus;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::Emitter;
 use tokio::sync::mpsc;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -25,6 +31,19 @@ pub struct AgentConfig {
     pub roles: Vec<RoleConfig>,
     pub work_dir: String,
     pub mcp_config: String,
+    #[serde(default)]
+    pub auto_consolidate_memories: bool,
+    #[serde(default = "default_consolidation_threshold")]
+    pub auto_consolidation_min_clusters: usize,
+    #[serde(default = "default_consolidation_cooldown_minutes")]
+    pub auto_consolidation_cooldown_minutes: u64,
+}
+
+fn default_consolidation_threshold() -> usize {
+    2
+}
+fn default_consolidation_cooldown_minutes() -> u64 {
+    60
 }
 
 pub struct AgentSystem {
@@ -44,30 +63,41 @@ impl AgentSystem {
 
     pub async fn run_task(
         &self,
+        task_id: &str,
         task: &str,
         app: &tauri::AppHandle,
+        bus: &InProcessBus,
         token: Arc<AtomicBool>,
         mut input_rx: mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        self.execute_phases(task, app, token, &mut input_rx).await
+        self.execute_phases(task_id, task, app, bus, token, &mut input_rx)
+            .await
     }
 
     async fn execute_phases(
         &self,
+        task_id: &str,
         task: &str,
         app: &tauri::AppHandle,
+        bus: &InProcessBus,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
     ) -> Result<String, String> {
-        // Write MCP Config to ~/.coding-assistants/mcp.json
+        // Task-scoped MCP config (P2 / #331): each task writes its own
+        // `<hub_home>/mcp-tasks/<task_id>/mcp.json` so concurrent tasks with
+        // different configs cannot clobber one shared `mcp.json`. The caller
+        // removes the task dir afterwards (best effort). Keep the write in
+        // the CA_HOME-aware Hub directory: writing through HOME would leak an
+        // isolated/profiled task into the user's real configuration.
         let mut mcp_abs_path = None;
         if !self.config.mcp_config.is_empty() {
-            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let config_dir = std::path::Path::new(&home_dir).join(".coding-assistants");
-            let mcp_config_file = config_dir.join("mcp.json");
+            let mcp_config_file = task_mcp_file(&hub::default_hub_home(), task_id);
 
-            if let Err(e) = tokio::fs::create_dir_all(&config_dir).await {
-                eprintln!("Failed to create config directory {:?}: {}", config_dir, e);
+            if let Err(e) = tokio::fs::create_dir_all(mcp_config_file.parent().unwrap()).await {
+                eprintln!(
+                    "Failed to create config directory {:?}: {}",
+                    mcp_config_file, e
+                );
             } else if let Err(e) = tokio::fs::write(&mcp_config_file, &self.config.mcp_config).await
             {
                 eprintln!("Failed to write mcp.json to {:?}: {}", mcp_config_file, e);
@@ -78,33 +108,17 @@ impl AgentSystem {
 
         let mut previous_outputs = format!("Task: {}\n", task);
         let mut final_result = String::new();
+        let budget = BudgetContext::open(task);
 
         let mut file_vector = Vec::<String>::new();
         let total_roles = self.config.roles.len();
         for (idx, role_config) in self.config.roles.iter().enumerate() {
             if token.load(Ordering::SeqCst) {
+                budget.shutdown(&role_config.name, "Task cancelled");
                 return Err("Task cancelled".into());
             }
 
             let role_name = &role_config.name;
-            let budget_store = HubStore::open(default_hub_dir()).ok();
-            let budget_reservation = if let Some(store) = &budget_store {
-                if store
-                    .get_budget(role_name)
-                    .map_err(|e| e.to_string())?
-                    .is_some()
-                {
-                    Some(
-                        store
-                            .try_consume_budget(role_name, 1.0)
-                            .map_err(|e| e.to_string())?,
-                    )
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
             let default_system = format!(
                 "You are an expert {}. Work with your team to complete the task. \n\
                  Review the previous outputs and contribute your expertise. \n\
@@ -112,67 +126,59 @@ impl AgentSystem {
                 role_name
             );
 
-            let prompt = self
-                .construct_prompt(&role_config.config, &previous_outputs, &default_system)
-                .await?;
+            let role_names = self
+                .config
+                .roles
+                .iter()
+                .map(|role| role.name.clone())
+                .collect::<Vec<_>>();
+            let (prompt, recalled_memories) = construct_prompt(
+                &self.file_tools,
+                &role_config.config,
+                task,
+                &previous_outputs,
+                &default_system,
+                &role_names,
+                &self.config.work_dir,
+            )
+            .await?;
 
-            let _ = app.emit(
-                "agent-event",
-                AgentEvent {
-                    source: role_name.clone(),
-                    event_type: "thought".into(),
-                    content: prompt.clone(),
-                },
-            );
+            if let Some(recalled_memories) = recalled_memories {
+                bus.emit(
+                    hub::bus::TOPIC_AGENT_MEMORY_RECALL,
+                    MemoryRecallEvent {
+                        role: role_name.clone(),
+                        workspace: self.config.work_dir.clone(),
+                        limit: recalled_memories.0,
+                        memories: recalled_memories.1,
+                    },
+                );
+            }
+
+            emit_agent(bus, role_name.clone(), "thought", prompt.clone());
 
             let completion = self
                 .interactive_completion(
                     &role_config.config,
                     &prompt,
-                    app,
+                    bus,
                     role_name,
                     token.clone(),
                     input_rx,
                     mcp_abs_path.as_deref(),
+                    &budget,
                 )
                 .await;
 
             if let Err(error) = &completion {
-                if token.load(Ordering::SeqCst) {
-                    if let Ok(store) = HubStore::open(default_hub_dir()) {
-                        let _ = store.record_shutdown(role_name, None, task, error, None);
-                    }
-                }
+                budget.shutdown_if_cancelled(role_name, &token, error);
                 return Err(error.clone());
             }
-            let completion = completion.expect("completion checked above");
-
-            if let (Some(store), Some(status)) = (&budget_store, budget_reservation) {
-                if status.paused {
-                    let completed = if completion.is_empty() {
-                        "Provider call completed without output."
-                    } else {
-                        "Provider call completed and its output was captured in the task transcript."
-                    };
-                    let _ = store.pause_for_budget(
-                        role_name,
-                        None,
-                        task,
-                        completed,
-                        "Remaining workflow roles and final synthesis.",
-                        None,
-                    );
-                    return Err(format!(
-                        "agent {role_name} reached its budget ({}/{} units); handoff written",
-                        status.spent_units, status.limit_units
-                    ));
-                }
-            }
-            let output = completion;
+            let output = completion.expect("completion checked above");
 
             // Persist local, provider-neutral observability counters. Exact
             // token/cache values can be supplied later by provider adapters.
-            if let Ok(store) = HubStore::open(default_hub_dir()) {
+            if let Ok(store) = hub::HubStore::open(hub::default_hub_home()) {
                 let _ = store.record_agent_metrics(
                     role_name,
                     output.lines().count() as i64,
@@ -191,7 +197,8 @@ impl AgentSystem {
 
             previous_outputs.push_str(&format!("\nOutput from {}:\n{}\n", role_name, output));
             final_result.push_str(&format!("## {} Output\n{}\n\n", role_name, output));
-            if idx == total_roles - 1 {
+            if idx == total_roles - 1 && !budget.is_paused(role_name) {
+                budget.deny_unless_allowed(role_name)?;
                 let mut all_contents = String::new();
                 for file_path in &file_vector {
                     if let Ok(content) = self.file_tools.read_file(file_path).await {
@@ -213,12 +220,17 @@ impl AgentSystem {
                         &role_config.config,
                         &summary_prompt,
                         Some(&self.config.work_dir),
-                        app,
+                        bus,
                         "System",
                         mcp_abs_path.as_deref(),
                         Some(token.clone()),
                     )
-                    .await?;
+                    .await;
+                if let Err(error) = &summary {
+                    budget.shutdown_if_cancelled(role_name, &token, error);
+                    return Err(error.clone());
+                }
+                let summary = summary.expect("summary checked above");
 
                 if let Err(e) = self
                     .file_tools
@@ -227,7 +239,23 @@ impl AgentSystem {
                 {
                     eprintln!("Failed to write project memory: {}", e);
                 }
+                maybe_consolidate(
+                    app,
+                    role_config.config.clone(),
+                    self.config.work_dir.clone(),
+                    self.config.auto_consolidate_memories,
+                    self.config.auto_consolidation_min_clusters,
+                    self.config.auto_consolidation_cooldown_minutes,
+                )
+                .await;
             }
+
+            let completed = if output.is_empty() {
+                "Provider call completed without output."
+            } else {
+                "Provider call completed and its output was captured in the task transcript."
+            };
+            budget.handoff_if_paused(role_name, completed)?;
         }
         Ok(final_result)
     }
@@ -239,28 +267,68 @@ impl AgentSystem {
         &self,
         config: &ModelConfig,
         initial_prompt: &str,
-        app: &tauri::AppHandle,
+        bus: &InProcessBus,
         source: &str,
         token: Arc<AtomicBool>,
         input_rx: &mut mpsc::Receiver<String>,
         mcp_config_path: Option<&str>,
+        budget: &BudgetContext,
     ) -> Result<String, String> {
         let mut history = initial_prompt.to_string();
+        let mut suborch_fanout: u8 = 0;
+        let mut bridge_steps: u8 = 0;
 
         loop {
-            // Call LLM
+            budget.deny_unless_allowed(source)?;
             let response = self
                 .client
                 .chat_completion(
                     config,
                     &history,
                     Some(&self.config.work_dir),
-                    app,
+                    bus,
                     source,
                     mcp_config_path,
                     Some(token.clone()),
                 )
                 .await?;
+            if budget.is_paused(source) {
+                return Ok(response);
+            }
+
+            match write_bridge::parse(&response) {
+                ParseOutcome::Action(action) => {
+                    if token.load(Ordering::SeqCst) {
+                        return Err("Task cancelled".into());
+                    }
+                    if bridge_steps >= write_bridge::MAX_STEPS {
+                        return Ok(format!(
+                            "{response}\n\nSystem: Write-bridge step limit ({}) reached. This action was not applied.",
+                            write_bridge::MAX_STEPS
+                        ));
+                    }
+                    bridge_steps += 1;
+                    let observation = write_bridge::apply(&self.file_tools, &action).await;
+                    record_bridge_turn(&mut history, &response, &observation);
+                    emit_agent(bus, source, "thought", observation);
+                    continue;
+                }
+                ParseOutcome::Malformed(error) => {
+                    if bridge_steps >= write_bridge::MAX_STEPS {
+                        return Ok(format!(
+                            "{response}\n\nSystem: Write-bridge step limit ({}) reached. {error}",
+                            write_bridge::MAX_STEPS
+                        ));
+                    }
+                    bridge_steps += 1;
+                    let observation =
+                        format!("Observed write-bridge: refused ({error}). No file was changed.");
+                    record_bridge_turn(&mut history, &response, &observation);
+                    emit_agent(bus, source, "thought", observation);
+                    continue;
+                }
+                ParseOutcome::None => {}
+            }
 
             // Check for [[ASK_USER]]
             if let Some(pos) = response.find("[[ASK_USER]]") {
@@ -271,15 +339,7 @@ impl AgentSystem {
                     question
                 };
 
-                // Emit event to frontend to show prompt
-                let _ = app.emit(
-                    "agent-event",
-                    AgentEvent {
-                        source: source.to_string(),
-                        event_type: "question".into(),
-                        content: question_text.clone(),
-                    },
-                );
+                emit_agent(bus, source, "question", question_text.clone());
 
                 // Wait for input
                 let user_input = match input_rx.recv().await {
@@ -287,15 +347,7 @@ impl AgentSystem {
                     None => return Err("User input channel closed".into()),
                 };
 
-                // Emit acknowledgement
-                let _ = app.emit(
-                    "agent-event",
-                    AgentEvent {
-                        source: "User".into(),
-                        event_type: "input".into(),
-                        content: user_input.clone(),
-                    },
-                );
+                emit_agent(bus, "User", "input", user_input.clone());
 
                 history.push_str("\n\nAgent: ");
                 history.push_str(&response);
@@ -303,6 +355,22 @@ impl AgentSystem {
                 history.push_str(&user_input);
 
                 // Loop again
+            } else if let Some(invocation) = suborch::parse(&response) {
+                let note = suborch::invoke(
+                    &invocation,
+                    source,
+                    &response,
+                    &self.config.roles,
+                    &self.client,
+                    &self.config.work_dir,
+                    bus,
+                    token.clone(),
+                    mcp_config_path,
+                    budget,
+                    &mut suborch_fanout,
+                )
+                .await?;
+                history.push_str(&note);
             } else if let Some(pos) = response.find("[[ASK_AGENT:") {
                 let rest = &response[pos + "[[ASK_AGENT:".len()..];
                 if let Some(end_bracket) = rest.find("]]") {
@@ -340,14 +408,7 @@ impl AgentSystem {
                     })
                     .to_string();
 
-                    let _ = app.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: "System".into(),
-                            event_type: "authorization".into(),
-                            content: auth_payload,
-                        },
-                    );
+                    emit_agent(bus, "System", "authorization", auth_payload);
 
                     // Wait for authorization
                     let auth_response = match input_rx.recv().await {
@@ -356,16 +417,11 @@ impl AgentSystem {
                     };
 
                     if auth_response != "APPROVED" {
-                        let _ = app.emit(
-                            "agent-event",
-                            AgentEvent {
-                                source: "System".into(),
-                                event_type: "thought".into(),
-                                content: format!(
-                                    "Authorization DENIED for asking {}",
-                                    target_role_name
-                                ),
-                            },
+                        emit_agent(
+                            bus,
+                            "System",
+                            "thought",
+                            format!("Authorization DENIED for asking {}", target_role_name),
                         );
 
                         history.push_str(&format!(
@@ -375,13 +431,11 @@ impl AgentSystem {
                         continue;
                     }
 
-                    let _ = app.emit(
-                        "agent-event",
-                        AgentEvent {
-                            source: source.to_string(),
-                            event_type: "thought".into(),
-                            content: format!("Asking {}: {}", target_role_name, question),
-                        },
+                    emit_agent(
+                        bus,
+                        source,
+                        "thought",
+                        format!("Asking {}: {}", target_role_name, question),
                     );
 
                     let target_context = format!(
@@ -395,19 +449,26 @@ impl AgentSystem {
 
                     let target_prompt = format!("{}\n\n{}", target_system, target_context);
 
-                    // Call target agent (non-interactive to avoid infinite loops for now)
+                    if let Err(stop) = budget.deny_unless_allowed(target_role_name) {
+                        history.push_str(&format!("\n\nSystem: {stop}"));
+                        continue;
+                    }
                     let answer = self
                         .client
                         .chat_completion(
                             target_config,
                             &target_prompt,
                             Some(&self.config.work_dir),
-                            app,
+                            bus,
                             target_role_name,
                             mcp_config_path,
                             Some(token.clone()),
                         )
                         .await?;
+                    budget.write_exhaustion_handoff(
+                        target_role_name,
+                        "Answered a peer ASK_AGENT turn.",
+                    );
 
                     history.push_str("\n\nAgent: ");
                     history.push_str(&response);
@@ -421,71 +482,27 @@ impl AgentSystem {
             }
         }
     }
-
-    async fn get_file_content(&self, path: &Option<String>) -> Result<String, String> {
-        match path {
-            Some(p) => self
-                .file_tools
-                .read_file(p)
-                .await
-                .map_err(|e| format!("Failed to read file {}: {}", p, e)),
-            None => Ok(String::new()),
-        }
-    }
-
-    async fn construct_prompt(
-        &self,
-        config: &ModelConfig,
-        context: &str,
-        default_system: &str,
-    ) -> Result<String, String> {
-        let mut full_prompt = String::new();
-
-        // 1. Workflows
-        if let Some(workflow_path) = &config.workflow_file {
-            let workflow = self.get_file_content(&Some(workflow_path.clone())).await?;
-            full_prompt.push_str(&format!("Workflow:\n{}\n\n", workflow));
-        }
-
-        // 2. Rules
-        if let Some(rule_path) = &config.rule_file {
-            let rule = self.get_file_content(&Some(rule_path.clone())).await?;
-            full_prompt.push_str(&format!("Rules:\n{}\n\n", rule));
-        }
-
-        let memory_file = ".agent/project_memory.md";
-        if let Ok(memory) = self.get_file_content(&Some(memory_file.to_string())).await {
-            if !memory.is_empty() {
-                full_prompt.push_str(&format!(
-                    "Project Memory (Past Tasks and Context):\n{}\n\n",
-                    memory
-                ));
-            }
-        }
-
-        // 3. System Prompt (File or Default)
-        let system_prompt = if let Some(prompt_path) = &config.prompt_file {
-            self.get_file_content(&Some(prompt_path.clone())).await?
-        } else {
-            default_system.to_string()
-        };
-        full_prompt.push_str(&format!("{}\n\n", system_prompt));
-        full_prompt.push_str("IMPORTANT: If you need clarification from the user, output `[[ASK_USER]]` followed by your question on a new line. Stops speaking. Wait for the user's response.\n");
-
-        let roles_list: Vec<String> = self.config.roles.iter().map(|r| r.name.clone()).collect();
-        full_prompt.push_str(&format!(
-            "IMPORTANT: If you need to ask another agent ({}) a question, output `[[ASK_AGENT:Role]]` followed by your question. e.g. `[[ASK_AGENT:{}]]. How do I implement X?`\n\n",
-            roles_list.join(", "),
-            roles_list.first().unwrap_or(&"Developer".to_string())
-        ));
-
-        // 4. Context
-        full_prompt.push_str(context);
-
-        Ok(full_prompt)
-    }
 }
 
-fn default_hub_dir() -> std::path::PathBuf {
-    hub::default_hub_home()
+fn record_bridge_turn(history: &mut String, response: &str, observation: &str) {
+    history.push_str("\n\nAgent: ");
+    history.push_str(response);
+    history.push_str("\n\nSystem: ");
+    history.push_str(observation);
+}
+
+fn emit_agent(
+    bus: &InProcessBus,
+    source: impl Into<String>,
+    event_type: impl Into<String>,
+    content: impl Into<String>,
+) {
+    bus.emit(
+        hub::bus::TOPIC_AGENT_EVENT,
+        AgentEvent {
+            source: source.into(),
+            event_type: event_type.into(),
+            content: content.into(),
+        },
+    );
 }

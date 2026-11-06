@@ -38,6 +38,10 @@ pub(crate) struct PreflightHarness {
     pub state: String,
     pub leader_socket: Option<String>,
     pub socket_present: Option<bool>,
+    pub managed_pid: Option<u32>,
+    pub pid_alive: Option<bool>,
+    pub writer_owner: Option<String>,
+    pub writer_acquired_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -175,6 +179,18 @@ pub(crate) fn render_markdown(report: &PreflightReport) -> String {
                     row.socket_present.unwrap_or(false)
                 ));
             }
+            if let Some(pid) = row.managed_pid {
+                out.push_str(&format!(
+                    " pid={pid} alive={}",
+                    row.pid_alive.unwrap_or(false)
+                ));
+            }
+            if let Some(owner) = &row.writer_owner {
+                out.push_str(&format!(" writer=`{owner}`"));
+                if let Some(acquired) = &row.writer_acquired_at {
+                    out.push_str(&format!(" acquired=`{acquired}`"));
+                }
+            }
             out.push('\n');
         }
     }
@@ -203,6 +219,10 @@ fn summarize_harness(row: HarnessSessionRegistration) -> PreflightHarness {
         state: row.state.as_str().to_string(),
         leader_socket: row.leader_socket,
         socket_present,
+        managed_pid: row.managed_pid,
+        pid_alive: row.pid_alive,
+        writer_owner: row.writer_owner,
+        writer_acquired_at: row.writer_acquired_at,
     }
 }
 
@@ -338,5 +358,35 @@ mod tests {
             .iter()
             .any(|row| row.path.ends_with("AGENT_BUS.md") && row.sha256.is_some()));
         assert_eq!(fs::read_to_string(&bus).unwrap(), "coordination snapshot\n");
+    }
+
+    #[test]
+    fn render_markdown_surfaces_harness_pid_alive_and_writer_lease() {
+        let report = PreflightReport {
+            generated_at: "2026-09-08T00:00:00Z".into(),
+            hub_home: "/tmp/hub".into(),
+            hub_present: true,
+            workspace: Some("/tmp/ws".into()),
+            session: None,
+            team: vec!["gemini".into()],
+            harness_sessions: vec![PreflightHarness {
+                harness: "cursor".into(),
+                workspace: "/tmp/ws".into(),
+                disk_session_id: "thread-1".into(),
+                mode: "managed".into(),
+                state: "busy".into(),
+                leader_socket: None,
+                socket_present: None,
+                managed_pid: Some(4242),
+                pid_alive: Some(true),
+                writer_owner: Some("agent-1".into()),
+                writer_acquired_at: Some("2026-09-08T12:00:00Z".into()),
+            }],
+            fallback_hashes: vec![],
+            notes: vec![],
+        };
+        let md = render_markdown(&report);
+        assert!(md.contains("pid=4242 alive=true"));
+        assert!(md.contains("writer=`agent-1` acquired=`2026-09-08T12:00:00Z`"));
     }
 }

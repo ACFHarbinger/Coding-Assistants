@@ -19,6 +19,23 @@ fn main() {
                 std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
             }
         }
+
+        // Outside a Flatpak/snap sandbox, GIO's portal-based GProxyResolver
+        // ("pxbackend") tries org.freedesktop.portal.ProxyResolver over
+        // DBus and gets NotAllowed — and because the failure isn't cached,
+        // WebKitGTK's network process retries it on every single request,
+        // flooding stderr with "Could not query proxy" warnings. "dummy"
+        // disables GIO's proxy resolution entirely (this app has no need
+        // for GNOME's portal-mediated proxy auto-detection; reqwest's own
+        // HTTP/HTTPS-proxy env vars, unaffected by this, still work for
+        // the Rust-side provider clients). Must be set before WebKitGTK
+        // initializes, same timing constraint as GDK_BACKEND above.
+        if std::env::var("GIO_USE_PROXY_RESOLVER").is_err() {
+            // SAFETY: single-threaded at this point — no other threads exist yet.
+            unsafe {
+                std::env::set_var("GIO_USE_PROXY_RESOLVER", "dummy");
+            }
+        }
     }
 
     tauri_app_lib::run()

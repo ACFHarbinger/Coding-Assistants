@@ -32,6 +32,52 @@ SQLite is the source of truth for structured memory. Markdown is the
 human-readable synchronization and high-priority layer. Private journals are
 separate from shared memory and must not be silently merged.
 
+**2026-09-04 (M4a, #259):** Shared memories support an optional tool identity.
+The Hub preserves legacy unscoped rows and offers tool-filtered exact, vector,
+and hybrid retrieval for creative-tool consumers.
+
+**2026-09-19 (M4 follow-up, #267):** `creative::apply_to_workspace` now
+passes `--workspace <ws>` into each rendered creative-tool MCP entry so
+remember/recall can be workspace-scoped. The catalog `default_args` stay
+static; the path is injected per invocation.
+**2026-09-19 (M1b follow-up, #262):** Re-ran `cargo audit` on the
+embedding stack. No high-severity RUSTSEC on `sqlite-vec@0.1.8-alpha.1`,
+`fastembed@6.1.0`, or `ort@2.0.0-rc.13`. Bumped `rustls` to 0.23.45
+(`RUSTSEC-2026-0285`, Medium; pulled by `ureq` / `hf-hub`). Unused `ort`
+execution providers remain off. `fastembed` 7.x and a `sqlite-vec`
+alpha bump are documented follow-ups, not this slice.
+
+**2026-09-04 (M1b-1, #260):** `memory_vectors` now uses the statically
+registered sqlite-vec extension and a 384-dimensional cosine `vec0` table.
+Opening a legacy BLOB-backed Hub replaces and rebuilds its vectors from the
+memory source records. Semantic retrieval uses KNN while preserving its public
+search signature and score threshold; the n-gram embedder remains until #261.
+
+**2026-09-04 (Track M, #255):** Orchestrated tasks now retrieve a bounded,
+relevance-ranked set of workspace and global shared memories and inject it
+after `.agent/project_memory.md`. Recall is enabled by default, configurable
+per workspace, and emitted as structured data for an owner-visible UI.
+
+**2026-09-04 (Track M, #257):** The desktop memory drawer and Shared Hub
+memory view gained a Smart (similarity) / Exact (text) search toggle with
+per-result score badges, scope/tier filters, and a Reindex Vectors action,
+over the M1 `hub_search_memories_hybrid` / `_semantic` commands.
+
+**2026-09-04 (Track M, #256):** `hub_consolidate_memories` clusters related
+live short-term memories by shared tag/token overlap within one scope,
+summarizes each cluster into a single episodic memory via the provider, links
+every source `consolidated_into` the summary, and marks the sources stale
+(never deleted). A missing or empty provider summary is a non-destructive
+skip.
+
+**2026-09-04 (Track M, #258):** The orchestrator now optionally checks after
+a completed task whether enough consolidation clusters exist and invokes the
+existing M3 command. `AgentConfig.auto_consolidate_memories` is disabled by
+default; `auto_consolidation_min_clusters` defaults to 2 and
+`auto_consolidation_cooldown_minutes` to 60. The per-workspace in-process
+cooldown and all store/provider failures silently skip, so consolidation can
+never turn a completed task into a failure.
+
 **2026-08-11:** Desktop UI and Tauri commands share the store with `ca` CLI.
 See `docs/moon/CHANGELOG.md` Unreleased and `crates/README.md`.
 
@@ -57,21 +103,19 @@ described a different, incompatible `hub` schema that briefly coexisted
 after concurrent sessions; reconciled by wiring `store.rs` as the real
 implementation.
 
-**2026-08-14 (M7, Claude + Grok + Codex, #159):** memory-to-memory graph
-links landed — `memory_links`, depth-bounded traversal, and a dependency-free
-tag/token-Jaccard matcher behind a new `off`/`suggest`/`auto`
-`LinkSuggestionMode` setting. Backend (store, CLI, Tauri IPC) is done and
-`cargo build --workspace` clean; no frontend UI calls the new commands yet.
-Worth remembering: the auto-accept threshold started as a guessed 0.55 and
-had to be recalibrated to 0.35 after a real smoke test showed genuinely
-related memories scoring only 0.39-0.42 — a similarity threshold picked "by
-feel" without a real example is not a real threshold. See
-`docs/moon/CHANGELOG.md` for full detail.
-
-**2026-08-14 (M7 closed, Gemini + Codex):** frontend UI landed —
-`MemoryLinksSection` (per-memory expandable links panel with a "Find
-related" suggest-and-link action) and `TopicBrowsePanel` (a new "Browse by
-topic" mode in the Chat & Memory drawer, grouping search results by
-`agent_id` side by side). `cargo build --workspace` + `npm run build`
-(`tsc` + `vite build`) both clean. M7 is done end to end: schema, matcher,
-CLI, Tauri IPC, and desktop UI.
+**2026-08-14 (M7, Claude + Grok + Codex, then Gemini + Codex, #159):**
+memory-to-memory graph links landed — `memory_links`, depth-bounded
+traversal, and a dependency-free tag/token-Jaccard matcher behind a new
+`off`/`suggest`/`auto` `LinkSuggestionMode` setting. Backend (store, CLI,
+Tauri IPC) and the desktop UI are both in. The UI is `MemoryLinksSection`
+(per-memory expandable links panel with a "Find related" suggest-and-link
+action) and `TopicBrowsePanel` (the "Browse by topic" mode on the Memory
+subtab of Chat & Memory, grouping search results by `agent_id` side by side). An
+earlier same-day note that no frontend called the new commands was
+overtaken once that UI landed. `cargo build --workspace` and `npm run build`
+(`tsc` + `vite build`) were clean. M7 is done end to end: schema, matcher,
+CLI, Tauri IPC, and desktop UI. Worth remembering: the auto-accept
+threshold started as a guessed 0.55 and had to be recalibrated to 0.35
+after a real smoke test showed genuinely related memories scoring only
+0.39-0.42 — a similarity threshold picked "by feel" without a real example
+is not a real threshold. See `docs/moon/CHANGELOG.md` for full detail.

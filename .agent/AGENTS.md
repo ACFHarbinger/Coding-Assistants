@@ -45,6 +45,12 @@ Coding-Assistants/
 │   ├── Cargo.toml          # Rust dependencies
 │   ├── tauri.conf.json     # Tauri configuration
 │   └── capabilities/       # Permission capabilities
+├── crates/
+│   ├── hub/                # Shared store
+│   ├── cli/                # `ca` CLI
+│   ├── tui/                # Ratatui TUI
+│   ├── claude/             # Claude Channel binary
+│   └── mcp/                # MCP sidecars
 ├── android/                # Android remote control app
 ├── .agent/                 # Agent resources (prompts, rules, workflows)
 ├── env/                    # Environment variable templates
@@ -73,6 +79,9 @@ Coding-Assistants/
 | `run_agent_task`     | Execute multi-agent task sequence          |
 | `submit_user_input`  | Send user response to waiting agent        |
 | `cancel_task`        | Cancel running agent task                  |
+| `browser_pane_open` / `browser_pane_place` | Create and position a remote child webview |
+| `browser_pane_navigate` / `browser_pane_close` | Navigate or close a browser grid pane |
+| `hub_get_task_timeline` | Read task timeline events and collaboration status |
 | `get_agent_resources`| List prompts, rules, and workflows         |
 | `get_resource_content`| Read a resource file from `.agent/`       |
 | `read_file_absolute` | Read file at absolute path                 |
@@ -132,9 +141,17 @@ Agents communicate via special markers embedded in LLM responses:
 | --------------------------- | -------------------------------------------- |
 | `[[ASK_USER]]`              | Pause execution and request user input        |
 | `[[ASK_AGENT:RoleName]]`   | Request input from another agent (requires auth) |
+| `[[WRITE: path]]` … `[[/WRITE]]` | Overwrite a workspace file. The body is the new contents. |
+| `[[APPEND: path]]` … `[[/APPEND]]` | Append the body to a workspace file. |
+| `[[EDIT: path \| line N]]` … `[[/EDIT]]` | Replace 1-based line `N`, or `lines N-M`. An empty body deletes that range. |
+
+`WRITE: path`, `APPEND: path`, and `EDIT: path [line N]` are accepted when the matching close tag is present. A bare colon line with no close tag is prose and is ignored.
 
 These markers are parsed by `AgentSystem::interactive_completion` in
-`src-tauri/src/agent/orchestrator.rs`.
+`src-tauri/src/agent/orchestrator.rs`. Write, append, and edit run through
+`src-tauri/src/agent/write_bridge.rs` and `FileTools`. One action is applied,
+then the file is read back into the next model turn. The written file is not
+executed. Paths stay inside the selected workspace.
 
 ## Contribution Guidelines
 

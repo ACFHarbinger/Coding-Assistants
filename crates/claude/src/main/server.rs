@@ -30,6 +30,12 @@ struct ChannelProvider {
     /// `request_id`s seen via `permission_request`, shared with [`poll_loop`]
     /// which relays each verdict once a human resolves it.
     known_permission_requests: Arc<Mutex<HashSet<String>>>,
+    /// Disturb events (wake / task-tagged) that [`poll_loop`] has drained
+    /// from the Hub and emitted as `notifications/claude/channel`. Buffered
+    /// here as well so `check_inbox` can hand them to the model on a build
+    /// whose MCP client does not surface that experimental notification —
+    /// otherwise a pushed-and-acked task is silently lost.
+    pending_disturb: Arc<Mutex<Vec<hub::ChannelEvent>>>,
 }
 
 impl ToolProvider for ChannelProvider {
@@ -63,8 +69,17 @@ impl ToolProvider for ChannelProvider {
                 reply_outcome(record_channel_reply(&store, in_reply_to, session_id, text))
             }
             "check_inbox" => {
-                let store = self.store.lock().expect("hub store mutex poisoned");
-                check_inbox_outcome(poll_quiet_channel_events(&store))
+                let quiet = {
+                    let store = self.store.lock().expect("hub store mutex poisoned");
+                    poll_quiet_channel_events(&store)
+                };
+                let disturb = std::mem::take(
+                    &mut *self
+                        .pending_disturb
+                        .lock()
+                        .expect("pending-disturb mutex poisoned"),
+                );
+                check_inbox_outcome(quiet, disturb)
             }
             other => ToolResult::Err(format!("unknown tool {other}")),
         }
@@ -116,16 +131,20 @@ pub fn run_server(args: &[String]) {
     ));
     let known_permission_requests: Arc<Mutex<HashSet<String>>> =
         Arc::new(Mutex::new(HashSet::new()));
+    let pending_disturb: Arc<Mutex<Vec<hub::ChannelEvent>>> = Arc::new(Mutex::new(Vec::new()));
 
     let provider = Arc::new(ChannelProvider {
         store: Arc::clone(&store),
         known_permission_requests: Arc::clone(&known_permission_requests),
+        pending_disturb: Arc::clone(&pending_disturb),
     });
     let server = McpServer::new(provider);
 
     {
         let emitter = server.emitter();
-        std::thread::spawn(move || poll_loop(store, known_permission_requests, emitter));
+        std::thread::spawn(move || {
+            poll_loop(store, known_permission_requests, pending_disturb, emitter)
+        });
     }
 
     server.run();
@@ -134,6 +153,7 @@ pub fn run_server(args: &[String]) {
 fn poll_loop(
     store: Arc<Mutex<HubStore>>,
     known_permission_requests: Arc<Mutex<HashSet<String>>>,
+    pending_disturb: Arc<Mutex<Vec<hub::ChannelEvent>>>,
     emitter: Emitter,
 ) {
     let mut relayed_permissions: HashSet<String> = HashSet::new();
@@ -145,6 +165,10 @@ fn poll_loop(
             poll_channel_events(&store).unwrap_or_default()
         };
         for event in events {
+            pending_disturb
+                .lock()
+                .expect("pending-disturb mutex poisoned")
+                .push(event.clone());
             emitter.notify(
                 "notifications/claude/channel",
                 json!({
@@ -200,6 +224,7 @@ mod tests {
         ChannelProvider {
             store: Arc::new(Mutex::new(HubStore::open(path).unwrap())),
             known_permission_requests: Arc::new(Mutex::new(HashSet::new())),
+            pending_disturb: Arc::new(Mutex::new(Vec::new())),
         }
     }
 

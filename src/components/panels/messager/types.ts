@@ -18,6 +18,16 @@ export interface HubAgent {
   team_member?: boolean;
   /** Attachment id of the agent's profile image, when set. */
   avatar_attachment_id?: string | null;
+  /** Descriptive team role (U21 / #315), e.g. "lead", "reviewer", or custom. */
+  role?: string | null;
+  /** Standing oversight role (#342). Separate from `role`. */
+  oversight_role?: string | null;
+  /** Latest unexpired exception, otherwise `oversight_role`. */
+  effective_oversight_role?: string | null;
+  /** Whether the identity opted into an animated V-Tuber avatar presence (U17 / #307). */
+  animated_avatar?: boolean;
+  /** Optional character name/ID configured in Open-LLM-VTuber (U17 / #307). */
+  vtuber_character?: string | null;
 }
 
 export interface WorkSession {
@@ -25,6 +35,7 @@ export interface WorkSession {
   name: string;
   created_at: string;
   member_ids: string[];
+  workspace_id?: string | null;
 }
 
 export interface MemoryRecord {
@@ -37,6 +48,10 @@ export interface MemoryRecord {
   tags_json: string;
   created_at: string;
   stale: boolean;
+}
+
+export interface ScoredMemoryRecord extends MemoryRecord {
+  score: number;
 }
 
 export interface MemoryLinkRecord {
@@ -68,6 +83,14 @@ export interface WorkspaceAgentPresence {
   chat: boolean;
   gemini: boolean;
   grok: boolean;
+  opencode: boolean;
+  deepseek: boolean;
+  /** Harness id `vibe`; the roster/agent id `mistral` maps onto this too. */
+  vibe: boolean;
+  muse: boolean;
+  cursor: boolean;
+  qwen: boolean;
+  kimi: boolean;
 }
 
 export interface ChannelRecord {

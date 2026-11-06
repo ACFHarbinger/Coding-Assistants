@@ -13,6 +13,56 @@ pub struct ProviderQuotaWindow {
     pub window_minutes: Option<i64>,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderQuotaBalance {
+    pub currency: String,
+    pub total: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub granted: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topped_up: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gift: Option<f64>,
+    /// Spend-kind only. `"uncapped"` means the workspace has no period
+    /// cap; `"unknown"` means the cap could not be read. Omitted when
+    /// `total` is a real cap. Do not treat `total: 0` as uncapped without
+    /// this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spend_cap: Option<String>,
+}
+
+/// Locally-observed usage for a harness that writes its own session
+/// accounting to disk, read without any network call or metered request.
+///
+/// Distinct from both `windows` (a percentage of a budget) and
+/// `balance`/`balance_info` (a currency figure): these are raw counts with no
+/// cap to divide by, so they cannot be expressed as either. Mistral Vibe
+/// (`~/.vibe/logs/session/*/meta.json` `stats`) and Qwen Code
+/// (`~/.qwen/usage_record.jsonl`) both fill it; the shape is provider-neutral
+/// so any harness that keeps comparable local accounting can use it.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderQuotaLocalUsage {
+    /// Number of on-disk sessions the counts below were summed from.
+    pub sessions: u64,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub cached_tokens: u64,
+    pub tool_calls_succeeded: u64,
+    pub tool_calls_failed: u64,
+    pub tool_calls_rejected: u64,
+    /// Start of the oldest session included, as a UNIX timestamp — the
+    /// "since" the totals are measured from. `None` when no session carried a
+    /// parseable start time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<i64>,
+}
+
 #[derive(Clone, serde::Serialize)]
 pub struct ProviderQuota {
     pub agent_id: String,
@@ -22,6 +72,19 @@ pub struct ProviderQuota {
     pub detail: Option<String>,
     pub windows: Vec<ProviderQuotaWindow>,
     pub fetched_at: i64,
+    /// Optional human-readable account balance (dollar amount, e.g. DeepSeek).
+    /// Balance is a currency figure, not a percent window, so it does not fit
+    /// `windows` — frontends render it distinctly when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance: Option<String>,
+    /// Structured balance details for non-subscription / pay-as-you-go providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance_info: Option<ProviderQuotaBalance>,
+    /// Raw counts read from the harness's own on-disk session accounting.
+    /// Independent of `windows`/`balance`: a provider may report both a
+    /// billed budget and what this machine actually spent locally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_usage: Option<ProviderQuotaLocalUsage>,
 }
 
 pub(crate) fn now_unix() -> i64 {
@@ -30,6 +93,14 @@ pub(crate) fn now_unix() -> i64 {
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or_default()
 }
+
+/// Shared `detail` for the `gemini` / `opencode` / `muse` adapters when
+/// `orchestration.allow_metered_quota_probes` is off. Names the setting and
+/// where to find it, since the reader may never have seen this app before.
+pub(crate) const METERED_PROBE_DISABLED_DETAIL: &str =
+    "Usage read skipped — this provider has no free usage endpoint, so \
+     checking it costs a model turn. Turn on \"Allow metered usage probes\" \
+     in Settings → Orchestration to enable it.";
 
 pub(crate) fn unavailable_quota(
     agent_id: &str,
@@ -45,6 +116,9 @@ pub(crate) fn unavailable_quota(
         detail: Some(detail.into()),
         windows: Vec::new(),
         fetched_at: now_unix(),
+        balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }
 
@@ -212,5 +286,8 @@ pub(crate) fn codex_quota() -> ProviderQuota {
         },
         windows,
         fetched_at: now_unix(),
+        balance: None,
+        balance_info: None,
+        local_usage: None,
     }
 }

@@ -8,18 +8,23 @@
 //! `crates/hub/src/store/policies/settings_audit.rs`.
 
 mod model;
+mod model_harness;
+mod orchestration;
 mod profiles;
 mod store;
+mod tui;
 pub(crate) mod validation;
 
 pub use model::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy,
-    ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind,
+    EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SecretReference, SecretSourceKind,
     SettingsError, SettingsField, SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
     DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
+pub use model_harness::{EffectiveHarnessSettings, HarnessSettings};
+pub use orchestration::{EffectiveOrchestrationPolicy, OrchestrationOverride, OrchestrationPolicy};
 pub use store::{LoadStatus, SettingsLoad, SettingsStore};
+pub use tui::TuiSettings;
 
 #[cfg(test)]
 mod tests;

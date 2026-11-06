@@ -4,11 +4,11 @@ Two halves (mirrors `plugins/blender/`):
 
 - **`coding_assistants_bridge.py`** + **`.desktop`** — a PyKrita plugin.
   Opens a localhost line-JSON TCP server (default port **9766**).
-- **`crates/mcp-krita`** (`coding-assistants-mcp-krita`) — the MCP server
+- **`crates/mcp/krita`** (`coding-assistants-mcp krita`) — the MCP server
   an agent's config points at. Connects to the plugin per tool call.
 
 ```
-agent ──stdio MCP──► coding-assistants-mcp-krita ──TCP line-JSON──► Krita plugin ──► krita API
+agent ──stdio MCP──► coding-assistants-mcp krita ──TCP line-JSON──► Krita plugin ──► krita API
 ```
 
 ## Install the plugin
@@ -32,14 +32,14 @@ plugin and pass a matching `--port` if you need a different one.
 
 ## Register the MCP server
 
-`coding-assistants-mcp-krita [--port N] [--allow-run-python]`
+`coding-assistants-mcp krita [--port N] [--allow-run-python]`
 
 `hub::mcp` renders this into each client's config. A Claude `.mcp.json`:
 
 ```json
 { "mcpServers": { "coding-assistants-mcp-krita": {
-    "command": "/path/to/coding-assistants-mcp-krita",
-    "args": ["--port", "9766"]
+    "command": "/path/to/coding-assistants-mcp",
+    "args": ["krita", "--port", "9766"]
 } } }
 ```
 

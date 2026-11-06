@@ -8,6 +8,6 @@ mod relaunch;
 
 pub use relaunch::{
     is_pid_running, kill_managed_agy_process, parse_agy_resume_conversation_id,
-    relaunch_and_deliver_gemini_task, relaunch_and_deliver_gemini_task_with,
-    resolve_gemini_continuation_id,
+    record_gemini_worker_reply, relaunch_and_deliver_gemini_task,
+    relaunch_and_deliver_gemini_task_with, resolve_gemini_continuation_id,
 };

@@ -26,6 +26,7 @@ import {
 import { shortenPath } from "./shared";
 import { HarnessCard } from "./agents/HarnessCard";
 import { ProfileSection } from "./agents/ProfileSection";
+import { TeamProfilesSection } from "./agents/TeamProfilesSection";
 
 export interface AgentsTabProps {
   effective: EffectiveSettings;
@@ -214,6 +215,9 @@ export default function AgentsTab({
           {profileError}
         </div>
       )}
+
+      {/* Team & Identity Profiles Section (U20 / #314) */}
+      <TeamProfilesSection onChanged={onChanged} />
 
       {/* Profiles Section */}
       <ProfileSection

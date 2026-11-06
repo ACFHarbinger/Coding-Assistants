@@ -17,7 +17,9 @@
 //! registry (`bridge::channels::claude::workspaces`) keeps working
 //! unchanged; it can move onto this later.
 
+pub mod client;
 pub mod creative;
+pub mod external;
 
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;

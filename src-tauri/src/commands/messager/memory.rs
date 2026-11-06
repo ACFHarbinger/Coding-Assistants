@@ -1,9 +1,81 @@
 //! Durable memory commands.
 use super::store::open_store;
+use crate::client::llm::{LLMClient, ModelConfig};
 use hub::{
-    CompactReport, LinkSuggestion, LinkSuggestionMode, MemoryLinkRecord, MemoryRecord, MemoryScope,
-    MemoryTier,
+    CompactReport, InProcessBus, LinkSuggestion, LinkSuggestionMode, MemoryLinkRecord,
+    MemoryRecord, MemoryScope, MemoryTier,
 };
+use tauri::Manager;
+
+#[derive(serde::Deserialize)]
+pub struct ConsolidateMemoriesArgs {
+    pub model_config: ModelConfig,
+    pub workspace: Option<String>,
+}
+
+/// Consolidates related short-term records only after a provider produces a
+/// summary. Provider failures are intentionally non-destructive skips.
+#[tauri::command]
+pub async fn hub_consolidate_memories(
+    app: tauri::AppHandle,
+    args: ConsolidateMemoriesArgs,
+) -> Result<hub::ConsolidationReport, String> {
+    let bus = app.state::<InProcessBus>().inner().clone();
+    let clusters = tauri::async_runtime::spawn_blocking(|| {
+        open_store()?
+            .consolidation_clusters()
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("consolidation planner panicked: {error}"))??;
+    let mut report = hub::ConsolidationReport {
+        clusters: clusters.len(),
+        consolidated: 0,
+        skipped: 0,
+        notice: None,
+    };
+    for cluster in clusters {
+        let source = cluster
+            .memories
+            .iter()
+            .map(|memory| format!("- {}", memory.body))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let prompt = format!("Summarize these related short-term memories into one concise durable episodic memory. Preserve decisions, constraints, and unresolved work. Do not invent facts.\n\n{source}");
+        let summary = match LLMClient::new()
+            .chat_completion(
+                &args.model_config,
+                &prompt,
+                args.workspace.as_deref(),
+                &bus,
+                "Memory consolidation",
+                None,
+                None,
+            )
+            .await
+        {
+            Ok(summary) if !summary.trim().is_empty() => summary,
+            Ok(_) | Err(_) => {
+                report.skipped += 1;
+                report.notice = Some("Memory consolidation skipped: no provider summary was available; source memories were unchanged.".into());
+                continue;
+            }
+        };
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            open_store()?
+                .apply_consolidation(&cluster, &summary)
+                .map_err(|error| error.to_string())
+        })
+        .await
+        .map_err(|error| format!("consolidation writer panicked: {error}"))?;
+        if result.is_ok() {
+            report.consolidated += 1;
+        } else {
+            report.skipped += 1;
+        }
+    }
+    Ok(report)
+}
 #[derive(serde::Deserialize)]
 pub struct WriteMemoryArgs {
     pub tier: String,
@@ -188,4 +260,101 @@ pub fn hub_apply_link_suggestions(
     open_store()?
         .apply_link_suggestions(&memory_id, mode, limit.unwrap_or(10))
         .map_err(|e| e.to_string())
+}
+
+// ── Vector / Semantic Retrieval (M1) ──────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoredMemoryRecord {
+    #[serde(flatten)]
+    pub record: MemoryRecord,
+    pub score: f32,
+}
+
+#[tauri::command]
+pub async fn hub_search_memories_semantic(
+    query: String,
+    limit: Option<usize>,
+    scope: Option<String>,
+    tier: Option<String>,
+    workspace: Option<String>,
+) -> Result<Vec<ScoredMemoryRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = open_store()?;
+        let scope = scope
+            .as_deref()
+            .map(MemoryScope::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let tier = tier
+            .as_deref()
+            .map(MemoryTier::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let hits = store
+            .search_memories_semantic(
+                &query,
+                limit.unwrap_or(20),
+                scope,
+                tier,
+                workspace.as_deref(),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(hits
+            .into_iter()
+            .map(|(record, score)| ScoredMemoryRecord { record, score })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("search task panicked: {e}"))?
+}
+
+#[tauri::command]
+pub async fn hub_search_memories_hybrid(
+    query: String,
+    limit: Option<usize>,
+    scope: Option<String>,
+    tier: Option<String>,
+    workspace: Option<String>,
+) -> Result<Vec<ScoredMemoryRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = open_store()?;
+        let scope = scope
+            .as_deref()
+            .map(MemoryScope::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let tier = tier
+            .as_deref()
+            .map(MemoryTier::parse)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let hits = store
+            .search_memories_hybrid(
+                &query,
+                limit.unwrap_or(20),
+                scope,
+                tier,
+                workspace.as_deref(),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(hits
+            .into_iter()
+            .map(|(record, score)| ScoredMemoryRecord { record, score })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("hybrid search task panicked: {e}"))?
+}
+
+#[tauri::command]
+pub async fn hub_reindex_memory_vectors() -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        open_store()?
+            .reindex_memory_vectors()
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("reindex task panicked: {e}"))?
 }

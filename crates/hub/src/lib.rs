@@ -5,12 +5,39 @@
 //! See [`store::HubStore`] for the concrete SQLite + file-backed
 //! implementation; this module just re-exports it as the crate's public API.
 
+pub mod a2a;
 mod bridge;
+pub mod bus;
+pub mod github;
+pub mod guardrails;
 mod harness;
 pub mod mcp;
+pub mod net_samples;
+pub mod os_tool;
 mod paths;
+pub mod peer;
+pub mod proc;
+pub mod remote;
+pub mod schedule_trigger;
+pub mod secret;
 mod settings;
 mod store;
+pub mod sync;
+
+/// Serializes tests across modules that mutate `KIMI_CODE_HOME` (Rust runs
+/// `#[test]`s in parallel threads within one process by default). Both
+/// `bridge::kimi`'s and `harness::kimi_spawn`'s tests set/unset this same
+/// process-global env var; without a shared lock one test's `remove_var`
+/// can fire mid-read of another, causing intermittent "no matching session
+/// was found" failures only under a full-suite run, never in isolation.
+#[cfg(test)]
+pub(crate) static KIMI_CODE_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// `harness::hermes_spawn`'s tests redirect `CA_HOME` at the hub usage dir;
+/// serialized the same way so a parallel full-suite run cannot observe a
+/// half-swapped home.
+#[cfg(test)]
+pub(crate) static CA_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub use bridge::channels::chat::{
     deliver_codex_task, latest_codex_thread_id, record_codex_reply, CODEX_AGENT_ID,
@@ -26,6 +53,10 @@ pub use bridge::claude::{
     claude_control_socket_path, deliver_claude_task, find_active_claude_session,
     list_active_claude_sessions, ClaudeAgentSession,
 };
+pub use bridge::cursor::{
+    cursor_agent_transcripts_dir, cursor_projects_dir, deliver_cursor_task,
+    encode_workspace_dir_name, latest_cursor_session_id,
+};
 pub use bridge::gemini::{deliver_gemini_task, gemini_brain_dir, latest_gemini_session_id};
 pub use bridge::grok::{
     acp_initialize, acp_session_load, acp_session_prompt, active_grok_session_for,
@@ -33,33 +64,95 @@ pub use bridge::grok::{
     latest_grok_session_id, leader_socket_available, list_active_grok_sessions, ActiveGrokSession,
     GrokConnectResult,
 };
+pub use bridge::hermes::{
+    deliver_hermes_task, hermes_home_dir, latest_hermes_session_id, latest_usage_session_id,
+};
+pub use bridge::hermes_acp::{
+    acp_initialize as hermes_acp_initialize, acp_permission_deny as hermes_acp_permission_deny,
+    acp_session_new as hermes_acp_session_new, acp_session_prompt as hermes_acp_session_prompt,
+    hermes_acp_args, run_hermes_acp_prompt,
+};
+pub use bridge::kimi::{
+    deliver_kimi_task, kimi_home_dir, kimi_sessions_root, latest_kimi_session_id,
+    latest_kimi_session_id_from, start_kimi_managed_harness,
+};
+pub use bridge::kimi_mode::{apply_kimi_task_mode, resolve_kimi_task_mode, KimiTaskMode};
+pub use bridge::kimi_wire::{
+    capture_kimi_session_from, kimi_capture_agent_id, kimi_session_log_path,
+    kimi_session_wire_logs, recent_kimi_wire_texts, KimiCaptureOutcome, KimiWireCapture,
+};
+pub use bridge::muse::{
+    deliver_muse_task, latest_muse_session_id, muse_session_log_path, muse_session_workspace,
+    muse_sessions_root,
+};
 pub use bridge::presence::{workspace_agent_presence, WorkspaceAgentPresence};
+pub use bridge::qwen::{
+    deliver_qwen_task, encode_workspace_dir_name as encode_qwen_workspace_dir_name,
+    latest_qwen_session_id, qwen_projects_dir, qwen_session_log_path,
+};
 pub use bridge::relaunch::{
-    apply_grok_embedded_scroll_flags, relaunch_harness_in_terminal, resolve_interactive_relaunch,
-    start_managed_harness, RelaunchOutcome, ResolvedRelaunch,
+    apply_grok_embedded_scroll_flags, interactive_resume_args, relaunch_harness_in_terminal,
+    resolve_interactive_relaunch, start_managed_harness, RelaunchOutcome, ResolvedRelaunch,
 };
 pub use bridge::relaunch_claude::start_managed_claude_channel;
 pub use bridge::stop::{stop_managed_harness, StopManagedOutcome};
+pub use bridge::vibe::{
+    deliver_vibe_task, latest_vibe_session_id, vibe_logs_root, vibe_session_id,
+    vibe_session_log_path, vibe_session_workspace,
+};
+pub use bus::{BusEvent, BusReceiver, EventBus, EventSink, InProcessBus};
+pub use github::{
+    empty_project_board, list_issue_branches, list_project_board, list_workspace_branches,
+    parse_agent_issue_branch, set_project_item_status, BoardCard, BoardColumn, BranchList,
+    GitBranch, ProjectBoard, DEFAULT_BOARD_COLUMNS,
+};
+pub use guardrails::{
+    Guardrail, GuardrailMode, GuardrailResult, GuardrailRule, GuardrailSpec, GuardrailStage,
+    GuardrailTrip, GuardrailVerdict,
+};
 pub use harness::{
-    claude_spawn_args, codex_spawn_args, gemini_managed_spawn_args, gemini_spawn_args,
-    grok_spawn_args, inject_harness, inject_harness_with_store, opencode_spawn_args, start_harness,
-    vibe_spawn_args, HarnessId, HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest,
-    HarnessStartResult,
+    claude_spawn_args, codex_spawn_args, cursor_executable, cursor_managed_spawn_args,
+    cursor_spawn_args, gemini_managed_spawn_args, gemini_spawn_args, grok_spawn_args,
+    hermes_disk_session_id, hermes_managed_spawn_args, hermes_spawn_args, hermes_usage_dir,
+    hermes_usage_file, inject_harness, inject_harness_with_store, kimi_disk_session_id,
+    kimi_executable, kimi_managed_spawn_args, kimi_spawn_args, muse_disk_session_id,
+    muse_managed_spawn_args, muse_spawn_args, opencode_spawn_args, qwen_disk_session_id,
+    qwen_managed_spawn_args, qwen_resume_spawn_args, qwen_spawn_args, resolve_hermes_path,
+    start_harness, vibe_disk_session_id, vibe_managed_spawn_args, vibe_spawn_args, HarnessId,
+    HarnessInjectRequest, HarnessInjectResult, HarnessStartRequest, HarnessStartResult,
+};
+pub use os_tool::{
+    approve as approve_os_tool, submit as submit_os_tool, OsToolRequest, OsToolResult,
 };
 pub use paths::default_hub_home;
+pub use secret::{field, fields_for, FieldSpec, OwnerKind, Scope};
 pub use settings::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride, OrchestrationPolicy,
-    ProfileSnapshot, ProviderProfile, SandboxStrictness, SecretReference, SecretSourceKind,
-    SettingsError, SettingsField, SettingsLoad, SettingsSnapshot, SettingsStore, WorkspaceOverride,
-    CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
+    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, EmbeddingProvider,
+    FieldStatus, HarnessSettings, LinkSuggestionMode, LoadStatus, OrchestrationOverride,
+    OrchestrationPolicy, ProfileSnapshot, ProviderProfile, SandboxStrictness, ScorecardVisibility,
+    SecretReference, SecretSourceKind, SettingsError, SettingsField, SettingsLoad,
+    SettingsSnapshot, SettingsStore, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
+    DEFAULT_BACKUP_RETENTION, MAX_BACKUP_RETENTION, MIN_BACKUP_RETENTION,
 };
 pub use store::{
-    parse_memory_references, AgentCard, AgentMetrics, AgentRecord, AttachmentRecord, AuditEvent,
-    BudgetPauseOutcome, BudgetStatus, ChannelRecord, CompactReport, EffectiveAgentPermissions,
-    GateVerdict, GitExportOutcome, HarnessSessionMode, HarnessSessionRegistration,
-    HarnessSessionState, HubError, HubStore, LinkSuggestion, MemoryLinkRecord, MemoryRecord,
-    MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus, PendingGateApproval,
-    ReadMarker, Role, RoleProviderDefault, SendOutcome, ShutdownOutcome, TaskRecord, TaskStatus,
-    WakePolicy, WakeRecord, WakeStatus, WorkSessionRecord, WorkflowStep, UNATTRIBUTED_AUTHOR,
+    parse_memory_references, AbsoluteSpendCommit, ActivityCommandRun, ActivityFileTouch,
+    ActivityFilter, ActivityItem, AgentCard, AgentMetrics, AgentRecord, AgentScorecardRow,
+    AttachmentRecord, Attribution, AuditEvent, BranchTarget, BudgetPauseOutcome, BudgetPolicy,
+    BudgetStatus, BusEntryFilter, BusEntryRecord, ChannelRecord, CompactReport,
+    ConsolidationCluster, ConsolidationReport, CriterionOutcome, DigestDecisionKind,
+    DigestPendingDecision, DigestResolutionCounts, DigestSessionGroup, DigestSummary,
+    EffectiveAgentPermissions, FigureProvenance, GateCheck, GateCheckResult, GateCombinator,
+    GateCriterion, GateSubject, GateVerdict, GitExportOutcome, HarnessCoverage,
+    HarnessScorecardRow, HarnessSessionMode, HarnessSessionRegistration, HarnessSessionState,
+    HubError, HubStore, LinkSuggestion, LinkedAccountRecord, LinkedAccountStatus, MemoryLinkRecord,
+    MemoryRecord, MemoryScope, MemoryTier, MessageKind, MessageRecord, MessageStatus,
+    OversightExceptionRequest, OversightExceptionScope, OwnerDigest, PendingGateApproval,
+    PendingGateEntry, ProbeState, ProviderCallGate, ProviderScorecardRow, ProviderUsage,
+    QuotaSnapshot, ReadMarker, ReviewFinding, ReviewerSignatureRow, Role, RoleProviderDefault,
+    ScheduleStatus, ScheduleTarget, ScheduledTask, ScorecardFigure, ScorecardProbe,
+    ScorecardSecurityEvent, ScorecardView, SendOutcome, ShutdownOutcome, SliceStamp, StepBranch,
+    TaggedSendCounts, TaskRecord, TaskStatus, TaskTimelineEvent, TaskTimelineView, TickOutcome,
+    TickSummary, TimelineEventStatus, TimelineEventType, TimelineFilter, WakePolicy, WakeRecord,
+    WakeStatus, WorkSessionRecord, WorkflowStep, WorkspaceRecord, DEFAULT_PROVIDER_CALL_UNITS,
+    DIGEST_WINDOW_DAYS, FINDING_ORIGINS, FINDING_SEVERITIES, UNATTRIBUTED_AUTHOR,
 };

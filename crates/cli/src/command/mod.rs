@@ -1,13 +1,20 @@
 use crate::app::*;
 use crate::helpers::{audit_file_hash, audit_operation, audit_process_context, default_home};
-use hub::{HubStore, TaskStatus, WakeStatus, WorkflowStep};
+use hub::{BusEntryFilter, HubStore, TaskStatus, WakeStatus, WorkflowStep};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
+mod discord;
+mod guardrail;
 mod harness;
 mod memory;
 mod msg;
 mod preflight;
+mod review;
+mod schedule;
 mod shutdown;
+mod sync;
+mod telegram;
+mod tool;
 mod tui_command;
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let home = cli.home.clone().unwrap_or_else(default_home);
@@ -48,6 +55,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Memory { action } => memory::run(&store, action)?,
         Command::Msg { action } => msg::run(&store, action)?,
+        Command::Review { action } => review::run(&store, action)?,
         Command::Wake { action } => match action {
             WakeCommand::Request {
                 target,
@@ -98,9 +106,45 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             }
         },
         Command::Journal { action } => match action {
-            JournalCommand::Append { agent, entry } => {
-                let path = store.append_private_journal(&agent, &entry)?;
-                println!("appended to {}", path.display());
+            JournalCommand::Append {
+                agent,
+                entry,
+                shared,
+                topic,
+                issue,
+                task,
+            } => {
+                if shared {
+                    let record = store.append_bus_entry(
+                        &agent,
+                        topic.as_deref(),
+                        &entry,
+                        issue.as_deref(),
+                        task.as_deref(),
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&record)?);
+                } else {
+                    let path = store.append_private_journal(&agent, &entry)?;
+                    println!("appended to {}", path.display());
+                }
+            }
+            JournalCommand::List {
+                agent,
+                topic,
+                since,
+                issue,
+                task,
+                limit,
+            } => {
+                let entries = store.list_bus_entries(&BusEntryFilter {
+                    agent,
+                    topic,
+                    since,
+                    issue_ref: issue,
+                    task_id: task,
+                    limit,
+                })?;
+                println!("{}", serde_json::to_string_pretty(&entries)?);
             }
         },
         Command::Task { action } => match action {
@@ -194,6 +238,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         },
         Command::Audit { action } => match action {
             AuditCommand::Watch { root } => {
+                store.ensure_mutable()?;
                 let root = std::fs::canonicalize(&root)?;
                 if !root.is_dir() {
                     anyhow::bail!("audit root is not a directory: {}", root.display());
@@ -284,6 +329,12 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
             set_as_default_workspace_settings,
             set_as_default_session_settings,
         )?,
+        Command::Telegram { action } => telegram::run(&store, action)?,
+        Command::Discord { action } => discord::run(&store, action)?,
+        Command::Sync { action } => sync::run(&store, action)?,
+        Command::Tool { action } => tool::run(&store, &home, action)?,
+        Command::Schedule { action } => schedule::run(&store, action)?,
+        Command::Guardrail { action } => guardrail::run(&store, action)?,
         Command::Preflight { .. } => unreachable!("preflight returns before HubStore::open"),
     }
     Ok(())

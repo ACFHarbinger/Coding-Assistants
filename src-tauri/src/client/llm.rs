@@ -1,24 +1,35 @@
 use crate::agent::AgentEvent;
-use crate::client::providers::{
-    deepseek_unavailable_opencode, opencode_run_args, parse_opencode_models, vibe_home_from_env,
-    vibe_is_authenticated, vibe_programmatic_supported, vibe_run_args,
-    vibe_unavailable_not_installed, vibe_unavailable_unauthenticated, vibe_unavailable_unsupported,
-    VIBE_FALLBACK_MODELS,
+use crate::client::endpoint_auth::http_api_key;
+use crate::client::endpoint_link::{attached_endpoint, AttachedEndpoint, EndpointLinkState};
+use crate::client::events::emit_http_result;
+use crate::client::grok_bot_turn::grok_bot_completion;
+use crate::client::http::{
+    chat_stream, http_catalog_models, is_grok_bot_provider, is_lm_studio_provider,
+    is_openai_provider, is_openrouter_provider, openai_is_authenticated,
+    openai_unavailable_unauthenticated, LM_STUDIO_DEFAULT_BASE, OPENAI_DEFAULT_BASE,
+    OPENAI_DEFAULT_MODEL, OPENAI_REQUEST_TIMEOUT_SECS,
 };
+use crate::client::muse_http::muse_chat_turn;
+use crate::client::openrouter_turn::openrouter_completion;
+use crate::client::providers::{
+    canonical_rate_limit_key, deepseek_unavailable_opencode, is_muse_provider,
+    muse_is_authenticated, muse_unavailable_unauthenticated, opencode_run_args,
+    parse_opencode_models, vibe_home_from_env, vibe_is_authenticated, vibe_programmatic_supported,
+    vibe_run_args, vibe_unavailable_not_installed, vibe_unavailable_unauthenticated,
+    vibe_unavailable_unsupported, MUSE_DEFAULT_MODEL, MUSE_FALLBACK_MODELS, VIBE_FALLBACK_MODELS,
+};
+use crate::client::stream::stream_cli_child;
 use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
+use hub::bus::{InProcessBus, TOPIC_AGENT_EVENT};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
-use tokio::sync::oneshot;
-use tokio::time::Duration;
+use tokio::process::Command;
 
 /// Per-provider token-bucket rate limiter for outbound LLM calls.
 ///
@@ -58,12 +69,18 @@ pub struct ModelConfig {
     pub provider: String,
     pub model: String,
     /// Optional OpenAI-compatible endpoint for an already-running model
-    /// service. When set, the app sends requests to that service and never
-    /// spawns or terminates a child process for this role.
+    /// service. A connected value sends chat completions there and never
+    /// spawns or terminates a child. A disconnected value keeps the draft
+    /// and refuses the call instead of falling through to a process spawn.
     pub endpoint: Option<String>,
+    /// Absent on older saved roles, which stay connected.
+    #[serde(default)]
+    pub endpoint_state: EndpointLinkState,
     pub prompt_file: Option<String>,
     pub rule_file: Option<String>,
     pub workflow_file: Option<String>,
+    #[serde(default)]
+    pub skill_file: Option<String>,
 }
 
 impl Default for ModelConfig {
@@ -72,18 +89,12 @@ impl Default for ModelConfig {
             provider: "opencode".to_string(),
             model: "big-pickle".to_string(),
             endpoint: None,
+            endpoint_state: EndpointLinkState::Connected,
             prompt_file: None,
             rule_file: None,
             workflow_file: None,
+            skill_file: None,
         }
-    }
-}
-
-struct KillOnDrop(Child);
-
-impl Drop for KillOnDrop {
-    fn drop(&mut self) {
-        let _ = self.0.start_kill();
     }
 }
 
@@ -106,20 +117,51 @@ impl LLMClient {
         config: &ModelConfig,
         prompt: &str,
         work_dir: Option<&str>,
-        app: &AppHandle,
+        bus: &InProcessBus,
         source: &str,
         mcp_config_path: Option<&str>,
         token: Option<Arc<AtomicBool>>,
     ) -> Result<String, String> {
-        wait_for_rate_limit(&config.provider).await;
+        // Aliases of one upstream share a rate-limit bucket (`muse`/`meta`
+        // both hit the Model API); every other provider keys on itself.
+        wait_for_rate_limit(canonical_rate_limit_key(&config.provider)).await;
 
-        if let Some(endpoint) = config
-            .endpoint
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return existing_endpoint_completion(endpoint, config, prompt, app, source).await;
+        // A disconnected or invalid saved endpoint blocks every provider,
+        // including OpenRouter and Grok Bot. Those branches accept the
+        // endpoint as an API-base override and would otherwise send a paid
+        // request before the generic attach check.
+        let attached = attached_endpoint(config.endpoint.as_deref(), config.endpoint_state);
+        if let AttachedEndpoint::Blocked(message) = &attached {
+            return Err((*message).to_string());
+        }
+
+        if is_openrouter_provider(&config.provider) {
+            return openrouter_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
+
+        if is_grok_bot_provider(&config.provider) {
+            return grok_bot_completion(
+                config.endpoint.as_deref(),
+                &config.model,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
+        }
+
+        if let AttachedEndpoint::Ready(endpoint) = attached {
+            return direct_http_completion(endpoint, false, config, prompt, bus, source, token)
+                .await;
         }
 
         if config.provider == "ollama" {
@@ -136,25 +178,48 @@ impl LLMClient {
             let child = command
                 .spawn()
                 .map_err(|e| format!("Failed to spawn ollama: {}", e))?;
-            return stream_cli_child(child, app, source, token, "Ollama").await;
+            return stream_cli_child(child, bus.clone(), source, token, "Ollama").await;
         }
 
-        if config.provider == "lm_studio" {
-            return Err(
-                "LM Studio support is partially implemented. Please ensure it is running on 127.0.0.1:1234"
-                    .to_string(),
-            );
+        if is_lm_studio_provider(&config.provider) {
+            return direct_http_completion(
+                LM_STUDIO_DEFAULT_BASE,
+                false,
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         if is_vibe_provider(&config.provider) {
-            return vibe_completion(config, prompt, work_dir, app, source, token).await;
+            return vibe_completion(config, prompt, work_dir, bus, source, token).await;
+        }
+
+        if is_muse_provider(&config.provider) {
+            return muse_completion(config, prompt, work_dir, bus, source, token).await;
+        }
+
+        if is_openai_provider(&config.provider) {
+            return direct_http_completion(
+                OPENAI_DEFAULT_BASE,
+                true,
+                config,
+                prompt,
+                bus,
+                source,
+                token,
+            )
+            .await;
         }
 
         opencode_completion(
             config,
             prompt,
             work_dir,
-            app,
+            bus,
             source,
             mcp_config_path,
             token,
@@ -198,63 +263,127 @@ impl LLMClient {
             }
         }
 
+        // The Model API publishes no listing endpoint: an authenticated
+        // install contributes the fixed cookbook default, mirroring the
+        // Mistral fallback pattern above.
+        if muse_is_authenticated(
+            hub::secret::resolve("MODEL_API_KEY")
+                .as_ref()
+                .map(|s| s.expose()),
+        ) {
+            for model in MUSE_FALLBACK_MODELS {
+                models.push(format!("muse/{model}"));
+            }
+        }
+
+        models.extend(http_catalog_models());
+
         Ok(models)
     }
 }
 
-async fn existing_endpoint_completion(
-    endpoint: &str,
+/// Direct OpenAI-compatible chat (P4). `require_key` is true for the
+/// hosted OpenAI API; attached local endpoints and LM Studio may run
+/// without a key. The key travels only in `Authorization`.
+async fn direct_http_completion(
+    api_base: &str,
+    require_key: bool,
     config: &ModelConfig,
     prompt: &str,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
+    token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
-    let base = endpoint.trim_end_matches('/');
-    let url = if base.ends_with("/v1") {
-        format!("{base}/chat/completions")
-    } else {
-        format!("{base}/v1/chat/completions")
-    };
-    let response = reqwest::Client::new()
-        .post(&url)
-        .json(&serde_json::json!({
-            "model": config.model,
-            "messages": [{ "role": "user", "content": prompt }],
-            "stream": false
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("Existing model process request failed: {e}"))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("Existing model process response read failed: {e}"))?;
-    if !status.is_success() {
-        return Err(format!("Existing model process returned {status}: {body}"));
+    // Only the hosted OpenAI provider may receive the OpenAI credential.
+    // Attached endpoints and LM Studio use the key saved for that address.
+    let api_key_secret = http_api_key(require_key, api_base);
+    if require_key && !openai_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
+        return Err(openai_unavailable_unauthenticated());
     }
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("Existing model process returned invalid JSON: {e}"))?;
-    let output = payload["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("Existing model process response had no choices[0].message.content")?
-        .to_string();
-    let _ = app.emit(
-        "agent-event",
-        AgentEvent {
-            source: source.to_string(),
-            event_type: "response".to_string(),
-            content: output.clone(),
+    let api_key = api_key_secret
+        .as_ref()
+        .map(|secret| secret.expose())
+        .filter(|key| !key.trim().is_empty())
+        .unwrap_or("");
+    let model = config.model.trim();
+    let model = if model.is_empty() {
+        OPENAI_DEFAULT_MODEL
+    } else {
+        model
+    };
+    let bus_delta = bus.clone();
+    let source_delta = source.to_string();
+    let result = chat_stream(
+        api_base,
+        api_key,
+        model,
+        prompt,
+        std::time::Duration::from_secs(OPENAI_REQUEST_TIMEOUT_SECS),
+        token,
+        |delta| {
+            bus_delta.emit(
+                TOPIC_AGENT_EVENT,
+                AgentEvent {
+                    source: source_delta.clone(),
+                    event_type: "stream".to_string(),
+                    content: delta.to_string(),
+                },
+            );
         },
-    );
-    Ok(output)
+    )
+    .await?;
+    emit_http_result(bus, source, &result, false, &config.provider, None);
+    Ok(result.text)
+}
+
+/// Muse Spark chat completion against the Meta Model API (OpenAI-compatible,
+/// per the official cookbook). The key comes from `MODEL_API_KEY` at call
+/// time and travels only in the `Authorization` header — it is never
+/// stored, logged, or placed in argv. An empty configured model falls back
+/// to the cookbook default. `work_dir` is unused. A set `token` cancels
+/// the Model API call and does not publish the assistant text.
+async fn muse_completion(
+    config: &ModelConfig,
+    prompt: &str,
+    _work_dir: Option<&str>,
+    bus: &InProcessBus,
+    source: &str,
+    token: Option<Arc<AtomicBool>>,
+) -> Result<String, String> {
+    if token
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    {
+        return Err("Task cancelled".to_string());
+    }
+    // Resolved from the vault (keychain / file) or env as fallback via
+    // hub::secret::resolve — never stored, logged, or placed in argv. The
+    // key travels only in the outbound `Authorization` header.
+    let api_key_secret = hub::secret::resolve("MODEL_API_KEY");
+    if !muse_is_authenticated(api_key_secret.as_ref().map(|s| s.expose())) {
+        return Err(muse_unavailable_unauthenticated());
+    }
+    // Keep the key in SecretString until reqwest constructs its Authorization
+    // header; do not create an ordinary String that survives the request.
+    let api_key = api_key_secret
+        .as_ref()
+        .map(|secret| secret.expose())
+        .filter(|key| !key.trim().is_empty())
+        .ok_or_else(muse_unavailable_unauthenticated)?;
+    let model = config.model.trim();
+    let model = if model.is_empty() {
+        MUSE_DEFAULT_MODEL
+    } else {
+        model
+    };
+    muse_chat_turn(api_key, model, prompt, bus, source, token).await
 }
 
 async fn vibe_completion(
     config: &ModelConfig,
     prompt: &str,
     work_dir: Option<&str>,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
     token: Option<Arc<AtomicBool>>,
 ) -> Result<String, String> {
@@ -281,8 +410,11 @@ async fn vibe_completion(
         std::env::var("VIBE_HOME").ok().as_deref(),
         std::env::var("HOME").ok().as_deref(),
     );
-    let env_key = std::env::var("MISTRAL_API_KEY").ok();
-    if !vibe_is_authenticated(&config.model, &home, env_key.as_deref()) {
+    // Resolved from the vault or env fallback via hub::secret::resolve —
+    // used for presence only; the actual key is managed by the vibe CLI.
+    let env_key_secret = hub::secret::resolve("MISTRAL_API_KEY");
+    let env_key = env_key_secret.as_ref().map(|secret| secret.expose());
+    if !vibe_is_authenticated(&config.model, &home, env_key) {
         return Err(vibe_unavailable_unauthenticated());
     }
 
@@ -292,6 +424,12 @@ async fn vibe_completion(
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // A key supplied through the vault has to reach Vibe's child process;
+    // otherwise vault-only authentication would pass the presence check but
+    // the CLI itself would run unauthenticated.
+    if let Some(key) = env_key {
+        command.env("MISTRAL_API_KEY", key);
+    }
     if !config.model.trim().is_empty() {
         command.env("VIBE_ACTIVE_MODEL", &config.model);
     }
@@ -299,14 +437,14 @@ async fn vibe_completion(
         command.current_dir(dir);
     }
     let child = command.spawn().map_err(vibe_unavailable_not_installed)?;
-    stream_cli_child(child, app, source, token, "Mistral Vibe").await
+    stream_cli_child(child, bus.clone(), source, token, "Mistral Vibe").await
 }
 
 async fn opencode_completion(
     config: &ModelConfig,
     prompt: &str,
     work_dir: Option<&str>,
-    app: &AppHandle,
+    bus: &InProcessBus,
     source: &str,
     mcp_config_path: Option<&str>,
     token: Option<Arc<AtomicBool>>,
@@ -343,85 +481,5 @@ async fn opencode_completion(
     } else {
         "Opencode"
     };
-    stream_cli_child(child, app, source, token, label).await
-}
-
-async fn stream_cli_child(
-    mut child: Child,
-    app: &AppHandle,
-    source: &str,
-    token: Option<Arc<AtomicBool>>,
-    fail_label: &str,
-) -> Result<String, String> {
-    let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
-    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-    let mut child_guard = KillOnDrop(child);
-    let app_clone = app.clone();
-    let source_clone = source.to_string();
-
-    tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr);
-        let mut line = String::new();
-        while let Ok(n) = reader.read_line(&mut line).await {
-            if n == 0 {
-                break;
-            }
-            let _ = app_clone.emit(
-                "agent-event",
-                AgentEvent {
-                    source: source_clone.clone(),
-                    event_type: "log".to_string(),
-                    content: line.clone(),
-                },
-            );
-            line.clear();
-        }
-    });
-
-    let (cancel_tx, mut cancel_rx) = oneshot::channel();
-    if let Some(token) = token {
-        tokio::spawn(async move {
-            loop {
-                if token.load(Ordering::SeqCst) {
-                    let _ = cancel_tx.send(());
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(500)).await;
-            }
-        });
-    }
-
-    let mut reader = BufReader::new(stdout);
-    let mut line = String::new();
-    let mut full_output = String::new();
-
-    loop {
-        tokio::select! {
-            result = reader.read_line(&mut line) => {
-                 match result {
-                     Ok(0) => break,
-                     Ok(_) => {
-                        let _ = app.emit("agent-event", AgentEvent {
-                            source: source.to_string(),
-                            event_type: "stream".to_string(),
-                            content: line.clone(),
-                        });
-                        full_output.push_str(&line);
-                        line.clear();
-                     }
-                     Err(e) => return Err(e.to_string()),
-                 }
-            }
-            _ = &mut cancel_rx => {
-                 return Err("Task cancelled".to_string());
-            }
-        }
-    }
-
-    let status = child_guard.0.wait().await.map_err(|e| e.to_string())?;
-    if status.success() {
-        Ok(full_output)
-    } else {
-        Err(format!("{fail_label} failed with status: {status}."))
-    }
+    stream_cli_child(child, bus.clone(), source, token, label).await
 }

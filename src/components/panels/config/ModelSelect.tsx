@@ -1,4 +1,5 @@
 import { ModelConfig, RoleConfig, AgentResources } from "./types";
+import { EndpointLinkField } from "./EndpointLinkField";
 
 export const ModelSelect = ({
   index,
@@ -32,12 +33,26 @@ export const ModelSelect = ({
   const roleConfig = role.config;
 
   // The selectable providers are whatever the backend actually offers
-  // (`get_available_models` → `availableModels`), unioned with any known
-  // label ids so a saved role's provider still renders even before models
-  // finish loading. `PROVIDERS` is only the display-name map.
+  // (`get_available_models` → `availableModels`, i.e. opencode-routed
+  // providers plus the hand-special-cased vibe/muse fallbacks), plus the
+  // role's already-saved provider so it doesn't go blank while models are
+  // still loading. `PROVIDERS` (hubState.ts) is a much broader roster/chat
+  // display-name map that also includes harness-only identities (Qwen,
+  // Kimi, Cursor, Codex, Chat, …) with no direct-call adapter at all —
+  // unioning it in here used to offer every one of those as a dead-end
+  // "provider" with a permanently empty model list.
   const providerOptions = Array.from(
-    new Set([...Object.keys(availableModels), ...Object.keys(PROVIDERS)])
+    new Set([
+      ...Object.keys(availableModels),
+      ...(roleConfig.provider ? [roleConfig.provider] : []),
+    ])
   ).sort();
+
+  // Company/product name, not the CLI/model nickname `PROVIDERS` uses
+  // elsewhere (roster and chat correctly keep the short name) — this
+  // dropdown is choosing an upstream API, so the company name is less
+  // misleading here specifically.
+  const providerLabels: Record<string, string> = { ...PROVIDERS, muse: "Meta AI", vibe: "Mistral AI" };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.02)', position: 'relative', transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease' }}
@@ -109,7 +124,7 @@ export const ModelSelect = ({
             </option>
           )}
           {providerOptions.map(id => (
-            <option key={id} value={id}>{PROVIDERS[id] ?? id}</option>
+            <option key={id} value={id}>{providerLabels[id] ?? id}</option>
           ))}
         </select>
       </div>
@@ -141,18 +156,9 @@ export const ModelSelect = ({
         )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <label className="label">Existing process endpoint <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
-        <input
-          value={roleConfig.endpoint || ""}
-          onChange={(e) => onConfigChange(index, 'endpoint', e.target.value)}
-          placeholder="http://127.0.0.1:1234/v1"
-          style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
-        />
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Uses an OpenAI-compatible service already running. Leave blank to let Coding Assistants start the provider.</span>
-      </div>
+      <EndpointLinkField index={index} config={roleConfig} onConfigChange={onConfigChange} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <label
             className="label"
@@ -211,6 +217,26 @@ export const ModelSelect = ({
           >
             <option value="">None</option>
             {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label
+            className="label"
+            style={{ fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-muted)', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+            onClick={() => onPreview('skill', roleConfig.skill_file)}
+            title="Click to preview selected skill"
+          >
+            Skill 🔍
+          </label>
+          <select
+            value={roleConfig.skill_file || ""}
+            onChange={(e) => onConfigChange(index, 'skill_file', e.target.value)}
+            style={{ fontSize: '0.85rem', padding: '0.4rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none' }}
+          >
+            <option value="">None</option>
+            {(resources.skills || []).map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
           </select>
         </div>
       </div>

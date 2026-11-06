@@ -18,7 +18,7 @@ by capability rather than programming language. Research remains under
 5. A2A interoperability (next major milestone)
 6. Daemon/multi-client extraction when justified by a second client
 7. Android monitoring and approval
-8. Someday/research: 3D visualization, GraphQL, and actor frameworks
+8. Someday/research: further 3D visualization, GraphQL, and actor frameworks. One 3D collaboration template is scheduled (`roadmaps/dashboard.md` D6, #387). The old "no 3D until a 2D gap shows up" rule still applies to any scene after that one.
 9. Someday/research: multi-human, multi-team coordination (not started — see
    [`roadmaps/multi_human.md`](roadmaps/multi_human.md); explicitly not
    urgent as of 2026-08-14, revisit once a second developer approaches
@@ -62,6 +62,8 @@ roadmap must add acceptance criteria at least every few entries.
 | Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
 | Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
 | Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
+| Team Scorecard / HITL oversight | [`roadmaps/oversight.md`](roadmaps/oversight.md) | P1 · approved implementation plan |
+| Scheduled Goals / gate-driven prompting | [`roadmaps/schedule.md`](roadmaps/schedule.md) | P1 · approved implementation plan |
 | Multi-human, multi-team coordination | [`roadmaps/multi_human.md`](roadmaps/multi_human.md) | Research · not urgent as of 2026-08-14 |
 
 ## v1.0 Release Milestone
@@ -119,8 +121,8 @@ bumping to `1.0.0`.
   the existing public API, IPC, CLI, and UI contracts. See I8 / #158 in
   [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md).
 
-LAN TCP remains available during early development. Authentication and TLS are
-  later platform work. **`.coding-assistants` multi-device replica transport
+LAN TCP now requires a pairing token (`Authenticate` on connect; vault
+  secret `CA_TCP_AUTH_TOKEN`). TLS remains later platform work. **`.coding-assistants` multi-device replica transport
   starts with Google Drive**, then Firebase Auth + private Storage, Supabase
   Auth + private Storage, and finally Dropbox/OneDrive — see
   [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md). Other unused deployment

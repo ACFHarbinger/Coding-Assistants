@@ -3,7 +3,7 @@ extends EditorPlugin
 
 ## Coding-Assistants Godot bridge.
 ##
-## Opens a localhost line-JSON TCP server that `crates/mcp-godot`
+## Opens a localhost line-JSON TCP server that `crates/mcp/godot`
 ## (`coding-assistants-mcp-godot`) connects to. One request per line:
 ##
 ##   {"op": "<tool>", "args": {...}}\n  ->  {"ok": true, "result": ...}\n

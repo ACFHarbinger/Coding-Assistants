@@ -1,24 +1,37 @@
 // @ts-nocheck
-import { useRef } from "react";
+import { useState, useRef } from "react";
 import { AgentAvatar } from "./AgentAvatar";
-import { attachmentToken, uploadAttachment } from "./attachments";
+import { attachmentToken, uploadAttachment, isUnsupportedOrRawMime } from "./attachments";
 export default function MessageComposer(props: any) {
   const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentNotice, setAttachmentNotice] = useState("");
+  const [attaching, setAttaching] = useState(false);
   const attachFiles = async (files: FileList | File[]) => {
+    if (attaching) return;
+    setAttaching(true);
     setAttachmentError("");
-    for (const file of Array.from(files)) {
-      try {
-        const record = await uploadAttachment(file);
-        const previewUrl = URL.createObjectURL(file);
-        setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
-        setMessageInput((prev: string) => {
-          const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
-          return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
-        });
-      } catch (err) {
-        setAttachmentError(`Failed to attach "${file.name}": ${err}`);
+    setAttachmentNotice("");
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const record = await uploadAttachment(file);
+          const previewUrl = URL.createObjectURL(file);
+          setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
+          if (isUnsupportedOrRawMime(record.mime, record.filename)) {
+            setAttachmentNotice(`"${record.filename}" attached as raw binary (no preview available).`);
+          }
+          setMessageInput((prev: string) => {
+            const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
+            return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
+          });
+        } catch (err: any) {
+          const msg = err instanceof Error ? err.message : String(err?.message || err);
+          setAttachmentError(`Failed to attach "${file.name}": ${msg}`);
+        }
       }
+    } finally {
+      setAttaching(false);
     }
   };
   const removeAttachment = (id: string) => {
@@ -37,16 +50,21 @@ export default function MessageComposer(props: any) {
   ).filter((id: string) => id !== "human" && id !== "system");
   const selectionStyle = (active: boolean, accent: "violet" | "teal" | "amber" = "violet"): React.CSSProperties => {
     const colors = accent === "amber"
-      ? { border: "#facc15", background: "#854d0e", text: "#fefce8" }
+      ? { border: "#f59e0b", background: "rgba(245, 158, 11, 0.22)", text: "#fef08a", glow: "rgba(245, 158, 11, 0.35)" }
       : accent === "teal"
-        ? { border: "#5eead4", background: "#065f46", text: "#ecfdf5" }
-        : { border: "#c4b5fd", background: "#6d28d9", text: "#fff" };
+        ? { border: "#38bdf8", background: "rgba(56, 189, 248, 0.22)", text: "#e0f2fe", glow: "rgba(56, 189, 248, 0.35)" }
+        : { border: "#6366f1", background: "rgba(99, 102, 241, 0.25)", text: "#ffffff", glow: "rgba(99, 102, 241, 0.35)" };
     return {
-      padding: "0.4rem 0.75rem", borderRadius: "7px",
-      border: active ? `2px solid ${colors.border}` : "1px solid #475569",
-      background: active ? colors.background : "#111827", color: active ? colors.text : "#cbd5e1",
-      boxShadow: active ? `0 0 0 2px ${colors.border}33` : "none",
-      fontSize: "0.8rem", cursor: "pointer", fontWeight: active ? 800 : 600,
+      padding: "0.4rem 0.75rem",
+      borderRadius: "7px",
+      border: active ? `2px solid ${colors.border}` : "1px solid rgba(148, 163, 184, 0.24)",
+      background: active ? colors.background : "rgba(15, 23, 42, 0.6)",
+      color: active ? colors.text : "#94a3b8",
+      boxShadow: active ? `0 0 10px ${colors.glow}` : "none",
+      fontSize: "0.8rem",
+      cursor: "pointer",
+      fontWeight: active ? 800 : 600,
+      transition: "all 0.16s cubic-bezier(0.2, 0, 0, 1)",
     };
   };
   return (
@@ -136,6 +154,9 @@ export default function MessageComposer(props: any) {
             {attachmentError && (
               <p style={{ margin: 0, color: "#f87171", fontSize: "0.78rem" }}>{attachmentError}</p>
             )}
+            {attachmentNotice && !attachmentError && (
+              <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.78rem" }}>ℹ {attachmentNotice}</p>
+            )}
 
             {pendingAttachments.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
@@ -160,6 +181,11 @@ export default function MessageComposer(props: any) {
                       <span>📎</span>
                     )}
                     <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pending.record.filename}</span>
+                    {isUnsupportedOrRawMime(pending.record.mime, pending.record.filename) && (
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.08)", padding: "0.1rem 0.25rem", borderRadius: "3px" }}>
+                        raw
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeAttachment(pending.record.id)}
@@ -185,6 +211,7 @@ export default function MessageComposer(props: any) {
                     <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Recipients:</span>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("all")}
                       aria-pressed={recipientMode === "all"}
                       style={selectionStyle(recipientMode === "all")}
@@ -193,6 +220,7 @@ export default function MessageComposer(props: any) {
                     </button>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("subset")}
                       aria-pressed={recipientMode === "subset"}
                       style={selectionStyle(recipientMode === "subset")}
@@ -201,6 +229,7 @@ export default function MessageComposer(props: any) {
                     </button>
                     <button
                       type="button"
+                      className="noc-focusable"
                       onClick={() => setRecipientMode("single")}
                       aria-pressed={recipientMode === "single"}
                       style={selectionStyle(recipientMode === "single")}
@@ -213,6 +242,7 @@ export default function MessageComposer(props: any) {
                         {recipients.map((agentId: string) => {
                           const selected = selectedSubset[agentId] !== false;
                           return <button key={agentId} type="button" aria-pressed={selected}
+                            className="noc-focusable"
                             onClick={() => setSelectedSubset((prev: Record<string, boolean>) => ({ ...prev, [agentId]: !selected }))}
                             style={{ ...selectionStyle(selected, "teal"), display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
                           >
@@ -232,6 +262,7 @@ export default function MessageComposer(props: any) {
 
                     {recipientMode === "single" && (
                       <select
+                        className="noc-focusable"
                         value={singleRecipient}
                         onChange={e => setSingleRecipient(e.target.value)}
                         style={{
@@ -256,7 +287,9 @@ export default function MessageComposer(props: any) {
 
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={attaching}
                   title="Add attachment (image or file)"
                   style={{
                     padding: "0.6rem 0.8rem",
@@ -266,13 +299,14 @@ export default function MessageComposer(props: any) {
                     background: "rgba(0,0,0,0.4)",
                     border: "1px solid var(--border-color)",
                     color: "#fff",
-                    cursor: "pointer"
+                    cursor: attaching ? "not-allowed" : "pointer",
+                    opacity: attaching ? 0.6 : 1,
                   }}
                 >
-                  📎 Attach
+                  {attaching ? "⏳ Attaching…" : "📎 Attach"}
                 </button>
                 <button
-                  className={sending ? "btn-secondary" : "btn-primary"}
+                  className={`${sending ? "btn-secondary" : "btn-primary"} noc-focusable`}
                   onClick={handleSendMessage}
                   disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
                   style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
@@ -286,15 +320,17 @@ export default function MessageComposer(props: any) {
                 <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Intent Tags:</span>
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => setIsTaskTag(prev => !prev)}
                   aria-pressed={isTaskTag}
                   style={selectionStyle(isTaskTag, "amber")}
-                  title="Mark as Task execution request (targets existing team members only)"
+                  title="Mark as Goal (delivers /goal to existing team members only)"
                 >
-                  ⚡ [TASK]
+                  ⚡ [GOAL]
                 </button>
                 <button
                   type="button"
+                  className="noc-focusable"
                   onClick={() => setIsWakeTag(prev => !prev)}
                   aria-pressed={isWakeTag}
                   style={selectionStyle(isWakeTag, "teal")}
@@ -304,13 +340,14 @@ export default function MessageComposer(props: any) {
                 </button>
 
                 <button type="button" aria-pressed={wakePolicyGate}
+                  className="noc-focusable"
                   onClick={() => setWakePolicyGate((previous: boolean) => !previous)}
                   style={{ ...selectionStyle(wakePolicyGate, "amber"), marginLeft: "auto" }}
                 >{wakePolicyGate ? "✓ " : "○ "}Require Human Approval Gate</button>
               </div>
               {!isTaskTag && !isWakeTag && (
                 <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.76rem", lineHeight: 1.4 }}>
-                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>TASK</strong> to request delivery to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
+                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>GOAL</strong> to deliver <code>/goal</code> to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
                 </p>
               )}
             </div>

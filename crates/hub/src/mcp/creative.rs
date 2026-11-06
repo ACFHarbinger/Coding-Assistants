@@ -1,7 +1,7 @@
 //! Track C-9 — per-workspace registration of the creative-tool MCP bridges.
 //!
-//! The `crates/mcp-<tool>` bridges (Blender, Krita, Godot, Aseprite,
-//! Unreal, Unity, OpenToonz) are all built but nothing hands them to an
+//! The `crates/mcp/<tool>` bridges (Blender, Krita, Godot, Aseprite,
+//! Unreal, Unity, OpenToonz, Ableton, CLIP STUDIO PAINT) are all built but nothing hands them to an
 //! agent. This module owns:
 //!
 //! - [`CATALOG`] — static metadata for each bridge (key, binary basename,
@@ -38,6 +38,8 @@ pub enum Transport {
     Subprocess,
     /// Reads project files directly; no live connection (OpenToonz).
     FileParse,
+    /// Local stdio policy bridge. No listening port (CLIP STUDIO PAINT).
+    StdioHost,
 }
 
 /// Static description of one `crates/mcp-<tool>` bridge.
@@ -66,8 +68,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-blender",
         display_name: "Blender",
-        binary: "coding-assistants-mcp-blender",
-        default_args: &["--port", "9765"],
+        binary: "coding-assistants-mcp",
+        default_args: &["blender", "--port", "9765"],
         transport: Transport::Socket,
         port: Some(9765),
         gated_flag: Some("--allow-run-python"),
@@ -76,8 +78,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-krita",
         display_name: "Krita",
-        binary: "coding-assistants-mcp-krita",
-        default_args: &["--port", "9766"],
+        binary: "coding-assistants-mcp",
+        default_args: &["krita", "--port", "9766"],
         transport: Transport::Socket,
         port: Some(9766),
         gated_flag: Some("--allow-run-python"),
@@ -86,8 +88,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-godot",
         display_name: "Godot",
-        binary: "coding-assistants-mcp-godot",
-        default_args: &["--port", "9767"],
+        binary: "coding-assistants-mcp",
+        default_args: &["godot", "--port", "9767"],
         transport: Transport::Socket,
         port: Some(9767),
         gated_flag: Some("--allow-run-script"),
@@ -96,8 +98,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-aseprite",
         display_name: "Aseprite",
-        binary: "coding-assistants-mcp-aseprite",
-        default_args: &[],
+        binary: "coding-assistants-mcp",
+        default_args: &["aseprite"],
         transport: Transport::Subprocess,
         port: None,
         gated_flag: Some("--allow-apply-script"),
@@ -106,8 +108,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-unreal",
         display_name: "Unreal Editor",
-        binary: "coding-assistants-mcp-unreal",
-        default_args: &["--port", "9768"],
+        binary: "coding-assistants-mcp",
+        default_args: &["unreal", "--port", "9768"],
         transport: Transport::Socket,
         port: Some(9768),
         gated_flag: Some("--allow-run-python"),
@@ -116,8 +118,8 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-unity",
         display_name: "Unity Editor",
-        binary: "coding-assistants-mcp-unity",
-        default_args: &["--port", "9769"],
+        binary: "coding-assistants-mcp",
+        default_args: &["unity", "--port", "9769"],
         transport: Transport::Socket,
         port: Some(9769),
         gated_flag: Some("--allow-menu-exec"),
@@ -126,12 +128,32 @@ pub const CATALOG: &[CreativeTool] = &[
     CreativeTool {
         key: "coding-assistants-mcp-opentoonz",
         display_name: "OpenToonz",
-        binary: "coding-assistants-mcp-opentoonz",
-        default_args: &[],
+        binary: "coding-assistants-mcp",
+        default_args: &["opentoonz"],
         transport: Transport::FileParse,
         port: None,
         gated_flag: Some("--allow-render"),
         app_process_names: &["OpenToonz", "opentoonz"],
+    },
+    CreativeTool {
+        key: "coding-assistants-mcp-ableton",
+        display_name: "Ableton Live",
+        binary: "coding-assistants-mcp",
+        default_args: &["ableton", "--port", "9770"],
+        transport: Transport::Socket,
+        port: Some(9770),
+        gated_flag: Some("--allow-run-lom"),
+        app_process_names: &["Live", "Ableton Live"],
+    },
+    CreativeTool {
+        key: "coding-assistants-mcp-clipstudio",
+        display_name: "CLIP STUDIO PAINT",
+        binary: "coding-assistants-mcp",
+        default_args: &["clipstudio"],
+        transport: Transport::StdioHost,
+        port: None,
+        gated_flag: None,
+        app_process_names: &["CLIPStudioPaint"],
     },
 ];
 
@@ -214,6 +236,18 @@ pub fn entry_for(tool: &CreativeTool, binary_path: &Path) -> McpServerEntry {
     }
 }
 
+/// Append `--workspace <path>` so remember/recall are workspace-scoped
+/// (#267). The catalog's `default_args` stay static; this is built per
+/// invocation. An entry that already carries the flag is left as-is.
+fn with_workspace_flag(entry: &McpServerEntry, workspace: &Path) -> McpServerEntry {
+    let mut entry = entry.clone();
+    if !entry.args.iter().any(|arg| arg == "--workspace") {
+        entry.args.push("--workspace".into());
+        entry.args.push(workspace.to_string_lossy().into_owned());
+    }
+    entry
+}
+
 /// Rewrite every [`WORKSPACE_CLIENTS`] config in `workspace` so that
 /// exactly `entries` (already resolved to real binary paths by the
 /// caller) are the app-managed creative bridges: the enabled ones are
@@ -233,6 +267,10 @@ pub fn apply_to_workspace(
             "creative-tool registration requires an absolute workspace path".into(),
         ));
     }
+    let entries: Vec<McpServerEntry> = entries
+        .iter()
+        .map(|entry| with_workspace_flag(entry, workspace))
+        .collect();
     let owned: Vec<&str> = CATALOG.iter().map(|t| t.key).collect();
     let mut written = Vec::new();
     for &client in WORKSPACE_CLIENTS {
@@ -245,7 +283,7 @@ pub fn apply_to_workspace(
         if !existed && entries.is_empty() {
             continue;
         }
-        let rendered = render_replacing(client, &owned, entries, &existing);
+        let rendered = render_replacing(client, &owned, &entries, &existing);
         if existed && rendered == existing {
             continue;
         }
@@ -282,9 +320,28 @@ mod tests {
         let mut seen = BTreeSet::new();
         for t in CATALOG {
             assert!(seen.insert(t.key), "duplicate key {}", t.key);
-            assert_eq!(t.key, t.binary, "key and binary basename should match");
+            assert_eq!(t.binary, "coding-assistants-mcp");
+            assert_eq!(
+                t.default_args.first().copied(),
+                Some(t.key.strip_prefix("coding-assistants-mcp-").unwrap())
+            );
         }
-        assert_eq!(CATALOG.len(), 7);
+        assert_eq!(CATALOG.len(), 9);
+        let clipstudio = tool("coding-assistants-mcp-clipstudio").expect("clipstudio");
+        assert_eq!(clipstudio.transport, Transport::StdioHost);
+        assert_eq!(clipstudio.default_args, &["clipstudio"]);
+        assert!(clipstudio.port.is_none());
+        assert!(clipstudio.gated_flag.is_none());
+    }
+
+    #[test]
+    fn ableton_catalog_entry_uses_port_9770_and_lom_gate() {
+        let ableton = tool("coding-assistants-mcp-ableton").expect("ableton catalog row");
+        assert_eq!(ableton.port, Some(9770));
+        assert_eq!(ableton.gated_flag, Some("--allow-run-lom"));
+        assert_eq!(ableton.transport, Transport::Socket);
+        assert_eq!(ableton.default_args, &["ableton", "--port", "9770"]);
+        assert!(ableton.app_process_names.contains(&"Live"));
     }
 
     #[test]
@@ -378,6 +435,44 @@ mod tests {
     #[test]
     fn apply_rejects_a_relative_workspace() {
         assert!(apply_to_workspace(Path::new("rel/path"), &[]).is_err());
+    }
+
+    #[test]
+    fn apply_appends_workspace_flag_to_each_rendered_entry() {
+        let ws = tempdir().unwrap();
+        apply_to_workspace(ws.path(), &[blender_entry()]).unwrap();
+        let v: Value =
+            serde_json::from_str(&std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        let args: Vec<&str> = v["mcpServers"]["coding-assistants-mcp-blender"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        let path = ws.path().to_str().expect("utf-8 tempdir");
+        assert_eq!(args, ["blender", "--port", "9765", "--workspace", path]);
+    }
+
+    #[test]
+    fn apply_does_not_duplicate_an_existing_workspace_flag() {
+        let ws = tempdir().unwrap();
+        let mut entry = blender_entry();
+        entry.args.extend([
+            "--workspace".into(),
+            ws.path().to_string_lossy().into_owned(),
+        ]);
+        apply_to_workspace(ws.path(), &[entry]).unwrap();
+        let v: Value =
+            serde_json::from_str(&std::fs::read_to_string(ws.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        let args: Vec<&str> = v["mcpServers"]["coding-assistants-mcp-blender"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(args.iter().filter(|a| **a == "--workspace").count(), 1);
     }
 
     #[test]

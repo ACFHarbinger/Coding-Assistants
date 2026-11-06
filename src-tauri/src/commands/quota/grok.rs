@@ -253,6 +253,9 @@ pub(crate) fn grok_quota() -> ProviderQuota {
                         detail: None,
                         windows,
                         fetched_at: now_unix(),
+                        balance: None,
+                        balance_info: None,
+                        local_usage: None,
                     };
                 }
                 last_error = format!("{url} returned no recognizable weekly/monthly windows");

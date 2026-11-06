@@ -1,9 +1,17 @@
 import type { BudgetStatus, EffectiveSettings, SandboxStrictness, SettingsField } from "../types";
 import { FieldRow, StatusPill, ToggleRow, inputStyle, shortenPath } from "./shared";
+import ScheduleTriggerSection from "./ScheduleTriggerSection";
 
 const SANDBOX_LEVELS: SandboxStrictness[] = ["strict", "standard", "permissive"];
 
-type OrchestrationField = "confirm_new_enrollment" | "confirm_broadcast" | "auto_enrollment_allowed" | "export_enabled";
+type OrchestrationField =
+  | "confirm_new_enrollment"
+  | "confirm_broadcast"
+  | "auto_enrollment_allowed"
+  | "export_enabled"
+  | "memory_recall_enabled"
+  | "allow_metered_quota_probes"
+  | "quota_auto_refresh_enabled";
 
 export interface OrchestrationTabProps {
   effective: EffectiveSettings;
@@ -20,6 +28,12 @@ export interface OrchestrationTabProps {
   retentionDaysDraft: string;
   setRetentionDaysDraft: (value: string) => void;
   saveRetentionDays: () => void;
+  memoryRecallLimitDraft: number;
+  setMemoryRecallLimitDraft: (value: number) => void;
+  saveMemoryRecallLimit: () => void;
+  quotaAutoRefreshIntervalDraft: number;
+  setQuotaAutoRefreshIntervalDraft: (value: number) => void;
+  saveQuotaAutoRefreshInterval: () => void;
   resetField: (field: SettingsField) => void;
   budgets: BudgetStatus[];
   budgetAgentIdDraft: string;
@@ -44,6 +58,12 @@ export default function OrchestrationTab({
   retentionDaysDraft,
   setRetentionDaysDraft,
   saveRetentionDays,
+  memoryRecallLimitDraft,
+  setMemoryRecallLimitDraft,
+  saveMemoryRecallLimit,
+  quotaAutoRefreshIntervalDraft,
+  setQuotaAutoRefreshIntervalDraft,
+  saveQuotaAutoRefreshInterval,
   resetField,
   budgets,
   budgetAgentIdDraft,
@@ -85,6 +105,46 @@ export default function OrchestrationTab({
           This workspace{workspaceRoot ? ` (${shortenPath(workspaceRoot)})` : ""}
         </button>
       </div>
+
+      <ToggleRow
+        label="Memory auto-recall (RAG injection)"
+        hint="Hybrid-search the hub store on task prompt text and inject top-K scored memories into model system prompt."
+        checked={effective.orchestration.memory_recall_enabled}
+        onToggle={() => toggleOrchestrationField("memory_recall_enabled", effective.orchestration.memory_recall_enabled)}
+        disabled={busy}
+        pill={scope === "workspace" ? <StatusPill status={effective.orchestration.memory_recall_enabled_status} /> : undefined}
+        resetButton={
+          scope === "workspace" && effective.orchestration.memory_recall_enabled_status === "override" ? (
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.25rem 0.6rem", fontSize: "0.72rem" }} disabled={busy} onClick={() => resetField("memory_recall_enabled")}>
+              Reset to Global
+            </button>
+          ) : undefined
+        }
+      />
+
+      <FieldRow
+        label="Memory auto-recall limit (K memories)"
+        hint="How many top scored memories to inject per task (1–20, default 5)."
+        pill={scope === "workspace" ? <StatusPill status={effective.orchestration.memory_recall_limit_status} /> : undefined}
+      >
+        <input
+          type="number"
+          min={1}
+          max={20}
+          style={{ ...inputStyle, flex: "0 0 100px" }}
+          value={memoryRecallLimitDraft}
+          onChange={(event) => setMemoryRecallLimitDraft(Number(event.target.value))}
+          disabled={busy}
+        />
+        <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={saveMemoryRecallLimit}>
+          Save
+        </button>
+        {scope === "workspace" && effective.orchestration.memory_recall_limit_status === "override" && (
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => resetField("memory_recall_limit")}>
+            Reset to Global
+          </button>
+        )}
+      </FieldRow>
 
       <ToggleRow
         label="Confirm new enrollment"
@@ -150,9 +210,54 @@ export default function OrchestrationTab({
         }
       />
 
+      <ToggleRow
+        label="Allow metered usage probes"
+        hint="A few harnesses (Antigravity CLI, OpenCode Go, Muse) expose no free usage endpoint — checking their quota costs a model turn. Off means those show as unavailable instead of spending tokens; every other provider reads a free endpoint either way. Global-only."
+        checked={effective.orchestration.allow_metered_quota_probes}
+        onToggle={() => toggleOrchestrationField("allow_metered_quota_probes", effective.orchestration.allow_metered_quota_probes)}
+        disabled={busy}
+      />
+
+      <ToggleRow
+        label="Background usage auto-refresh"
+        hint="Periodically refresh provider usage meters in the background. Off by default to avoid spending tokens on metered providers unattended. Global only."
+        checked={effective.orchestration.quota_auto_refresh_enabled}
+        onToggle={() => toggleOrchestrationField("quota_auto_refresh_enabled", effective.orchestration.quota_auto_refresh_enabled)}
+        disabled={busy}
+      />
+
+      <FieldRow
+        label="Usage auto-refresh interval (seconds)"
+        hint="Cadence in seconds when background refresh is enabled (30–3600, default 300). Global only."
+      >
+        <input
+          type="number"
+          min={30}
+          max={3600}
+          step={10}
+          style={{
+            ...inputStyle,
+            flex: "0 0 100px",
+            opacity: effective.orchestration.quota_auto_refresh_enabled ? 1 : 0.5,
+          }}
+          value={quotaAutoRefreshIntervalDraft}
+          onChange={(event) => setQuotaAutoRefreshIntervalDraft(Number(event.target.value))}
+          disabled={busy || !effective.orchestration.quota_auto_refresh_enabled}
+        />
+        <button
+          type="button"
+          className="btn-primary"
+          style={{ marginTop: 0 }}
+          disabled={busy || !effective.orchestration.quota_auto_refresh_enabled}
+          onClick={saveQuotaAutoRefreshInterval}
+        >
+          Save
+        </button>
+      </FieldRow>
+
       <FieldRow
         label="Sandbox strictness"
-        hint="Strict refuses to start or inject a harness that can't run without bypassing approval (currently: vibe)."
+        hint="Strict refuses to start or inject a harness that can't run without bypassing approval (currently: vibe, qwen)."
         pill={scope === "workspace" ? <StatusPill status={effective.orchestration.sandbox_strictness_status} /> : undefined}
       >
         {SANDBOX_LEVELS.map((level) => (
@@ -237,6 +342,8 @@ export default function OrchestrationTab({
           </button>
         </div>
       </div>
+
+      <ScheduleTriggerSection workspaceRoot={workspaceRoot} busy={busy} />
     </>
   );
 }

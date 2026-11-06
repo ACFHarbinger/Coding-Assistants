@@ -259,9 +259,17 @@ pub fn hub_set_team_member(id: String, enrolled: bool) -> Result<hub::AgentRecor
 }
 
 #[tauri::command]
-pub fn hub_create_work_session(name: String) -> Result<hub::WorkSessionRecord, String> {
+pub fn hub_create_work_session(
+    name: String,
+    member_ids: Option<Vec<String>>,
+    workspace_id: Option<String>,
+) -> Result<hub::WorkSessionRecord, String> {
     open_store()?
-        .create_work_session(&name)
+        .create_work_session_with_members_in_workspace(
+            &name,
+            member_ids.as_deref(),
+            workspace_id.as_deref(),
+        )
         .map_err(|e| e.to_string())
 }
 

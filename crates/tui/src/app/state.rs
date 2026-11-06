@@ -1,3 +1,11 @@
+use super::approvals::{ApprovalsState, ChatViewMode};
+use super::composer::ComposerState;
+use super::danger_ops::DangerModalState;
+use super::memory_ops::MemorySearchState;
+use super::recovery_ops::RecoveryModalState;
+use super::session_ops::{CreateSessionState, SessionSwitcherState};
+use super::settings_ops::{SettingsSection, SettingsState};
+use super::views::HubViewMode;
 use crate::model::HubReadModel;
 use crate::options::TuiOptions;
 use crate::theme::{Theme, ThemeName};
@@ -9,6 +17,7 @@ pub enum TabIndex {
     ChatAndMemory = 1,
     SharedHub = 2,
     Settings = 3,
+    HarnessPanes = 4,
 }
 
 impl TabIndex {
@@ -18,6 +27,7 @@ impl TabIndex {
             1 => TabIndex::ChatAndMemory,
             2 => TabIndex::SharedHub,
             3 => TabIndex::Settings,
+            4 => TabIndex::HarnessPanes,
             _ => TabIndex::Orchestrate,
         }
     }
@@ -27,16 +37,18 @@ impl TabIndex {
             TabIndex::Orchestrate => TabIndex::ChatAndMemory,
             TabIndex::ChatAndMemory => TabIndex::SharedHub,
             TabIndex::SharedHub => TabIndex::Settings,
-            TabIndex::Settings => TabIndex::Orchestrate,
+            TabIndex::Settings => TabIndex::HarnessPanes,
+            TabIndex::HarnessPanes => TabIndex::Orchestrate,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            TabIndex::Orchestrate => TabIndex::Settings,
+            TabIndex::Orchestrate => TabIndex::HarnessPanes,
             TabIndex::ChatAndMemory => TabIndex::Orchestrate,
             TabIndex::SharedHub => TabIndex::ChatAndMemory,
             TabIndex::Settings => TabIndex::SharedHub,
+            TabIndex::HarnessPanes => TabIndex::Settings,
         }
     }
 }
@@ -65,6 +77,21 @@ pub struct AppState {
     /// idle splash's animated gradient sweep and spinner glyph. Never
     /// persisted — purely a render-time animation clock.
     pub tick: u64,
+    // T4 Orchestration & Collaboration State
+    pub composer: ComposerState,
+    pub session_switcher: SessionSwitcherState,
+    pub create_session: CreateSessionState,
+    pub approvals: ApprovalsState,
+    // T5 Settings, Memory, Audit, Recovery & Budgets State
+    pub settings: SettingsState,
+    pub danger: DangerModalState,
+    pub recovery: RecoveryModalState,
+    pub memory: MemorySearchState,
+    pub hub_view_mode: HubViewMode,
+    // T6 & T7 Harness Panes & Multi-Instance Coherence State
+    pub harnesses: super::pane_ops::HarnessWorkspaceState,
+    pub is_pane_focused: bool,
+    pub conflict: super::conflict_ops::ConflictState,
 }
 
 impl AppState {
@@ -99,6 +126,10 @@ impl AppState {
             status_message = format!("Persisted default session setting: {:?}", session_id);
         }
 
+        let mut recovery = RecoveryModalState::default();
+        recovery.check_load_status(&read_model.settings_load.status);
+        let conflict = super::conflict_ops::ConflictState::new(&home_dir);
+
         Self {
             active_tab: TabIndex::Orchestrate,
             home_dir,
@@ -120,6 +151,18 @@ impl AppState {
             theme_name: ThemeName::Grok,
             theme: Theme::from_name(ThemeName::Grok),
             tick: 0,
+            composer: ComposerState::default(),
+            session_switcher: SessionSwitcherState::default(),
+            create_session: CreateSessionState::default(),
+            approvals: ApprovalsState::default(),
+            settings: SettingsState::default(),
+            danger: DangerModalState::default(),
+            recovery,
+            memory: MemorySearchState::default(),
+            hub_view_mode: HubViewMode::Tasks,
+            harnesses: super::pane_ops::HarnessWorkspaceState::new(),
+            is_pane_focused: false,
+            conflict,
         }
     }
 
@@ -131,13 +174,42 @@ impl AppState {
         self.status_message = format!("Theme: {}", self.theme_name.label());
     }
 
+    pub fn open_composer(&mut self) {
+        self.composer.open(&self.read_model.team_members);
+    }
+
+    pub fn open_session_switcher(&mut self) {
+        self.session_switcher.open();
+    }
+
+    pub fn open_create_session(&mut self) {
+        self.create_session.open(&self.read_model.team_members);
+    }
+
+    pub fn load_session(&mut self, session_id: String) {
+        self.session_id = Some(session_id.clone());
+        self.session_switcher.close();
+        self.refresh();
+        let name = self
+            .read_model
+            .work_sessions
+            .iter()
+            .find(|s| s.id == session_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| session_id.clone());
+        self.status_message = format!("Loaded work session '{name}' ({session_id}).");
+    }
+
     pub fn refresh(&mut self) {
+        self.conflict.update_stamp(&self.home_dir);
+        self.harnesses.drain_all();
         match HubReadModel::load(
             &self.home_dir,
             self.workspace_path.as_deref(),
             self.session_id.as_deref(),
         ) {
             Ok(model) => {
+                self.recovery.check_load_status(&model.settings_load.status);
                 self.read_model = model;
                 self.status_message = String::from("Refreshed Hub read model.");
                 if self.read_model.effective_settings.tui.bell_notification {
@@ -174,6 +246,82 @@ impl AppState {
             "4" | "settings" => {
                 self.active_tab = TabIndex::Settings;
                 self.status_message = String::from("Navigated to Settings panel.");
+            }
+            "5" | "harness" | "panes" | "term" | "terminal" => {
+                self.active_tab = TabIndex::HarnessPanes;
+                self.status_message = String::from("Navigated to Harness Workspace Panes.");
+            }
+            "launch" => {
+                self.active_tab = TabIndex::HarnessPanes;
+                self.harnesses.is_launcher_open = true;
+                self.status_message = String::from("Opened Harness Launcher dialog.");
+            }
+            "split" => {
+                self.harnesses.toggle_split();
+                let mode = if self.harnesses.is_split_view {
+                    "split tiles"
+                } else {
+                    "single tab"
+                };
+                self.status_message = format!("Harness layout: {mode}.");
+            }
+            "danger" => {
+                self.active_tab = TabIndex::Settings;
+                self.settings.active_section = SettingsSection::DangerZone;
+                self.status_message = String::from("Viewing Settings Danger Zone.");
+            }
+            "profiles" => {
+                self.active_tab = TabIndex::Settings;
+                self.settings.active_section = SettingsSection::Profiles;
+                self.status_message = String::from("Viewing Provider Profiles.");
+            }
+            "memory" | "search memory" | "memories" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = ChatViewMode::MemorySearch;
+                self.status_message = String::from("Viewing Memory Search.");
+            }
+            "audit" | "audit journal" | "journal" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::AuditJournal;
+                self.status_message =
+                    String::from("Viewing Audit Journal with Hash Chain Verification.");
+            }
+            "budgets" | "budget" | "telemetry" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::Budgets;
+                self.status_message = String::from("Viewing Provider & Local Budgets.");
+            }
+            "tasks" => {
+                self.active_tab = TabIndex::SharedHub;
+                self.hub_view_mode = HubViewMode::Tasks;
+                self.status_message = String::from("Viewing Shared Hub Tasks.");
+            }
+            "restore" | "recovery" => {
+                if !self.read_model.backups.is_empty() {
+                    self.recovery.is_open = true;
+                    self.status_message = String::from("Opened Settings Backup Recovery dialog.");
+                } else {
+                    self.status_message = String::from("No settings backups available to restore.");
+                }
+            }
+            "c" | "compose" => {
+                self.open_composer();
+            }
+            "session" | "sessions" | "session switch" | "switch session" => {
+                self.open_session_switcher();
+            }
+            "session new" | "new session" => {
+                self.open_create_session();
+            }
+            "inbox" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = ChatViewMode::HumanInbox;
+                self.status_message = String::from("Viewing Human Direct Inbox.");
+            }
+            "approvals" | "wakes" | "gates" => {
+                self.active_tab = TabIndex::ChatAndMemory;
+                self.approvals.chat_view_mode = ChatViewMode::PendingApprovals;
+                self.status_message = String::from("Viewing Pending Wake Gate Approvals.");
             }
             "r" | "refresh" => {
                 self.refresh();

@@ -64,6 +64,7 @@ export function AgentAvatar(props: {
   size?: number;
   background?: string;
   editable?: boolean;
+  animated?: boolean;
   onChanged?: () => void;
 }) {
   const {
@@ -73,6 +74,7 @@ export function AgentAvatar(props: {
     size = 28,
     background,
     editable = false,
+    animated = false,
     onChanged,
   } = props;
   const [url, setUrl] = useState<string | null>(
@@ -141,8 +143,32 @@ export function AgentAvatar(props: {
     initials
   );
 
+  const indicator = animated ? (
+    <span
+      data-testid="vtuber-indicator"
+      title="Animated Live2D V-Tuber active"
+      style={{
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        width: Math.max(7, Math.round(size * 0.28)),
+        height: Math.max(7, Math.round(size * 0.28)),
+        borderRadius: "50%",
+        background: "#38bdf8",
+        border: "1.5px solid #0f172a",
+        boxShadow: "0 0 6px #38bdf8",
+        pointerEvents: "none",
+      }}
+    />
+  ) : null;
+
   if (!editable) {
-    return <span title={displayName} style={box}>{picture}</span>;
+    return (
+      <span title={displayName} style={box}>
+        {picture}
+        {indicator}
+      </span>
+    );
   }
 
   return (
@@ -171,6 +197,7 @@ export function AgentAvatar(props: {
         }}
       >
         {picture}
+        {indicator}
       </button>
       {avatarAttachmentId && (
         <button
