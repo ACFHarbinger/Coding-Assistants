@@ -1,9 +1,11 @@
 import { invoke } from "../../lib/tauri";
+import type { HubAgent } from "../../app/hubState";
 import type {
   BudgetStatus,
   CreativeToolsStatus,
   EffectiveHarnessSettings,
   EffectiveSettings,
+  ExternalMcpStatus,
   HarnessSettings,
   OrchestrationPatch,
   ProfileSnapshot,
@@ -69,6 +71,27 @@ export function renameSettingsProfile(from: string, to: string): Promise<Profile
 
 export function removeSettingsProfile(name: string): Promise<ProfileSnapshot[]> {
   return invoke<ProfileSnapshot[]>("settings_remove_profile", { name });
+}
+
+// Backing commands for the danger tab (S6 remainder / #132). Each purge is
+// hard and irreversible; the tab gates every one behind typed target
+// confirmation, and each resolves with the deleted row count for the
+// success copy. Cancellation never invokes any of these.
+export function purgeWorkspaceTranscript(workspace: string): Promise<number> {
+  return invoke<number>("settings_purge_workspace_transcript", { workspace });
+}
+
+export function purgeWorkspaceMemories(workspace: string): Promise<number> {
+  return invoke<number>("settings_purge_workspace_memories", { workspace });
+}
+
+export interface WorkspacePurgeReport {
+  messages: number;
+  memories: number;
+}
+
+export function purgeWorkspaceData(workspace: string): Promise<WorkspacePurgeReport> {
+  return invoke<WorkspacePurgeReport>("settings_purge_workspace_data", { workspace });
 }
 
 export function setWorkspaceDefaultProfile(
@@ -162,6 +185,22 @@ export function getCreativeToolsCodexSnippet(workspace: string): Promise<string>
   return invoke<string>("creative_tools_codex_snippet", { workspace });
 }
 
+export function getExternalMcpStatus(workspace: string): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_status", { workspace });
+}
+
+export function setExternalMcpEnabled(
+  workspace: string,
+  key: string,
+  enabled: boolean,
+): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_set_enabled", { workspace, key, enabled });
+}
+
+export function reapplyExternalMcp(workspace: string): Promise<ExternalMcpStatus> {
+  return invoke<ExternalMcpStatus>("external_mcp_reapply", { workspace });
+}
+
 export function getHarnessModelOptions(
   harness: string,
   refresh: boolean = false,
@@ -238,3 +277,129 @@ export function resetWorkspaceHarnessEffort(
     harness,
   });
 }
+
+// ─── Credential commands (#283 / #284) ───────────────────────────────────────
+// None of these functions return or accept a stored secret value. `setCredential`
+// accepts the value write-only (it is dropped in Rust after storage); every
+// response carries only SecretStatus (presence, source, last-updated).
+
+import type { FieldSpec, LinkedAccountStatus, SecretStatus } from "./types";
+
+/** Fetch the static catalog of all known credential/config fields. */
+export function listCredentialFields(): Promise<FieldSpec[]> {
+  return invoke<FieldSpec[]>("settings_list_credential_fields");
+}
+
+/**
+ * Store or replace a credential write-only. `value` is accepted and
+ * immediately forwarded to the vault; it never leaves the Rust layer.
+ * Returns only the non-secret SecretStatus.
+ */
+export function setCredential(fieldId: string, value: string): Promise<SecretStatus> {
+  return invoke<SecretStatus>("settings_set_credential", { fieldId, value });
+}
+
+/**
+ * Remove the stored vault entry for a field. After clearing, the resolver
+ * falls back to the matching environment variable (if any). Idempotent.
+ */
+export function clearCredential(fieldId: string): Promise<SecretStatus> {
+  return invoke<SecretStatus>("settings_clear_credential", { fieldId });
+}
+
+/** Return the non-secret status of a credential: presence, source, last-updated. */
+export function getCredentialStatus(fieldId: string): Promise<SecretStatus> {
+  return invoke<SecretStatus>("settings_get_credential_status", { fieldId });
+}
+
+// ─── Linked external accounts (#284 / #286) ─────────────────────────────────
+
+/**
+ * List all linked external provider accounts (#286), scoped to owner = "local".
+ * Returns non-secret presence and connection metadata for standard providers
+ * (ChatGPT, Claude, Google, etc.).
+ */
+export function listLinkedAccounts(): Promise<LinkedAccountStatus[]> {
+  return invoke<LinkedAccountStatus[]>("hub_list_linked_accounts");
+}
+
+/**
+ * Record an external provider account that uses the vendor's native CLI login
+ * (#286), backed by single-user storage under provisional "local" key.
+ */
+export function linkAccountCli(provider: string, externalLabel?: string | null): Promise<LinkedAccountStatus> {
+  return invoke<LinkedAccountStatus>("hub_link_account_cli", { provider, externalLabel: externalLabel ?? null });
+}
+
+/**
+ * Disconnect / unlink an external provider account (#286).
+ * Deletes the vault entry if present and removes the row from hub.db.
+ */
+export function unlinkAccount(provider: string): Promise<boolean> {
+  return invoke<boolean>("hub_unlink_account", { provider });
+}
+
+// ─── Team & Roster Profiles (U20 / #314) ──────────────────────────────────
+
+/** List all roster identities in the durable store. */
+export function listHubAgents(): Promise<HubAgent[]> {
+  return invoke<HubAgent[]>("hub_list_agents");
+}
+
+/** Update an agent's display name with validation and Settings audit event. */
+export function setAgentDisplayName(agentId: string, displayName: string): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_display_name", { agentId, displayName });
+}
+
+/** Assign or clear an agent's team role (U21 / #315) with Settings audit event. */
+export function setAgentRole(agentId: string, role: string | null): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_role", { agentId, role: role ?? null });
+}
+
+export interface VtuberBridgeStatus {
+  available: boolean;
+  endpoint: string;
+  message: string;
+}
+
+export interface VtuberForwardResult {
+  forwarded: boolean;
+  error?: string | null;
+}
+
+/** Opt an agent into or out of animated V-Tuber avatar presence (U17 / #307). */
+export function setAgentAnimatedAvatar(
+  agentId: string,
+  enabled: boolean,
+  character?: string | null,
+): Promise<HubAgent> {
+  return invoke<HubAgent>("hub_set_agent_animated_avatar", {
+    agentId,
+    enabled,
+    character: character ?? null,
+  });
+}
+
+/** Probes whether local Open-LLM-VTuber instance is accessible (on-demand test only). */
+export function testVtuberBridge(baseUrl?: string): Promise<VtuberBridgeStatus> {
+  return invoke<VtuberBridgeStatus>("hub_test_vtuber_bridge", {
+    baseUrl: baseUrl ?? null,
+  });
+}
+
+/** Forwards assistant speech text to Open-LLM-VTuber direct speak endpoint. */
+export function forwardVtuberSpeech(
+  agentId: string,
+  text: string,
+  character?: string | null,
+  baseUrl?: string,
+): Promise<VtuberForwardResult> {
+  return invoke<VtuberForwardResult>("hub_forward_vtuber_speech", {
+    agentId,
+    text,
+    character: character ?? null,
+    baseUrl: baseUrl ?? null,
+  });
+}
+
+

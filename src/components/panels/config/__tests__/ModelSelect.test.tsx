@@ -13,7 +13,9 @@ const mockProviders: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Gemini",
-  ollama: "Ollama (Local)"
+  ollama: "Ollama (Local)",
+  qwen: "Qwen",
+  muse: "Muse"
 };
 
 describe("ModelSelect Component (#216 follow-up)", () => {
@@ -155,7 +157,8 @@ describe("ModelSelect Component (#216 follow-up)", () => {
     };
 
     const availableModels = {
-      anthropic: ["claude-3-5-sonnet"]
+      anthropic: ["claude-3-5-sonnet"],
+      gemini: ["gemini-1.5-pro"]
     };
 
     const onProviderChange = vi.fn();
@@ -191,5 +194,93 @@ describe("ModelSelect Component (#216 follow-up)", () => {
     const removeBtn = screen.getByRole("button", { name: "Remove" });
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledWith(1);
+  });
+
+  it("does not offer a harness-only identity as a provider when the backend has no models for it (#317 follow-up)", () => {
+    const role: RoleConfig = {
+      name: "Reviewer",
+      config: { provider: "openai", model: "gpt-4o" }
+    };
+    const availableModels = { openai: ["gpt-4o"] };
+
+    render(
+      <ModelSelect
+        index={0}
+        role={role}
+        availableModels={availableModels}
+        onProviderChange={vi.fn()}
+        onConfigChange={vi.fn()}
+        onNameChange={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+        resources={mockResources}
+        PROVIDERS={mockProviders}
+        onAddToTeam={vi.fn()}
+        onRemoveFromTeam={vi.fn()}
+        isOnTeam={false}
+      />
+    );
+
+    // "qwen" is a known PROVIDERS label (roster display name) but has no
+    // entry in availableModels — it must not show up as a selectable,
+    // permanently-empty provider option.
+    expect(screen.queryByRole("option", { name: "Qwen" })).not.toBeInTheDocument();
+  });
+
+  it("still renders an already-saved provider even before the backend confirms it has models", () => {
+    const role: RoleConfig = {
+      name: "Reviewer",
+      config: { provider: "qwen", model: "" }
+    };
+    const availableModels = { openai: ["gpt-4o"] };
+
+    render(
+      <ModelSelect
+        index={0}
+        role={role}
+        availableModels={availableModels}
+        onProviderChange={vi.fn()}
+        onConfigChange={vi.fn()}
+        onNameChange={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+        resources={mockResources}
+        PROVIDERS={mockProviders}
+        onAddToTeam={vi.fn()}
+        onRemoveFromTeam={vi.fn()}
+        isOnTeam={false}
+      />
+    );
+
+    expect(screen.getByRole("option", { name: "Qwen" })).toBeInTheDocument();
+  });
+
+  it("labels muse/vibe by their company name in this dropdown, not their CLI nickname", () => {
+    const role: RoleConfig = {
+      name: "Reviewer",
+      config: { provider: "muse", model: "muse-spark-1.3" }
+    };
+    const availableModels = { muse: ["muse-spark-1.3"] };
+
+    render(
+      <ModelSelect
+        index={0}
+        role={role}
+        availableModels={availableModels}
+        onProviderChange={vi.fn()}
+        onConfigChange={vi.fn()}
+        onNameChange={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+        resources={mockResources}
+        PROVIDERS={mockProviders}
+        onAddToTeam={vi.fn()}
+        onRemoveFromTeam={vi.fn()}
+        isOnTeam={false}
+      />
+    );
+
+    expect(screen.getByRole("option", { name: "Meta AI" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Muse" })).not.toBeInTheDocument();
   });
 });

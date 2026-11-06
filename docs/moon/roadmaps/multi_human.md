@@ -46,6 +46,7 @@ other four files — keeps that cross-cutting nature visible.
 | H4 | Delivery-truth states (`queued → delivered/unavailable → acknowledged → in progress → result submitted → reviewed → verified/returned`) surfaced to the *agent* itself, not only the human-facing UI; queued messages that arrive late replay one at a time (`replay last queued`), never auto-played as a flood | An agent receiving a batch of late-delivered messages gets an explicit "N messages just became deliverable" signal instead of the current unexplained flood — this is the real fix for the channel-bug class both Claude and Grok's reflections independently named | 🔬 Research · extends C14.5's existing `managed`/`observed`/`busy`/`queued`/`unavailable` truthful-transport-state model from harnesses to identities generally |
 | H5 | Cross-team handoff as a distinct, approval-gated object (not a relabeled intra-team handoff): explicit approval from *both* the sending and receiving human, a required second-harness ACK (extending M6's pattern, but the second ACK can be the *other* team's review agent), and a redacted/exported *view* rather than raw journal/`hub.db` access | A handoff from one team's agent to another team's agent creates a pending record in the receiving human's own Journal tab with an Approve/Reject gate, separate from intra-team wake approval | 🔬 Research |
 | H6 | Memory authority/provenance semantics: tag memories `observation` / `proposal` / `human decision` / `team decision` / `repository standard` / `superseded` / `disputed`, with author, approver, scope, and effective date; optionally attach `data_sources` (path, row count, attributed-to) for empirically-derived memories | The Hub *shows* competing decisions across teams rather than silently picking one; an architectural decision is traceable to the data that justified it, not just to other memories | 🔬 Research |
+| H7 | Per-user linked external accounts: a user links an external provider account (ChatGPT / Claude / Google / …) — OAuth device flow or a recorded "uses the vendor CLI's own native login" — and the shared Hub stores which provider identities *that user* holds, keyed to the H2 namespaced identity, never global. The linked-account record holds only `{ provider, external_account_label, connection_kind, linked_at, token_ref }`; the token itself lives in the `platform.md` P12 vault, not in `hub.db`. Unlinking revokes the vault entry and the record together. | A second human on the same Hub links their own ChatGPT/Google account without seeing, using, or colliding with the first human's; every provider call and quota read resolves the *caller's* linked account; a Hub with one user behaves exactly as today | 🔬 Research · **blocked on H2** — the record's primary key is the namespaced identity H2 defines. [#286](https://github.com/ACFHarbinger/Coding-Assistants/issues/286) (2026-09-08 credentials batch, parent [#279](https://github.com/ACFHarbinger/Coding-Assistants/issues/279)) opens this for **design only**: until H2 lands, `settings.md` S8 (#284) stores links single-user under a provisional `local` owner key that the H2 migration will rewrite. **Design document:** [`docs/moon/designs/h7-linked-accounts.md`](../designs/h7-linked-accounts.md) (2026-09-08, OpenCode). No implementer assigned this round. |
 
 ## Explicitly out of scope for this roadmap
 
@@ -64,16 +65,19 @@ other four files — keeps that cross-cutting nature visible.
   scored against a real pair of memories or a real second human, not
   designed by feel.
 
-## A live bug this surfaced, unrelated to timing
+## Historical note: the #155 `agy --prompt` bug (fixed)
 
-Gemini's 2026-08-14 reflection independently re-surfaced
+Gemini's 2026-08-14 reflection re-surfaced
 [**#155**](https://github.com/ACFHarbinger/Coding-Assistants/issues/155)
-(C14.7, already diagnosed and unclaimed): `gemini_managed_spawn_args` passes
-the message body as `--prompt <text>`, but `agy`'s `--prompt` is a bare
-`--print` alias, not a value-taking flag — the real prompt is silently
-dropped, so Hub-dispatched tasks to Gemini may currently be context-free
-regardless of any multi-human work. This is a *now* problem, independent of
-the relaxed timeline above — worth claiming on its own.
+(C14.7). At the time, `gemini_managed_spawn_args` passed the message body as
+`--prompt <text>`, but `agy`'s `--prompt` is a bare `--print` alias, not a
+value-taking flag, so the real prompt was dropped. That is no longer how the
+spawn is built. Checked `gemini_managed_spawn_args` in
+`crates/hub/src/harness/spawn.rs`: the prompt is a positional argument after
+`--print`, not a value of `--prompt`
+(`--output-format stream-json`, optional `--conversation`, optional
+`--model` and `--effort`, then `--print` and the prompt). It is not a
+current delivery problem for this roadmap.
 
 ## Source material
 

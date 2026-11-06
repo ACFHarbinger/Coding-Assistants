@@ -1,6 +1,6 @@
 -- Coding-Assistants Aseprite dispatch script.
 --
--- Run by `crates/mcp-aseprite` as:
+-- Run by `crates/mcp/aseprite` as:
 --   aseprite -b --script dispatch.lua --script-param op=<tool> --script-param <k>=<v> ...
 --
 -- Does one file-oriented operation and prints exactly one JSON line:

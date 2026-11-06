@@ -1,9 +1,11 @@
 use super::model::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, FieldStatus,
-    HarnessSettings, LinkSuggestionMode, OrchestrationOverride, OrchestrationPolicy,
-    ProfileSnapshot, ProviderProfile, SandboxStrictness, SettingsError, SettingsField,
-    SettingsSnapshot, TuiSettings, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA,
-    DEFAULT_BACKUP_RETENTION,
+    EffectiveSettings, EmbeddingProvider, FieldStatus, LinkSuggestionMode, ProfileSnapshot,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SettingsError, SettingsField,
+    SettingsSnapshot, WorkspaceOverride, CURRENT_SETTINGS_SCHEMA, DEFAULT_BACKUP_RETENTION,
+};
+use super::model_harness::{EffectiveHarnessSettings, HarnessSettings};
+use super::orchestration::{
+    EffectiveOrchestrationPolicy, OrchestrationOverride, OrchestrationPolicy,
 };
 use super::profiles::{
     default_efforts_from_table, default_models_from_table, default_profiles_from_table,
@@ -11,6 +13,7 @@ use super::profiles::{
     validate_profile, validate_profile_name, validate_provider, write_default_efforts,
     write_default_models, write_default_profiles, write_harness_fields, write_profile_fields,
 };
+use super::TuiSettings;
 use chrono::Utc;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};

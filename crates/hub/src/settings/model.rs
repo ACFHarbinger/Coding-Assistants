@@ -1,3 +1,8 @@
+use super::model_harness::EffectiveHarnessSettings;
+use super::orchestration::{
+    EffectiveOrchestrationPolicy, OrchestrationOverride, OrchestrationPolicy,
+};
+use super::TuiSettings;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -19,22 +24,41 @@ pub const DEFAULT_BACKUP_RETENTION: u32 = 3;
 pub const MIN_BACKUP_RETENTION: u32 = 1;
 /// Inclusive upper bound for `storage.backup_retention`.
 pub const MAX_BACKUP_RETENTION: u32 = 20;
+/// Default number of recalled memories injected into an agent prompt.
+pub const DEFAULT_MEMORY_RECALL_LIMIT: u8 = 5;
+/// A small ceiling keeps recalled context useful without crowding out the task.
+pub const MAX_MEMORY_RECALL_LIMIT: u8 = 20;
+/// Default seconds between background provider-usage refreshes, when the
+/// background refresh is enabled at all (it is off by default).
+pub const DEFAULT_QUOTA_AUTO_REFRESH_SECS: u32 = 300;
+/// Inclusive lower bound for `orchestration.quota_auto_refresh_interval_secs`
+/// — anything tighter risks hammering a slow adapter every poll.
+pub const MIN_QUOTA_AUTO_REFRESH_SECS: u32 = 30;
+/// Inclusive upper bound — an hour between refreshes is already "barely on".
+pub const MAX_QUOTA_AUTO_REFRESH_SECS: u32 = 3600;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TuiSettings {
-    pub prefix_chord: String,
-    pub unicode_fallback: bool,
-    pub bell_notification: bool,
-    pub high_contrast: bool,
+/// Backend used to create memory-search embeddings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EmbeddingProvider {
+    #[default]
+    Local,
+    Openai,
 }
 
-impl Default for TuiSettings {
-    fn default() -> Self {
-        Self {
-            prefix_chord: "ctrl+b".to_string(),
-            unicode_fallback: false,
-            bell_notification: true,
-            high_contrast: true,
+impl EmbeddingProvider {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "local" => Some(Self::Local),
+            "openai" => Some(Self::Openai),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Openai => "openai",
         }
     }
 }
@@ -47,6 +71,7 @@ pub struct SettingsSnapshot {
     pub backup_retention: u32,
     pub default_workspace: Option<String>,
     pub default_session: Option<String>,
+    pub embedding_provider: EmbeddingProvider,
     pub orchestration: OrchestrationPolicy,
     pub tui: TuiSettings,
 }
@@ -58,6 +83,7 @@ impl Default for SettingsSnapshot {
             backup_retention: DEFAULT_BACKUP_RETENTION,
             default_workspace: None,
             default_session: None,
+            embedding_provider: EmbeddingProvider::Local,
             orchestration: OrchestrationPolicy::default(),
             tui: TuiSettings::default(),
         }
@@ -106,6 +132,9 @@ pub enum SettingsField {
     RetentionDays,
     ExportEnabled,
     LinkSuggestionMode,
+    MemoryRecallEnabled,
+    MemoryRecallLimit,
+    ScorecardVisibility,
 }
 
 /// Per-workspace overrides. Only fields present here differ from the global
@@ -126,6 +155,11 @@ pub struct WorkspaceOverride {
     pub default_efforts: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub orchestration: OrchestrationOverride,
+    /// Kimi-only (#363): slash-command mode applied to plain-language task
+    /// bodies delivered into this workspace's managed Kimi session.
+    /// `None` (the default) means off — bodies are delivered unchanged.
+    #[serde(default)]
+    pub kimi_mode: Option<crate::KimiTaskMode>,
 }
 
 impl WorkspaceOverride {
@@ -136,6 +170,7 @@ impl WorkspaceOverride {
             && self.default_models.is_empty()
             && self.default_efforts.is_empty()
             && self.orchestration.is_empty()
+            && self.kimi_mode.is_none()
     }
 
     pub fn validate(&self) -> Result<(), SettingsError> {
@@ -217,107 +252,36 @@ impl LinkSuggestionMode {
     }
 }
 
-/// Standing orchestration policy (S5 / #131), owned by Settings. Wake
-/// human-gate approval (`allow_auto_wake` / `default_requires_human_gate`)
-/// deliberately stays in `HubStore`'s existing `WakePolicy` — every
-/// C10-C13 wake path already reads it — rather than being duplicated here;
-/// Settings composes both into one typed command surface (see
-/// `src-tauri/src/hub/commands/settings.rs`) so it remains the sole editor
-/// without a risky storage migration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OrchestrationPolicy {
-    /// Confirm before enrolling a not-yet-team agent identity via a wake.
-    pub confirm_new_enrollment: bool,
-    /// Confirm before a broadcast (all/team) send.
-    pub confirm_broadcast: bool,
-    /// Whether a wake may auto-enroll any supported harness identity at all.
-    pub auto_enrollment_allowed: bool,
-    pub sandbox_strictness: SandboxStrictness,
-    /// Transcript/memory retention in days. `None` keeps records indefinitely.
-    pub retention_days: Option<u32>,
-    /// Whether non-destructive export actions are available.
-    pub export_enabled: bool,
-    /// Whether writing a new memory proposes/creates candidate links to
-    /// related existing memories (M-links). See [`LinkSuggestionMode`].
-    pub link_suggestion_mode: LinkSuggestionMode,
+/// Enforced visibility for the team scorecard (T3 / #343).
+/// `OwnerOnly` (default) means only human/owner queries see scorecard data.
+/// `AgentsOwnCard` lets non-human callers see only their own row.
+/// `AllAgents` makes the full scorecard queryable by any agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ScorecardVisibility {
+    #[default]
+    OwnerOnly,
+    AgentsOwnCard,
+    AllAgents,
 }
 
-impl Default for OrchestrationPolicy {
-    fn default() -> Self {
-        Self {
-            confirm_new_enrollment: true,
-            confirm_broadcast: true,
-            auto_enrollment_allowed: true,
-            sandbox_strictness: SandboxStrictness::Standard,
-            retention_days: None,
-            export_enabled: true,
-            link_suggestion_mode: LinkSuggestionMode::Off,
+impl ScorecardVisibility {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OwnerOnly => "owner_only",
+            Self::AgentsOwnCard => "agents_own_card",
+            Self::AllAgents => "all_agents",
         }
     }
-}
 
-impl OrchestrationPolicy {
-    pub fn validate(&self) -> Result<(), SettingsError> {
-        if self.retention_days == Some(0) {
-            return Err(SettingsError::Invalid(
-                "orchestration.retention_days must be greater than 0 when set".into(),
-            ));
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "owner_only" => Some(Self::OwnerOnly),
+            "agents_own_card" => Some(Self::AgentsOwnCard),
+            "all_agents" => Some(Self::AllAgents),
+            _ => None,
         }
-        Ok(())
     }
-}
-
-/// Per-workspace override of [`OrchestrationPolicy`]. Same "absent field
-/// means inherited" contract as [`WorkspaceOverride`].
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OrchestrationOverride {
-    pub confirm_new_enrollment: Option<bool>,
-    pub confirm_broadcast: Option<bool>,
-    pub auto_enrollment_allowed: Option<bool>,
-    pub sandbox_strictness: Option<SandboxStrictness>,
-    pub retention_days: Option<u32>,
-    pub export_enabled: Option<bool>,
-    pub link_suggestion_mode: Option<LinkSuggestionMode>,
-}
-
-impl OrchestrationOverride {
-    pub fn is_empty(&self) -> bool {
-        self.confirm_new_enrollment.is_none()
-            && self.confirm_broadcast.is_none()
-            && self.link_suggestion_mode.is_none()
-            && self.auto_enrollment_allowed.is_none()
-            && self.sandbox_strictness.is_none()
-            && self.retention_days.is_none()
-            && self.export_enabled.is_none()
-    }
-
-    pub fn validate(&self) -> Result<(), SettingsError> {
-        if self.retention_days == Some(0) {
-            return Err(SettingsError::Invalid(
-                "orchestration.retention_days must be greater than 0 when set".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-/// [`OrchestrationPolicy`] merged with an optional workspace override.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EffectiveOrchestrationPolicy {
-    pub confirm_new_enrollment: bool,
-    pub confirm_new_enrollment_status: FieldStatus,
-    pub confirm_broadcast: bool,
-    pub confirm_broadcast_status: FieldStatus,
-    pub auto_enrollment_allowed: bool,
-    pub auto_enrollment_allowed_status: FieldStatus,
-    pub sandbox_strictness: SandboxStrictness,
-    pub sandbox_strictness_status: FieldStatus,
-    pub retention_days: Option<u32>,
-    pub retention_days_status: FieldStatus,
-    pub export_enabled: bool,
-    pub export_enabled_status: FieldStatus,
-    pub link_suggestion_mode: LinkSuggestionMode,
-    pub link_suggestion_mode_status: FieldStatus,
 }
 
 /// Global defaults merged with an optional workspace override — the typed,
@@ -414,68 +378,4 @@ pub struct ProfileSnapshot {
     pub base_url: Option<String>,
     pub secret_source: SecretSourceKind,
     pub secret_badge: String,
-}
-
-/// Global per-harness process settings. A workspace does not copy these.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HarnessSettings {
-    pub harness: String,
-    pub executable: String,
-    pub workdir: Option<String>,
-    pub capture_polling: bool,
-    pub inject_permission: bool,
-    pub default_model: Option<String>,
-    pub default_effort: Option<String>,
-}
-
-impl HarnessSettings {
-    pub fn default_for(harness: &str) -> Result<Self, SettingsError> {
-        let id = crate::HarnessId::parse(harness)
-            .map_err(|err| SettingsError::Invalid(err.to_string()))?;
-        let default_model = match id {
-            crate::HarnessId::OpenCode => Some(crate::harness::DEFAULT_OPENCODE_MODEL.to_string()),
-            crate::HarnessId::DeepSeek => Some(crate::harness::DEFAULT_DEEPSEEK_MODEL.to_string()),
-            crate::HarnessId::Claude => Some("claude-3-7-sonnet-20250219".to_string()),
-            crate::HarnessId::Chat => Some("gpt-4o".to_string()),
-            crate::HarnessId::Gemini => Some("gemini-3.7-flash-medium".to_string()),
-            crate::HarnessId::Grok => Some("grok-4.6".to_string()),
-            crate::HarnessId::Vibe => Some("mistral-medium-3.5".to_string()),
-        };
-        let default_effort = match id {
-            crate::HarnessId::Claude
-            | crate::HarnessId::Chat
-            | crate::HarnessId::Gemini
-            | crate::HarnessId::Grok
-            | crate::HarnessId::OpenCode
-            | crate::HarnessId::DeepSeek => Some("medium".to_string()),
-            crate::HarnessId::Vibe => None,
-        };
-        Ok(Self {
-            harness: id.as_str().to_string(),
-            executable: id.executable().to_string(),
-            workdir: None,
-            capture_polling: true,
-            inject_permission: true,
-            default_model,
-            default_effort,
-        })
-    }
-}
-
-/// Effective harness view: global process settings plus the workspace's
-/// selected default profile, if any.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EffectiveHarnessSettings {
-    pub harness: String,
-    pub executable: String,
-    pub workdir: Option<String>,
-    pub capture_polling: bool,
-    pub inject_permission: bool,
-    pub default_profile: Option<String>,
-    pub default_profile_status: FieldStatus,
-    pub default_profile_badge: Option<String>,
-    pub selected_model: Option<String>,
-    pub selected_model_status: FieldStatus,
-    pub selected_effort: Option<String>,
-    pub selected_effort_status: FieldStatus,
 }

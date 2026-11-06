@@ -24,6 +24,16 @@ pub struct WorkspaceAgentPresence {
     pub chat: bool,
     pub gemini: bool,
     pub grok: bool,
+    pub opencode: bool,
+    pub deepseek: bool,
+    /// Harness id `"vibe"`; the roster/agent id is `"mistral"` (see
+    /// `HarnessId::parse`'s `"vibe" | "mistral"` alias) — the frontend maps
+    /// both keys onto this one field.
+    pub vibe: bool,
+    pub muse: bool,
+    pub cursor: bool,
+    pub qwen: bool,
+    pub kimi: bool,
 }
 
 fn canonical(path: &Path) -> PathBuf {
@@ -37,6 +47,13 @@ fn same_workspace(registered: &str, requested: &Path) -> bool {
 const CHAT_ALIASES: &[&str] = &["chat", "codex"];
 const GEMINI_ALIASES: &[&str] = &["gemini", "agy"];
 const GROK_ALIASES: &[&str] = &["grok"];
+const OPENCODE_ALIASES: &[&str] = &["opencode"];
+const DEEPSEEK_ALIASES: &[&str] = &["deepseek"];
+const VIBE_ALIASES: &[&str] = &["vibe"];
+const MUSE_ALIASES: &[&str] = &["muse"];
+const CURSOR_ALIASES: &[&str] = &["cursor"];
+const QWEN_ALIASES: &[&str] = &["qwen"];
+const KIMI_ALIASES: &[&str] = &["kimi"];
 
 pub fn registered_session_is_present(session: &HarnessSessionRegistration) -> bool {
     if !matches!(
@@ -46,9 +63,17 @@ pub fn registered_session_is_present(session: &HarnessSessionRegistration) -> bo
         return false;
     }
     match session.mode {
-        // A managed session we launched must still be running to be present —
-        // otherwise a dead app-spawned process would show a live dot.
-        HarnessSessionMode::Managed => session.managed_pid.is_some_and(is_pid_running),
+        // A managed worker's pid is only its current task process. A clean
+        // one-shot exit leaves a managed provider session queued for its next
+        // task, so absence of a pid must not turn that live session grey.
+        // Explicit stop/unavailable states above remain authoritative.
+        HarnessSessionMode::Managed => {
+            if let Some(alive) = session.pid_alive {
+                alive
+            } else {
+                session.managed_pid.is_none_or(is_pid_running)
+            }
+        }
         // An observed session is being tracked/captured by the capture-identity
         // gate (that's why its turns appear in the app), so align presence with
         // that and show it present rather than "inactive but messaging".
@@ -82,6 +107,13 @@ pub fn workspace_agent_presence(
         gemini: any_managed_live(&sessions, workspace, GEMINI_ALIASES),
         grok: any_managed_live(&sessions, workspace, GROK_ALIASES)
             || (grok_leader.leader_live && grok_leader.live_standalone.is_some()),
+        opencode: any_managed_live(&sessions, workspace, OPENCODE_ALIASES),
+        deepseek: any_managed_live(&sessions, workspace, DEEPSEEK_ALIASES),
+        vibe: any_managed_live(&sessions, workspace, VIBE_ALIASES),
+        muse: any_managed_live(&sessions, workspace, MUSE_ALIASES),
+        cursor: any_managed_live(&sessions, workspace, CURSOR_ALIASES),
+        qwen: any_managed_live(&sessions, workspace, QWEN_ALIASES),
+        kimi: any_managed_live(&sessions, workspace, KIMI_ALIASES),
     })
 }
 
@@ -106,6 +138,7 @@ mod tests {
             managed_pid: pid,
             writer_owner: None,
             writer_acquired_at: None,
+            pid_alive: None,
         }
     }
 
@@ -144,5 +177,47 @@ mod tests {
             Some(u32::MAX),
         );
         assert!(!registered_session_is_present(&stopped));
+    }
+
+    #[test]
+    fn queued_managed_session_without_a_current_worker_is_still_present() {
+        let queued = session(
+            "gemini",
+            HarnessSessionMode::Managed,
+            HarnessSessionState::Queued,
+            None,
+        );
+        assert!(registered_session_is_present(&queued));
+    }
+
+    /// Regression: `WorkspaceAgentPresence` originally only carried the four
+    /// original harnesses (claude/chat/gemini/grok), so every harness
+    /// onboarded since (opencode/deepseek/vibe/muse/cursor/qwen/kimi) always
+    /// showed a grey "not connected" dot regardless of real session state —
+    /// `any_managed_live` was already fully generic, the struct just never
+    /// called it for them. Qwen is the reported case; the alias wiring is
+    /// identical for the rest, so one live-and-one-absent pair per new
+    /// field is sufficient coverage.
+    #[test]
+    fn newer_harnesses_report_live_through_the_same_generic_path() {
+        let workspace = Path::new("/abs/repo");
+        let ready_qwen = session(
+            "qwen",
+            HarnessSessionMode::Managed,
+            HarnessSessionState::Ready,
+            Some(std::process::id()),
+        );
+        assert!(any_managed_live(
+            std::slice::from_ref(&ready_qwen),
+            workspace,
+            QWEN_ALIASES
+        ));
+        // A qwen session must not satisfy an unrelated alias set.
+        assert!(!any_managed_live(
+            std::slice::from_ref(&ready_qwen),
+            workspace,
+            KIMI_ALIASES
+        ));
+        assert!(!any_managed_live(&[], workspace, QWEN_ALIASES));
     }
 }

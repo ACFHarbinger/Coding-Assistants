@@ -3,7 +3,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { isNearNewestEdge, newestEdgeScrollTop } from "./utils";
 import { renderMessageBody } from "./attachments";
 export default function MessageStream(props: any) {
-  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, readMarkers } = props;
+  const { activeChannel, channelMessages, contextMenu, mutating, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, sortOrder, hoveredMessageId, setHoveredMessageId, getAgentInfo, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, linkedMemories, onJumpToMemory, startReply, openMessageMenu, readMarkers } = props;
   return (
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div
@@ -69,7 +69,7 @@ export default function MessageStream(props: any) {
                       </span>
 
                       {/* Intent Badges */}
-                      {(msg.kind === "task" || msg.body.includes("[TASK]")) && (
+                      {(msg.body.startsWith("/goal") || msg.body.includes("[GOAL]")) && (
                         <span style={{
                           fontSize: "0.68rem",
                           padding: "0.1rem 0.45rem",
@@ -79,7 +79,7 @@ export default function MessageStream(props: any) {
                           border: "1px solid rgba(234, 179, 8, 0.4)",
                           fontWeight: 700
                         }}>
-                          ⚡ TASK
+                          ⚡ GOAL
                         </span>
                       )}
                       {(msg.kind === "wake" || msg.body.includes("[WAKE]")) && (
@@ -108,9 +108,13 @@ export default function MessageStream(props: any) {
                         }}>
                           To: {msg.to_agent === "team"
                             ? "All Team"
-                            : (msg.recipient_agents?.length
+                            : (msg.recipient_agents && msg.recipient_agents.length > 1
                               ? msg.recipient_agents.join(", ")
-                              : msg.to_agent)}
+                              : (msg.recipient_agents?.length === 1
+                                ? msg.recipient_agents[0]
+                                : (msg.to_agent.includes(",")
+                                  ? msg.to_agent.split(",").map((s: string) => s.trim()).join(", ")
+                                  : msg.to_agent)))}
                         </span>
                       )}
 
@@ -271,10 +275,7 @@ export default function MessageStream(props: any) {
                           <button
                             key={memory.id}
                             className="btn-secondary"
-                            onClick={() => {
-                              setShowMemoryDrawer(true);
-                              setMemorySearch(memory.id.slice(0, 8));
-                            }}
+                            onClick={() => onJumpToMemory(memory.id)}
                             style={{ justifySelf: "start", padding: "0.3rem 0.55rem", fontSize: "0.75rem", color: "var(--accent)" }}
                             title="Open this durable memory in the Memory Hub"
                           >

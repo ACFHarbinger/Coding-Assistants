@@ -1,5 +1,9 @@
 use super::*;
 
+mod consolidation;
+pub mod embeddings;
+#[allow(unused_imports)]
+pub use consolidation::{ConsolidationCluster, ConsolidationReport};
 mod memories;
 mod memory_links;
 pub use memory_links::{LinkSuggestion, UNATTRIBUTED_AUTHOR};
@@ -14,12 +18,36 @@ pub struct WorkflowStep {
     #[serde(default)]
     pub role: Option<String>,
     pub instruction: String,
-    /// How many times this step may be re-dispatched after `retry_task` (default 0).
+    /// How many times this step may be re-dispatched after a full-stage
+    /// `retry_task` (default 0). Retrying queued `pending_agents` does not
+    /// consume this budget.
     #[serde(default)]
     pub max_retries: u32,
     /// When set, adjacent steps with the same group run as one parallel stage.
     #[serde(default)]
     pub parallel_group: Option<String>,
+    /// Remote peer (`host:port`) that executes this step via the TCP
+    /// delegation client (P11a / #334). `None` (the default) dispatches
+    /// locally as before. Old JSON without this key still parses.
+    #[serde(default)]
+    pub peer: Option<String>,
+    /// P20 (#367): optional next-stage selector evaluated when this step's
+    /// stage completes, with Schedule's gate evaluator. `None` keeps the
+    /// linear advance. Omitted from JSON when unset so older readers see
+    /// the same payload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<StepBranch>,
+    /// Optional sub-task ID to run to completion as this step (P19 / #366).
+    /// Parent advances only after the child TaskRecord reaches a terminal status.
+    #[serde(default)]
+    pub sub_task_id: Option<String>,
+    /// Structured metadata for handoff (reason/priority) — audit/logging only (P17 / #361).
+    #[serde(default)]
+    pub handoff_metadata: Option<serde_json::Value>,
+    /// Opt-in context filter for the receiving session (P17 / #361).
+    /// Examples: "strip_tools", "cap:10". None = full context (default).
+    #[serde(default)]
+    pub context_filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +58,10 @@ pub enum TaskStatus {
     Done,
     Cancelled,
     Failed,
+    /// A2A INPUT_REQUIRED — interrupted, waiting for human input (bridged to WakePolicy).
+    InputRequired,
+    /// A2A AUTH_REQUIRED — interrupted, waiting for auth.
+    AuthRequired,
 }
 
 impl TaskStatus {
@@ -40,6 +72,8 @@ impl TaskStatus {
             Self::Done => "done",
             Self::Cancelled => "cancelled",
             Self::Failed => "failed",
+            Self::InputRequired => "input_required",
+            Self::AuthRequired => "auth_required",
         }
     }
 
@@ -50,12 +84,37 @@ impl TaskStatus {
             "done" => Ok(Self::Done),
             "cancelled" => Ok(Self::Cancelled),
             "failed" => Ok(Self::Failed),
+            "input_required" | "input-required" => Ok(Self::InputRequired),
+            "auth_required" | "auth-required" => Ok(Self::AuthRequired),
             other => Err(HubError::Invalid(format!("unknown task status: {other}"))),
         }
     }
 
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Done | Self::Cancelled | Self::Failed)
+    }
+
+    /// Running, or paused on the existing wake gate (not a second gate).
+    pub fn is_in_progress(self) -> bool {
+        matches!(
+            self,
+            Self::Running | Self::InputRequired | Self::AuthRequired
+        )
+    }
+
+    /// Status stored after a local dispatch.
+    ///
+    /// `wake_requires_gate` is `WakePolicy`'s flag on the wake `request_wake`
+    /// just wrote. The task's own approval request is input; a policy-forced
+    /// gate when the task did not ask is auth. No gate stays running.
+    pub fn after_local_dispatch(task_requires_approval: bool, wake_requires_gate: bool) -> Self {
+        if !wake_requires_gate {
+            Self::Running
+        } else if task_requires_approval {
+            Self::InputRequired
+        } else {
+            Self::AuthRequired
+        }
     }
 }
 
@@ -70,8 +129,13 @@ pub struct TaskRecord {
     pub steps: Vec<WorkflowStep>,
     pub created_at: String,
     pub updated_at: String,
-    /// Last handoff message id produced by advance/retry, if any.
+    /// Last real handoff of the current stage — the externally-visible
+    /// result pointer (A2A `task_result`, UI). Never the screening stamp.
     pub last_message_id: Option<String>,
+    /// Internal output-screening cursor. Set once before any parallel
+    /// member can respond; never overwritten mid-stage; never a result.
+    #[serde(default)]
+    pub output_watermark_id: Option<String>,
     /// Per-stage attempt counts (`"0" → 1` after first dispatch).
     pub attempts: std::collections::HashMap<String, u32>,
     /// Agents still outstanding in the current parallel stage (empty when sequential).
@@ -151,6 +215,29 @@ pub struct BudgetPauseOutcome {
 pub struct ShutdownOutcome {
     pub summary_path: PathBuf,
     pub handoff_message_id: String,
+}
+
+/// Default reservation for one in-process provider call (P10). Units stay
+/// caller-defined; this is the orchestrator's call-count mapping.
+pub const DEFAULT_PROVIDER_CALL_UNITS: f64 = 1.0;
+
+/// Runtime budget gate (P10) decided before a provider call starts.
+/// Affine/compile-time budget types remain postponed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "decision", rename_all = "snake_case")]
+pub enum ProviderCallGate {
+    /// No `agent_budgets` row — the caller may proceed and records nothing.
+    Unmetered,
+    /// Units reserved. `status.paused` means this was the last allowed call;
+    /// make it, then write the C6 handoff before starting another.
+    Reserved { status: BudgetStatus },
+    /// Already paused, or this reservation would exceed the limit. Do not
+    /// call. `handoff` is set only when this call was the first exhaustion.
+    Stopped {
+        status: BudgetStatus,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        handoff: Option<BudgetPauseOutcome>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,4 +346,6 @@ pub struct HarnessSessionRegistration {
     pub managed_pid: Option<u32>,
     pub writer_owner: Option<String>,
     pub writer_acquired_at: Option<String>,
+    #[serde(default)]
+    pub pid_alive: Option<bool>,
 }

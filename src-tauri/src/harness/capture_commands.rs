@@ -70,6 +70,42 @@ pub async fn hub_capture_codex_session(
 }
 
 #[tauri::command]
+pub async fn hub_capture_muse_session(
+    workspace: String,
+    muse_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::muse::MuseCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::muse::capture_muse_session(
+            &store,
+            &PathBuf::from(workspace),
+            muse_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn hub_capture_cursor_session(
+    workspace: String,
+    cursor_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::cursor::CursorCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::cursor::capture_cursor_session(
+            &store,
+            &PathBuf::from(workspace),
+            cursor_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn hub_capture_gemini_session(
     workspace: String,
     gemini_session_id: Option<String>,
@@ -81,6 +117,78 @@ pub async fn hub_capture_gemini_session(
             &store,
             &PathBuf::from(workspace),
             gemini_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn hub_capture_qwen_session(
+    workspace: String,
+    qwen_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::qwen::QwenCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::qwen::capture_qwen_session(
+            &store,
+            &PathBuf::from(workspace),
+            qwen_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn hub_capture_vibe_session(
+    workspace: String,
+    vibe_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::vibe::VibeCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::vibe::capture_vibe_session(
+            &store,
+            &PathBuf::from(workspace),
+            vibe_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn hub_capture_kimi_session(
+    workspace: String,
+    kimi_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::kimi::KimiCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::kimi::capture_kimi_session(
+            &store,
+            &PathBuf::from(workspace),
+            kimi_session_id.as_deref(),
+            hub_session_id.as_deref(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn hub_capture_hermes_session(
+    workspace: String,
+    hermes_session_id: Option<String>,
+    hub_session_id: Option<String>,
+) -> Result<crate::harness::hermes::HermesCaptureOutcome, String> {
+    capture_blocking(move || {
+        let store = open_store()?;
+        crate::harness::hermes::capture_hermes_session(
+            &store,
+            &PathBuf::from(workspace),
+            hermes_session_id.as_deref(),
             hub_session_id.as_deref(),
         )
     })

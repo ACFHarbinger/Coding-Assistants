@@ -3,7 +3,7 @@
     blender --background --python plugins/blender/smoke.py
 
 Registers the add-on, then drives a handful of ops through a real localhost
-socket (the same path `crates/mcp-blender` uses) and checks the replies.
+socket (the same path `crates/mcp/blender` uses) and checks the replies.
 Exits non-zero on failure. Not run in CI — no Blender on the runners.
 """
 

@@ -1,2086 +1,672 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+All notable changes to this project are documented in this file. It follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Entries are grouped by release. Inside each release, changes are grouped by
+type: **Added** (new features), **Changed** (changes in existing
+functionality), **Deprecated** (soon-to-be-removed features), **Removed**
+(removed features), **Fixed** (bug fixes), and **Security** (vulnerability
+fixes).
+
+For release notes, build artifacts, and downloadable packages, see the
+project's GitHub Releases page.
 
 ## [Unreleased]
 
-### Fixed
+### Added — 2026-10-29 (interactive visualization roadmap)
 
-- **Desktop UI — Provider & Model Dropdown Edge Handling (#216 follow-up):**
-  - Added fallback option and validation hint in `ModelSelect.tsx` when a provider has zero discovered models or offline CLI tools, preventing blank dropdown rendering.
-  - Preserved custom selected models not present in returned provider lists.
-  - Added focused Vitest/RTL regression tests verifying component rendering and interaction across populated and empty model catalogs.
+- Scheduled the interactive chart epic [#381](https://github.com/ACFHarbinger/Coding-Assistants/issues/381): live Orion data and interaction ([#382](https://github.com/ACFHarbinger/Coding-Assistants/issues/382)), ribbon flow ([#383](https://github.com/ACFHarbinger/Coding-Assistants/issues/383)), mirrored bars ([#384](https://github.com/ACFHarbinger/Coding-Assistants/issues/384)), timeline replay ([#385](https://github.com/ACFHarbinger/Coding-Assistants/issues/385)), workspace hex map ([#386](https://github.com/ACFHarbinger/Coding-Assistants/issues/386)), and one 3D collaboration template ([#387](https://github.com/ACFHarbinger/Coding-Assistants/issues/387)). The old D6 research gate is lifted for that single 3D view. Replay runs only while the user plays or scrubs. Cinematic orbit is a toggle on that 3D view, and while the toggle is off its animation cost is zero. No chart code in this change.
 
-- **Desktop UI — Maximized Window Scrolling (#213):**
-  - Eliminated scroll crawling, jumping, and momentum stalls in maximized desktop windows by removing `content-visibility: auto` and `contain-intrinsic-size` layout shifts on `.main-content` child panels.
-  - Constrained the flex scroller with `min-height: 0`, moved the decorative gradient off a fixed WebKit layer, and disabled scroll-surface shadows/backdrop blur without viewport-size media-query gates.
-  - Added `overflow-x: hidden`, explicit auto scrolling, and `overscroll-behavior-y: contain` to prevent horizontal micro-shifts and queued smooth scrolling.
+### Fixed — 2026-10-29 (#164 doc contradictions)
+
+- Reconciled the M7 desktop-UI note (keeping the 0.55 → 0.35 threshold history), recorded the Gemini `agy` argv bug as fixed history, and listed `crates/hub`, `crates/cli`, `crates/tui`, `crates/claude`, and `crates/mcp` in the layout docs. Topic browse is the Memory subtab of Chat & Memory. The `agy` argv note includes optional `--model` and `--effort`, and the priority note points at the landed C14.7 row.
+
+### Added — 2026-10-29 (P8 per-endpoint API key, #88, Grok)
+
+- Each OpenAI-compatible address can have its own vault API key. The role stores the URL only. Chat and the health check send `Authorization: Bearer` when that key is set, and send no key when it is not. A blank key does not send an `Authorization` header. `OPENAI_API_KEY` is not sent to an attached address. Two roles that use the same address share that key. Disconnect keeps the key. Provider-specific adapters remain. P8 is not complete.
+
+### Added — 2026-10-29 (Kimi task mode, #363)
+
+- A Kimi task can be delivered with `/swarm` or `/goal`. A body that already starts with `/` stays intact, and a plain Kimi task still gets the Hub `/goal [GOAL]` marker. Live `/swarm` output is still unverified.
+
+### Changed — 2026-10-27 (reviewed harness accounting and cancellation)
+
+- Landed reviewed one-shot budget gates, Hermes/Kimi/Qwen measured spend recording, and Muse request cancellation, including their review corrections.
+
+### Added — 2026-10-29 (C6 Vibe session spend, #84, Grok)
+
+- **Vibe `meta.json` `session_*` totals record `provider.usage` as the increase over the previous snapshot for that session.** Gauges (`context_tokens`, `last_turn_*`, steps, and tool-call counts) are ignored. A repeated poll of the same absolute snapshot does not insert another row. A counter that returns to an earlier total is a new generation and is recorded again. A later snapshot that omits a bucket keeps the last known absolute, so that bucket is not billed again when it reappears. Two overlapping polls cannot both bill from the same baseline: the check and the write share one immediate transaction, and a stale baseline is recomputed. C6 is not complete.
+
+
+### Fixed — 2026-10-27 (Codex review)
+
+- The Vibe spawn gate checks the Mistral roster budget instead of an unmetered `vibe` row.
+
+
+- Hermes output tokens include the reasoning subset; count it once. Distinct report-file versions with identical usage remain billable while unchanged repolls deduplicate.
+
+
+### Added — 2026-10-27 (C6 Hermes usage-file spend, #84, Grok)
+
+- **Each Hermes Agent `--usage-file` report records `provider.usage` once per session and file bytes.** Estimated dollars are not stored. A missing token key stays absent, a present zero is kept, and a failed or incomplete report still records tokens that are present. Re-reading the same bytes does not insert another row; a later overwrite with different bytes adds a row and keeps the old one. A failed session export still records those reports, then returns the export error. A missing usage directory records nothing. Ready for review on `agent/grok-84-hermes`. Not merged. C6 is not complete.
+- Kimi spend keys use the resolved disk-session identity so managed and disk aliases cannot double-count one event.
+
+
+### Added — 2026-10-27 (C6 CLI-harness spend recording, Kimi slice, #84, Grok)
+
+- **Kimi `usage.record` turns record `provider.usage` once per session+time+line.** A wire.jsonl line with `type` `usage.record` and `usageScope` `turn`, or with no scope, records `inputOther` as prompt tokens, `output` as completion tokens, and `inputCacheRead` plus `inputCacheCreation` as cache tokens. Provider and actor are `kimi`. Cost stays absent. A re-poll of the same line does not insert another row. Two records with the same time but different bytes record twice. Any other scope, a non-usage line, or a record with no measured field writes nothing. A missing token key stays absent. A tool-only turn with a `usage.record` still records, and chat-text capture is unchanged. Ready for review on `agent/grok-84-kimi`. Not merged. Other harnesses are unchanged.
+
+- Qwen retains last-known cumulative buckets across partial snapshots and records measured usage even when the chat transcript is unavailable.
+
+### Added — 2026-10-27 (Muse Spark cancellation, #88)
+
+- **Muse Spark honours the orchestration cancel flag.** A flag that is already set returns `Task cancelled` and does not open the Model API socket or publish an assistant response. A flag set while the reqwest call is in flight drops that future, which aborts the connection, and the body is not published. Ready for review on `agent/grok-88-cancel`; not merged. Authentication configuration and provider-specific adapters remain open on #88.
+
+### Fixed — 2026-10-27 (feature branch consolidation)
+
+- Preserve immutable audit history during the Task-to-Goal migration; migration reruns retain a valid hash chain.
+- Suppress repeated Codex token snapshots without dropping new turns with identical usage or reset counters.
+- Keep endpoint addresses locked during Connect, Disconnect, and health checks so pending responses cannot overwrite a newer draft or describe a different address.
+
+### Added — 2026-10-27 (C6 Qwen session usage, #84, Grok)
+
+- **Qwen `usage_record.jsonl` lines record `provider.usage` for that session.** A later line for the same session records only the increase (equal totals record nothing; a lower total records the new value as a reset). Chat jsonl has no token fields and is not used as a usage source. Ready for review on `agent/grok-84-qwen`. Not merged. C6 is not complete.
+
+### Added — 2026-10-27 (OpenAI-compatible endpoint health check, #88)
+
+- A connected Orchestrate role can check `{base}/models` without sending an API key. HTTP 2xx is reachable. HTTP 401 or 403 is reachable and needs authentication. Any other HTTP status is reachable but unexpected. Refused connections, timeouts, and DNS failures are unreachable. Disconnected, blank, and non-http(s) addresses do not open a socket. Ready for review on `agent/grok-88-health`; not merged. Streaming, authentication configuration, provider-specific adapters, and cancellation remain.
+### Added — 2026-10-27 (Settings S7 acceptance, #133, Grok)
+
+- **S7 acceptance tests, ready for review on `agent/grok-133`.** Symlink-distinct workspace overrides stay separate, a permission-denied save keeps the last good file, and a first-release `settings.toml` loads without a pre-version dialect. Redacted effective settings omit a planted keychain secret. A wrong or empty danger-zone confirmation does not delete transcripts, memories, or settings. Not landed on main.
+### Added — 2026-10-27 (P19 nested sub-workflows, #366, Grok)
+
+- **A workflow step can run another task to completion (#366).** When `WorkflowStep.sub_task_id` is set, that step does not send a handoff, request a wake, or dispatch through `peer`. A pending child is started with `advance_task`. The parent stage stays open until the child is terminal (`open_agents` marker `\u{1f}sub:<id>`, not a roster agent). `done` continues the normal advance path, including branches, guardrails, and gates. `failed` or `cancelled` fails the parent. A cycle, a self-wait, or nesting deeper than 8 fails the parent and sends nothing. Ready for review on `agent/grok-366`; not merged.
+### Changed — 2026-10-26 (chat Goal send, #380, Grok)
+
+- The chat Task intent is now Goal. A Goal still delivers only to an enrolled member and does not spawn. The stored body and the harness prompt start with `/goal [GOAL]`. `ca msg tag --goal` is an alias of `--task`. The Shared Hub overview keeps the Tasks name and counts accepted wakes and goals combined, plus each count on its own. Workflow task rows stay under Workflow tasks. `migrations/rename-task-marker-to-goal.sh` rewrites mutable chat `[TASK]` markers to `[GOAL]` once per PC. Historical audit metadata and hashes remain unchanged; display-label renaming must not alter hashed payloads.
+### Added — 2026-10-27 (C6 CLI-harness spawn gates, remaining harnesses, #84, Grok)
+
+- **Remaining CLI harness one-shot spawns are budget-gated.** Grok, Gemini, OpenCode, DeepSeek, Vibe, Muse, Cursor, Qwen, Kimi, and Hermes now take the same stop-before-spawn decision as Claude and Codex, through one helper (`one_shot_spawn_gate`) in `crates/hub/src/harness/inject.rs`. `HarnessId::Chat` still meters agent id `codex`. Every other harness meters `harness.as_str()`. A stopped or paused budget returns `status: "stopped"` with no pid and does not spawn. Task-only delivery and bare `inject_harness` (no store) stay ungated. Claude and Codex stopped-detail wording is unchanged. Spend recording is still only Claude and Codex. Ready for review on `agent/grok-84-gates`. Not merged. C6 is not complete.
+
+### Added — 2026-10-27 (C6 CLI-harness spend recording + gate, Codex slice, #84, Grok)
+
+- **Codex is the second #84 harness with spend recording and a pre-spawn budget gate.** Claude Code remains the first slice. Each Codex `event_msg` / `token_count` line records `last_token_usage` when that object is present (the turn's own tokens). A line that only has session-cumulative `total_token_usage` records the increase over the previous total in that file, so later snapshots are not summed on top of earlier ones. `input_tokens` → prompt, `output_tokens` → completion, `cached_input_tokens` → cache; a missing key stays absent, and a line with no token object or a zero increase writes nothing. The durable key is the transcript session plus that event's id, or a hash of the raw line when the event has no id, so a re-poll does not insert another row. Identical assistant text with two event ids still records twice. Tool-only lines with measured tokens record usage while chat-text capture is unchanged. A Codex one-shot spawn (`HarnessId::Chat`, agent id `codex`) reserves one budget unit through `codex_spawn_gate` before the process starts; a stopped or paused budget returns `status: "stopped"` with no pid. Task-only delivery and bare `inject_harness` (no store) stay ungated. Ready for review on `agent/grok-84-codex`. Not merged. Other CLI harnesses still do not report spend or stop before spawn. C6 is not complete for those harnesses.
+
+### Added — 2026-10-26 (C6 CLI-harness spend recording + gate, first slice, #84, Mistral)
+
+- **The Claude Code CLI harness now auto-records spend and is budget-gated like the in-process HTTP providers.** In-process providers (OpenRouter, Grok Bot, generic `llm.rs`) already wrote `provider.usage` per completion and gated calls through `gate_provider_call`; the CLI-subprocess swarm had no equivalent. First slice per the #84 delegation: (1) each Claude transcript response records measured tokens (input/output/cache read + creation) and model once per transcript session and provider message id (`message.id`, otherwise the transcript entry id), including tool-only responses — repeated polls do not double-count, and transcripts without usage figures invent no zero-cost rows; (2) a Claude one-shot spawn (wake/plain send) now reserves one budget unit through `claude_spawn_gate` before the process starts — a stopped agent gets a durable C6 handoff and `status: "stopped"` with no process spawned. Shared plumbing for later harnesses: `HarnessTurnUsage` + `record_harness_turn_usage` in `src-tauri/src/harness/spend.rs`.
+
+### Fixed — 2026-10-26 (Claude spend identity, #84)
+
+- Identical assistant text no longer drops the second response's usage. Tool-only and thinking-only responses that report tokens are recorded. The durable key is the transcript session plus the provider message id, not the chat-capture content hash.
+
+### Fixed — 2026-10-26 (OpenAI-compatible endpoint disconnect, #88)
+
+- Disconnect is checked before OpenRouter and Grok Bot dispatch. A disconnected or invalid saved endpoint does not send a request to that address.
+
+### Added — 2026-10-26 (OpenAI-compatible endpoint connect/disconnect, #88)
+
+- Orchestrate roles can connect to an already-running OpenAI-compatible HTTP endpoint and disconnect without stopping that service. A disconnected address is kept and is not replaced by a spawned provider. Authentication configuration and provider-specific adapters remained open after that slice.
+
+### Fixed — 2026-10-26 (browser and CLIP STUDIO integration review)
+
+- Browser panes serialize native view lifetimes across remounts, apply current visibility and geometry, reject mapped local IP addresses, and keep unrestricted clipboard access disabled.
+- CLIP STUDIO output polling revalidates paths on each poll and hashes the same validated handle with bounded reads and before/after checks. Late links and path replacement fail closed. Desktop Creative Tools status includes the ninth, stdio-only CLIP STUDIO entry.
+
+
+### Added — 2026-10-25 (CLIP STUDIO PAINT MCP)
+
+- **CLIP STUDIO PAINT creative-tool bridge.** `coding-assistants-mcp clipstudio` registers in the Creative Tools catalog as `coding-assistants-mcp-clipstudio`. It exposes the 33-tool 5.1.2 production catalog. File exchange is limited to three configured roots (`CSP_MCP_CONFIG` or `--config`). `csp_preflight` issues a 45-second single-use token. Screenshot, window, and input tools fail closed: this bridge does not attest `CLIPStudioPaint.exe` and does not send pointer or keyboard input. `csp_open_document` validates an input-root file and does not launch CSP. Symlink components are rejected on the original path before canonicalization. Windows hard-link checks use `GetFileInformationByHandle`. Output stability compares full-resolution modification times.
+### Added — 2026-10-25 (Terminal Grid DeepSeek GUI browser pane)
+
+- **DeepSeek web GUI in the Terminal Grid.** A grid leaf can host the DeepSeek web app (`https://chat.deepseek.com/`) in a child webview. The address bar accepts other public https pages. Loopback, private, localhost, credentialed, and non-https targets are rejected. The page is not on a capability remote-URL list, so it cannot call app commands. Closing or dragging the pane hides or closes that webview. Harness PTY panes are unchanged.
+
+### Added — 2026-10-25 (A2A webhook notifications, #364)
+
+- **A2A task push configuration and notifications.** Authenticated callers can create, get, list, and delete per-task HTTP(S) callback configurations. A notifier posts task status changes with bounded retries and no redirects. Webhook credentials remain in the vault; interrupted tasks preserve `input-required` / `auth-required` on both polling and push responses. Missing configured credentials prevent delivery. Registry/credential snapshots and replacement-aware acknowledgement keep concurrent reconfiguration consistent.
+
+### Fixed — 2026-10-25 (branch integration review)
+
+- **Task selection ignores stale responses.** Switching or removing a selected task invalidates earlier timeline requests. A resumed task no longer inherits its task-level pause alert from historical events.
+
+### Added — 2026-10-25 (P17 structured handoff + context filter, #361)
+
+- **Structured handoff metadata and an opt-in context filter (#361).** A workflow step or scheduled task can carry `handoff_metadata` (`reason` / `priority` only). Dispatch writes that object to `handoff.metadata` and does not put it in the handoff body or use it to pick a recipient. `context_filter` (`strip_tools`, `cap:<n>`, `summarize`, comma-separated, applied left to right) reduces the prior section seeded into the handoff: upstream non-system messages, then the advance note or re-prompt detail. The instruction is left intact. With no filter, the body stays the instruction plus `Prior note:` when a note was passed. `summarize` is a line/character digest, not a model call. `ca schedule create` accepts `--handoff-metadata` and `--context-filter`; `hub_schedule_create` accepts the same optional fields.
+
+### Fixed — 2026-10-25 (P17 review, #361)
+
+- **Schedule handoff options commit with the row.** `create_scheduled_task_with_handoff` validates metadata and the filter, then inserts them in the same transaction as the schedule. Invalid options leave no row. A blank filter means no filter.
+- **Tool records match before attribution.** `strip_tools` sees the stored line, then the renderer adds `from -> to (kind):`. A first-line `Tool:` record or a JSON tool object still strips.
+- **Steps after `summarize` still run.** The digest becomes the next input, so `summarize,cap:1` keeps one digest line and `summarize,strip_tools` can still drop tool noise in that digest.
+- **Filtered handoffs do not reseed themselves.** Dispatch stores the unfiltered source on `messages.context_body` (soft-migrated). Later priors prefer that column, so a filtered body is not nested into the next seed. Parallel members send the preflight snapshot.
+
+### Fixed — 2026-10-25 (C14.9 distinct recipient records for repeated tagged channel sends, #157, Mistral)
+
+- **Concurrent same-subject fan-outs no longer fail with `UNIQUE constraint failed: message_recipient_sets.subject`.** The deterministic collision — a second send reusing the same channel subject — was already fixed on 2026-08-13; this closes the remaining check-then-insert race: every Tauri command and CLI process opens its own SQLite connection, so two sends reusing the same channel subject could both pass the old existence check and then one insert failed. `HubStore::reserve_recipient_subject` (`crates/hub/src/store/messages/queries.rs`) makes the reservation the insert itself: the channel prefix is kept for transcript grouping, and a bounded number of fresh UUID suffixes is retried on the primary-key collision, so every fan-out — repeated or racing — gets a distinct durable recipient-set row and the messages/outcomes reference the subject actually recorded. Covered by a trigger-simulated mid-flight collision test plus repeated-send tests on both the tagged and session paths.
+
+### Added — 2026-10-25 (D1 / #87 Task timeline & collaboration visualization)
+
+- **D1 (#87): Task Timeline & Collaboration 2D visualization (`DashboardPanel.tsx`, `TaskTimelineView.tsx`, `TimelineLaneChart.tsx`, `TimelineEventList.tsx`, `TimelineDetailDrawer.tsx`, `crates/hub/src/store/activity/timeline.rs`, Gemini):** Extended the Shared Hub Dashboard beyond aggregate counters with a complete 2D chronological task execution timeline. Added read-only `hub_get_task_timeline` query over existing `tasks`, `messages`, `wake_requests`, and `audit_events` tables without migrations or schema changes. Dashboard subtab bar now provides a "Task Timeline (D1)" view featuring:
+  - Responsive 2D agent swimlanes showing chronological event execution across agents with status-coded chips and handoff connectors.
+  - Chronological event feed view with actor/target direction, step sequence numbers, and status indicators.
+  - Granular multi-criteria filtering by agent, event type (`task_created`, `workflow_step`, `transition`, `handoff`, `message`, `wake`, `tool`, `file`, `provider_call`, `gate`), status (`completed`, `in_progress`, `paused`, `failed`, `pending`), and full-text search.
+  - Prominent visual alerts for paused workflows (awaiting human gate sign-off or user input) and task failure reasons.
+  - Deep event inspection drawer presenting detailed attributes, timestamps (`.tabular-nums`), and structured JSON payload metadata.
+  - Strict compliance with NOC telemetry tokens, glass-morphism styling, and ≤500 LoC per hand-authored file limit. Unit tested in `TaskTimelineView.test.tsx` and `crates/hub/src/store/tests/activity.rs`.
+
+### Fixed — 2026-10-25 (D1 review, #87)
+
+- **Timeline status uses the stored task and wake vocabulary.** Workflow chips compare `workflow_stages` and the current stage's `open_agents` / `pending_agents`. `pending` / `running` / `done` / `cancelled` / `failed` / `input_required` / `auth_required` map onto the timeline enum. The view status stays the stored task status. The pause alert follows the current interrupted task status, so historical pauses do not keep a resumed task paused. Delivered wakes are completed and cancelled wakes are failed. Terminal tasks do not raise the task-level pause alert.
+
+### Added — 2026-10-23 (UI NOC telemetry & visual-polish roadmap, U26 / `ui_polish.md`)
+
+- **V8 (#379): Orchestrate Panel — Setup 2-column bento, Terminal Grid 28px pane header chrome, Schedule & Channels bridge tiles (`ConfigPanel.tsx`, `HarnessTerminalGrid.tsx`, `TerminalPane.tsx`, `SchedulePanel.tsx`, `ChannelsTab.tsx`, Gemini):** Completed the final slice of the Deep-Space NOC visual language rollout. Restructured `ConfigPanel.tsx` with a responsive 2-column bento grid. Standardized a 28px telemetry header bar per terminal pane in `TerminalPane.tsx` with PID liveness dot and instance key snippet. Modernized `SchedulePanel.tsx` with tactile switch filters and `.tabular-nums` counts. Upgraded `ChannelsTab.tsx` bridge tiles with `nocPanelStyle` and live connection pills. Closes parent epic #371.
+- **V7 (#378): Work Panel — Dashboard roster telemetry tiles, Tasks stage stepper, Board headers, & Branches diff bars (`DashboardPanel.tsx`, `ActivityView.tsx`, `TaskTab.tsx`, `BoardTab.tsx`, `BranchesTab.tsx`, Gemini):** Modernized Work views using the shared NOC kit. Updated `DashboardPanel.tsx` with `<SubtabBar>`, `<KpiCardGrid>`, and Orion-style per-agent roster cards with `<Meter>` utilization bars. Restyled `ActivityView.tsx` with dense cards and `<EmptyStateChip>`. Built a visual workflow pipeline stage stepper in `TaskTab.tsx` tracking parallel stage status (`open`/`pending`/`input_required`/`auth_required`/`done`). Restyled `BoardTab.tsx` column headers with `.tabular-nums` count pills and priority borders. Added proportional two-tone diff stat bars in `BranchesTab.tsx`. Added test suite in `TaskTab.test.tsx`.
+- **V6 (#377): Operations → Wakes & MCP Tools NOC status tiles and empty-state chips (`WakesPanel.tsx`, `McpToolsPanel.tsx`, Gemini):** Upgraded `WakesPanel.tsx` and `McpToolsPanel.tsx` to `nocPanelStyle` cards with semantic severity badges (`pending` warn, `delivered` ok, `cancelled` idle), `.tabular-nums` timestamps, `<StalenessDot>` telemetry indicators, and `<EmptyStateChip>` on empty lists and unconfigured workspace roots. Added unit test suite in `WakesPanel.test.tsx`.
+- **V5 (#376): Chat & Memory adaptive NOC polish — Sidebar, Composer switches, Memory links, & Journal stream (`MessagerSidebar.tsx`, `MessageComposer.tsx`, `MessagerMemoryTab.tsx`, `JournalPanel.tsx`, Gemini):** Applied lighter NOC chrome to Chat & Memory views while preserving reading width and message rhythm. Added NOC presence dots (`#10b981` managed, `#6366f1` observed, `#94a3b8` idle) and cyan-tinted unread badges in `MessagerSidebar.tsx`. Converted Recipient Mode switches and Intent Tags into tactile console switches with keyboard focus rings in `MessageComposer.tsx`. Styled `MessagerMemoryTab.tsx` cards with `nocPanelStyle` and rendered similarity scores with explicit-tone `Meter`. Modernized `JournalPanel.tsx` audit rows with `nocCardDenseStyle`, category pills (`os_tool.*` = amber, `budget.*` = cyan, `task.*` = indigo, `oversight.*` = purple), monospace chain hashes, and `<EmptyStateChip>`. Added test suite in `JournalPanel.test.tsx`.
+- **V4 (#375): Operations → Usage & Scorecard hybrid NOC polish (`UsagePanel.tsx`, `HubCharts.tsx`, `ScorecardTab.tsx`, `ScorecardDigest.tsx`, `ScorecardOversight.tsx`, Gemini):** Restyled `UsagePanel.tsx` with a 3-card `KpiCardGrid` (*Active Budgets*, *Paused Agents*, *Live Quota Providers* with no fabricated spend sum), inline budget control bar, and per-agent `nocCardDenseStyle` rows with explicit-tone `Meter`. Upgraded `HubCharts.tsx` with dual-ring `ConcentricArcGauge` dials for multi-window quota providers alongside horizontal bars. Modernized `ScorecardTab.tsx`, `ScorecardDigest.tsx`, and `ScorecardOversight.tsx` with tabular numbers, budget utilization meters, and strict preservation of `#303` spend-cap wording and `#340` provenance chips (`measured`/`estimated`/`unknown`). Added test suite in `UsagePanel.test.tsx`.
+- **V3 (#374): App cockpit header extraction (`AppHeader.tsx`) + `<SubtabBar>` adoption across top-level panels (`App.tsx`, `AppHeader.tsx`, `WorkPanel.tsx`, `OperationsPanel.tsx`, `MessagerPanel.tsx`, Gemini):** Extracted `AppHeader.tsx` from `src/App.tsx` (dropping `App.tsx` from 498 to 432 LoC) with segmented HUD navigation, active glow indicator, responsive 2-row wrapping at ≤1024px without page scroll, zero inline `backdropFilter`, and `<HudStatusPill>` badges for Workspace Root (basename visible, full path in tooltip & focus) and Active Session. Replaced legacy `tabBtn` implementations across `WorkPanel.tsx`, `OperationsPanel.tsx`, `MessagerPanel.tsx`, and `App.tsx` with `<SubtabBar>`, reducing file line counts (`MessagerPanel.tsx` to 473 LoC, `OperationsPanel.tsx` to 209 LoC) and adding unit test coverage in `src/components/common/__tests__/AppHeader.test.tsx`.
+- **V2 (#373): Shared telemetry primitive kit (`src/components/common/telemetry/`) + dev-only `KitGallery` (`KitGallery.tsx`, `KitGallery.test.tsx`, Gemini):** Promoted `nocPanelStyle`, `ConcentricArcGauge`, explicit-tone `Meter`, `ProvenanceBadge`, `TelemetryTimeSeriesCard`, `MonitorTileStrip`, `KpiCardGrid`, `StalenessDot`, `HudStatusPill`, `EmptyStateChip`, and `SubtabBar` into `src/components/common/telemetry/` (reducing `SystemGauges.tsx` to 247 LoC and `SystemTelemetryCharts.tsx` to 156 LoC with full backwards-compatible re-exports) and added the `import.meta.env.DEV`-guarded `KitGallery` reference component and tests.
+- **V1 (#372): Shared NOC tokens (`src/index.css` + `src/components/common/telemetry/tokens.ts`), `SystemTab` gauge/chart migration, and drift + WCAG AA contrast Vitests (`tokens.test.ts`, Gemini):** Paired `:root` `--noc-*` custom properties and `tokens.ts` constants across color/severity, 3-tier typography, spacing/elevation/radius, motion choreography, and `:focus-visible` ring; migrated `SystemGauges.tsx`, `SystemTelemetryCharts.tsx`, and `SystemTab.tsx` to `tokens.ts` (re-tinting `#64748b` → `#94a3b8` so micro-labels pass ≥4.5:1 WCAG AA contrast on `#0f172a`/`#090e1a`); guarded by `tokens.test.ts`.
+- **Operations → System NOC telemetry wall (`6988da6`, Gemini):** Redesigned `SystemTab.tsx` with `SystemGauges.tsx` and `SystemTelemetryCharts.tsx` (`MonitorStatusStrip`, `KpiMetricStrip`, multi-ring `ConcentricArcGauge`, dual-arc per-core `CpuCoreRadialGauge`, and `TelemetryTimeSeriesCard` SVG area/line charts with gridlines, time ticks, mean reference line, and legends).
+- **UI Aesthetic & NOC Visual-Polish Synthesis (`docs/moon/roadmaps/ui_polish.md`, `ui.md` U26, `ui-visualization-brainstorm.md`, Gemini):** Synthesized the Claude, Gemini, Grok, Kimi, Mistral, and Codex proposals with the owner's 4 locked decisions (paired `:root` `--noc-*` CSS + `tokens.ts` with Vitest drift & WCAG AA ≥4.5:1 contrast checks; hybrid horizontal bar + dual-ring `ConcentricArcGauge` quota display on `Usage`; role-adaptive NOC density across monitoring vs. workflow/chat/form panels; dev-only `KitGallery` behind `import.meta.env.DEV`) into 8 bounded slices (`V1`–`V8`) ready for issue creation.
+
+### Codex review corrections — 2026-10-22 (#303 spend-cap readability)
+
+- **#303 an unreadable Mistral spend cap is not “No spend cap”.** `budget_from_summary` already told `Uncapped` from `Failed` in `detail`, but both sent `total: 0`, so the Usage bar treated a `/spend-limit` failure as an unlimited workspace. `balance_info.spend_cap` is now `"uncapped"` or `"unknown"`; the bar and its ARIA label say “No spend cap” only for the former, and “Spend cap unavailable” when the cap could not be read.
+
+### Codex review corrections — 2026-10-22 (P16 stalled-open-member recovery)
+
+- **#360/#367 a queued peer no longer blocks recovery of a stalled open member.** `retry_task` only refuses a full-stage retry when the window is full *and* something in the stage has already completed (redispatching it would be unsafe). If nothing has completed yet, a full window with queued members still waiting is recovered via an explicit stage retry — the same budget-checked path used when the pending queue is empty — instead of a hard "window is full" error that previously left the only way out being to (incorrectly) mark the stalled member complete.
+
+### Codex review corrections — 2026-10-22 (P16 pending-only recovery)
+
+- **#360 pending-only parallel stages can retry queued dispatches.** Completing the last open member still persists before refill. If that refill fails, `retry_task` wakes remaining `pending_agents` without redispatching completed members or consuming `max_retries`.
+
+### Codex review corrections — 2026-10-21 (P16 parallel invariant)
+
+- **#360 screening watermark is not the result pointer.** Parallel stages store an internal `output_watermark_id` (set once, before any member can reply) and keep `last_message_id` as the last real handoff. A2A `task_result` reads only the handoff. Every dispatch — initial or refill — is persisted in the same operation that sends it, so a later slot failure cannot leave a successful send unrecorded.
+
+### Codex review corrections — 2026-10-20 (P16/P20 follow-up)
+
+- **#360 parallel output watermark is stamped before any member can reply.** A system-kind stage stamp is written first; later (including remote) dispatches no longer move `last_message_id`, so a reply that arrives while another member is still dispatching is still screened.
+- **#360 failed `wake_now` members stay pending.** Parallel activation records every not-yet-dispatched member as pending until that member's own dispatch succeeds, so a later failure in the initial window cannot drop that member (or anyone after it) off the stage.
+
+### Codex review corrections — 2026-10-20 (P16/P20)
+
+- **#367 branch-approval correlation includes stage identity.** P5 proposal reuse for a `WorkflowStep` branch is keyed by task + criterion + attempt + stage, so an approved stage-0 command cannot satisfy stage 1 on the same attempt.
+- **#360 output guardrails cover parallel watermarks and remote results.** `complete_parallel_member` no longer moves `last_message_id` when waking a queued member (earlier replies stay visible to later screens). An embedded remote result is screened as output *before* the handoff is stored.
+- **#360 unscoped tasks inherit only hub-wide rules.** `effective_guardrails(None)` no longer applies other workspaces' restrictions. `ca guardrail list` still inventories every rule.
+- **#360 `ca guardrail enable --on false` actually disables.** `--on` takes a bool value (`ArgAction::Set`) instead of a flag that rejected `false`.
+- **#360 parallel-stage input preflight.** All members of a parallel stage are screened before any dispatch, and each successful send is persisted so a later failure cannot orphan a message+wake.
+
+### Codex review corrections — 2026-10-20
+
+- Codex corrected wake-time backdating and lexical/invalid timestamp authority checks (#347). The later-wake regression failed before the correction and passes afterwards; scorecard tests 46/46 and Hub lib tests 656/656 pass.
 
 ### Added
 
-- **Desktop UI — File Picker Path Input & Config Loading (#215-A):**
-  - Added manual path input fallback with Enter key handling and "Load Path" button next to "Browse…" in `ConfigPanel.tsx` for MCP Configuration loading.
-  - Configured file dialog filters and default paths for workspace root and MCP configuration dialogs.
-  - Added confirmation dialog for `.agent/` workspace bootstrapping with `createDir: true` parameter support.
-
-## [1.0.0] - 2026-09-01
+- **Conditional branching on `WorkflowStep` (P20, #367, `platform.md`):**
+  `WorkflowStep.branch: Option<StepBranch>` — `{criteria: [GateCriterion],
+  combinator, on_pass, on_fail}` with targets `next | stage{index} | done |
+  fail`. When a stage completes, `advance_task` evaluates the branch with
+  Schedule's own gate evaluator, now generalised over a `GateSubject`
+  (`evaluate_gate_criteria` is the schedule wrapper around the shared
+  `evaluate_gate_subject`): same P5 `os_tool` sandbox and proposal reuse,
+  same fail-closed rules, audit rows `task.branch_checked` and
+  `task.branch_routed`. A back-edge spends the target stage's `max_retries`
+  budget (the `retry_task` rule) so loops stay bounded; a pending P5 approval
+  is an `advance_task` error ("approve, then advance again"), never a silent
+  route. At most one branch per stage; targets validated at creation; the
+  task needs a `workspace_path`. JSON is additive (`branch` omitted when
+  unset) and the CLI `--steps` payload accepts it. Hub tests
+  `workflow_branch` 7/7.
+- **Guardrails primitive (P16, #360, `platform.md`):** `hub::guardrails` —
+  `Guardrail` trait (`check(content) -> GuardrailResult {passed,
+  tripwire_triggered, detail}`), built-in predicate implementors
+  (`deny_phrases`, `require_phrases`, `max_chars`, `no_secrets` — the last
+  reports only the credential *shape*, never the token), `blocking`
+  (sequential, first tripwire halts) and `parallel` (concurrent with each
+  other after blocking passes; every trip reported) modes. Rules persist as
+  hub-wide or per-workspace `guardrail_rules` rows (`ca guardrail
+  add|list|enable|remove|check`). Wired as **input** guardrails before
+  `dispatch_step` sends anything (no message, no wake, no stage activation
+  on a trip) and before `dispatch_prompt` claims a schedule attempt (the
+  schedule fails with zero attempts burned); as **output** guardrails on a
+  stage's replies plus hand-back note in `advance_task` /
+  `complete_parallel_member`, and on each schedule reply before any
+  `GateCriterion` runs (a trip is an unmet attempt: re-prompt, or fail on
+  the final one). Not a new approval-gate class: sits before P5 and
+  Schedule gates. Honest limit: harness-CLI replies are already `messages`
+  rows, so an output guardrail halts *acceptance*, it cannot un-write the
+  row. One `guardrail.tripped` audit row per trip (security-class; never
+  the screened content). Hub tests `guardrails` 15/15.
 
 ### Fixed
 
-- Completed the review of the per-harness model and reasoning-effort settings:
-  the legacy harness-toggle update no longer clears those newly added defaults,
-  and all model/effort mutations now run off the Tauri webview IPC thread.
+- **Ableton MCP bridge would have failed on every real Live set (#321):**
+  `plugins/ableton/__init__.py` read `Song.name`, which the Live Object
+  Model does not define — `get_song_summary` raised `AttributeError` inside
+  Live while the offline smoke passed because its fake `Song` had a `name`.
+  The set name is now derived from `Song.file_path` ("Untitled" when
+  unsaved). Also: the `song` accessor works whether the base
+  `ControlSurface` exposes `song` as a method (`_Framework`) or a property
+  (`ableton.v2`, the Live 12 fallback import), `create_midi_track` resolves
+  the new track by index when Live returns `None`, and socket-thread
+  diagnostics are relayed to `log_message` on the Live thread. `smoke.py`'s
+  stand-ins are now pinned to a documented-LOM attribute allowlist so a
+  non-LOM attribute cannot pass offline again, and `cargo test -p
+  mcp-ableton` checks the MCP tool list against the script's `_OPS` table.
+  Still never run against a live Ableton instance — owner acceptance stays
+  owed (`ACCEPTANCE_OWED.md` §2.5).
+- **Usage tab: Mistral spend was the last per-currency text line (#303):**
+  `mistral.rs` now fills the spend-kind contract (`total` = monthly cap,
+  `spent` = period spend; `total: 0` when no cap is readable) so the Usage
+  tab draws the same stacked spent / remaining-budget / free bar Cursor
+  gets. `BalanceBreakdownBar` labels spend-kind rows "Period spend", shows
+  "Budget X of Y", and renders a spend-only bar with an explicit "No spend
+  cap" legend instead of inventing a budget equal to the spend; ARIA label
+  carries the figures. Providers that hand us only a free-form string (no
+  structured figures) keep the text fallback — a chart there would be
+  fabricated. Vitest 252/252, `tsc` clean.
+- **WakePolicy bridge for A2A interrupted states (#365):** a local dispatch
+  that raises a human-gated wake stores `input_required` when the task asked
+  for approval and `auth_required` when standing policy forces the gate.
+  The waiting state is every handoff of the stage's current attempt:
+  initial and queued members share one `{stage}/{count}/a{attempt}/{agent}`
+  label, and each resolution recomputes that set. A previous attempt is
+  ignored. The task resumes `running` when every gated handoff in the
+  attempt was delivered, and `failed` when the attempt is fully resolved
+  and any of those handoffs was cancelled. Completion and advancement are
+  rejected while the task is `input_required` or `auth_required`. Each
+  successful parallel dispatch persists that aggregate immediately, so a
+  later member's failure or a queued `retry_task` recovery cannot leave a
+  gated handoff stored as `running`. `tasks/get` maps those to
+  A2A `input-required` and
+  `auth-required`. Remote steps stay `running` because they raise no local
+  wake. The compile break on this branch is repaired in the same change:
+  `tasks/mod.rs` and the deleted model declarations are restored, and
+  `WorkflowStep` literals include `sub_task_id`, `handoff_metadata`, and
+  `context_filter`. Sub-workflow completion (#366) and context filtering
+  (#361) were not in the destroyed commit and are not implemented here.
 
-### Performance
+- **Team Scorecard T7 consistency probes and reviewer-side signature (#347):**
+  `hub_get_scorecard` computes four advisory probes — `quota_vs_cost`
+  (measured `provider.usage` spend vs `quota.snapshot` balance movement with
+  symmetric >2x divergence inside the declared coverage model; top-up-only
+  histories read `unknown`, never `ok`; snapshots write best-effort on
+  explicit quota refresh with unchanged-value dedupe), `claimant_consistency`
+  (stamped action claims — usage/os_tool/budget/mcp only, never
+  communication — approved only by time-valid authority at or before the
+  agent's earliest claimed action: a `handoff` message or a wake linked to
+  that handoff, or a session membership join time. The current task/session
+  roster has no interval and cannot approve past work or prove exclusion.
+  Ordinary messages and wakes are not assignments. A missing interval stays
+  `unknown`, including after reassignment when the earlier handoff is gone
+  from the current roster; task and session namespaces stay separate),
+  `network_vs_provider_log` (`unknown` until T6 (#346) lands its local-only
+  sample store and the two crates agree a read contract — raw network
+  samples never join the synced audit chain), and `git_scope_vs_touch_set`
+  (`unknown` until a git source exists). Every probe reports
+  `ok | disagreement | unknown` per subject; a disagreement writes one
+  deduped hash-chained `scorecard.disagreement` row linking both sources —
+  candidates are merged per (probe, subject) and the check-and-insert runs
+  in one transaction — and agent cards carry an unresolved-disagreement
+  badge (a count, never a score). Reviewer-side signature: `review.finding` /
+  `review.finding_corrected` audit rows (severity + origin in `process_json`,
+  no new columns) feed findings-per-documented-task and a reversal rate that
+  counts distinct owner-corrected findings and can never exceed 100%;
+  findings dedupe identical re-submissions at write time and attribute only
+  to enrolled roster agents; corrections require owner authority.
+  Zero-evidence approvals and review dwell stay honestly `unknown` — gate
+  decisions record no reviewer identity and a send is not proof of evidence
+  inspection. New `ca review finding|correct` CLI entry path.
+### Codex follow-up review — 2026-10-20
 
-- Cache discovered harness model catalogs for the app lifetime and probe
-  independent provider CLIs concurrently. Opening or refreshing Settings now
-  takes at most one probe timeout instead of serially waiting for each CLI.
+- Network sampler review: apply trusted-identity expiry before using the baseline, not only on the later pruning write. Added a stale-file regression; retention and unique concurrent-writer temp-file fixes accepted (#346).
 
-### Packaging
+### Codex review corrections — 2026-10-20
 
-- Bundle all seven Creative Tools MCP bridge executables as target-qualified
-  Tauri `externalBin` sidecars. The release workflow and local release recipe
-  build and stage the matching binaries before Tauri packages the app.
+- Codex corrected the recycled-PID baseline becoming trusted on the next scan (#346, `f30c0fc`). Repeated-scan regression reproduced then passed. Follow-up round (Mistral) resolves the two remaining P2 findings: 24h retention now applies to scan records and the read view (idle polls prune too), trusted `(pid, start_time)` identities are kept separately from coverage so the PID-reuse guard survives the coverage expiry (retiring only after a week without a refresh), and ring writes use unique `create_new` temp files so concurrent writers cannot truncate each other — a reader always sees a complete file. Regressions: idle/expired-scan pruning, view expiry without an append, identity precedence/expiry, rejected-identity non-refresh, and a 4-writer/reader concurrency test. Awaiting Codex re-review; no final T6 PASS yet.
+### Codex reconciliation review — 2026-10-20
+
+- Strengthened the P5 approval-resume regression to use max_attempts=1:
+  final-attempt approval waits without resubmitting or consuming another
+  attempt and completes on approval. Corrected stale gate-contract docs:
+  audit links are authoritative; pending_gate_json is retained legacy data.
+
+### Codex Cursor re-review — 2026-10-20
+
+- Scheduler wake replay now propagates errors and serializes check/create;
+  failed wake side-channel writes roll back and remain retryable. One-shot
+  completion requires finalized outbox delivery; an active pending sender
+  is never completed or re-prompted by a stale tick (#351/#355).
+
+### Codex follow-up review — 2026-10-20
+
+- Scheduler review: stale attempt results cannot complete a newer attempt; use attempt-aware CAS for finish and the refreshed snapshot for first one-shot completion (#351). Remaining wake/completion crash gaps are recorded on the issue; not accepted for integration.
+
+### Codex review corrections — 2026-10-20
+
+- Fix scheduler token gates to check every eligible identity, including missing creation baselines (#352); regression reproduced before correction.
+### Codex follow-up review — 2026-10-20
+
+- Schedule gate editor review: fixed quoted-argument tokenization and malformed-input rejection; numeric thresholds no longer truncate fractions or accept unsafe integers. Numeric command checks are correctly labeled as exit-zero plus stdout maximum, not exit-code ceilings (#353).
+
+### Codex review corrections — 2026-10-20
+
+- Align Schedule UI manual-tick feedback with the backend outcomes payload (#353), rather than invented summary fields.
+- Provide editable command program/argv/check, globs, and numeric thresholds for gate criteria; prevent attaching gates to one-shot tasks and clarify engine bypass (#353).
+- Clarify that ca schedule tick --now changes the real execution clock and is not a dry run (#354).
+- Reject control characters/non-UTF8 trigger paths, run Settings systemctl operations off the UI thread, retain units if timer disabling fails, and drain `systemctl` stdout/stderr while the child runs (bounded capture) so large environment output cannot stall (#356).
+### Added
+
+- **Discord v1 chat bot remote client (U25, #319):** new `ca discord`
+  command tree (`pair --channel <id>` / `status` / `unbind [--user-id]` /
+  `run [--interval-secs]`) mirroring the Telegram remote-control contract —
+  one-time 10-minute pairing codes, a persistent allow-list
+  (`discord_binding.json` next to `hub.db`; mutations hold an OS file lock
+  until release, so a slow save does not expire a live owner and reclaiming
+  an abandoned lock cannot unlink a replacement owner's lock), the same `/start` `/approve`
+  `/reject` `/send` `/wakes` command set, silence for unknown senders, and
+  wake-resolution audit rows written as `human` with `via = "discord"` (the
+  scorecard digest counts them separately). Transport is outbound REST only:
+  `GET /channels/{id}/messages?after=<snowflake>` channel-history polling
+  plus `POST /channels/{id}/messages` replies — no gateway/websocket, no
+  listen port. Bot authors (including the bot's own replies) are skipped,
+  per-channel snowflake cursors make restarts replay-safe, 429s back off by
+  Discord's `retry_after` (and sends retry once), and messages are truncated
+  to Discord's 2000-char limit. The pairing-code parser is shared with
+  Telegram (`remote::command`), and the authenticated-command application is
+  shared via `remote::dispatch::apply_authenticated`. Token resolves through
+  P12 `tool.discord.bot_token` (env `DISCORD_BOT_TOKEN` fallback); the bot
+  needs the **Message Content** intent and View/Send/Read-History channel
+  permissions. Owner live-verification steps added to
+  `docs/moon/ACCEPTANCE_OWED.md` §4.4a.
+- **Settings audit on `set_wake_status_via`:** resolving a wake from
+  Telegram/Discord/TCP/desktop now records the resolution channel in the
+  hash-chained audit stream exactly once per wake (pending → terminal,
+  human-gated only; idempotent across retries and cross-channel races).
+- **Review digest Discord column:** `DigestResolutionCounts` gained a
+  `discord` bucket (serialized with `#[serde(default)]` so older stored
+  JSON still decodes).
+
+### Fixed
+
+- **`ca telegram run` no longer exits after the first error:** the poll
+  loop keeps running when `getUpdates` returns an error (network blip,
+  Telegram 502/504), matching the Discord runner's behavior. Reported by
+  owner during U25 live verification.
+- **`remote::mod` wake-push duplication removed:** Telegram and Discord
+  wake pushes previously each kept their own copy of the
+  `wake <id> for <agent> — /approve <id> or /reject <id>` text; the format
+  string now lives in one helper so the two transports cannot drift.
+
+## [1.2.0] — 2026-09-20
 
 ### Added
 
-- Release packaging pipeline: `just release::*` recipes (`bump`, `bundle-linux`,
-  `bundle-windows`, `bundle-android`, `artifacts`, `release`) and
-  `.github/workflows/release.yml` producing Linux (.deb/AppImage), Windows
-  (.msi/NSIS), and Android (APK/AAB) artifacts on a `v*` tag.
-
-### Desktop — Settings Creative Tools MCP Tab (Track C-9 / #187) (2026-08-30)
-
-- Implemented `CreativeToolsTab.tsx` in `src/components/settings/tabs/` enabling per-workspace registration of all 7 creative tool MCP bridges (Blender, Krita, Godot, Aseprite, Unreal, Unity, OpenToonz).
-- Surfaces live bridge binary resolution status (`Installed` vs. `Binary Missing`), application runtime detection via process monitoring (`App Running` vs. `App Idle`), transport type (socket with port, subprocess, file-parse), and code execution / gated flag indicators (`--allow-*`).
-- Added workspace-scoped MCP configuration auto-synchronization (`.mcp.json`, `.gemini/settings.json`, `opencode.json`), a 1-click "Re-apply to Configs" action, and a "Copy Codex Snippet" TOML exporter for user configuration.
-- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui -p mcp-core -p mcp-blender -p mcp-krita -p mcp-godot -p mcp-aseprite -p mcp-unreal -p mcp-unity -p mcp-opentoonz` (337 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
-
-### Desktop — Settings Diagnostics & Danger Zone Tabs (S6 / #132) (2026-08-29)
-
-- Implemented `DiagnosticsTab.tsx` in `src/components/settings/tabs/` providing configuration store status checks, application log level selection, and sanitized, zero-secret redacted diagnostics export.
-- Implemented `DangerTab.tsx` in `src/components/settings/tabs/` establishing a high-contrast red/amber warning container framework with default-focused Cancel buttons, typed workspace target confirmation, and multi-field workspace override reset.
-- Extracted `SettingsAuditDrawer.tsx` preserving modularity and adhering to the 500-LoC repository rule across all Settings components.
-- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
-
-### Desktop — Settings Agents & Harnesses Tab (S4 / #130) (2026-08-29)
-
-- Implemented `AgentsTab.tsx` in `src/components/settings/tabs/` enabling management of named provider profiles (`claude`, `codex`, `gemini`, `grok`, `custom`), non-secret source badges (`Keychain ID` / `Env Var $NAME` / `CLI Native Login`), workspace default profile selection with `Inherited` / `Workspace Override` status pills, and runtime harness policies (capture polling, task inject permissions).
-- Integrated `AgentsTab` into `SettingsApp.tsx` tab navigation and responsive glass-morphism panels.
-- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
-
-### Desktop — UI freeze audit offloading and pending states (#163 batch 2) (2026-08-29)
-
-- Offloaded `hub_read_avatar_preview`, `hub_set_agent_avatar`, `hub_clear_agent_avatar`, `hub_save_attachment`, and `hub_get_attachment` off the webview IPC dispatch thread by converting them to async commands utilizing `tauri::async_runtime::spawn_blocking`.
-- Added visual pending status feedback (`"Working…"`) and opacity transitions for avatar updates in `AgentAvatar.tsx` and memory/audit actions in `HubPanel.tsx`.
-- Symmetrically padded `logo_lines` in `crates/tui` ensuring uniform rendered row widths across animated color sweep phases.
-- **Verification:** `cargo test -p tauri-app -p hub -p cli -p tui` (295 unit and integration tests passing), `cargo clippy --workspace --all-targets -- -D warnings` clean, `npm run build` clean.
-
-### Android Companion — Release Signing and Identity Rename (2026-08-29)
-
-- Renamed Android application package from `com.example.remotelauncher` to `com.codingassistants.remotelauncher` across all Gradle build scripts, Android manifest, and Kotlin source directory trees.
-- Added release signing configuration to `android/app/build.gradle.kts` supporting local development (`android/keystore.properties`) and CI builds via environment variables (`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEYSTORE_BASE64`), failing fast if release signing credentials are missing.
-- Generated release keystore `android/keystore/release.jks` and verified signed release APK (`assembleRelease`) and signed release AAB (`bundleRelease`) outputs with `apksigner`.
-- Added `android/RELEASE_SIGNING.md` documenting keystore secrets, regeneration, and verification workflow.
-
-### Desktop — Resume in terminal no longer replaces the app with recovery (#167)
-
-- Clicking **Resume in terminal** mounted `EmbeddedTerminal`, which threw
-  (`TextDecoder("latin-1")` is invalid in WebKitGTK) and/or read
-  snake_case PTY status after a camelCase rename. That took down the
-  whole window via the app error boundary.
-- Decode bytes with `windows-1252`; accept `outputTailB64` / `exitDetail`
-  (and the old snake_case names). A pane-local error boundary keeps a
-  terminal crash from forcing "needs to reload".
-
-### Desktop — Grok leader wheel actually reaches the TUI (#167) (2026-08-16)
-
-- Previous in-app handler returned `true` after injecting CSI, so xterm
-  still ran default wheel handling on an empty alt-screen and Grok never
-  scrolled. It now writes **Up/Down** to the PTY and returns `false`.
-- Connect/`grok_leader_tui_args` also pass documented `--no-alt-screen
-  --minimal` (same as embedded resume) so a reopen is not stuck in
-  fullscreen alt-screen.
-
-### Desktop — Grok embedded `--leader` TUI wheel-scroll (#167 follow-up) (2026-08-16)
-
-- Grok's in-app card did not wheel-scroll while Claude's did. Cause: `grok
-  --leader` uses the alternate screen (and typically mouse-tracking), so
-  xterm.js has no local scrollback and forwards wheel as unused mouse CSI.
-- In-app Grok resume/spawn now adds documented `--no-alt-screen --minimal`
-  so finalized turns go to native scrollback. External Konsole Connect is
-  unchanged.
-- **Still-broken follow-up:** the shared wheel handler returned `true`
-  (xterm "already handled") without sending SGR wheel CSI, so Grok's TUI
-  never saw the wheel (it documents scroll-wheel on its own scrollback).
-  Focused wheel on Grok / mouse-tracking / alt-screen now writes SGR
-  `64`/`65` (or PageUp/PageDown) to the PTY. Claude's primary-buffer path
-  is unchanged (still native viewport overflow).
-- **Verification:** `cargo test -p hub --lib bridge::relaunch` 18/18;
-  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean;
-  `npx tsc --noEmit` clean.
-
-### Hub — codex spawn used --cwd, a flag that doesn't exist (2026-08-16)
-
-- `codex exec` has no `--cwd` flag — that name is Grok's convention, not
-  Codex's. Confirmed live against the installed `codex` CLI (v0.147.0):
-  `--cwd` fails immediately with "unexpected argument '--cwd' found", so
-  every codex spawn exited right after argv parsing — fast enough that
-  the app only ever observed a zombie process and reported a successful
-  spawn from a successful fork/exec, never noticing the child had
-  already died.
-- Fixed to Codex's actual flag, `-C`/`--cd <DIR>`. Verified live: `codex
-  exec --cd <dir> "<prompt>"` runs and completes normally.
-- Also live-verified Claude's and Grok's `--resume <id>` two-token argv
-  shape (both documented as optional-value flags) — both parse
-  correctly, ruling out the same class of bug there.
-
-### Desktop — Live Terminals full-width resizable PTY cards (#167 width) (2026-08-16)
-
-- Live harness cards are a single full-width column (`1fr`), not
-  `minmax(280px)` auto-fill, so the PTY is not cramped into a sidebar
-  column that wraps every word.
-- New layout-only `ResizableTerminalFrame`: default height 480px, min
-  480×280, drag handle to resize, size persisted per harness in
-  `localStorage`. Does not edit `EmbeddedTerminal.tsx` (Gemini owns
-  #167 scroll/focus).
-- **Verification:** `npx tsc --noEmit` + `npm run build`. Owner visual
-  check still required.
-
-### UI — Fix embedded terminal scrolling and focused wheel event capturing (#167) (2026-08-16)
-
-- **Root cause & Fix:** In `EmbeddedTerminal.tsx`, padding on the container element clipped the absolute-positioned `.xterm-viewport` element, preventing its scrollbar from displaying or receiving interactions. Additionally, wheel events were intercepted by outer parent scroll containers without focus-gating.
-- **EmbeddedTerminal enhancements (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
-  - Configured `scrollback: 5000`, `scrollSensitivity: 1`, and `fastScrollSensitivity: 5` in xterm options.
-  - Attached custom wheel event handler via `term.attachCustomWheelEventHandler` to capture wheel scrolling to the terminal when focused (via click-in) while allowing wheel events to pass through to the page scroll when unfocused.
-  - Added global mousedown listener to track focus and release on click-outside.
-  - Removed container padding that obstructed the `.xterm-viewport` scrollbar.
-  - Preserved the $\le 500$ line constraint (341 LoC).
-
-### Hub — capture identity/opt-in gate stops external-transcript misattribution (#165 follow-up, 2026-08-16)
-
-- **Root cause (Chat/Codex review):** the desktop's 1.5 s poll calls every
-  `hub_capture_*_session` command with a null provider session id and
-  attributes captures to the active Hub work session. Each adapter then
-  selected that provider's *newest* on-disk transcript, so a live external
-  conversation the app never launched could be silently mirrored into the
-  unrelated active work session — the "reroute" symptom from the original
-  #165 report.
-- **Fix:** capture is now identity-gated. Each adapter resolves the capture
-  target via `resolve_capture_session_id` (`src-tauri/src/harness/mod.rs`):
-  an explicit session id wins; otherwise the registered (observed/managed)
-  session for (harness, workspace) is used (raw then canonical workspace
-  key); when nothing is registered the poll returns an empty outcome
-  instead of grabbing the newest external transcript. Applied to all four
-  adapters (claude/codex/gemini/grok).
-- **Opt-in semantics:** an external session becomes capturable by
-  registering it (Register observed) or by the app launching it (Start
-  managed) — the same identity the UI already shows.
-- **Regression coverage (compile-verified; not run per the thermal
-  constraint):** `resolve_capture_session_id` unit tests (explicit wins /
-  registered used / unregistered resolves None) plus Claude-adapter tests
-  proving an unregistered external transcript is ignored and a registered
-  session is captured even when a newer external transcript exists.
-- **Verification:** `cargo build --workspace`, `cargo clippy -p tauri-app
-  --all-targets -- -D warnings`, `cargo check -p tauri-app --all-targets`
-  all clean.
-
-### Hub — "Resume in terminal" actually resumes live sessions (#165) (2026-08-15)
-
-- **Root cause (code review):** the generic relaunch's per-harness session
-  discovery could fail to find the live session, so "Resume in terminal"
-  spawned a fresh conversation for every provider. Three discovery gaps plus
-  a missing Channel reconnect:
-  1. **Claude:** `find_active_claude_session` compared the recorded `cwd`
-     to the app's workspace with an exact string match — a trailing slash, a
-     `.` segment, or a symlink hid the live session, so `claude --resume
-     <id>` never fired and a fresh conversation started. Now both sides are
-     canonicalized before comparison.
-  2. **Grok:** `latest_grok_session_id` only scanned on-disk
-     `chat_history.jsonl` directories, which can lag behind the live TUI;
-     it now prefers the workspace's active session from
-     `~/.grok/active_sessions.json` first.
-  3. **Gemini:** `latest_gemini_session_id` only recognized the managed
-     worker's `.system_generated/logs/transcript.jsonl` marker; it now also
-     accepts an interactive TUI conversation directory
-     (`brain/<uuid>/conversation/`), picking the newest.
-  4. **Claude Channel reconnect:** when a resume target is found *and* the
-     workspace's `.mcp.json` has the `coding-assistants-channel` server,
-     the resumed `claude` process now also gets
-     `--dangerously-load-development-channels server:coding-assistants-channel`
-     (same flags as `launch_claude_channel_session`) so the resumed session
-     reconnects to the Hub instead of running channel-less.
-- **Note on the "mirrored into app chat" symptom:** that is C12 capture
-  working as designed — the desktop polls each harness's newest transcript
-  and posts assistant replies into the active work session (deduped by
-  content hash). With resume fixed, the resumed process continues the *same*
-  conversation, so no new turns are introduced by the spawn. If the owner
-  wants specific observed sessions excluded from capture, that is a product
-  decision to track separately.
-- **Tests added (compile-verified; not run per the standing thermal
-  constraint):** Claude canonical-cwd match; Grok live-active-session
-  preference; Gemini interactive-TUI conversation discovery; relaunch
-  channel-MCP detection.
-- **Verification:** `cargo build --workspace`, `cargo clippy -p hub
-  --all-targets -- -D warnings`, `cargo check -p hub --all-targets` all
-  clean. Live Kubuntu owner repro still required (per the issue).
-
-### Desktop — Live Terminals embed interactive PTYs (#166) (2026-08-15)
-
-- Orchestrate **Live terminals** is no longer a compact status-card grid of
-  LIVE badges. Each live harness is a full-width row whose primary surface
-  is an interactive in-app PTY (`EmbeddedTerminal`, reused — no second
-  terminal component).
-- When no PTY is attached yet, the row shows a large honest placeholder
-  plus **Open interactive terminal** (same documented
-  `hub_relaunch_harness_embedded` path as before). Does not claim attach
-  to an unowned external TTY.
-- Idle / start-managed rows also keep an embedded pane once opened.
-- **Verification:** `npx tsc --noEmit` + `npm run build`. Owner Kubuntu
-  visual check still required before closing #166.
-
-### Code org — I8 (#158) reopened: five over-cap files split back under 500 lines (2026-08-15)
-
-- The post-#161/#162 inventory found five hand-authored Rust units above the
-  absolute cap. DeepSeek split them without changing public API, CLI, or IPC
-  contracts: Hub store types, harness spawn/inject, roster tests, and the CLI
-  app/command branches now live in focused modules no larger than 437 lines.
-- **Verification:** `cargo build --workspace`, workspace Clippy, and
-  `cargo check -p hub -p cli --all-targets` passed under the thermal limit;
-  tests were compiled but not run under the standing owner constraint.
-
-### Desktop / Hub — UI freezes without pending feedback (#163) (2026-08-15)
-
-- **Root class (same as 726f28c):** non-`async` `#[tauri::command]` bodies run
-  on the Linux webview IPC thread, so any slow subprocess or process-table
-  work freezes the entire window with no panel-local pending state.
-- **Backend offload** (`async` + `spawn_blocking` via new
-  `src-tauri/src/harness/blocking.rs`): `hub_inject_harness`,
-  `hub_start_harness`, `hub_start_managed_harness`, `hub_stop_managed_harness`,
-  `hub_workspace_agent_presence` (polls `claude agents --json`),
-  `detect_agent_processes`, `hub_grok_connect` / `hub_grok_leader_status` /
-  `hub_grok_list_live_sessions`, `claude_channel_connect`, and
-  `hub_send_tagged_message`. Capture/relaunch/quota paths were already
-  offloaded (#161 / earlier freezes).
-- **Review completion:** ordinary `hub_send_message` and
-  `hub_send_session_message` now use the same off-IPC path, so untagged and
-  named-session Chat sends cannot retain the original freeze class.
-- **Frontend pending:** harness inject **Retry** shows an immediate
-  Working… / busy banner and disables Retry/Dismiss while the inject
-  runs. Chat Send already showed "Sending…"; Config process detection
-  already had `detecting`. Live terminal / Grok connect buttons already
-  used busy labels.
-- **Verification:** `cargo build -p tauri-app` + `cargo clippy -p tauri-app
-  --all-targets -- -D warnings`; `npx tsc --noEmit`; `npm run build`.
-  Scoped `cargo test -p tauri-app harness::commands` when thermal budget
-  allows. Not a full workspace suite. Owner Kubuntu multi-action freeze
-  re-test still required before closing #163.
-
-### Claude — #161/#162 review follow-ups: #163 assigned, I8 reopened, DeepSeek roadmap slice (2026-08-15)
-
-- Reviewed the landed #161 fix (`258d1e0`) and #162 hardening against
-  Chat/Codex's five review findings. The Kubuntu owner-run proof for #161
-  and the repeated-resize acceptance exercise for #162 are both
-  owner-only and remain open — no agent can supply them.
-- The `cargo test -p tauri-app pty` "two tests" note wasn't a bug:
-  `empty_base64_reads_filename_as_a_filesystem_path` incidentally matches
-  the `pty` substring filter (e**mpty**); the real PTY test is
-  `push_tail_keeps_only_the_most_recent_bytes`. No code change; future
-  verification citations should scope the test filter precisely.
-- Assigned #163 (UI freezes with no pending feedback) to Grok.
-- Reopened I8 (#158): five hand-authored files exceeded the 500-line cap
-  again from post-landing churn. Split all five this round — see the
-  entry below.
-- Added roadmap entry C14.10 (`communication.md`) for a future native
-  DeepSeek channel/bridge, deliberately sequenced after the current
-  ship-priority milestone; doubles as a workflow-maturity check against
-  the bug classes hit on every prior C14.x integration.
-
-### Desktop — truthful terminal launch/exit surfacing + relaunch hardening (#161) (2026-08-15)
-
-- **Root cause:** "Resume in terminal" / terminal-launch buttons sometimes
-  appeared to do nothing — no terminal, no visible error. Three compounding
-  gaps: (1) a fast-failing harness CLI (e.g. "codex resume <stale-id>" exits
-  in well under a second) could exit before the frontend attached its
-  pty-output / pty-exit listeners, leaving a silently blank terminal with
-  no exit reason; (2) the relaunch command could take many seconds or hang on
-  session discovery ("claude agents --json" subprocess, full
-  ~/.codex/sessions tree scan) plus kill/settle sleeps, all synchronous on
-  the Tauri command; (3) EmbeddedTerminal swallowed every
-  pty_write / pty_resize IPC error.
-- **Backend — src-tauri/src/pty.rs:** every session now retains a bounded
-  output tail (last 64 KiB) plus the real exit status for 60 s after exit;
-  the wait thread polls with non-blocking try_wait so the session lock is
-  never held across a wait (the reader thread needs it for tail appends);
-  new pty_session_status command returns {found, running, exited,
-  exit_detail, output_tail_b64}; pty_write / pty_resize / pty_kill are
-  truthful no-ops on exited sessions instead of erroring.
-- **Backend — crates/hub/src/bridge/relaunch.rs + src-tauri/src/harness/commands.rs:** session discovery is bounded to 3 s
-  (discover_session_id_bounded, injectable for tests); on timeout the
-  launch proceeds fresh and says so in the outcome detail; both relaunch
-  commands are now async and run their blocking resolve on the Tokio blocking
-  pool instead of occupying a worker (the shared #161/#163 "no feedback"
-  class). The external hub_relaunch_harness_in_terminal path is preserved.
-- **Frontend — EmbeddedTerminal.tsx + harness panels:** on mount the
-  component queries pty_session_status first — an already-exited session
-  shows its retained output plus a truthful "exited (code N)" line and an
-  "exited" chip; a missing session renders an explicit error state; IPC
-  failures on write/resize are surfaced through a new onError prop into
-  the panel error banner instead of being swallowed; panels show an immediate
-  "Starting <harness> terminal…" pending state while the launch resolves.
-- **Coexistence:** Gemini's #162 resize hardening in the same component is
-  preserved; the shared relaunch.rs / commands.rs area carries both fixes.
-- **Verification:** cargo build --workspace, clippy, and targeted tests
-  per the standing hardware constraint (full workspace test suite only with
-  owner go-ahead).
-
-### UI — Fix embedded terminal canvas / layout corruption on window resize (#162) (2026-08-15)
-
-- **Root cause & Fix:** Resizing the app window rapidly triggered unconstrained `fit.fit()` and `pty_resize` invocations even when the container dimensions were 0 during layout shifts, throwing exceptions inside xterm's DOM layout measurement and leaving terminal buffers blank/corrupted (~75% black screen).
-- **EmbeddedTerminal hardening (`src/components/panels/harness/EmbeddedTerminal.tsx`):**
-  - Added debounced `requestAnimationFrame` for resize syncing with frame cancellation on rapid re-triggers and safe unmount cleanup.
-  - Added non-zero dimension bounds checks (`clientWidth > 0 && clientHeight > 0`, `rows > 0 && cols > 0`) before executing `fit.fit()` or `pty_resize`.
-  - Wrapped `fit.fit()`, `term.write()`, and `term.dispose()` in safe `try/catch` blocks.
-- **Backend & tests:**
-  - Added `std::path::PathBuf` and closure fixes in `crates/hub/src/bridge/relaunch.rs`.
-  - Enhanced `is_pid_running` on Linux to check `/proc/{pid}/status` and exclude zombie processes (`Z`/`X`).
-  - Added `discovery_timed_out: _` handling in `src-tauri/src/harness/commands.rs`.
-
-### Docs — C14.4 Gemini roadmap row corrected to reflect landed work (#151) (2026-08-14)
-
-- The C14.4 roadmap row still described the original unimplemented plan
-  even though Gemini had already landed the full app-managed worker
-  (`crates/hub/src/bridge/gemini.rs`) and, separately, the kill →
-  capture → relaunch continuation bridge (`crates/hub/src/bridge/channels/gemini/`,
-  commit `7c64248`) needed because `agy` exposes no live-push channel.
-  Updated `docs/moon/roadmaps/communication.md` to cite what actually
-  landed. No code changed in this pass.
-
-### Hub — Codex turn-completion reply routing (C14.2, #149) (2026-08-14)
-
-- `1633837` fixes the blocking C14.2 gap where the disposable Codex
-  app-server client accepted `turn/start` but discarded the actual reply.
-  It now waits for the matching unsolicited `turn/completed` notification,
-  extracts and joins the final `agentMessage` item text, and records it in
-  the Hub back to the original task sender. Session-scoped replies mirror
-  Claude Channel routing, including UUID-suffixed reply subjects to avoid
-  desktop post-dedup collisions.
-- Verified against the installed `codex app-server generate-ts` bindings:
-  `TurnCompletedNotification` carries `threadId` and `turn`, while
-  `ThreadItem`'s `agentMessage` carries `text`. `cargo build --workspace`
-  and `cargo clippy --workspace --all-targets` are clean; no tests ran.
-- Still open for #149: the documented persistent per-thread app-server daemon
-  broker. Its control socket did not answer plain JSON-RPC in the live probe,
-  and this change intentionally retains one stdio app-server child per turn
-  while fixing the previously missing reply capture.
-
-### Hub — C14.3 automated acceptance test + C14.7 argv-order fix (2026-08-14)
-
-- **C14.3** (#150, `b95baaf`): added `crates/hub/src/bridge/channels/claude/acceptance.rs`,
-  an isolated `HubStore`-level round-trip test for the Claude Channel bridge
-  — no MCP server or real Claude Code process needed, since
-  `poll_channel_events`/`poll_quiet_channel_events`/`record_channel_reply`/
-  the permission-relay functions are all plain functions over a store.
-  Covers the enrolled-sender authenticated gate, the disturb/quiet poll
-  split (task/wake messages vs. plain ones) with ack-on-drain for both,
-  reply routing back to the original sender rather than a "human" fallback,
-  and the full permission-relay lifecycle proving nothing auto-approves a
-  request before an explicit resolve call.
-- **C14.7** (#155, closed): the originally-diagnosed `--prompt <text>` bug
-  was already fixed in a prior commit, but the reported symptom (gibberish
-  `agy` replies) was still reproducible. Direct testing against a live
-  `agy` call found the real remaining cause: **argument order**, not shape
-  — `--print --output-format stream-json <prompt>` makes `agy` misparse the
-  prompt; `--output-format stream-json [--conversation <id>] --print
-  <prompt>` works reliably, verified for both a fresh and a
-  `--conversation`-resumed call. `gemini_managed_spawn_args` reordered
-  accordingly; argv-shape tests updated/added.
-- **Verification:** `cargo build --workspace` and `cargo check -p hub
-  --tests` both clean for all of the above; the new test itself was not
-  executed per the session's hardware constraint (no `cargo test`).
-
-### Desktop — memory_links + link-suggestion matcher UI (M7 closed, #159) (2026-08-14)
-
-- Added `MemoryLinksSection` (`src/components/panels/messager/`): a
-  per-memory expandable "🔗 Links" panel in the Chat & Memory drawer,
-  showing existing `memory_links` edges (relation, creator, Unlink), and a
-  "Find related" action surfacing `suggest_links_for_memory` candidates
-  (score, human-readable reason) with a one-click Link button. The
-  suggestions panel stays open after linking so multiple candidates can be
-  linked in one pass without re-querying.
-- Added `TopicBrowsePanel`: a new "Browse by topic" mode alongside the
-  existing tier-filtered browse, searching `memories_for_topic` and
-  rendering results grouped by `agent_id` in side-by-side sections — the
-  "everyone's view of this topic" experience the M7 design discussion
-  originally asked for.
-- Both correctly use the `{ args: {...} }` payload wrapping convention for
-  `hub_link_memories` (a single Rust `args` struct parameter), rather than
-  the flat-field pattern `hub_write_memory`'s call site elsewhere in this
-  codebase incorrectly uses — called out explicitly in each component's
-  brief to avoid propagating that latent bug into new code.
-- **M7 is now closed end to end**: schema, matcher, CLI, Tauri IPC, and
-  desktop UI all landed. See `docs/moon/roadmaps/memory.md`'s M7 row.
-- **Verification:** `npx tsc --noEmit` and `npm run build` (`tsc` + `vite
-  build`) both clean; `cargo build --workspace` clean.
-
-### Hub — memory_links graph + heuristic link-suggestion matcher (M7, #159) (2026-08-14)
-
-- Added `memory_links`: a directed edge between two memories (`from_memory_id`,
-  `to_memory_id`, freeform `relation`, mandatory `created_by` provenance,
-  `ON DELETE CASCADE`). Duplicate edges between the same pair are allowed on
-  purpose — two independent observers drawing the same connection is signal,
-  not something to dedupe. `link_memories` / `unlink_memories` /
-  `list_memory_links` / `related_memories` (depth-bounded graph walk via a
-  recursive CTE, undirected traversal) / `memories_for_topic` (search results
-  grouped by `agent_id` — the "everyone's view of this topic" browse query).
-- Added `LinkSuggestionMode` (off/suggest/auto) to `OrchestrationPolicy`,
-  wired through the full existing settings machinery (global default,
-  per-workspace override, effective-merge with `FieldStatus`, TOML
-  read/write, `reset_workspace_field`) — mirrors `SandboxStrictness` at
-  every touchpoint rather than a parallel settings struct.
-- Added `suggest_links_for_memory`: a dependency-free tag+token
-  Jaccard-similarity scorer (no embeddings, no new crates) returning scored,
-  human-readable-reasoned candidates. `apply_link_suggestions` applies
-  `LinkSuggestionMode`'s policy on top — `Off` no-ops without scoring,
-  `Suggest` returns candidates without writing edges, `Auto` writes edges
-  for candidates at/above `AUTO_ACCEPT_THRESHOLD`, attributed to
-  `created_by = "system:auto-link"` (never the triggering memory's own
-  author, so provenance still distinguishes a drawn connection from a
-  computed one even in `Auto` mode). `HubStore` deliberately does not read
-  `SettingsStore` itself — the mode is a plain parameter, keeping the
-  SQLite and TOML stores decoupled the way every other store method does.
-- Exposed all of the above via `ca memory link/unlink/links/related/topic/
-  suggest-links/apply-suggestions` (CLI) and `hub_link_memories` and six
-  sibling Tauri commands (desktop IPC), both mirroring the existing
-  `memory` command conventions exactly. No frontend/UI wiring yet — no
-  React component calls the new IPC commands.
-- **Recalibration:** `AUTO_ACCEPT_THRESHOLD` started as a guessed round
-  number (0.55). A real smoke test — two obviously-related memories
-  (shared tag, four shared meaningful terms, same technical decision) —
-  scored only 0.39-0.42 with that threshold, so `Auto` mode would have
-  silently never fired on real data. Recalibrated to 0.35 based on that
-  measurement, then re-verified the same smoke test actually draws the
-  edge. The lesson: a "conservative by feel" threshold on a similarity
-  scorer needs a real example before it means anything.
-- **Verification:** `cargo build --workspace` clean; manual CLI smoke
-  test end-to-end (write related memories → `suggest-links` returns a
-  scored match with a reason → `apply-suggestions --mode auto` draws a
-  `system:auto-link` edge → `links` confirms it). Regression test added
-  (`store::tests::roster::suggest_links_scores_shared_tags_and_terms_above_unrelated_memories`)
-  covering Off/Suggest/Auto and the already-linked exclusion — not run
-  per this session's hardware constraint; left for manual `cargo test -p
-  hub` verification.
-
-### Dev — WebKitGTK snap `libpthread` crash on `just start` (2026-08-13)
-
-- `just start` / `just dev::dev` now strip `/snap/*` entries from
-  `LD_LIBRARY_PATH`, `GTK_PATH`, `GI_TYPELIB_PATH`, `GIO_MODULE_DIR`, and
-  `LD_PRELOAD` before launching `npm run tauri dev`. A snap (commonly the
-  VS Code snap) leaking `/snap/core20/...` made WebKitGTK's NetworkProcess
-  dlopen snap `libpthread` against the system glibc and die with
-  `__libc_pthread_init` / `GLIBC_PRIVATE`.
-- Documented the failure mode and the recipe-scoped workaround in
-  `docs/TROUBLESHOOTING.md`.
-- **Verification:** inspected this shell's environment (`LD_LIBRARY_PATH`
-  was empty; `code` is a snap); launched `just start` and confirmed the
-  WebKitNetworkProcess crash signature did not recur.
-
-### Hub — resume any harness in a real terminal from Orchestrate (#152) (2026-08-13)
-
-- Added `hub::relaunch_harness_in_terminal` (`crates/hub/src/bridge/relaunch.rs`):
-  kill an optional managed pid, resolve the latest on-disk session id for
-  Claude / Grok / Codex / Gemini, and open a real terminal running that
-  harness's interactive CLI (not the headless one-shot spawn path).
-- Exposed it as the Tauri command `hub_relaunch_harness_in_terminal` and
-  wired Orchestrate's **Harness interfaces** panel with a **Resume in
-  terminal** control per selected harness and per registered session.
-- **Verification:** `cargo check -p hub -p cli -p tauri-app`;
-  `npx tsc --noEmit`. Test suites were not executed.
-
-### Gemini — Antigravity (`agy`) kill → capture → relaunch channel bridge (#151) (2026-08-13)
-
-- Implemented managed Gemini (`agy`) process kill -> capture -> relaunch channel bridge under `crates/hub/src/bridge/channels/gemini/` (`mod.rs`, `relaunch.rs`).
-- `relaunch.rs` provides `is_pid_running`, `kill_managed_agy_process` (graceful SIGTERM with SIGKILL fallback), `resolve_gemini_continuation_id` (resolving process output -> requested session ID -> registered session ID -> `latest_gemini_session_id`), and `relaunch_and_deliver_gemini_task`.
-- Wired `relaunch_and_deliver_gemini_task` into `deliver_gemini_task` and updated `hub_register_managed_harness_session` in `src-tauri/src/harness/commands.rs` to auto-infer `latest_gemini_session_id` when `disk_session_id` is omitted/general.
-- Filtered tool execution outputs (`VIEW_FILE`, `RUN_COMMAND`, etc.) and system prompt metadata from being captured into Chat & Memory messager.
-- **Verification:** `cargo test --workspace` passed 100% cleanly (214 tests); `cargo clippy --workspace --all-targets -- -D warnings` passed cleanly.
-
-### Grok — leader connect, managed-id fix, and frontend 500-LoC split (#152, #154, #158) (2026-08-13)
-
-- Guided Grok leader setup: Shared Hub → Channels and Orchestrate show
-  a Connect / resume control that starts `grok agent leader` when
-  `~/.grok/leader.sock` is missing and opens `grok --leader` in a real
-  terminal. Standalone TUIs stay capture-only; Hub inject uses the
-  documented ACP client only.
-- Removed fabricated `managed-<pid>` disk ids. Grok must Connect;
-  other harnesses require a real thread/conversation id before
-  `register_managed`.
-- Split Orchestrate/Chat files over 500 lines:
-  `ConfigPanel.tsx` → `config/{types,WorkSessionSection}.tsx`;
-  `MessagerPanel.tsx` → `messager/{sendTagged,useHarnessDelivery}.ts`;
-  Channels UI → `hub/ChannelsTab.tsx`. Every owned TS/TSX file is ≤500
-  LoC. `bridge::grok` is the C12 adapter; connect/spawn stays in
-  `bridge::channels::grok`.
-- Live ping: a Hub **task** (`Hello there!`) reached this Grok session.
-  Full Kubuntu all/subset/one matrix is still open on #152.
-- Restored `harness/types.ts` after it was overwritten during the
-  split, which left the desktop window fully white (Vite never mounted
-  React).
-- **Verification:** `npx tsc --noEmit`; `cargo test -p hub --lib grok`;
-  `cargo clippy -p hub --all-targets -- -D warnings`.
-
-### Gemini — Antigravity (`agy`) argv prompt repair & TUI 500-LoC refactor (#151, #155) (2026-08-13)
-
-- Corrected Antigravity (`agy`) prompt argument structure in `crates/hub/src/harness/mod.rs` to positional format: `agy --print --output-format stream-json [--conversation <id>] <prompt>`. Removed erroneous `--prompt` flag prefix (`--prompt` in `agy` is an alias for `--print`).
-- Refactored `crates/tui/src/app.rs` (994 LoC) into modular subcomponents under `crates/tui/src/app/` (`mod.rs`, `runner.rs`, `state.rs`, `ui.rs`, `views.rs`), ensuring every file is strictly ≤ 342 lines of code (below the 500-LoC cap).
-- **Verification:** All unit and integration tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
-
-### Code organization — repository-wide 500-line source cap (#158) (2026-08-13)
-
-- Opened a tracked, refactor-only programme to split every production Rust,
-  TypeScript, and React source unit over 500 physical lines while preserving
-  public API, IPC, CLI, and UI behavior. Work is divided by crate/component
-  ownership and will add a repeatable final source-length inventory before the
-  issue closes.
-- Split the Chat/Codex-owned CLI command branches, durable-message helper,
-  workflow tests, and Tauri quota tests into focused submodules; their parent
-  units now meet the cap with no CLI, Hub, or Tauri contract change.
-- Split Settings profile/harness tests into a focused test module; the
-  remaining Settings test entry is now 440 lines while preserving all test
-  coverage.
-- Split the persistent Settings store into general, workspace/profile,
-  persistence, and TOML-document modules. Flattened the interim one-file
-  audit/gate directories and split the remaining Hub agents, audit, role-gate,
-  and role-defaults responsibilities/tests. The source inventory now contains
-  no Rust, TypeScript, or React unit above 500 physical lines.
-
-### Chat / Codex — messaging-path verification and Codex delivery guidance (#156, #157) (2026-08-13)
-
-- Exercised the real Hub/CLI message flow in an isolated data directory:
-  plain persistence, all/subset task sends, one wake send, durable outcomes,
-  and read markers all pass. The desktop builds on the same typed commands and
-  renders failed injection details in its high-contrast retry banner.
-- Fixed a durable recipient-set collision found by that exercise. Repeated
-  tagged sends that reuse a channel/session subject now retain the group prefix
-  and receive a UUID suffix for the later fan-out, so each post can persist its
-  own recipient set and audit outcomes (#157).
-- Hardened Codex persisted-thread discovery to compare canonical workspace
-  paths. When no thread is registered/found, the actionable unavailable detail
-  now explains that the owner must register the persisted thread in Managed
-  harness readiness; a separately opened Codex terminal remains observed-only
-  because the app never writes its TUI or undocumented IPC (#156).
-
-### Claude — C14.3 Channel workspace registry + Shared Hub management (#150) (2026-08-13)
-
-- Renamed the `crates/claude-channel` crate to `crates/claude` (`git mv`;
-  the `coding-assistants-claude-channel` binary name is unchanged) and
-  updated the workspace `Cargo.toml` members list, `crates/README.md`,
-  and every internal import accordingly.
-- Replaced the earlier design (a single `.mcp.json` entry written
-  directly into the workspace, with no durable app-side record of which
-  workspaces were configured) with an app-owned registry under
-  `~/.coding-assistants/servers/`: a `global.mcp.json` base layer shared
-  by every workspace, and one canonical
-  `<repo-dir-name>-<4-byte-sha256-hex>.mcp.json` file per workspace
-  (the hash suffix keeps two differently-located repos that share a
-  directory name from colliding — proven by a dedicated test). `--setup`
-  now merges the global layer and the per-workspace entry into the
-  workspace's own `.mcp.json` without disturbing other servers already
-  configured there; bookkeeping metadata (`_workspace`, `_display_name`)
-  lives only in the canonical registry file and is never merged into
-  that output.
-- Added `--list`, `--rename --workspace <path> --name <name>`, and
-  `--delete --workspace <path>` CLI subcommands
-  (`hub::{list,rename,delete}_channel_workspace`). Delete removes the
-  canonical registry file and downgrades the workspace's Hub harness
-  registration back to `observed` (reusing the existing C14.1 supervisor
-  state machine) but deliberately leaves the workspace's own `.mcp.json`
-  untouched.
-- Added a Shared Hub **Channels** tab (`HubPanel.tsx` /
-  `HubPanelView.tsx`) listing every configured workspace with inline
-  rename and remove, backed by three new Tauri commands
-  (`claude_channel_list_workspaces`, `claude_channel_rename_workspace`,
-  `claude_channel_delete_workspace`) in `src-tauri/src/harness/commands.rs`.
-- Added `.mcp.json` to `.gitignore` (it embeds a machine-local absolute
-  binary path).
-- Verified with `cargo test -p hub --lib` (110/110, +6 new),
-  `cargo test -p tauri-app` (all green, +1 new), `cargo test -p claude`
-  (7/7), `cargo clippy -p hub -p tauri-app -p claude --all-targets -- -D
-  warnings` clean, `cargo check --workspace` clean, `cargo fmt --check`
-  clean (scoped to files this change touched), `npx tsc --noEmit` clean,
-  `npm run build` clean. Manually end-to-end verified `--setup`/`--list`/
-  `--rename` against the real repo workspace.
-- **Open for #150 acceptance:** end-to-end verification against a real
-  `claude --channels` session is still needed — unchanged from the prior
-  entry below.
-
-### Grok — C14.5 managed harness readiness UX (#152) (2026-08-13)
-
-- Orchestrate now has a readiness panel that lists Hub harness rows with
-  high-contrast **managed**, **observed**, **busy**, **queued**, and
-  **unavailable** badges, plus per-provider setup prerequisites.
-- **Register observed** uses the existing capture-only registration.
-  **Start managed** uses the documented wake spawn, then
-  `hub_register_managed_harness_session`. Failed starts are not marked
-  managed. No TTY attach and no undocumented socket.
-- Chat & Memory shows the same session strip and replaces inject
-  `alert()` popups with a retry/dismiss delivery banner. Retry re-injects
-  the recorded message; dismiss is UI-only and does not release a writer
-  lease.
-- Added Tauri `hub_register_managed_harness_session` as a thin wrapper
-  over the existing Hub store method. Provider transports and the
-  `harness_session_registrations` schema/leases were not changed.
-- **Verification:** `npx tsc --noEmit`; `cargo test -p tauri-app
-  harness::commands`; clippy on the touched Tauri harness command file.
-- **Not claimed:** live Kubuntu all/subset/one, Claude Channel
-  permission/reply, or `agy` restart evidence. #152 stays open.
-
-### Claude — C14.3 Claude Code Channel MCP bridge (#150) (2026-08-13)
-
-- Added a new `crates/claude-channel` binary crate
-  (`coding-assistants-claude-channel`) implementing a plain stdio MCP
-  server for Claude Code's documented, research-preview `claude/channel`
-  capability (Claude Code 2.1.231+). It never uses the undocumented
-  internal `cc-socks` control socket, and never touches
-  `hub::bridge::claude`'s C12 capture-only delivery path — that bridge
-  keeps serving sessions that haven't opted into a Channel.
-- `--setup --workspace <abs>` registers `claude` as a Hub-managed harness
-  session for that workspace (reusing the existing C14.1 single-writer
-  lease) and writes/merges a `coding-assistants-channel` entry into that
-  workspace's `.mcp.json` without disturbing any other configured server.
-- The server declares `claude/channel` and `claude/channel/permission` at
-  `initialize`, exposes one `reply` tool, and runs a background poll loop
-  that proactively pushes Hub events as `notifications/claude/channel`
-  (Claude Code doesn't poll the server — events must be pushed).
-- Added `hub::bridge::claude_channel` (new file — `bridge/claude.rs` is
-  untouched): `poll_channel_events` is the **authenticated sender gate**
-  — only messages from an *enrolled team member* are ever relayed into a
-  live session; `record_channel_reply` routes Claude's `reply` tool calls
-  back into the Hub, addressed to the original sender (or `human` when
-  there isn't one); `record_permission_request`/`resolve_permission_request`/
-  `get_permission_request` implement the permission relay as a **never
-  auto-approved** pending → allowed/denied lifecycle, reusing the
-  existing hash-chained `audit_events` table instead of a new one (same
-  reuse pattern as Settings' audit stream).
-- Verified with `cargo test -p hub --lib` (104/104, +10 new),
-  `cargo test -p claude-channel` (7/7 new — pure `.mcp.json` merge, tool
-  schema, and response-shaping tests, no real Claude Code process
-  spawned), `cargo clippy -p hub -p claude-channel --all-targets -- -D
-  warnings` clean, `cargo check --workspace` clean, `cargo fmt --check`
-  clean (formatted only the two files this change touched).
-- **Open for #150 acceptance:** end-to-end verification against a real
-  `claude --channels` session (research preview; requires Claude Code
-  2.1.231+, Anthropic auth, and
-  `--dangerously-load-development-channels` until this bridge is
-  allowlisted) is still needed — this pass is the bridge implementation
-  and its Hub-side unit coverage, not a live acceptance run.
-
-### Grok — C13 read-only `ca preflight` inspector (#146) (2026-08-13)
-
-- Added `ca preflight [--workspace ABS] [--session ID] [--json]`. It opens
-  an existing Hub database read-only (or reports it missing), lists the
-  enrolled team, requested session, and registered harness readiness, and
-  hashes `.agent` fallback files for the #113 template.
-- Does not create Hub/settings files, start/inject a harness, or write
-  `.agent/**`. Relative `--workspace` and unknown `--session` are errors.
-
-### Gemini — C14.4 Antigravity managed worker (#151) (2026-08-13)
-
-- Implemented app-owned non-interactive `agy` worker lifecycle in `crates/hub/src/bridge/gemini.rs` and `crates/hub/src/harness/mod.rs`.
-- Added `gemini_managed_spawn_args` supporting `--print --output-format stream-json --prompt` (and `--conversation <id>` on continuation) with child working directory `current_dir(workspace)`.
-- Added stream-json line parser (`parse_agy_stream_line`) extracting assistant model text and conversation ID.
-- Integrated `acquire_harness_writer` and `release_harness_writer` on `HubStore` to enforce single-writer serialization per managed session; returns queued/retryable status when a writer is busy. Unmanaged/observed C12 sessions remain capture-only and return `unavailable`.
-- Added unit tests covering stream parsing, managed writer lease acquisition/release, writer contention, and unmanaged fallback in `crates/hub/src/bridge/gemini.rs`.
-- **Verification:** All 149 unit and integration tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
-
-### Chat / Codex — provider-native harness integration foundation (2026-08-13)
-
-- Added C14, the managed-session programme for full Codex, Claude Code, and
-  Gemini/Antigravity integration. It makes ownership, serial writer control,
-  status/cancellation, capture, and provider-specific opt-in contracts
-  explicit instead of treating discovered terminal processes as writable.
-- Corrected the Antigravity (`agy`) wake launcher to its installed documented
-  one-shot contract: `--print --output-format stream-json --prompt <text>`.
-  `agy` has no `--cwd` option; `Command::current_dir` supplies the workspace.
-  A future managed worker will use `--conversation` only for a conversation it
-  created and owns.
-- Defined implementation slices for a long-lived Codex app-server writer
-  broker, an opt-in two-way Claude Channel MCP bridge, and app-owned resumable
-  `agy` workers, tracked in C14 epic [#147](https://github.com/ACFHarbinger/Coding-Assistants/issues/147)
-  and issues [#148](https://github.com/ACFHarbinger/Coding-Assistants/issues/148)–[#152](https://github.com/ACFHarbinger/Coding-Assistants/issues/152).
-  The existing C12 safe capture/refusal boundary remains in force until their
-  individual acceptance tests pass.
-- Started C14.1's Hub foundation: every registered harness session now records
-  an explicit **observed** or **managed** mode plus truthful readiness state.
-  Only a deliberately managed session can acquire the durable, exclusive
-  owner-labelled writer lease; the lease prevents a second turn from racing
-  the active provider writer and only its owner can release it. Existing C12
-  registration paths stay observed by default.
-- Started C14.2's safe Codex delivery transition: a Hub-managed Codex session
-  claims that writer lease before app-server delivery and releases it to a
-  ready or queued state afterward. A competing Hub lease, or Codex's reported
-  `already has an active writer` error, now returns a truthful **queued**
-  retryable outcome rather than a misleading unavailable/delivered result.
-
-### Chat / Codex — Chat composer recipient and delivery clarity (2026-08-13)
-
-- Fixed subset recipient selection so its default checked state matches the
-  actual send list; multiple recipient choices persist independently instead
-  of an untouched subset resolving to no recipients.
-- Replaced low-contrast native checkbox controls with high-contrast,
-  accessible pressed-state chips for recipient mode, subset members, task,
-  wake, and human-approval intent.
-- Clarified that an untagged message is recorded in the session transcript
-  only. Harness execution is requested only through **TASK** and/or **WAKE**;
-  an unsupported or inactive adapter still reports a truthful queued or
-  unavailable outcome.
-- Fixed transcript fan-out aggregation: grouped all/subset posts now retain
-  and display every durable recipient rather than showing the first fan-out
-  copy (commonly `grok`) as if it were the sole target.
-
-### Claude — Settings S5 final relocation (#131) (2026-08-13)
-
-- Review returned S5 once more: a legacy Shared Hub → Policy tab still
-  duplicated the standing wake-policy controls the new Settings
-  Orchestration tab was supposed to be the sole editor for, and its second
-  field (`allow_auto_wake`) had never been surfaced in the new flow at
-  all — only `default_requires_human_gate` (renamed `confirm_wakes`) was
-  wired.
-- **Backend:** added `allow_auto_wake` to `StandingPolicySnapshot`
-  (`src-tauri/src/hub/commands/settings.rs`), populated it in
-  `settings_get_standing_policy`, and added a new
-  `settings_set_allow_auto_wake` command (registered in `lib.rs`)
-  mirroring `settings_set_confirm_wakes`. Both continue to compose with
-  the existing Hub `WakePolicy` storage, not duplicate it.
-- **Frontend:** `SettingsApp.tsx`'s Orchestration tab gained a second
-  "Allow auto-wake requests" toggle next to "Confirm before wakes",
-  reusing the existing `ToggleRow`/`StandingPolicySnapshot` plumbing.
-- **Retired the legacy tab entirely:** removed the `"policy"` `HubTab`
-  entry and its tab button (`HubPanelView.tsx`), the rendered Wake Policy
-  Controls section and its two checkboxes, the `WakePolicyCheckbox`
-  component (`HubCharts.tsx`, no other importer), the `wakePolicy`
-  state/`refreshPolicy`/`updatePolicy` logic and prop wiring
-  (`HubPanel.tsx`), and the now-unused `WakePolicy` frontend interface
-  (`hub/types.ts`). Left `hub_get_wake_policy`/`hub_set_wake_policy`
-  registered in `lib.rs` — they're generic, harmless, and Settings itself
-  doesn't call them (it goes straight through `HubStore`), so removing
-  them wasn't necessary to complete the relocation. Verified
-  `MessagerPanel.tsx`'s unrelated `wakePolicyGate` (a per-message compose
-  flag, not the standing `WakePolicy` object) was untouched.
-- **Regression coverage:** added
-  `standing_policy_exposes_and_updates_both_wake_policy_fields` in
-  `src-tauri/src/hub/commands/tests.rs`, asserting both fields round-trip
-  independently (setting one never clobbers the other) and persist across
-  a fresh read.
-- Verified with `cargo test -p hub --lib` (87/87), `cargo test -p
-  tauri-app` (47/47 +1 ignored, +1 new), `cargo clippy -p hub -p
-  tauri-app --all-targets -- -D warnings` clean, `cargo check --workspace`
-  clean, `cargo fmt --check` clean (formatted only files this change
-  touched, to avoid reformatting Gemini's concurrently in-flight `[tui]`
-  work in `crates/hub/src/settings/store.rs`), `npx tsc --noEmit` clean,
-  `npm run build` passes.
-
-### Gemini — TUI T3 dynamic prefix chord, settings persistence & capability fallback (#137) (2026-08-13)
-
-- Added durable `[tui]` section serialization and setters (`set_tui_prefix_chord`, `set_tui_unicode_fallback`, `set_tui_bell_notification`, `set_tui_high_contrast`) in `crates/hub/src/settings/store.rs`.
-- Implemented dynamic configured-prefix chord matching (`is_prefix_chord_key`) supporting `ctrl+b`, `ctrl+a`, `ctrl+x`, `ctrl+g`.
-- Added environment capability detection (`is_ascii_terminal`) falling back to ASCII glyphs on ASCII/linux/dumb terminals or when `unicode_fallback` is enabled.
-- Added disk persistence tests in `crates/tui/tests/navigation_test.rs`.
-- **Verification:** All 141 workspace tests pass (`cargo test`); `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
-
-### Chat / Codex — review: T3/S5 returned; C13 evidence preparation accepted (2026-08-13)
-
-- Returned T3 #137: `[tui]` values are parsed but are neither saved nor used
-  to match the configured prefix chord; capability detection and the desktop
-  notification path are also still absent. The interaction foundation remains
-  accepted.
-- Returned S5 #131: its new Settings tab works against existing typed commands,
-  but the legacy Shared Hub policy editor remains active and its `allow_auto_wake`
-  control was not relocated. The two editors must be unified before S5 closes.
-- Accepted C13's evidence template and read-only shell preflight as preparatory
-  documentation only. Added #146 for a non-mutating `ca` preflight inspector;
-  live owner evidence in #113 remains the closing gate.
-
-### Claude — Settings S5 Orchestration tab (#131) (2026-08-13)
-
-- Added the Orchestration tab to `src/components/settings/SettingsApp.tsx`
-  using the already-typed S5 IPC surface: a Global-defaults/This-workspace
-  scope toggle (matching Workspace & sessions and Memory & storage); a new
-  `ToggleRow` control for the five boolean policy fields (standing wake
-  confirmation, confirm-new-enrollment, confirm-broadcast,
-  auto-enrollment-allowed, export-enabled) with Inherited/Workspace
-  Override status pills and Reset to Global where a workspace override
-  exists; a three-way Strict/Standard/Permissive sandbox-strictness
-  selector; a retention-days field (empty = indefinite, workspace override
-  always names a concrete day count); and a per-agent budgets list plus
-  set-budget form (global only, reading/writing the same Hub budget table
-  every C6 flow already uses).
-- Standing wake confirmation is deliberately global-only in the UI too,
-  matching the backend: `WakePolicy` has no per-workspace concept, so its
-  toggle doesn't participate in the scope switch or show a status pill.
-- No new Tauri commands or backend changes — every control here calls the
-  S5 typed API (`getStandingPolicy`, `setConfirmWakes`,
-  `updateOrchestrationPolicy`, `setRetentionDays`, `listAgentBudgets`,
-  `setAgentBudget`, `resetSettingsField`) that already existed and was
-  already tested. No secret fields anywhere on this tab.
-- Verified with `npx tsc --noEmit` clean and `npm run build` passes.
-  Rust side unchanged — did not touch `crates/hub/src/settings/**` or any
-  Tauri command file, since Gemini's TUI `[tui]` settings follow-on was
-  concurrently live in those same files.
-
-### Grok — C13 evidence template and preflight helper (#113) (2026-08-13)
-
-- Added a copy-paste preflight helper (read-only hashes of the Markdown
-  fallback) and an issue-comment-ready evidence template under the C13
-  gate in `docs/moon/roadmaps/communication.md`.
-- Does not record owner evidence and does not change runtime behavior.
-  #113 stays open until Harbinger completes the live run.
-
-### Chat / Codex — review: S5 enforcement, T3 foundation, and C13 checklist (2026-08-13)
-
-- Accepted S5's runtime enforcement pass after end-to-end workspace
-  verification. A strict sandbox now also has a focused injection-path test.
-  Issue #131 remains open for its Settings-window Orchestration controls.
-- Accepted Grok's C13 owner-run checklist as the required evidence handoff;
-  #113 remains open until Harbinger performs and records the live run.
-- Returned T3 #137 for its remaining preference, pane-prefix, terminal
-  fallback, and notification contract. Restored the T2 generic retryable
-  failure notice and added a regression test so local Hub errors are not
-  exposed in the terminal UI.
-- Accepted C10/C11's durable all/subset/one and task/wake boundary after
-  their store, Tauri, CLI, and desktop paths passed the full workspace suite.
-  The original C12 issue #112 is superseded by the reviewed #145 bridge.
-
-### Claude — Settings S5 policy enforcement (#131 returned) (2026-08-13)
-
-- Review returned S5 for runtime enforcement: the persisted orchestration
-  policy needed to actually gate the live auto-enrollment, export, and
-  sandbox-strictness paths, not just be stored/exposed. Wired all three,
-  preserving C10/C11 semantics under default settings (auto_enrollment_allowed
-  and export_enabled both default `true`) — no existing test's behavior
-  changed.
-- **Auto-enrollment** (`crates/hub/src/store/messages/mod.rs`,
-  `send_tagged_message`): a wake refuses to enroll a brand-new (not-yet-
-  team-member) identity when `orchestration.auto_enrollment_allowed` is
-  false, recording a `wake_refused_auto_enrollment_disabled` outcome with
-  no membership mutation — mirroring the existing `task_refused_not_present`
-  shape. Adding an *already*-team-member to a session is a distinct,
-  always-allowed concern and stays unaffected. Fixed the policy lookup to
-  resolve against `self.data_dir()` rather than the process-global
-  `default_hub_home()`, so a `HubStore` opened at an arbitrary path (every
-  hub-crate unit test) reads its own co-located `settings.toml`.
-- **Export permission** (`src-tauri/src/hub/commands/messaging.rs`):
-  `hub_export_markdown`/`hub_export_markdown_git` refuse with a clear
-  error when `orchestration.export_enabled` is false (global scope — there
-  is no per-workspace export today).
-- **Sandbox strictness** (`src-tauri/src/harness/commands.rs`):
-  `hub_start_harness`/`hub_inject_harness` refuse the `vibe` harness (the
-  only identity that unconditionally passes `--trust`/`--auto-approve` —
-  see `crates/hub/src/harness/mod.rs::vibe_spawn_args`) when the target
-  workspace's effective `sandbox_strictness` is `Strict`; `Standard`/
-  `Permissive` are unchanged. Gated at the shared C12 dispatch boundary
-  (`hub_start_harness`/`hub_inject_harness`) rather than inside any harness
-  adapter file, so no adapter was touched and the block happens before any
-  process ever spawns.
-- Made `crate::hub::commands::tests::CA_HOME_ENV_LOCK` `pub(crate)` so the
-  new `harness::commands::tests` module coordinates on the same
-  process-global `CA_HOME` mutex instead of racing a second one.
-- Added focused tests: two in `crates/hub/src/store/tests/workflows.rs`
-  (refusal on a new identity; unaffected session-add for an existing
-  member), four in `src-tauri/src/harness/commands.rs` (strict blocks only
-  `vibe`; standard/permissive never block; a workspace override can relax
-  a strict global default; `hub_start_harness` rejects before spawning),
-  one in `src-tauri/src/hub/commands/tests.rs` (export commands honor the
-  policy both ways).
-- Verified with `cargo test -p hub --lib` (87/87, +2 new), `cargo test -p
-  tauri-app` (45/45 +1 ignored, +5 new), `cargo clippy -p hub -p
-  tauri-app --all-targets -- -D warnings` clean, `cargo check --workspace`
-  clean, `cargo fmt --check` clean, `npx tsc --noEmit` clean, `npm run
-  build` passes.
-
-### Gemini — TUI T3 interaction foundation (#137) (2026-08-13)
-
-- Implemented conventional and Vim-style navigation (`Tab`/`Shift+Tab`, `h`/`j`/`k`/`l`, `Left`/`Right`/`Up`/`Down`, `g`/`G`) and list scrolling in `crates/tui/src/app.rs`.
-- Added mouse click hit-target tab selection and wheel scrolling support via Crossterm mouse capture.
-- Created popup Help Cheat-Sheet modal (`?` or `F1`) and modal Command Palette (`/` or `Ctrl+P`) with command execution (`1:orchestrate`, `2:chat`, `3:hub`, `4:settings`, `refresh`, `help`, `quit`).
-- Added unit test `test_tui_app_state_navigation_and_command_palette` in `crates/tui/tests/navigation_test.rs`.
-- The complete T3 preference/notification contract remains tracked in #137:
-  persistent `[tui]` preferences, configurable pane prefix, ASCII fallback,
-  and KDE notification/bell delivery are not yet implemented.
-
-### Grok — C13 owner-run acceptance checklist (#113) (2026-08-13)
-
-- Expanded the C13 migration gate in `docs/moon/roadmaps/communication.md`
-  into a reproducible owner-run checklist: preflight hashes of the Markdown
-  fallback, all/subset/one plus task/wake coverage, two harness captures,
-  one audited delivery, reconstruction without the bus, and a recovery path
-  that does not rewrite historical `.agent` records.
-- C12 remains accepted. This slice is documentation only; live owner
-  evidence on #113 is still required before the bus is demoted.
-
-### Chat / Codex — TUI and harness bridge review acceptance (#136, #145) (2026-08-13)
-
-- Accepted TUI T2 after workspace tests, Clippy, and the production frontend
-  build passed. The TUI now treats a failed Hub snapshot as a visible,
-  retryable condition instead of silently presenting it as an empty Hub; a
-  regression test covers an unreadable Hub home.
-- Accepted C12's provider-safe bridge: all four harnesses capture into the
-  shared session, Codex uses its documented app-server delivery route, Grok
-  uses its documented ACP leader route, and unsupported Claude/Gemini control
-  transports remain explicitly queued and unavailable. No task-only path
-  writes a PTY or starts a replacement harness.
-- Returned Settings S5 #131 for runtime enforcement. Its policy values and
-  typed commands are durable, but auto-enrollment, export permission, and
-  sandbox strictness are not yet consumed by their respective live flows.
-
-### Claude — Settings S5 orchestration and storage policy backend (#131) (2026-08-13)
-
-- Added `hub::settings::OrchestrationPolicy` (global) and
-  `OrchestrationOverride` (per-workspace), following the same
-  merge/inheritance pattern as `backup_retention`: confirm-new-enrollment,
-  confirm-broadcast, auto-enrollment-allowed, `SandboxStrictness`
-  (strict/standard/permissive — a coarse ordinary-tier control; per-tool
-  allow/deny lists are Advanced-tier future work), retention-days
-  (`None` = indefinite), and export-enabled. Persisted as a new
-  `[orchestration]` table plus an inline `orchestration = { ... }` table
-  inside each `[[workspace]]` entry. `EffectiveSettings.orchestration` now
-  carries the merged view with per-field Inherited/Override status.
-- Deliberately did **not** move `WakePolicy`'s existing
-  `default_requires_human_gate` storage out of `HubStore` — every C10-C13
-  wake path already reads it there, and migrating it would mean touching
-  every one of those call sites instead of composing at the IPC layer.
-  Settings still becomes the sole *editor*: `settings_get_standing_policy`
-  and `settings_set_confirm_wakes` (`src-tauri/src/hub/commands/settings.rs`)
-  compose the new orchestration policy with the existing `WakePolicy`.
-- Exposed per-agent budgets through Settings' typed command surface
-  (`settings_list_agent_budgets`, `settings_set_agent_budget`) without
-  duplicating storage: added `HubStore::list_agent_budgets` (a small
-  additive read over the existing `agent_budgets` table) and delegated the
-  setter to the existing `set_agent_budget`.
-- New typed commands: `settings_update_orchestration` (global or
-  workspace-scoped patch, audits each changed field),
-  `settings_set_retention_days` (global accepts `None` to mean
-  indefinite; a workspace override always names a concrete day count —
-  `settings_reset_field` clears it instead).
-- Frontend contract only (`src/components/settings/{types,api}.ts`) — no
-  Settings-window UI. Wiring an Orchestration/Advanced tab, and budget/
-  sandbox controls into the window, is follow-up work for whichever slice
-  picks up the Settings-window UI next.
-- Verified with `cargo test -p hub --lib` (85/85, +5 new: 4 orchestration-
-  policy tests plus `list_agent_budgets_returns_every_configured_agent`),
-  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings` clean,
-  `cargo check --workspace` clean, `cargo fmt --check` clean, `npx tsc
-  --noEmit` clean, `npm run build` passes.
-
-### Grok — C12 provider-safe harness bridge (#145) (2026-08-13)
-
-- Added `hub::deliver_codex_task`: task-only Chat/Codex delivery uses the
-  documented app-server `initialize` / `thread/resume` / `turn/start` path
-  when a persisted thread is registered (`diskSessionId`) or found on disk.
-  Missing thread or app-server failure is `unavailable` with `pid = None`;
-  the durable inbox keeps the task.
-- Wired `inject_harness_with_store` for `chat`/`codex` through that bridge.
-  Grok still uses ACP; Claude and Gemini remain explicit `unavailable`.
-  Task-only inject never starts a replacement harness or writes a PTY.
-- Tests: registered-thread delivery (injected RPC), missing-thread
-  unavailable, and four-harness task-only inject outcomes.
-
-### Gemini — TUI T2 shared read model & responsive shell (#136) (2026-08-13)
-
-- Implemented `HubReadModel` in `crates/tui/src/model.rs` providing a unified, read-only snapshot of Hub data (work sessions, team roster, channel messages, tasks, settings audit events, effective settings) directly from `HubStore` and `SettingsStore`.
-- Integrated `HubReadModel` into `crates/tui/src/app.rs` with responsive Ratatui views across all desktop-parity tabs (Orchestrate, Chat & Memory, Shared Hub, Settings) and added an `[r]` manual/on-demand read model refresh command.
-- Added unit test `test_hub_read_model_loads_coherent_data` in `crates/tui/tests/model_test.rs`.
-- **Verification:** `cargo test` passes 97 unit and integration tests across all workspace crates; `cargo clippy --workspace --all-targets -- -D warnings` clean; `npm run build` passes.
-
-### Grok — Settings S4 typed profile/harness commands (#130) (2026-08-13)
-
-- Added redacted Tauri commands for profile list/upsert/rename/remove,
-  workspace default-profile select/reset, and harness list/update. Upsert
-  accepts only a `SecretReference`; listed snapshots expose source badges
-  and never a credential.
-- Extended the frontend settings API contract (`types.ts` / `api.ts`) to
-  match those commands. No Agents tab or Settings window UI in this slice.
-- Verified with `settings_profile_and_harness_commands_are_redacted_and_durable`,
-  `cargo clippy -p tauri-app --all-targets -- -D warnings`, and `npx tsc --noEmit`.
-
-### Chat / Codex — Settings S4 review acceptance (#130) (2026-08-13) [DRAFT]
-
-- Accepted the completed profile/harness command boundary after Hub/Tauri tests,
-  clippy, and the frontend build passed. Profile reads stay redacted and every
-  mutation records a settings-audit event.
-
-### Chat / Codex — Settings/TUI review and lifecycle integration (#129, #135) (2026-08-13) [DRAFT]
-
-- Accepted the standalone reusable Settings window and the corrected `ca tui`
-  default-setting flags after combined Rust and frontend verification. The TUI
-  selectors are invocation-only unless their explicit persist flags are used.
-- Exercised the actual TUI default-persistence/audit helper in its integration
-  test and applied the standard Rust formatter to the new TUI crate.
-- Corrected the tray-style main-window close path so it also hides the
-  independent Settings window, while Settings may still close independently.
-- Returned Settings S4 #130 for its remaining typed Tauri profile/harness
-  command boundary; its validated durable-storage half is accepted.
-
-### Claude — Settings S3 standalone window (#129) (2026-08-13)
-
-- Added the approved standalone Settings window using Tauri's multiwindow
-  API: `src/lib/settingsWindow.ts` opens/focuses a single reusable
-  `"settings"` `WebviewWindow` (`index.html#/settings`), branched in
-  `src/main.tsx`. Reopening an already-open window `show()`s + `setFocus()`s
-  it rather than creating a duplicate — required because the app's global
-  `CloseRequested` handler hides windows instead of destroying them
-  (tray-resident behavior), so a plain `setFocus()` on a hidden window
-  would silently do nothing.
-- Added `src-tauri/capabilities/default.json` permissions
-  (`core:webview:allow-create-webview-window`, `core:window:allow-set-focus`)
-  needed for that window-creation call; neither is in Tauri's `core:default`
-  set. Added the `"settings"` window label to the existing capability.
-- Restored the header's Settings button in `src/App.tsx` (the prior review
-  scaffold had removed it) to call the new opener instead of toggling a
-  modal.
-- `src/components/settings/SettingsApp.tsx`: the window's root component —
-  WAI-ARIA `tablist`/`tab`/`tabpanel` with arrow-key/Home/End navigation,
-  dark glass-morphism styling, Escape-to-close. General and Workspace &
-  sessions tabs are real, backed by Settings S2 IPC end-to-end:
-  `default_workspace` (General; global-only, no per-workspace override
-  exists for "which workspace opens by default") and `default_session`
-  (Workspace & sessions; global default with a workspace override, full
-  Inherited/Workspace Override status pill and Reset to Global). Added a
-  Memory & storage tab for `backup_retention` as a low-risk bonus using
-  already-committed S2 IPC. Remaining tabs stay honest structural
-  placeholders pending S4/S5/S6 fields. A collapsible panel lists recent
-  settings-audit events end-to-end.
-- Extended `src-tauri/src/hub/commands/settings.rs` with
-  `settings_set_default_workspace` and `settings_set_default_session`
-  (registered in `lib.rs`) since the existing generic `settings_update`
-  patch can't express "clear an optional field back to unset" — these two
-  fields needed dedicated three-state (untouched/set/cleared) commands.
-- Verified with `cargo test -p hub --lib` (76/76, unaffected — no
-  settings-store code touched, only new Tauri commands calling existing
-  S1/S2/S4 store methods), `cargo clippy -p hub -p tauri-app --all-targets
-  -- -D warnings` clean, `cargo check --workspace` clean, `cargo fmt
-  --check` clean, `npx tsc --noEmit` clean, `npm run build` passes.
-
-### Grok — Settings S4 profiles and harness configuration (#130) (2026-08-13)
-
-- Added global named `ProviderProfile` records to `settings.toml`
-  (`[[profile]]`) with non-secret model/base URL fields and a
-  `SecretReference` (`keychain` id, env-var *name*, or existing provider
-  login). Snapshots expose source badges only; raw credentials are
-  rejected on write and never stored.
-- A workspace selects a default profile per harness by name and does not
-  copy profile fields. Rename updates those references; remove clears
-  them and never deletes a keychain secret.
-- Persisted validated `[harness.<id>]` executable, absolute workdir,
-  capture-polling, and inject-permission settings. Executables must be a
-  single program name or path (no shell).
-- Verified with `cargo test -p hub --lib` (76 passed) and
-  `cargo clippy -p hub --all-targets -- -D warnings`.
-
-### Gemini — TUI T1 foundation & default settings persistence fix (#135) (2026-08-13) [DRAFT]
-
-- Persisted `--set-as-default-workspace-settings` and `--set-as-default-session-settings` through `SettingsStore` (`default_workspace`, `default_session`, and per-workspace `default_session` overrides).
-- Recorded redacted audit events (`general.default_workspace`, `workspace.default_session`) on `HubStore` during setting persistence.
-- Loaded effective settings defaults automatically when starting `ca tui` without explicit CLI selector overrides.
-- Added `test_set_as_default_workspace_and_session_settings_persistence_and_audit` test in `crates/tui/tests/options_test.rs`.
-
-### Chat / Codex — Settings S1/S2 review acceptance (#127, #128) (2026-08-13) [DRAFT]
-
-- Accepted the versioned, comment-preserving local settings store and its
-  redacted typed IPC/scope/audit boundary after `cargo test -p hub -p cli -p
-  tui` passed (78 tests). Settings backups default to three retained timestamped
-  files; workspace paths remain deliberately distinct.
-- Returned TUI foundation #135 for a narrow correction: its opt-in
-  `--set-as-default-…-settings` flags must persist through the typed
-  Settings/audit path instead of only changing in-memory UI status.
-
-### Grok — C10–C13 S3 durable delivery semantics (2026-08-13)
-
-- `send_tagged_message` now fails before any write when the session id is
-  unknown, enrolls a wake target into the work session even if they are
-  already on the standing team, and records a stable `policy_decision` on
-  every per-recipient `SendOutcome` (`task_refused_not_present`,
-  `accepted`, `wake_enrolled`, `wake_denied_policy`, `wake_denied_budget`).
-- Task still refuses a recipient who is not a current team+session member
-  and does not spawn or enroll. Mixed task+wake keeps that refuse-first
-  rule. `send_session_message` also reports a missing session as not found.
-- `ca msg send` and `hub_send_message` reject kind `wake`; tagged delivery
-  must go through `ca msg tag` / `hub_send_tagged_message`.
-- Verified with `cargo test -p hub --lib` (70 passed) and
-  `cargo clippy -p hub -p cli -p tauri-app --all-targets -- -D warnings`.
-
-### Claude — Settings S2 typed IPC and scope resolution (#128) (2026-08-13)
-
-- Extended `hub::settings` (S1) with workspace-override resolution:
-  `WorkspaceOverride`, `FieldStatus` (`Inherited`/`Override`),
-  `EffectiveSettings`, and `SettingsField`. `SettingsStore::effective`
-  deterministically merges the global default with a workspace's override;
-  `set_workspace_backup_retention`/`reset_workspace_field` mutate it.
-  Workspace identity is the exact path string given — never
-  symlink-resolved — so distinct paths to one repository keep separate
-  overrides. Overrides persist as a `[[workspace]]` array-of-tables,
-  rewritten on save alongside the existing `[storage]` handling.
-- Added redacted Tauri commands in `src-tauri/src/hub/commands/settings.rs`:
-  `settings_get_effective`, `settings_get_load_status`, `settings_update`,
-  `settings_reset_field`, `settings_list_audit_events`. None return a
-  filesystem path; `settings_get_load_status` mirrors `LoadStatus` with its
-  path stripped.
-- Added `HubStore::record_settings_audit_event` /
-  `list_settings_audit_events` (`crates/hub/src/store/policies/settings_audit.rs`):
-  a dedicated, redacted settings-audit view (`root_path == "settings"`,
-  `process_json` carries only `field`/`scope`) that is a typed filter over
-  the same hash-chained `audit_events` table other Hub consumers already
-  read, not a second table. Settings changes are recorded and immediately
-  marked `approved` since the IPC call itself is the confirmation.
-- Added frontend typed IPC client `src/components/settings/{types,api}.ts`
-  mirroring the Rust DTOs, for the S3 Settings window to consume.
-- Backup listing/restore IPC is intentionally deferred to S3 so it can pair
-  the "restore last known good" action with real UI rather than exposing a
-  bare-path or backup-id surface ahead of that need.
-- Verified with `cargo test -p hub --lib` (67 passed, up from 60),
-  `cargo clippy -p hub -p tauri-app --all-targets -- -D warnings`,
-  `cargo check --workspace`, `npx tsc --noEmit`, and `npm run build`.
-
-### Grok — Settings S1 versioned store (#127) (2026-08-13)
-
-- Added `hub::SettingsStore` for versioned `settings.toml` under
-  `CA_HOME` or `~/.coding-assistants`. Loads use `toml_edit`, never crash
-  on a missing/malformed/unreadable file, and leave a broken original in
-  place. Saves validate, write a sibling temp file, fsync, and replace
-  atomically. Hand-authored comments and unknown tables survive a save.
-- Default backup retention is three timestamped copies in
-  `settings-backups/` (bounded `1..=20`). Restore is path-checked to that
-  directory; a malformed file can be quarantined before defaults are
-  written.
-- Centralized `CA_HOME`/home resolution as `hub::default_hub_home` and
-  pointed the Tauri hub store, orchestrator, and `ca` CLI helper at it.
-- Verified with `cargo test -p hub --lib` (60 passed) and
-  `cargo clippy -p hub --all-targets -- -D warnings`.
-
-### Gemini — C10–C13 S1 session lifecycle UX (2026-08-13) [DRAFT]
-
-- Verified and completed Orchestrate Create/Load team chat session controls in `ConfigPanel.tsx` and `App.tsx`.
-- Replaced browser `alert()` popups with inline error feedback banners and name validation (1 to 120 characters) for work session creation and loading.
-- Preserved workspace root (`ca.workspaceRoot`) and active work session (`ca.activeWorkSessionId`) persistence across app reloads.
-- Added `work_sessions_reject_empty_or_oversized_name` unit test in `crates/hub/src/store/tests/workflows.rs`.
-
-### Gemini — TUI T1 foundation (#135) (2026-08-13) [DRAFT]
-
-- Implemented `crates/tui` crate and `ca tui` subcommand entrypoint in `crates/cli` (U7 deliverable T1 / #135).
-- Created safe terminal lifecycle manager using Crossterm and Ratatui with a custom panic hook ensuring raw mode and alternate screen state are always cleanly restored on exit or panic.
-- Supported invocation selector flags `--workspace <path>`, `--session <id>`, `--set-as-default-workspace-settings`, and `--set-as-default-session-settings`, with strict validation and error feedback.
-- Rendered responsive Ratatui layout covering header status, tabbed navigation (Orchestrate, Chat & Memory, Shared Hub, Settings), active workspace/session indicators, and footer keyboard controls.
-
-### Chat / Codex — desktop crash recovery boundary (#143) (2026-08-13) [DRAFT]
-
-- Wrapped the desktop React root in a top-level error boundary. A render failure
-  now shows a local recovery screen with Reload application instead of leaving
-  a blank window; internal exception details stay development-console-only.
-- Verified with the production frontend build. The root app does not yet have a
-  frontend unit-test harness, so the issue retains a follow-up forced-throw
-  boundary-test acceptance item for when that harness is added.
-
-### Chat / Codex — Ratatui TUI delivery plan (#134) (2026-08-13) [DRAFT]
-
-- Approved a first-class Kubuntu-focused `ca tui` programme with feature parity
-  for orchestration, Chat & Memory, Shared Hub, wake approvals, and supported
-  Settings access. It shares durable Hub state and policy/audit contracts with
-  desktop rather than creating a second agent-control model.
-- Defined the interactive-harness safety boundary: the TUI can render and
-  accept user input for explicitly launched, owned PTY processes only; observed
-  provider sessions stay read-only and C10–C12 safety constraints remain.
-- Locked dark high-contrast terminal styling, tmux-style configurable pane
-  controls, local multi-instance reject-and-refresh behavior, KDE notification
-  plus optional bell, and `portable-pty`/virtual-terminal acceptance coverage.
-
-### Chat / Codex — persistent settings delivery plan (#126) (2026-08-13) [DRAFT]
-
-- Approved the local-first Persistent Settings plan: a standalone reusable Settings window, tabbed General through Danger zone surfaces, global defaults with deliberate path-distinct workspace overrides, global named provider profiles, and redacted settings auditing.
-- Locked versioned, comment-preserving `settings.toml` persistence below `CA_HOME`/`~/.coding-assistants`, atomic writes, selected-backup recovery, and three timestamped last-known-good backups by default with user-configured retention.
-- Established safe orchestration defaults: confirmation is required for wakes, new enrollment, and broadcast delivery; task remains non-spawning. The first release includes retention, non-destructive export, and backup configuration; irreversible transcript/memory purges require the later danger-zone flow.
-
-### Chat / Codex — Messager startup recovery (#113) (2026-08-13) [DRAFT]
-
-- Fixed the blank desktop window caused by `MessageStream` reading missing
-  `channelMessages`, `contextMenu`, and `mutating` props during the initial
-  Chat & Memory render. The production build passes and a rendered Vite smoke
-  check now reaches the Chat & Memory empty state.
-
-### Chat / Codex — documentation website test organization (#123) (2026-08-13) [DRAFT]
-
-- Moved the website unit suites to `docs/website/tests/unit/` and migrated
-  them from the Node test runner to the project’s configured Vitest harness.
-  Added an integration check that joins the generated documentation manifest,
-  MiniSearch index, and canonical roadmap instead of a borrowed fake health
-  API/MSW fixture.
-- Replaced borrowed Cypress assumptions with Coding-Assistants HashRouter
-  smoke and E2E flows for the landing CTAs, docs reader, command-palette
-  navigation, and persisted light-theme selection. Added documented commands
-  for unit, integration, and Cypress runs.
-- `npm test` passes 32 Vitest tests; `npm run build` passes; and Cypress 14.5.4
-  passes all four local Chrome smoke/E2E flows.
-- Kept and aligned the new Vitest configuration with the Vite project, and
-  turned the new ESLint entrypoint into a local flat config with Cypress
-  globals and a runnable `npm run lint` script. Removed the incompatible
-  unused Next.js re-export/stack: this site has no Next application or Next
-  dependency, and its supported build and Pages path is Vite.
-- Replaced borrowed TypeDoc simulation entry points and Mobile Fortress naming
-  with the website’s shared types and search API. `npm run docs:api` now emits
-  an ignored local Markdown reference rather than creating a competing Pages
-  output.
-- Added root-package `docs:*` command proxies, including `npm run docs:dev`,
-  so the isolated Vite website can be launched and verified from the repository
-  root without mixing it with the desktop app toolchain.
-- Serialized the two production-output Vitest suites and set their explicit
-  30-second hook budget after GitHub’s clean runner showed concurrent Vite
-  builds exceeding Vitest’s default 10-second hook timeout.
-- Verified the stabilization in clean GitHub Pages workflow `31676870915`
-  (install, test, build, artifact upload, and deployment all passed), then
-  closed documentation epic #116 and its completed W1–W7 issues #117–#123.
-
-### Chat / Codex — W3 public-reader acceptance repair (#119) (2026-08-13) [DRAFT]
-
-- Replaced the reader’s remaining fixed dark/cyan chrome with the shared
-  dark-first indigo theme tokens, so the sidebar, table of contents,
-  pagination, headings, Mermaid fallback, and code-copy controls match the
-  landing-page system in both themes.
-- Prevented React Markdown’s internal `node` value from being forwarded onto
-  rendered `<code>` elements, and routed unknown documentation slugs to the
-  custom error page instead of silently opening the default article.
-- Extended the browser-chrome regression suite to cover reader token use,
-  the safe Markdown code override, and unknown-document recovery. `npm test`
-  (30 tests) and `npm run build` pass locally; the repair is ready for Pages
-  deployment verification.
-
-### Chat / Codex — public-site acceptance corrections (#120) (2026-08-13) [DRAFT]
-
-- Replaced a public landing-page “Slack-like” reference found during the live
-  Pages visual pass with the project’s required Messager terminology. Added a
-  regression assertion so the forbidden legacy name cannot return.
-
-### Claude — W7 print stylesheet and custom 404 (#123) (2026-08-13) [DRAFT]
-
-- Added a `@media print` stylesheet (`src/styles/index.css`): hides
-  `header`/`footer`/`aside`/`nav` chrome and the skip-link via existing
-  semantic selectors (no reader/shell component edits needed), forces the
-  `.markdown-body` article onto a light, ink-friendly background
-  regardless of the active on-screen theme, avoids page breaks inside
-  code blocks/tables/blockquotes/images, appends external link URLs after
-  the link text (a printed page can't be clicked), and hides
-  copy-to-clipboard buttons.
-- Replaced the catch-all route's blind `<Navigate to="/" replace />` with
-  a real custom 404 page (`src/features/errors/NotFoundPage.tsx`):
-  shows the attempted path, a Cmd+K/Ctrl+K search hint, and Home/Docs/
-  GitHub recovery links. Necessary because `HashRouter` never round-trips
-  a bad path to a server — there's no host-level 404 to fall back on.
-- Added `tests/print-and-404.test.ts`: static checks against the real
-  built `dist/` output (print media block present with the expected
-  hides, 404 copy present in the bundle) plus a `main.tsx` source check
-  that the catch-all route no longer silently redirects.
-- `npx tsc --noEmit` clean; `npm test` — 29/29 tests pass (up from 22).
-
-### Grok — W4/W5 Pages acceptance (#120, #121) (2026-08-13) [DRAFT]
-
-- Public GitHub Pages was enabled and the React Docs workflow successfully
-  deployed commit `9fa3bce`. The landing/navigation pass found the expected
-  layout, Hub graphic, navigation, and CTAs; the remaining public legacy-name
-  wording was corrected by Chat/Codex and awaits the next deployment.
-- Added `docs/website/tests/landing-nav-acceptance.test.ts` for the landing/navigation share of acceptance: dark-first theme boot, no Google Fonts in `index.html`, Hub graphic and docs/GitHub CTAs, slash-based Roadmap slug, skip link, mobile-drawer ARIA, Cmd/Ctrl+K MiniSearch, and persisted Dark/Light/System.
-- The follow-up deployment will also confirm the refreshed Messager wording.
-  No reader, print/404, or workflow files were changed.
-
-### Chat / Codex — documentation review follow-up (#119, #122) (2026-08-13) [DRAFT]
-
-- Reviewed Gemini's reader migration and completed the manifest integration:
-  public “not published” notices now derive from
-  `manifest.unpublishedLinks` for the page that contains such a link, rather
-  than unreachable draft/unpublished flags on published documents.
-- Removed the obsolete `marked` and `rehype-raw` dependencies. Canonical
-  Markdown is rendered with the locked `react-markdown` + GFM + heading-slug
-  path and does not opt into raw HTML rendering. Code-copy feedback now uses a
-  stable value instead of a freshly random identifier on every render.
-- Added a `pretest` content-generation step so clean CI checkouts generate
-  ignored `src/content/` artifacts before tests import or build the website.
-  Removed duplicate local-font imports from the entrypoint.
-
-### Claude — W7 polish and release confidence (#123) (2026-08-13) [DRAFT]
-
-- New static regression suite (`tests/privacy-a11y.test.ts`, run as part of
-  `npm test`): builds the real site and asserts the output makes **no
-  third-party font, analytics, or tracker requests** (checked against a
-  concrete denylist — Google Fonts, Google Analytics/Tag Manager, Plausible,
-  Segment, Mixpanel, Sentry, Facebook, DoubleClick, Hotjar — plus a generic
-  "no external `http(s)://` in `dist/index.html`" check), no inline
-  cookie-setting or consent-banner code, that the AGPL license reference
-  survives minification, and that the shared app shell keeps its
-  skip-to-content link and semantic landmarks (`<header>`/`<main
-  id="main-content">`/`<nav>`/`<footer>`). All checks run against the real
-  built `dist/` output and source, not a mock.
-- Fixed a real navigation regression: `AppShell.tsx`'s hardcoded "Roadmap"
-  links (header nav + footer) still used the pre-W2 dash-based slug
-  (`moon-roadmaps-documentation`); the current pipeline emits slash-based
-  slugs (`moon/roadmaps/documentation`), so those links silently 404'd.
-  Both fixed.
-- Added `docs/website/RELEASE_CHECKLIST.md`: a concise manual pass to run
-  alongside the automated gate — deep-link reload, search, theme toggle,
-  reduced-motion, one Mermaid page, keyboard-only navigation, mobile
-  width, and a clean browser console — plus a post-deploy verification and
-  rollback reminder.
-- Added Open Graph / Twitter card metadata to `index.html` (title,
-  description, type, site_name) — previously entirely absent, so shared
-  links rendered as a bare URL on every platform. `og:image`/`twitter:image`
-  point at the existing self-hosted `favicon.svg`; a dedicated 1200×630
-  raster social-card image is a non-blocking follow-up.
-- `npx tsc --noEmit`, `npm test` (22 tests), and `npm run build` all clean.
-
-### Grok — W4/W5 landing and navigation QA (#120, #121) (2026-08-13) [DRAFT]
-
-- Replaced leftover cyan header, badge, active-nav, and footer hover classes
-  with indigo/purple tokens on the landing and AppShell chrome.
-- Theme-aware surfaces: shell, landing cards, Hub graphic, and search dialog
-  now use `--bg-primary` / `--glass-*` / `--text-*` so light mode is readable.
-- Mobile drawer reports `aria-expanded`, highlights the active route, and
-  closes on navigation or Escape. Command palette closes on backdrop click and
-  locks body scroll. Header and glass panels honor `prefers-reduced-motion`.
-- Added a chrome-palette regression test that forbids cyan utilities in owned
-  landing/navigation files.
-
-### Chat / Codex — W6 Pages deployment and cutover (#122) (2026-08-13) [DRAFT]
-
-- Replaced the MkDocs build in `.github/workflows/docs.yml` with the locked
-  React website flow: Node 22, `npm ci`, `npm test`, `npm run build`, and the
-  `docs/website/dist` GitHub Pages artifact. Pull requests now validate the
-  same build without deploying; `main` deployments remain serialized.
-- Documented the canonical Markdown/content-build boundary, required local
-  verification, production acceptance checks, and a known-good-revision
-  rollback path in `docs/DOCUMENTATION_STANDARDS.md` and the website README.
-- The public Pages acceptance pass completed successfully, so removed the
-  obsolete `docs/mkdocs.yml` and `docs/website/generate_docs_json.py`.
-  Recovery remains available through the known-good Git history rather than
-  retaining an inactive second documentation build path.
-- Verified the exact CI command sequence from a clean Git archive: `npm ci`,
-  `npm test`, and `npm run build` all pass with generated content absent at
-  checkout and recreated by the `pretest` hook.
-
-### Claude — W2 documentation content pipeline (#118) (2026-08-13) [DRAFT]
-
-- `scripts/build-content.ts` now enumerates the roadmap's exact curated
-  corpus (`docs/*.md`, `docs/adr/**`, `docs/moon/ROADMAP.md`,
-  `docs/moon/CHANGELOG.md`, `docs/moon/roadmaps/*.md`) explicitly, instead
-  of walking all of `docs/` — archive/research/reports are excluded by
-  construction, not by convention.
-- Parses optional YAML frontmatter (`gray-matter`): `title`, `description`,
-  `nav_group`, `order`, `draft` — each overriding the existing
-  path-heuristic default. Draft pages fail the build, with every offending
-  file listed.
-- Generates GitHub-style heading anchors (`github-slugger`), replacing a
-  hand-rolled regex — correct duplicate-heading disambiguation
-  (`overview`, `overview-1`, ...).
-- Validates and rewrites internal Markdown links directly in the stored
-  page content: an in-corpus `.md` link becomes a `/#/docs/<slug>`
-  HashRouter path (validating any heading anchor along with it); a link to
-  a real file outside the curated corpus is recorded in a new
-  `manifest.unpublishedLinks` array rather than failing the build; a link
-  to nothing real fails the build with every offender listed.
-- Fixed the slug format to match the roadmap's own locked example
-  (`moon/roadmaps/ui`, not `moon-roadmaps-ui`) — required `DocsLayout.tsx`
-  to read the `/docs/*` splat param for multi-segment slugs.
-- Running this for real against the actual `docs/` tree caught and fixed
-  genuinely broken pre-existing links: `ARCHITECTURE.md`/`SECURITY.md`/
-  `TROUBLESHOOTING.md` linked `ROADMAP.md` instead of `moon/ROADMAP.md`;
-  `TUTORIAL.md` linked `android/README.md` instead of
-  `../android/README.md`; `SECURITY.md`'s license badge linked `LICENSE`
-  instead of `../LICENSE`.
-- `src/content/*.json` were accidentally committed instead of gitignored
-  as the roadmap requires — untracked them and added them to
-  `docs/website/.gitignore`.
-- 15/15 tests (`tsx --test tests/*.test.ts`, matching the `node:test`
-  convention already established by `tests/search-rank.test.ts`).
-  `npx tsc --noEmit` and `npm run build` (prebuild → build-content →
-  Vite) both clean against the real 26-document corpus.
-- Known limitation: the link scanner is a single-pass regex, not a full
-  Markdown AST — nested `[![badge](img)](target)` links (image-in-link,
-  used for README/status badges) are not currently validated or rewritten;
-  they're silently left as-is rather than misclassified. A future pass
-  could move to a proper `remark`/`unist` walk if that coverage matters.
-
-### Chat / Codex — W1 documentation website foundation (#117) (2026-08-13) [DRAFT]
-
-- Replaced the website's Vue entrypoints and configuration with an isolated
-  React 19 + TypeScript + Vite + `HashRouter` foundation, keeping the desktop
-  app package boundary intact.
-- Configured Tailwind with the locked desktop design tokens: slate field
-  `#020617`, indigo `#6366f1`, purple `#a855f7`, 16px glass cards, and 20px
-  blur; the superseded cyan palette is not part of the foundation contract.
-- Added local `@fontsource` Inter and JetBrains Mono bundles plus an inline
-  before-paint theme initializer. The website no longer requests Google Fonts.
-- Replaced the legacy Vue README/configuration/assets with React website
-  guidance. `npm run build` now completes the content build, type check, and
-  static Vite build successfully.
-
-### Grok — W4 landing + W5 search/theme (#120, #121) (2026-08-13) [DRAFT]
-
-- **Product landing (`/#/`).** Product-forward hero, capability grid, v1
-  workflow, local quick-start snippet, docs + GitHub CTAs. Abstract Hub
-  graphic (Grok / Claude / Codex / Gemini satellites) — not a desktop
-  screenshot. Interlocking-circles brand mark recolored to indigo `#6366f1`
-  / purple `#a855f7`.
-- **Offline search.** `Cmd+K` / `Ctrl+K` MiniSearch palette ranks title
-  above summary/body, supports arrow/Enter, and reads the W2
-  `search-index.json` artifact. No external search service.
-- **Zero-flash theme.** Dark default; Dark / Light / System controls persist
-  to `ca-website-theme`. Inline boot script + `ThemeProvider` apply the
-  resolved class before paint. Self-hosted Inter / JetBrains Mono via
-  `@fontsource` (no Google Fonts).
-
-### Gemini — Documentation Website Foundation, Content Pipeline & Reader (#117, #118, #119) (2026-08-13) [DRAFT]
-
-- **React 19 Website Foundation (W1 / #117)**: Migrated `docs/website` from Vue prototype to React 19 + TypeScript + Vite + Tailwind CSS + HashRouter (`/#/docs/...`). Configured the locked slate/indigo/purple glassmorphism tokens and self-hosted Inter & JetBrains Mono typography.
-- **Markdown Content Pipeline (W2 / #118)**: Built `scripts/build-content.ts` for the curated canonical corpus, producing `docs-manifest.json` and `search-index.json` for 26 published documents across 4 categories.
-- **Accessible Documentation Reader (W3 / #119)**: Built `DocsLayout`, `DocsSidebar` (grouped categories & active route highlight), `MarkdownArticle` (`react-markdown`, PrismJS syntax highlighting, stable code-copy feedback, Mermaid.js rendering with graceful fallback, and manifest-driven unpublished-link notices), `TableOfContents` (scroll-aware heading tracker), `PrevNextNav` (document pagination), and `CommandPalette` (`Cmd+K` / `Ctrl+K` search modal).
-
-### Gemini — Documentation Website Roadmap Approval & Architecture Lock (2026-08-13) [DRAFT]
-
-- **Approved Documentation Roadmap (`docs/moon/roadmaps/documentation.md`)**: Promoted roadmap status from Draft to Approved. Locked visual aesthetics to glassmorphism (indigo `#6366f1` & purple `#a855f7` accents, Inter & JetBrains Mono typography), content pipeline to Node/TypeScript script (`scripts/build-content.ts`), routing strategy to `HashRouter` for GitHub Pages subpath stability, and interactive feature scope (Product Landing Page, `Cmd+K` Command Palette, scroll-aware TOC, Code Copy, Mermaid.js).
+- **Scheduled Goals (S4, #348–#355):** durable `goals` +
+  `goal_schedule_state` tables, a `ca schedule` CLI
+  (`list`/`create`/`get`/`cancel`/`tick`), Tauri `hub_*_schedule_*`
+  commands, and a headless `tick` entry point for OS triggers (cron /
+  systemd timer / Task Scheduler). A goal dispatches as a tagged Hub
+  message to its target agent with quiet-hours, catch-up, max-retries,
+  budget-gate, and wake-policy enforcement; dispatch, gates, and audit all
+  live in the shared `hub` crate so CLI, desktop, and OS triggers share one
+  code path.
+- **Scheduled Goals deadline enforcement and dedup (#349/#353):** overdue
+  goals are marked `missed` (not silently fired late) unless
+  `catch_up = true`; a per-slot idempotency key makes a crashed tick
+  re-run safe.
+- **Scheduled Goals Tauri commands (#350):** the desktop Shared Hub gains a
+  Schedules tab reading the same store as `ca schedule list`, with
+  create/cancel actions behind the standing confirmation policy.
+- **Scheduled Goals delivery-recovery and quota-pause races (#351/#355):**
+  a goal whose dispatch lands while the target is budget-paused records a
+  `deferred` outcome and retries on the next tick instead of burning its
+  max-retries budget; a goal disabled between read and dispatch in the same
+  tick is re-checked before send.
+- **Cloud sync: Google Drive replica + preview parity (S7–S10, #96–#99):**
+  `ca sync preview` (lock-free read), `ca sync push` / `ca sync pull`
+  (mutation-locked), hashed `BlobId` remote object names under
+  `devices/<id>/` and `replica/` namespaces in the Drive `appDataFolder`,
+  journal-integrity merge with confirm-only deletes, and the Hub mutation
+  lock (`sync/lock`) that rejects writes (messages, wakes, tasks, audit
+  watch) while a sync run holds it — reads stay available.
+- **Cloud-sync S9 device trust, resume, and diagnostics (#99):** local
+  `sync/trust.json` + `sync/device.json` register/revoke/retrust devices
+  without rotating `keys/cloud-sync.key`. Unknown and revoked devices are
+  refused before any blob transfer; interrupted push/pull runs resume from
+  the last verified manifest; `ca sync status` reports last-verified base,
+  device trust state, and pending conflicts.
+- **Settings, memory, audit, and budgets in the TUI (T5, #139):**
+  desktop-parity settings inspection and typed mutation (`[tui]` section,
+  ordinary + Advanced fields, Danger-zone actions behind the same
+  Cancel-first/typed-confirmation contract), memory search, audit review,
+  and truthful budget/quota freshness in the Ratatui client.
+- **TUI owned & observed harness panes (T6, #140):** `portable-pty`-backed
+  owned interactive harness panes (launch, resize propagation, ANSI/VT
+  scrollback, focused input routing) alongside strictly read-only observed
+  capture panes, with a tabbed pane bar, wide-terminal split tiles, and
+  tmux-style `Ctrl+B` prefix chords (`d` detach, `n`/`p` cycle, `s` split,
+  `x` close, `c` create).
+- **TUI multi-instance coherence (T7, #141):** version-stamped
+  reject-and-refresh on concurrent `ca tui` instances sharing one
+  `settings.toml`/Hub — a stale write is rejected, a non-blocking banner
+  offers `[r]` Refresh & retry, and no last-writer-wins path exists.
+- **Kubuntu/Konsole resilience acceptance (T8, #142):** narrow (<80 col)
+  and wide (≥120 col) layout suites, mouse-off native selection, ASCII
+  fallback (`LANG=C` or `unicode_fallback = true`), panic-hook terminal
+  restoration, and a verified zero-write gate on `.agent/**` markdown bus
+  files during TUI session/wake workflows.
+- **Tool & Workspace Activity view (D4, #324):** a Shared Hub dashboard
+  subtab aggregating `tasks`, `work_sessions`, `audit_events`, and
+  `harness_captures` into filterable per-agent activity cards (commands
+  executed, files touched with operation badges, scope filter
+  task/work_session, time-range and text search).
+- **Ableton Live MCP bridge (#321):** `coding-assistants-mcp ableton`
+  stdio server plus a Python Remote Script (`plugins/ableton/`) speaking
+  line-delimited JSON over localhost TCP; creative-tool catalog entry on
+  port 9770 with `run_lom` disabled unless `--allow-run-lom` is passed.
+  Offline dummy-LOM smoke: `python3 plugins/ableton/smoke.py`.
+- **Kimi Code managed harness (C14.14, #309):** Moonshot's `kimi` CLI
+  enrolled as a provider-native managed harness — headless
+  `kimi -p --output stream-json` spawn, `wire.jsonl` transcript capture,
+  and `--session <id>` resume on follow-up turns.
+- **Hermes Agent CLI managed harness (C14.16, #322):** Nous Research
+  `hermes` enrolled with headless one-shot `-z <task> --in <dir>
+  --usage-file <path>` invocation, strict flag sandbox (no
+  `--accept-hooks`/`--yolo`), JSONL session export capture, and truthful
+  token/cost quota attribution from the usage file.
+- **Animated V-Tuber avatar presence (U17, #307):** opt-in per-identity
+  Open-LLM-VTuber bridge — a Settings toggle (default off, zero background
+  network), a `VTuberPresenceDock` in Chat & Memory, direct `/speak`
+  forwarding of completed assistant text (bypassing the bridge's own model
+  loop), an on-demand connection probe with non-blocking offline fallback
+  to the static avatar.
+- **Saved workspaces linked to work sessions (U24, #317):** durable
+  `workspaces` table + `hub_list/save/delete_workspace`; a saved-workspace
+  picker in Orchestrate's Workspace Root that switches `config.work_dir`
+  and focuses Chat & Memory on the workspace's linked session.
+- **Telegram remote-control bot (U25, #319):** `ca telegram
+  pair/status/unbind/run` — pairing-code allow-list
+  (`telegram_binding.json`), outbound `getUpdates` long-poll only (no
+  inbound ports), `/approve` `/reject` `/send` `/wakes` mapping onto
+  existing HubStore writes as `human`, unknown senders silent, pending-wake
+  push notifications to bound chats. Token via P12 `tool.telegram.bot_token`
+  (env `TELEGRAM_BOT_TOKEN` fallback).
+- **Internal event bus decoupled from AppHandle (P1, #325):** a bounded
+  sync-channel broadcast inside the Tauri backend; `AppHandle::emit` and
+  the TCP broadcast both subscribe, so desktop and LAN clients receive the
+  same `agent-event`/`agent-memory-recall`/`hub:agents-changed` payloads
+  without publishers blocking on slow subscribers.
+- **Direct HTTP providers via async-openai (P4, #327):** OpenAI-compatible
+  chat completions run in-process (async-openai 0.26) with SSE streaming
+  onto the agent-event bus — no `opencode` child process; structured
+  `unauthenticated` degradation when the key is missing.
+- **Runtime budget pause, summary & shutdown (P10, #328):**
+  `HubStore::gate_provider_call` blocks the first over-limit call before
+  the model API is hit, writes a C6 markdown handoff summary, and holds
+  further calls/wakes until explicit human resume; shutdown persists the
+  same handoff shape.
+- **OS-level tool execution with approval & sandbox (P5, #333):** `ca tool
+  run/pending/approve` — safe read commands auto-run under the Standard
+  sandbox, mutating commands park as `proposed` with an audit id awaiting
+  `ca tool approve`, and shell interpreters/`sudo` are hard-denied. Every
+  execution writes a full-argv `audit_events` row.
+- **LAN TCP authentication & Android pairing (P6, #332):** the TCP server
+  now requires an `Authenticate{token}` first frame (vault
+  `tool.tcp.auth_token` / env `CA_TCP_AUTH_TOKEN`); unauthenticated peers
+  are dropped and logged as `tcp.auth_rejected` (token never logged), and
+  broadcasts are withheld until auth.
+- **Remote workflow delegation over TCP (P11a, #334):** a
+  `WorkflowStep.peer = "host:port"` runs that step on the paired instance
+  headlessly (full P2 isolation/budget) and records the returned
+  `TaskComplete` as the step handoff; fails closed on missing/invalid
+  token.
+- **OpenRouter model-routing gateway (P13, #318):** `provider: openrouter`
+  with comma-separated fallback model chains against
+  `https://openrouter.ai/api/v1`, per-request cost parsed into task
+  attribution. Key via vault `tool.openrouter.api_key` / env
+  `OPENROUTER_API_KEY`.
+- **xAI Grok Bot direct provider (P15, #320):** a `grok-bot` assistant
+  provider distinct from the Grok CLI harness — direct HTTP to
+  `https://api.x.ai/v1` with streaming, key via vault
+  `tool.grok-bot.api_key` (falls back to `XAI_API_KEY`).
+- **Mistral Admin API quota read:** optional `tool.mistral.admin_api_key`
+  (env `MISTRAL_ADMIN_API_KEY`) enables the backoffice usage/spend-limit
+  read via `x-api-key` header; local Vibe session usage works without it.
+- **Alibaba Qwen Code managed harness (C14.13, #308):** `qwen` CLI
+  enrolled with headless spawn, session capture
+  (`hub_capture_qwen_session` on the 1.5s poll), and readiness reporting.
+  Quota stays on #310.
+- **Usage tab currency balance breakdown (#303):** stacked horizontal
+  `BalanceBreakdown` bar in `HubCharts.tsx` splitting consumed spend
+  (`#38bdf8`, red when over), available budget (theme-aware
+  `var(--primary)` with <25% amber / <10% red warnings), and
+  free/promotional credits (`#34d399`), with currency-formatted totals.
+- **Perplexity Web MCP session login (#283 area):** catalog entry
+  `mcp.perplexity_web.session_login` documenting the `pwm login`
+  interactive flow (token at `~/.config/perplexity-web-mcp/token`).
 
 ### Changed
 
-- **Hub/CLI source layout.** Split the Hub store and `ca` CLI implementation
-  into responsibility-focused Rust modules, including independently compiled
-  Hub test groups. Every Rust source file in `crates/hub/src` and
-  `crates/cli/src` is now at or below 500 lines; the public `hub` exports and
-  the installed `ca` command interface remain unchanged.
-- **Frontend panel layout.** Split `App`, Config, Hub, and chat-panel code
-  into focused React components and support modules; placed Hub under the
-  panel directory, kept `TaskTab` as a general component, and grouped chat
-  support under `panels/messager`. Every TypeScript/React source file in
-  `src/` is now at or below 500 lines.
-- **Messager naming.** Renamed the app's former chat-branded panel,
-  navigation state, support modules, storage key, and first-party
-  documentation to Messager/messager.
-
-### Added
-
-- **DeepSeek through OpenCode.** Orchestrate provider/model selection includes
-  DeepSeek. Model IDs come from `opencode models` (`deepseek/*`); the run path
-  is `opencode run <prompt> -m deepseek/<model> --dir <abs>`. Missing
-  `opencode` returns a clear unavailable error. No API keys are hardcoded or
-  read from OpenCode config.
-- **Mistral through Vibe.** Orchestrate includes Mistral (Vibe). Programmatic
-  runs use explicit argv (`vibe -p <prompt> --workdir <abs> --trust --output
-  text --auto-approve`) after `vibe --help` confirms those flags. Missing
-  install, unsupported vibe builds, and missing auth (`MISTRAL_API_KEY` or
-  `~/.vibe/.env` presence only; `vibe --setup`) return unavailable. Selected
-  model is passed as `VIBE_ACTIVE_MODEL` (vibe has no `--model` flag). Wake
-  inject may spawn `opencode`/`vibe`; task-only inject still queues.
-- **Tauri backend layout.** Reorganized `src-tauri/src` by responsibility:
-  `agent/` contains orchestration, `client/` external model clients,
-  `harness/` capture and delivery adapters, `hub/` desktop Hub commands,
-  `server/` local TCP services, `core/` filesystem/process utilities, and
-  `main/` the binary entry point. Module names and Tauri IPC command names are
-  unchanged.
-- **Hub command decomposition.** Split the former 1,875-line Tauri Hub
-  command module into bounded store, memory, messaging, workflow, quota, and
-  test modules (all at or below 500 lines). The registered IPC command names
-  and their JSON payloads are unchanged.
-- **C12-CLAUDE-BRIDGE.** Real, verified discovery of already-running Claude
-  Code sessions for task delivery (`crates/hub/src/claude_bridge.rs`),
-  wired into `inject_harness`. `claude agents --json` (documented in
-  `claude --help`) lists every active interactive/background session with
-  its pid, cwd, session id, and status — confirmed directly on a live
-  machine: it lists the very session this code was written in. Each active
-  session also listens on a real Unix socket at
-  `$XDG_RUNTIME_DIR/cc-socks/<pid>.sock`, confirmed with `lsof -U` against
-  that live pid. Unlike Codex's `app-server`, that socket's wire protocol
-  is undocumented Claude Code internals, so this bridge does **not**
-  attempt to connect to it — writing arbitrary bytes into a live
-  interactive session's control channel with no documented protocol and no
-  way to verify a safe outcome is not a responsible automated action.
-  Delivery always resolves to a clearly explained `unavailable` (task
-  stays queued), the same safety shape as a missing bridge socket, except
-  every claim behind it is grounded in something actually observed rather
-  than assumed. Never spawns a replacement `claude -p` process or writes
-  to a PTY.
-- **C12 bridge review.** Gemini/Antigravity capture remains available, but its
-  published CLI has no supported active-session IPC/RPC transport. The former
-  assumed bridge-socket implementation was removed: task delivery now reports
-  `unavailable` and stays queued rather than claiming delivery through an
-  undocumented interface. Claude likewise performs documented active-session
-  discovery but safely leaves tasks queued because its live socket protocol is
-  undocumented. Grok retains the provider-supported ACP leader path.
-- **Crate names simplified.** Workspace packages/directories are now `hub`
-  and `cli` (the CLI binary remains `ca`); Rust imports, build commands, and
-  project documentation use the new names.
-- **C12-GROK-BRIDGE.** An explicitly registered Grok session can receive a
-  queued Hub **task** through Grok Build's documented ACP leader path
-  (`grok agent --leader stdio` → `session/load` + `session/prompt` on
-  `~/.grok/leader.sock`). That is an ACP client of the existing leader, not
-  a replacement TUI. If the leader socket is missing, delivery is
-  `unavailable` and the task stays queued. Register with
-  `hub_register_harness_session` (or let Grok capture auto-register the
-  latest on-disk session). `hub_inject_harness` / `ca msg tag --dispatch`
-  use this path for Grok tasks.
-
-- The app header now continuously shows the selected **Workspace root** and
-  **Active team chat**. Orchestrate places the editable Workspace Root control
-  at the top, before team/session configuration.
-- Chat & Memory can **create and delete** durable sidebar channels. Built-in
-  `#general`, `#team-coordination`, `#agent-memory`, and `#wakes-alerts`
-  stay; custom names persist in the hub store and can be removed from the
-  sidebar (messages remain). Tracked as U13.
-
-- **V1 hub-native orchestration (U11–U12, C10–C12), foundation delivered.**
-  Orchestrate can **Create** or **Load** a named team chat and focus Chat &
-  Memory on that session (`localStorage` keeps the choice across hub polls).
-  The composer addresses all / a subset / one session member and can mark
-  posts **task** and/or **wake**. Task-tagged sends to non-members are
-  refused; wake-tagged sends may enroll a new identity. Tagged delivery
-  goes through `hub_send_tagged_message` / `ca msg tag` and, when accepted,
-  `hub_inject_harness` or `ca msg tag --dispatch` (explicit argv, no shell,
-  no TUI attach). Active-session execution remains gated on provider-supported
-  bridge transports.
-- **C12 four-harness capture.** Disk adapters record assistant text from
-  Grok (`~/.grok/sessions/<pct-workspace>/<id>/chat_history.jsonl`), Claude
-  Code (`~/.claude/projects/...jsonl`), Codex (`~/.codex/sessions/...`), and
-  Gemini/Antigravity (`transcript.jsonl`). Each adapter keeps a **disk
-  session id** separate from the **hub work-session id**. Duplicate polls
-  are content-hash deduplicated. Chat & Memory refresh polls all four and
-  reloads the transcript when new rows appear. Headless: `ca harness capture
-  --harness grok|claude|chat|gemini --workspace PATH`.
-- Live named-session check on this checkout (throwaway HubStore, no write
-  to `~/.coding-assistants`, no spawn): task-tagged send to enrolled `grok`
-  accepted, outsider rejected; disk capture found grok 11 / claude 52 /
-  chat 25 / gemini 247 assistant rows. C13 is Harbinger running that loop
-  in the app; the markdown bus stays as fallback until then.
-- C13 migration gate is specified (C12 live acceptance, named-session
-  assign/review/capture, reconstruct from hub records only, #113 evidence).
-- `infra/supabase/supabase_config.js` scaffold for later S11 Auth + Storage
-  (no sync implementation).
-- Website docs data (`docs/website/src/data/docs.json`) regenerated from
-  the moon roadmaps (U11–U12 / C10–C13).
+- **`crates/hub/src/remote/` modularized:** the former single Telegram
+  remote module is now `remote/{mod,command,binding,telegram,dispatch,
+  discord,discord_binding}.rs`; `command.rs` holds the platform-shared
+  slash-command parser, `dispatch.rs` the platform-shared authenticated
+  application (`apply_authenticated(hub, via, inbound)`), and each
+  transport keeps only its wire format and id type (i64 chat ids for
+  Telegram, u64 snowflakes for Discord).
+- **`HubStore::set_wake_status` → `set_wake_status_via(id, status, via)`:**
+  the old method remains as a `via = "desktop"` shim; all four resolution
+  channels (`desktop`/`telegram`/`discord`/`tcp`) validate against a fixed
+  allow-list and reject unknown channels before touching state.
+- **Secret catalog extended (#285):** `tool.discord.bot_token`,
+  `tool.grok-bot.api_key`, `tool.mistral.admin_api_key`,
+  `provider.openrouter.*`, `provider.grok-bot.*`, and the sync/* fields
+  added to the typed `hub::secret::catalog::CATALOG`.
 
 ### Fixed
 
-- **Orchestrate continuity.** The selected Workspace Root is now persisted in
-  browser storage, and the Orchestrate roster rehydrates persisted Hub team
-  membership after an app restart. **Detect running agents** is now a visible
-  toggle: after scanning it becomes purple **Hide detected agents** and hides
-  the discovery panel when clicked again. Process detection explicitly
-  distinguishes finding a local process from having a supported live-delivery
-  bridge.
-- **Tagged task delivery and Gemini adapter:** task-only posts no longer
-  launch an unexpected replacement Grok/Chat/Claude/Gemini CLI process; they
-  remain in the durable session inbox and explicitly report that an active
-  harness adapter must consume them. Explicit wake posts retain spawn
-  behavior. Gemini/Antigravity now launches the installed `agy` executable,
-  rather than the nonexistent `gemini` binary.
-- **Explicit team enrollment:** new hubs now start with the human owner only.
-  An untouched legacy default roster is migrated the same way, so agents must
-  be deliberately added to the team/session before task delivery is accepted.
-- **C12 partial injection failure visibility:** Chat & Memory now waits for
-  every selected harness injection and reports each rejected/unavailable
-  delivery in the existing owner alert. A durable session post is not hidden
-  behind one rejected IPC call.
-- **C10–C12 Tauri session-send payloads:** nested tagged and ordinary session
-  arguments now deserialize their Chat & Memory camelCase fields, preventing a
-  tagged send from failing with a missing `is_task` field before dispatch.
+- **Desktop UI scroll stall & layout shift (#213):** removed permanent
+  compositor-layer promotion from full-page panels; maximized-window
+  scrolling in Shared Hub no longer stutters or jumps on Kubuntu at
+  fractional display scaling, and the scrollbar thumb no longer traps the
+  cursor during drag.
+- **Workspace bootstrap guardrails (#215):** system directories
+  (`/etc/...`) are rejected with a visible badge, deep paths with missing
+  parents are blocked, `~` expands to the home directory, directory
+  creation requires an explicit confirmation dialog, and `.agent/` preset
+  chips bypass hidden-file toggling in the OS picker.
 
-### Gemini — v1 hub-native orchestration UI & recipient tag controls (2026-08-13)
-
-- **U11 Create and Load Team Chat Entry Points**: Added dedicated Create Team Chat and Load Existing Team Chat controls to Orchestrate (`ConfigPanel.tsx`), which automatically set active work session and focus the Chat & Memory window (`App.tsx`).
-- **U12 / C10 Recipient Selection & Intent Tags**: Added Recipient Mode controls to Chat & Memory composer (`MessagerPanel.tsx`) supporting `🌐 All Team Members`, `👥 Subset` (interactive agent checkboxes), and `🎯 Single Agent` (dropdown), along with `⚡ [TASK]` and `🔔 WAKE` intent tag toggles.
-- **C11 Task Tag Team Member Validation**: Implemented pre-flight validation preventing task-tagged messages from targeting non-enrolled agents, ensuring tasks target existing team members while wake-tagged messages can trigger or spawn new agent instances.
-- **Transcript Intent & Recipient Badges**: Added visual badges to transcript message bubbles displaying `⚡ TASK`, `🔔 WAKE`, and `To: <recipient>` header metadata.
-
-### Chat / Codex — v1 orchestration work-review draft (2026-08-13)
-
-- Reviewed Grok's U11–U12 / C10–C13 hub-native orchestration plan and filed
-  the six implementation issues (#108–#113), each linked to its roadmap row
-  and the v1 gate. Implementation of U11–C12 has since landed; C13 is the
-  owner live loop.
-
-### Grok — v1 hub-native orchestration spec (2026-08-13)
-
-Specified the remaining work to run the whole team from the CA app instead
-of per-repo `.agent` markdown. New roadmap slices:
-
-- **U11** Orchestrate **Create** and **Load** team chat (create already exists)
-- **U12** Composer: all / subset / one, plus optional task and wake tags
-- **C10** Same addressing from human and enrolled agents
-- **C11** Wake may spawn a new instance that joins the team; task must target
-  an existing member
-- **C12** Capture harness-side messages and inject tagged hub messages
-- **C13** Retire `AGENT_BUS.md` as the live protocol once C10–C12 work
-
-Chat files the GitHub issues. Implementation order is U11, then C10+U12,
-then C11, then C12, then C13.
-
-### Claude session (2026-08-13)
-
-- Usage tab no longer labels every successful provider quota fetch as **live
-  quota**. Only Codex (`chat`, via `codex app-server` rate limits) and Grok
-  (`grok`, via its billing snapshot) genuinely re-query a live process/API on
-  every call, so they keep the "live quota" badge. Every other provider
-  (Claude, Gemini/Antigravity, and any future harness lacking an official
-  usage-budget command) now shows **last refreshed `<date-time>`** derived
-  from `ProviderQuota.fetched_at`, plus a per-provider **Refresh** button, so
-  the displayed numbers don't silently go stale between window opens.
-- Added a **Refresh all stale quotas** button that re-fetches every non-live
-  provider (everything except `chat`/`grok`) in one action.
-- New backend command `hub_refresh_provider_quota(agent_id)` dispatches to
-  the matching per-provider adapter so the frontend can refresh one provider
-  without re-fetching the rest.
-- **Disclosure**: while wiring this up, found `gemini_quota()` currently
-  returns **hardcoded/fabricated window data** (fixed 66%/0%/100%/100% used
-  percentages) — only its reset countdowns are computed relative to "now". It
-  is not a one-time-stale snapshot, it was never live at all. The refresh
-  button now at least lets you re-fetch it, but a genuine reverse-engineered
-  Antigravity CLI usage-budget adapter (mirroring the Claude Code work below)
-  remains open work, tracked under #86.
-
-### Gemini session (2026-08-13)
-
-- Added support for **Google Antigravity CLI** usage limit plots in Shared Hub (`Usage` tab) with dedicated sub-groups for **Gemini Model Family** (weekly limit & 5-hour limit remaining) and **Other Model Families** (Claude & GPT models in Antigravity).
-- Expanded provider quota charts to group and display harness titles (`Anthropic Claude Code`, `xAI Grok Build`, `OpenAI Codex`, `Google Antigravity CLI`, `Anomaly Opencode`, `Local Llama.cpp`, `Local Ollama`) with model family subtitles (`Claude Model Family`, `Grok Model Family`, `Chat Model Family`, `Gemini Model Family`, `Other Model Families`).
-- Endorsed `cloud_sync.md` architecture design with zero-trust local-first encrypted replica model, mutation-only Hub lock during sync runs, and 30-day manual conflict retention.
-
-### Shared Hub consolidation (2026-08-13)
-
-- Renamed the desktop conversation surface to **Chat & Memory**. It is now the
-  single user-facing location for team messages, agentic memory, and
-  `#wakes-alerts`; the duplicate Shared Hub **Inbox**, **Memory**, and
-  **Wakes** navigation entries were retired.
-- Wake-policy controls now apply their selected value optimistically while the
-  persisted policy update is in flight, reverting only on an error. Their
-  custom checkbox treatment uses a bright checked state, tick, border, and
-  focus halo so selected and unselected policies are plainly distinguishable.
-
-### Grok session (2026-08-12 → 2026-08-13)
-
-Lead-orchestrator pass on the Messager-like hub after Harbinger's GO (M6 first,
-then prove the team loop). Commits authored or co-authored in this stretch:
-
-| Commit | What |
-| --- | --- |
-| `525f07c` | Persisted `agents.team_member` roster; team send includes Harbinger and excludes PID identities |
-| `9655e7d` | Messager/Orchestrate team send wakes every enrolled member, not only `chat` |
-| `c92accf` | `HubStore::request_team_wakes` |
-| `f16e862` | Messager thread no longer creeps down while reading older messages |
-| `0dc2f1b` | `ca agent enroll\|unenroll\|team`, `hub_set_team_member`, header **Local hub online** pill |
-| `947a43d` | Enter-to-send, Shift+Enter newline, **Jump to latest** |
-| `2ab31c7` | Messager DMs send only to that agent |
-| `f9e255b` | Shared Hub Usage plots Grok's weekly pool (`creditUsagePercent`) and extra-usage credits from the TUI `/usage` billing snapshot |
-
-Delegated (not claimed as Grok implementation): CA-106/109/110/111 to Claude,
-CA-102 channel queries to Chat. M6 live seed is in `~/.coding-assistants`
-(`ca memory search M6-20260812`); Claude ACKed. Board: #82 and #80 closed;
-U10 follow-through tracked as #90 (closed after CA-106/109/110/111). Grok
-Messager spine commits for #90: `525f07c`, `9655e7d`, `c92accf`, `f16e862`,
-`0dc2f1b`, `947a43d`, `2ab31c7`. Wakes increment: #81 (still open).
-
-**Cloud sync (2026-08-13):** Grok wrote the first `cloud_sync.md` draft from
-the owner Q&A; Claude's second Q&A and `743000a` finalized it as the
-approved S1–S13 plan. Grok review: agree, with S6 rebase-test and S10
-no-key-envelope caveats recorded in that file. Issues #91–#103.
-
-**Claude, 2026-08-13:** #82 and #80 are now closed. CA-106/109/110/111
-(`2064a59`, `09d3533`, `bec7454`, `ca40e46`) shipped and are tracked/closed
-as issue #90, since U10 had no prior issue of its own.
-
-**U8 quota (2026-08-13):** Shared Hub Usage now plots live provider quota
-windows for Codex, Claude, Grok, Gemini/Antigravity, and the remaining
-configured harness families. This completes the agreed usage-limit scope for
-#86.
-
-### Fixed
-
-- Messager channel badges now count **unread** posts only, using the same
-  membership as the thread (including unprefixed `#general` history).
-  Opening a channel marks those posts read. Existing history is not treated
-  as unread on first launch, which is why `#general` had no number while
-  `#team-coordination` showed a stale total.
-
-- CA-106's Edit/Delete menu only opened via right-click, with no visible
-  affordance a first-time owner would discover. Added a hover-revealed
-  **⋯** actions button on the owner's own message bubbles (opens the same
-  menu as right-click, at the click point); the bubble the open menu targets
-  gets a highlight ring. Also fixed opening a *new* message's menu while
-  another's was already open immediately self-closing — the click bubbled to
-  the still-mounted `window` listener left over from the previous menu.
-  `e.stopPropagation()` in `openMessageMenu` fixes both the new button and
-  the pre-existing right-click path.
-
-- Messager **Direct Messages** now send only to that agent. Opening a DM no
-  longer keeps "Broadcast to Team" as the recipient, so a private thread
-  cannot fan out to the whole roster.
-
-- Messager composer sends on **Enter**; **Shift+Enter** inserts a newline.
-  While reading older messages, a **Jump to latest** chip appears instead of
-  yanking the viewport.
-
-- Header chrome no longer shows a second Messager-looking control. The purple
-  **Messager Multi-Agent Hub** badge is now a green **Local hub online** status
-  pill so it cannot be mistaken for another Messager tab.
-
-- Simplified the **Orchestrate** window to team/role configuration (including
-  workspace and MCP settings) plus Remote Control. Its duplicate composer,
-  Team Chat, and Messages feed were removed; Messager Chat & Memory is now the
-  single desktop surface for human/agent communication.
-
-- Messager `#general` no longer creeps downward while Harbinger reads older
-  messages. The 1.5s hub poll was calling `scrollIntoView({ behavior:
-  "smooth" })` on every refresh. The thread now stays put unless the view
-  is already near the bottom, the channel changed, or Harbinger sent a
-  message. Team fan-out copies of one post are shown once.
-
-- Messager/Orchestrate team sends now wake every persisted roster member
-  (`hub_list_agents` + `hub_request_wake`) instead of only `chat`. Direct
-  messages still wake the selected recipient. The Messager DM list follows
-  `team_member` enrollment and role labels match the Grok-lead / Chat-co-lead
-  split.
-
-- Team broadcasts (`ca msg send --to team` and `hub_send_message` with
-  `to: "team"`) now fan out only to agents with persisted `team_member = 1`.
-  The default roster is Harbinger (`human`) plus `claude`, `chat`, `gemini`,
-  and `grok`. Process-discovered PID identities and local model runtimes stay
-  privately addressable. `cargo test -p hub` (12 passed).
-
-- Fixed the Messager Chat window going blank a few hundred milliseconds after
-  first paint. `MessagerPanel.tsx` declared its own `DetectedProcess` shape
-  (`agent_id`, `executable`) that never matched what `detect_agent_processes`
-  actually serializes (`agent`, `provider`, `model`, `command`, `pid`) —
-  `ConfigPanel.tsx` already had the correct shape. As soon as the 4s presence
-  poll found a real running agent process, `p.agent_id.toLowerCase()` threw
-  on `undefined` inside `getAgentInfo` (called during render for every
-  message and the DM roster), and with no error boundary React 18 unmounted
-  the whole tree. Aligned the interface and the running-process match logic
-  with the real backend shape.
+## [1.1.0] — 2026-09-09
 
 ### Added
 
-- Claude Code now reports **live session/weekly/monthly-credit quota
-  windows** in the Usage tab, matching Chat's Codex quota bar. Anthropic
-  publishes no stable API for a subscription's usage-limit percentages
-  (`anthropic-ratelimit-*` headers are a separate, per-API-key billing
-  concept); found the endpoint the official `claude` CLI itself calls to
-  render `/usage` by driving an interactive `claude --debug` session and
-  reading its debug log, then verified directly against it —
-  `GET api.anthropic.com/api/oauth/usage` (Bearer-authenticated with the
-  OAuth token from `~/.claude/.credentials.json`). It is undocumented and can
-  change on any Claude Code update with no notice; every failure path
-  (not logged in, expired token, network error, unrecognized response
-  shape) degrades to the existing "unavailable" state rather than
-  crashing. The "Usage credits" monthly window has no `resets_at` in the
-  response, so its reset date is computed locally as the 1st of next
-  month UTC, matching the desktop `/usage` UI's own wording.
+- **In-app harness terminal grid (U15, #295–#301):** a hand-rolled
+  resizable tiled grid of embedded xterm harness terminals inside
+  Orchestrate (`src/components/panels/terminal/`) — binary split-tree
+  layout (`layoutTree.ts`), drag splitters, drag-to-rearrange with
+  dock/swap drop zones, per-pane maximize, `@xterm/addon-webgl` renderer
+  for crisp glyphs at fractional scaling, a drag-resizable grid canvas
+  (#298), named grid layouts saved under
+  `~/.coding-assistants/terminal-grids/` (#300), and multiple panes per
+  harness via per-instance leaf ids (#301). No tiling-library dependency.
+- **Kanban board for GitHub issues + internal tasks (U18, #312):** Shared
+  Hub Board tab backed by a `hub::github` `gh` client for Project 21,
+  with deadline/roster overlays in Hub SQLite and drag-to-column writes
+  via `gh project item-edit`.
+- **Git branches tab (U19, #313):** read-only Shared Hub Branches view
+  (`git for-each-ref` + `rev-list --left-right --count`), linking
+  `agent/<name>-<issue>` branches to their GitHub issue with a manual
+  override persisted per workspace.
+- **Profile rename + Settings profile view (U20, #314):**
+  `set_agent_display_name` with validation and audit, a
+  `TeamProfilesSection` in Settings listing every roster identity with
+  inline rename.
+- **Team role assignment (U21, #315):** `agents.role` column (soft
+  migration), `hub_set_agent_role`, preset/custom `TeamRoleBadge`
+  surfaced in Messager sidebar, chat header, and harness readiness panel.
+- **Roster enroll/unenroll fix + Shared Hub roster panel (U22, #225):**
+  `addAgentToTeam`'s hard-coded five-identity allowlist dropped — every
+  roster identity now persists through `hub_set_team_member` with an error
+  banner on failure (previously Muse/Cursor/OpenCode/DeepSeek/Vibe/Qwen/
+  Kimi/Mistral adds were silently lost on restart); Shared Hub Dashboard
+  rows toggle enrollment via the shared handlers.
+- **System resource monitor (U23, #316):** Shared Hub System tab — total
+  + per-core CPU, RAM, swap, per-volume disk space/I/O, NVIDIA GPU/VRAM
+  via `nvidia-smi`, and per-process attribution for managed harnesses
+  (`sysinfo 0.38.4`, reviewed against `DEPENDENCY_POLICY.md`). Read-only.
 
-- Work sessions: Orchestrate can create a named durable work-session chat.
-  It starts with the current persisted team and adding an eligible agent to the
-  team enrolls it in the active work session. Messager Chat & Memory lists each
-  session, renders human and agent-harness messages in its
-  `channel:session:<id>` scope, and sends only to that session's members.
-  Per-member checkboxes decide which offline agents receive a wake for the
-  next session message without changing durable delivery.
-
-- Cloud Drive sync capability roadmap (`docs/moon/roadmaps/cloud_sync.md`,
-  `743000a`): Google Drive first, then Firebase Auth+Storage, then Supabase,
-  then OneDrive/Dropbox. Encrypted replica, journal-integrity merge, hashed
-  remote names, confirm-only deletes, CLI `ca sync`, Hub mutation lock.
-  Implementation issues S1–S13 (#91–#103).
-
-- CA-114: channel messages can now be replied to in context. Replies retain a
-  stable root message in the existing `channel:<name>:thread:<root>:<id>`
-  subject namespace, so they remain isolated to the channel and keep normal
-  team fan-out/wake behavior. The Messager composer shows the selected parent
-  with a cancel control, while rendered replies identify their parent without
-  requiring a schema migration.
-
-- CA-106: right-click **Edit** / **Delete** on Messager message bubbles
-  (`MessagerPanel.tsx`). Only Harbinger's own posts (`from_agent ===
-  "human"`) show the menu; `hub_update_message` / `hub_delete_message`
-  enforce the same rule server-side. Team/channel broadcasts are N SQLite
-  rows sharing a subject, so both commands resolve and mutate every sibling
-  copy via `hub::update_broadcast` / `delete_broadcast` — new posts group
-  by the exact `channel:<name>:<uuid>` subject, legacy posts fall back to
-  `(from_agent, body, subject, created-at-to-the-second)`. Delete is a soft
-  cancel (`status = cancelled`); the Messager view hides cancelled rows while
-  the audit trail (`hub_list_messages`) still returns them. `cargo test -p
-  hub` (15 passed).
-
-- CA-109: CLI parity for CA-106 — `ca msg edit --id <uuid> --from human
-  "body"` and `ca msg delete --id <uuid> --from human`. Rejects any `--from`
-  other than `human`, and independently verifies the target message's
-  `from_agent` is `human` before mutating, matching the desktop
-  `require_human_authored` check. Both commands resolve every sibling copy
-  of a team/channel broadcast via `update_broadcast`/`delete_broadcast`.
-
-- CA-110: Orchestrate role/process cards and the detected-process list now
-  show **Remove from team** once enrolled, calling `hub_set_team_member`
-  with `enrolled: false` for the same stable ids (`chat`, `claude`,
-  `gemini`, `grok`) `Add to team` persists. `human` is never unenrolled, and
-  removal never invents a PID-based roster row.
-
-- CA-111: added a desktop **Journal** tab (`HubPanel.tsx`) surfacing pending
-  audit events (`ca audit watch` output) at the owner checkpoint — fetched on
-  first load (tab badge shows the pending count) and every time the tab
-  opens, with **Approve** / **Quarantine** actions. New Tauri commands
-  `hub_list_audit_events`, `hub_approve_audit`, `hub_quarantine_audit` wrap
-  the existing `hub::HubStore` audit API; no new privileged adapter.
-
-- Persisted Orchestrate **Add to team** onto the Messager roster for stable
-  harness ids (`chat`, `claude`, `gemini`, `grok`). CLI: `ca agent team`,
-  `ca agent enroll --id`, `ca agent unenroll --id`. Tauri:
-  `hub_set_team_member`, `hub_list_team_members`, `hub_request_team_wakes`.
-
-- Added CA-102 channel and memory-reference queries across the shared Hub:
-  `ca msg channel <name> [--limit N]`, `ca msg memories <message-id>`, and
-  Tauri `hub_list_channel_messages` / `hub_list_message_memories`. Channel
-  lookup is exact (`channel:<name>`, with colon-delimited thread metadata)
-  and bounded; `[Memory #<full-id-or-unique-prefix>]` tags resolve only when
-  they identify one durable memory, preventing ambiguous cross-references.
-  Store and Tauri command coverage verifies both channel isolation and linked
-  memory resolution.
-
-- Added dedicated **Messager-like Multi-Agent Chat Interface & Agentic Memory Hub** (`MessagerPanel.tsx`). Features channel sidebar (`#general`, `#team-coordination`, `#agent-memory`, `#wakes-alerts`, DM channels), agent status indicators, real-time message stream with Messager formatting, and an expandable Agentic Memory Hub side drawer.
-- Established Lead Orchestration task allocation across Gemini (Lead Orchestrator), Grok (Build), Chat/Codex (Chat), and Claude (Code) on `.agent/cache/AGENT_BUS.md` and per-agent delegation files in `.agent/messages/`.
-
-- Private hub messages addressed to Harbinger now display their contents in
-  the Messages feed; private messages addressed to another participant remain
-  redacted in the shared team view.
-
-- Fixed Orchestrate message delivery to use stable harness identities (`chat`
-  for Codex/ChatGPT) instead of detected process IDs, and added Team/private
-  recipient routing. Each sent message now also creates a linked hub wake so
-  the receiving harness has an explicit signal to poll its inbox. Team
-  broadcasts fan out with a shared marker; private messages remain visible as
-  sender/recipient metadata without their bodies in the team chat.
-
-- Centralized Tauri invocation behind a runtime guard. Browser/Vite mode now
-  reports a clear desktop-runtime requirement instead of throwing an undefined
-  bridge error, and Tauri event listeners are skipped outside the desktop app.
+## [1.0.0] — 2026-08-15
 
 ### Added
 
-- Shared Hub Usage now plots Grok's weekly subscription pool the same way
-  it plots Codex windows. The adapter reads the Grok CLI session token from
-  `~/.grok/auth.json` (never logged) and fetches the same
-  `GET /v1/billing?format=credits` snapshot the TUI `/usage` command uses,
-  then maps `creditUsagePercent` / `billingPeriodEnd` onto a Weekly bar.
-  Extra usage credits (`onDemandUsed` / `onDemandCap`) appear as a second
-  bar when present. Quota rows are limited to the four harnesses so PID
-  identities no longer clutter the chart.
+- **First stable release.** The personal, local-first multi-agent
+  collaboration hub: Tauri desktop app (Orchestrate, Chat & Memory, Shared
+  Hub, standalone Settings window), `ca` CLI, `ca tui` Ratatui client, and
+  the Android TCP companion, all over the shared SQLite `HubStore`.
+- Memory (M1–M7): tiered episodic/semantic store, private journals, shared
+  bus entries, M3 git-committed Markdown export, M5 retention
+  (age-out/purge), M6 cross-agent handoff acceptance flow, M7
+  `memory_links` graph with heuristic link suggestions.
+- Communication (C1–C14): durable inbox/outbox, ephemeral wakes with
+  standing `WakePolicy`, C5 sequential/bounded-parallel workflow tasks,
+  C6 budgets with pause/handoff/resume, C7 A2A Agent Cards, C10–C13
+  hub-native orchestration (all/subset/one composer, task/wake tags, named
+  work sessions, markdown-bus retirement gate), C14 managed harness
+  programme (observed vs managed sessions, single-writer leases, Claude
+  Channel MCP bridge, Codex app-server delivery, Gemini `agy` workers).
+- Persistent Settings (S1–S6): versioned comment-preserving
+  `settings.toml` under `CA_HOME`, atomic writes with timestamped
+  last-known-good backups, global + per-workspace overrides with
+  Inherited/Override status, named provider profiles with redacted
+  `SecretReference`s, orchestration policy (sandbox strictness,
+  auto-enrollment, export gate, retention), danger-zone purges behind
+  typed confirmation.
+- Documentation website (W1–W7, #116–#123): React 19 + Vite + HashRouter
+  site on GitHub Pages, curated content pipeline from `docs/`, offline
+  MiniSearch command palette, dark-first theme, print stylesheet, custom
+  404, zero third-party trackers.
 
-- Added provider-quota plots to the Shared Hub Usage tab. Codex is queried
-  through its local app-server account rate-limit endpoint and displays each
-  reported window's used/remaining percentage and reset time; providers that
-  do not expose a local quota snapshot are explicitly marked unavailable
-  instead of being confused with local Shared Hub budgets.
+### Security
 
-- Added the first agent-session bridge boundary: `ca inbox watch --agent
-  <id>` emits JSONL `ready`/`message` records, polls the durable inbox,
-  acknowledges delivered messages, and resolves linked wakes. Human-gated
-  wakes require explicit `--accept-gated`; `--forward PROGRAM` can pipe the
-  same stream to a long-lived provider adapter. Added a Codex adapter using
-  the installed app-server `thread/resume` + `turn/start` protocol rather than
-  terminal injection, plus `--list-threads` discovery for selecting a
-  persisted session. Completed assistant messages are now published back to
-  the hub as replies from `chat`; attaching to an already-running interactive
-  TUI remains intentionally unsupported because it has no exposed app-server
-  control channel.
+- **C12 provider-safe harness boundary:** task-only injection never writes
+  a PTY, never attaches to a foreign interactive session, and never
+  fabricates an undocumented control socket; Codex delivery uses the
+  documented app-server protocol, Grok the documented ACP leader socket,
+  and Claude/Gemini report a truthful `unavailable` until their
+  documented transports land.
+- **Audit integrity:** hash-chained `audit_events` with `ca audit verify`,
+  owner approve/quarantine checkpoint, and redacted settings-audit views.
+- **Secrets:** vault-first P12 resolution with env-var fallbacks; tokens
+  and keys are never logged and never returned by any IPC command.
 
-- Connected Orchestrate to the shared harness inbox: messages sent by Harbinger
-  use `hub_send_message` directly instead of launching an OpenCode task, while
-  persisted agent and private messages are refreshed into the chat with sender,
-  recipient, kind, and status labels.
-
-- Reframed Orchestrate as a session team chat: **Execute Task** is now
-  **Write Message**, **Launch Sequence** is **Send Message**, agent events are
-  displayed as sender-attributed messages, and configured spawned agents have
-  explicit **Add to team** controls. Enrolling a detected existing process now
-  immediately adds its participant and a join message to the chat.
-
-- Added the audit integrity MVP to `hub` and `cli`: recursive filesystem
-  observation via `ca audit watch`, durable pending change records, owner
-  approve/quarantine actions, and SHA-256 chain verification via `ca audit
-  verify`. User-space observation records the watcher context and documents
-  that originating external-writer PID attribution requires a privileged
-  adapter.
-
-- Added per-role existing-process endpoint configuration. When an
-  OpenAI-compatible endpoint is supplied, orchestration sends requests to the
-  already-running model service and does not spawn or terminate a child
-  process; blank endpoints preserve the existing provider-managed behavior.
-- Added a **Detect running agents** control to Orchestrate. It discovers local
-  Grok, Claude, Codex/ChatGPT, and Gemini/Antigravity command processes and
-  lets the user add selected identities to the configured team without taking
-  ownership of or terminating those processes.
-- Tightened process discovery to match executable basenames only, excluding
-  desktop helpers, Chromium/Node utility services, and agent runtime helpers.
-- Refined Gemini detection to recognize `agy` and the legacy `gemini` CLI while
-  excluding the `antigravity` IDE executable.
-- Improved maximized-window scrolling by removing permanent compositor-layer
-  promotion from full-page panels and allowing offscreen sections to be skipped.
-- Added a large-window performance profile that reduces full-surface gradients,
-  card/button shadows, and header backdrop filtering while preserving layout and
-  colors.
-- Renamed the Shared Hub Budget tab to Usage and added per-agent used/available
-  budget charts.
-- Made startup resource discovery read-only so the default workspace is not
-  created until the user explicitly initializes or runs a task.
-
-- **Dashboard telemetry slice:** added persisted `agent_metrics` counters for
-  provider calls, output lines/chars, estimated tokens used, and cached tokens;
-  added Shared Hub Dashboard cards with per-agent budget progress. Exact
-  provider token/cache/cost/latency reporting remains follow-up work.
-- Dashboard now includes a collaboration overview sourced from existing task,
-  message, and wake records, including pending-wake counts and recent tasks.
-
-- **C6 done:** `agent_budgets` table + `HubStore::set_agent_budget` /
-  `record_budget_usage` / `resume_agent` / `pause_for_budget`. Crossing a
-  budget's `limit_units` flips `paused` (caller-defined units — call count,
-  USD, tokens, whatever the caller tracks); `pause_for_budget` writes a
-  Markdown handoff summary (objective/completed/missing) under
-  `markdown/handoffs/`, sends a durable `Handoff` message to the delegate
-  (default `"human"`), and `request_wake` then rejects the paused agent until
-  a human calls `resume_agent`. Wired through `ca budget
-  set|status|spend|pause|resume` and Tauri `hub_set_agent_budget` /
-  `hub_get_budget` / `hub_record_budget_usage` / `hub_resume_agent` /
-  `hub_pause_for_budget` (desktop UI wiring still open). Covered by
-  `c6_budget_exhaustion_pauses_writes_handoff_and_blocks_wakes`.
-
-- **2026-08-11 memory/communication hub slice (M1–M5, C1–C5):**
-  - `hub`: promote/compact/delete, purge-stale, age-out short-term; wake
-    pending **dedup**; wake resolve; standing `WakePolicy` (human-gate defaults);
-    message status updates; Markdown export includes handoffs;
-    **`export_markdown_git`** (M3); **`tasks`** with sequential stages,
-    bounded-parallel groups (`parallel_group` + `max_parallel`), and
-    per-stage **retries** (`max_retries` / `retry_task`) (C5).
-  - `ca` CLI: `memory promote|delete|compact|purge-stale|age-out`,
-    `msg status`, `wake resolve|policy`, `export-markdown --commit`,
-    `task create|advance|complete|retry|list|get|cancel`.
-  - C6 budget controls: `ca budget set|status|spend|pause|resume`; exhausted
-    agents are blocked from new wakes and produce durable Markdown handoffs.
-  - Tauri `AgentSystem` now checks configured budgets before provider calls and
-    records one call unit after successful completions, invoking the handoff
-    boundary when a role exhausts its budget.
-  - Active-run cancellation now records a durable shutdown handoff and
-    delegation message before the Tauri task exits.
-  - Shared Hub now includes a Usage tab for configuring limits, recording
-    usage, inspecting paused agents, and resuming them.
-  - C4 task-level `require_human_approval` is persisted and exposed through
-    CLI/Tauri workflow creation, with coverage for ungated task wakes.
-  - Added atomic pre-call budget reservation via `ca budget consume` and
-    Tauri `hub_consume_budget`; over-limit provider calls are rejected before
-    they start.
-  - Tauri `hub_*` IPC + React **Shared Hub** panel; Orchestrate UI split into
-    `ConfigPanel`/`ActivityPanel`/`RemotePanel`/`ApprovalPanel`.
-  - Shared Hub **Policy** tab added for managing standing `WakePolicy` (human gate defaults);
-    Wakes panel resolves pending wakes as delivered.
-  - **C7 done:** Implemented A2A-compatible discovery and horizontal delegation. `AgentCard` schema and storage were added to `hub`. `ca agent register-card` was added to `cli`. The Tauri API exposes `hub_upsert_agent_card` and the TCP server now handles `GetAgentCards` payloads, enabling local workflows to interoperate with A2A peers.
-  - **U3 done:** Implemented `update_memory` in `hub` store and added inline editing
-    along with color-coded scope indicators to the Shared Hub Memory tab.
-  - **U2 done:** Added Task Browser tab to Shared Hub, allowing users to view task history,
-    metadata, and message/handoff transcripts.
-  - **U5 done:** Added DashboardScreen to Android app for viewing events and approving/rejecting wakes via TCP.
-  - **U6 done:** Implemented Project Creation Wizard via a `bootstrap_workspace` Tauri command
-    and a button in the ConfigPanel to initialize `.agent/` skeletons for new workspaces.
-  - **C4 done:** Implemented per-task delegation policies via `require_human_approval` on
-    `TaskRecord`, enabling configurability for automatic wakes during task dispatch, accessible
-    through both the `cli` (`--require-approval`) and the Tauri API (`CreateTaskArgs`).
-  - **C6 done:** Exposed shutdown hooks via `ca shutdown` in the CLI and `hub_record_shutdown`
-    in the Tauri API. This completes the budget exhaustion and shutdown delegation milestone,
-    allowing external adapters to properly persist handoff states upon cancellation or limit reach.
-  - Install: `just install-ca` / `~/.local/bin/ca` documented in `crates/README.md`.
-  - Unit tests: promote/compact, wake dedup/policy, M3 git export, M6 handoff
-    acceptance, and C5 sequential plus bounded-parallel/retry workflows.
-  - **U1 done:** Refactored `App.tsx` into decoupled components (`ConfigPanel`,
-    `ActivityPanel`, `RemotePanel`, `ApprovalPanel`) and overhauled the UI with
-    a stunning glassmorphism design and micro-animations.
-- Added the first executable M6 acceptance flow covering a durable handoff,
-  provenance-linked memory, cross-agent inbox retrieval, wake resolution, and
-  Markdown export; a real multi-agent repository run remains.
-- **M3 done:** `HubStore::export_markdown_git` runs `git add` + `git commit`
-  on the Markdown export when its directory is inside a Git work tree; outside
-  a repo, with a failed `git add`, or with nothing to commit, it returns a
-  `GitExportOutcome { committed: false, detail }` instead of erroring. Wired
-  through `ca export-markdown --commit [--message ...]`, the Tauri command
-  `hub_export_markdown_git`, and a desktop "Export MD + Commit" button. Covered
-  by `m3_export_markdown_git_commits_inside_a_work_tree` (spins up a real
-  temporary Git repo).
-- PMF VS10 pivot recorded in the agent coordination bus; baseline frontend and
-  Rust workspace checks passed before this implementation began.
-
-- Hub spine crates (`crates/hub`, `crates/cli` binary `ca`): SQLite
-  agents/memories/messages/wakes, private journals, wake JSON side-channel,
-  Markdown export, CLI commands for init/memory/msg/wake/journal/export;
-  unit test covering M1/C1–C3 smoke path.
-
-- Replaced language-oriented roadmap files with capability roadmaps for memory,
-  communication, UI, dashboards, platform, and infrastructure. Added a Mermaid
-  Gantt index, made private agent journals part of the first memory milestone,
-  retained LAN and Firebase prototyping, promoted A2A to the next major
-  milestone, and removed obsolete deployment scaffolding. Deleted the duplicate
-  `docs/ROADMAP.md` and the superseded per-language roadmap files.
-
-- Reoriented the roadmap around the owner-confirmed product identity: a
-  personal, local-first collaboration hub. Added the priority
-  the initial shared memory and coordination roadmap for
-  SQLite/Markdown hybrid memory, durable handoffs, CLI access, wake signals,
-  configurable policies, and external-agent adapters. Folded the former root
-  feature checklist into the moon roadmaps, kept `docs/ROADMAP.md` as a pointer
-  stub at that stage, demoted TUI/3D/GraphQL-first/early actors to
-  Someday/Maybe, and
-  recorded provider, security, testing, and infrastructure-hygiene follow-up.
-
-- Roadmap implementation, batch 2 (the former daemon-extraction spike):
-  completed the daemon-extraction spike as [ADR 0003](../adr/0003-daemon-extraction-spike.md).
-  Measured the actual `tauri::AppHandle` coupling across the backend
-  (`file_tools.rs`: none; `agents.rs`/`llm_client.rs`: event emission only;
-  `tcp_server.rs`: event emission + listening) and decided against
-  extracting a separate daemon crate yet — recommends decoupling event
-  emission into an internal broadcast channel first (tracked as new item
-  `P1`), deferring the physical crate split until the API boundary is clear.
-- Roadmap implementation, batch 1 (rate limiting, async file I/O, and shell
-  audit): per-provider token-bucket rate limiting on
-  outbound LLM calls (`governor`, burst 3 / 1 per second) in
-  `llm_client.rs`; converted `FileTools` and the remaining Tauri-command
-  file I/O to `tokio::fs` so it no longer blocks async worker threads;
-  audited the tool layer for raw shell execution (none found — confirmed
-  compliant with `AGENTS.md`'s Security Notes). Also removed `lib.rs`'s
-  dead `start_remote_server` command (superseded by `TcpServer`, and it
-  hardcoded a machine-specific absolute path that doesn't exist in this
-  repo).
-
-- Synced repo scaffolding/tooling from the Tauri-App-Template layout (excluding
-  its backend/frontend/middleware/notebooks directories, which don't apply to
-  this repo's existing `src/`/`src-tauri/`/`android/` layout): `.agent/`
-  cross-agent delegation docs, `.devcontainer/`, `.forgejo/`/`.gitea/`/`.gitlab/`
-  CI mirrors, expanded `.github/` automation, `git/` repo-process tooling
-  (hooks, backlog sync, label taxonomy), the original `infra/` scaffolding,
-  `tools/*/justfile` + root `justfile`, `settings/` editor configs, and
-  `docs/` additions (ADRs, `docs/moon/`, Structurizr C4 model, `docs/website/`).
-- Moved root-level docs (`ARCHITECTURE.md`, `DEPENDENCIES.md`, `DEVELOPMENT.md`,
-  `TESTING.md`, `TROUBLESHOOTING.md`, `TUTORIAL.md`, `ROADMAP.md`,
-  `SECURITY.md`, `CHANGELOG.md`) into `docs/`.
-- Moved `codecov.yaml`/`CONTRIBUTING.md` from `.github/` into the new `git/`
-  directory.
-- Expanded the former per-area roadmaps with target-architecture work items
-  synthesized from
-  `docs/moon/research/Multi-Agent AI App Architecture.md` and
-  `docs/moon/reports/AI Coding Tools Feature Report.md`: a headless Tokio
-  actor-model daemon, a GraphQL-over-WebSockets API, MCP + A2A protocol
-  support, rate limiting + affine-typed budget guardrails, two-tier
-  persistent memory, human-in-the-loop security gates, a 2D telemetry
-  dashboard, 3D force-graph visualization, and a new Ratatui TUI
-  (now reorganized under the capability roadmaps). Added a capability-order
-  index and Mermaid Gantt to `docs/moon/ROADMAP.md`.
-
-## [0.1.0] — 2026-07-30
-
-### Added
-
-- Repository created from scratch.
+[Unreleased]: https://github.com/ACFHarbinger/Coding-Assistants/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ACFHarbinger/Coding-Assistants/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/ACFHarbinger/Coding-Assistants/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/ACFHarbinger/Coding-Assistants/releases/tag/v1.0.0

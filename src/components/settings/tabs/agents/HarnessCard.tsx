@@ -72,7 +72,13 @@ export function HarnessCard({
               fontSize: "0.95rem",
             }}
           >
-            {harness.harness === "chat" ? "Codex / OpenAI" : harness.harness}
+            {harness.harness === "chat"
+              ? "Codex / OpenAI"
+              : harness.harness === "muse"
+                ? "Muse Code"
+                : harness.harness === "cursor"
+                  ? "Cursor Agent"
+                  : harness.harness}
           </strong>
         </div>
       </div>

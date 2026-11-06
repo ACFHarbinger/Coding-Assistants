@@ -5,11 +5,21 @@ set shell := ["bash", "-c"]
 # Set up environment for all modules
 [no-cd]
 setup:
-    @echo "Setting up dev environment..."
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Setting up dev environment..."
     npm ci
-    pip install pre-commit || true
-    pre-commit install --install-hooks || echo "pre-commit not available"
-    @echo "Setup complete. Run 'just test-all' to verify."
+    bash tools/dev/ensure-linux-dev-libs.sh
+    if command -v pre-commit >/dev/null 2>&1; then
+        pre-commit install --install-hooks || echo "pre-commit hooks were not installed"
+    elif command -v uv >/dev/null 2>&1; then
+        uv tool install pre-commit
+        export PATH="${HOME}/.local/bin:${PATH}"
+        pre-commit install --install-hooks || echo "pre-commit hooks were not installed"
+    else
+        echo "pre-commit not available. Install uv or python3-pip to enable hooks."
+    fi
+    echo "Setup complete. Run 'just install-ca' and 'just start'."
 
 # Update all dependencies
 [no-cd]
@@ -33,15 +43,25 @@ clean:
 # Build cli and symlink `ca` into ~/.local/bin
 [no-cd]
 install-ca:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash tools/dev/ensure-linux-dev-libs.sh
+    # shellcheck disable=SC1091
+    source "${HOME}/.local/share/coding-assistants/dev-env.sh"
     cargo build -p cli
-    mkdir -p "{{ env_var_or_default('HOME', '.') }}/.local/bin"
-    ln -sfn "$(pwd)/target/debug/ca" "{{ env_var_or_default('HOME', '.') }}/.local/bin/ca"
-    @echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
-    @echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
+    mkdir -p "${HOME}/.local/bin"
+    ln -sfn "$(pwd)/target/debug/ca" "${HOME}/.local/bin/ca"
+    echo "Installed: ~/.local/bin/ca → $(pwd)/target/debug/ca"
+    echo "Ensure PATH includes ~/.local/bin, then: hash -r && ca --help"
 
 # Launch the keyboard-driven Ratatui terminal client from the current source.
 [no-cd]
 tui:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash tools/dev/ensure-linux-dev-libs.sh
+    # shellcheck disable=SC1091
+    source "${HOME}/.local/share/coding-assistants/dev-env.sh"
     cargo run -p cli -- tui
 
 # Launch the Tauri application in development mode.
@@ -77,6 +97,9 @@ tui:
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
+    bash tools/dev/ensure-linux-dev-libs.sh
+    # shellcheck disable=SC1091
+    source "${HOME}/.local/share/coding-assistants/dev-env.sh"
     while IFS= read -r -d '' entry; do
         name="${entry%%=*}"
         case "${name}" in
@@ -123,6 +146,39 @@ dev:
     done
     export GDK_BACKEND=x11
     export WEBKIT_DISABLE_DMABUF_RENDERER=1
+    bash tools/dev/stage-sidecars.sh debug
+    # Node resolves "localhost" to ::1 and Vite listens only there. WebKit
+    # loads that address; also accept 127.0.0.1 by forwarding onto it.
+    ipv4_fwd_pid=""
+    cleanup_ipv4_fwd() {
+        if [[ -n "${ipv4_fwd_pid}" ]] && kill -0 "${ipv4_fwd_pid}" 2>/dev/null; then
+            kill "${ipv4_fwd_pid}" 2>/dev/null || true
+            wait "${ipv4_fwd_pid}" 2>/dev/null || true
+        fi
+    }
+    trap cleanup_ipv4_fwd EXIT
+    if [[ "$(uname -s)" == Linux ]]; then
+        node -e 'const net=require("net"); const s=net.createServer((c)=>{ const u=net.connect({host:"::1",port:1420}); const x=()=>{c.destroy();u.destroy()}; c.on("error",x); u.on("error",x); c.pipe(u); u.pipe(c); }); s.on("error",(e)=>{ if(e.code==="EADDRINUSE") process.exit(0); console.error(e); process.exit(1); }); s.listen(1420,"127.0.0.1");' &
+        ipv4_fwd_pid=$!
+        ipv4_ready=0
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltnH 'sport = :1420' | grep -q '127.0.0.1:1420'; then
+                ipv4_ready=1
+                break
+            fi
+            if ! kill -0 "${ipv4_fwd_pid}" 2>/dev/null; then
+                break
+            fi
+            sleep 0.1
+        done
+        if [[ "${ipv4_ready}" -ne 1 ]]; then
+            echo "failed to listen on 127.0.0.1:1420" >&2
+            exit 1
+        fi
+        if ! kill -0 "${ipv4_fwd_pid}" 2>/dev/null; then
+            ipv4_fwd_pid=""
+        fi
+    fi
     npm run tauri dev
 
 # Launch the Tauri application in development mode on Windows.

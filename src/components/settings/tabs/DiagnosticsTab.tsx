@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { EffectiveSettings, SettingsLoadStatus } from "../types";
 import { FieldRow, shortenPath } from "./shared";
+import { NOC_COLORS, NOC_RADIUS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { nocCardDenseStyle, nocSubsurfaceStyle } from "../../common/telemetry/panel";
 
 export interface DiagnosticsTabProps {
   effective: EffectiveSettings;
@@ -69,43 +71,42 @@ export default function DiagnosticsTab({
     }
   };
 
+  const isDegraded = loadStatus?.status === "invalid" || loadStatus?.status === "unreadable";
+
   return (
-    <div style={{ display: "grid", gap: "1.5rem" }}>
-      <section>
-        <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem", fontWeight: 700 }}>Configuration Health</h3>
+    <div style={{ display: "grid", gap: "1.25rem" }}>
+      <section style={{ ...nocCardDenseStyle, padding: "1.25rem" }}>
+        <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.95rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Configuration Health</h3>
         <div
           style={{
-            padding: "0.85rem 1rem",
-            borderRadius: "9px",
-            border: "1px solid var(--border-color)",
-            background: "rgba(0,0,0,0.22)",
+            ...nocSubsurfaceStyle,
             display: "grid",
-            gap: "0.5rem",
+            gap: "0.6rem",
             fontSize: "0.85rem",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-muted)" }}>Settings Store Status:</span>
-            <span style={{ fontWeight: 600, color: loadStatus?.status === "invalid" || loadStatus?.status === "unreadable" ? "#fca5a5" : "#6ee7b7" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: NOC_SURFACES.textMuted }}>Settings Store Status:</span>
+            <span style={{ fontWeight: 600, color: isDegraded ? NOC_COLORS.crit : NOC_COLORS.ok }}>
               {loadStatus ? loadStatus.status.toUpperCase() : "LOADED"}
             </span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-muted)" }}>Schema Version:</span>
-            <span style={{ color: "var(--text-main)" }}>v{effective.schema_version}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: NOC_SURFACES.textMuted }}>Schema Version:</span>
+            <span style={{ color: NOC_SURFACES.textPrimary, fontFamily: "monospace" }}>v{effective.schema_version}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-muted)" }}>Active Workspace:</span>
-            <span style={{ color: "var(--text-main)" }}>{workspaceRoot ? shortenPath(workspaceRoot, 32) : "(Global scope)"}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: NOC_SURFACES.textMuted }}>Active Workspace:</span>
+            <span style={{ color: NOC_SURFACES.textPrimary }}>{workspaceRoot ? shortenPath(workspaceRoot, 32) : "(Global scope)"}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-muted)" }}>Registered Provider Profiles:</span>
-            <span style={{ color: "var(--text-main)" }}>{effective.profiles.length} profiles</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: NOC_SURFACES.textMuted }}>Registered Provider Profiles:</span>
+            <span style={{ color: NOC_SURFACES.textPrimary }}>{effective.profiles.length} profiles</span>
           </div>
         </div>
       </section>
 
-      <section>
+      <section style={{ ...nocCardDenseStyle, padding: "1.25rem" }}>
         <FieldRow
           label="Diagnostics Log Level"
           hint="Included in the exported snapshot as the requested diagnostic verbosity. Runtime logging configuration is not persisted yet."
@@ -114,12 +115,13 @@ export default function DiagnosticsTab({
             value={logLevel}
             onChange={(e) => setLogLevel(e.target.value)}
             disabled={busy}
+            className="noc-focusable"
             style={{
-              padding: "0.45rem 0.7rem",
-              borderRadius: "8px",
-              border: "1px solid var(--border-color)",
-              background: "rgba(255,255,255,0.03)",
-              color: "var(--text-main)",
+              padding: "0.45rem 0.75rem",
+              borderRadius: NOC_RADIUS.s,
+              border: `1px solid ${NOC_SURFACES.border}`,
+              background: NOC_SURFACES.bgDeep,
+              color: NOC_SURFACES.textPrimary,
               fontSize: "0.85rem",
               minWidth: "160px",
             }}
@@ -132,36 +134,37 @@ export default function DiagnosticsTab({
         </FieldRow>
       </section>
 
-      <section>
-        <h3 style={{ margin: "0 0 0.4rem", fontSize: "0.95rem", fontWeight: 700 }}>Redacted Diagnostics Export</h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.75rem" }}>
+      <section style={{ ...nocCardDenseStyle, padding: "1.25rem" }}>
+        <h3 style={{ margin: "0 0 0.4rem", fontSize: "0.95rem", fontWeight: 700, color: NOC_SURFACES.textPrimary }}>Redacted Diagnostics Export</h3>
+        <p style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
           Export a sanitized snapshot of current settings and health state. Secrets, credentials, and raw absolute filesystem paths are strictly excluded.
         </p>
 
         <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           <button
             type="button"
-            className="btn-primary"
-            style={{ marginTop: 0, padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
+            className="btn-primary noc-focusable"
+            style={{ marginTop: 0, padding: "0.4rem 0.85rem", fontSize: "0.8rem" }}
             onClick={() => void handleCopyDiagnostics()}
           >
             {copied ? "Copied to Clipboard!" : "Copy Redacted Diagnostics"}
           </button>
         </div>
-        {copyError && <p style={{ color: "#fca5a5", fontSize: "0.8rem", margin: "-0.25rem 0 0.75rem" }}>{copyError}</p>}
+        {copyError && <p style={{ color: NOC_COLORS.crit, fontSize: "0.8rem", margin: "-0.25rem 0 0.75rem" }}>{copyError}</p>}
 
         <pre
           style={{
             maxHeight: "180px",
             overflowY: "auto",
-            padding: "0.75rem",
-            borderRadius: "8px",
-            background: "rgba(0,0,0,0.45)",
-            border: "1px solid var(--border-color)",
-            color: "var(--text-muted)",
+            padding: "0.75rem 1rem",
+            borderRadius: NOC_RADIUS.s,
+            background: NOC_SURFACES.bgDeep,
+            border: `1px solid ${NOC_SURFACES.border}`,
+            color: NOC_SURFACES.textMuted,
             fontSize: "0.75rem",
             lineHeight: 1.45,
             margin: 0,
+            fontFamily: "monospace",
           }}
         >
           {getDiagnosticsPayload()}

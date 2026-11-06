@@ -54,12 +54,13 @@ fn transport_label(tool: &CreativeTool) -> &'static str {
         creative::Transport::Socket => "socket",
         creative::Transport::Subprocess => "subprocess",
         creative::Transport::FileParse => "file-parse",
+        creative::Transport::StdioHost => "stdio-host",
     }
 }
 
 /// Look for `basename` (and, on Windows, `basename.exe`) next to the
 /// running executable, then on each `$PATH` entry.
-fn resolve_binary(basename: &str) -> Option<PathBuf> {
+pub(crate) fn resolve_binary(basename: &str) -> Option<PathBuf> {
     let names: Vec<String> = if cfg!(windows) {
         vec![format!("{basename}.exe"), basename.to_string()]
     } else {
@@ -87,8 +88,10 @@ fn resolve_binary(basename: &str) -> Option<PathBuf> {
     None
 }
 
-/// Basenames of creative apps currently running, from one `ps` sweep.
-/// Best-effort: an unavailable `ps` just yields "nothing running".
+/// Basenames of creative apps currently running, from one process sweep
+/// ([`hub::proc::list_process_lines`] — `ps` on Unix, PowerShell on
+/// Windows). Best-effort: if the listing fails this just yields "nothing
+/// running".
 fn running_app_basenames() -> BTreeSet<String> {
     let mut wanted: BTreeSet<String> = BTreeSet::new();
     for tool in creative::CATALOG {
@@ -98,17 +101,11 @@ fn running_app_basenames() -> BTreeSet<String> {
     }
 
     let mut found = BTreeSet::new();
-    let Ok(output) = std::process::Command::new("ps")
-        .args(["-eo", "args="])
-        .output()
-    else {
+    let Ok(processes) = hub::proc::list_process_lines() else {
         return found;
     };
-    if !output.status.success() {
-        return found;
-    }
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        let Some(first) = line.split_whitespace().next() else {
+    for (_pid, command) in processes {
+        let Some(first) = command.split_whitespace().next() else {
             continue;
         };
         let base = Path::new(first)
@@ -310,14 +307,14 @@ mod tests {
     }
 
     #[test]
-    fn status_reports_all_seven_with_enabled_flags() {
+    fn status_reports_all_catalog_tools_with_enabled_flags() {
         let dir = tempfile::tempdir().unwrap();
         let ws = dir.path();
         let enabled: BTreeSet<String> = ["coding-assistants-mcp-blender".to_string()]
             .into_iter()
             .collect();
         let status = build_status(ws, &enabled, Vec::new());
-        assert_eq!(status.tools.len(), 7);
+        assert_eq!(status.tools.len(), 9);
         let blender = status
             .tools
             .iter()
@@ -325,6 +322,21 @@ mod tests {
             .unwrap();
         assert!(blender.enabled);
         assert_eq!(blender.port, Some(9765));
-        assert!(status.tools.iter().filter(|t| !t.enabled).count() == 6);
+        let ableton = status
+            .tools
+            .iter()
+            .find(|t| t.key == "coding-assistants-mcp-ableton")
+            .unwrap();
+        assert!(!ableton.enabled);
+        assert_eq!(ableton.port, Some(9770));
+        assert_eq!(status.tools.iter().filter(|t| !t.enabled).count(), 8);
+        let clipstudio = status
+            .tools
+            .iter()
+            .find(|tool| tool.key == "coding-assistants-mcp-clipstudio")
+            .unwrap();
+        assert!(!clipstudio.enabled);
+        assert_eq!(clipstudio.transport, "stdio-host");
+        assert_eq!(clipstudio.port, None);
     }
 }

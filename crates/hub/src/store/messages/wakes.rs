@@ -1,4 +1,5 @@
 use super::super::*;
+use super::policies::insert_audit_event;
 impl HubStore {
     pub fn request_wake(
         &self,
@@ -7,6 +8,7 @@ impl HubStore {
         message_id: Option<&str>,
         requires_human_gate: bool,
     ) -> Result<WakeRecord, HubError> {
+        self.ensure_mutable()?;
         self.upsert_agent(target_agent, target_agent)?;
 
         if let Some(budget) = self.get_budget(target_agent)? {
@@ -108,15 +110,99 @@ impl HubStore {
         })
     }
 
+    /// Resolves a wake on the desktop channel (see [`Self::set_wake_status_via`]).
     pub fn set_wake_status(&self, id: &str, status: WakeStatus) -> Result<(), HubError> {
-        let n = self.conn.execute(
+        self.set_wake_status_via(id, status, "desktop")
+    }
+
+    /// Resolves a wake and records the channel that carried the human
+    /// decision (Team Scorecard T4 / #344). Desktop, Telegram, Discord, and
+    /// TCP all resolve the same wake row — one `human` clock, never
+    /// double-counted.
+    ///
+    /// Idempotent by construction: at most one `wake.resolved` audit row is
+    /// ever written per wake, only for a pending → terminal transition of a
+    /// human-gated wake. Retrying the same decision, re-resolving an already
+    /// resolved wake from another channel, and routine non-gated lifecycle
+    /// updates write nothing. The sync-lock check runs before any state
+    /// change, the status update and the audit row commit in one transaction,
+    /// and the side-channel file is reconciled only after that commit.
+    pub fn set_wake_status_via(
+        &self,
+        id: &str,
+        status: WakeStatus,
+        via: &str,
+    ) -> Result<(), HubError> {
+        let via = via.trim();
+        if !matches!(via, "desktop" | "telegram" | "discord" | "tcp") {
+            return Err(HubError::Invalid(format!(
+                "unknown wake resolution channel: {via}"
+            )));
+        }
+        // Refuse before any state change while a sync lock is held.
+        self.ensure_mutable()?;
+
+        let current: Option<(String, i64, Option<String>)> = self
+            .conn
+            .query_row(
+                "SELECT status, requires_human_gate, message_id FROM wake_requests WHERE id = ?1",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        let Some((previous_status, human_gate, message_id)) = current else {
+            return Err(HubError::NotFound(id.into()));
+        };
+        if previous_status == status.as_str() {
+            // Idempotent retry: nothing changed, no second audit row.
+            return Ok(());
+        }
+
+        let is_resolution =
+            previous_status == WakeStatus::Pending.as_str() && status != WakeStatus::Pending;
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "UPDATE wake_requests SET status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
-        if n == 0 {
-            return Err(HubError::NotFound(id.into()));
+        if is_resolution && human_gate != 0 {
+            // One human decision per wake, ever: a reset back to pending
+            // followed by a second resolution must not add another row.
+            let already_resolved: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM audit_events \
+                 WHERE operation = 'wake.resolved' \
+                   AND process_json LIKE '%\"wake_id\":\"' || ?1 || '\"%')",
+                params![id],
+                |row| row.get(0),
+            )?;
+            if !already_resolved {
+                let target_agent: String = tx.query_row(
+                    "SELECT target_agent FROM wake_requests WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )?;
+                let root = self.data_dir.to_string_lossy().into_owned();
+                let process = serde_json::json!({
+                    "kind": "wake.resolved",
+                    "wake_id": id,
+                    "target_agent": target_agent,
+                    "status": status.as_str(),
+                    "via": via,
+                    "actor_agent": "human",
+                });
+                insert_audit_event(
+                    &tx,
+                    &root,
+                    &root,
+                    "wake.resolved",
+                    &process.to_string(),
+                    None,
+                )?;
+            }
         }
-        // Keep side-channel file in sync when present.
+        tx.commit()?;
+
+        // Reconcile the side-channel file after the commit.
         let path = self.data_dir.join("wake").join(format!("{id}.json"));
         if path.exists() {
             if let Ok(text) = fs::read_to_string(&path) {
@@ -128,6 +214,9 @@ impl HubStore {
             if status != WakeStatus::Pending {
                 let _ = fs::remove_file(&path);
             }
+        }
+        if is_resolution {
+            self.apply_wake_resolution_to_task(message_id.as_deref(), status)?;
         }
         Ok(())
     }
@@ -172,6 +261,7 @@ impl HubStore {
 
     /// Append to a private journal file (never written into shared SQLite tables).
     pub fn append_private_journal(&self, agent_id: &str, entry: &str) -> Result<PathBuf, HubError> {
+        self.ensure_mutable()?;
         if entry.trim().is_empty() {
             return Err(HubError::Invalid("journal entry must not be empty".into()));
         }
@@ -334,5 +424,34 @@ impl HubStore {
             self.delete_message(id)?;
         }
         Ok(ids.len())
+    }
+
+    /// Permanently delete every message recorded against `workspace` (S6
+    /// danger-zone transcript purge). Unlike [`Self::delete_message`], which
+    /// soft-cancels one row, this is a hard `DELETE` — irreversible, which is
+    /// why the Settings danger tab gates it behind typed confirmation.
+    /// Matches the path as given plus its canonicalized form when they
+    /// differ, so symlinked checkouts purge exactly one workspace. Returns
+    /// the number of rows deleted; zero is a successful no-op, not an error.
+    pub fn purge_messages_in_workspace(
+        &self,
+        workspace: &std::path::Path,
+    ) -> Result<usize, HubError> {
+        let mut total = 0;
+        for path in danger::workspace_purge_paths(workspace) {
+            total += self.conn.execute(
+                "DELETE FROM messages WHERE workspace_path = ?1",
+                params![path],
+            )?;
+        }
+        Ok(total)
+    }
+}
+
+pub(super) fn wake_denial_policy(error: &HubError) -> &'static str {
+    if error.to_string().contains("budget-paused") {
+        "wake_denied_budget"
+    } else {
+        "wake_denied_policy"
     }
 }

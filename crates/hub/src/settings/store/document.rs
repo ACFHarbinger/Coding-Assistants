@@ -16,6 +16,11 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     }
     document["storage"]["backup_retention"] = value(i64::from(snapshot.backup_retention));
 
+    if !document.contains_key("memory") {
+        document["memory"] = Item::Table(Table::new());
+    }
+    document["memory"]["embedding_provider"] = value(snapshot.embedding_provider.as_str());
+
     if let Some(ref default_ws) = snapshot.default_workspace {
         if !document.contains_key("general") {
             document["general"] = Item::Table(Table::new());
@@ -52,6 +57,16 @@ pub(super) fn write_snapshot_fields(document: &mut DocumentMut, snapshot: &Setti
     document["orchestration"]["sandbox_strictness"] = value(orch.sandbox_strictness.as_str());
     document["orchestration"]["export_enabled"] = value(orch.export_enabled);
     document["orchestration"]["link_suggestion_mode"] = value(orch.link_suggestion_mode.as_str());
+    document["orchestration"]["memory_recall_enabled"] = value(orch.memory_recall_enabled);
+    document["orchestration"]["memory_recall_limit"] = value(i64::from(orch.memory_recall_limit));
+    document["orchestration"]["allow_metered_quota_probes"] =
+        value(orch.allow_metered_quota_probes);
+    document["orchestration"]["a2a_enabled"] = value(orch.a2a_enabled);
+    document["orchestration"]["quota_auto_refresh_enabled"] =
+        value(orch.quota_auto_refresh_enabled);
+    document["orchestration"]["quota_auto_refresh_interval_secs"] =
+        value(i64::from(orch.quota_auto_refresh_interval_secs));
+    document["orchestration"]["scorecard_visibility"] = value(orch.scorecard_visibility.as_str());
     if let Some(days) = orch.retention_days {
         document["orchestration"]["retention_days"] = value(i64::from(days));
     } else if document
@@ -98,6 +113,9 @@ pub(super) fn write_workspace_fields(
         write_default_models(&mut table, &over.default_models);
         write_default_efforts(&mut table, &over.default_efforts);
         write_orchestration_override(&mut table, &over.orchestration);
+        if let Some(mode) = over.kimi_mode {
+            table["kimi_mode"] = value(mode.as_str());
+        }
         array.push(table);
     }
     document["workspace"] = Item::ArrayOfTables(array);
@@ -179,6 +197,19 @@ pub(super) fn workspaces_from_document(
         let default_efforts = default_efforts_from_table(table)?;
         let orchestration = orchestration_override_from_table(table)
             .map_err(|err| SettingsError::Invalid(format!("workspace {path}: {err}")))?;
+        let kimi_mode = match table.get("kimi_mode") {
+            Some(item) => {
+                let raw = item.as_str().ok_or_else(|| {
+                    SettingsError::Invalid(format!("workspace {path} kimi_mode must be a string"))
+                })?;
+                Some(
+                    crate::KimiTaskMode::parse(raw).map_err(|err| {
+                        SettingsError::Invalid(format!("workspace {path}: {err}"))
+                    })?,
+                )
+            }
+            None => None,
+        };
         if map
             .insert(
                 path.clone(),
@@ -189,6 +220,7 @@ pub(super) fn workspaces_from_document(
                     default_models,
                     default_efforts,
                     orchestration,
+                    kimi_mode,
                 },
             )
             .is_some()
@@ -216,6 +248,17 @@ pub(super) fn snapshot_from_document(
         .and_then(|g| g.get("default_workspace"))
         .and_then(Item::as_str)
         .map(str::to_string);
+    let embedding_provider = match document
+        .get("memory")
+        .and_then(Item::as_table)
+        .and_then(|memory| memory.get("embedding_provider"))
+        .and_then(Item::as_str)
+    {
+        Some(raw) => EmbeddingProvider::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!("memory.embedding_provider {raw:?} is unknown"))
+        })?,
+        None => EmbeddingProvider::Local,
+    };
     let default_session = general
         .and_then(|g| g.get("default_session"))
         .and_then(Item::as_str)
@@ -240,6 +283,7 @@ pub(super) fn snapshot_from_document(
         backup_retention: u32_from_i64(backup_retention, "storage.backup_retention")?,
         default_workspace,
         default_session,
+        embedding_provider,
         orchestration,
         tui,
     })

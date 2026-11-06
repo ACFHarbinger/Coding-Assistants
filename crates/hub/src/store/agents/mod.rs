@@ -2,13 +2,25 @@ use super::*;
 
 mod avatar;
 mod capture;
+pub(super) mod oversight;
+mod profile;
+mod role;
 mod sessions;
 mod team;
+mod vtuber;
+mod work_sessions;
 impl HubStore {
     pub fn upsert_agent(&self, id: &str, display_name: &str) -> Result<(), HubError> {
         self.conn.execute(
-            "INSERT INTO agents (id, display_name, created_at) VALUES (?1, ?2, ?3)
-             ON CONFLICT(id) DO UPDATE SET display_name = ?2",
+            "INSERT INTO agents (id, display_name, created_at, custom_display_name)
+             VALUES (?1, ?2, ?3, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                display_name = CASE
+                    WHEN agents.custom_display_name = 1 THEN agents.display_name
+                    WHEN ?2 = agents.id THEN agents.display_name
+                    WHEN agents.display_name = agents.id THEN ?2
+                    ELSE ?2
+                END",
             params![id, display_name, Utc::now().to_rfc3339()],
         )?;
         Ok(())
@@ -18,8 +30,14 @@ impl HubStore {
         let card_json =
             serde_json::to_string(card).map_err(|e| HubError::Invalid(e.to_string()))?;
         self.conn.execute(
-            "INSERT INTO agents (id, display_name, created_at, card_json) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(id) DO UPDATE SET display_name = ?2, card_json = ?4",
+            "INSERT INTO agents (id, display_name, created_at, card_json, custom_display_name)
+             VALUES (?1, ?2, ?3, ?4, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                display_name = CASE
+                    WHEN agents.custom_display_name = 1 THEN agents.display_name
+                    ELSE ?2
+                END,
+                card_json = ?4",
             params![id, card.name, Utc::now().to_rfc3339(), card_json],
         )?;
         Ok(())
@@ -27,7 +45,7 @@ impl HubStore {
 
     pub fn list_agents(&self) -> Result<Vec<AgentRecord>, HubError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id
+            "SELECT id, display_name, created_at, card_json, team_member, avatar_attachment_id, role, custom_display_name, animated_avatar, vtuber_character, oversight_role
              FROM agents ORDER BY id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -38,9 +56,19 @@ impl HubStore {
                 card_json: r.get(3)?,
                 team_member: r.get::<_, i64>(4)? != 0,
                 avatar_attachment_id: r.get(5)?,
+                role: r.get(6)?,
+                custom_display_name: r.get::<_, i64>(7).unwrap_or(0) != 0,
+                animated_avatar: r.get::<_, i64>(8).unwrap_or(0) != 0,
+                vtuber_character: r.get(9)?,
+                oversight_role: r.get(10)?,
+                effective_oversight_role: None,
             })
         })?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+        let mut agents = rows.collect::<Result<Vec<_>, _>>()?;
+        for agent in &mut agents {
+            agent.effective_oversight_role = self.effective_oversight_role(&agent.id)?;
+        }
+        Ok(agents)
     }
 
     pub fn list_team_members(&self) -> Result<Vec<AgentRecord>, HubError> {
@@ -65,47 +93,25 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(id.to_string()))
     }
 
-    /// Creates a named work-session chat and enrolls the current persisted team.
-    pub fn create_work_session(&self, name: &str) -> Result<WorkSessionRecord, HubError> {
-        let name = name.trim();
-        if name.is_empty() || name.len() > 120 {
-            return Err(HubError::Invalid(
-                "work session name must be between 1 and 120 characters".into(),
-            ));
-        }
-        let id = Uuid::new_v4().to_string();
-        let created_at = Utc::now().to_rfc3339();
-        let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
-            "INSERT INTO work_sessions(id, name, created_at) VALUES (?1, ?2, ?3)",
-            params![id, name, created_at],
-        )?;
-        tx.execute(
-            "INSERT INTO work_session_members(session_id, agent_id, created_at)
-             SELECT ?1, id, ?2 FROM agents WHERE team_member = 1",
-            params![id, created_at],
-        )?;
-        tx.commit()?;
-        self.get_work_session(&id)?
-            .ok_or_else(|| HubError::NotFound(id))
-    }
-
     pub fn list_work_sessions(&self) -> Result<Vec<WorkSessionRecord>, HubError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, created_at FROM work_sessions ORDER BY created_at DESC")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, created_at, workspace_id FROM work_sessions ORDER BY created_at DESC",
+        )?;
         let sessions = stmt
             .query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         sessions
             .into_iter()
-            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .map(|(id, name, created_at, workspace_id)| {
+                self.work_session_record(id, name, created_at, workspace_id)
+            })
             .collect()
     }
 
@@ -265,6 +271,7 @@ impl HubStore {
             managed_pid: None,
             writer_owner: None,
             writer_acquired_at: None,
+            pid_alive: None,
         })
     }
 
@@ -288,6 +295,7 @@ impl HubStore {
         )?;
         registration.mode = HarnessSessionMode::Managed;
         registration.managed_pid = Some(managed_pid);
+        sessions::reconcile_pids(std::slice::from_mut(&mut registration));
         Ok(registration)
     }
 
@@ -357,67 +365,6 @@ impl HubStore {
         }
     }
 
-    pub fn get_harness_session(
-        &self,
-        harness: &str,
-        workspace: &str,
-    ) -> Result<Option<HarnessSessionRegistration>, HubError> {
-        self.conn
-            .query_row(
-                "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
-                        mode, state, managed_pid, writer_owner, writer_acquired_at
-                 FROM harness_session_registrations
-                 WHERE harness = ?1 AND workspace = ?2",
-                params![harness, workspace],
-                |row| {
-                    Ok(HarnessSessionRegistration {
-                        harness: row.get(0)?,
-                        workspace: row.get(1)?,
-                        disk_session_id: row.get(2)?,
-                        leader_socket: row.get(3)?,
-                        registered_at: row.get(4)?,
-                        mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?).map_err(
-                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
-                        )?,
-                        state: HarnessSessionState::parse(&row.get::<_, String>(6)?).map_err(
-                            |error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)),
-                        )?,
-                        managed_pid: row.get(7)?,
-                        writer_owner: row.get(8)?,
-                        writer_acquired_at: row.get(9)?,
-                    })
-                },
-            )
-            .optional()
-            .map_err(HubError::from)
-    }
-
-    pub fn list_harness_sessions(&self) -> Result<Vec<HarnessSessionRegistration>, HubError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT harness, workspace, disk_session_id, leader_socket, registered_at,
-                    mode, state, managed_pid, writer_owner, writer_acquired_at
-             FROM harness_session_registrations
-             ORDER BY registered_at DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(HarnessSessionRegistration {
-                harness: row.get(0)?,
-                workspace: row.get(1)?,
-                disk_session_id: row.get(2)?,
-                leader_socket: row.get(3)?,
-                registered_at: row.get(4)?,
-                mode: HarnessSessionMode::parse(&row.get::<_, String>(5)?)
-                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
-                state: HarnessSessionState::parse(&row.get::<_, String>(6)?)
-                    .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
-                managed_pid: row.get(7)?,
-                writer_owner: row.get(8)?,
-                writer_acquired_at: row.get(9)?,
-            })
-        })?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
-    }
-
     pub fn delete_channel(&self, id: &str) -> Result<(), HubError> {
         let id = slug_channel_id(id)?;
         if Self::BUILTIN_CHANNELS
@@ -458,21 +405,24 @@ impl HubStore {
             .ok_or_else(|| HubError::NotFound(session_id.to_string()))
     }
 
-    pub(super) fn get_work_session(&self, id: &str) -> Result<Option<WorkSessionRecord>, HubError> {
+    pub(crate) fn get_work_session(&self, id: &str) -> Result<Option<WorkSessionRecord>, HubError> {
         self.conn
             .query_row(
-                "SELECT id, name, created_at FROM work_sessions WHERE id = ?1",
+                "SELECT id, name, created_at, workspace_id FROM work_sessions WHERE id = ?1",
                 params![id],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
                     ))
                 },
             )
             .optional()?
-            .map(|(id, name, created_at)| self.work_session_record(id, name, created_at))
+            .map(|(id, name, created_at, workspace_id)| {
+                self.work_session_record(id, name, created_at, workspace_id)
+            })
             .transpose()
     }
 
@@ -481,6 +431,7 @@ impl HubStore {
         id: String,
         name: String,
         created_at: String,
+        workspace_id: Option<String>,
     ) -> Result<WorkSessionRecord, HubError> {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id FROM work_session_members WHERE session_id = ?1 ORDER BY agent_id",
@@ -493,6 +444,7 @@ impl HubStore {
             name,
             created_at,
             member_ids,
+            workspace_id,
         })
     }
 }

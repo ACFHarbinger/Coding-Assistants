@@ -34,6 +34,42 @@ pub(super) fn orchestration_policy_from_table(
         defaults.auto_enrollment_allowed,
     )?;
     let export_enabled = bool_key_or(table, "export_enabled", defaults.export_enabled)?;
+    let memory_recall_enabled = bool_key_or(
+        table,
+        "memory_recall_enabled",
+        defaults.memory_recall_enabled,
+    )?;
+    let allow_metered_quota_probes = bool_key_or(
+        table,
+        "allow_metered_quota_probes",
+        defaults.allow_metered_quota_probes,
+    )?;
+    let a2a_enabled = bool_key_or(table, "a2a_enabled", defaults.a2a_enabled)?;
+    let quota_auto_refresh_enabled = bool_key_or(
+        table,
+        "quota_auto_refresh_enabled",
+        defaults.quota_auto_refresh_enabled,
+    )?;
+    let quota_auto_refresh_interval_secs = match table.get("quota_auto_refresh_interval_secs") {
+        Some(item) => u32_from_i64(
+            item.as_integer().ok_or_else(|| {
+                SettingsError::Invalid(
+                    "orchestration.quota_auto_refresh_interval_secs must be an integer".into(),
+                )
+            })?,
+            "orchestration.quota_auto_refresh_interval_secs",
+        )?,
+        None => defaults.quota_auto_refresh_interval_secs,
+    };
+    let memory_recall_limit = match table.get("memory_recall_limit") {
+        Some(item) => u8::try_from(item.as_integer().ok_or_else(|| {
+            SettingsError::Invalid("orchestration.memory_recall_limit must be an integer".into())
+        })?)
+        .map_err(|_| {
+            SettingsError::Invalid("orchestration.memory_recall_limit is out of range".into())
+        })?,
+        None => defaults.memory_recall_limit,
+    };
     let sandbox_strictness = match table.get("sandbox_strictness").and_then(Item::as_str) {
         Some(raw) => SandboxStrictness::parse(raw).ok_or_else(|| {
             SettingsError::Invalid(format!(
@@ -59,6 +95,14 @@ pub(super) fn orchestration_policy_from_table(
         })?,
         None => defaults.link_suggestion_mode,
     };
+    let scorecard_visibility = match table.get("scorecard_visibility").and_then(Item::as_str) {
+        Some(raw) => ScorecardVisibility::parse(raw).ok_or_else(|| {
+            SettingsError::Invalid(format!(
+                "orchestration.scorecard_visibility {raw:?} is unknown"
+            ))
+        })?,
+        None => defaults.scorecard_visibility,
+    };
     Ok(OrchestrationPolicy {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -67,6 +111,13 @@ pub(super) fn orchestration_policy_from_table(
         retention_days,
         export_enabled,
         link_suggestion_mode,
+        memory_recall_enabled,
+        memory_recall_limit,
+        allow_metered_quota_probes,
+        a2a_enabled,
+        quota_auto_refresh_enabled,
+        quota_auto_refresh_interval_secs,
+        scorecard_visibility,
     })
 }
 
@@ -106,6 +157,14 @@ pub(super) fn effective_orchestration(
         global.link_suggestion_mode,
         over.and_then(|o| o.link_suggestion_mode),
     );
+    let (memory_recall_enabled, memory_recall_enabled_status) = merge(
+        global.memory_recall_enabled,
+        over.and_then(|o| o.memory_recall_enabled),
+    );
+    let (memory_recall_limit, memory_recall_limit_status) = merge(
+        global.memory_recall_limit,
+        over.and_then(|o| o.memory_recall_limit),
+    );
     EffectiveOrchestrationPolicy {
         confirm_new_enrollment,
         confirm_new_enrollment_status,
@@ -121,6 +180,16 @@ pub(super) fn effective_orchestration(
         export_enabled_status,
         link_suggestion_mode,
         link_suggestion_mode_status,
+        memory_recall_enabled,
+        memory_recall_enabled_status,
+        memory_recall_limit,
+        memory_recall_limit_status,
+        // Global-only: no override merge, no status pill.
+        allow_metered_quota_probes: global.allow_metered_quota_probes,
+        a2a_enabled: global.a2a_enabled,
+        quota_auto_refresh_enabled: global.quota_auto_refresh_enabled,
+        quota_auto_refresh_interval_secs: global.quota_auto_refresh_interval_secs,
+        scorecard_visibility: global.scorecard_visibility,
     }
 }
 
@@ -155,6 +224,15 @@ pub(super) fn write_orchestration_override(table: &mut Table, over: &Orchestrati
         inline.insert(
             "link_suggestion_mode",
             value(v.as_str()).into_value().unwrap(),
+        );
+    }
+    if let Some(v) = over.memory_recall_enabled {
+        inline.insert("memory_recall_enabled", value(v).into_value().unwrap());
+    }
+    if let Some(v) = over.memory_recall_limit {
+        inline.insert(
+            "memory_recall_limit",
+            value(i64::from(v)).into_value().unwrap(),
         );
     }
     table["orchestration"] = Item::Value(toml_edit::Value::InlineTable(inline));
@@ -204,6 +282,20 @@ pub(super) fn orchestration_override_from_table(
         })?),
         None => None,
     };
+    let memory_recall_enabled = inner.get("memory_recall_enabled").and_then(|v| v.as_bool());
+    let memory_recall_limit = match inner.get("memory_recall_limit") {
+        Some(v) => Some(
+            u8::try_from(v.as_integer().ok_or_else(|| {
+                SettingsError::Invalid(
+                    "orchestration.memory_recall_limit must be an integer".into(),
+                )
+            })?)
+            .map_err(|_| {
+                SettingsError::Invalid("orchestration.memory_recall_limit is out of range".into())
+            })?,
+        ),
+        None => None,
+    };
     Ok(OrchestrationOverride {
         confirm_new_enrollment,
         confirm_broadcast,
@@ -212,6 +304,8 @@ pub(super) fn orchestration_override_from_table(
         retention_days,
         export_enabled,
         link_suggestion_mode,
+        memory_recall_enabled,
+        memory_recall_limit,
     })
 }
 

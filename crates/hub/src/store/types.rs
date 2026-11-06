@@ -180,16 +180,25 @@ pub struct AgentRecord {
     pub created_at: String,
     #[serde(default)]
     pub card_json: Option<String>,
-    /// Explicit Messager-like team enrollment. Process-discovered identities
-    /// and local model runtimes stay addressable but are not implicit members.
     #[serde(default)]
     pub team_member: bool,
-    /// References an [`AttachmentRecord`] holding the agent's profile image.
-    /// Any agent (human or otherwise) can set its own via `set_agent_avatar`
-    /// — there is no gate restricting an identity to only setting its own,
-    /// same trust model as the rest of the Hub's local SQLite store.
     #[serde(default)]
     pub avatar_attachment_id: Option<String>,
+    /// U21 display label. Separate from [`Self::oversight_role`].
+    #[serde(default)]
+    pub role: Option<String>,
+    /// Standing oversight role (#342): implementer, reviewer, lead, observer, trial.
+    #[serde(default)]
+    pub oversight_role: Option<String>,
+    /// Latest unexpired `oversight.exception` target, otherwise the standing role.
+    #[serde(default)]
+    pub effective_oversight_role: Option<String>,
+    #[serde(default)]
+    pub custom_display_name: bool,
+    #[serde(default)]
+    pub animated_avatar: bool,
+    #[serde(default)]
+    pub vtuber_character: Option<String>,
 }
 
 /// A named, durable chat scope for one owner-led work session.
@@ -199,6 +208,23 @@ pub struct WorkSessionRecord {
     pub name: String,
     pub created_at: String,
     pub member_ids: Vec<String>,
+    /// Saved workspace this session was created for (U24 / #317). Unscoped
+    /// sessions created before this column stay `None`.
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+}
+
+/// A named, durable workspace path selectable from Orchestrate (U24 / #317).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceRecord {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub created_at: String,
+    #[serde(default)]
+    pub linked_session_id: Option<String>,
+    #[serde(default)]
+    pub linked_session_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +241,7 @@ pub struct MemoryRecord {
     pub updated_at: String,
     pub stale: bool,
     pub source_event_id: Option<String>,
+    pub tool: Option<String>,
 }
 
 /// A directed edge between two memories (M-links). `relation` is deliberately
@@ -434,4 +461,30 @@ pub struct GitExportOutcome {
     pub path: PathBuf,
     pub committed: bool,
     pub detail: String,
+}
+
+/// One shared coordination-log row (C15 / #330): a bus entry or task-board
+/// row that agents parse to coordinate. Distinct from private per-agent
+/// `journals/*.md` files, which stay legacy and untouched.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BusEntryRecord {
+    pub id: String,
+    pub agent: String,
+    pub topic: String,
+    pub body: String,
+    pub created_at: String,
+    pub issue_ref: Option<String>,
+    pub task_id: Option<String>,
+}
+
+/// Filters for `HubStore::list_bus_entries`; every field is optional and
+/// combined with AND. `limit` defaults to 50 when `None`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BusEntryFilter {
+    pub agent: Option<String>,
+    pub topic: Option<String>,
+    pub since: Option<String>,
+    pub issue_ref: Option<String>,
+    pub task_id: Option<String>,
+    pub limit: Option<i64>,
 }

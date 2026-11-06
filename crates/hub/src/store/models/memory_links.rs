@@ -195,7 +195,7 @@ impl HubStore {
             )
             SELECT DISTINCT
                 m.id, m.scope, m.workspace_path, m.tier, m.agent_id, m.title, m.body,
-                m.tags_json, m.created_at, m.updated_at, m.stale, m.source_event_id
+                m.tags_json, m.created_at, m.updated_at, m.stale, m.source_event_id, m.tool
             FROM memories m
             JOIN walk w ON w.memory_id = m.id
             WHERE w.memory_id != ?1 AND m.stale = 0
@@ -380,6 +380,7 @@ impl HubStore {
             updated_at: r.get(9)?,
             stale: r.get::<_, i64>(10)? != 0,
             source_event_id: r.get(11)?,
+            tool: r.get(12)?,
         })
     }
 }

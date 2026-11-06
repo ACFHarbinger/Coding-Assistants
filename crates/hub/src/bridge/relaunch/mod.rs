@@ -35,7 +35,13 @@ pub fn latest_session_id(harness: HarnessId, workspace: &Path) -> Option<String>
         HarnessId::Grok => crate::bridge::grok::latest_grok_session_id(workspace),
         HarnessId::Chat => crate::bridge::channels::chat::latest_codex_thread_id(workspace),
         HarnessId::Gemini => crate::bridge::gemini::latest_gemini_session_id(workspace),
-        HarnessId::OpenCode | HarnessId::DeepSeek | HarnessId::Vibe => None,
+        HarnessId::Muse => crate::bridge::muse::latest_muse_session_id(workspace),
+        HarnessId::Cursor => crate::bridge::cursor::latest_cursor_session_id(workspace),
+        HarnessId::Vibe => crate::bridge::vibe::latest_vibe_session_id(workspace),
+        HarnessId::Qwen => crate::bridge::qwen::latest_qwen_session_id(workspace),
+        HarnessId::Kimi => crate::bridge::kimi::latest_kimi_session_id(workspace),
+        HarnessId::Hermes => crate::bridge::hermes::latest_hermes_session_id(workspace),
+        HarnessId::OpenCode | HarnessId::DeepSeek => None,
     }
 }
 
@@ -97,7 +103,29 @@ pub fn interactive_resume_args(harness: HarnessId, session_id: Option<&str>) -> 
         (HarnessId::Chat, None) => vec![],
         (HarnessId::Gemini, Some(id)) => vec!["--conversation".into(), id.into()],
         (HarnessId::Gemini, None) => vec![],
-        (HarnessId::OpenCode, _) | (HarnessId::DeepSeek, _) | (HarnessId::Vibe, _) => vec![],
+        // `muse resume <session-uuid>` resumes directly; bare `muse resume`
+        // opens an interactive picker (verified #273 spike), so a fresh
+        // launch passes no resume flag rather than hanging on a picker.
+        (HarnessId::Muse, Some(id)) => vec!["resume".into(), id.into()],
+        (HarnessId::Muse, None) => vec![],
+        (HarnessId::Cursor, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Cursor, None) => vec![],
+        (HarnessId::Vibe, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Vibe, None) => vec![],
+        // `--chat-recording` must be set or `-c`/`-r` are no-ops (qwen 0.23.2).
+        (HarnessId::Qwen, Some(id)) => {
+            vec!["--resume".into(), id.into(), "--chat-recording".into()]
+        }
+        (HarnessId::Qwen, None) => vec!["--chat-recording".into()],
+        (HarnessId::Kimi, Some(id)) => vec!["--session".into(), id.into()],
+        (HarnessId::Kimi, None) => vec![],
+        // `hermes --resume <session-id>` is the documented resume convention
+        // (verified #322: `--resume SESSION`, workspace-scoped disk ids).
+        (HarnessId::Hermes, Some(id)) => vec!["--resume".into(), id.into()],
+        (HarnessId::Hermes, None) => vec![],
+        // OpenCode resume flags are not wired for interactive relaunch yet.
+        (HarnessId::OpenCode, Some(_)) | (HarnessId::DeepSeek, Some(_)) => vec![],
+        (HarnessId::OpenCode, None) | (HarnessId::DeepSeek, None) => vec![],
     }
 }
 
@@ -180,7 +208,13 @@ pub fn resolve_interactive_relaunch(
             "server:coding-assistants-channel".into(),
         ]);
     }
-    let program = harness.executable();
+    let program = if harness == HarnessId::Cursor {
+        crate::harness::cursor_executable()
+    } else if harness == HarnessId::Kimi {
+        crate::harness::kimi_executable()
+    } else {
+        harness.executable()
+    };
     Ok(ResolvedRelaunch {
         harness,
         killed_pid,
@@ -297,6 +331,34 @@ mod tests {
             interactive_resume_args(HarnessId::Gemini, Some("abc")),
             vec!["--conversation", "abc"]
         );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Muse, Some("abc")),
+            vec!["resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Muse, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Cursor, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Cursor, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Vibe, Some("abc")),
+            vec!["--resume", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Vibe, None).is_empty());
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, Some("abc")),
+            vec!["--resume", "abc", "--chat-recording"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Qwen, None),
+            vec!["--chat-recording"]
+        );
+        assert_eq!(
+            interactive_resume_args(HarnessId::Kimi, Some("abc")),
+            vec!["--session", "abc"]
+        );
+        assert!(interactive_resume_args(HarnessId::Kimi, None).is_empty());
     }
 
     #[test]

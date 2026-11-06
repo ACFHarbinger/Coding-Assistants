@@ -6,11 +6,17 @@
 //! mutation is recorded on the dedicated settings audit stream, which is a
 //! typed filter over the same Hub audit chain other commands already read.
 use hub::{
-    EffectiveHarnessSettings, EffectiveOrchestrationPolicy, EffectiveSettings, HarnessSettings,
-    LoadStatus, ProfileSnapshot, ProviderProfile, SandboxStrictness, SettingsField, SettingsStore,
+    EffectiveHarnessSettings, EffectiveSettings, HarnessSettings, LoadStatus, ProfileSnapshot,
+    ProviderProfile, SandboxStrictness, ScorecardVisibility, SettingsField, SettingsStore,
 };
 
-fn open_settings_store() -> SettingsStore {
+pub mod standing_policy;
+#[cfg(test)]
+pub(crate) use standing_policy::{
+    settings_get_standing_policy, settings_set_allow_auto_wake, settings_set_confirm_wakes,
+};
+
+pub(super) fn open_settings_store() -> SettingsStore {
     SettingsStore::open(hub::default_hub_home())
 }
 
@@ -26,10 +32,13 @@ fn settings_field_name(field: SettingsField) -> &'static str {
         SettingsField::RetentionDays => "orchestration.retention_days",
         SettingsField::ExportEnabled => "orchestration.export_enabled",
         SettingsField::LinkSuggestionMode => "orchestration.link_suggestion_mode",
+        SettingsField::MemoryRecallEnabled => "orchestration.memory_recall_enabled",
+        SettingsField::MemoryRecallLimit => "orchestration.memory_recall_limit",
+        SettingsField::ScorecardVisibility => "orchestration.scorecard_visibility",
     }
 }
 
-fn record_settings_audit(field: &str, scope: &str, action: &str) -> Result<(), String> {
+pub(super) fn record_settings_audit(field: &str, scope: &str, action: &str) -> Result<(), String> {
     super::store::open_store()?
         .record_settings_audit_event(field, scope, action)
         .map(|_| ())
@@ -297,6 +306,21 @@ pub struct OrchestrationPatch {
     pub auto_enrollment_allowed: Option<bool>,
     pub sandbox_strictness: Option<SandboxStrictness>,
     pub export_enabled: Option<bool>,
+    pub memory_recall_enabled: Option<bool>,
+    pub memory_recall_limit: Option<u8>,
+    /// Global-only; a workspace scope is ignored for this field (quota is an
+    /// account-level concept). See `hub::OrchestrationPolicy`.
+    pub allow_metered_quota_probes: Option<bool>,
+    /// Global-only. Off by default; when on, `quota_auto_refresh_interval_secs`
+    /// sets the background usage-refresh cadence.
+    pub quota_auto_refresh_enabled: Option<bool>,
+    /// Global-only. Off by default; gates whether the public A2A wire
+    /// listener may start at all (P11b / #335).
+    pub a2a_enabled: Option<bool>,
+    /// Global-only. Rejected by the store if outside its allowed range.
+    pub quota_auto_refresh_interval_secs: Option<u32>,
+    /// Global-only. Sets scorecard visibility (T3 / #343).
+    pub scorecard_visibility: Option<ScorecardVisibility>,
 }
 
 /// `workspace: None` updates the global default; `Some(path)` sets a
@@ -358,6 +382,60 @@ pub fn settings_update_orchestration(
         }
         changed_fields.push("orchestration.export_enabled");
     }
+    if let Some(v) = patch.memory_recall_enabled {
+        match workspace.as_deref() {
+            None => store
+                .set_memory_recall_enabled(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_memory_recall_enabled(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.memory_recall_enabled");
+    }
+    if let Some(v) = patch.memory_recall_limit {
+        match workspace.as_deref() {
+            None => store
+                .set_memory_recall_limit(v)
+                .map_err(|e| e.to_string())?,
+            Some(ws) => store
+                .set_workspace_memory_recall_limit(ws, v)
+                .map_err(|e| e.to_string())?,
+        }
+        changed_fields.push("orchestration.memory_recall_limit");
+    }
+    if let Some(v) = patch.allow_metered_quota_probes {
+        // Global-only: there is no workspace override, so a workspace-scoped
+        // call still writes the single global value.
+        store
+            .set_allow_metered_quota_probes(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.allow_metered_quota_probes");
+    }
+    if let Some(v) = patch.quota_auto_refresh_enabled {
+        store
+            .set_quota_auto_refresh_enabled(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.quota_auto_refresh_enabled");
+    }
+    if let Some(v) = patch.a2a_enabled {
+        // Global-only like the quota flags: a workspace scope still writes
+        // the single global value (a listener is process-wide).
+        store.set_a2a_enabled(v).map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.a2a_enabled");
+    }
+    if let Some(v) = patch.quota_auto_refresh_interval_secs {
+        store
+            .set_quota_auto_refresh_interval_secs(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.quota_auto_refresh_interval_secs");
+    }
+    if let Some(v) = patch.scorecard_visibility {
+        store
+            .set_scorecard_visibility(v)
+            .map_err(|e| e.to_string())?;
+        changed_fields.push("orchestration.scorecard_visibility");
+    }
 
     if !changed_fields.is_empty() {
         store.save().map_err(|e| e.to_string())?;
@@ -394,98 +472,4 @@ pub fn settings_set_retention_days(
     let scope = workspace.as_deref().unwrap_or("global");
     record_settings_audit("orchestration.retention_days", scope, "update")?;
     Ok(store.effective(workspace.as_deref()))
-}
-
-/// Composes Settings' orchestration policy with the Hub's existing
-/// `WakePolicy` into one typed view, so Settings is the sole *editor* of
-/// standing policy even though the wake-gate bit's storage deliberately
-/// stays in `HubStore` — every C10-C13 wake path already reads it there,
-/// so moving it would mean touching every one of those call sites instead
-/// of composing at the IPC layer.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct StandingPolicySnapshot {
-    /// Mirrors `hub::WakePolicy::default_requires_human_gate`.
-    pub confirm_wakes: bool,
-    /// Mirrors `hub::WakePolicy::allow_auto_wake`. When false, any wake
-    /// attempting to bypass the human gate is rejected outright rather
-    /// than silently falling back to requiring approval.
-    pub allow_auto_wake: bool,
-    pub orchestration: EffectiveOrchestrationPolicy,
-}
-
-#[tauri::command]
-pub fn settings_get_standing_policy(
-    workspace: Option<String>,
-) -> Result<StandingPolicySnapshot, String> {
-    let orchestration = open_settings_store()
-        .effective(workspace.as_deref())
-        .orchestration;
-    let wake_policy = super::store::open_store()?
-        .get_wake_policy()
-        .map_err(|e| e.to_string())?;
-    Ok(StandingPolicySnapshot {
-        confirm_wakes: wake_policy.default_requires_human_gate,
-        allow_auto_wake: wake_policy.allow_auto_wake,
-        orchestration,
-    })
-}
-
-/// Global only: the wake human-gate is not a per-workspace concept in
-/// today's `WakePolicy`.
-#[tauri::command]
-pub fn settings_set_confirm_wakes(value: bool) -> Result<StandingPolicySnapshot, String> {
-    let hub_store = super::store::open_store()?;
-    let mut policy = hub_store.get_wake_policy().map_err(|e| e.to_string())?;
-    policy.default_requires_human_gate = value;
-    hub_store
-        .set_wake_policy(&policy)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit("orchestration.confirm_wakes", "global", "update")?;
-    let orchestration = open_settings_store().effective(None).orchestration;
-    Ok(StandingPolicySnapshot {
-        confirm_wakes: value,
-        allow_auto_wake: policy.allow_auto_wake,
-        orchestration,
-    })
-}
-
-/// Global only, same as `settings_set_confirm_wakes`.
-#[tauri::command]
-pub fn settings_set_allow_auto_wake(value: bool) -> Result<StandingPolicySnapshot, String> {
-    let hub_store = super::store::open_store()?;
-    let mut policy = hub_store.get_wake_policy().map_err(|e| e.to_string())?;
-    policy.allow_auto_wake = value;
-    hub_store
-        .set_wake_policy(&policy)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit("orchestration.allow_auto_wake", "global", "update")?;
-    let orchestration = open_settings_store().effective(None).orchestration;
-    Ok(StandingPolicySnapshot {
-        confirm_wakes: policy.default_requires_human_gate,
-        allow_auto_wake: value,
-        orchestration,
-    })
-}
-
-/// Per-agent budgets, exposed through Settings' typed command surface.
-/// Storage stays in `HubStore`'s existing `agent_budgets` table — every C6
-/// budget flow already reads/writes it — rather than duplicating it in
-/// `settings.toml`.
-#[tauri::command]
-pub fn settings_list_agent_budgets() -> Result<Vec<hub::BudgetStatus>, String> {
-    super::store::open_store()?
-        .list_agent_budgets()
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn settings_set_agent_budget(
-    agent_id: String,
-    limit_units: f64,
-) -> Result<hub::BudgetStatus, String> {
-    let status = super::store::open_store()?
-        .set_agent_budget(&agent_id, limit_units)
-        .map_err(|e| e.to_string())?;
-    record_settings_audit("orchestration.agent_budget", &agent_id, "update")?;
-    Ok(status)
 }

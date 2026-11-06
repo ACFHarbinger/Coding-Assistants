@@ -1,7 +1,10 @@
 use super::runner::is_ascii_terminal;
 use super::state::{AppState, TabIndex};
 use super::views::{
-    draw_chat_view, draw_orchestrate_view, draw_settings_view, draw_shared_hub_view,
+    draw_chat_view, draw_composer_modal, draw_confirmation_modal, draw_conflict_banner,
+    draw_create_session_modal, draw_danger_modal, draw_delivery_outcomes_modal,
+    draw_harness_launcher_modal, draw_harness_workspace_view, draw_orchestrate_view,
+    draw_recovery_modal, draw_session_switcher_modal, draw_settings_view, draw_shared_hub_view,
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -34,6 +37,20 @@ pub(crate) fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 pub fn draw_ui(frame: &mut Frame, app: &AppState) {
+    let (banner_area, content_area) = if app.conflict.is_conflict_active {
+        let splits = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .split(frame.area());
+        (Some(splits[0]), splits[1])
+    } else {
+        (None, frame.area())
+    };
+
+    if let Some(banner) = banner_area {
+        draw_conflict_banner(frame, banner, app);
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -42,7 +59,7 @@ pub fn draw_ui(frame: &mut Frame, app: &AppState) {
             Constraint::Min(10),
             Constraint::Length(3),
         ])
-        .split(frame.area());
+        .split(content_area);
 
     draw_header(frame, chunks[0], app);
     draw_tabs(frame, chunks[1], app);
@@ -55,6 +72,38 @@ pub fn draw_ui(frame: &mut Frame, app: &AppState) {
 
     if app.is_command_palette_open {
         draw_command_palette_modal(frame, frame.area(), app);
+    }
+
+    if app.session_switcher.is_open {
+        draw_session_switcher_modal(frame, frame.area(), app);
+    }
+
+    if app.create_session.is_open {
+        draw_create_session_modal(frame, frame.area(), app);
+    }
+
+    if app.composer.is_open {
+        draw_composer_modal(frame, frame.area(), app);
+    }
+
+    if app.composer.confirmation_prompt.is_some() {
+        draw_confirmation_modal(frame, frame.area(), app);
+    }
+
+    if app.composer.delivery_outcomes.is_some() {
+        draw_delivery_outcomes_modal(frame, frame.area(), app);
+    }
+
+    if app.danger.is_open {
+        draw_danger_modal(frame, frame.area(), app);
+    }
+
+    if app.recovery.is_open {
+        draw_recovery_modal(frame, frame.area(), app);
+    }
+
+    if app.harnesses.is_launcher_open {
+        draw_harness_launcher_modal(frame, frame.area(), app);
     }
 }
 
@@ -93,6 +142,7 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &AppState) {
         "2: Chat & Memory",
         "3: Shared Hub",
         "4: Settings",
+        "5: Harness Panes",
     ];
     let theme = &app.theme;
     let tabs = Tabs::new(titles)
@@ -118,6 +168,7 @@ fn draw_body(frame: &mut Frame, area: Rect, app: &AppState) {
         TabIndex::ChatAndMemory => draw_chat_view(frame, area, app),
         TabIndex::SharedHub => draw_shared_hub_view(frame, area, app),
         TabIndex::Settings => draw_settings_view(frame, area, app),
+        TabIndex::HarnessPanes => draw_harness_workspace_view(frame, area, app),
     }
 }
 
@@ -163,6 +214,13 @@ fn draw_help_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         Line::from("  / or Ctrl+P          : Open Command Palette Overlay"),
         Line::from("  T                    : Cycle Color Theme (Grok, Dracula, Solarized, Dark)"),
         Line::from("  r                    : Refresh Hub Read Model"),
+        Line::from("  c                    : Open Message Composer (All/Subset/One, [GOAL], [WAKE])"),
+        Line::from("  s                    : Switch / Load Work Session"),
+        Line::from("  n                    : Create New Work Session"),
+        Line::from("  I                    : Cycle Stream / Human Inbox / Wake Gate Approvals / Memory"),
+        Line::from("  a / d                : Approve / Deny Selected Wake Gate"),
+        Line::from("  w                    : Toggle Scope [Global] / [Workspace] (Settings)"),
+        Line::from("  u                    : Cycle Tasks / Audit Journal / Budgets (Shared Hub)"),
         Line::from("  ? or F1              : Toggle Help Modal"),
         Line::from("  q or Esc             : Close Modal / Exit Application"),
         Line::from(""),
@@ -207,7 +265,7 @@ fn draw_command_palette_modal(frame: &mut Frame, area: Rect, app: &AppState) {
         ]),
         Line::from(""),
         Line::from(Span::styled(
-            "Commands: 1:orchestrate | 2:chat | 3:hub | 4:settings | refresh | theme [name] | help | quit",
+            "Commands: orchestrate | chat | hub | settings | danger | profiles | memory | audit | budgets | tasks | restore | compose | session | inbox | approvals | refresh | quit",
             Style::default().fg(theme.muted),
         )),
     ];
