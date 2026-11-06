@@ -9,6 +9,76 @@
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-blur: blur(20px);
   --accent: #a855f7;
+
+  /* Paired NOC Telemetry Design Tokens (mirrored in src/components/common/telemetry/tokens.ts) */
+  --noc-ok: #10b981;
+  --noc-warn: #eab308;
+  --noc-crit: #ef4444;
+  --noc-idle: #94a3b8;
+  --noc-cyan: #38bdf8;
+  --noc-teal: #06b6d4;
+  --noc-indigo: #6366f1;
+  --noc-purple: #a855f7;
+  --noc-pink: #ec4899;
+  --noc-amber: #f59e0b;
+  --noc-orange: #f97316;
+  --noc-emerald: #22c55e;
+
+  --noc-bg-panel: #0f172a;
+  --noc-bg-deep: #090e1a;
+  --noc-text-primary: #f8fafc;
+  --noc-text-secondary: #e2e8f0;
+  --noc-text-muted: #94a3b8;
+  --noc-border: rgba(148, 163, 184, 0.14);
+  --noc-border-strong: rgba(148, 163, 184, 0.28);
+  --noc-gridline: rgba(148, 163, 184, 0.14);
+  --noc-gridline-subtle: rgba(148, 163, 184, 0.08);
+  --noc-track: rgba(148, 163, 184, 0.16);
+  --noc-focus-ring: 0 0 0 2px #090e1a, 0 0 0 4px #38bdf8;
+
+  /* 3-Tier NOC Typography Ramp */
+  --noc-type-kpi: 1.5rem;
+  --noc-type-body: 0.85rem;
+  --noc-type-micro: 0.72rem;
+
+  /* Spacing, Elevation, & Radius Ramp */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --elev-1: none;
+  --elev-2: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --elev-3: 0 20px 40px rgba(0, 0, 0, 0.55);
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+
+  /* Motion Choreography Tokens */
+  --dur-instant: 100ms;
+  --dur-fast: 160ms;
+  --dur-slow: 240ms;
+  --ease-noc: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.noc-focusable:focus-visible {
+  outline: none;
+  box-shadow: var(--noc-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary,
+  .btn-secondary,
+  .noc-focusable,
+  .noc-subtab-indicator {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 * {
@@ -30,27 +100,41 @@ body,
 
 .app-container {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  /* Keep the decorative background on the non-scrolling flex parent. A fixed
+     pseudo-element behind an overflow scroller is not reliably promoted by
+     WebKitGTK and can force a full-window repaint for every scroll frame. */
   background:
     radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
     radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
     var(--bg-dark);
+  position: relative;
 }
 
 .main-content {
   flex: 1;
+  min-height: 0;
   padding: 2.5rem;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 2rem;
   position: relative;
+  z-index: 1;
+  /* Disable scroll anchoring: WebKit runs a forced layout at the start of
+     every scroll gesture to find the anchor node. Removing it eliminates
+     that forced-layout stall at the beginning of each scroll. */
+  overflow-anchor: none;
+  scroll-behavior: auto;
+  overscroll-behavior-y: contain;
 }
 
 .glass-card {
-  background: var(--bg-card);
-  backdrop-filter: var(--glass-blur);
+  background: rgba(15, 23, 42, 0.92);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 2rem;
@@ -75,7 +159,8 @@ body,
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Only animate GPU-compositable properties — no layout triggers. */
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
 }
 
@@ -104,7 +189,8 @@ body,
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Only animate GPU-compositable properties — no layout triggers. */
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   margin-top: 0.5rem;
 }
 
@@ -130,7 +216,8 @@ textarea {
   width: 100%;
   margin-top: 0.5rem;
   font-size: 0.95rem;
-  transition: all 0.3s ease;
+  /* Only border-color — avoids layout triggers on focus. */
+  transition: border-color 0.2s ease;
   appearance: none;
 }
 
@@ -213,4 +300,111 @@ pre {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  /* Opacity only. A transform (even identity translateY(0) left by
+     animation-fill-mode: forwards) creates a containing block on the
+     tall Hub/Orchestrate cards and WebKitGTK then mis-maps wheel and
+     scrollbar-drag deltas past a height threshold (#213). */
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes pulse {
+  /* Animate only opacity — box-shadow forces a CPU repaint on every frame.
+     opacity is GPU-composited and costs nothing. */
+  0%   { opacity: 1; }
+  50%  { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.pulse-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  will-change: opacity;
+}
+
+/* Enhancing scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@property --ring-value {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+progress.ca-progress-ring {
+  --size: 64px;
+  --thickness: 6px;
+  --track-color: rgba(148, 163, 184, 0.16);
+  --fill-color: #38bdf8;
+  --ring-value: attr(value type(<number>), 0);
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--fill-color) calc(var(--ring-value) * 1%),
+    var(--track-color) 0
+  );
+  background-clip: border-area;
+  border: var(--thickness) solid transparent;
+  background-origin: border-box;
+  transition: --ring-value 0s ease-in-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  progress.ca-progress-ring {
+    transition-duration: 0.4s;
+  }
+}
+
+@supports not (background-clip: border-area) {
+  progress.ca-progress-ring {
+    mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    -webkit-mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    border: 0;
+  }
+}
+
+progress.ca-progress-ring::-webkit-progress-bar,
+progress.ca-progress-ring::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+
+progress.ca-progress-ring::-moz-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.ca-progress-ring[value="100"] {
+  --fill-color: #ef4444;
 }

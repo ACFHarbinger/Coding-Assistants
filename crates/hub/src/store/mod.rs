@@ -1,0 +1,124 @@
+use chrono::Utc;
+use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::OnceLock;
+use uuid::Uuid;
+
+const SCHEMA_VERSION: i64 = 3;
+
+fn register_sqlite_vec() {
+    static REGISTERED: OnceLock<()> = OnceLock::new();
+    REGISTERED.get_or_init(|| unsafe {
+        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute::<
+            *const (),
+            unsafe extern "C" fn(
+                *mut rusqlite::ffi::sqlite3,
+                *mut *mut i8,
+                *const rusqlite::ffi::sqlite3_api_routines,
+            ) -> i32,
+        >(
+            sqlite_vec::sqlite3_vec_init as *const ()
+        )));
+    });
+}
+
+// Shared record types (enums/structs/helpers) live in [types]; submodules
+// reach them through this re-export, and the import statements above stay
+// here because the impl submodules glob-import this module
+// (use super::super::*).
+mod types;
+pub use types::*;
+
+mod agents;
+pub use agents::oversight::{OversightExceptionRequest, OversightExceptionScope};
+mod attachments;
+mod board;
+mod branch_links;
+mod bus_entries;
+mod danger;
+mod exports;
+mod guardrails;
+mod linked_accounts;
+pub use linked_accounts::*;
+mod messages;
+pub(crate) use messages::goal_delivery_body;
+pub use messages::TaggedSendCounts;
+mod models;
+pub use models::*;
+mod activity;
+mod policies;
+mod roles;
+pub mod schedule;
+pub use schedule::*;
+mod handoff_filter;
+mod sync_gate;
+mod tasks;
+pub use tasks::{BranchTarget, StepBranch};
+#[cfg(test)]
+mod tests;
+mod workspaces;
+pub use activity::*;
+pub use policies::{AbsoluteSpendCommit, Attribution, ProviderUsage, QuotaSnapshot, SliceStamp};
+pub mod scorecard;
+pub use scorecard::*;
+pub struct HubStore {
+    conn: Connection,
+    data_dir: PathBuf,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn slug_channel_id(name: &str) -> Result<String, HubError> {
+    let trimmed = name.trim().trim_start_matches('#');
+    let mut slug = String::new();
+    let mut last_dash = false;
+    for ch in trimmed.chars() {
+        let mapped = if ch.is_ascii_alphanumeric() {
+            last_dash = false;
+            Some(ch.to_ascii_lowercase())
+        } else if ch == ' ' || ch == '-' || ch == '_' {
+            if last_dash || slug.is_empty() {
+                None
+            } else {
+                last_dash = true;
+                Some('-')
+            }
+        } else {
+            None
+        };
+        if let Some(mapped) = mapped {
+            slug.push(mapped);
+        }
+    }
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() || slug.len() > 40 {
+        return Err(HubError::Invalid(
+            "channel name must be 1–40 letters, numbers, or hyphens".into(),
+        ));
+    }
+    Ok(slug)
+}
+
+fn audit_event_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditEvent> {
+    Ok(AuditEvent {
+        id: row.get(0)?,
+        root_path: row.get(1)?,
+        path: row.get(2)?,
+        operation: row.get(3)?,
+        observed_at: row.get(4)?,
+        process_json: row.get(5)?,
+        content_hash: row.get(6)?,
+        previous_hash: row.get(7)?,
+        event_hash: row.get(8)?,
+        status: row.get(9)?,
+    })
+}

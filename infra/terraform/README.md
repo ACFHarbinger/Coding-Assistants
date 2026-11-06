@@ -2,7 +2,7 @@
 
 Minimal Terraform skeleton for provisioning cloud resources this project
 might eventually depend on (a container registry for `infra/docker/`, a
-Kubernetes cluster for `infra/k8s/`, etc.). No provider is wired up yet, and
+future cloud synchronization resources. No provider is wired up yet, and
 nothing here is required for the desktop/Android app itself — this is a
 starting point for if/when a hosted service is added.
 

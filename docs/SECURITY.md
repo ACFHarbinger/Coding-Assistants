@@ -1,6 +1,6 @@
 # Security Policy
 
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](../LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app)
 
 Security considerations, policies, and guidelines for the Coding Assistants application.
@@ -49,6 +49,39 @@ No additional permissions (shell access, clipboard, filesystem, etc.) are grante
 ---
 
 ## Key Security Controls
+
+### A2A webhook notifications
+
+The optional A2A listener is disabled by default, binds to loopback by default,
+and requires the pairing Bearer token for webhook configuration. Callback URLs
+must use HTTP(S), include a host, and contain no embedded credentials. Authenticated
+owners may target local or internal addresses; URL validation does not prevent
+DNS rebinding. The notifier never follows redirects and accepts only 2xx responses,
+with a five-second timeout per attempt and at most three attempts per observed state.
+
+Webhook credentials stay in the secret vault. Registry and credential snapshots
+are serialized so reconfiguration cannot pair a new credential with an old URL.
+If a configured credential is unavailable, delivery is skipped rather than sent
+without authentication. Logs omit callback paths, query strings, and credentials.
+Notifications are best-effort snapshots of persisted task state; intermediate
+transitions between polls may be coalesced.
+
+### CLIP STUDIO PAINT file exchange
+
+The bridge revalidates root containment and link policy on each output-wait poll.
+Sampling and SHA-256 hashing use the same validated regular-file handle, with
+checks before and after hashing. Unix opens reject symlinks at each component;
+Windows opens reject reparse points and hold parent-directory handles that deny
+replacement during the read. Hard links are rejected using handle metadata.
+Hash reads are bounded to 64 MiB even if the file grows while being read.
+### Terminal-grid browser panes
+
+Browser panes use remote child webviews with no remote capability grants for
+application IPC. Pop-out windows are denied, and the bridge does not enable
+unrestricted clipboard access. Navigation allows HTTPS without URL credentials
+and rejects localhost and blocked IP literals, including IPv4-mapped IPv6.
+These URL checks do not provide DNS or network isolation. Native view commands
+are serialized per pane, and views open hidden until current placement is applied.
 
 ### 1. No Shell Invocation
 
@@ -101,17 +134,17 @@ Content Security Policy is currently set to `null` in `tauri.conf.json` for deve
 The TCP server (`tcp_server.rs`) listens on `0.0.0.0:5555` for remote control connections.
 
 **Current state:**
-- No authentication -- any device on the local network can connect
-- No encryption -- communication is plaintext JSON over TCP
+- Token authentication is required on every connection (`Authenticate` JSON line). The shared secret is the P12 vault field `tool.tcp.auth_token` / `CA_TCP_AUTH_TOKEN`. Unset or wrong tokens are rejected and the socket is dropped. Rejected attempts are written to the Hub audit log (`tcp.auth_rejected`) with peer and reason only — never the token.
+- No encryption -- communication is still plaintext JSON over TCP (TLS is a later P6 slice)
 - No rate limiting -- no protection against connection flooding
 
 **Recommendations for production use:**
+- Set a LAN TCP auth token in Settings (or `CA_TCP_AUTH_TOKEN`) before starting the server
 - Only start the server when needed (it's off by default)
 - Ensure your local network is trusted
 - Consider using a VPN for remote access
 
-**Planned improvements** (see [ROADMAP.md](ROADMAP.md)):
-- Token-based authentication
+**Planned improvements** (see [ROADMAP.md](moon/ROADMAP.md)):
 - TLS encryption
 - Connection allowlisting
 
@@ -131,19 +164,23 @@ API keys for cloud LLM providers are stored in `env/.env`:
 
 ### Prompt Injection
 
-Agent responses may contain `[[ASK_USER]]` or `[[ASK_AGENT:RoleName]]` markers. These are parsed as control flow directives. If a malicious LLM response includes these markers, it could:
+Agent responses may contain `[[ASK_USER]]`, `[[ASK_AGENT:RoleName]]`, or write-bridge markers. These are parsed as control flow directives. If a malicious or injected LLM response includes these markers, it could:
 
 - Trigger unwanted user interaction dialogs
 - Cause one agent to query another unexpectedly
+- Overwrite, append to, or edit a file inside the selected workspace
 
 **Mitigations:**
 - Inter-agent communication requires explicit user authorization via the Authorization Modal
+- Write-bridge paths cannot leave the workspace, follow a symlink, or exceed 1 MiB for appends and line edits. The written file is not executed
 - Users can cancel tasks at any time
 - Agent outputs are displayed in the Activity Log for review
 
 ### Generated Code Execution
 
-The application does **not** automatically execute code generated by agents. All outputs are displayed as text. Users must manually copy and apply any suggested changes.
+The application does **not** execute code generated by agents.
+
+In-process roles can change workspace files when their reply contains a write-bridge block (`[[WRITE]]`, `[[APPEND]]`, or `[[EDIT]]`, parsed in `write_bridge.rs`). The runtime applies that one block inside the selected workspace, reads the file back, and continues the turn. It does not spawn a shell and does not run the written file. A role turn stops after 8 write-bridge steps. External coding CLIs (OpenCode, Claude, Codex, and the others) still use their own tool loops. Role transcripts that contain no write tag are saved as text.
 
 ### Data Exposure
 
@@ -156,16 +193,29 @@ Task descriptions and agent outputs may be sent to cloud LLM providers. Be aware
 
 ## File System Security
 
+### OS-level tool execution (P5)
+
+`hub::os_tool` runs a PATH program with **explicit argv** (`Command::new(program).args(args)`). It never invokes `sh -c`. Policy is the existing `orchestration.sandbox_strictness` setting (default **Standard**):
+
+- Shells (`bash`, `sh`, `powershell`, …) and `sudo`/`shutdown`/`mkfs` are denied at every level, including after approval.
+- Standard/Strict require an absolute workspace and a cwd inside it.
+- Mutating or unknown tools return `needs_approval` and only run after `hub_approve_os_tool`.
+- Every attempt is written to the hash-chained `audit_events` table (`os_tool.ran` / `os_tool.proposed` / `os_tool.denied`). stdout/stderr in the audit payload are truncated previews.
+
 ### Workspace Operations
 
 `FileTools` (`file_tools.rs`) provides sandboxed file operations:
 
 ```rust
-pub fn read_file(&self, relative_path: &str) -> Result<String, String>
-pub fn write_file(&self, relative_path: &str, content: &str) -> Result<(), String>
+pub async fn read_file(&self, relative_path: &str) -> Result<String, String>
+pub async fn write_file(&self, relative_path: &str, content: &str) -> Result<(), String>
+pub async fn append_file(&self, relative_path: &str, content: &str) -> Result<(), String>
+pub async fn edit_lines(&self, relative_path: &str, start_line: usize, end_line: usize, replacement: &str) -> Result<(), String>
 ```
 
 - Operations are relative to `work_dir` -- the user-selected workspace
+- Absolute paths, `..`, and symlinks are refused. A path that does not exist yet is still checked lexically against the workspace root
+- Model-directed appends and line edits are capped at 1 MiB
 - The `read_file_absolute` command exists for specific use cases but should be used sparingly
 
 ### Agent Resource Files

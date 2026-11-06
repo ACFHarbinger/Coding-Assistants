@@ -1,0 +1,13 @@
+[package]
+name = "mcp-blender"
+version = "0.1.0"
+edition = "2021"
+description = "MCP bridge to a running Blender instance (via the Coding-Assistants Blender addon)"
+license = "AGPL-3.0-only"
+
+[dependencies]
+mcp-core = { path = "../core" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

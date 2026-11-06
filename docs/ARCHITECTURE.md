@@ -173,6 +173,19 @@ struct AppState {
 - `user_input_tx` -- Channel sender for passing user input to waiting agents
 - `tcp_server` -- Active TCP server instance for remote control
 
+### Workspace crates (`crates/`)
+
+These workspace crates sit beside `src/` and `src-tauri/`. They do not replace that layout.
+
+```
+crates/
+├── hub/     # shared store
+├── cli/     # ca
+├── tui/     # Ratatui
+├── claude/  # Claude Channel binary
+└── mcp/     # MCP sidecars
+```
+
 ---
 
 ## Data Flow
@@ -193,6 +206,7 @@ struct AppState {
    │    ├── LLMClient.chat_completion() - spawns process
    │    │   └── Streams stdout line-by-line via emit("agent-event")
    │    ├── interactive_completion() - parses response for markers
+   │    │   ├── [[WRITE]] / [[APPEND]] / [[EDIT]] → sandbox write, read back, loop
    │    │   ├── [[ASK_USER]] → emit question, await user_input_rx
    │    │   └── [[ASK_AGENT:X]] → emit auth request, call role X
    │    └── Save output for next role's context
@@ -376,4 +390,4 @@ See [SECURITY.md](SECURITY.md) for the complete security policy.
 - **Plugin system** -- Abstract LLM providers behind a trait for cleaner extensibility.
 - **State management** -- Consider `useReducer` or a lightweight state library if state complexity increases.
 
-See [ROADMAP.md](ROADMAP.md) for planned features.
+See [ROADMAP.md](moon/ROADMAP.md) for planned features.

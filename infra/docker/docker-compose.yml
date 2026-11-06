@@ -6,7 +6,7 @@
 services:
   docs:
     build:
-      context: ..
+      context: ../../..
       dockerfile: infra/docker/Dockerfile
     ports:
       - "8080:80"

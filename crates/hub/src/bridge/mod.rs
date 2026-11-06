@@ -1,0 +1,19 @@
+//! Provider-specific active-session bridge adapters.
+
+pub mod channels;
+pub mod claude;
+pub mod cursor;
+pub mod gemini;
+pub mod grok;
+pub mod hermes;
+pub mod hermes_acp;
+pub mod kimi;
+pub mod kimi_mode;
+pub mod kimi_wire;
+pub mod muse;
+pub mod presence;
+pub mod qwen;
+pub mod relaunch;
+pub mod relaunch_claude;
+pub mod stop;
+pub mod vibe;

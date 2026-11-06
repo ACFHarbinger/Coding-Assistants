@@ -38,16 +38,23 @@ Complete inventory of all project dependencies, their versions, purposes, and li
 
 | Crate                    | Version | Features     | Purpose                                    | License       |
 | ------------------------ | ------- | ------------ | ------------------------------------------ | ------------- |
-| `tauri`                  | 2       | `tray-icon`  | Desktop app framework with webview          | MIT/Apache    |
+| `tauri`                  | 2       | `tray-icon,unstable`  | Desktop app framework with webview          | MIT/Apache    |
 | `tauri-plugin-opener`    | 2       | --           | Open URLs and files from Rust               | MIT/Apache    |
 | `tauri-plugin-dialog`    | 2.5.0   | --           | Native dialog boxes from Rust               | MIT/Apache    |
 | `serde`                  | 1       | `derive`     | Serialization/deserialization framework      | MIT/Apache    |
 | `serde_json`             | 1       | --           | JSON parsing and generation                  | MIT/Apache    |
 | `tokio`                  | 1       | `full`       | Async runtime for all async operations       | MIT           |
 | `reqwest`                | 0.12    | `json,stream`| HTTP client for API calls                    | MIT/Apache    |
-| `async-openai`           | 0.26    | --           | OpenAI-compatible API client                 | MIT           |
+| `async-openai`           | 0.26    | --           | OpenAI-compatible API client (P4)            | MIT           |
+| `futures-util`           | 0.3     | `std`        | Stream consumption for P4 SSE chat           | MIT/Apache    |
 | `dotenv`                 | 0.15    | --           | Load environment variables from `.env` files | MIT           |
 | `walkdir`                | 2       | --           | Recursive directory traversal                | Unlicense/MIT |
+| `toml_edit`              | 0.22    | --           | Comment-preserving `settings.toml` store     | MIT/Apache    |
+
+The `unstable` Tauri feature enables native child webviews for terminal-grid
+browser panes. CLIP STUDIO PAINT's MCP bridge uses target-specific `libc` 0.2
+(MIT/Apache-2.0) on Unix for descriptor-relative `openat` calls with no-follow
+flags; Windows handle checks use the system Win32 API without a new crate.
 
 ### Build Dependencies
 
@@ -82,7 +89,8 @@ These external tools must be available on `$PATH` for full functionality:
 | `rustc`    | Rust compiler                              | Yes      |
 | `cargo`    | Rust package manager and build tool        | Yes      |
 | `ollama`   | Local LLM inference (Ollama provider)      | Optional |
-| `opencode` | OpenCode CLI (OpenCode provider)           | Optional |
+| `opencode` | OpenCode CLI (OpenCode / DeepSeek)         | Optional |
+| `vibe`     | Mistral Vibe CLI (Mistral provider)        | Optional |
 
 ---
 

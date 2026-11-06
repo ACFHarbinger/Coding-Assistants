@@ -1,0 +1,567 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
+import HarnessTerminalGrid from "../HarnessTerminalGrid";
+import { ALL_HARNESSES, parseCanvasSize } from "../gridConstants";
+
+const defaultInvokeHandler = (cmd: string, args?: any) => {
+  if (cmd === "hub_list_harness_sessions") {
+    return Promise.resolve([]);
+  }
+  if (cmd === "hub_relaunch_harness_embedded") {
+    return Promise.resolve({
+      harness: args?.harness || "claude",
+      sessionId: `sid-${args?.harness || "claude"}`,
+      detail: "Connected",
+      killedPid: null,
+    });
+  }
+  if (cmd === "pty_session_status") {
+    return Promise.resolve({
+      found: true,
+      running: true,
+      exited: false,
+      exitDetail: null,
+      outputTailB64: "",
+    });
+  }
+  if (cmd === "pty_kill") {
+    return Promise.resolve(null);
+  }
+  return Promise.resolve(null);
+};
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn().mockImplementation((cmd: string, args?: any) => defaultInvokeHandler(cmd, args)),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
+vi.mock("../../harness/EmbeddedTerminal", () => ({
+  default: ({ sessionId }: { sessionId: string }) => (
+    <div data-testid={`embedded-terminal-${sessionId}`}>Terminal {sessionId}</div>
+  ),
+}));
+
+// Mock ResizeObserver for jsdom
+class MockResizeObserver {
+  callback: (entries: any[]) => void;
+  constructor(cb: (entries: any[]) => void) {
+    this.callback = cb;
+  }
+  observe(el: Element) {
+    this.callback([{ target: el, contentRect: { width: 1000, height: 600 } }]);
+  }
+  unobserve() {}
+  disconnect() {}
+}
+
+const storageStore: Record<string, string> = {};
+
+beforeEach(() => {
+  (window as any).ResizeObserver = MockResizeObserver;
+  (window as any).__TAURI_INTERNALS__ = {};
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+  Element.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 1000,
+    height: 600,
+    right: 1000,
+    bottom: 600,
+    x: 0,
+    y: 0,
+  });
+  for (const k of Object.keys(storageStore)) {
+    delete storageStore[k];
+  }
+  Object.defineProperty(window, "localStorage", {
+    value: {
+      getItem: (k: string) => storageStore[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storageStore[k] = String(v);
+      },
+      removeItem: (k: string) => {
+        delete storageStore[k];
+      },
+      clear: () => {
+        for (const k of Object.keys(storageStore)) delete storageStore[k];
+      },
+      key: (i: number) => Object.keys(storageStore)[i] ?? null,
+      get length() {
+        return Object.keys(storageStore).length;
+      },
+    },
+    writable: true,
+    configurable: true,
+  });
+  vi.clearAllMocks();
+  vi.mocked(invoke).mockImplementation((cmd: string, args?: any) => defaultInvokeHandler(cmd, args));
+});
+describe("HarnessTerminalGrid", () => {
+  it("validates and clamps persisted canvas dimensions", () => {
+    expect(parseCanvasSize(JSON.stringify({ width: 1, height: 1 }))).toEqual({ width: 360, height: 280 });
+    expect(parseCanvasSize(JSON.stringify({ width: 600, height: 99_999 }))).toEqual({ width: 600, height: 20_000 });
+    expect(parseCanvasSize('{"width":1e309,"height":600}')).toBeNull();
+    expect(parseCanvasSize(JSON.stringify({ width: -1, height: 600 }))).toBeNull();
+  });
+
+  it("renders empty state with all 9 launch buttons when no terminals are open", () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    expect(screen.getByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.getByText("Launch Grok")).toBeInTheDocument();
+    expect(screen.getByText("Launch Codex")).toBeInTheDocument();
+    expect(screen.getByText("Launch Claude")).toBeInTheDocument();
+    expect(screen.getByText("Launch Gemini")).toBeInTheDocument();
+    expect(screen.getByText("Launch Muse")).toBeInTheDocument();
+    expect(screen.getByText("Launch Cursor")).toBeInTheDocument();
+    expect(screen.getByText("Launch Qwen")).toBeInTheDocument();
+    expect(screen.getByText("Launch Kimi")).toBeInTheDocument();
+    expect(screen.getByText("Launch Hermes")).toBeInTheDocument();
+  });
+
+  it("launches a harness when clicking add pane button", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    const launchBtn = screen.getByText("+ Claude");
+    fireEvent.click(launchBtn);
+
+    // Pane title bar should now be visible
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    expect(tauriCore.invoke).toHaveBeenCalledWith("hub_relaunch_harness_embedded", {
+      harness: "claude",
+      workspace: "/test/workspace",
+      existingPid: null,
+      instanceKey: expect.stringMatching(/^leaf-claude-/),
+      cwd: null,
+    });
+
+    // Palette button should now reflect active count: "+ Claude · 1"
+    expect(screen.getByText("+ Claude · 1")).toBeInTheDocument();
+  });
+
+  it("connects a saved idle pane without adding a duplicate leaf", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([{ name: "saved", savedAt: "2026-09-09T00:00:00Z", paneCount: 1 }]);
+      }
+      if (cmd === "hub_load_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "saved",
+          savedAt: "2026-09-09T00:00:00Z",
+          canvas: null,
+          layout: { type: "leaf", id: "saved-claude", harness: "claude" },
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    expect(await screen.findByText("saved")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    expect(await screen.findByText("Connect CLI")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Connect CLI"));
+    expect(await screen.findByTestId("embedded-terminal-sid-claude")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("hub_relaunch_harness_embedded", {
+      harness: "claude",
+      workspace: "/test/workspace",
+      existingPid: null,
+      instanceKey: "saved-claude",
+      cwd: null,
+    });
+    expect(screen.getAllByRole("button", { name: "Close claude pane" })).toHaveLength(1);
+  });
+
+  it("connects an imported pane in its own working directory (cwd override)", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "hub_list_terminal_grid_layouts") {
+        return Promise.resolve([{ name: "imported", savedAt: "2026-10-25T00:00:00Z", paneCount: 1 }]);
+      }
+      if (cmd === "hub_load_terminal_grid_layout") {
+        return Promise.resolve({
+          version: 1,
+          name: "imported",
+          savedAt: "2026-10-25T00:00:00Z",
+          canvas: null,
+          layout: {
+            type: "leaf",
+            id: "imported-claude",
+            harness: "claude",
+            cwd: "/tmp/other-project",
+          },
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByRole("button", { name: /Layouts/i }));
+    expect(await screen.findByText("imported")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    expect(await screen.findByText("Connect CLI")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Connect CLI"));
+    expect(await screen.findByTestId("embedded-terminal-sid-claude")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("hub_relaunch_harness_embedded", {
+      harness: "claude",
+      workspace: "/test/workspace",
+      existingPid: null,
+      instanceKey: "imported-claude",
+      cwd: "/tmp/other-project",
+    });
+  });
+
+  it("closes a pane and removes it from layout when clicking close button", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    // Close Claude pane
+    const closeBtn = screen.getByRole("button", { name: "Close claude pane" });
+    fireEvent.click(closeBtn);
+
+    // pty_kill should be invoked
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: "sid-claude" });
+
+    // Grid should return to empty state
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+  });
+
+  it("resets grid layout when clicking reset grid button", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Grok
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    // Click Reset grid
+    const resetBtn = screen.getByText("Reset grid");
+    fireEvent.click(resetBtn);
+
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: "sid-grok" });
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+  });
+
+  it("restores only persisted panes whose deterministic PTY session still exists", async () => {
+    storageStore["ca.terminalGrid.layout./test/workspace"] = JSON.stringify({
+      type: "split",
+      id: "split-1",
+      direction: "row",
+      ratio: 0.5,
+      first: { type: "leaf", id: "live", harness: "claude" },
+      second: { type: "leaf", id: "stale", harness: "grok" },
+    });
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "pty_session_status") {
+        return Promise.resolve({
+          found: args?.sessionId === "harness-terminal:claude:/test/workspace",
+          running: true,
+          exited: false,
+          exitDetail: null,
+          outputTailB64: "",
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    expect(await screen.findByTestId("embedded-terminal-harness-terminal:claude:/test/workspace")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close grok pane" })).not.toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_session_status", {
+      sessionId: "harness-terminal:claude:/test/workspace",
+    });
+  });
+
+  it("maximizes a pane and restores via button or Escape key", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    // Splitter should be visible
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+
+    // Click maximize on Claude
+    const maxClaudeBtn = screen.getByRole("button", { name: "Maximize claude pane" });
+    fireEvent.click(maxClaudeBtn);
+
+    // Banner should now be visible
+    expect(screen.getByText(/Maximized: Claude/)).toBeInTheDocument();
+    // Splitter should be hidden while maximized
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+
+    // Press Escape to restore
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByText(/Maximized: Claude/)).not.toBeInTheDocument();
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+
+    // Maximize Grok and restore via the restore button
+    const maxGrokBtn = screen.getByRole("button", { name: "Maximize grok pane" });
+    fireEvent.click(maxGrokBtn);
+    expect(screen.getByText(/Maximized: Grok/)).toBeInTheDocument();
+
+    const restoreGrokBtn = screen.getByRole("button", { name: "Restore grok pane" });
+    fireEvent.click(restoreGrokBtn);
+    expect(screen.queryByText(/Maximized: Grok/)).not.toBeInTheDocument();
+  });
+
+  it("handles titlebar drag to center to swap panes", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    const claudeTitle = screen.getByText("Claude");
+    const claudeTitleBar = claudeTitle.closest("div")?.parentElement as HTMLElement;
+    expect(claudeTitleBar).toBeTruthy();
+
+    // Pointer down on Claude's titlebar
+    fireEvent.pointerDown(claudeTitleBar, { clientX: 250, clientY: 20, button: 0, pointerId: 1 });
+
+    // Drag into Grok's center (x: 750, y: 300)
+    fireEvent.pointerMove(claudeTitleBar, { clientX: 750, clientY: 300, pointerId: 1 });
+
+    // Drop zone overlay should appear with swap label
+    expect(await screen.findByTestId("drop-zone-overlay")).toBeInTheDocument();
+    expect(screen.getByText("Swap with Grok")).toBeInTheDocument();
+
+    // Pointer up to complete the swap
+    fireEvent.pointerUp(claudeTitleBar, { clientX: 750, clientY: 300, pointerId: 1 });
+
+    // Drop zone overlay should disappear
+    expect(screen.queryByTestId("drop-zone-overlay")).not.toBeInTheDocument();
+  });
+
+  it("handles titlebar drag to bottom edge to re-split panes", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch Claude and Grok
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    const claudeTitle = screen.getByText("Claude");
+    const claudeTitleBar = claudeTitle.closest("div")?.parentElement as HTMLElement;
+    expect(claudeTitleBar).toBeTruthy();
+
+    // Pointer down on Claude
+    fireEvent.pointerDown(claudeTitleBar, { clientX: 250, clientY: 20, button: 0, pointerId: 1 });
+
+    // Drag into Grok's bottom edge (x: 750, y: 580)
+    fireEvent.pointerMove(claudeTitleBar, { clientX: 750, clientY: 580, pointerId: 1 });
+
+    // Drop zone overlay should show Dock below Grok
+    expect(await screen.findByTestId("drop-zone-overlay")).toBeInTheDocument();
+    expect(screen.getByText("Dock below Grok")).toBeInTheDocument();
+
+    // Pointer up to complete re-split
+    fireEvent.pointerUp(claudeTitleBar, { clientX: 750, clientY: 580, pointerId: 1 });
+
+    expect(screen.queryByTestId("drop-zone-overlay")).not.toBeInTheDocument();
+    const separator = screen.getByRole("separator");
+    expect(separator).toHaveAttribute("aria-orientation", "horizontal");
+  });
+
+  it("drag-resizes canvas via corner handle and persists dimensions to localStorage", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    const cornerHandle = screen.getByTestId("canvas-resize-corner");
+    expect(cornerHandle).toBeInTheDocument();
+
+    fireEvent.pointerDown(cornerHandle, { clientX: 1000, clientY: 600, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(cornerHandle, { clientX: 850, clientY: 700, pointerId: 1 });
+    fireEvent.pointerUp(cornerHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 850×700px")).toBeInTheDocument();
+    expect(screen.getByText("Fit to window")).toBeInTheDocument();
+
+    const saved = JSON.parse(storageStore["ca.terminalGrid.canvasSize./test/workspace"] || "{}");
+    expect(saved).toEqual({ width: 850, height: 700 });
+  });
+
+  it("restores valid canvas size from localStorage on mount and clears via Fit to window button", async () => {
+    storageStore["ca.terminalGrid.canvasSize./test/workspace"] = JSON.stringify({
+      width: 800,
+      height: 550,
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("Grok")).toBeInTheDocument();
+
+    expect(screen.getByText("Grid: 800×550px")).toBeInTheDocument();
+    const fitBtn = screen.getByText("Fit to window");
+    expect(fitBtn).toBeInTheDocument();
+
+    fireEvent.click(fitBtn);
+
+    expect(storageStore["ca.terminalGrid.canvasSize./test/workspace"]).toBeUndefined();
+    expect(screen.queryByText("Fit to window")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grid: 800×550px")).not.toBeInTheDocument();
+  });
+
+  it("resizes width and height independently using right and bottom handles, enforcing minimum boundaries", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    fireEvent.click(screen.getByText("+ Claude"));
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
+
+    const rightHandle = screen.getByTestId("canvas-resize-right");
+    const bottomHandle = screen.getByTestId("canvas-resize-bottom");
+
+    // Drag right handle past minimum (clamped to min 360)
+    fireEvent.pointerDown(rightHandle, { clientX: 1000, clientY: 300, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(rightHandle, { clientX: 100, clientY: 300, pointerId: 1 });
+    fireEvent.pointerUp(rightHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 360×600px")).toBeInTheDocument();
+
+    // Drag bottom handle past minimum (clamped to min 280)
+    fireEvent.pointerDown(bottomHandle, { clientX: 300, clientY: 600, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(bottomHandle, { clientX: 300, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(bottomHandle, { pointerId: 1 });
+
+    expect(screen.getByText("Grid: 360×280px")).toBeInTheDocument();
+  });
+
+  it("supports multiple instances of the same harness and closes them independently", async () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    // Launch first Grok
+    fireEvent.click(screen.getByText("+ Grok"));
+    expect(await screen.findByText("+ Grok · 1")).toBeInTheDocument();
+
+    // Launch second Grok
+    fireEvent.click(screen.getByText("+ Grok · 1"));
+    expect(await screen.findByText("+ Grok · 2")).toBeInTheDocument();
+
+    // Two Grok panes rendered with close buttons
+    const closeButtons = screen.getAllByRole("button", { name: "Close grok pane" });
+    expect(closeButtons).toHaveLength(2);
+
+    // Close first Grok pane
+    fireEvent.click(closeButtons[0]);
+    expect(await screen.findByText("+ Grok · 1")).toBeInTheDocument();
+
+    // One Grok pane remains
+    expect(screen.getAllByRole("button", { name: "Close grok pane" })).toHaveLength(1);
+    expect(screen.queryByText("No active harness terminals in grid")).not.toBeInTheDocument();
+
+    // Close second Grok pane
+    fireEvent.click(screen.getByRole("button", { name: "Close grok pane" }));
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.getByText("+ Grok")).toBeInTheDocument();
+  });
+
+  it("shows a llama.cpp control that is not counted as a harness", () => {
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+
+    expect(ALL_HARNESSES).toHaveLength(9);
+    expect(ALL_HARNESSES).not.toContain("llamacpp");
+    expect(screen.getByText(/9 supported harness CLIs/)).toBeInTheDocument();
+    expect(screen.getByText("+ llama.cpp")).toBeInTheDocument();
+    expect(screen.getByText("Launch llama.cpp")).toBeInTheDocument();
+  });
+
+  it("starts llama-server from the grid form with an explicit argv", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "launch_llamacpp_server") {
+        return Promise.resolve({
+          sessionId: args.sessionId,
+          baseUrl: `http://127.0.0.1:${args.port}`,
+        });
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByText("+ llama.cpp"));
+    fireEvent.change(screen.getByLabelText("llama.cpp model file"), {
+      target: { value: "/models/demo.gguf" },
+    });
+    fireEvent.change(screen.getByLabelText("llama.cpp port"), { target: { value: "8080" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start llama-server" }));
+
+    expect(await screen.findByText("http://127.0.0.1:8080")).toBeInTheDocument();
+    expect(screen.getByText("llama.cpp")).toBeInTheDocument();
+    expect(screen.getByTitle("/models/demo.gguf")).toBeInTheDocument();
+    expect(screen.getByText("+ llama.cpp · 1")).toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith("launch_llamacpp_server", {
+      sessionId: expect.stringMatching(/^harness-terminal:llamacpp:\/test\/workspace:leaf-llamacpp-/),
+      modelPath: "/models/demo.gguf",
+      port: 8080,
+      workspace: "/test/workspace",
+      program: "llama-server",
+      args: ["--host", "127.0.0.1", "--port", "8080", "-m", "/models/demo.gguf"],
+      rows: 24,
+      cols: 80,
+    });
+    expect(tauriCore.invoke).not.toHaveBeenCalledWith("hub_relaunch_harness_embedded", expect.anything());
+    expect(tauriCore.invoke).not.toHaveBeenCalledWith("pty_spawn", expect.anything());
+
+    const launch = vi.mocked(tauriCore.invoke).mock.calls.find((call) => call[0] === "launch_llamacpp_server");
+    const launched = launch?.[1] as { sessionId?: string } | undefined;
+    fireEvent.click(screen.getByRole("button", { name: "Close llamacpp pane" }));
+    expect(tauriCore.invoke).toHaveBeenCalledWith("pty_kill", { sessionId: launched?.sessionId });
+    expect(await screen.findByText("No active harness terminals in grid")).toBeInTheDocument();
+  });
+
+  it("does not leave a llama.cpp pane when launch fails", async () => {
+    const tauriCore = await import("@tauri-apps/api/core");
+    vi.mocked(tauriCore.invoke).mockImplementation((cmd: string, args?: any) => {
+      if (cmd === "launch_llamacpp_server") {
+        return Promise.reject(new Error("llama-server was not found on PATH. Install llama.cpp's llama-server and try again."));
+      }
+      return defaultInvokeHandler(cmd, args);
+    });
+
+    render(<HarnessTerminalGrid workspace="/test/workspace" />);
+    fireEvent.click(screen.getByText("Launch llama.cpp"));
+    fireEvent.change(screen.getByLabelText("llama.cpp model file"), {
+      target: { value: "/models/demo.gguf" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start llama-server" }));
+
+    expect(
+      await screen.findByText("llama-server was not found on PATH. Install llama.cpp's llama-server and try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No active harness terminals in grid")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close llamacpp pane" })).not.toBeInTheDocument();
+    expect(tauriCore.invoke).toHaveBeenCalledWith(
+      "launch_llamacpp_server",
+      expect.objectContaining({
+        program: "llama-server",
+        args: ["--host", "127.0.0.1", "--port", "8080", "-m", "/models/demo.gguf"],
+      }),
+    );
+  });
+});

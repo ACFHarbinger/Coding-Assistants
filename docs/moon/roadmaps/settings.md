@@ -1,0 +1,78 @@
+# Persistent Settings Roadmap
+
+> **Status:** Approved implementation plan
+> **Date:** 2026-08-13
+> **Scope:** local-first desktop settings and durable configuration for Coding-Assistants.
+
+## Product model
+
+Settings opens as one reusable, resizable desktop window. Reopening Settings focuses that window instead of creating a duplicate. It remains independently closable while Orchestrate, Chat & Memory, and Shared Hub stay usable; closing the main application also closes Settings.
+
+The window uses the existing dark glass-morphism language and a WAI-ARIA tab interface.
+
+| Tab | Settings | Scope |
+| --- | --- | --- |
+| General | theme, window behavior, startup/default view | global; workspace override only where meaningful |
+| Workspace & sessions | workspace-open behavior, default team roster, selected/default chat, and workspace overrides | workspace |
+| Agents & harnesses | named provider profiles, workspace default profile per harness, executable/workdir, capture polling, inject permission | global profile plus workspace selection |
+| Orchestration | task/wake confirmation, auto-enrollment, budgets, tool/sandbox policy | global with workspace, session, and agent overrides in Advanced |
+| Memory & storage | retention, non-destructive export, backup policy and number of retained settings backups | global with workspace override where applicable |
+| Diagnostics | log level, configuration health, redacted diagnostics export | global |
+| ⚠ Danger zone | confirmed reset, removal, and purge operations | explicit target scope only |
+
+Every inherited field displays an **Inherited** or **Workspace Override** status pill. An override can be reset to global in one action. Provider profiles show a non-sensitive source badge such as **Stored in System Keychain** or **Env Var $NAME**; Settings never *renders* a stored secret value back. As of S8 (#283/#284) Settings **does** offer a write-only entry field for a secret — a key typed there is routed straight to the P12 vault backend and cleared from memory, never echoed, never returned on any subsequent read, and never placed in `settings.toml`, an IPC response, a log, a diagnostic, or an export. A field with a stored value shows only its source badge, a "set" indicator, and a last-updated timestamp, with **Replace** and **Clear** actions.
+
+The ordinary controls are theme, startup/session behavior, team defaults, default provider profile, confirmation mode, auto-enrollment, retention, log level, and retained-backup count. Advanced controls hold per-session and per-agent overrides, budgets, tool/sandbox permissions, harness polling and injection permission, and detailed export/backup policy.
+
+## Persistence, scope, and security
+
+Tauri owns a versioned `settings.toml` under `CA_HOME` when set, otherwise `~/.coding-assistants`. The format is TOML and the writer uses `toml_edit` so hand-authored comments and formatting survive app-initiated saves. React only receives typed, JSON-serializable, redacted snapshots through Tauri commands; it never reads the configuration path or file directly.
+
+Writes validate the complete candidate, use a sibling temporary file and atomic replacement, fsync where practical, and retain timestamped last-known-good copies. The default is **three** retained backups, and the user can change that number in Memory & storage within a documented bounded range. A malformed file loads safe defaults without blanking the app, leaves the original untouched, and offers a one-click restore from a selected last-known-good backup.
+
+Global defaults apply first. A workspace override changes only its selected fields. Workspace identity is the user-selected path string normalized for safe storage but deliberately does **not** resolve symlinks, so distinct paths to the same repository can keep separate configuration on one or multiple devices.
+
+Provider profiles are global named records containing non-secret configuration such as provider, model, base URL, and a secret reference. A workspace selects one named default profile per harness; it never copies profile fields. Credentials, OAuth tokens, passwords, raw environment values, and harness session credentials are excluded from TOML, IPC payloads, logs, diagnostics, and exports.
+
+**Secret *write* path (S8, amends the original "never accepts a raw secret value" invariant).** OS-specific keychain/secret-service support and its encrypted-vault fallback — previously deferred as "a later modular platform decision" — are now `platform.md` **P12** ([#282](https://github.com/ACFHarbinger/Coding-Assistants/issues/282)). Settings gains a one-directional accept path: a secret entered in Settings (a provider API key such as `DEEPSEEK_API_KEY`, a harness/tool field, an OAuth token from an account-link flow) is handed to a Tauri command that writes it directly into the P12 vault and returns only `{ source, is_set, updated_at }`. There is **no** command that returns a stored secret to the frontend. The credential resolver (`hub`, P12) is the single reader: vault entry wins, `std::env::var` is the fallback. The profile reference contract is unchanged — `SecretReference::Keychain { id }` simply becomes writable from inside the app instead of requiring hand-provisioning.
+
+All configuration changes append to a dedicated, redacted settings audit stream and fan out a compatible redacted event to the Hub audit stream. Executable/workdir settings remain subject to existing validation and explicit-argument/no-shell process rules.
+
+## Orchestration and destructive-action policy
+
+Settings is the sole editor for standing policies; the Shared Hub Policy tab moves into Settings → Orchestration. Orchestrate and Chat & Memory retain only operational controls such as workspace/team selection, Create/Load, and per-message task/wake tags.
+
+Task and wake remain distinct: a task never spawns a harness instance. A wake may auto-enroll any supported harness identity, subject to settings policy; when it starts an instance, it uses that workspace's default profile for the harness. The safe default requires confirmation for wakes, new enrollment, and broadcast delivery. Task delivery to an existing targeted team member can proceed without a standing confirmation unless an override requires one.
+
+Danger-zone controls use red/amber warning badges and high-contrast warning containers. Each confirmation names the exact profile, workspace, or data set affected, describes recoverability, focuses **Cancel** by default, and adds an audit record. Irreversible transcript or memory purges require a second, target-name typing confirmation. The first release exposes retention, non-destructive export, and backup configuration; destructive transcript and memory purges are delivered only through the danger-action slice.
+
+## Delivery slices
+
+| # | Deliverable | Acceptance criteria |
+| --- | --- | --- |
+| S1 | Versioned settings store | Resolve `CA_HOME`/home safely; validate TOML through `toml_edit`; atomically save; preserve comments; retain three timestamped backups by default with configurable bounded retention; recover from malformed or interrupted writes without a startup failure. | ✅ **Done** · #127 |
+| S2 | Typed IPC, effective settings, and audit | Expose redacted get/update/reset commands; deterministically resolve global and path-preserving workspace overrides; write dedicated redacted settings audit entries and Hub-compatible audit events. | ✅ **Done** · #128 |
+| S3 | Standalone Settings window | Open/focus one independently closable, resizable settings window; close it with the app; implement the tab interface, inheritance status/reset UI, dark glass styling, and General/Workspace & sessions controls. | ✅ **Done** · #129 |
+| S4 | Global profiles and harness settings | Manage global named profiles and per-workspace/per-harness default selection; expose source-status badges but no secret inputs; persist and validate harness executable/workdir, capture-polling, and injection-permission settings. | ✅ **Done** · #130 |
+| S5 | Orchestration and storage policy | Relocate standing Policy controls; persist ordinary and Advanced policy scopes, safe confirmation defaults, auto-enrollment, budgets, tool/sandbox settings, retention, non-destructive export, and backup settings; current hub flows honor them. | ✅ **Done** · #131 |
+| S6 | Confirmed dangerous actions | Build the shared red/amber, target-aware confirmation framework with Cancel-first focus and audit events; use typed target confirmation for irreversible transcript/memory purge operations. |
+| S7 | Migration and acceptance | Test no-file, legacy/migration, malformed input, interrupted write, permission failure, backup retention/restore, comments preserved, distinct symlink-path overrides, profile defaults, no-secret exposure, window lifecycle, policy enforcement, and destructive-action cancellation. |
+| S8 | Credential & harness/tool field management | On top of `platform.md` P12: a typed catalog of the credential/config fields each harness and tool needs (#285), redacted Tauri commands to set / replace / clear a secret that never return the value (#283), and the Settings UI — write-only entry with source badge, "set" indicator, last-updated, Replace/Clear — plus the surface where a user links an external account (ChatGPT / Claude / Google) and sees which are connected (#284). Acceptance: a key typed in Settings authenticates the matching provider/quota adapter on the next call with **no** app restart and no env var set; no command or diagnostic ever returns the stored value; clearing a field falls the resolver back to `std::env::var`; account-link records are per-user (see `multi_human.md` H7 / #286 for the multi-human key migration). |
+
+## Delivery tracking
+
+- Epic: [#126](https://github.com/ACFHarbinger/Coding-Assistants/issues/126)
+- S1: [#127](https://github.com/ACFHarbinger/Coding-Assistants/issues/127) · implemented in `crates/hub` (`SettingsStore`, `default_hub_home`); awaiting Chat/Codex review
+- S2: [#128](https://github.com/ACFHarbinger/Coding-Assistants/issues/128) · implemented: workspace-override resolution in `crates/hub::settings`, redacted Tauri commands in `src-tauri/src/hub/commands/settings.rs`, audit fan-out via `HubStore::record_settings_audit_event`; awaiting Chat/Codex review
+- S3: [#129](https://github.com/ACFHarbinger/Coding-Assistants/issues/129) · implemented: standalone reusable Tauri window (`src/lib/settingsWindow.ts`, `src/components/settings/SettingsApp.tsx`) with real General (`default_workspace`) and Workspace & sessions (`default_session`) controls, plus a Memory & storage bonus tab (`backup_retention`); awaiting Chat/Codex review. Open/close/reopen reliability regression fixed in [#153](https://github.com/ACFHarbinger/Coding-Assistants/issues/153) (missing `core:window:allow-close` capability, panicking hide handler, and hidden-window reuse on reopen).
+- S4: [#130](https://github.com/ACFHarbinger/Coding-Assistants/issues/130) · storage + typed redacted commands (`settings_list_profiles`, upsert/rename/remove, workspace default-profile, harness list/update); awaiting Chat/Codex review
+- S5: [#131](https://github.com/ACFHarbinger/Coding-Assistants/issues/131) · persistence, typed commands, runtime enforcement, the Orchestration tab, and the final relocation are all implemented: the legacy Shared Hub → Policy tab (checkboxes, `hub_get_wake_policy`/`hub_set_wake_policy` frontend wiring, the `WakePolicyCheckbox` component) is fully retired, and `allow_auto_wake` (the second `WakePolicy` field, previously only exposed there) is now surfaced through Settings' `StandingPolicySnapshot`/`settings_set_allow_auto_wake` alongside `confirm_wakes`. No secret inputs anywhere. Awaiting Chat/Codex review.
+- S6: [#132](https://github.com/ACFHarbinger/Coding-Assistants/issues/132) · ✅ **Landed** in `main` (`f955034`, Muse, Codex-reviewed PASS after an atomicity fix round). Hard-delete workspace transcript/memory purges + combined data purge, each transactional with its hash-chained audit row, shared typed-confirmation box (Cancel-first, red/amber), profile-deletion wiring.
+- S7: [#133](https://github.com/ACFHarbinger/Coding-Assistants/issues/133) · ready for review on `agent/grok-133`, not landed on main. New coverage is `crates/hub/src/settings/tests/s7.rs` (symlink-distinct overrides, save permission failure, first-release document, redacted snapshot) and `crates/tui/tests/settings_s7_danger_cancel.rs` (wrong/empty confirmation leaves transcripts, memories, and settings in place). Existing `settings::tests` still cover no-file, malformed load (the blank-startup guard), leftover tmp, backups, comments, and string-distinct overrides. Window open/focus/close remains an owner live check. The Settings epic is not complete.
+- S8: 2026-09-08 credentials batch, parent [#279](https://github.com/ACFHarbinger/Coding-Assistants/issues/279). Backend commands [#283](https://github.com/ACFHarbinger/Coding-Assistants/issues/283) (Grok); Settings UI + account-link surface [#284](https://github.com/ACFHarbinger/Coding-Assistants/issues/284) (Gemini); field catalog [#285](https://github.com/ACFHarbinger/Coding-Assistants/issues/285) (OpenCode, done — ready for review). Depends on `platform.md` P12 [#282](https://github.com/ACFHarbinger/Coding-Assistants/issues/282) (Claude).
+
+## Dependencies and completion gate
+
+C10–C13 in [`communication.md`](communication.md) own session, task, wake, transcript, and harness-delivery semantics. Settings configures those flows but does not change the task-never-spawns rule. S1 should centralize the existing `CA_HOME`/`~/.coding-assistants` resolution before introducing the new file.
+
+Settings is complete when a user can safely change a global default and a path-distinct workspace override, choose a named profile per workspace/harness, restart without losing the effective configuration, recover from malformed configuration using a retained backup, open/close Settings independently, decline every dangerous action without data change, and verify that no **stored** secret value is exposed on read anywhere in the settings surface or its diagnostics — the S8 write-only entry field is the one place a secret enters, and it is never returned afterward.
