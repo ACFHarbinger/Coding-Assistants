@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- settings/idea/filetypes.xml -->
+<application>
+  <component name="FileTypeManager" version="17">
+    <ignoreFiles list="*~;.DS_Store;.git;.hg;.svn;CVS;target;node_modules;vssver.scc;vssver2.scc;" />
+  </component>
+</application>

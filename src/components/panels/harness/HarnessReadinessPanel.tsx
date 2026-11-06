@@ -1,0 +1,340 @@
+import { useCallback, useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { invoke, isTauriRuntime } from "../../../lib/tauri";
+import HarnessBadge from "./HarnessBadge";
+import GrokLeaderCard from "./GrokLeaderCard";
+import ProviderHealthChip from "./ProviderHealthChip";
+import { useProviderHealth } from "./useProviderHealth";
+import { TeamRoleBadge } from "../../common/TeamRoleBadge";
+import { nocCardDenseStyle, nocPanelStyle } from "../../common/telemetry/panel";
+import { EmptyStateChip } from "../../common/telemetry/status";
+import { NOC_COLORS, NOC_SURFACES } from "../../common/telemetry/tokens";
+import { HARNESS_PREREQUISITES, HARNESS_STATE_LEGEND, type EmbeddedRelaunchOutcome, type HarnessSessionRegistration, type StartManagedHarnessOutcome } from "./types";
+
+const PROVIDERS = ["grok", "chat", "claude", "gemini", "muse", "cursor", "qwen", "kimi"] as const;
+
+function formatSince(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ` (since ${ts})`;
+    return ` (since ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`;
+  } catch {
+    return ` (since ${ts})`;
+  }
+}
+
+export default function HarnessReadinessPanel({
+  workspace,
+  onOpenTerminalGrid,
+}: {
+  workspace: string;
+  onOpenTerminalGrid?: (harness?: string) => void;
+}) {
+  const [sessions, setSessions] = useState<HarnessSessionRegistration[]>([]);
+  const [agentRoles, setAgentRoles] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const [detail, setDetail] = useState("");
+  const [diskId, setDiskId] = useState("");
+  const [harness, setHarness] = useState<string>("grok");
+  const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [relaunching, setRelaunching] = useState<string | null>(null);
+
+  const { healthMap, refresh: refreshHealth } = useProviderHealth(30_000);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    void refreshHealth();
+    try {
+      const listed = await invoke<HarnessSessionRegistration[]>("hub_list_harness_sessions");
+      setSessions(listed.filter((row) => !workspace || row.workspace === workspace));
+      setError("");
+    } catch (cause) {
+      setError(String(cause));
+    }
+    try {
+      const agents = await invoke<Array<{ id: string; role?: string | null }>>("hub_list_agents");
+      const roles: Record<string, string> = {};
+      for (const a of agents) {
+        if (a.role) {
+          roles[a.id.toLowerCase()] = a.role;
+        }
+      }
+      setAgentRoles(roles);
+    } catch {
+      // Non-critical fallback
+    } finally {
+      setRefreshing(false);
+    }
+  }, [workspace, refreshHealth]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let unlisten: (() => void) | undefined;
+    listen("hub:agents-changed", () => {
+      void refresh();
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {});
+    return () => {
+      unlisten?.();
+    };
+  }, [refresh]);
+
+  const requireWorkspace = () => {
+    if (!workspace.startsWith("/")) {
+      throw new Error("Set an absolute Workspace Root before registering a harness.");
+    }
+  };
+
+  const registerObserved = async () => {
+    setBusy(true);
+    try {
+      requireWorkspace();
+      await invoke("hub_register_harness_session", {
+        harness,
+        workspace,
+        diskSessionId: diskId.trim() || null,
+        leaderSocket: null,
+      });
+      setDiskId("");
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const relaunchInTerminal = async (target: string, existingPid: number | null) => {
+    setBusy(true);
+    setRelaunching(target);
+    try {
+      requireWorkspace();
+      setDetail(`Starting ${target} terminal…`);
+      const outcome = await invoke<EmbeddedRelaunchOutcome>("hub_relaunch_harness_embedded", {
+        harness: target,
+        workspace,
+        existingPid,
+      });
+      setDetail(outcome.detail);
+      setError("");
+      const sid = outcome.sessionId ?? (outcome as { session_id?: string }).session_id;
+      if (!sid) {
+        throw new Error("Resume did not return an in-app terminal session id.");
+      }
+      onOpenTerminalGrid?.(outcome.harness);
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+      setRelaunching(null);
+    }
+  };
+
+  const startManaged = async () => {
+    setBusy(true);
+    try {
+      requireWorkspace();
+      if (harness === "grok") {
+        throw new Error("Use Connect / resume live below. Grok delivery needs a real leader session, not a fabricated thread id.");
+      }
+      if (harness !== "claude" && harness !== "cursor" && harness !== "gemini" && harness !== "qwen" && harness !== "kimi" && !diskId.trim()) {
+        throw new Error(
+          harness === "muse"
+            ? "Start managed needs a real Muse session UUID. Do not invent a placeholder."
+            : `Start managed needs a real ${harness} thread / conversation / disk session id. Do not invent a placeholder.`
+        );
+      }
+      // Claude: Channel-connected terminal (no disk-session id).
+      // Cursor: headless spawn creates a fresh chat and captures its id from stream-json.
+      // Gemini: start_managed_harness discards any supplied id and mints a fresh
+      //   agy conversation id, so a blank field means "new session" (an old id
+      //   here would make agy resume an unrelated conversation).
+      // Others: kill any prior managed pid, spawn, register — one atomic call.
+      const outcome = await invoke<StartManagedHarnessOutcome>("hub_start_managed_harness", {
+        harness,
+        workspace,
+        diskSessionId: diskId.trim() || (harness === "claude" ? "channel" : "new-session"),
+        prompt: "Coding-Assistants managed session",
+      });
+      if (outcome.start.status !== "started") {
+        throw new Error(outcome.start.detail);
+      }
+      setDetail(outcome.start.detail);
+      setDiskId("");
+      await refresh();
+    } catch (cause) {
+      setError(String(cause).replace(/^Error:\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section style={{ ...nocPanelStyle, borderLeft: `3px solid ${NOC_COLORS.amber}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "baseline" }}>
+        <div>
+          <strong style={{ color: NOC_SURFACES.textPrimary, fontSize: "1.02rem" }}>Harness interfaces</strong>
+          <div style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", marginTop: "0.25rem" }}>
+            Observed = capture only. Managed = app-owned writer. Busy/queued are retryable. Resume in terminal kills an optional managed pid and opens a real interactive CLI — it does not attach to an undocumented socket or TTY.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {onOpenTerminalGrid && (
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ marginTop: 0 }}
+              onClick={() => onOpenTerminalGrid()}
+            >
+              Open terminal grid →
+            </button>
+          )}
+          <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => void refresh()} disabled={busy || refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.85rem 0" }}>
+        {HARNESS_STATE_LEGEND.map((sample) => (
+          <HarnessBadge key={`${sample.mode}:${sample.state}`} mode={sample.mode} state={sample.state} />
+        ))}
+      </div>
+
+      <div style={{ margin: "0.85rem 0", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Provider CLI &amp; Auth Health
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+          {PROVIDERS.map((id) => (
+            <ProviderHealthChip key={id} providerId={id} health={healthMap[id]} />
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.14)", border: "1px solid rgba(248, 113, 113, 0.55)", color: "#fecaca", fontSize: "0.85rem" }}>
+          {error}
+        </div>
+      )}
+      {detail && !error && (
+        <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.85rem", borderRadius: "8px", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.35)", color: "#a7f3d0", fontSize: "0.85rem" }}>
+          {detail}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.85rem" }}>
+        <select value={harness} onChange={(event) => setHarness(event.target.value)} style={{ padding: "0.45rem 0.6rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)" }}>
+          {PROVIDERS.map((id) => (
+            <option key={id} value={id}>{id}</option>
+          ))}
+        </select>
+        <input
+          value={diskId}
+          onChange={(event) => setDiskId(event.target.value)}
+          placeholder="thread / disk session id"
+          style={{ flex: "1 1 180px", padding: "0.45rem 0.6rem", borderRadius: "8px", background: "rgba(0,0,0,0.35)", color: "white", border: "1px solid var(--border-color)" }}
+        />
+        <button type="button" className="btn-secondary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void registerObserved()}>
+          Register observed
+        </button>
+        <button type="button" className="btn-primary" style={{ marginTop: 0 }} disabled={busy} onClick={() => void startManaged()}>
+          Start managed
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ marginTop: 0 }}
+          disabled={busy}
+          title="Opens a real terminal for this harness, resuming the latest on-disk session when one exists."
+          onClick={() => void relaunchInTerminal(harness, sessions.find((row) => row.harness === harness)?.managed_pid ?? null)}
+        >
+          {relaunching === harness ? "Opening terminal…" : "Resume in terminal"}
+        </button>
+      </div>
+      <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.85rem" }}>
+        {HARNESS_PREREQUISITES[harness]} {harness === "grok"
+          ? "Connect starts `grok agent leader` and a `grok --leader` TUI."
+          : harness === "claude"
+            ? "Start managed kills any prior registered Claude process, then opens a Channel-connected `claude` terminal (same as Channels → Connect). No thread id is required. The row is ready only once that Channel session is live."
+            : harness === "cursor"
+              ? "Start managed spawns a fresh Cursor agent session and captures its chat ID from the stream. No pre-existing chat ID is required."
+            : harness === "muse"
+              ? "Start managed registers a managed Muse Code session. Supply a session UUID to track or continue."
+            : harness === "qwen"
+              ? "Start managed pre-assigns `--session-id` (Muse-style). No discover-then-register; `--chat-recording` is required for later resume."
+            : harness === "kimi"
+              ? "Start managed passes `--session <id>` when a disk session id is known, otherwise starts a fresh session — a UUID here is optional, not required."
+              : "Start managed uses the documented wake spawn, then marks the Hub row owned only when you supply a real thread/conversation id."} It does not attach to an undocumented socket.
+      </p>
+
+      {harness === "grok" && (
+        <div style={{ marginBottom: "0.85rem" }}>
+          <GrokLeaderCard workspace={workspace} compact />
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: "0.55rem" }}>
+        {sessions.length === 0 && (
+          <EmptyStateChip title="No harness sessions registered for this workspace" detail="Register an observed session or start a managed harness above." tone="idle" />
+        )}
+        {sessions.map((row) => (
+          <div key={`${row.harness}:${row.workspace}`} style={{ ...nocCardDenseStyle, display: "flex", flexDirection: "column", gap: "0.55rem", padding: "0.65rem 0.85rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <strong style={{ color: "var(--text-main)" }}>{row.harness}</strong>
+                  {agentRoles[row.harness.toLowerCase()] && (
+                    <TeamRoleBadge role={agentRoles[row.harness.toLowerCase()]} size="small" />
+                  )}
+                </div>
+                <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                  thread {row.disk_session_id}
+                  {row.writer_owner ? ` · writer ${row.writer_owner}${formatSince(row.writer_acquired_at)}` : ""}
+                  {row.managed_pid ? ` · pid ${row.managed_pid}` : ""}
+                  {row.pid_alive !== undefined && row.pid_alive !== null && (
+                    <span
+                      style={{
+                        marginLeft: "0.4rem",
+                        padding: "0.1rem 0.35rem",
+                        borderRadius: "4px",
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                        background: row.pid_alive ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                        color: row.pid_alive ? "#86efac" : "#fca5a5",
+                        border: `1px solid ${row.pid_alive ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
+                      }}
+                    >
+                      {row.pid_alive ? "alive" : "dead"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+                <HarnessBadge mode={row.mode} state={row.state} />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ marginTop: 0 }}
+                  disabled={busy}
+                  title="Kill the managed pid if one is registered, then resume this harness in a real terminal."
+                  onClick={() => void relaunchInTerminal(row.harness, row.managed_pid)}
+                >
+                  {relaunching === row.harness ? "Opening…" : "Resume in terminal"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

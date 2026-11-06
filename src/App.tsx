@@ -1,235 +1,93 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { invoke, isTauriRuntime } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 
-interface AgentEvent {
-  source: string;
-  event_type: string;
-  content: string;
-}
-
-interface ModelConfig {
-  provider: string;
-  model: string;
-  prompt_file?: string;
-  rule_file?: string;
-  workflow_file?: string;
-}
-
-interface RoleConfig {
-  name: string;
-  config: ModelConfig;
-}
-
-interface AgentConfig {
-  roles: RoleConfig[];
-  work_dir: string;
-  mcp_config: string;
-}
-
-interface AgentResources {
-  prompts: string[];
-  rules: string[];
-  workflows: string[];
-}
-
-const PROVIDERS = {
-  opencode: "OpenCode Zen",
-  google: "Google",
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  github_copilot: "GitHub Copilot",
-  ollama: "Ollama",
-  lm_studio: "LM Studio"
-};
-
-// MODELS was here, removed.
-
-const ModelSelect = ({
-  index,
-  role,
-  availableModels,
-  onProviderChange,
-  onConfigChange,
-  onNameChange,
-  onRemove,
-  onPreview,
-  resources,
-  PROVIDERS
-}: {
-  index: number;
-  role: RoleConfig;
-  availableModels: Record<string, string[]>;
-  onProviderChange: (index: number, provider: string) => void;
-  onConfigChange: (index: number, field: keyof ModelConfig, value: any) => void;
-  onNameChange: (index: number, name: string) => void;
-  onRemove: (index: number) => void;
-  onPreview: (type: string, name?: string) => Promise<void>;
-  resources: AgentResources;
-  PROVIDERS: Record<string, string>;
-}) => {
-  const roleConfig = role.config;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'rgba(255, 255, 255, 0.05)', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <input
-          value={role.name}
-          onChange={(e) => onNameChange(index, e.target.value)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderBottom: '1px solid transparent',
-            fontSize: '1rem',
-            fontWeight: 600,
-            color: 'var(--primary)',
-            padding: '2px 0',
-            outline: 'none',
-            width: 'auto',
-            minWidth: '100px'
-          }}
-          onFocus={(e) => e.target.style.borderBottom = '1px solid var(--primary)'}
-          onBlur={(e) => e.target.style.borderBottom = '1px solid transparent'}
-        />
-        <button
-          onClick={() => onRemove(index)}
-          style={{
-            padding: '0.25rem 0.5rem',
-            fontSize: '0.8rem',
-            background: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            borderRadius: '0.25rem',
-            cursor: 'pointer'
-          }}
-        >
-          Remove
-        </button>
-      </div>
-
-      <div>
-        <label className="label">Provider</label>
-        <select
-          value={roleConfig.provider}
-          onChange={(e) => onProviderChange(index, e.target.value)}
-        >
-          {Object.entries(PROVIDERS).map(([id, name]) => (
-            <option key={id} value={id}>{name}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="label">Model</label>
-        <select
-          value={roleConfig.model}
-          onChange={(e) => onConfigChange(index, 'model', e.target.value)}
-        >
-          {(availableModels[roleConfig.provider] || []).map(model => (
-            <option key={model} value={model}>{model}</option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-        <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => onPreview('prompt', roleConfig.prompt_file)}
-            title="Click to preview selected prompt"
-          >
-            Prompt
-          </label>
-          <select
-            value={roleConfig.prompt_file || ""}
-            onChange={(e) => onConfigChange(index, 'prompt_file', e.target.value)}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-          >
-            <option value="">Default</option>
-            {resources.prompts.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-          </select>
-        </div>
-        <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => onPreview('rule', roleConfig.rule_file)}
-            title="Click to preview selected rule"
-          >
-            Rule
-          </label>
-          <select
-            value={roleConfig.rule_file || ""}
-            onChange={(e) => onConfigChange(index, 'rule_file', e.target.value)}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-          >
-            <option value="">None</option>
-            {resources.rules.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-          </select>
-        </div>
-        <div>
-          <label
-            className="label"
-            style={{ fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => onPreview('workflow', roleConfig.workflow_file)}
-            title="Click to preview selected workflow"
-          >
-            Workflow
-          </label>
-          <select
-            value={roleConfig.workflow_file || ""}
-            onChange={(e) => onConfigChange(index, 'workflow_file', e.target.value)}
-            style={{ fontSize: '0.85rem', padding: '0.4rem' }}
-          >
-            <option value="">None</option>
-            {resources.workflows.map(f => <option key={f} value={f}>{f.split('/').pop()}</option>)}
-          </select>
-        </div>
-      </div>
-    </div>
-  );
-};
+import { PROVIDERS, HubAgent, HubMessage, HubRefreshOptions, WorkSession, loadWorkspaceRoot, persistWorkSession, sameHubAgents, sameHubMessages } from "./app/hubState";
+import { addTeamMemberUnique, rosterAgentToTeamMember } from "./app/team";
+import ChannelsTab from "./components/panels/hub/ChannelsTab";
+import OperationsPanel from "./components/panels/OperationsPanel";
+import WorkPanel from "./components/panels/WorkPanel";
+import ConfigPanel, { AgentConfig, AgentResources, TeamMember } from "./components/panels/ConfigPanel";
+import RemotePanel from "./components/panels/RemotePanel";
+import MessagerPanel from "./components/panels/MessagerPanel";
+import { openSettingsWindow } from "./lib/settingsWindow";
+import { defaultMcpConfig, loadPersistedRoles, savePersistedRoles } from "./app/rolesConfig";
+import HarnessTerminalGrid from "./components/panels/terminal/HarnessTerminalGrid";
+import { SchedulePanel } from "./components/panels/schedule/SchedulePanel";
+import { AppHeader } from "./components/common/AppHeader";
+import { SubtabBar } from "./components/common/telemetry/SubtabBar";
 
 function App() {
-  const [config, setConfig] = useState<AgentConfig>({
-    roles: [
-      { name: "Planner", config: { provider: "openai", model: "gpt-4o" } },
-      { name: "Developer", config: { provider: "openai", model: "gpt-4o-mini" } },
-      { name: "Reviewer", config: { provider: "openai", model: "gpt-4o" } },
-    ],
-    work_dir: "./workspace",
-    mcp_config: `{
-  "mcpServers": {
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-      "env": {}
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/pkhunter/Repositories/Coding-Assistants"],
-      "disabledTools": ["read_file"]
-    },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"]
-    }
-  }
-}`
+  const [config, setConfig] = useState<AgentConfig>(() => {
+    const ws = loadWorkspaceRoot();
+    return {
+      roles: loadPersistedRoles(),
+      work_dir: ws,
+      mcp_config: defaultMcpConfig(ws),
+    };
   });
+
   const [resources, setResources] = useState<AgentResources>({ prompts: [], rules: [], workflows: [] });
-  const [task, setTask] = useState("");
-  const [output, setOutput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState<AgentEvent[]>([]);
   const [preview, setPreview] = useState<{ type: string, name: string, content: string } | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
-  const [authorizationRequest, setAuthorizationRequest] = useState<{ role: string, question: string } | null>(null);
-  const [userInput, setUserInput] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   const [remoteStatus, setRemoteStatus] = useState<string>("Server not started");
   const [serverIP, setServerIP] = useState<string>("");
   const [remoteLogs, setRemoteLogs] = useState<string[]>([]);
+  const [mainView, setMainView] = useState<"orchestrate" | "messager" | "operations" | "work">("messager");
+  const [orchestrateSubView, setOrchestrateSubView] = useState<"setup" | "terminals" | "schedule" | "channels">("setup");
+  const [requestedTerminalHarness, setRequestedTerminalHarness] = useState<string | null>(null);
+  const [operationsVisited, setOperationsVisited] = useState(false);
+  const [workVisited, setWorkVisited] = useState(false);
+  const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const [hubMessages, setHubMessages] = useState<HubMessage[]>([]);
+  const [hubAgents, setHubAgents] = useState<HubAgent[]>([]);
+  const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
+  const getSavedWorkSessionId = () => { try { return localStorage.getItem("ca.activeWorkSessionId"); } catch { return null; } };
+  const [activeWorkSessionId, setActiveWorkSessionId] = useState<string | null>(getSavedWorkSessionId);
+  const [chatFocusSessionId, setChatFocusSessionId] = useState<string | null>(getSavedWorkSessionId);
+  const [chatFocusToken, setChatFocusToken] = useState(0);
+  const activeWorkSession = workSessions.find(session => session.id === activeWorkSessionId) ?? null;
+  const workDirRef = useRef(config.work_dir);
+  const sessionIdRef = useRef(activeWorkSessionId);
+  workDirRef.current = config.work_dir;
+  sessionIdRef.current = activeWorkSessionId;
+
+  useEffect(() => {
+    try {
+      if (activeWorkSessionId) localStorage.setItem("ca.activeWorkSessionId", activeWorkSessionId);
+      else localStorage.removeItem("ca.activeWorkSessionId");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [activeWorkSessionId]);
+
+  useEffect(() => {
+    try {
+      if (config.work_dir) localStorage.setItem("ca.workspaceRoot", config.work_dir);
+      else localStorage.removeItem("ca.workspaceRoot");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [config.work_dir]);
+
+  useEffect(() => {
+    savePersistedRoles(config.roles);
+  }, [config.roles]);
+
+  useEffect(() => {
+    async function loadModels() {
+      try {
+        const models = await invoke<Record<string, string[]>>("get_available_models");
+        setAvailableModels(models);
+      } catch (err) {
+        console.error("Failed to load models:", err);
+      }
+    }
+    loadModels();
+  }, []);
 
   const startRemoteServer = async () => {
     try {
@@ -254,6 +112,7 @@ function App() {
   };
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     const unlisten = listen<string>("remote-status", (event) => {
       setRemoteLogs(prev => [event.payload, ...prev].slice(0, 10));
     });
@@ -268,24 +127,23 @@ function App() {
       alert(`Please select a custom ${type} file to preview it.`);
       return;
     }
-    console.log(`Fetching preview for ${type}: ${name}`);
+    setPreviewLoading(true);
     try {
-      const path = name; // Name is now the full relative path
-      const content = await invoke<string>("get_resource_content", { workDir: config.work_dir, path });
+      const content = await invoke<string>("get_resource_content", { workDir: config.work_dir, path: name });
       setPreview({ type, name, content });
     } catch (e) {
-      console.error(`Failed to fetch ${type} preview:`, e);
       alert(`Failed to load preview: ${e}`);
+    } finally {
+      setPreviewLoading(false);
     }
   };
-
 
   useEffect(() => {
     async function fetchResources() {
       if (!config.work_dir) return;
       try {
-        const resources = await invoke<AgentResources>("get_agent_resources", { workDir: config.work_dir });
-        setResources(resources);
+        const res = await invoke<AgentResources>("get_agent_resources", { workDir: config.work_dir });
+        setResources(res);
       } catch (e) {
         console.error("Failed to fetch resources:", e);
       }
@@ -293,606 +151,293 @@ function App() {
     fetchResources();
   }, [config.work_dir]);
 
-  useEffect(() => {
-    const unlisten = listen<AgentEvent>("agent-event", (event) => {
-      setEvents((prev) => {
-        const last = prev[prev.length - 1];
-        if (event.payload.event_type === "stream") {
-          // If the last event was a response from the same source, append to it
-          if (last && last.source === event.payload.source && last.event_type === "response") {
-            const newLast = { ...last, content: last.content + event.payload.content };
-            return [...prev.slice(0, -1), newLast];
-          }
-          // Otherwise, start a new response block
-          return [...prev, { ...event.payload, event_type: "response" }];
-        }
-        if (event.payload.event_type === "question") {
-          setCurrentQuestion(event.payload.content);
-        }
-        if (event.payload.event_type === "authorization") {
-          try {
-            const content = JSON.parse(event.payload.content);
-            setAuthorizationRequest(content);
-          } catch (e) {
-            console.error("Failed to parse authorization request", e);
-          }
-        }
-        // For standard events (thought, etc.)
-        return [...prev, event.payload];
+  const refreshHubChat = async (options?: HubRefreshOptions) => {
+    if (!isTauriRuntime()) return;
+    try {
+      const [messages, agents, sessions] = await Promise.all([
+        invoke<HubMessage[]>("hub_list_messages", { to: null, status: null }),
+        invoke<HubAgent[]>("hub_list_agents"),
+        invoke<WorkSession[]>("hub_list_work_sessions"),
+      ]);
+      setHubMessages(prev => sameHubMessages(prev, messages) ? prev : messages);
+      setHubAgents(prev => sameHubAgents(prev, agents) ? prev : agents);
+      setTeamMembers(previous => {
+        const persisted = agents
+          .filter(agent => agent.team_member)
+          .map(rosterAgentToTeamMember);
+        const persistedIds = new Set(persisted.map(agent => agent.target_id));
+        const transient = previous.filter(agent =>
+          !persistedIds.has(agent.target_id)
+          && (agent.target_id.startsWith("role:") || agent.target_id.startsWith("process:"))
+        );
+        const next = [...persisted, ...transient];
+        const unchanged = next.length === previous.length
+          && next.every((agent, index) => agent.id === previous[index]?.id && agent.target_id === previous[index]?.target_id);
+        return unchanged ? previous : next;
       });
-    });
-    return () => {
-      unlisten.then(f => f());
-    };
-  }, []);
-
-  useEffect(() => {
-    const unlistenTask = listen<{ config: AgentConfig, task: string }>("android-task-request", (event) => {
-      console.log("Received remote task request:", event.payload);
-      setConfig(event.payload.config);
-      setTask(event.payload.task);
-      startTaskRemote(event.payload.config, event.payload.task);
-    });
-
-    const unlistenCancel = listen("android-cancel-request", () => {
-      console.log("Received remote cancel request");
-      invoke("cancel_task").catch(err => console.error("Remote cancel failed:", err));
-    });
-
-    const unlistenInput = listen<string>("android-input-submit", (event) => {
-      console.log("Received remote input submit:", event.payload);
-      setUserInput(event.payload);
-      invoke("submit_user_input", { input: event.payload }).catch(err => console.error("Remote input submittal failed:", err));
-      setCurrentQuestion(null);
-    });
-
-    return () => {
-      unlistenTask.then(f => f());
-      unlistenCancel.then(f => f());
-      unlistenInput.then(f => f());
-    };
-  }, []);
-
-  const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    async function loadModels() {
-      try {
-        const models = await invoke<Record<string, string[]>>("get_available_models");
-        setAvailableModels(models);
-        console.log("Loaded models:", models);
-      } catch (err) {
-        console.error("Failed to load models:", err);
+      setWorkSessions(sessions);
+      setActiveWorkSessionId(current =>
+        current && sessions.some(session => session.id === current) ? current : current
+      );
+      const workspace = workDirRef.current;
+      if (workspace && options?.includeCapture !== false) {
+        const harnessCaptureCmds = [
+          ["hub_capture_grok_session", "grokSessionId"],
+          ["hub_capture_claude_session", "claudeSessionId"],
+          ["hub_capture_codex_session", "codexSessionId"],
+          ["hub_capture_gemini_session", "geminiSessionId"],
+          ["hub_capture_cursor_session", "cursorSessionId"],
+          ["hub_capture_muse_session", "museSessionId"],
+          ["hub_capture_qwen_session", "qwenSessionId"],
+          ["hub_capture_vibe_session", "vibeSessionId"],
+          ["hub_capture_kimi_session", "kimiSessionId"],
+          ["hub_capture_hermes_session", "hermesSessionId"],
+        ] as const;
+        const captures = await Promise.allSettled(
+          harnessCaptureCmds.map(([cmd, paramKey]) =>
+            invoke<{ captured?: unknown[] }>(cmd, {
+              workspace,
+              [paramKey]: null,
+              hubSessionId: sessionIdRef.current,
+            })
+          )
+        );
+        const capturedNew = captures.some(result =>
+          result.status === "fulfilled" && (result.value.captured?.length ?? 0) > 0
+        );
+        if (capturedNew) {
+          const latest = await invoke<HubMessage[]>("hub_list_messages", { to: null, status: null });
+          setHubMessages(prev => sameHubMessages(prev, latest) ? prev : latest);
+        }
       }
-    }
-    loadModels();
-  }, []);
-
-  const submitAnswer = async () => {
-    if (!userInput.trim()) return;
-    try {
-      await invoke("submit_user_input", { input: userInput });
-      setCurrentQuestion(null);
-      setUserInput("");
-    } catch (e) {
-      console.error("Failed to submit answer:", e);
-      alert("Failed to submit answer: " + e);
+    } catch (error) {
+      console.error("Failed to refresh harness messages:", error);
     }
   };
 
-  const respondToAuthorization = async (approved: boolean) => {
-    try {
-      await invoke("submit_user_input", { input: approved ? "APPROVED" : "DENIED" });
-      setAuthorizationRequest(null);
-    } catch (e) {
-      console.error("Failed to submit authorization response:", e);
-      alert("Failed to submit response: " + e);
-    }
-  };
+  useEffect(() => {
+    refreshHubChat();
+    if (!isTauriRuntime()) return;
+    const interval = window.setInterval(refreshHubChat, 1500);
+    let unlisten: (() => void) | undefined;
+    listen("hub:agents-changed", () => void refreshHubChat()).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      window.clearInterval(interval);
+      unlisten?.();
+    };
+  }, []);
 
-  const startTask = async () => {
-    if (loading) {
-      // Cancel logic
-      try {
-        await invoke("cancel_task");
-        setOutput(prev => prev + "\n[Cancelling task...]");
-      } catch (error) {
-        console.error("Failed to cancel task:", error);
-      }
+  const addAgentToTeam = async (agent: TeamMember): Promise<void> => {
+    setTeamError(null);
+    const rosterId = agent.target_id;
+    // No allowlist: any roster identity persists the same way, with
+    // `hub_set_team_member` as the source of truth (U22 / #225). A backend
+    // NotFound (unknown id) surfaces in the banner below instead of console.
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
       return;
     }
-
-    setLoading(true);
-    setEvents([]);
-    setOutput("");
     try {
-      const result = await invoke<string>("run_agent_task", { config, task });
-      setOutput(result);
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: true });
+      if (activeWorkSessionId) {
+        await invoke("hub_add_work_session_member", {
+          sessionId: activeWorkSessionId,
+          agentId: rosterId,
+        });
+      }
+      setTeamMembers(prev => addTeamMemberUnique(prev, agent));
+      await refreshHubChat();
     } catch (error) {
-      setOutput(`Error: ${error}`);
-    } finally {
-      setLoading(false);
+      setTeamError(`Could not enroll ${rosterId} on the persisted team: ${error}`);
+      throw error;
     }
   };
 
-  const startTaskRemote = async (remoteConfig: AgentConfig, remoteTask: string) => {
-    setLoading(true);
-    setEvents([]);
-    setOutput("");
-    try {
-      const result = await invoke<string>("run_agent_task", { config: remoteConfig, task: remoteTask });
-      setOutput(result);
-    } catch (error) {
-      setOutput(`Error: ${error}`);
-    } finally {
-      setLoading(false);
+  const selectWorkSession = (sessionId: string | null) => {
+    setActiveWorkSessionId(sessionId);
+    if (sessionId) {
+      setChatFocusSessionId(sessionId);
+      setChatFocusToken(token => token + 1);
     }
   };
 
-  const handleProviderChange = (index: number, provider: string) => {
-    setConfig(prev => {
-      const newRoles = [...prev.roles];
-      const models = availableModels[provider] || [];
-      newRoles[index] = {
-        ...newRoles[index],
-        config: {
-          ...newRoles[index].config,
-          provider,
-          model: models[0] || ""
-        }
-      };
-      return { ...prev, roles: newRoles };
-    });
+  const createWorkSession = async (name: string) => {
+    if (!isTauriRuntime()) throw new Error("Work sessions require the desktop app");
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length > 120) {
+      throw new Error("Work session name must be between 1 and 120 characters");
+    }
+    const session = await persistWorkSession(trimmed, config.work_dir);
+    setWorkSessions(prev => [session, ...prev.filter(existing => existing.id !== session.id)]);
+    selectWorkSession(session.id);
   };
 
-  const addRole = () => {
-    setConfig(prev => ({
-      ...prev,
-      roles: [...prev.roles, {
-        name: `New Role ${prev.roles.length + 1}`,
-        config: { provider: "openai", model: "gpt-4o-mini" }
-      }]
-    }));
+  const removeAgentFromTeam = async (agent: TeamMember): Promise<void> => {
+    setTeamError(null);
+    const rosterId = agent.target_id;
+    if (rosterId === "human") return;
+    // No allowlist (U22 / #225): unenroll persists for every other identity.
+    if (!isTauriRuntime()) {
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      return;
+    }
+    try {
+      await invoke("hub_set_team_member", { id: rosterId, enrolled: false });
+      setTeamMembers(prev => prev.filter(member => member.id !== agent.id));
+      await refreshHubChat();
+    } catch (error) {
+      setTeamError(`Could not remove ${rosterId} from the persisted team: ${error}`);
+      throw error;
+    }
   };
 
-  const removeRole = (index: number) => {
-    setConfig(prev => ({
-      ...prev,
-      roles: prev.roles.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateRoleName = (index: number, name: string) => {
-    setConfig(prev => {
-      const newRoles = [...prev.roles];
-      newRoles[index] = { ...newRoles[index], name };
-      return { ...prev, roles: newRoles };
-    });
-  };
-
-  const updateRoleConfig = (index: number, field: keyof ModelConfig, value: any) => {
-    setConfig(prev => {
-      const newRoles = [...prev.roles];
-      newRoles[index] = {
-        ...newRoles[index],
-        config: { ...newRoles[index].config, [field]: value || undefined }
-      };
-      return { ...prev, roles: newRoles };
-    });
-  };
+  const teamMemberIds = [...new Set([
+    ...teamMembers.flatMap(member => [member.id, member.target_id]),
+    ...hubAgents.filter(agent => agent.team_member).map(agent => agent.id),
+  ])];
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
-      <header style={{
-        padding: '1.5rem 2.5rem',
-        borderBottom: '1px solid var(--border-color)',
-        background: 'rgba(2, 6, 23, 0.3)',
-        backdropFilter: 'var(--glass-blur)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.025em' }}>
-          Coding Assistants
-        </h1>
-        <div className="status-badge">Powered by OpenCode</div>
-      </header>
+      <AppHeader
+        mainView={mainView}
+        onSelectView={(view) => {
+          if (view === "operations") setOperationsVisited(true);
+          if (view === "work") setWorkVisited(true);
+          setMainView(view);
+        }}
+        workspacePath={config.work_dir}
+        activeWorkSessionName={activeWorkSession?.name ?? null}
+        onOpenSettings={() => void openSettingsWindow()}
+      />
 
       <main className="main-content">
-        <div className="glass-card">
-          <h2>Configuration</h2>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem' }}>
-            {config.roles.map((role, index) => (
-              <ModelSelect
-                key={index}
-                index={index}
-                role={role}
-                availableModels={availableModels}
-                onProviderChange={handleProviderChange}
-                onConfigChange={updateRoleConfig}
-                onNameChange={updateRoleName}
-                onRemove={removeRole}
-                onPreview={fetchPreview}
-                resources={resources}
-                PROVIDERS={PROVIDERS}
-              />
-            ))}
-            <div
-              onClick={addRole}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '1rem',
-                padding: '2rem',
-                border: '2px dashed var(--border-color)',
-                borderRadius: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.02)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                minHeight: '200px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--primary)';
-                e.currentTarget.style.background = 'rgba(168, 85, 247, 0.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-              }}
-            >
-              <span style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>+</span>
-              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Add New Role</span>
-            </div>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label className="label">Workspace Root</label>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <input
-                  style={{ flex: 1 }}
-                  placeholder="./workspace"
-                  value={config.work_dir}
-                  onChange={e => setConfig({ ...config, work_dir: e.target.value })}
-                />
-                <button
-                  className="btn-secondary"
-                  onClick={async () => {
-                    const selected = await open({
-                      directory: true,
-                      multiple: false,
-                    });
-                    if (selected) {
-                      setConfig({ ...config, work_dir: selected as string });
-                    }
-                  }}
-                >
-                  Browse
-                </button>
-              </div>
-            </div>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <label className="label" style={{ margin: 0 }}>MCP Configuration (JSON)</label>
-                <button
-                  className="btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem' }}
-                  onClick={async () => {
-                    try {
-                      const selected = await open({
-                        multiple: false
-                      });
-                      if (selected) {
-                        const content = await invoke<string>("read_file_absolute", { path: selected as string });
-                        setConfig({ ...config, mcp_config: content });
-                      }
-                    } catch (err) {
-                      console.error("Failed to load config", err);
-                      alert("Failed to load config: " + err);
-                    }
-                  }}
-                >
-                  Load Config...
-                </button>
-              </div>
-              <textarea
-                value={config.mcp_config}
-                onChange={(e) => setConfig({ ...config, mcp_config: e.target.value })}
-                placeholder="Paste mcp_servers.json content here..."
-                style={{
-                  minHeight: '150px',
-                  fontFamily: 'monospace',
-                  fontSize: '0.9rem',
-                  lineHeight: '1.4',
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  padding: '0.75rem',
-                  width: '100%',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card">
-          <h2>Execute Task</h2>
-          <textarea
-            rows={5}
-            placeholder="What should the agent team build today?"
-            value={task}
-            onChange={e => setTask(e.target.value)}
-          />
-          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.5rem' }}>
-            {loading && <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>Orchestrating agents via OpenCode...</span>}
-            <button className={loading ? "btn-secondary" : "btn-primary"} onClick={startTask} disabled={!task && !loading}>
-              {loading ? "Cancel" : "Launch Sequence"}
+        {teamError && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", padding: "0.6rem 0.9rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(248, 113, 113, 0.45)", color: "#fca5a5", fontSize: "0.82rem", marginBottom: "1rem" }}>
+            <span>{teamError}</span>
+            <button type="button" className="btn-secondary" style={{ marginTop: 0, padding: "0.25rem 0.7rem", fontSize: "0.75rem" }} onClick={() => setTeamError(null)}>
+              Dismiss
             </button>
-          </div>
-        </div>
-
-        <div className="glass-card">
-          <h2>Remote Control</h2>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <p style={{ margin: 0, fontWeight: 600 }}>Status: <span style={{ color: remoteStatus.includes("listening") ? "#22c55e" : "var(--text-muted)" }}>{remoteStatus}</span></p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Control from Android app via WiFi</p>
-              {serverIP && (
-                <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', fontWeight: 600, color: 'var(--primary)' }}>
-                  Connect to: <span style={{ fontFamily: 'monospace', background: 'rgba(168, 85, 247, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>{serverIP}</span>
-                </p>
-              )}
-            </div>
-            <button
-              className="btn-secondary"
-              onClick={remoteStatus.includes("listening") ? stopRemoteServer : startRemoteServer}
-              style={remoteStatus.includes("listening") ? { borderColor: '#ef4444', color: '#ef4444' } : {}}
-            >
-              {remoteStatus.includes("listening") ? "Stop Server" : "Start Server"}
-            </button>
-          </div>
-          {remoteLogs.length > 0 && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Remote Logs:</p>
-              <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem' }}>
-                {remoteLogs.map((log, i) => <li key={i}>{log}</li>)}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        {events.length > 0 && (
-          <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>Agent Activity</h2>
-              <button
-                onClick={() => setEvents([])}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-              >
-                Clear Events
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {events.map((ev, i) => (
-                <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-                  <div style={{
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border-color)'
-                  }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      {(() => {
-                        const colors = {
-                          Planner: { bg: 'rgba(56, 189, 248, 0.2)', text: '#38bdf8' },
-                          Developer: { bg: 'rgba(168, 85, 247, 0.2)', text: '#a855f7' },
-                          Reviewer: { bg: 'rgba(234, 179, 8, 0.2)', text: '#eab308' },
-                          System: { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-muted)' },
-                          User: { bg: 'rgba(34, 197, 94, 0.2)', text: '#22c55e' },
-                        }[ev.source] || { bg: 'rgba(168, 85, 247, 0.15)', text: 'var(--primary)' };
-
-                        return (
-                          <span className={`badge ${ev.source.toLowerCase()}`} style={{
-                            background: colors.bg,
-                            color: colors.text,
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600
-                          }}>
-                            {ev.source}
-                          </span>
-                        );
-                      })()}
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                        {ev.event_type === "thought" ? "is thinking..." : "responded"}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Event #{i + 1}</span>
-                  </div>
-                  <pre style={{
-                    margin: 0,
-                    padding: '1rem',
-                    whiteSpace: 'pre-wrap',
-                    fontSize: '0.85rem',
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    background: 'rgba(0,0,0,0.2)'
-                  }}>
-                    {ev.content}
-                  </pre>
-                </div>
-              ))}
-            </div>
           </div>
         )}
+        <div style={{ display: mainView === "messager" ? "contents" : "none" }}>
+          <MessagerPanel
+            hubMessages={hubMessages}
+            hubAgents={hubAgents}
+            workSessions={workSessions}
+            activeWorkSessionId={activeWorkSessionId}
+            focusSessionId={chatFocusSessionId}
+            focusSessionToken={chatFocusToken}
+            workspacePath={config.work_dir}
+            onSelectWorkSession={selectWorkSession}
+            onRefresh={refreshHubChat}
+          />
+        </div>
 
-        {output && (
-          <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>Final Output</h2>
-              <button
-                onClick={() => setOutput("")}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-              >
-                Clear
-              </button>
+        {(mainView === "work" || workVisited) && <div style={{ display: mainView === "work" ? "contents" : "none" }}><WorkPanel teamMemberIds={teamMemberIds} onAddAgent={addAgentToTeam} onRemoveAgent={removeAgentFromTeam} /></div>}
+
+
+        {(mainView === "operations" || operationsVisited) && <div style={{ display: mainView === "operations" ? "contents" : "none" }}><OperationsPanel /></div>}
+
+        <div style={{ display: mainView === "orchestrate" ? "contents" : "none" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <SubtabBar
+              ariaLabel="Orchestrate subtabs"
+              tabs={[
+                { id: "setup", label: "⚙️ Setup & Config" },
+                { id: "terminals", label: "🖥️ Terminal Grid" },
+                { id: "schedule", label: "⏱️ Schedule" },
+                { id: "channels", label: "📡 Channels" },
+              ]}
+              activeId={orchestrateSubView}
+              onSelect={(id) => setOrchestrateSubView(id)}
+            />
+          </div>
+
+          <div style={{ display: orchestrateSubView === "channels" ? "block" : "none" }}>
+            <ChannelsTab />
+          </div>
+
+          <div style={{ display: orchestrateSubView === "schedule" ? "block" : "none" }}>
+            <SchedulePanel
+              workspace={config.work_dir}
+              teamMemberIds={teamMemberIds}
+              availableAgents={resources?.prompts || []}
+            />
+          </div>
+
+          <div style={{ display: orchestrateSubView === "terminals" ? "block" : "none" }}>
+            <HarnessTerminalGrid
+              workspace={config.work_dir}
+              onOpenSetup={() => setOrchestrateSubView("setup")}
+              requestedHarness={requestedTerminalHarness}
+              onHarnessRequestHandled={() => setRequestedTerminalHarness(null)}
+            />
+          </div>
+
+          <div style={{ display: orchestrateSubView === "setup" ? "contents" : "none" }}>
+            <ConfigPanel
+              config={config}
+              setConfig={setConfig}
+              availableModels={availableModels}
+              resources={resources}
+              PROVIDERS={PROVIDERS}
+              onPreview={fetchPreview}
+              teamMemberIds={teamMemberIds}
+              onAddAgent={addAgentToTeam}
+              onRemoveAgent={removeAgentFromTeam}
+              onCreateWorkSession={createWorkSession}
+              workSessions={workSessions}
+              activeWorkSessionId={activeWorkSessionId}
+              onSelectWorkSession={selectWorkSession}
+              onSwitchToChatView={() => setMainView("messager")}
+              activeWorkSessionName={activeWorkSession?.name ?? null}
+              onOpenTerminalGrid={(harness) => {
+                if (harness) setRequestedTerminalHarness(harness);
+                setOrchestrateSubView("terminals");
+              }}
+            />
+
+            <RemotePanel
+              remoteStatus={remoteStatus}
+              serverIP={serverIP}
+              startRemoteServer={startRemoteServer}
+              stopRemoteServer={stopRemoteServer}
+              remoteLogs={remoteLogs}
+            />
+          </div>
+        </div>
+
+        {previewLoading && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2,6,23,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.25rem 2rem', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600 }}>
+              Loading resource preview…
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>
-              {output}
-            </pre>
           </div>
         )}
 
         {preview && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(5px)'
-          }} onClick={() => setPreview(null)}>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2,6,23,0.92)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }} onClick={() => setPreview(null)}>
             <div
-              style={{
-                background: 'var(--card-bg)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '1rem',
-                padding: '2rem',
-                maxWidth: '800px',
-                width: '90%',
-                maxHeight: '80vh',
-                overflow: 'auto',
-                boxShadow: 'var(--shadow-lg)'
-              }}
+              className="fade-in"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '2.5rem', maxWidth: '850px', width: '90%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h2 style={{ textTransform: 'capitalize' }}>{preview.type} Preview: {preview.name}</h2>
-                <button onClick={() => setPreview(null)} className="btn-secondary">Close</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ textTransform: 'capitalize', color: 'var(--text-main)', margin: 0, fontWeight: 700 }}>
+                  {preview.type} Preview: <span style={{ color: 'var(--primary)' }}>{preview.name}</span>
+                </h2>
+                <button onClick={() => setPreview(null)} className="btn-secondary" style={{ padding: '0.5rem 1rem' }}>Close</button>
               </div>
-              <pre style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '0.5rem' }}>
+              <pre style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.4)', padding: '1.5rem', borderRadius: '12px', fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)', border: '1px solid var(--border-color)', lineHeight: 1.5 }}>
                 {preview.content}
               </pre>
             </div>
           </div>
         )}
-
-        {
-          authorizationRequest && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.85)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 2000,
-              backdropFilter: 'blur(8px)'
-            }}>
-              <div style={{
-                background: 'var(--card-bg)',
-                border: '1px solid var(--primary)',
-                borderRadius: '1rem',
-                padding: '2rem',
-                maxWidth: '500px',
-                width: '90%',
-                boxShadow: '0 0 50px rgba(168, 85, 247, 0.2)'
-              }}>
-                <h2 style={{ marginTop: 0, color: 'var(--text-primary)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  🛡️ Authorization Required
-                </h2>
-                <div style={{ margin: '1.5rem 0', fontSize: '1rem', lineHeight: '1.6' }}>
-                  <p>An agent wants to ask a question to the <strong style={{ color: 'var(--primary)' }}>{authorizationRequest.role}</strong>:</p>
-                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', fontStyle: 'italic' }}>
-                    "{authorizationRequest.question}"
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                  <button className="btn-secondary" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={() => respondToAuthorization(false)}>
-                    Deny
-                  </button>
-                  <button className="btn-primary" onClick={() => respondToAuthorization(true)}>
-                    Approve
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        }
-
-        {
-          currentQuestion && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.85)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 2000,
-              backdropFilter: 'blur(8px)'
-            }}>
-              <div style={{
-                background: 'var(--card-bg)',
-                border: '1px solid var(--primary)',
-                borderRadius: '1rem',
-                padding: '2rem',
-                maxWidth: '600px',
-                width: '90%',
-                boxShadow: '0 0 50px rgba(56, 189, 248, 0.2)'
-              }}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>❓</span> Agent Needs Input
-                </h2>
-                <p style={{ fontSize: '1.1rem', lineHeight: '1.6', margin: '1.5rem 0' }}>
-                  {currentQuestion}
-                </p>
-                <textarea
-                  value={userInput}
-                  onChange={e => setUserInput(e.target.value)}
-                  placeholder="Type your answer here..."
-                  rows={4}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '0.5rem',
-                    padding: '1rem',
-                    color: 'var(--text-primary)',
-                    marginBottom: '1rem',
-                    resize: 'vertical'
-                  }}
-                  autoFocus
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                  <button className="btn-primary" onClick={submitAnswer}>
-                    Submit Answer
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        }
-      </main >
-    </div >
+      </main>
+    </div>
   );
 }
 

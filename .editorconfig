@@ -1,0 +1,19 @@
+root = true
+
+[*.{kt,kts}]
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+max_line_length = 120
+# Jetpack Compose composables are PascalCase by convention (they act as
+# declarative UI "components", not verbs) — ktlint's default function-naming
+# rule would otherwise flag every @Composable function.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+[*.{xml,yml,yaml,json}]
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false

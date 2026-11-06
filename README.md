@@ -21,6 +21,7 @@ A multi-agent orchestration desktop application that coordinates multiple LLM-po
 - **Real-Time Streaming** -- Agent thoughts and responses stream to the UI line-by-line as they are generated.
 - **Inter-Agent Communication** -- Agents can request input from other agents via `[[ASK_AGENT:RoleName]]` markers, with user authorization.
 - **User-in-the-Loop** -- Agents can pause and ask the user questions via `[[ASK_USER]]` markers, displayed as modal dialogs.
+- **Write-Bridge** -- In-process roles can overwrite, append, or edit workspace files with `[[WRITE]]`, `[[APPEND]]`, and `[[EDIT]]`. The runtime applies the change and returns a file observation. It does not execute the file.
 - **Workspace-Aware** -- Select a project directory and agents operate within it, reading/writing files and loading custom prompts, rules, and workflows from `.agent/`.
 - **Remote Control** -- Start a TCP server on port 5555 and control the desktop app from an Android companion app over your local network.
 - **MCP Integration** -- Configure Model Context Protocol servers (sequential-thinking, filesystem, memory) for enhanced agent capabilities.
@@ -96,7 +97,7 @@ The bundled application will be output to `src-tauri/target/release/bundle/`.
 └─────────────────────────────────────────────────-┘
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a detailed breakdown.
 
 ## Supported LLM Providers
 
@@ -119,15 +120,15 @@ The `android/` directory contains a Kotlin/Jetpack Compose app for remote contro
 | Document                                    | Description                              |
 | ------------------------------------------- | ---------------------------------------- |
 | [AGENTS.md](AGENTS.md)                      | Governance and workflow for AI assistants |
-| [ARCHITECTURE.md](ARCHITECTURE.md)          | System design and data flow              |
-| [DEPENDENCIES.md](DEPENDENCIES.md)          | Dependency inventory and rationale       |
-| [DEVELOPMENT.md](DEVELOPMENT.md)            | Developer setup and workflow guide       |
-| [TESTING.md](TESTING.md)                    | Testing strategy and instructions        |
-| [SECURITY.md](SECURITY.md)                  | Security policy and guidelines           |
-| [CONTRIBUTING.md](CONTRIBUTING.md)          | Contribution workflow                    |
-| [TUTORIAL.md](TUTORIAL.md)                  | Step-by-step usage tutorial              |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md)    | Common issues and solutions              |
-| [ROADMAP.md](ROADMAP.md)                    | Project roadmap and planned features     |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md)     | System design and data flow              |
+| [DEPENDENCIES.md](docs/DEPENDENCIES.md)     | Dependency inventory and rationale       |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md)       | Developer setup and workflow guide       |
+| [TESTING.md](docs/TESTING.md)               | Testing strategy and instructions        |
+| [SECURITY.md](docs/SECURITY.md)             | Security policy and guidelines           |
+| [CONTRIBUTING.md](git/CONTRIBUTING.md)      | Contribution workflow                    |
+| [TUTORIAL.md](docs/TUTORIAL.md)             | Step-by-step usage tutorial              |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions            |
+| [ROADMAP.md](docs/moon/ROADMAP.md)          | Canonical project roadmap (moon index)   |
 
 ## Recommended IDE Setup
 

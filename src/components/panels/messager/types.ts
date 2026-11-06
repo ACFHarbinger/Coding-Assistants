@@ -1,0 +1,159 @@
+
+export interface HubMessage {
+  id: string;
+  from_agent: string;
+  to_agent: string;
+  body: string;
+  subject: string | null;
+  kind: string;
+  status: string;
+  created_at: string;
+  /** Client-only aggregation of the durable fan-out copies for one post. */
+  recipient_agents?: string[];
+}
+
+export interface HubAgent {
+  id: string;
+  display_name: string;
+  team_member?: boolean;
+  /** Attachment id of the agent's profile image, when set. */
+  avatar_attachment_id?: string | null;
+  /** Descriptive team role (U21 / #315), e.g. "lead", "reviewer", or custom. */
+  role?: string | null;
+  /** Standing oversight role (#342). Separate from `role`. */
+  oversight_role?: string | null;
+  /** Latest unexpired exception, otherwise `oversight_role`. */
+  effective_oversight_role?: string | null;
+  /** Whether the identity opted into an animated V-Tuber avatar presence (U17 / #307). */
+  animated_avatar?: boolean;
+  /** Optional character name/ID configured in Open-LLM-VTuber (U17 / #307). */
+  vtuber_character?: string | null;
+}
+
+export interface WorkSession {
+  id: string;
+  name: string;
+  created_at: string;
+  member_ids: string[];
+  workspace_id?: string | null;
+}
+
+export interface MemoryRecord {
+  id: string;
+  scope: string;
+  tier: string;
+  agent_id?: string | null;
+  title?: string | null;
+  body: string;
+  tags_json: string;
+  created_at: string;
+  stale: boolean;
+}
+
+export interface ScoredMemoryRecord extends MemoryRecord {
+  score: number;
+}
+
+export interface MemoryLinkRecord {
+  id: string;
+  from_memory_id: string;
+  to_memory_id: string;
+  relation?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface LinkSuggestion {
+  candidate: MemoryRecord;
+  score: number;
+  reason: string;
+}
+
+export interface DetectedProcess {
+  pid: number;
+  agent: string;
+  provider: string;
+  model: string;
+  command: string;
+}
+
+/** Workspace-scoped Chat & Memory presence (see `hub::WorkspaceAgentPresence`). */
+export interface WorkspaceAgentPresence {
+  claude: boolean;
+  chat: boolean;
+  gemini: boolean;
+  grok: boolean;
+  opencode: boolean;
+  deepseek: boolean;
+  /** Harness id `vibe`; the roster/agent id `mistral` maps onto this too. */
+  vibe: boolean;
+  muse: boolean;
+  cursor: boolean;
+  qwen: boolean;
+  kimi: boolean;
+}
+
+export interface ChannelRecord {
+  id: string;
+  name: string;
+  topic?: string | null;
+  builtin: boolean;
+  created_at: string;
+}
+
+export interface MessagerPanelProps {
+  hubMessages: HubMessage[];
+  hubAgents: HubAgent[];
+  workSessions: WorkSession[];
+  activeWorkSessionId: string | null;
+  focusSessionId?: string | null;
+  focusSessionToken?: number;
+  workspacePath: string;
+  onSelectWorkSession: (sessionId: string | null) => void;
+  onRefresh: (options?: { includeCapture?: boolean }) => Promise<void>;
+}
+
+export interface TaggedSendOutcome {
+  to_agent: string;
+  accepted: boolean;
+  message_id?: string | null;
+  reason?: string | null;
+}
+
+export interface HarnessInjectResult {
+  harness: string;
+  status: string;
+  detail: string;
+}
+
+export interface ContextMenuState {
+  messageId: string;
+  x: number;
+  y: number;
+}
+
+export interface ReplyTarget {
+  id: string;
+  fromAgent: string;
+  preview: string;
+}
+
+export interface AttachmentRecord {
+  id: string;
+  filename: string;
+  mime: string;
+  byte_size: number;
+  absolute_path: string;
+  created_at: string;
+}
+
+export interface AttachmentPayload {
+  record: AttachmentRecord;
+  data_base64: string;
+}
+
+/** A just-uploaded attachment still sitting in the composer, not yet sent. */
+export interface PendingAttachment {
+  record: AttachmentRecord;
+  previewUrl: string;
+}

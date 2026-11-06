@@ -1,0 +1,251 @@
+# Security Policy
+
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](../LICENSE)
+[![Tauri](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app)
+
+Security considerations, policies, and guidelines for the Coding Assistants application.
+
+---
+
+## Scope
+
+This document covers security aspects of:
+- The desktop application (Tauri + React + Rust)
+- The TCP remote control server
+- The Android companion app
+- LLM provider integrations
+- File system operations
+
+---
+
+## Security Model
+
+### Tauri Capability System
+
+Coding Assistants uses Tauri 2's capability-based permission system. Only explicitly granted permissions are available to the frontend webview.
+
+**Current permissions** (defined in `src-tauri/capabilities/default.json`):
+
+| Permission       | Purpose                             |
+| ---------------- | ----------------------------------- |
+| `core:default`   | Basic Tauri IPC functionality        |
+| `opener:default` | Open URLs and files with OS handler  |
+| `dialog:default` | Native file picker and message boxes |
+
+No additional permissions (shell access, clipboard, filesystem, etc.) are granted to the webview. All privileged operations go through explicit Tauri commands.
+
+### Process Isolation
+
+```
+┌──────────────┐     IPC (JSON)     ┌──────────────┐
+│   Webview    │ ◄────────────────► │ Rust Process │
+│  (Untrusted) │                    │  (Trusted)   │
+└──────────────┘                    └──────────────┘
+```
+
+- The webview (frontend) is treated as untrusted. It cannot directly access the filesystem, spawn processes, or make network connections.
+- All privileged operations are mediated by the Rust backend through Tauri commands.
+
+---
+
+## Key Security Controls
+
+### A2A webhook notifications
+
+The optional A2A listener is disabled by default, binds to loopback by default,
+and requires the pairing Bearer token for webhook configuration. Callback URLs
+must use HTTP(S), include a host, and contain no embedded credentials. Authenticated
+owners may target local or internal addresses; URL validation does not prevent
+DNS rebinding. The notifier never follows redirects and accepts only 2xx responses,
+with a five-second timeout per attempt and at most three attempts per observed state.
+
+Webhook credentials stay in the secret vault. Registry and credential snapshots
+are serialized so reconfiguration cannot pair a new credential with an old URL.
+If a configured credential is unavailable, delivery is skipped rather than sent
+without authentication. Logs omit callback paths, query strings, and credentials.
+Notifications are best-effort snapshots of persisted task state; intermediate
+transitions between polls may be coalesced.
+
+### CLIP STUDIO PAINT file exchange
+
+The bridge revalidates root containment and link policy on each output-wait poll.
+Sampling and SHA-256 hashing use the same validated regular-file handle, with
+checks before and after hashing. Unix opens reject symlinks at each component;
+Windows opens reject reparse points and hold parent-directory handles that deny
+replacement during the read. Hard links are rejected using handle metadata.
+Hash reads are bounded to 64 MiB even if the file grows while being read.
+### Terminal-grid browser panes
+
+Browser panes use remote child webviews with no remote capability grants for
+application IPC. Pop-out windows are denied, and the bridge does not enable
+unrestricted clipboard access. Navigation allows HTTPS without URL credentials
+and rejects localhost and blocked IP literals, including IPv4-mapped IPv6.
+These URL checks do not provide DNS or network isolation. Native view commands
+are serialized per pane, and views open hidden until current placement is applied.
+
+### 1. No Shell Invocation
+
+LLM providers are invoked via `std::process::Command` with **explicit arguments**, never through a shell:
+
+```rust
+// Correct: explicit arguments
+Command::new("ollama").arg("run").arg(model_name)
+
+// Never: shell invocation
+Command::new("sh").arg("-c").arg(format!("ollama run {}", model_name))
+```
+
+This prevents command injection attacks where malicious model names or inputs could execute arbitrary commands.
+
+### 2. File Path Validation
+
+Resource file operations validate that paths are restricted to expected directories:
+
+- `get_resource_content` verifies paths start with `.agent` before reading
+- `FileTools` operates relative to the configured workspace directory
+- No path traversal (`../`) should escape the workspace boundary
+
+### 3. Input Sanitization
+
+- User task descriptions are passed as string arguments to LLM processes, not interpolated into shell commands
+- MCP configuration is parsed as JSON before use
+- TCP protocol messages are deserialized from JSON with type-safe Rust structs
+
+### 4. Tauri CSP
+
+Content Security Policy is currently set to `null` in `tauri.conf.json` for development flexibility. For production deployments, this should be tightened:
+
+```json
+{
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'"
+    }
+  }
+}
+```
+
+---
+
+## Network Security
+
+### TCP Remote Control Server
+
+The TCP server (`tcp_server.rs`) listens on `0.0.0.0:5555` for remote control connections.
+
+**Current state:**
+- Token authentication is required on every connection (`Authenticate` JSON line). The shared secret is the P12 vault field `tool.tcp.auth_token` / `CA_TCP_AUTH_TOKEN`. Unset or wrong tokens are rejected and the socket is dropped. Rejected attempts are written to the Hub audit log (`tcp.auth_rejected`) with peer and reason only — never the token.
+- No encryption -- communication is still plaintext JSON over TCP (TLS is a later P6 slice)
+- No rate limiting -- no protection against connection flooding
+
+**Recommendations for production use:**
+- Set a LAN TCP auth token in Settings (or `CA_TCP_AUTH_TOKEN`) before starting the server
+- Only start the server when needed (it's off by default)
+- Ensure your local network is trusted
+- Consider using a VPN for remote access
+
+**Planned improvements** (see [ROADMAP.md](moon/ROADMAP.md)):
+- TLS encryption
+- Connection allowlisting
+
+### API Key Storage
+
+API keys for cloud LLM providers are stored in `env/.env`:
+
+- The `env/` directory is **not** gitignored by default -- be cautious about committing secrets
+- Keys are loaded at runtime via the `dotenv` crate
+- Keys are passed to external processes as environment variables, not command-line arguments (avoiding `/proc` exposure)
+
+**Recommendation**: Add `env/.env` to `.gitignore` and use `env/vars.env` as a template only.
+
+---
+
+## LLM-Specific Risks
+
+### Prompt Injection
+
+Agent responses may contain `[[ASK_USER]]`, `[[ASK_AGENT:RoleName]]`, or write-bridge markers. These are parsed as control flow directives. If a malicious or injected LLM response includes these markers, it could:
+
+- Trigger unwanted user interaction dialogs
+- Cause one agent to query another unexpectedly
+- Overwrite, append to, or edit a file inside the selected workspace
+
+**Mitigations:**
+- Inter-agent communication requires explicit user authorization via the Authorization Modal
+- Write-bridge paths cannot leave the workspace, follow a symlink, or exceed 1 MiB for appends and line edits. The written file is not executed
+- Users can cancel tasks at any time
+- Agent outputs are displayed in the Activity Log for review
+
+### Generated Code Execution
+
+The application does **not** execute code generated by agents.
+
+In-process roles can change workspace files when their reply contains a write-bridge block (`[[WRITE]]`, `[[APPEND]]`, or `[[EDIT]]`, parsed in `write_bridge.rs`). The runtime applies that one block inside the selected workspace, reads the file back, and continues the turn. It does not spawn a shell and does not run the written file. A role turn stops after 8 write-bridge steps. External coding CLIs (OpenCode, Claude, Codex, and the others) still use their own tool loops. Role transcripts that contain no write tag are saved as text.
+
+### Data Exposure
+
+Task descriptions and agent outputs may be sent to cloud LLM providers. Be aware of:
+- What data you include in task descriptions
+- Which provider you're using (local vs cloud)
+- Your provider's data retention policies
+
+---
+
+## File System Security
+
+### OS-level tool execution (P5)
+
+`hub::os_tool` runs a PATH program with **explicit argv** (`Command::new(program).args(args)`). It never invokes `sh -c`. Policy is the existing `orchestration.sandbox_strictness` setting (default **Standard**):
+
+- Shells (`bash`, `sh`, `powershell`, …) and `sudo`/`shutdown`/`mkfs` are denied at every level, including after approval.
+- Standard/Strict require an absolute workspace and a cwd inside it.
+- Mutating or unknown tools return `needs_approval` and only run after `hub_approve_os_tool`.
+- Every attempt is written to the hash-chained `audit_events` table (`os_tool.ran` / `os_tool.proposed` / `os_tool.denied`). stdout/stderr in the audit payload are truncated previews.
+
+### Workspace Operations
+
+`FileTools` (`file_tools.rs`) provides sandboxed file operations:
+
+```rust
+pub async fn read_file(&self, relative_path: &str) -> Result<String, String>
+pub async fn write_file(&self, relative_path: &str, content: &str) -> Result<(), String>
+pub async fn append_file(&self, relative_path: &str, content: &str) -> Result<(), String>
+pub async fn edit_lines(&self, relative_path: &str, start_line: usize, end_line: usize, replacement: &str) -> Result<(), String>
+```
+
+- Operations are relative to `work_dir` -- the user-selected workspace
+- Absolute paths, `..`, and symlinks are refused. A path that does not exist yet is still checked lexically against the workspace root
+- Model-directed appends and line edits are capped at 1 MiB
+- The `read_file_absolute` command exists for specific use cases but should be used sparingly
+
+### Agent Resource Files
+
+The `.agent/` directory structure (prompts, rules, workflows) is scanned via `walkdir`:
+
+- Only files within `.agent/prompts/`, `.agent/rules/`, and `.agent/workflows/` are listed
+- Content reads are validated to ensure the path starts with `.agent`
+
+---
+
+## Reporting Vulnerabilities
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **Do not** open a public GitHub issue for security vulnerabilities
+2. Contact the maintainers privately through GitHub's security advisory feature
+3. Include a description of the vulnerability and steps to reproduce
+4. Allow reasonable time for a fix before public disclosure
+
+---
+
+## Security Checklist for Contributors
+
+Before submitting code changes, verify:
+
+- [ ] No shell invocations (`sh -c`, `bash -c`, `cmd /c`)
+- [ ] File paths are validated and sandboxed
+- [ ] User input is not interpolated into command arguments
+- [ ] Sensitive data (API keys, tokens) is not logged or exposed
+- [ ] New Tauri commands are registered with minimal required permissions
+- [ ] IPC payloads use typed Rust structs (no raw string parsing)
+- [ ] TCP protocol changes maintain JSON schema validation

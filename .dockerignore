@@ -1,0 +1,32 @@
+# Keep the Docker build context small and reproducible.
+
+# VCS / CI
+.git
+.github
+
+# Node / TypeScript
+**/node_modules
+dist
+docs/website/dist
+
+# Build outputs
+site/
+target/
+src-tauri/target
+*.so
+
+# Rust / Cargo
+.cargo
+
+# Kotlin / Gradle
+.gradle
+android/build
+android/app/build
+
+# Editors / OS
+.vscode
+.idea
+.DS_Store
+
+# Secrets
+.env

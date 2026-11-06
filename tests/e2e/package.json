@@ -1,0 +1,13 @@
+{
+  "name": "coding-assistants-e2e",
+  "private": true,
+  "type": "module",
+  "description": "WebDriver end-to-end checks for the desktop app, driven through tauri-driver.",
+  "scripts": {
+    "smoke": "node smoke.mjs",
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "selenium-webdriver": "^4.28.1"
+  }
+}

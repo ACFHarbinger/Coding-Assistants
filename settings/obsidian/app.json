@@ -1,0 +1,10 @@
+{
+  "legacyEditor": false,
+  "livePreview": true,
+  "tabSize": 4,
+  "useTab": false,
+  "showLineNumber": true,
+  "showFrontmatter": true,
+  "readableLineLength": true,
+  "spellcheck": true
+}

@@ -25,10 +25,31 @@ dist-ssr
 
 # MCP
 mcp.json
+.mcp.json
 
 # Build
 target
 /**/build
 /**/.gradle
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
 __pycache__
 coding_assistants.egg-info
+
+# Force include
+!tools/build/
+
+# Android signing secrets & local environment
+android/keystore/
+*.jks
+*.keystore
+android/keystore.properties
+keystore.properties
+android/local.properties
+local.properties
+
+# Release files
+release/
+
+# Per-agent git worktrees (ephemeral, never committed)
+.ca-worktrees/
