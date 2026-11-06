@@ -1,40 +1,129 @@
 # Coding-Assistants Roadmap
 
-[![Tauri](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![Rust](https://img.shields.io/badge/Rust-1.80%2B-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+> **Version:** 2.0
+> **Date:** 2026-08-10
+> **Product:** local-first collaboration hub for a human developer and
+> external AI agents.
 
-> **Version**: 1.0
-> **Date**: 2026-08-08
+This is the canonical implementation-order index. Detailed work is organized
+by capability rather than programming language. Research remains under
+[`research/`](research/) and [`reports/`](reports/).
 
-## Overview
+## Priority order
 
-This document tracks planned scaffolding/tooling work for the Coding-Assistants
-repo itself (not application features — see the per-area roadmaps in
-[`docs/moon/roadmaps/`](roadmaps/) and [`docs/moon/CHANGELOG.md`](CHANGELOG.md)
-for the application's own history).
+1. Memory and private journals
+2. Communication and asynchronous coordination
+3. Platform reliability, providers, tools, and security
+4. Desktop UI, Ratatui TUI, and persistent settings
+5. A2A interoperability (next major milestone)
+6. Daemon/multi-client extraction when justified by a second client
+7. Android monitoring and approval
+8. Someday/research: further 3D visualization, GraphQL, and actor frameworks. One 3D collaboration template is scheduled (`roadmaps/dashboard.md` D6, #387). The old "no 3D until a 2D gap shows up" rule still applies to any scene after that one.
+9. Someday/research: multi-human, multi-team coordination (not started — see
+   [`roadmaps/multi_human.md`](roadmaps/multi_human.md); explicitly not
+   urgent as of 2026-08-14, revisit once a second developer approaches
+   multi-agent orchestration)
 
-Status markers: ✅ Done · 🚧 In Progress · 📋 Pending
+```mermaid
+gantt
+    title Coding-Assistants capability roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %d
+    section Foundation
+    SQLite memory and private journals       :memory, 2026-08-10, 21d
+    Async mailboxes and wake signals         :coord, after memory, 21d
+    Event bus and per-task state              :platform, after memory, 21d
+    Provider/tool adapters                    :providers, after coord, 28d
+    section Product
+    Desktop memory and inbox UI               :ui, after coord, 28d
+    Ratatui terminal client                   :tui, after coord, 42d
+    Persistent settings                       :settings, after platform, 28d
+    2D telemetry and collaboration dashboard  :dash, after ui, 21d
+    A2A interoperability milestone            :a2a, after providers, 42d
+    section Clients
+    Local daemon / UDS evaluation             :daemon, after a2a, 28d
+    Android monitoring and approvals          :android, after dash, 28d
+    section Later
+    3D research                               :later, after daemon, 42d
+```
 
----
+The dates are sequencing placeholders, not delivery promises. Each capability
+roadmap must add acceptance criteria at least every few entries.
 
-## Track: Repo Scaffolding
+## Capability roadmaps
 
-| # | Item | Effort | Status |
-| --- | --- | --- | --- |
-| T1 | Root scaffolding: LICENSE, README, .env.example, git config, pre-commit | S | ✅ Done |
-| T2 | `.github/`, `.forgejo/`, `.gitea/`, `.gitlab/` CI/CD: workflows, issue/PR templates, dependabot | M | ✅ Done |
-| T3 | `docs/` documentation portal: MkDocs, Structurizr, ADRs | M | ✅ Done |
-| T4 | `docs/moon/` roadmap and changelog | S | ✅ Done |
-| T5 | `infra/docker/` infrastructure: Dockerfile, Compose stack (docs site) | S | ✅ Done |
-| T6 | `infra/{k8s,helm,terraform,ansible}/` — additional infra-as-code scaffolding | M | ✅ Done |
-| T7 | `.agent/` LLM coding-agent scaffolding | M | ✅ Done |
-| T8 | `justfile` + `tools/` command runner | M | ✅ Done |
-| T9 | `.devcontainer/` Dev Container definition | S | ✅ Done |
-| T10 | `git/` repo-process automation (hooks, backlog sync, label taxonomy) | M | ✅ Done |
-| T11 | Editor settings (`settings/`: VS Code, IDEA, Sublime, Obsidian) | S | ✅ Done |
-| T12 | Interactive documentation website (`docs/website/`) | M | ✅ Done |
+| Capability | Roadmap | Priority |
+| --- | --- | --- |
+| Memory and private journals | [`roadmaps/memory.md`](roadmaps/memory.md) | P0 |
+| Communication and delegation | [`roadmaps/communication.md`](roadmaps/communication.md) | P0 |
+| Platform/providers/tools/security | [`roadmaps/platform.md`](roadmaps/platform.md) | P1 |
+| Persistent settings and local configuration | [`roadmaps/settings.md`](roadmaps/settings.md) | P1 · approved implementation plan |
+| Desktop/mobile/TUI UI | [`roadmaps/ui.md`](roadmaps/ui.md) | P1 · approved TUI implementation plan |
+| Telemetry and dashboards | [`roadmaps/dashboard.md`](roadmaps/dashboard.md) | P1 |
+| Infrastructure and documentation | [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md) | P1 |
+| Cloud Drive sync | [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md) | P1 · approved implementation plan |
+| Team Scorecard / HITL oversight | [`roadmaps/oversight.md`](roadmaps/oversight.md) | P1 · approved implementation plan |
+| Scheduled Goals / gate-driven prompting | [`roadmaps/schedule.md`](roadmaps/schedule.md) | P1 · approved implementation plan |
+| Multi-human, multi-team coordination | [`roadmaps/multi_human.md`](roadmaps/multi_human.md) | Research · not urgent as of 2026-08-14 |
 
-## Track: Application
+## v1.0 Release Milestone
 
-See per-area detail in [`docs/moon/roadmaps/`](roadmaps/): [frontend](roadmaps/typescript.md), [backend](roadmaps/rust.md), [Android companion app](roadmaps/kotlin.md).
+Packaging pipeline for the **v1.0** stable desktop app plus the Android
+companion (`android/` RemoteLauncher). Product scope: stable desktop app + core
+orchestration + persistent [Settings] + [C14] provider-native managed harness
+integration. **Deferred:** [TUI], Android *main* app, cloud-sync S1–S14, A2A.
+Build targets: Linux **AppImage + .deb**, Windows **.msi + NSIS .exe**, Android
+**APK + AAB**. No macOS.
+
+**Acceptance criterion:** a green `.github/workflows/release.yml` run on a
+`v1.0.0` tag with all 6 artifacts (`.deb`, `.AppImage`, `.msi`, NSIS
+`-setup.exe`, `.apk`, `.aab`) attached to the published GitHub Release.
+
+| Workstream | Scope | Owner |
+| --- | --- | --- |
+| A | `tauri.conf.json` bundle config + rename (`mainBinaryName`, bundle targets/metadata) | Claude |
+| B | `tools/release/justfile` — `release::bump`, `bundle-*`, `artifacts`, `release` recipes | Codex |
+| C | Android companion release build — identity rename, keystore, `signingConfigs` | Agy |
+| D | `.github/workflows/release.yml` — tag + `workflow_dispatch` (dry_run), desktop/android jobs | Claude |
+| E | Docs — app release checklist, ROADMAP milestone, CHANGELOG scaffold | Opencode |
+
+v1.0-scope issues: [Settings] #126/#131/#132/#133, [C14] #147–#157, bugs
+#163/#165/#167/#143. Sequencing: A + D first (define the contract), then B/C/E
+in parallel, then a `v0.1.x-rc1` dry-run tag to validate the pipeline before
+bumping to `1.0.0`.
+
+## Product gates
+
+- **Memory gate:** two agents retrieve and correctly use a prior handoff on a
+  real repository task; shared and private records remain separated.
+- **Coordination gate:** asynchronous wired workflows survive agent absence,
+  wake according to policy, and preserve an auditable transcript.
+- **A2A gate:** a compatible external agent can be discovered and delegated a
+  bounded task without bypassing identity, approval, budget, or audit policy.
+- **V1 gate:** the owner and multiple agents complete a meaningful task on a
+  repository such as Project-Mobile-Fortress with quality matching or exceeding
+  a single contributor.
+- **V1 hub-native orchestration gate:** Harbinger creates or loads a team
+  chat from Orchestrate, addresses all / a subset / one agent, and marks
+  posts as **task** (existing member only) and/or **wake** (may spawn a new
+  instance that joins the team). Agents can do the same. The app captures
+  harness-side messages and injects tagged hub messages into the harnesses.
+  That loop does not require `.agent/cache/AGENT_BUS.md`. Slices: U11, U12,
+  C10, C11, C12, C13.
+- **Provider-native harness gate:** an explicitly managed Codex, Claude Code,
+  or Antigravity session can receive a Hub task through its documented
+  provider contract, return its response to the same transcript, show a
+  truthful lifecycle/delivery state, and recover without racing a second
+  writer or attaching to an unowned terminal. See C14 in
+  [`roadmaps/communication.md`](roadmaps/communication.md).
+- **Source-organization gate:** no production Rust, TypeScript, or React
+  source unit exceeds 500 physical lines; responsibility-focused splits retain
+  the existing public API, IPC, CLI, and UI contracts. See I8 / #158 in
+  [`roadmaps/infrastructure.md`](roadmaps/infrastructure.md).
+
+LAN TCP now requires a pairing token (`Authenticate` on connect; vault
+  secret `CA_TCP_AUTH_TOKEN`). TLS remains later platform work. **`.coding-assistants` multi-device replica transport
+  starts with Google Drive**, then Firebase Auth + private Storage, Supabase
+  Auth + private Storage, and finally Dropbox/OneDrive — see
+  [`roadmaps/cloud_sync.md`](roadmaps/cloud_sync.md). Other unused deployment
+  scaffolding is removed.

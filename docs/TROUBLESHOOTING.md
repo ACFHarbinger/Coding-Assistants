@@ -73,14 +73,15 @@ Common issues and their solutions when developing or running Coding Assistants.
 **Solutions**:
 
 1. Check the terminal for frontend compilation errors
-2. Verify the Vite dev server is running on port 1420:
+2. Verify the Vite dev server is running on the configured development port
+   (1420 by default):
    ```bash
-   curl http://localhost:1420
+   curl "localhost:${VITE_PORT:-1420}"
    ```
 3. Open DevTools (right-click -> Inspect in debug builds) and check the console for JavaScript errors
 4. Ensure `devUrl` in `tauri.conf.json` matches the Vite port:
    ```json
-   "devUrl": "http://localhost:1420"
+   "devUrl": "<local Vite server URL>"
    ```
 
 ### `invoke` calls fail with "command not found"
@@ -188,6 +189,43 @@ Common issues and their solutions when developing or running Coding Assistants.
 3. Try a simpler task to isolate whether it's a model or configuration issue
 4. Use the Cancel button and try again
 
+### “Start managed” immediately reports that a worker exited
+
+**Symptom**: Orchestrate shows an error such as “managed worker exited
+immediately (exit code N)” after clicking **Start managed** for Codex or
+Gemini.
+
+**Solutions**:
+
+1. The app has reaped the failed child process; no restart or manual zombie
+   cleanup is needed. Use **Start managed** to retry after correcting the
+   underlying CLI problem.
+2. Verify the selected harness executable works from the same workspace and
+   account as the desktop app:
+   ```bash
+   codex --version
+   agy --version
+   ```
+3. Confirm that the workspace path is absolute and that the supplied real
+   thread/conversation ID belongs to that harness. Do not use a placeholder.
+4. If it continues to exit, use **Resume in terminal** from Orchestrate. The
+   interactive terminal keeps the CLI output visible so provider login,
+   configuration, and argument errors can be diagnosed.
+
+### Managed worker stopped after it had started
+
+**Symptom**: A Live terminals card disappears and Harness interfaces shows the
+session as **unavailable** or **stopped**.
+
+**Solutions**:
+
+1. This means the managed process exited and was reaped; it is not a live
+   session and should not be treated as one.
+2. Review the harness CLI in **Resume in terminal** if the exit was
+   unexpected, then use **Start managed** to create a fresh managed worker.
+3. Repeated exits generally indicate a provider authentication, workspace,
+   or harness-session configuration problem rather than an app freeze.
+
 ---
 
 ## Remote Control Issues
@@ -280,7 +318,7 @@ Common issues and their solutions when developing or running Coding Assistants.
 **Solutions**:
 
 1. This typically happens when many events accumulate. The event log grows unbounded during long tasks.
-2. Large agent responses can cause render bottlenecks. This is a known area for improvement (see [ROADMAP.md](ROADMAP.md)).
+2. Large agent responses can cause render bottlenecks. This is a known area for improvement (see [ROADMAP.md](moon/ROADMAP.md)).
 3. Avoid running agents with extremely verbose output settings.
 
 ### High memory usage
@@ -304,6 +342,31 @@ Ensure WebKitGTK is up to date:
 sudo apt update && sudo apt upgrade libwebkit2gtk-4.1-dev
 ```
 
+### Linux: `just start` crashes in WebKitNetworkProcess (`__libc_pthread_init`)
+
+**Symptom**: The Tauri window compiles and opens, then immediately fails with:
+
+```
+WebKitNetworkProcess: symbol lookup error: /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0: undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
+ERROR: WebKit encountered an internal error. This is a WebKit bug.
+```
+
+**Cause**: A snap (commonly the VS Code snap) leaked `/snap/core20/...` into
+`LD_LIBRARY_PATH`, `GTK_PATH`, or a related linker variable. WebKitGTK's
+helper process then loads snap's `libpthread` against the system glibc.
+
+**Fix**: Use `just start` / `just dev::dev`. Those recipes strip `/snap/*`
+entries from the linker path before launching `npm run tauri dev`. Do not
+launch `npm run tauri dev` from a snap-contaminated terminal without that
+filter. Confirm with:
+
+```bash
+echo "$LD_LIBRARY_PATH"
+echo "$GTK_PATH"
+```
+
+If either contains `/snap/`, the unsanitized launch will crash.
+
 ### macOS: "App is damaged" warning
 
 For unsigned development builds, remove the quarantine attribute:
@@ -313,7 +376,9 @@ xattr -cr /path/to/Coding\ Assistants.app
 
 ### Windows: WebView2 missing
 
-Install Microsoft Edge WebView2 Runtime from [developer.microsoft.com](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+Install the Microsoft Edge WebView2 Runtime from Microsoft's official download
+page. Search for **Microsoft Edge WebView2 Runtime** if the vendor's download
+URL redirects in your browser or network environment.
 
 ---
 

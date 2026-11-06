@@ -8,6 +8,7 @@ This Android app allows you to remotely control the Coding Assistants PC applica
 - Select LLM models and configure agent roles
 - Submit tasks for execution
 - Monitor task progress in real-time
+- Restore a verified cloud-sync snapshot for monitoring (download-only)
 
 ## Requirements
 
@@ -63,6 +64,20 @@ After connecting, you'll see the model selection screen where you can:
 4. Monitor progress on the PC app
 5. The Android app will show status updates
 
+## Snapshot restore (S13, download-only)
+
+The phone does not upload, merge journals, or take a Hub lock. Copy the
+32-byte `cloud-sync.key` and hashed CAS1 objects (64-hex names) into the
+app-private tree, then tap **Restore snapshot** (works without a TCP
+connection).
+
+- Key: `Android/data/com.codingassistants.remotelauncher/files/keys/cloud-sync.key`
+- Inbox: `.../files/sync/inbox/<64-hex>`
+- Staging: `.../files/sync/staging/restore/`
+
+Invalid ciphertext or a bad manifest fails closed. Live `hub.db` on the
+phone is never replaced. See `docs/moon/android-snapshot-restore.md`.
+
 ## Network Requirements
 
 - Both devices must be on the same local network
@@ -96,6 +111,7 @@ The app uses a JSON-based TCP protocol on port 5555. Messages are newline-delimi
 
 ### Request Types
 
+- `Authenticate` - Required first message; token must match `CA_TCP_AUTH_TOKEN`
 - `GetModels` - Fetch available LLM models
 - `StartTask` - Start a task with agent configuration
 - `CancelTask` - Cancel the running task
@@ -118,13 +134,16 @@ The app uses a JSON-based TCP protocol on port 5555. Messages are newline-delimi
 ```
 android/
 ├── app/
-│   ├── src/main/kotlin/com/example/remotelauncher/
+│   ├── src/main/kotlin/com/codingassistants/remotelauncher/
 │   │   ├── MainActivity.kt           # Main activity
 │   │   ├── network/                  # Network layer
 │   │   │   └── TcpClient.kt          # TCP network client & Protocol definitions
+│   │   ├── sync/                     # CAS1 + download-only snapshot restore
 │   │   ├── ui/                       # UI Components (Jetpack Compose)
 │   │   │   ├── ConnectionScreen.kt
+│   │   │   ├── DashboardScreen.kt
 │   │   │   ├── ModelSelectionScreen.kt
+│   │   │   ├── SnapshotScreen.kt
 │   │   │   └── TaskExecutionScreen.kt
 │   │   └── viewmodel/                # App state management
 │   │       └── MainViewModel.kt
@@ -143,6 +162,7 @@ android/
 - **Java Sockets** - TCP networking
 - **Kotlinx Serialization** - JSON serialization
 - **Coroutines & Flow** - Async programming
+- **BouncyCastle** - CAS1 ChaCha20-Poly1305 on API 24
 
 ## Future Enhancements
 

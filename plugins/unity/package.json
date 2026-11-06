@@ -1,0 +1,9 @@
+{
+  "name": "com.codingassistants.bridge",
+  "version": "0.1.0",
+  "displayName": "Coding-Assistants Bridge",
+  "description": "Line-JSON TCP bridge for the coding-assistants-mcp-unity MCP server. Editor-only.",
+  "unity": "2021.3",
+  "keywords": ["mcp", "editor", "automation"],
+  "author": { "name": "Coding-Assistants" }
+}

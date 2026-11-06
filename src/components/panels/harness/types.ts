@@ -1,0 +1,147 @@
+export type HarnessSessionMode = "observed" | "managed";
+export type HarnessSessionState = "ready" | "busy" | "queued" | "unavailable" | "stopped";
+
+export interface HarnessSessionRegistration {
+  harness: string;
+  workspace: string;
+  disk_session_id: string;
+  leader_socket: string | null;
+  registered_at: string;
+  mode: HarnessSessionMode;
+  state: HarnessSessionState;
+  managed_pid: number | null;
+  writer_owner: string | null;
+  writer_acquired_at: string | null;
+  pid_alive?: boolean | null;
+}
+
+// These two mirror src-tauri's RelaunchOutcome / EmbeddedRelaunchOutcome,
+// both #[serde(rename_all = "camelCase")] — unlike most other Tauri command
+// result types in this file, which stay snake_case to match their Rust
+// struct's default (un-renamed) field names.
+export interface RelaunchOutcome {
+  harness: string;
+  killedPid: number | null;
+  resumedSessionId: string | null;
+  detail: string;
+}
+
+export interface EmbeddedRelaunchOutcome {
+  harness: string;
+  killedPid: number | null;
+  resumedSessionId: string | null;
+  sessionId: string;
+  detail: string;
+}
+
+/** Truthful snapshot of one in-app PTY session (pty_session_status). */
+export interface PtySessionStatus {
+  found: boolean;
+  running: boolean;
+  exited: boolean;
+  exitDetail: string | null;
+  outputTailB64: string;
+}
+
+export interface StartManagedHarnessOutcome {
+  start: { harness: string; pid: number | null; status: string; detail: string };
+  registration: HarnessSessionRegistration;
+}
+
+/** Workspace-scoped liveness from `hub_workspace_agent_presence`. */
+export interface WorkspaceAgentPresence {
+  claude: boolean;
+  chat: boolean;
+  gemini: boolean;
+  grok: boolean;
+}
+
+export interface StopManagedOutcome {
+  harness: string;
+  killed_pids: number[];
+  detail: string;
+}
+
+export const LIVE_TERMINAL_HARNESSES = ["claude", "chat", "gemini", "grok", "muse", "cursor", "qwen"] as const;
+export type LiveTerminalHarness = (typeof LIVE_TERMINAL_HARNESSES)[number];
+
+export function presenceLive(harness: string, presence: WorkspaceAgentPresence | null): boolean {
+  if (!presence) return false;
+  const key = harness.toLowerCase();
+  if (key === "chat" || key === "codex") return presence.chat;
+  if (key === "claude") return presence.claude;
+  if (key === "gemini" || key === "agy") return presence.gemini;
+  if (key === "grok") return presence.grok;
+  return false;
+}
+
+export function sessionAliases(harness: string): string[] {
+  if (harness === "chat" || harness === "codex") return ["chat", "codex"];
+  if (harness === "gemini" || harness === "agy") return ["gemini", "agy"];
+  if (harness === "muse") return ["muse"];
+  if (harness === "cursor") return ["cursor"];
+  if (harness === "qwen") return ["qwen"];
+  return [harness];
+}
+
+export interface HarnessDeliveryNotice {
+  harness: string;
+  status: string;
+  detail: string;
+  retryable: boolean;
+  messageId?: string | null;
+  body?: string;
+  isTask?: boolean;
+  isWake?: boolean;
+}
+
+export const HARNESS_PREREQUISITES: Record<string, string> = {
+  grok: "Hub inject needs a live `grok --leader` session (`~/.grok/leader.sock`). A standalone TUI cannot receive Hub messages. Use Connect / Resume in Shared Hub → Channels or here. Capture still reads the on-disk session.",
+  chat: "Inject needs a persisted Codex thread id. If the writer is busy, retry later — do not start a second writer.",
+  claude: "Two-way delivery needs a live Claude Channel session. Start managed opens that Channel-connected terminal. Without it this session is capture-only.",
+  gemini: "Managed delivery needs an app-owned agy stream-json worker. Do not attach to an interactive TUI.",
+  muse: "Managed delivery re-enters `muse exec --session-id <uuid>` under writer lease. Interactive resume runs `muse resume <uuid>` in terminal.",
+  cursor: "Managed delivery runs `agent -p` stream-json continuation under writer lease. Interactive resume runs `agent --resume <id>` in terminal.",
+  qwen: "Managed delivery re-enters `qwen --session-id <uuid> --chat-recording -y` under writer lease. Interactive resume runs `qwen --resume <id> --chat-recording`.",
+  kimi: "Managed delivery re-enters `kimi -p --session <id> --output-format stream-json` under writer lease when a disk session id is known, else starts a fresh session. Interactive resume runs `kimi --session <id>`.",
+};
+
+export function harnessTone(mode: HarnessSessionMode, state: HarnessSessionState): { label: string; color: string; border: string; bg: string } {
+  if (state === "unavailable") {
+    return { label: "unavailable", color: "#fecaca", border: "rgba(248, 113, 113, 0.75)", bg: "rgba(127, 29, 29, 0.55)" };
+  }
+  if (state === "busy") {
+    return { label: "busy", color: "#fde68a", border: "rgba(251, 191, 36, 0.8)", bg: "rgba(120, 53, 15, 0.55)" };
+  }
+  if (state === "queued") {
+    return { label: "queued", color: "#fdba74", border: "rgba(251, 146, 60, 0.85)", bg: "rgba(124, 45, 18, 0.5)" };
+  }
+  if (state === "stopped") {
+    return { label: "stopped", color: "#e2e8f0", border: "rgba(148, 163, 184, 0.6)", bg: "rgba(30, 41, 59, 0.7)" };
+  }
+  if (mode === "managed") {
+    return { label: "managed", color: "#bbf7d0", border: "rgba(52, 211, 153, 0.8)", bg: "rgba(6, 78, 59, 0.55)" };
+  }
+  return { label: "observed", color: "#a5f3fc", border: "rgba(34, 211, 238, 0.75)", bg: "rgba(14, 116, 144, 0.4)" };
+}
+
+export const HARNESS_STATE_LEGEND: Array<{ mode: HarnessSessionMode; state: HarnessSessionState }> = [
+  { mode: "managed", state: "ready" },
+  { mode: "observed", state: "ready" },
+  { mode: "managed", state: "busy" },
+  { mode: "managed", state: "queued" },
+  { mode: "observed", state: "unavailable" },
+];
+
+export function isSuccessfulInject(status: string): boolean {
+  const lowered = status.toLowerCase();
+  return lowered === "delivered" || lowered === "started" || lowered === "ok" || lowered === "spawned";
+}
+
+export function injectNotice(status: string, _detail: string): { retryable: boolean; tone: "ok" | "warn" | "bad" } {
+  const lowered = status.toLowerCase();
+  if (isSuccessfulInject(lowered)) return { retryable: false, tone: "ok" };
+  if (lowered === "queued") return { retryable: false, tone: "ok" };
+  if (lowered === "busy") return { retryable: true, tone: "warn" };
+  return { retryable: lowered === "unavailable", tone: "bad" };
+}

@@ -1,0 +1,471 @@
+import { open } from "@tauri-apps/plugin-dialog";
+import { useState } from "react";
+import { invoke } from "../../lib/tauri";
+import { ModelSelect } from "./config/ModelSelect";
+import WorkSessionSection from "./config/WorkSessionSection";
+import DetectedProcessesSection from "./config/DetectedProcessesSection";
+import WorkspaceRootSection from "./config/WorkspaceRootSection";
+import type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
+import { processTargetId, spawnedRoleTeamMember } from "./config/types";
+import HarnessReadinessPanel from "./harness/HarnessReadinessPanel";
+import { nocPanelStyle } from "../common/telemetry/panel";
+import { NOC_SURFACES } from "../common/telemetry/tokens";
+
+export type { AgentConfig, AgentResources, DetectedProcess, ModelConfig, RoleConfig, TeamMember, WorkSession } from "./config/types";
+
+interface ConfigPanelProps {
+  config: AgentConfig;
+  setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
+  availableModels: Record<string, string[]>;
+  resources: AgentResources;
+  PROVIDERS: Record<string, string>;
+  onPreview: (type: string, name?: string) => Promise<void>;
+  teamMemberIds: string[];
+  onAddAgent: (agent: TeamMember) => void;
+  onRemoveAgent: (agent: TeamMember) => void;
+  onCreateWorkSession: (name: string) => Promise<void>;
+  workSessions?: WorkSession[];
+  activeWorkSessionId?: string | null;
+  onSelectWorkSession?: (sessionId: string | null) => void;
+  onSwitchToChatView?: () => void;
+  activeWorkSessionName: string | null;
+  onOpenTerminalGrid?: (harness?: string) => void;
+}
+
+export default function ConfigPanel({
+  config,
+  setConfig,
+  availableModels,
+  resources,
+  PROVIDERS,
+  onPreview,
+  teamMemberIds,
+  onAddAgent,
+  onRemoveAgent,
+  onCreateWorkSession,
+  workSessions = [],
+  activeWorkSessionId = null,
+  onSelectWorkSession,
+  onSwitchToChatView,
+  activeWorkSessionName,
+  onOpenTerminalGrid,
+}: ConfigPanelProps) {
+  const [detectedProcesses, setDetectedProcesses] = useState<DetectedProcess[]>([]);
+  const [detecting, setDetecting] = useState(false);
+  const [detectError, setDetectError] = useState("");
+  const [hasScanned, setHasScanned] = useState(false);
+  const [addedPids, setAddedPids] = useState<number[]>([]);
+  const [workSessionName, setWorkSessionName] = useState("");
+  const [creatingWorkSession, setCreatingWorkSession] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  const [externalConfigPath, setExternalConfigPath] = useState("");
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const [loadingConfig, setLoadingConfig] = useState(false);
+
+  const loadConfigFromPath = async (inputPath: string) => {
+    const trimmed = inputPath.trim();
+    if (!trimmed || loadingConfig) return;
+    setLoadingConfig(true);
+    try {
+      let resolvedPath = trimmed;
+      if (
+        !trimmed.startsWith("/") &&
+        !trimmed.startsWith("~") &&
+        !/^[a-zA-Z]:[/\\]/.test(trimmed) &&
+        config.work_dir
+      ) {
+        resolvedPath = `${config.work_dir.replace(/\/+$/, "")}/${trimmed.replace(/^\/+/, "")}`;
+      }
+      const content = await invoke<string>("read_file_absolute", { path: resolvedPath });
+      setConfig(prev => ({ ...prev, mcp_config: content }));
+      setExternalConfigPath(trimmed);
+    } catch (err) {
+      console.error("Failed to load config from path", err);
+      alert(`Failed to load config from ${trimmed}: ${err}`);
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  const createWorkSession = async () => {
+    const trimmed = workSessionName.trim();
+    if (!trimmed || creatingWorkSession) return;
+    if (trimmed.length > 120) {
+      setSessionError("Work session name must be between 1 and 120 characters.");
+      return;
+    }
+    setCreatingWorkSession(true);
+    setSessionError("");
+    try {
+      await onCreateWorkSession(trimmed);
+      setWorkSessionName("");
+      if (onSwitchToChatView) onSwitchToChatView();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setSessionError(msg.replace(/^Error:\s*/, ""));
+    } finally {
+      setCreatingWorkSession(false);
+    }
+  };
+
+  const applyWorkspace = (newPath: string) => {
+    const path = newPath.trim();
+    if (!path) return;
+    try {
+      localStorage.setItem("ca.workspaceRoot", path);
+    } catch {}
+    setConfig(prev => ({ ...prev, work_dir: path }));
+    setWorkspaceNotice(`Workspace active: ${path}`);
+    setTimeout(() => setWorkspaceNotice(""), 4000);
+  };
+
+
+  const loadWorkSession = (sessionId: string) => {
+    if (!sessionId) return;
+    setSessionError("");
+    try {
+      if (onSelectWorkSession) onSelectWorkSession(sessionId);
+      if (onSwitchToChatView) onSwitchToChatView();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setSessionError(msg.replace(/^Error:\s*/, ""));
+    }
+  };
+
+  const detectProcesses = async () => {
+    if (hasScanned) {
+      setHasScanned(false);
+      setDetectedProcesses([]);
+      setDetectError("");
+      return;
+    }
+    setDetecting(true);
+    setDetectError("");
+    try {
+      setDetectedProcesses(await invoke<DetectedProcess[]>("detect_agent_processes"));
+      setHasScanned(true);
+    } catch (error) {
+      setDetectError(String(error));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const addDetectedProcess = (process: DetectedProcess) => {
+    setConfig(prev => ({
+      ...prev,
+      roles: [...prev.roles, {
+        name: `${process.agent} · PID ${process.pid}`,
+        config: { provider: process.provider, model: process.model },
+        origin: "existing",
+        process_pid: process.pid
+      }]
+    }));
+    setAddedPids(prev => [...prev, process.pid]);
+    onAddAgent({
+      id: `process:${process.pid}`,
+      target_id: processTargetId(process),
+      name: process.agent,
+      provider: process.provider,
+      model: process.model,
+      origin: "existing"
+    });
+  };
+
+  const removeDetectedProcess = (process: DetectedProcess) => {
+    setConfig(prev => ({
+      ...prev,
+      roles: prev.roles.filter(role => role.process_pid !== process.pid)
+    }));
+    setAddedPids(prev => prev.filter(pid => pid !== process.pid));
+    onRemoveAgent({
+      id: `process:${process.pid}`,
+      target_id: processTargetId(process),
+      name: process.agent,
+      provider: process.provider,
+      model: process.model,
+      origin: "existing"
+    });
+  };
+
+  const addSpawnedRole = (index: number, role: RoleConfig) => {
+    onAddAgent(spawnedRoleTeamMember(index, role));
+  };
+
+  const removeSpawnedRole = (index: number, role: RoleConfig) => {
+    onRemoveAgent(spawnedRoleTeamMember(index, role));
+  };
+
+  const handleProviderChange = (index: number, provider: string) => {
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      const models = availableModels[provider] || [];
+      newRoles[index] = {
+        ...newRoles[index],
+        config: {
+          ...newRoles[index].config,
+          provider,
+          model: models[0] || ""
+        }
+      };
+      return { ...prev, roles: newRoles };
+    });
+  };
+
+  const updateRoleConfig = (index: number, field: keyof ModelConfig, value: any) => {
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      newRoles[index] = {
+        ...newRoles[index],
+        config: { ...newRoles[index].config, [field]: value || undefined }
+      };
+      return { ...prev, roles: newRoles };
+    });
+  };
+
+  const updateRoleName = (index: number, name: string) => {
+    setConfig(prev => {
+      const newRoles = [...prev.roles];
+      newRoles[index] = { ...newRoles[index], name };
+      return { ...prev, roles: newRoles };
+    });
+  };
+
+  const removeRole = (index: number) => {
+    setConfig(prev => ({
+      ...prev,
+      roles: prev.roles.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addRole = () => {
+    setConfig(prev => ({
+      ...prev,
+      roles: [...prev.roles, {
+        name: `New Role ${prev.roles.length + 1}`,
+        config: { provider: "openai", model: "gpt-4o-mini" }
+      }]
+    }));
+  };
+
+  return (
+    <div className="glass-card fade-in" style={{ animationDelay: '0.1s' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+        <h2 style={{ margin: 0, color: NOC_SURFACES.textPrimary, fontSize: "1.35rem" }}>Agent Team Configuration</h2>
+        <button
+          className={`${hasScanned ? "btn-primary" : "btn-secondary"} noc-focusable`}
+          onClick={detectProcesses}
+          disabled={detecting}
+          style={hasScanned ? { background: 'rgba(168, 85, 247, 0.92)' } : undefined}
+        >
+          {detecting ? "Scanning this machine…" : hasScanned ? "Hide local processes" : "Detect local processes"}
+        </button>
+      </div>
+
+      {/* Vertically Aligned Sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginBottom: "1.5rem" }}>
+        <WorkspaceRootSection
+          workDir={config.work_dir}
+          onWorkDirChange={(workDir) => setConfig(prev => ({ ...prev, work_dir: workDir }))}
+          onWorkspaceApplied={applyWorkspace}
+          workspaceNotice={workspaceNotice}
+          setWorkspaceNotice={setWorkspaceNotice}
+          activeWorkSessionId={activeWorkSessionId}
+          onSelectWorkSession={onSelectWorkSession}
+          onSwitchToChatView={onSwitchToChatView}
+        />
+
+        <HarnessReadinessPanel workspace={config.work_dir} onOpenTerminalGrid={onOpenTerminalGrid} />
+
+        <WorkSessionSection
+          workSessions={workSessions}
+          activeWorkSessionId={activeWorkSessionId}
+          activeWorkSessionName={activeWorkSessionName}
+          workSessionName={workSessionName}
+          setWorkSessionName={setWorkSessionName}
+          creatingWorkSession={creatingWorkSession}
+          sessionError={sessionError}
+          setSessionError={setSessionError}
+          createWorkSession={() => void createWorkSession()}
+          loadWorkSession={loadWorkSession}
+          onSelectWorkSession={onSelectWorkSession}
+        />
+
+        <DetectedProcessesSection
+          hasScanned={hasScanned}
+          detectError={detectError}
+          detectedProcesses={detectedProcesses}
+          addedPids={addedPids}
+          teamMemberIds={teamMemberIds}
+          onAddProcess={addDetectedProcess}
+          onRemoveProcess={removeDetectedProcess}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+        {config.roles.map((role, index) => (
+          <ModelSelect
+            key={index}
+            index={index}
+            role={role}
+            availableModels={availableModels}
+            onProviderChange={handleProviderChange}
+            onConfigChange={updateRoleConfig}
+            onNameChange={updateRoleName}
+            onRemove={removeRole}
+            onPreview={onPreview}
+            resources={resources}
+            PROVIDERS={PROVIDERS}
+            onAddToTeam={() => addSpawnedRole(index, role)}
+            onRemoveFromTeam={() => removeSpawnedRole(index, role)}
+            isOnTeam={teamMemberIds.includes(spawnedRoleTeamMember(index, role).target_id)}
+          />
+        ))}
+
+        <div
+          onClick={addRole}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1rem',
+            padding: '2rem',
+            border: '2px dashed var(--border-color)',
+            borderRadius: '12px',
+            background: 'rgba(255, 255, 255, 0.02)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s ease, border-color 0.2s ease, background 0.2s ease',
+            minHeight: '220px'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--primary)';
+            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)';
+            e.currentTarget.style.transform = 'scale(1.02)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-color)';
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <span style={{ fontSize: '2.5rem', color: 'var(--text-muted)', lineHeight: 1 }}>+</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Add New Role</span>
+        </div>
+
+        <div style={{ ...nocPanelStyle, gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <label className="label" style={{ margin: 0, fontWeight: 700, color: NOC_SURFACES.textPrimary }}>MCP Configuration (JSON)</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                style={{ width: '260px', padding: '0.4rem 0.65rem', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.85rem' }}
+                placeholder=".agent/mcp_config.json or ~/path.json"
+                value={externalConfigPath}
+                onChange={e => setExternalConfigPath(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") void loadConfigFromPath(externalConfigPath); }}
+              />
+              <button
+                className="btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
+                onClick={() => void loadConfigFromPath(externalConfigPath)}
+                disabled={!externalConfigPath.trim() || loadingConfig}
+              >
+                {loadingConfig ? "Loading…" : "Load Path"}
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', marginTop: 0 }}
+                disabled={loadingConfig}
+                onClick={async () => {
+                  if (loadingConfig) return;
+                  setLoadingConfig(true);
+                  try {
+                    const defaultAgentPath = config.work_dir
+                      ? `${config.work_dir.replace(/\/+$/, "")}/.agent`
+                      : undefined;
+                    const selected = await open({
+                      multiple: false,
+                      defaultPath: defaultAgentPath || config.work_dir || undefined,
+                      filters: [{ name: 'JSON Config', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }]
+                    });
+                    if (selected) {
+                      const content = await invoke<string>("read_file_absolute", { path: selected as string });
+                      setConfig(prev => ({ ...prev, mcp_config: content }));
+                      setExternalConfigPath(selected as string);
+                    }
+                  } catch (err) {
+                    console.error("Failed to load config", err);
+                    alert("Failed to load config: " + err);
+                  } finally {
+                    setLoadingConfig(false);
+                  }
+                }}
+              >
+                {loadingConfig ? "Loading…" : "Browse…"}
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Quick Presets:</span>
+            <button
+              type="button"
+              className="chip"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+              onClick={() => void loadConfigFromPath(".agent/mcp_config.json")}
+              title="Load .agent/mcp_config.json from active workspace"
+            >
+              📄 .agent/mcp_config.json
+            </button>
+            <button
+              type="button"
+              className="chip"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '6px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+              onClick={() => void loadConfigFromPath(".agent/mcp.json")}
+              title="Load .agent/mcp.json from active workspace"
+            >
+              📄 .agent/mcp.json
+            </button>
+          </div>
+          <textarea
+            value={config.mcp_config}
+            onChange={(e) => setConfig({ ...config, mcp_config: e.target.value })}
+            placeholder="Paste mcp_servers.json content here..."
+            style={{
+              minHeight: '200px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.9rem',
+              lineHeight: '1.5',
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              padding: '1rem',
+              width: '100%',
+              resize: 'vertical',
+              outline: 'none',
+              transition: 'border-color 0.2s'
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

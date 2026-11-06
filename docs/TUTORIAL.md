@@ -52,6 +52,8 @@ Click the **Provider** dropdown for the default role. Choose from:
 | Provider         | Requirements                              |
 | ---------------- | ----------------------------------------- |
 | OpenCode Zen     | `opencode` CLI installed                  |
+| DeepSeek         | `opencode` CLI; `opencode models` lists `deepseek/*` |
+| Mistral (Vibe)   | `vibe` CLI installed; run `vibe --setup`  |
 | Google           | `GOOGLE_GENAI_API_KEY` in `env/.env`      |
 | Anthropic        | API key configured                        |
 | OpenAI           | `OPENAI_API_KEY` in `env/.env`            |
@@ -219,10 +221,11 @@ After selecting a workspace with an `.agent/` directory:
 
 ### Connecting from Android
 
-1. Install the Android companion app (see [android/README.md](android/README.md))
+1. Install the Android companion app (see [android/README.md](../android/README.md))
 2. Ensure both devices are on the **same WiFi network**
 3. Enter the IP address shown in the desktop app
-4. Tap **Connect**
+4. Enter the same LAN TCP auth token you set in desktop Settings (`tool.tcp.auth_token` or `CA_TCP_AUTH_TOKEN`)
+5. Tap **Connect**
 
 ### Remote Operations
 

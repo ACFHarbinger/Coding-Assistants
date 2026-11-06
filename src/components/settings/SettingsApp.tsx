@@ -1,0 +1,492 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { isTauriRuntime } from "../../lib/tauri";
+import {
+  getEffectiveSettings, getSettingsLoadStatus, getStandingPolicy,
+  listAgentBudgets, listSettingsAuditEvents, resetWorkspaceDefaultProfile,
+  resetSettingsField, setAgentBudget, setAllowAutoWake, setConfirmWakes,
+  setDefaultSession, setDefaultWorkspace, setRetentionDays,
+  updateOrchestrationPolicy, updateSettings,
+} from "./api";
+import type {
+  BudgetStatus, EffectiveSettings, SandboxStrictness,
+  SettingsAuditEvent, SettingsField, SettingsLoadStatus,
+} from "./types";
+import GeneralTab from "./tabs/GeneralTab";
+import WorkspaceTab from "./tabs/WorkspaceTab";
+import MemoryTab from "./tabs/MemoryTab";
+import OrchestrationTab from "./tabs/OrchestrationTab";
+import AgentsTab from "./tabs/AgentsTab";
+import CreativeToolsTab from "./tabs/CreativeToolsTab";
+import ExternalMcpTab from "./tabs/ExternalMcpTab";
+import CredentialsTab from "./tabs/CredentialsTab";
+import SyncTab from "./tabs/SyncTab";
+import DiagnosticsTab from "./tabs/DiagnosticsTab";
+import DangerTab from "./tabs/DangerTab";
+import SettingsAuditDrawer from "./tabs/SettingsAuditDrawer";
+import { closeSettingsWindow, readWorkspaceRoot } from "./tabs/shared";
+import { TABS, type TabId } from "./tabsConfig";
+import { invoke } from "../../lib/tauri";
+import { NOC_COLORS, NOC_RADIUS, NOC_SURFACES } from "../common/telemetry/tokens";
+import { nocPanelStyle } from "../common/telemetry/panel";
+
+export default function SettingsApp() {
+  const workspaceRoot = useMemo(readWorkspaceRoot, []);
+  const [scope, setScope] = useState<"global" | "workspace">(workspaceRoot ? "workspace" : "global");
+  const [activeTabId, setActiveTabId] = useState<TabId>("general");
+  const [effective, setEffective] = useState<EffectiveSettings | null>(null);
+  const [loadStatus, setLoadStatus] = useState<SettingsLoadStatus | null>(null);
+  const [storeDir, setStoreDir] = useState<string>("");
+  const [auditEvents, setAuditEvents] = useState<SettingsAuditEvent[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [defaultWorkspaceDraft, setDefaultWorkspaceDraft] = useState("");
+  const [defaultSessionDraft, setDefaultSessionDraft] = useState("");
+  const [backupRetentionDraft, setBackupRetentionDraft] = useState(3);
+
+  const [confirmWakes, setConfirmWakesLocal] = useState(true);
+  const [allowAutoWake, setAllowAutoWakeLocal] = useState(true);
+  const [retentionDaysDraft, setRetentionDaysDraft] = useState("");
+  const [memoryRecallLimitDraft, setMemoryRecallLimitDraft] = useState(5);
+  const [quotaAutoRefreshIntervalDraft, setQuotaAutoRefreshIntervalDraft] = useState(300);
+  const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
+  const [budgetAgentIdDraft, setBudgetAgentIdDraft] = useState("");
+  const [budgetLimitDraft, setBudgetLimitDraft] = useState("");
+
+  const targetWorkspace = scope === "workspace" ? workspaceRoot : null;
+  const activeTab = TABS.find((tab) => tab.id === activeTabId) ?? TABS[0];
+
+  const applySnapshot = useCallback((snapshot: EffectiveSettings) => {
+    setEffective(snapshot);
+    setDefaultWorkspaceDraft(snapshot.default_workspace ?? "");
+    setDefaultSessionDraft(snapshot.default_session ?? "");
+    setBackupRetentionDraft(snapshot.backup_retention);
+    setRetentionDaysDraft(snapshot.orchestration.retention_days?.toString() ?? "");
+    setMemoryRecallLimitDraft(snapshot.orchestration.memory_recall_limit ?? 5);
+    setQuotaAutoRefreshIntervalDraft(snapshot.orchestration.quota_auto_refresh_interval_secs ?? 300);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!isTauriRuntime()) return;
+    try {
+      const [snapshot, status, dir] = await Promise.all([
+        getEffectiveSettings(targetWorkspace),
+        getSettingsLoadStatus(),
+        invoke<string>("hub_get_data_dir").catch(() => ""),
+      ]);
+      applySnapshot(snapshot);
+      setLoadStatus(status);
+      if (dir) setStoreDir(dir);
+      setError(null);
+    } catch (err) {
+      setError(String(err));
+    }
+  }, [targetWorkspace, applySnapshot]);
+
+  const refreshAudit = useCallback(async () => {
+    if (!isTauriRuntime()) return;
+    try {
+      setAuditEvents(await listSettingsAuditEvents());
+    } catch {
+      // Non-critical: the audit panel is a bonus view, not the source of truth.
+    }
+  }, []);
+
+  // Wake confirmation is global-only (Hub `WakePolicy` has no per-workspace
+  // concept today), so it doesn't need to re-fetch on scope changes.
+  const refreshStandingPolicy = useCallback(async () => {
+    if (!isTauriRuntime()) return;
+    try {
+      const snapshot = await getStandingPolicy(null);
+      setConfirmWakesLocal(snapshot.confirm_wakes);
+      setAllowAutoWakeLocal(snapshot.allow_auto_wake);
+    } catch (err) {
+      setError(String(err));
+    }
+  }, []);
+
+  const refreshBudgets = useCallback(async () => {
+    if (!isTauriRuntime()) return;
+    try {
+      setBudgets(await listAgentBudgets());
+    } catch {
+      // Non-critical: budgets are a bonus view on this tab.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    void refreshAudit();
+  }, [refreshAudit]);
+
+  useEffect(() => {
+    void refreshStandingPolicy();
+    void refreshBudgets();
+  }, [refreshStandingPolicy, refreshBudgets]);
+
+  useEffect(() => {
+    document.title = "Settings";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") void closeSettingsWindow();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const runMutation = useCallback(
+    async (mutate: () => Promise<EffectiveSettings>) => {
+      setBusy(true);
+      setError(null);
+      try {
+        applySnapshot(await mutate());
+        void refreshAudit();
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [applySnapshot, refreshAudit],
+  );
+
+  const moveTabFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const currentIndex = TABS.findIndex((tab) => tab.id === activeTabId);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % TABS.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = TABS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const next = TABS[nextIndex];
+    setActiveTabId(next.id);
+    document.getElementById(`settings-tab-${next.id}`)?.focus();
+  };
+
+  const resetField = (field: SettingsField) => {
+    if (!targetWorkspace) return;
+    void runMutation(() => resetSettingsField(targetWorkspace, field));
+  };
+
+  const toggleConfirmWakes = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const snapshot = await setConfirmWakes(!confirmWakes);
+      setConfirmWakesLocal(snapshot.confirm_wakes);
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleAllowAutoWake = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const snapshot = await setAllowAutoWake(!allowAutoWake);
+      setAllowAutoWakeLocal(snapshot.allow_auto_wake);
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleOrchestrationField = (
+    field: "confirm_new_enrollment" | "confirm_broadcast" | "auto_enrollment_allowed" | "export_enabled" | "memory_recall_enabled" | "allow_metered_quota_probes" | "quota_auto_refresh_enabled",
+    current: boolean,
+  ) => void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { [field]: !current }));
+
+  const saveMemoryRecallLimit = () => {
+    const limit = Math.max(1, Math.min(20, Math.floor(memoryRecallLimitDraft)));
+    void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { memory_recall_limit: limit }));
+  };
+
+  const saveQuotaAutoRefreshInterval = () => {
+    const secs = Math.max(30, Math.min(3600, Math.floor(quotaAutoRefreshIntervalDraft)));
+    void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { quota_auto_refresh_interval_secs: secs }));
+  };
+
+  const setSandboxStrictness = (level: SandboxStrictness) =>
+    void runMutation(() => updateOrchestrationPolicy(targetWorkspace, { sandbox_strictness: level }));
+
+  const saveRetentionDays = () => {
+    const trimmed = retentionDaysDraft.trim();
+    const days = trimmed === "" ? null : Number(trimmed);
+    if (days !== null && (!Number.isInteger(days) || days <= 0)) {
+      setError("Retention days must be empty (indefinite) or a positive whole number.");
+      return;
+    }
+    if (scope === "workspace" && days === null) {
+      setError("A workspace override needs a concrete day count — use Reset to Global to clear it.");
+      return;
+    }
+    void runMutation(() => setRetentionDays(targetWorkspace, days));
+  };
+
+  const saveBudget = async () => {
+    const agentId = budgetAgentIdDraft.trim();
+    const limit = Number(budgetLimitDraft);
+    if (!agentId || !Number.isFinite(limit) || limit <= 0) {
+      setError("Budget needs an agent id and a limit greater than 0.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await setAgentBudget(agentId, limit);
+      setBudgetAgentIdDraft("");
+      setBudgetLimitDraft("");
+      await refreshBudgets();
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResetWorkspaceOverrides = async () => {
+    if (!workspaceRoot) return;
+    const fieldsToReset: SettingsField[] = [
+      "backup_retention",
+      "default_session",
+      "confirm_new_enrollment",
+      "confirm_broadcast",
+      "auto_enrollment_allowed",
+      "sandbox_strictness",
+      "retention_days",
+      "export_enabled",
+      "link_suggestion_mode",
+    ];
+    setBusy(true);
+    setError(null);
+    try {
+      // Read the workspace-scoped snapshot first: profile selection is not a
+      // SettingsField, so it has its own reset command.
+      const workspaceSettings = await getEffectiveSettings(workspaceRoot);
+      for (const field of fieldsToReset) {
+        await resetSettingsField(workspaceRoot, field);
+      }
+      for (const harness of workspaceSettings.harnesses) {
+        if (harness.default_profile_status === "override") {
+          await resetWorkspaceDefaultProfile(workspaceRoot, harness.harness);
+        }
+      }
+      await refresh();
+      void refreshAudit();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "1.25rem 1.5rem", gap: "1rem", background: NOC_SURFACES.bgDeep, color: NOC_SURFACES.textPrimary }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+            <h1 style={{ fontSize: "1.35rem", fontWeight: 800, margin: 0, color: NOC_SURFACES.textPrimary, letterSpacing: "-0.01em" }}>Settings</h1>
+            <span
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                padding: "0.15rem 0.55rem",
+                borderRadius: "999px",
+                background: scope === "workspace" ? "rgba(99, 102, 241, 0.15)" : "rgba(56, 189, 248, 0.12)",
+                border: `1px solid ${scope === "workspace" ? "rgba(99, 102, 241, 0.4)" : "rgba(56, 189, 248, 0.35)"}`,
+                color: scope === "workspace" ? "#a5b4fc" : "#7dd3fc",
+              }}
+            >
+              {scope === "workspace" ? "Workspace Scope" : "Global Scope"}
+            </span>
+          </div>
+          <p style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", margin: "0.25rem 0 0" }}>
+            Global defaults with workspace-specific overrides &bull; Store: <code style={{ color: NOC_SURFACES.textSecondary }}>{storeDir || "~/.coding-assistants"}</code>
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary noc-focusable"
+          style={{ marginTop: 0, padding: "0.4rem 0.85rem", fontSize: "0.82rem" }}
+          onClick={() => void closeSettingsWindow()}
+        >
+          Close
+        </button>
+      </header>
+
+      {!isTauriRuntime() && (
+        <div style={{ padding: "0.65rem 1rem", borderRadius: NOC_RADIUS.s, border: "1px solid rgba(250, 204, 21, 0.45)", background: "rgba(250, 204, 21, 0.1)", color: "#fde68a", fontSize: "0.82rem" }}>
+          Settings requires the desktop app; this browser preview cannot read or save configuration.
+        </div>
+      )}
+
+      {loadStatus && (loadStatus.status === "invalid" || loadStatus.status === "unreadable") && (
+        <div style={{ padding: "0.65rem 1rem", borderRadius: NOC_RADIUS.s, border: "1px solid rgba(248, 113, 113, 0.5)", background: "rgba(239, 68, 68, 0.12)", color: "#fca5a5", fontSize: "0.82rem" }}>
+          <strong>Settings file could not be read — using safe defaults.</strong>{" "}
+          {loadStatus.reason} A one-click restore from the last-known-good backup lands in a follow-up slice.
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "0.6rem 1rem", borderRadius: NOC_RADIUS.s, border: "1px solid rgba(248, 113, 113, 0.5)", background: "rgba(239, 68, 68, 0.12)", color: "#fca5a5", fontSize: "0.82rem" }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 0.26fr) minmax(0, 1fr)", gap: "1rem", flex: 1, minHeight: 0 }}>
+        <div
+          role="tablist"
+          aria-label="Settings sections"
+          onKeyDown={moveTabFocus}
+          style={{ display: "grid", alignContent: "start", gap: "0.3rem", overflowY: "auto" }}
+        >
+          {TABS.map((tab) => {
+            const selected = tab.id === activeTabId;
+            return (
+              <button
+                key={tab.id}
+                id={`settings-tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`settings-panel-${tab.id}`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => setActiveTabId(tab.id)}
+                className="noc-focusable"
+                style={{
+                  marginTop: 0,
+                  padding: "0.55rem 0.8rem",
+                  textAlign: "left",
+                  borderRadius: NOC_RADIUS.s,
+                  border: `1px solid ${selected ? NOC_COLORS.cyan : "transparent"}`,
+                  background: selected ? "rgba(56, 189, 248, 0.12)" : "rgba(15, 23, 42, 0.45)",
+                  color: tab.dangerous
+                    ? (selected ? "#fca5a5" : "rgba(248, 113, 113, 0.85)")
+                    : (selected ? NOC_SURFACES.textPrimary : NOC_SURFACES.textMuted),
+                  fontWeight: selected ? 600 : 500,
+                  fontSize: "0.82rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                  transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease",
+                }}
+              >
+                <span>{tab.label}</span>
+                {tab.dangerous && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "0.08rem 0.35rem", borderRadius: "4px", background: "rgba(239, 68, 68, 0.2)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.35)" }}>
+                    DANGER
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          id={`settings-panel-${activeTab.id}`}
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${activeTab.id}`}
+          style={{
+            ...nocPanelStyle,
+            overflowY: "auto",
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ marginBottom: "1.25rem", borderBottom: `1px solid ${NOC_SURFACES.border}`, paddingBottom: "0.85rem" }}>
+            <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: activeTab.dangerous ? "#fca5a5" : NOC_SURFACES.textPrimary, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {activeTab.dangerous ? <span style={{ color: NOC_COLORS.crit }}>⚠</span> : null}
+              {activeTab.label}
+            </h2>
+            <p style={{ color: NOC_SURFACES.textMuted, fontSize: "0.82rem", margin: "0.25rem 0 0" }}>{activeTab.summary}</p>
+          </div>
+
+          {!activeTab.implemented && (
+            <div style={{ padding: "0.85rem", borderRadius: NOC_RADIUS.s, background: activeTab.dangerous ? "rgba(239, 68, 68, 0.10)" : "rgba(56, 189, 248, 0.08)", border: activeTab.dangerous ? "1px solid rgba(248, 113, 113, 0.45)" : `1px solid ${NOC_SURFACES.border}` }}>
+              <strong style={{ display: "block", marginBottom: "0.4rem", color: activeTab.dangerous ? "#fca5a5" : NOC_SURFACES.textPrimary }}>
+                {activeTab.dangerous ? "Confirmation required" : "Coming in a later Settings slice"}
+              </strong>
+              <p style={{ margin: 0, color: NOC_SURFACES.textMuted, fontSize: "0.85rem", lineHeight: 1.55 }}>
+                {activeTab.dangerous
+                  ? "Reset, removal, and purge controls will always show an explicit warning and confirmation before changing local data."
+                  : "This tab's fields land in a follow-up Settings slice (S4/S5)."}
+              </p>
+            </div>
+          )}
+
+          {activeTab.id === "general" && effective && (
+            <GeneralTab
+              effective={effective} defaultWorkspaceDraft={defaultWorkspaceDraft} setDefaultWorkspaceDraft={setDefaultWorkspaceDraft}
+              workspaceRoot={workspaceRoot} busy={busy}
+              saveDefaultWorkspace={() => void runMutation(() => setDefaultWorkspace(defaultWorkspaceDraft.trim() || null))}
+              clearDefaultWorkspace={() => void runMutation(() => setDefaultWorkspace(null))}
+            />
+          )}
+
+          {activeTab.id === "workspace" && effective && (
+            <WorkspaceTab
+              effective={effective} scope={scope} setScope={setScope} workspaceRoot={workspaceRoot}
+              defaultSessionDraft={defaultSessionDraft} setDefaultSessionDraft={setDefaultSessionDraft} busy={busy}
+              saveDefaultSession={() => void runMutation(() => setDefaultSession(targetWorkspace, defaultSessionDraft.trim() || null))}
+              clearDefaultSession={() => void runMutation(() => setDefaultSession(targetWorkspace, null))}
+              resetField={resetField}
+            />
+          )}
+
+          {activeTab.id === "agents" && effective && (
+            <AgentsTab effective={effective} scope={scope} setScope={setScope} workspaceRoot={workspaceRoot} busy={busy} onChanged={() => void refresh()} />
+          )}
+
+          {activeTab.id === "creative" && <CreativeToolsTab workspaceRoot={workspaceRoot} busy={busy} />}
+          {activeTab.id === "external_mcp" && <ExternalMcpTab workspaceRoot={workspaceRoot} busy={busy} />}
+          {activeTab.id === "credentials" && <CredentialsTab />}
+          {activeTab.id === "sync" && <SyncTab />}
+
+          {activeTab.id === "memory" && effective && (
+            <MemoryTab
+              effective={effective} scope={scope} setScope={setScope} workspaceRoot={workspaceRoot}
+              backupRetentionDraft={backupRetentionDraft} setBackupRetentionDraft={setBackupRetentionDraft} busy={busy}
+              saveBackupRetention={() => void runMutation(() => updateSettings(targetWorkspace, { backup_retention: backupRetentionDraft }))}
+              resetField={resetField}
+            />
+          )}
+
+          {activeTab.id === "orchestration" && effective && (
+            <OrchestrationTab
+              effective={effective} scope={scope} setScope={setScope} workspaceRoot={workspaceRoot} busy={busy}
+              confirmWakes={confirmWakes} toggleConfirmWakes={() => void toggleConfirmWakes()}
+              allowAutoWake={allowAutoWake} toggleAllowAutoWake={() => void toggleAllowAutoWake()}
+              toggleOrchestrationField={toggleOrchestrationField} setSandboxStrictness={setSandboxStrictness}
+              retentionDaysDraft={retentionDaysDraft} setRetentionDaysDraft={setRetentionDaysDraft} saveRetentionDays={saveRetentionDays}
+              memoryRecallLimitDraft={memoryRecallLimitDraft} setMemoryRecallLimitDraft={setMemoryRecallLimitDraft} saveMemoryRecallLimit={saveMemoryRecallLimit}
+              quotaAutoRefreshIntervalDraft={quotaAutoRefreshIntervalDraft} setQuotaAutoRefreshIntervalDraft={setQuotaAutoRefreshIntervalDraft} saveQuotaAutoRefreshInterval={saveQuotaAutoRefreshInterval}
+              resetField={resetField} budgets={budgets} budgetAgentIdDraft={budgetAgentIdDraft} setBudgetAgentIdDraft={setBudgetAgentIdDraft}
+              budgetLimitDraft={budgetLimitDraft} setBudgetLimitDraft={setBudgetLimitDraft} saveBudget={() => void saveBudget()}
+            />
+          )}
+
+          {activeTab.id === "diagnostics" && effective && (
+            <DiagnosticsTab effective={effective} loadStatus={loadStatus} workspaceRoot={workspaceRoot} busy={busy} />
+          )}
+
+          {activeTab.id === "danger" && effective && (
+            <DangerTab workspaceRoot={workspaceRoot} busy={busy} onResetWorkspaceOverrides={handleResetWorkspaceOverrides} onChanged={() => void refresh()} />
+          )}
+        </div>
+      </div>
+
+      <SettingsAuditDrawer auditEvents={auditEvents} />
+    </div>
+  );
+}

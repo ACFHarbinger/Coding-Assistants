@@ -1,0 +1,415 @@
+//! Typed static catalog of harness, tool, MCP, and provider credential/config fields (#285).
+//!
+//! Provides metadata for Settings UI rendering and Settings write command validation
+//! (`field_id` validation in #283, Settings surface in #284, resolver integration in #287).
+//!
+//! Mirrors [`hub::mcp::external::CATALOG`](crate::mcp::external::CATALOG). Pure data + accessors,
+//! no I/O, no secret reads.
+
+#[path = "catalog_sync.rs"]
+mod catalog_sync;
+#[path = "catalog_tools.rs"]
+mod catalog_tools;
+#[path = "catalog_types.rs"]
+mod types;
+use std::sync::LazyLock;
+pub use types::{FieldSpec, OwnerKind, Scope};
+
+/// Static registry of known credential and configuration fields across all providers,
+pub static CATALOG: LazyLock<Vec<FieldSpec>> = LazyLock::new(|| {
+    let mut catalog = vec![
+    // --- Providers ---
+    FieldSpec {
+        id: "provider.deepseek.api_key",
+        display_name: "DeepSeek API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "deepseek",
+        env_var: Some("DEEPSEEK_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://platform.deepseek.com/api_keys"),
+        notes: Some("API key for DeepSeek quota balance checks and direct inference."),
+    },
+    FieldSpec {
+        id: "provider.deepseek.base_url",
+        display_name: "DeepSeek Base URL",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "deepseek",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: Some("https://api-docs.deepseek.com"),
+        notes: Some("Base URL for DeepSeek API requests (default: https://api.deepseek.com)."),
+    },
+    FieldSpec {
+        id: "provider.deepseek.model",
+        display_name: "DeepSeek Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "deepseek",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default DeepSeek model (default: deepseek/deepseek-v4-flash)."),
+    },
+    FieldSpec {
+        id: "provider.muse.api_key",
+        display_name: "Meta Model API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "muse",
+        env_var: Some("MODEL_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://api.meta.ai"),
+        notes: Some(
+            "Bearer token for Meta Model API (LLM|... format), used for Muse Spark completions.",
+        ),
+    },
+    FieldSpec {
+        id: "provider.muse.base_url",
+        display_name: "Meta Model API Base URL",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "muse",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Endpoint for Meta Model API (default: https://api.meta.ai/v1)."),
+    },
+    FieldSpec {
+        id: "provider.muse.model",
+        display_name: "Meta Muse Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "muse",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for Meta Model API (default: muse-spark-1.3)."),
+    },
+    FieldSpec {
+        id: "provider.openai.api_key",
+        display_name: "OpenAI API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openai",
+        env_var: Some("OPENAI_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://platform.openai.com/api-keys"),
+        notes: Some("API key for OpenAI models and memory embeddings."),
+    },
+    FieldSpec {
+        id: "provider.openai.base_url",
+        display_name: "OpenAI Base URL",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openai",
+        env_var: Some("CA_MEMORY_EMBEDDING_API_BASE"),
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some(
+            "Endpoint base URL for OpenAI-compatible APIs (default: https://api.openai.com/v1).",
+        ),
+    },
+    FieldSpec {
+        id: "provider.openai.model",
+        display_name: "OpenAI Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openai",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for OpenAI completions (default: gpt-4o)."),
+    },
+    FieldSpec {
+        id: "provider.openrouter.api_key",
+        display_name: "OpenRouter API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openrouter",
+        env_var: Some("OPENROUTER_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://openrouter.ai/keys"),
+        notes: Some("API key for the OpenRouter model-routing gateway (P13)."),
+    },
+    FieldSpec {
+        id: "provider.openrouter.base_url",
+        display_name: "OpenRouter Base URL",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openrouter",
+        env_var: Some("OPENROUTER_BASE_URL"),
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some(
+            "Endpoint base URL for OpenRouter (default: https://openrouter.ai/api/v1).",
+        ),
+    },
+    FieldSpec {
+        id: "provider.openrouter.model",
+        display_name: "OpenRouter Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "openrouter",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some(
+            "Comma-separated OpenRouter model ids (first is tried first; default: openai/gpt-4o-mini).",
+        ),
+    },
+    FieldSpec {
+        id: "provider.gemini.api_key",
+        display_name: "Gemini API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "gemini",
+        env_var: Some("GEMINI_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://aistudio.google.com/app/apikey"),
+        notes: Some("API key for Google Gemini / Google AI Studio."),
+    },
+    FieldSpec {
+        id: "provider.gemini.model",
+        display_name: "Gemini Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "gemini",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for Gemini (default: gemini-3.7-flash-medium)."),
+    },
+    FieldSpec {
+        id: "provider.grok.api_key",
+        display_name: "Grok API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "grok",
+        env_var: Some("XAI_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.x.ai/"),
+        notes: Some("API key for xAI Grok completions (separate from Grok CLI login session)."),
+    },
+    FieldSpec {
+        id: "provider.grok.model",
+        display_name: "Grok Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "grok",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for Grok (default: grok-4.6)."),
+    },
+    FieldSpec {
+        id: "provider.grok-bot.api_key",
+        display_name: "Grok Bot API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "grok-bot",
+        env_var: Some("GROK_BOT_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.x.ai/"),
+        notes: Some("P15 Grok Bot key; falls back to XAI_API_KEY. Not the CLI harness."),
+    },
+    FieldSpec {
+        id: "provider.grok-bot.model",
+        display_name: "Grok Bot Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "grok-bot",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for Grok Bot (default: grok-4.6)."),
+    },
+    FieldSpec {
+        id: "provider.mistral.api_key",
+        display_name: "Mistral API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "mistral",
+        env_var: Some("MISTRAL_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.mistral.ai/api-keys/"),
+        notes: Some("API key for Mistral models and Vibe CLI authentication."),
+    },
+    FieldSpec {
+        id: "provider.mistral.admin_api_key",
+        display_name: "Mistral Admin API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "mistral",
+        env_var: Some("MISTRAL_ADMIN_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.mistral.ai/"),
+        notes: Some(
+            "Backoffice admin key for the Mistral Admin API usage/spend-limit quota read \
+             (sent as an `x-api-key` header, not a Bearer token). Optional — local Vibe \
+             session usage works without it. Not a completion API key.",
+        ),
+    },
+    FieldSpec {
+        id: "provider.mistral.model",
+        display_name: "Mistral Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "mistral",
+        env_var: Some("VIBE_ACTIVE_MODEL"),
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for Mistral Vibe (default: mistral-medium-3.5)."),
+    },
+    FieldSpec {
+        id: "provider.anthropic.api_key",
+        display_name: "Anthropic API Key",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "anthropic",
+        env_var: Some("ANTHROPIC_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://console.anthropic.com/settings/keys"),
+        notes: Some("API key for Anthropic Claude completions (separate from Claude Code login)."),
+    },
+    FieldSpec {
+        id: "provider.anthropic.model",
+        display_name: "Anthropic Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "anthropic",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default Claude model (default: claude-3-7-sonnet-20250219)."),
+    },
+    FieldSpec {
+        id: "provider.opencode.model",
+        display_name: "OpenCode Model",
+        owner_kind: OwnerKind::Provider,
+        owner_key: "opencode",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model for OpenCode (default: opencode-go/glm-5.3)."),
+    },
+    // --- MCP ---
+    FieldSpec {
+        id: "mcp.perplexity.api_key",
+        display_name: "Perplexity API Key",
+        owner_kind: OwnerKind::Mcp,
+        owner_key: "perplexity",
+        env_var: Some("PERPLEXITY_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://github.com/perplexityai/modelcontextprotocol"),
+        notes: Some(
+            "API key for official Perplexity MCP server. Stored securely in vault or read from environment.",
+        ),
+    },
+    FieldSpec {
+        id: "mcp.perplexity_web.session_login",
+        display_name: "Perplexity Web Session Login",
+        owner_kind: OwnerKind::Mcp,
+        owner_key: "perplexity-web",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: Some("https://github.com/jacob-bd/perplexity-web-mcp"),
+        notes: Some(
+            "Interactive session login for Perplexity subscription (`pwm login`). Token stored at ~/.config/perplexity-web-mcp/token.",
+        ),
+    },
+    FieldSpec {
+        id: "mcp.steam.api_key",
+        display_name: "Steam API Key",
+        owner_kind: OwnerKind::Mcp,
+        owner_key: "steam",
+        env_var: Some("STEAM_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://github.com/dsp/mcp-server-steam"),
+        notes: Some(
+            "API key for the Docker-based Steam MCP server. Also requires STEAM_ID (the numeric SteamID64 to query), exported alongside this key; STEAM_ID is not itself a secret.",
+        ),
+    },
+    // --- Harnesses ---
+    FieldSpec {
+        id: "harness.cursor.login_token",
+        display_name: "Cursor Login Token",
+        owner_kind: OwnerKind::Harness,
+        owner_key: "cursor",
+        env_var: Some("CURSOR_TOKEN"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://www.cursor.com"),
+        notes: Some("Authentication token for the Cursor agent CLI."),
+    },
+    FieldSpec {
+        id: "harness.muse.model",
+        display_name: "Muse Code Model",
+        owner_kind: OwnerKind::Harness,
+        owner_key: "muse",
+        env_var: None,
+        secret: false,
+        scope: Scope::Global,
+        docs_url: None,
+        notes: Some("Default model passed to `muse exec --model`."),
+    },
+    FieldSpec {
+        id: "harness.muse.api_key",
+        display_name: "Muse Code API Key",
+        owner_kind: OwnerKind::Harness,
+        owner_key: "muse",
+        env_var: Some("MODEL_API_KEY"),
+        secret: true,
+        scope: Scope::Global,
+        docs_url: Some("https://api.meta.ai"),
+        notes: Some(
+            "Model API key shared between Muse Spark provider and Muse Code harness.",
+        ),
+    },
+    ];
+    catalog.extend_from_slice(catalog_tools::TOOL_FIELDS);
+    catalog.extend_from_slice(catalog_sync::SUPABASE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::ONEDRIVE_FIELDS);
+    catalog.extend_from_slice(catalog_sync::DROPBOX_FIELDS);
+    catalog
+});
+
+/// Look up a field in the catalog by its unique id.
+pub fn field(id: &str) -> Option<&'static FieldSpec> {
+    CATALOG.iter().find(|f| f.id == id)
+}
+
+/// All fields belonging to the specified owner.
+pub fn fields_for(owner_kind: OwnerKind, owner_key: &str) -> Vec<&'static FieldSpec> {
+    CATALOG
+        .iter()
+        .filter(|f| f.owner_kind == owner_kind && f.owner_key == owner_key)
+        .collect()
+}
+
+/// All fields belonging to the specified owner category.
+pub fn fields_by_owner_kind(owner_kind: OwnerKind) -> Vec<&'static FieldSpec> {
+    CATALOG
+        .iter()
+        .filter(|f| f.owner_kind == owner_kind)
+        .collect()
+}
+
+/// All fields marked as secret (routed to write-only vault).
+pub fn secret_fields() -> Vec<&'static FieldSpec> {
+    CATALOG.iter().filter(|f| f.secret).collect()
+}
+
+/// Look up a field by its environment variable name.
+pub fn field_by_env_var(env_var: &str) -> Option<&'static FieldSpec> {
+    CATALOG.iter().find(|f| f.env_var == Some(env_var))
+}
+
+#[cfg(test)]
+#[path = "catalog_tests.rs"]
+mod tests;

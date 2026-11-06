@@ -1,0 +1,357 @@
+// @ts-nocheck
+import { useState, useRef } from "react";
+import { AgentAvatar } from "./AgentAvatar";
+import { attachmentToken, uploadAttachment, isUnsupportedOrRawMime } from "./attachments";
+export default function MessageComposer(props: any) {
+  const { activeChannel, activeWorkSession, searchTerm, setSearchTerm, scrollBoxRef, stickToBottomRef, forceScrollRef, setJumpToLatest, jumpToLatest, isNearBottom, filteredMessages, hoveredMessageId, setHoveredMessageId, getAgentInfo, AGENT_COLORS, editingId, editDraft, setEditDraft, saveEdit, cancelEdit, threadRootId, hubMessages, linkedMemories, setShowMemoryDrawer, setMemorySearch, startReply, openMessageMenu, replyTo, setReplyTo, messageInput, setMessageInput, recipientMode, setRecipientMode, selectedSubset, setSelectedSubset, singleRecipient, setSingleRecipient, rosterAgentIds, hubAgents, isTaskTag, setIsTaskTag, isWakeTag, setIsWakeTag, wakePolicyGate, setWakePolicyGate, handleSendMessage, sending, pendingAttachments, setPendingAttachments, attachmentError, setAttachmentError } = props;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentNotice, setAttachmentNotice] = useState("");
+  const [attaching, setAttaching] = useState(false);
+  const attachFiles = async (files: FileList | File[]) => {
+    if (attaching) return;
+    setAttaching(true);
+    setAttachmentError("");
+    setAttachmentNotice("");
+    try {
+      for (const file of Array.from(files)) {
+        try {
+          const record = await uploadAttachment(file);
+          const previewUrl = URL.createObjectURL(file);
+          setPendingAttachments((prev: any[]) => [...prev, { record, previewUrl }]);
+          if (isUnsupportedOrRawMime(record.mime, record.filename)) {
+            setAttachmentNotice(`"${record.filename}" attached as raw binary (no preview available).`);
+          }
+          setMessageInput((prev: string) => {
+            const separator = prev.length > 0 && !prev.endsWith("\n") ? "\n" : "";
+            return `${prev}${separator}${attachmentToken(record.id, record.filename)}\n`;
+          });
+        } catch (err: any) {
+          const msg = err instanceof Error ? err.message : String(err?.message || err);
+          setAttachmentError(`Failed to attach "${file.name}": ${msg}`);
+        }
+      }
+    } finally {
+      setAttaching(false);
+    }
+  };
+  const removeAttachment = (id: string) => {
+    setPendingAttachments((prev: any[]) => {
+      const target = prev.find(p => p.record.id === id);
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+        setMessageInput((body: string) => body.replace(`${attachmentToken(target.record.id, target.record.filename)}\n`, "").replace(attachmentToken(target.record.id, target.record.filename), ""));
+      }
+      return prev.filter(p => p.record.id !== id);
+    });
+  };
+  const recipients = (activeWorkSession && activeChannel === `session:${activeWorkSession.id}`
+    ? activeWorkSession.member_ids
+    : rosterAgentIds(hubAgents)
+  ).filter((id: string) => id !== "human" && id !== "system");
+  const selectionStyle = (active: boolean, accent: "violet" | "teal" | "amber" = "violet"): React.CSSProperties => {
+    const colors = accent === "amber"
+      ? { border: "#f59e0b", background: "rgba(245, 158, 11, 0.22)", text: "#fef08a", glow: "rgba(245, 158, 11, 0.35)" }
+      : accent === "teal"
+        ? { border: "#38bdf8", background: "rgba(56, 189, 248, 0.22)", text: "#e0f2fe", glow: "rgba(56, 189, 248, 0.35)" }
+        : { border: "#6366f1", background: "rgba(99, 102, 241, 0.25)", text: "#ffffff", glow: "rgba(99, 102, 241, 0.35)" };
+    return {
+      padding: "0.4rem 0.75rem",
+      borderRadius: "7px",
+      border: active ? `2px solid ${colors.border}` : "1px solid rgba(148, 163, 184, 0.24)",
+      background: active ? colors.background : "rgba(15, 23, 42, 0.6)",
+      color: active ? colors.text : "#94a3b8",
+      boxShadow: active ? `0 0 10px ${colors.glow}` : "none",
+      fontSize: "0.8rem",
+      cursor: "pointer",
+      fontWeight: active ? 800 : 600,
+      transition: "all 0.16s cubic-bezier(0.2, 0, 0, 1)",
+    };
+  };
+  return (
+        <div style={{
+          padding: "1.25rem 1.5rem",
+          borderTop: "1px solid var(--border-color)",
+          background: "rgba(2, 6, 23, 0.8)"
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {replyTo && (
+              <div style={{
+                alignItems: "center",
+                background: "rgba(99, 102, 241, 0.12)",
+                border: "1px solid rgba(129, 140, 248, 0.3)",
+                borderRadius: "8px",
+                color: "var(--text-muted)",
+                display: "flex",
+                fontSize: "0.8rem",
+                gap: "0.5rem",
+                justifyContent: "space-between",
+                padding: "0.45rem 0.65rem"
+              }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ↩ Replying to {getAgentInfo(replyTo.fromAgent).displayName}: {replyTo.preview.slice(0, 96)}{replyTo.preview.length > 96 ? "…" : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(null)}
+                  style={{ background: "transparent", border: "none", color: "var(--text-main)", cursor: "pointer", fontSize: "0.85rem" }}
+                  title="Cancel reply"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <textarea
+              rows={3}
+              placeholder={
+                activeChannel.startsWith("dm-")
+                  ? `Message ${getAgentInfo(activeChannel.replace("dm-", "")).displayName}… (Enter to send, Shift+Enter for a new line)`
+                  : activeWorkSession && activeChannel === `session:${activeWorkSession.id}`
+                    ? `Message work session ${activeWorkSession.name}… (Enter to send, Shift+Enter for a new line)`
+                  : `Message #${activeChannel}… (Enter to send, Shift+Enter for a new line)`
+              }
+              value={messageInput}
+              onChange={e => setMessageInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              onPaste={e => {
+                const items = Array.from(e.clipboardData?.items || []);
+                const files = items
+                  .filter(item => item.kind === "file")
+                  .map(item => item.getAsFile())
+                  .filter((file): file is File => file !== null);
+                if (files.length > 0) {
+                  e.preventDefault();
+                  void attachFiles(files);
+                }
+              }}
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,0.4)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "10px",
+                padding: "0.85rem 1rem",
+                color: "#fff",
+                fontSize: "0.95rem",
+                outline: "none",
+                resize: "none"
+              }}
+            />
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={e => {
+                if (e.target.files && e.target.files.length > 0) void attachFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            {attachmentError && (
+              <p style={{ margin: 0, color: "#f87171", fontSize: "0.78rem" }}>{attachmentError}</p>
+            )}
+            {attachmentNotice && !attachmentError && (
+              <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.78rem" }}>ℹ {attachmentNotice}</p>
+            )}
+
+            {pendingAttachments.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {pendingAttachments.map((pending: any) => (
+                  <div
+                    key={pending.record.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      padding: "0.3rem 0.5rem",
+                      borderRadius: "8px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid var(--border-color)",
+                      fontSize: "0.78rem",
+                      color: "var(--text-main)"
+                    }}
+                  >
+                    {pending.record.mime.startsWith("image/") ? (
+                      <img src={pending.previewUrl} alt={pending.record.filename} style={{ width: "28px", height: "28px", objectFit: "cover", borderRadius: "5px" }} />
+                    ) : (
+                      <span>📎</span>
+                    )}
+                    <span style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pending.record.filename}</span>
+                    {isUnsupportedOrRawMime(pending.record.mime, pending.record.filename) && (
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.08)", padding: "0.1rem 0.25rem", borderRadius: "3px" }}>
+                        raw
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(pending.record.id)}
+                      title="Remove attachment"
+                      style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.8rem", lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Input Controls Row */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                {activeChannel.startsWith("dm-") ? (
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 600 }}>
+                    Direct message to {getAgentInfo(activeChannel.replace("dm-", "")).displayName}
+                  </span>
+                ) : (
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Recipients:</span>
+                    <button
+                      type="button"
+                      className="noc-focusable"
+                      onClick={() => setRecipientMode("all")}
+                      aria-pressed={recipientMode === "all"}
+                      style={selectionStyle(recipientMode === "all")}
+                    >
+                      🌐 All Team
+                    </button>
+                    <button
+                      type="button"
+                      className="noc-focusable"
+                      onClick={() => setRecipientMode("subset")}
+                      aria-pressed={recipientMode === "subset"}
+                      style={selectionStyle(recipientMode === "subset")}
+                    >
+                      👥 Subset
+                    </button>
+                    <button
+                      type="button"
+                      className="noc-focusable"
+                      onClick={() => setRecipientMode("single")}
+                      aria-pressed={recipientMode === "single"}
+                      style={selectionStyle(recipientMode === "single")}
+                    >
+                      🎯 Single Agent
+                    </button>
+
+                    {recipientMode === "subset" && (
+                      <div aria-label="Subset recipients" style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", background: "#020617", padding: "0.45rem", borderRadius: "8px", border: "1px solid #334155" }}>
+                        {recipients.map((agentId: string) => {
+                          const selected = selectedSubset[agentId] !== false;
+                          return <button key={agentId} type="button" aria-pressed={selected}
+                            className="noc-focusable"
+                            onClick={() => setSelectedSubset((prev: Record<string, boolean>) => ({ ...prev, [agentId]: !selected }))}
+                            style={{ ...selectionStyle(selected, "teal"), display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                          >
+                            {selected ? "✓ " : "○ "}
+                            <AgentAvatar
+                              agentId={agentId}
+                              displayName={getAgentInfo(agentId).displayName}
+                              avatarAttachmentId={getAgentInfo(agentId).avatarAttachmentId}
+                              background={getAgentInfo(agentId).bg}
+                              size={16}
+                            />
+                            {getAgentInfo(agentId).displayName}
+                          </button>;
+                        })}
+                      </div>
+                    )}
+
+                    {recipientMode === "single" && (
+                      <select
+                        className="noc-focusable"
+                        value={singleRecipient}
+                        onChange={e => setSingleRecipient(e.target.value)}
+                        style={{
+                          padding: "0.35rem 0.75rem",
+                          borderRadius: "8px",
+                          background: "rgba(0,0,0,0.4)",
+                          color: "var(--text-main)",
+                          border: "1px solid var(--border-color)",
+                          fontSize: "0.85rem",
+                          outline: "none"
+                        }}
+                      >
+                        {recipients.map((agentId: string) => (
+                          <option key={agentId} value={agentId}>
+                            {getAgentInfo(agentId).displayName} ({getAgentInfo(agentId).role})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="noc-focusable"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={attaching}
+                  title="Add attachment (image or file)"
+                  style={{
+                    padding: "0.6rem 0.8rem",
+                    fontSize: "0.9rem",
+                    marginLeft: "auto",
+                    borderRadius: "8px",
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid var(--border-color)",
+                    color: "#fff",
+                    cursor: attaching ? "not-allowed" : "pointer",
+                    opacity: attaching ? 0.6 : 1,
+                  }}
+                >
+                  {attaching ? "⏳ Attaching…" : "📎 Attach"}
+                </button>
+                <button
+                  className={`${sending ? "btn-secondary" : "btn-primary"} noc-focusable`}
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || sending || activeChannel === "dm-human"}
+                  style={{ padding: "0.6rem 1.5rem", fontSize: "0.9rem" }}
+                >
+                  {sending ? "Sending..." : "Send Message"}
+                </button>
+              </div>
+
+              {/* Intent Tags Row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", paddingTop: "0.35rem", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Intent Tags:</span>
+                <button
+                  type="button"
+                  className="noc-focusable"
+                  onClick={() => setIsTaskTag(prev => !prev)}
+                  aria-pressed={isTaskTag}
+                  style={selectionStyle(isTaskTag, "amber")}
+                  title="Mark as Goal (delivers /goal to existing team members only)"
+                >
+                  ⚡ [GOAL]
+                </button>
+                <button
+                  type="button"
+                  className="noc-focusable"
+                  onClick={() => setIsWakeTag(prev => !prev)}
+                  aria-pressed={isWakeTag}
+                  style={selectionStyle(isWakeTag, "teal")}
+                  title="Mark as Wake request (can wake/spawn team instances)"
+                >
+                  🔔 [WAKE]
+                </button>
+
+                <button type="button" aria-pressed={wakePolicyGate}
+                  className="noc-focusable"
+                  onClick={() => setWakePolicyGate((previous: boolean) => !previous)}
+                  style={{ ...selectionStyle(wakePolicyGate, "amber"), marginLeft: "auto" }}
+                >{wakePolicyGate ? "✓ " : "○ "}Require Human Approval Gate</button>
+              </div>
+              {!isTaskTag && !isWakeTag && (
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.76rem", lineHeight: 1.4 }}>
+                  Plain messages are recorded in this chat only. Select <strong style={{ color: "#fef08a" }}>GOAL</strong> to deliver <code>/goal</code> to an active existing harness, or <strong style={{ color: "#a7f3d0" }}>WAKE</strong> to request an eligible wake.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+  );
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-labelledby="ca-mark-title">
+  <title id="ca-mark-title">Coding-Assistants interlocking circles</title>
+  <circle cx="20" cy="24" r="13" stroke="#6366f1" stroke-width="5"/>
+  <circle cx="28" cy="24" r="13" stroke="#a855f7" stroke-width="5"/>
+  <circle cx="24" cy="24" r="4" fill="#020617" stroke="#6366f1" stroke-width="1.5"/>
+</svg>

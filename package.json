@@ -1,27 +1,41 @@
 {
   "name": "tauri-app",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "vitest run",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "docs:dev": "npm --prefix docs/website run dev",
+    "docs:build": "npm --prefix docs/website run build",
+    "docs:test": "npm --prefix docs/website run test",
+    "docs:lint": "npm --prefix docs/website run lint",
+    "docs:e2e": "npm --prefix docs/website run cypress:run",
+    "docs:api": "npm --prefix docs/website run docs:api"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "jsdom": "^29.1.1",
+    "typescript": "~7.0.2",
+    "vite": "^7.0.4",
+    "vitest": "^4.1.11"
   }
 }

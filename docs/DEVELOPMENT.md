@@ -23,7 +23,9 @@ Everything you need to set up your development environment and start working on 
 
 Tauri 2 requires system dependencies that vary by platform. Follow the official guide:
 
-- **Linux**: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`
+- **Linux**: `sudo apt install pkgconf libdbus-1-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`
+
+`libdbus-1-dev` is required by the keyring crate (`just install-ca` builds it). `just setup` installs this set when sudo can run without a password prompt. Otherwise it downloads the same packages and unpacks them under `~/.local/share/coding-assistants/sysroot`. `just start` also builds the Claude channel and MCP sidecar binaries and copies them into `src-tauri/binaries/` with the host target triple, which Tauri requires before the desktop app compiles.
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 - **Windows**: Microsoft Visual Studio C++ Build Tools, WebView2
 
@@ -43,7 +45,7 @@ Full details: [Tauri v2 Prerequisites](https://v2.tauri.app/start/prerequisites/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/Coding-Assistants.git
+git clone https://github.com/ACFHarbinger/Coding-Assistants.git
 cd Coding-Assistants
 
 # 2. Install frontend dependencies
@@ -70,7 +72,7 @@ npm run tauri dev
 ```
 
 This command:
-1. Starts the Vite dev server on `http://localhost:1420`
+1. Starts the Vite dev server on port `1420`
 2. Compiles the Rust backend
 3. Launches the Tauri window pointing to the dev server
 4. Watches for frontend changes (HMR) and backend changes (recompile)
@@ -108,10 +110,10 @@ Build output locations:
 | ------------------------------ | ----------------------------- |
 | UI layout, styling             | `src/App.tsx`, `src/index.css` |
 | New Tauri command              | `src-tauri/src/lib.rs`        |
-| Agent orchestration logic      | `src-tauri/src/agents.rs`     |
-| LLM provider integration      | `src-tauri/src/llm_client.rs` |
-| Remote control protocol       | `src-tauri/src/tcp_server.rs` |
-| File system operations         | `src-tauri/src/file_tools.rs` |
+| Agent orchestration logic      | `src-tauri/src/agent/orchestrator.rs` |
+| LLM provider integration      | `src-tauri/src/client/llm.rs` |
+| Remote control protocol       | `src-tauri/src/server/tcp_server.rs` |
+| File system operations         | `src-tauri/src/core/file_tools.rs` |
 | Tauri permissions/capabilities | `src-tauri/capabilities/`     |
 | App metadata/config            | `src-tauri/tauri.conf.json`   |
 
@@ -145,7 +147,7 @@ const result = await invoke<string>("my_command", { arg: "world" });
 
 ### Adding a New LLM Provider
 
-1. Add the provider logic in `src-tauri/src/llm_client.rs`
+1. Add the provider logic in `src-tauri/src/client/llm.rs`
 2. Update `chat_completion()` to handle the new provider string
 3. Update `list_models()` if the provider supports model discovery
 4. Add the provider option to the frontend dropdown in `src/App.tsx`

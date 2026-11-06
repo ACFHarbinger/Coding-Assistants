@@ -1,0 +1,351 @@
+use super::*;
+
+mod consolidation;
+pub mod embeddings;
+#[allow(unused_imports)]
+pub use consolidation::{ConsolidationCluster, ConsolidationReport};
+mod memories;
+mod memory_links;
+pub use memory_links::{LinkSuggestion, UNATTRIBUTED_AUTHOR};
+/// One step in a multi-agent workflow (C5).
+///
+/// Consecutive steps that share the same non-empty `parallel_group` form a
+/// **parallel stage** (bounded by the task's `max_parallel`). Steps with
+/// `parallel_group = null` are sequential one-agent stages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowStep {
+    pub agent: String,
+    #[serde(default)]
+    pub role: Option<String>,
+    pub instruction: String,
+    /// How many times this step may be re-dispatched after a full-stage
+    /// `retry_task` (default 0). Retrying queued `pending_agents` does not
+    /// consume this budget.
+    #[serde(default)]
+    pub max_retries: u32,
+    /// When set, adjacent steps with the same group run as one parallel stage.
+    #[serde(default)]
+    pub parallel_group: Option<String>,
+    /// Remote peer (`host:port`) that executes this step via the TCP
+    /// delegation client (P11a / #334). `None` (the default) dispatches
+    /// locally as before. Old JSON without this key still parses.
+    #[serde(default)]
+    pub peer: Option<String>,
+    /// P20 (#367): optional next-stage selector evaluated when this step's
+    /// stage completes, with Schedule's gate evaluator. `None` keeps the
+    /// linear advance. Omitted from JSON when unset so older readers see
+    /// the same payload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<StepBranch>,
+    /// Optional sub-task ID to run to completion as this step (P19 / #366).
+    /// Parent advances only after the child TaskRecord reaches a terminal status.
+    #[serde(default)]
+    pub sub_task_id: Option<String>,
+    /// Structured metadata for handoff (reason/priority) — audit/logging only (P17 / #361).
+    #[serde(default)]
+    pub handoff_metadata: Option<serde_json::Value>,
+    /// Opt-in context filter for the receiving session (P17 / #361).
+    /// Examples: "strip_tools", "cap:10". None = full context (default).
+    #[serde(default)]
+    pub context_filter: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    Pending,
+    Running,
+    Done,
+    Cancelled,
+    Failed,
+    /// A2A INPUT_REQUIRED — interrupted, waiting for human input (bridged to WakePolicy).
+    InputRequired,
+    /// A2A AUTH_REQUIRED — interrupted, waiting for auth.
+    AuthRequired,
+}
+
+impl TaskStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Done => "done",
+            Self::Cancelled => "cancelled",
+            Self::Failed => "failed",
+            Self::InputRequired => "input_required",
+            Self::AuthRequired => "auth_required",
+        }
+    }
+
+    pub fn parse(s: &str) -> Result<Self, HubError> {
+        match s {
+            "pending" => Ok(Self::Pending),
+            "running" => Ok(Self::Running),
+            "done" => Ok(Self::Done),
+            "cancelled" => Ok(Self::Cancelled),
+            "failed" => Ok(Self::Failed),
+            "input_required" | "input-required" => Ok(Self::InputRequired),
+            "auth_required" | "auth-required" => Ok(Self::AuthRequired),
+            other => Err(HubError::Invalid(format!("unknown task status: {other}"))),
+        }
+    }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Done | Self::Cancelled | Self::Failed)
+    }
+
+    /// Running, or paused on the existing wake gate (not a second gate).
+    pub fn is_in_progress(self) -> bool {
+        matches!(
+            self,
+            Self::Running | Self::InputRequired | Self::AuthRequired
+        )
+    }
+
+    /// Status stored after a local dispatch.
+    ///
+    /// `wake_requires_gate` is `WakePolicy`'s flag on the wake `request_wake`
+    /// just wrote. The task's own approval request is input; a policy-forced
+    /// gate when the task did not ask is auth. No gate stays running.
+    pub fn after_local_dispatch(task_requires_approval: bool, wake_requires_gate: bool) -> Self {
+        if !wake_requires_gate {
+            Self::Running
+        } else if task_requires_approval {
+            Self::InputRequired
+        } else {
+            Self::AuthRequired
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRecord {
+    pub id: String,
+    pub title: String,
+    pub workspace_path: Option<String>,
+    pub status: String,
+    /// Index into the list of **stages** (sequential units / parallel groups).
+    pub step_index: i64,
+    pub steps: Vec<WorkflowStep>,
+    pub created_at: String,
+    pub updated_at: String,
+    /// Last real handoff of the current stage — the externally-visible
+    /// result pointer (A2A `task_result`, UI). Never the screening stamp.
+    pub last_message_id: Option<String>,
+    /// Internal output-screening cursor. Set once before any parallel
+    /// member can respond; never overwritten mid-stage; never a result.
+    #[serde(default)]
+    pub output_watermark_id: Option<String>,
+    /// Per-stage attempt counts (`"0" → 1` after first dispatch).
+    pub attempts: std::collections::HashMap<String, u32>,
+    /// Agents still outstanding in the current parallel stage (empty when sequential).
+    pub open_agents: Vec<String>,
+    /// Agents in the current stage not yet woken (queued behind max_parallel).
+    pub pending_agents: Vec<String>,
+    /// Max concurrent wakes inside a parallel stage (default 4).
+    pub max_parallel: u32,
+    /// Whether this task requires human approval for delegation/wakes (C4).
+    pub require_human_approval: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactReport {
+    pub examined: usize,
+    pub promoted: usize,
+    pub kept: usize,
+    pub skipped: usize,
+}
+
+/// Standing policy for wake/delegation human gates (C4 skeleton).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WakePolicy {
+    /// When true, every wake request requires human approval.
+    pub default_requires_human_gate: bool,
+    /// When false, auto-wake without a gate is rejected.
+    pub allow_auto_wake: bool,
+}
+
+impl Default for WakePolicy {
+    fn default() -> Self {
+        Self {
+            default_requires_human_gate: true,
+            allow_auto_wake: true,
+        }
+    }
+}
+
+/// Per-agent provider-call/spend budget (C6). Units are caller-defined
+/// (call count, USD, tokens, ...) — the store only compares totals.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetStatus {
+    pub agent_id: String,
+    pub limit_units: f64,
+    pub spent_units: f64,
+    /// True once spend has reached or exceeded the limit; wakes are blocked
+    /// for this agent until a human explicitly `resume_agent`s it.
+    pub paused: bool,
+    pub updated_at: String,
+}
+
+/// Cumulative usage counters used by the local observability dashboard.
+/// Token counts are estimates unless a provider adapter reports exact values;
+/// cache hits remain zero until such an adapter is connected.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMetrics {
+    pub agent_id: String,
+    pub lines_written: i64,
+    pub tokens_used: i64,
+    pub tokens_cached: i64,
+    pub provider_calls: i64,
+    pub output_chars: i64,
+    pub updated_at: String,
+}
+
+/// Result of `HubStore::pause_for_budget` (C6): the exhaustion handoff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetPauseOutcome {
+    pub status: BudgetStatus,
+    /// Markdown handoff summary path under `markdown/handoffs/`.
+    pub summary_path: PathBuf,
+    /// The durable handoff message id sent to `delegate_to` (or `"human"`).
+    pub handoff_message_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShutdownOutcome {
+    pub summary_path: PathBuf,
+    pub handoff_message_id: String,
+}
+
+/// Default reservation for one in-process provider call (P10). Units stay
+/// caller-defined; this is the orchestrator's call-count mapping.
+pub const DEFAULT_PROVIDER_CALL_UNITS: f64 = 1.0;
+
+/// Runtime budget gate (P10) decided before a provider call starts.
+/// Affine/compile-time budget types remain postponed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "decision", rename_all = "snake_case")]
+pub enum ProviderCallGate {
+    /// No `agent_budgets` row — the caller may proceed and records nothing.
+    Unmetered,
+    /// Units reserved. `status.paused` means this was the last allowed call;
+    /// make it, then write the C6 handoff before starting another.
+    Reserved { status: BudgetStatus },
+    /// Already paused, or this reservation would exceed the limit. Do not
+    /// call. `handoff` is set only when this call was the first exhaustion.
+    Stopped {
+        status: BudgetStatus,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        handoff: Option<BudgetPauseOutcome>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvent {
+    pub id: String,
+    pub root_path: String,
+    pub path: String,
+    pub operation: String,
+    pub observed_at: String,
+    pub process_json: String,
+    pub content_hash: Option<String>,
+    pub previous_hash: Option<String>,
+    pub event_hash: String,
+    pub status: String,
+}
+
+/// A Chat & Memory channel (`#general`, custom names). Work sessions and
+/// DMs are not stored here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelRecord {
+    pub id: String,
+    pub name: String,
+    pub topic: Option<String>,
+    pub builtin: bool,
+    pub created_at: String,
+}
+
+/// Whether the Hub owns the provider process/session or only observes it.
+///
+/// Observed sessions retain C12's conservative safety boundary: they may be
+/// captured and, only where the provider publishes a safe bridge, messaged.
+/// Managed sessions are explicitly created by Coding-Assistants and may claim
+/// the per-session writer lease required by C14.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionMode {
+    Observed,
+    Managed,
+}
+
+impl HarnessSessionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Observed => "observed",
+            Self::Managed => "managed",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "observed" => Ok(Self::Observed),
+            "managed" => Ok(Self::Managed),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session mode: {other}"
+            ))),
+        }
+    }
+}
+
+/// Truthful provider readiness used by managed-session UI and delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessSessionState {
+    Ready,
+    Busy,
+    Queued,
+    Unavailable,
+    Stopped,
+}
+
+impl HarnessSessionState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Busy => "busy",
+            Self::Queued => "queued",
+            Self::Unavailable => "unavailable",
+            Self::Stopped => "stopped",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, HubError> {
+        match value {
+            "ready" => Ok(Self::Ready),
+            "busy" => Ok(Self::Busy),
+            "queued" => Ok(Self::Queued),
+            "unavailable" => Ok(Self::Unavailable),
+            "stopped" => Ok(Self::Stopped),
+            other => Err(HubError::Invalid(format!(
+                "unknown harness session state: {other}"
+            ))),
+        }
+    }
+}
+
+/// An explicitly registered harness session (C12 / C14 bridge).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarnessSessionRegistration {
+    pub harness: String,
+    pub workspace: String,
+    pub disk_session_id: String,
+    pub leader_socket: Option<String>,
+    pub registered_at: String,
+    pub mode: HarnessSessionMode,
+    pub state: HarnessSessionState,
+    pub managed_pid: Option<u32>,
+    pub writer_owner: Option<String>,
+    pub writer_acquired_at: Option<String>,
+    #[serde(default)]
+    pub pid_alive: Option<bool>,
+}

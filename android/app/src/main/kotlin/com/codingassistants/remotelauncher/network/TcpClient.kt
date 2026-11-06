@@ -1,0 +1,364 @@
+package com.codingassistants.remotelauncher.network
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.PrintWriter
+import java.net.Socket
+
+@Serializable
+sealed class ClientRequest {
+    @Serializable
+    @SerialName("Authenticate")
+    data class Authenticate(
+        val token: String,
+    ) : ClientRequest()
+
+    @Serializable
+    @SerialName("GetModels")
+    class GetModels : ClientRequest()
+
+    @Serializable
+    @SerialName("StartTask")
+    data class StartTask(
+        val config: AgentConfig,
+        val task: String,
+    ) : ClientRequest()
+
+    @Serializable
+    @SerialName("CancelTask")
+    class CancelTask : ClientRequest()
+
+    @Serializable
+    @SerialName("SubmitInput")
+    data class SubmitInput(
+        val input: String,
+    ) : ClientRequest()
+
+    @Serializable
+    @SerialName("GetStatus")
+    class GetStatus : ClientRequest()
+
+    @Serializable
+    @SerialName("GetPendingWakes")
+    class GetPendingWakes : ClientRequest()
+
+    @Serializable
+    @SerialName("ResolveWake")
+    data class ResolveWake(
+        val wake_id: String,
+        val approve: Boolean,
+    ) : ClientRequest()
+
+    @Serializable
+    @SerialName("GetAgentResources")
+    class GetAgentResources : ClientRequest()
+}
+
+@Serializable
+data class AgentConfig(
+    val roles: List<RoleConfig>,
+    val work_dir: String,
+    val mcp_config: String,
+)
+
+@Serializable
+data class RoleConfig(
+    val name: String,
+    val config: ModelConfig,
+)
+
+@Serializable
+data class ModelConfig(
+    val provider: String,
+    val model: String,
+    val prompt_file: String? = null,
+    val rule_file: String? = null,
+    val workflow_file: String? = null,
+    val skill_file: String? = null,
+)
+
+@Serializable
+sealed class ServerResponse {
+    @Serializable
+    @SerialName("ModelsList")
+    data class ModelsList(
+        val models: Map<String, List<String>>,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("TaskStarted")
+    class TaskStarted : ServerResponse()
+
+    @Serializable
+    @SerialName("TaskEvent")
+    data class TaskEvent(
+        val source: String,
+        val event_type: String,
+        val content: String,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("TaskComplete")
+    data class TaskComplete(
+        val result: String,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("Status")
+    data class Status(
+        val running: Boolean,
+        val message: String,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("Error")
+    data class Error(
+        val message: String,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("PendingWakesList")
+    data class PendingWakesList(
+        val wakes: List<WakeRecord>,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("WakeResolved")
+    data class WakeResolved(
+        val wake_id: String,
+    ) : ServerResponse()
+
+    @Serializable
+    @SerialName("AgentResourcesList")
+    data class AgentResourcesList(
+        val work_dir: String,
+        val prompts: List<String> = emptyList(),
+        val rules: List<String> = emptyList(),
+        val workflows: List<String> = emptyList(),
+        val skills: List<String> = emptyList(),
+    ) : ServerResponse()
+}
+
+@Serializable
+data class AgentResources(
+    val prompts: List<String> = emptyList(),
+    val rules: List<String> = emptyList(),
+    val workflows: List<String> = emptyList(),
+    val skills: List<String> = emptyList(),
+)
+
+@Serializable
+data class WakeRecord(
+    val id: String,
+    val target_agent: String,
+    val message_id: String? = null,
+    val reason: String? = null,
+    val status: String,
+    val requires_human_gate: Boolean,
+    val created_at: String,
+)
+
+class TcpClient(private val host: String, private val port: Int = 5555) {
+    private var socket: Socket? = null
+    private var writer: PrintWriter? = null
+    private var reader: BufferedReader? = null
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private val _messages = MutableSharedFlow<ServerResponse>()
+    val messages = _messages.asSharedFlow()
+
+    private var onConnectionLostListener: (() -> Unit)? = null
+    private var userInitiatedDisconnect = false
+
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+
+    fun setOnConnectionLostListener(listener: () -> Unit) {
+        onConnectionLostListener = listener
+    }
+
+    suspend fun connect(token: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                if (token.isBlank()) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("authentication token required"),
+                    )
+                }
+                userInitiatedDisconnect = false
+                socket = Socket(host, port)
+                writer = PrintWriter(socket!!.getOutputStream(), true)
+                reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
+
+                val handshake = json.encodeToString<ClientRequest>(ClientRequest.Authenticate(token))
+                writer?.println(handshake)
+                if (writer?.checkError() == true) {
+                    disconnectInternal()
+                    return@withContext Result.failure(java.io.IOException("Socket write error"))
+                }
+                val reply =
+                    reader?.readLine()
+                        ?: return@withContext Result.failure(java.io.IOException("No handshake response"))
+                when (val response = json.decodeFromString<ServerResponse>(reply)) {
+                    is ServerResponse.Error -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(IllegalStateException(response.message))
+                    }
+                    is ServerResponse.Status -> {
+                        if (response.message != "Authenticated") {
+                            disconnectInternal()
+                            return@withContext Result.failure(
+                                IllegalStateException("authentication required"),
+                            )
+                        }
+                    }
+                    else -> {
+                        disconnectInternal()
+                        return@withContext Result.failure(
+                            IllegalStateException("authentication required"),
+                        )
+                    }
+                }
+
+                startListening()
+                startHeartbeat()
+
+                Result.success(Unit)
+            } catch (e: Exception) {
+                disconnectInternal()
+                Result.failure(e)
+            }
+        }
+
+    private fun startListening() {
+        scope.launch {
+            try {
+                while (isActive) {
+                    val line = reader?.readLine() ?: break
+                    if (line.isBlank()) continue
+
+                    try {
+                        val response = json.decodeFromString<ServerResponse>(line)
+                        _messages.emit(response)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                handleSocketClosed()
+            }
+        }
+    }
+
+    private fun startHeartbeat() {
+        scope.launch {
+            while (isActive && isConnected()) {
+                delay(5000)
+                if (!isActive || !isConnected()) break
+                try {
+                    val jsonString = json.encodeToString<ClientRequest>(ClientRequest.GetStatus())
+                    writer?.println(jsonString)
+                    if (writer?.checkError() == true) {
+                        handleSocketClosed()
+                        break
+                    }
+                } catch (e: Exception) {
+                    handleSocketClosed()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun handleSocketClosed() {
+        val wasExplicit = userInitiatedDisconnect
+        disconnectInternal()
+        if (!wasExplicit) {
+            onConnectionLostListener?.invoke()
+        }
+    }
+
+    suspend fun sendRequest(request: ClientRequest): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val jsonString = json.encodeToString(request)
+                writer?.println(jsonString)
+                if (writer?.checkError() == true) {
+                    handleSocketClosed()
+                    Result.failure(java.io.IOException("Socket write error"))
+                } else {
+                    Result.success(Unit)
+                }
+            } catch (e: Exception) {
+                handleSocketClosed()
+                Result.failure(e)
+            }
+        }
+
+    suspend fun getModels(): Result<Unit> = sendRequest(ClientRequest.GetModels())
+
+    suspend fun getAgentResources(): Result<Unit> = sendRequest(ClientRequest.GetAgentResources())
+
+    suspend fun startTask(
+        config: AgentConfig,
+        task: String,
+    ): Result<Unit> = sendRequest(ClientRequest.StartTask(config = config, task = task))
+
+    suspend fun cancelTask(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.CancelTask())
+        }
+
+    suspend fun getPendingWakes(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.GetPendingWakes())
+        }
+
+    suspend fun resolveWake(
+        wakeId: String,
+        approve: Boolean,
+    ): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            sendRequest(ClientRequest.ResolveWake(wakeId, approve))
+        }
+
+    suspend fun submitInput(input: String): Result<Unit> = sendRequest(ClientRequest.SubmitInput(input = input))
+
+    fun disconnect() {
+        userInitiatedDisconnect = true
+        disconnectInternal()
+    }
+
+    private fun disconnectInternal() {
+        try {
+            scope.coroutineContext.cancelChildren()
+            writer?.close()
+            reader?.close()
+            socket?.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
+}
